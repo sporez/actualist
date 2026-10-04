@@ -66,8 +66,7 @@ struct TransactionBatchDeleteTests {
         _ selections: [TransactionSelectionIdentity]
     ) async throws -> TransactionBatchReview {
         let review = try await bundle.store.reviewTransactionBatch(
-            context: base.context(for: bundle.store), intent: .delete, selections: selections,
-            loadedUngroupedTransactionIDs: selections.map(\.transactionID)
+            context: base.context(for: bundle.store), intent: .delete, selections: selections
         )
         #expect(review.canSubmit)
         _ = try await bundle.store.commitTransactionBatch(review: review, authorization: nil)

@@ -13,8 +13,7 @@ struct TransactionBatchMutationTests {
         let review = try await database.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
-            selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            selections: [identity("txn")]
         )
         #expect(review.canSubmit)
         #expect(review.blockedCount == 0)
@@ -50,8 +49,7 @@ struct TransactionBatchMutationTests {
         let review = try await database.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
-            selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            selections: [identity("txn")]
         )
         var builder = LocalFirstSyncMessageBuilder()
         let newerWrite = try builder.makeMessage(
@@ -78,8 +76,7 @@ struct TransactionBatchMutationTests {
         let ctx = context(for: bundle.store)
         let rows = [identity("txn"), identity("reconciled")]
         let review = try await bundle.store.reviewTransactionBatch(
-            context: ctx, intent: .clear, selections: rows,
-            loadedUngroupedTransactionIDs: ["txn", "reconciled"]
+            context: ctx, intent: .clear, selections: rows
         )
         #expect(review.clearTarget == true)
         #expect(review.skippedCount == 1)
@@ -111,7 +108,7 @@ struct TransactionBatchMutationTests {
             """)
         let review = try await bundle.store.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .categorize(categoryID: "utilities"),
-            selections: [identity("txn")], loadedUngroupedTransactionIDs: ["txn"]
+            selections: [identity("txn")]
         )
         let authorization = try #require(review.authorization)
         #expect(authorization.reconciledTransactionIDs.isEmpty)
@@ -137,8 +134,7 @@ struct TransactionBatchMutationTests {
         let review = try await bundle.store.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
-            selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            selections: [identity("txn")]
         )
 
         #expect(review.rowChanges.first?.before.payeeID == "coffee-alias")
@@ -158,8 +154,7 @@ struct TransactionBatchMutationTests {
             let review = try await bundle.store.reviewTransactionBatch(
                 context: context(for: bundle.store),
                 intent: intent,
-                selections: [identity("txn")],
-                loadedUngroupedTransactionIDs: ["txn"]
+                selections: [identity("txn")]
             )
             #expect(review.blockedCount == 1)
             #expect(!review.canSubmit)
@@ -175,8 +170,7 @@ struct TransactionBatchMutationTests {
         let review = try await bundle.store.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
-            selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            selections: [identity("txn")]
         )
         let url = try bundle.fileManager.databaseURL(fileID: #require(bundle.budget.budgetID))
         let queue = try DatabaseQueue(path: url.path)
@@ -202,8 +196,7 @@ struct TransactionBatchMutationTests {
         let review = try await bundle.store.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
-            selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            selections: [identity("txn")]
         )
         let url = try bundle.fileManager.databaseURL(fileID: #require(bundle.budget.budgetID))
         let queue = try DatabaseQueue(path: url.path)
@@ -235,8 +228,7 @@ struct TransactionBatchMutationTests {
             try await bundle.store.reviewTransactionBatch(
                 context: context(for: bundle.store),
                 intent: .categorize(categoryID: "utilities"),
-                selections: [identity("txn")],
-                loadedUngroupedTransactionIDs: ["txn"]
+                selections: [identity("txn")]
             )
         }
         #expect(try await persistenceState(bundle) == before)
@@ -264,8 +256,7 @@ struct TransactionBatchMutationTests {
             try await database.reviewTransactionBatch(
                 context: context(for: bundle.store),
                 intent: .categorize(categoryID: "utilities"),
-                selections: [identity("txn")],
-                loadedUngroupedTransactionIDs: ["txn"]
+                selections: [identity("txn")]
             )
         }
 
@@ -350,7 +341,7 @@ struct TransactionBatchMutationTests {
         let clockBefore = await database.localClock
         let review = try await bundle.store.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .categorize(categoryID: "utilities"),
-            selections: [identity("txn")], loadedUngroupedTransactionIDs: ["txn"]
+            selections: [identity("txn")]
         )
         #expect(review.blockedCount == 1)
         #expect(!review.canSubmit)
@@ -388,7 +379,7 @@ struct TransactionBatchMutationTests {
         let clockBefore = await database.localClock
         let review = try await bundle.store.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .categorize(categoryID: "utilities"),
-            selections: selections, loadedUngroupedTransactionIDs: ["txn", "split-root"]
+            selections: selections
         )
         #expect(review.blockedCount == 1)
         #expect(!review.canSubmit)
@@ -426,7 +417,7 @@ struct TransactionBatchMutationTests {
         do {
             _ = try await bundle.store.reviewTransactionBatch(
                 context: context(for: bundle.store), intent: .categorize(categoryID: "utilities"),
-                selections: [identity("txn")], loadedUngroupedTransactionIDs: ["txn"]
+                selections: [identity("txn")]
             )
             Issue.record("Expected SQLite failure from categorization validation")
         } catch is LocalFirstError {
@@ -442,8 +433,7 @@ struct TransactionBatchMutationTests {
             """)
         let database = try #require(bundle.store.database)
         let review = try await bundle.store.reviewTransactionBatch(
-            context: context(for: bundle.store), intent: .clear, selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            context: context(for: bundle.store), intent: .clear, selections: [identity("txn")]
         )
         database.invalidateSessionWrites()
         do {
@@ -458,8 +448,7 @@ struct TransactionBatchMutationTests {
             """)
         let reopenedDB = try #require(reopened.store.database)
         let liveReview = try await reopened.store.reviewTransactionBatch(
-            context: context(for: reopened.store), intent: .clear, selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            context: context(for: reopened.store), intent: .clear, selections: [identity("txn")]
         )
         _ = try await reopened.store.commitTransactionBatch(review: liveReview, authorization: nil)
         let record = try #require(try await reopenedDB.actionLogRecord(id: liveReview.id))
@@ -479,8 +468,7 @@ struct TransactionBatchMutationTests {
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
         let review = try await database.reviewTransactionBatch(
-            context: context(for: bundle.store), intent: .clear, selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            context: context(for: bundle.store), intent: .clear, selections: [identity("txn")]
         )
         let clockBefore = await database.localClock
         let cancelledCommit = Task {
@@ -504,8 +492,7 @@ struct TransactionBatchMutationTests {
         let store = bundle.store
         let oldContext = context(for: store)
         let oldReview = try await store.reviewTransactionBatch(
-            context: oldContext, intent: .clear, selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            context: oldContext, intent: .clear, selections: [identity("txn")]
         )
         let previousGeneration = store.budgetSessionGeneration
         store.closeOpenBudget()
@@ -522,8 +509,7 @@ struct TransactionBatchMutationTests {
         } == 0)
 
         let freshReview = try await store.reviewTransactionBatch(
-            context: context(for: store), intent: .clear, selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            context: context(for: store), intent: .clear, selections: [identity("txn")]
         )
         let outcome = try await store.commitTransactionBatch(review: freshReview, authorization: nil)
         #expect(outcome.receipt.actionID == freshReview.id)
@@ -539,8 +525,7 @@ struct TransactionBatchMutationTests {
         )
         let database = try #require(bundle.store.database)
         let review = try await bundle.store.reviewTransactionBatch(
-            context: context(for: bundle.store), intent: .clear, selections: [identity("txn")],
-            loadedUngroupedTransactionIDs: ["txn"]
+            context: context(for: bundle.store), intent: .clear, selections: [identity("txn")]
         )
         let commit = Task { try await bundle.store.commitTransactionBatch(review: review, authorization: nil) }
         guard await gate.waitForEntry() else {
@@ -568,7 +553,7 @@ struct TransactionBatchMutationTests {
         let database = try #require(bundle.store.database)
         let review = try await bundle.store.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .clear,
-            selections: [identity("txn")], loadedUngroupedTransactionIDs: ["txn"]
+            selections: [identity("txn")]
         )
         let commit = Task { try await bundle.store.commitTransactionBatch(review: review, authorization: nil) }
         guard await gate.waitForEntry() else {
@@ -602,7 +587,7 @@ struct TransactionBatchMutationTests {
 
         let review = try await store.reviewTransactionBatch(
             context: context(for: store), intent: .clear,
-            selections: [identity("txn")], loadedUngroupedTransactionIDs: ["txn"]
+            selections: [identity("txn")]
         )
         let outcome = try await store.commitTransactionBatch(review: review, authorization: nil)
         #expect(outcome.refreshPending)
@@ -624,8 +609,7 @@ struct TransactionBatchMutationTests {
             """)
         let database = try #require(bundle.store.database)
         let review = try await bundle.store.reviewTransactionBatch(
-            context: context(for: bundle.store), intent: .delete, selections: [identity("split-root")],
-            loadedUngroupedTransactionIDs: ["split-root"]
+            context: context(for: bundle.store), intent: .delete, selections: [identity("split-root")]
         )
         _ = try await bundle.store.commitTransactionBatch(review: review, authorization: nil)
         let deletedGraph = try readRows(bundle) { db in

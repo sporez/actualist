@@ -8,7 +8,7 @@ struct TransactionBatchPresentationTests {
         let repository = DeferredFirstBatchReviewRepository(firstRequestFails: true)
         let presentation = TransactionBatchPresentation()
         let context = makeContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context, loadedUngroupedTransactionIDs: ["first", "second"])
+        let snapshot = TransactionBatchFeedSnapshot(context: context)
 
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "first"))
@@ -50,7 +50,7 @@ struct TransactionBatchPresentationTests {
         let repository = DeferredFirstBatchReviewRepository(firstRequestFails: false)
         let presentation = TransactionBatchPresentation()
         let context = makeContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context, loadedUngroupedTransactionIDs: ["first", "second"])
+        let snapshot = TransactionBatchFeedSnapshot(context: context)
 
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "first"))
@@ -112,7 +112,6 @@ struct TransactionBatchPresentationTests {
             context: makeContext(),
             intent: .delete,
             selections: [selected],
-            loadedUngroupedTransactionIDs: ["selected"],
             dispositions: [.eligible(TransactionBatchEffectSummary(
                 selection: selected,
                 affectedTransactionIDs: ["selected", "paired"],
@@ -169,7 +168,6 @@ struct TransactionBatchPresentationTests {
             context: makeContext(),
             intent: .clear,
             selections: [skipped, blocked],
-            loadedUngroupedTransactionIDs: ["skipped", "blocked"],
             dispositions: [
                 .skipped(.init(selection: skipped, explanation: "Reconciled transactions are left unchanged.")),
                 .blocked(.init(selection: blocked, explanation: "The transfer pair is incomplete.")),
@@ -209,7 +207,6 @@ struct TransactionBatchPresentationTests {
             context: makeContext(),
             intent: .delete,
             selections: [missing],
-            loadedUngroupedTransactionIDs: ["missing"],
             dispositions: [.blocked(.init(
                 selection: missing,
                 explanation: "The selected transaction is missing."
@@ -250,7 +247,6 @@ struct TransactionBatchPresentationTests {
             context: makeContext(),
             intent: .delete,
             selections: [selected],
-            loadedUngroupedTransactionIDs: ["selected"],
             dispositions: [.eligible(.init(
                 selection: selected,
                 affectedTransactionIDs: ["selected"],
@@ -432,8 +428,7 @@ private final class DeferredFirstBatchReviewRepository: TransactionBatchReposito
     func reviewTransactionBatch(
         context: TransactionSelectionContext,
         intent: TransactionBatchIntent,
-        selections: [TransactionSelectionIdentity],
-        loadedUngroupedTransactionIDs: [String]
+        selections: [TransactionSelectionIdentity]
     ) async throws -> TransactionBatchReview {
         requestCount += 1
         if requestCount == 1 {
@@ -447,7 +442,6 @@ private final class DeferredFirstBatchReviewRepository: TransactionBatchReposito
             context: context,
             intent: intent,
             selections: selections,
-            loadedUngroupedTransactionIDs: loadedUngroupedTransactionIDs,
             dispositions: selections.map {
                 .eligible(TransactionBatchEffectSummary(
                     selection: $0,

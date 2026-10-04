@@ -4,16 +4,14 @@ extension LocalFirstActualStore: TransactionBatchRepositoryProtocol {
     func reviewTransactionBatch(
         context: TransactionSelectionContext,
         intent: TransactionBatchIntent,
-        selections: [TransactionSelectionIdentity],
-        loadedUngroupedTransactionIDs: [String]
+        selections: [TransactionSelectionIdentity]
     ) async throws -> TransactionBatchReview {
         let database = try requireDatabase(for: context.budgetID)
         try requireBatchSession(context, database: database)
         let review = try await database.reviewTransactionBatch(
             context: context,
             intent: intent,
-            selections: selections,
-            loadedUngroupedTransactionIDs: loadedUngroupedTransactionIDs
+            selections: selections
         )
         try requireBatchSession(context, database: database)
         return review

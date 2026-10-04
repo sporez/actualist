@@ -196,7 +196,6 @@ struct TransactionSelectionCoordinatorTests {
             context: incompleteReview.context,
             intent: incompleteReview.intent,
             selections: incompleteReview.selections,
-            loadedUngroupedTransactionIDs: incompleteReview.loadedUngroupedTransactionIDs,
             dispositions: Array(incompleteReview.dispositions.dropLast()),
             rowChanges: incompleteReview.rowChanges,
             metadata: incompleteReview.metadata,
@@ -233,7 +232,6 @@ struct TransactionSelectionCoordinatorTests {
             context: allowedSubset.context,
             intent: allowedSubset.intent,
             selections: allowedSubset.selections,
-            loadedUngroupedTransactionIDs: allowedSubset.loadedUngroupedTransactionIDs,
             dispositions: [
                 allowedSubset.dispositions[0],
                 .blocked(TransactionBatchDispositionReason(
@@ -274,7 +272,6 @@ struct TransactionSelectionCoordinatorTests {
             context: preparation.context,
             intent: .clear,
             selections: preparation.selections,
-            loadedUngroupedTransactionIDs: preparation.selections.map(\.transactionID),
             dispositions: [
                 .eligible(TransactionBatchEffectSummary(
                     selection: identity,
@@ -303,18 +300,35 @@ struct TransactionSelectionCoordinatorTests {
     }
 
     @Test func clearTargetMatchesPinnedSourceToggleRuleAndRejectsMissingState() {
-        #expect(TransactionBatchClearTarget.fromLoadedRows([
+        func root(_ id: String) -> TransactionSelectionIdentity {
+            TransactionSelectionIdentity(transactionID: id, familyRootID: id, role: .root)!
+        }
+        #expect(TransactionBatchClearTarget.fromSelection([root("a"), root("b")], rows: [
             makeRowSnapshot(id: "a", cleared: true),
             makeRowSnapshot(id: "b", cleared: true),
         ]) == false)
-        #expect(TransactionBatchClearTarget.fromLoadedRows([
+        #expect(TransactionBatchClearTarget.fromSelection([root("a"), root("b")], rows: [
             makeRowSnapshot(id: "a", cleared: false),
             makeRowSnapshot(id: "b", cleared: true),
         ]) == true)
-        #expect(TransactionBatchClearTarget.fromLoadedRows([
+        #expect(TransactionBatchClearTarget.fromSelection([root("a")], rows: [
             makeRowSnapshot(id: "a", cleared: nil),
         ]) == nil)
-        #expect(TransactionBatchClearTarget.fromLoadedRows([]) == nil)
+        #expect(TransactionBatchClearTarget.fromSelection([root("a")], rows: []) == nil)
+    }
+
+    @Test func clearTargetIgnoresUnselectedRowsAndUsesTheSelectedFamily() {
+        let parent = TransactionSelectionIdentity(transactionID: "p", familyRootID: "p", role: .root)!
+        let child = TransactionSelectionIdentity(transactionID: "c1", familyRootID: "p", role: .child)!
+        let rows = [
+            makeRowSnapshot(id: "p", cleared: true),
+            makeRowSnapshot(id: "c1", cleared: true, parentID: "p"),
+            makeRowSnapshot(id: "c2", cleared: false, parentID: "p"),
+            makeRowSnapshot(id: "other", cleared: false),
+        ]
+        #expect(TransactionBatchClearTarget.fromSelection([parent], rows: rows) == true)
+        #expect(TransactionBatchClearTarget.fromSelection([child], rows: rows) == true)
+        #expect(TransactionBatchClearTarget.fromSelection([parent], rows: Array(rows.prefix(2) + [rows[3]])) == false)
     }
 
     @Test func contextChangeDoesNotDiscardInFlightCommitResult() throws {
@@ -479,7 +493,6 @@ struct TransactionSelectionCoordinatorTests {
             context: preparation.context,
             intent: preparation.intent,
             selections: selections,
-            loadedUngroupedTransactionIDs: selections.map(\.transactionID),
             dispositions: selections.map {
                 .eligible(TransactionBatchEffectSummary(
                     selection: $0,
@@ -500,7 +513,7 @@ struct TransactionSelectionCoordinatorTests {
         )
     }
 
-    private func makeRowSnapshot(id: String, cleared: Bool?) -> TransactionBatchRowSnapshot {
+    private func makeRowSnapshot(id: String, cleared: Bool?, parentID: String? = nil) -> TransactionBatchRowSnapshot {
         TransactionBatchRowSnapshot(
             id: id,
             accountID: "account",
@@ -513,8 +526,8 @@ struct TransactionSelectionCoordinatorTests {
             reconciled: false,
             tombstone: false,
             isParent: false,
-            isChild: false,
-            parentID: nil,
+            isChild: parentID != nil,
+            parentID: parentID,
             transferID: nil,
             sortOrder: nil,
             startingBalance: false,

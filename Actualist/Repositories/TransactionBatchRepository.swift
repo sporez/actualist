@@ -5,8 +5,7 @@ protocol TransactionBatchRepositoryProtocol: AnyObject {
     func reviewTransactionBatch(
         context: TransactionSelectionContext,
         intent: TransactionBatchIntent,
-        selections: [TransactionSelectionIdentity],
-        loadedUngroupedTransactionIDs: [String]
+        selections: [TransactionSelectionIdentity]
     ) async throws -> TransactionBatchReview
 
     func commitTransactionBatch(

@@ -28,8 +28,7 @@ struct TransactionBatchClearTests {
         _ selections: [TransactionSelectionIdentity]
     ) async throws -> TransactionBatchReview {
         try await bundle.store.reviewTransactionBatch(
-            context: base.context(for: bundle.store), intent: .clear, selections: selections,
-            loadedUngroupedTransactionIDs: selections.map(\.transactionID)
+            context: base.context(for: bundle.store), intent: .clear, selections: selections
         )
     }
 
@@ -131,5 +130,46 @@ struct TransactionBatchClearTests {
         let review = try await review(bundle, [base.identity("p")])
         #expect(review.skippedCount == 1)
         #expect(!review.canSubmit)
+    }
+
+    @Test func clearDirectionComesFromTheSelectionNotFromOtherLoadedRows() async throws {
+        let bundle = try await base.makeBatchFixture(additionalFixtureSQL:
+            "UPDATE transactions SET cleared = 1 WHERE id = 'txn';"
+            + Fixture.row("other", amount: -100))
+        let review = try await bundle.store.reviewTransactionBatch(
+            context: base.context(for: bundle.store), intent: .clear, selections: [base.identity("txn")]
+        )
+        #expect(review.clearTarget == false, "an unselected uncleared feed row must not decide the direction")
+        #expect(review.canSubmit)
+        _ = try await bundle.store.commitTransactionBatch(review: review, authorization: nil)
+        let state = try clearedStates(bundle)
+        #expect(state["txn"] == 0)
+        #expect(state["other"] == 0)
+    }
+
+    @Test func unclearedTransferPairDoesNotDecideTheClearDirection() async throws {
+        let bundle = try await base.makeBatchFixture(additionalFixtureSQL:
+            Fixture.row("leg-a", amount: -500, transfer: "leg-b", cleared: true)
+            + Fixture.row("leg-b", account: "credit", amount: 500, transfer: "leg-a"))
+        let review = try await bundle.store.reviewTransactionBatch(
+            context: base.context(for: bundle.store), intent: .clear, selections: [base.identity("leg-a")]
+        )
+        #expect(review.clearTarget == false)
+        _ = try await bundle.store.commitTransactionBatch(review: review, authorization: nil)
+        let state = try clearedStates(bundle)
+        #expect(state["leg-a"] == 0)
+        #expect(state["leg-b"] == 0)
+    }
+
+    @Test func clearDirectionUsesTheWholeSelectedFamilyButNotOtherFamilies() async throws {
+        let bundle = try await base.makeBatchFixture(additionalFixtureSQL:
+            Fixture.row("p", amount: -600, isParent: true, category: nil, cleared: true)
+            + Fixture.row("c1", amount: -300, parent: "p", cleared: true)
+            + Fixture.row("c2", amount: -300, parent: "p", cleared: true)
+            + Fixture.row("other", amount: -100))
+        let review = try await bundle.store.reviewTransactionBatch(
+            context: base.context(for: bundle.store), intent: .clear, selections: [rows.child("c1")]
+        )
+        #expect(review.clearTarget == false)
     }
 }

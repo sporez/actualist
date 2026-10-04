@@ -3,7 +3,6 @@ import Observation
 
 struct TransactionBatchFeedSnapshot: Hashable {
     let context: TransactionSelectionContext
-    let loadedUngroupedTransactionIDs: [String]
 }
 
 @MainActor
@@ -194,8 +193,7 @@ final class TransactionBatchPresentation {
                 let review = try await repository.reviewTransactionBatch(
                     context: preparation.context,
                     intent: preparation.intent,
-                    selections: preparation.selections,
-                    loadedUngroupedTransactionIDs: feedSnapshot.loadedUngroupedTransactionIDs
+                    selections: preparation.selections
                 )
                 guard isCurrentPreparation(preparation) else { return }
                 guard selection.accept(review, for: preparation) else {

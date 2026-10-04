@@ -108,9 +108,10 @@ final class TransactionSelectionCoordinator {
         let clearContractMatches: Bool
         switch preparation.intent {
         case .clear:
-            let loadedIDs = Set(review.loadedUngroupedTransactionIDs)
-            let loadedRows = review.rowSnapshots.filter { loadedIDs.contains($0.id) }
-            let reviewedTarget = TransactionBatchClearTarget.fromLoadedRows(loadedRows)
+            let reviewedTarget = TransactionBatchClearTarget.fromSelection(
+                review.selections,
+                rows: review.rowSnapshots
+            )
             let rowsByID = Dictionary(
                 review.rowSnapshots.map { ($0.id, $0) },
                 uniquingKeysWith: { first, _ in first }

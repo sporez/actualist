@@ -137,13 +137,25 @@ struct TransactionBatchRowChange: Hashable, Sendable {
 }
 
 enum TransactionBatchClearTarget {
-    /// Actual v26.9.0's batch action sets cleared to true when any row in the
-    /// loaded, ungrouped transaction set is uncleared; otherwise it sets false.
-    /// The caller supplies that source-ordered set, including loaded family
-    /// context. Missing cleared state is not guessed.
-    static func fromLoadedRows(_ rows: [TransactionBatchRowSnapshot]) -> Bool? {
-        guard !rows.isEmpty, rows.allSatisfy({ $0.cleared != nil }) else { return nil }
-        return rows.contains { $0.cleared == false }
+    /// Actual v26.9.0's batch action loads only the selected ids with their
+    /// split parents and siblings, then sets cleared to true when any of those
+    /// rows is uncleared; otherwise it sets false. Transfer counterparts and
+    /// other feed rows do not take part. `rows` may hold more than that set;
+    /// it is narrowed to the selected rows and their families here. Missing
+    /// cleared state is not guessed.
+    static func fromSelection(
+        _ selections: [TransactionSelectionIdentity],
+        rows: [TransactionBatchRowSnapshot]
+    ) -> Bool? {
+        let selectedIDs = Set(selections.map(\.transactionID))
+        let familyRootIDs = Set(selections.map(\.familyRootID))
+        let familyRows = rows.filter { row in
+            selectedIDs.contains(row.id)
+                || familyRootIDs.contains(row.id)
+                || row.parentID.map(familyRootIDs.contains) == true
+        }
+        guard !familyRows.isEmpty, familyRows.allSatisfy({ $0.cleared != nil }) else { return nil }
+        return familyRows.contains { $0.cleared == false }
     }
 }
 
@@ -152,12 +164,9 @@ struct TransactionBatchReview: Hashable, Sendable, Identifiable {
     let context: TransactionSelectionContext
     let intent: TransactionBatchIntent
     let selections: [TransactionSelectionIdentity]
-    /// IDs in the currently loaded, ungrouped feed used by Actual's clear
-    /// target calculation. The write boundary rereads these rows atomically.
-    let loadedUngroupedTransactionIDs: [String]
     let dispositions: [TransactionBatchDisposition]
     /// One authoritative before/after projection of every row pinned by this
-    /// review. Unchanged loaded rows remain available for clear-target review.
+    /// review. Unchanged family rows remain available for clear-target review.
     let rowChanges: [TransactionBatchRowChange]
     let metadata: TransactionBatchReviewMetadata
     let clearTarget: Bool?

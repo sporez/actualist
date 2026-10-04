@@ -96,7 +96,7 @@ struct TransactionDuplicateCoordinatorTests {
         let repository = DeferredDuplicateRepository(firstRequestFails: false)
         let presentation = TransactionBatchPresentation()
         let context = makeCommandContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context, loadedUngroupedTransactionIDs: ["first", "second"])
+        let snapshot = TransactionBatchFeedSnapshot(context: context)
         let first = transaction(id: "first")
         let second = transaction(id: "second")
 
@@ -138,7 +138,7 @@ struct TransactionDuplicateCoordinatorTests {
         let repository = ThrowingDuplicateRepository()
         let presentation = TransactionBatchPresentation()
         let context = makeCommandContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context, loadedUngroupedTransactionIDs: ["first", "second"])
+        let snapshot = TransactionBatchFeedSnapshot(context: context)
 
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "first"))

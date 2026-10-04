@@ -16,8 +16,7 @@ extension BudgetDatabase {
     func reviewTransactionBatch(
         context: TransactionSelectionContext,
         intent: TransactionBatchIntent,
-        selections: [TransactionSelectionIdentity],
-        loadedUngroupedTransactionIDs: [String]
+        selections: [TransactionSelectionIdentity]
     ) throws -> TransactionBatchReview {
         let reviewID = UUID().uuidString
         return try queue.read { db in
@@ -26,7 +25,6 @@ extension BudgetDatabase {
                 context: context,
                 intent: intent,
                 selections: selections,
-                loadedUngroupedTransactionIDs: loadedUngroupedTransactionIDs,
                 db: db
             ).review
         }
@@ -47,7 +45,6 @@ extension BudgetDatabase {
                     context: review.context,
                     intent: review.intent,
                     selections: review.selections,
-                    loadedUngroupedTransactionIDs: review.loadedUngroupedTransactionIDs,
                     db: db
                 )
                 guard plan.review.reviewFingerprint == review.reviewFingerprint,
@@ -89,14 +86,11 @@ extension BudgetDatabase {
         context: TransactionSelectionContext,
         intent: TransactionBatchIntent,
         selections: [TransactionSelectionIdentity],
-        loadedUngroupedTransactionIDs: [String],
         db: Database
     ) throws -> BatchPlan {
         guard !selections.isEmpty,
               Set(selections.map(\.transactionID)).count == selections.count,
-              selections.allSatisfy({ !$0.transactionID.isEmpty && !$0.familyRootID.isEmpty }),
-              Set(loadedUngroupedTransactionIDs).count == loadedUngroupedTransactionIDs.count,
-              loadedUngroupedTransactionIDs.allSatisfy({ !$0.isEmpty }) else {
+              selections.allSatisfy({ !$0.transactionID.isEmpty && !$0.familyRootID.isEmpty }) else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction selection")
         }
         let columns = try resolveTransactionRowColumns(db: db)
@@ -119,17 +113,8 @@ extension BudgetDatabase {
         }
 
         var graphs: [String: TransactionBatchGraphSnapshot] = [:]
-        var loadedSnapshots: [String: TransactionBatchTransactionSnapshot] = [:]
         var graphSnapshots: [String: TransactionBatchTransactionSnapshot] = [:]
         var blockedReasons: [String: String] = [:]
-        var feedRowsComplete = true
-        for transactionID in loadedUngroupedTransactionIDs {
-            guard let snapshot = try transactionBatchSnapshot(id: transactionID, columns: columns, db: db) else {
-                feedRowsComplete = false
-                continue
-            }
-            loadedSnapshots[transactionID] = snapshot
-        }
         for selection in selections {
             let graph = try transactionBatchGraph(
                 containing: selection.transactionID,
@@ -137,7 +122,6 @@ extension BudgetDatabase {
                 db: db
             )
             graphs[selection.transactionID] = graph
-            loadedSnapshots.merge(graph.snapshots, uniquingKeysWith: { _, incoming in incoming })
             graphSnapshots.merge(graph.snapshots, uniquingKeysWith: { _, incoming in incoming })
             if let reason = graph.invalidReason {
                 blockedReasons[selection.transactionID] = reason
@@ -156,15 +140,13 @@ extension BudgetDatabase {
             }
         }
 
-        let loadedRows = loadedSnapshots.values.sorted { $0.id < $1.id }
+        let graphRows = graphSnapshots.values.sorted { $0.id < $1.id }
         let targetClear: Bool?
         if case .clear = intent {
-            let displayRows = loadedUngroupedTransactionIDs.compactMap { loadedSnapshots[$0] }
-                .map(Self.displayBatchSnapshot)
-            if !feedRowsComplete { targetClear = nil }
-            else {
-                targetClear = TransactionBatchClearTarget.fromLoadedRows(displayRows)
-            }
+            targetClear = TransactionBatchClearTarget.fromSelection(
+                selections,
+                rows: graphRows.map(Self.displayBatchSnapshot)
+            )
         } else {
             targetClear = nil
         }
@@ -203,7 +185,7 @@ extension BudgetDatabase {
                 guard let targetClear else {
                     dispositions.append(.blocked(TransactionBatchDispositionReason(
                         selection: selection,
-                        explanation: "The loaded transaction graph has no reliable cleared state."
+                        explanation: "The selected transactions have no reliable cleared state."
                     )))
                     continue
                 }
@@ -323,8 +305,7 @@ extension BudgetDatabase {
             context: context,
             intent: intent,
             selections: selections,
-            loadedUngroupedTransactionIDs: loadedUngroupedTransactionIDs,
-            snapshots: loadedRows,
+            snapshots: graphRows,
             clearTarget: targetClear,
             affectedIDs: affectedIDs.sorted(),
             targetReconciled: requiredTargetReconciled.sorted(),
@@ -338,7 +319,7 @@ extension BudgetDatabase {
                 pairedReconciledTransactionIDs: requiredPairedReconciled.sorted()
             )
             : nil
-        let rowChanges = try loadedRows.map { snapshot in
+        let rowChanges = try graphRows.map { snapshot in
             TransactionBatchRowChange(
                 before: Self.displayBatchSnapshot(snapshot),
                 after: try projectedBatchSnapshot(snapshot, messages: messages, columns: columns)
@@ -367,7 +348,6 @@ extension BudgetDatabase {
             context: context,
             intent: intent,
             selections: selections,
-            loadedUngroupedTransactionIDs: loadedUngroupedTransactionIDs,
             dispositions: dispositions,
             rowChanges: rowChanges,
             metadata: metadata,
@@ -422,7 +402,6 @@ extension BudgetDatabase {
         context: TransactionSelectionContext,
         intent: TransactionBatchIntent,
         selections: [TransactionSelectionIdentity],
-        loadedUngroupedTransactionIDs: [String],
         snapshots: [TransactionBatchTransactionSnapshot],
         clearTarget: Bool?,
         affectedIDs: [String],
@@ -444,8 +423,7 @@ extension BudgetDatabase {
         case .account(let accountID): scopeText = "account:\(accountID)"
         case .spending: scopeText = "spending"
         }
-        let loadedText = loadedUngroupedTransactionIDs.joined(separator: ";")
-        var input = Data("\(context.budgetID)|\(scopeText)|\(context.querySignature.stableSortKey)|\(intentText)|\(selectionText)|\(loadedText)|\(affectedIDs.joined(separator: ","))|\(targetReconciled.joined(separator: ","))|\(pairedReconciled.joined(separator: ","))|".utf8)
+        var input = Data("\(context.budgetID)|\(scopeText)|\(context.querySignature.stableSortKey)|\(intentText)|\(selectionText)|\(affectedIDs.joined(separator: ","))|\(targetReconciled.joined(separator: ","))|\(pairedReconciled.joined(separator: ","))|".utf8)
         input.append(rows)
         return SHA256.hash(data: input).map { String(format: "%02x", $0) }.joined()
     }

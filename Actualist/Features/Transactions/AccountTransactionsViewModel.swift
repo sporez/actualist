@@ -123,15 +123,14 @@ final class AccountTransactionsViewModel {
         guard let queryScope = scope.queryScope,
               let budgetID,
               let identity = readIdentity(budgetID: budgetID),
-              let loaded = activeCachedSnapshot(identity, repository: repository) else { return nil }
+              activeCachedSnapshot(identity, repository: repository) != nil else { return nil }
         return TransactionBatchFeedSnapshot(
             context: TransactionSelectionContext(
                 budgetID: budgetID,
                 sessionGeneration: sessionGeneration,
                 scope: queryScope,
                 querySignature: identity.query.signature
-            ),
-            loadedUngroupedTransactionIDs: loaded.transactions.compactMap(\.id)
+            )
         )
     }
 

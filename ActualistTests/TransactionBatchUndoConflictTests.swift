@@ -28,8 +28,7 @@ struct TransactionBatchUndoConflictTests {
                 querySignature: TransactionFeedQuery().signature
             ),
             intent: intent,
-            selections: [selection],
-            loadedUngroupedTransactionIDs: ["txn"]
+            selections: [selection]
         )
         _ = try await database.commitTransactionBatch(review: review, authorization: review.authorization)
         let record = try #require(try await database.actionLogRecord(id: review.id))
