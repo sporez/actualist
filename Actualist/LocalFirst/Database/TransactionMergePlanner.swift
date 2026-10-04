@@ -275,7 +275,7 @@ enum TransactionMergePlanner {
         for snapshot in orderedSnapshots {
             guard let accountID = snapshot.accountID, !accountID.isEmpty,
                   reference.accountsByID[accountID] != nil,
-                  let dateValue = snapshot.dateValue, isValidDateValue(dateValue),
+                  let dateValue = snapshot.dateValue, YearMonth(validatingPackedDate: dateValue) != nil,
                   snapshot.amount != nil,
                   snapshot.isParent != nil,
                   snapshot.isChild != nil,
@@ -620,7 +620,7 @@ enum TransactionMergePlanner {
         for snapshot in active.values.sorted(by: { $0.id < $1.id }) {
             guard let accountID = snapshot.accountID, !accountID.isEmpty,
                   reference.accountsByID[accountID] != nil,
-                  let dateValue = snapshot.dateValue, isValidDateValue(dateValue),
+                  let dateValue = snapshot.dateValue, YearMonth(validatingPackedDate: dateValue) != nil,
                   snapshot.amount != nil,
                   let isParent = snapshot.isParent,
                   let isChild = snapshot.isChild else {
@@ -725,37 +725,13 @@ enum TransactionMergePlanner {
             changed: ChangedResources(
                 accounts: Array(Set(snapshots.compactMap(\.accountID))).sorted(),
                 months: Array(Set(snapshots.compactMap { snapshot in
-                    snapshot.dateValue.flatMap(monthID(from:))
+                    snapshot.dateValue.flatMap { YearMonth(validatingPackedDate: $0)?.rawValue }
                 })).sorted(),
                 transactions: snapshots.map(\.id).sorted()
             ),
             payeeIDs: Array(Set(snapshots.compactMap(\.payeeID))).sorted(),
             categoryIDs: Array(Set(snapshots.compactMap(\.categoryID))).sorted()
         )
-    }
-
-    private static func monthID(from dateValue: Int) -> String? {
-        guard isValidDateValue(dateValue) else { return nil }
-        let digits = String(format: "%08d", dateValue)
-        return "\(digits.prefix(4))-\(digits.dropFirst(4).prefix(2))"
-    }
-
-    private static func isValidDateValue(_ value: Int) -> Bool {
-        guard value >= 10_101 && value <= 99_991_231 else { return false }
-        let day = value % 100
-        let month = (value / 100) % 100
-        let year = value / 10_000
-        guard (1...12).contains(month), (1...31).contains(day), year > 0 else { return false }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        var components = DateComponents()
-        components.year = year
-        components.month = month
-        components.day = day
-        guard let date = calendar.date(from: components) else { return false }
-        return calendar.component(.year, from: date) == year
-            && calendar.component(.month, from: date) == month
-            && calendar.component(.day, from: date) == day
     }
 
     private static func hasSplitError(_ value: String?) -> Bool {

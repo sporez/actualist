@@ -258,7 +258,7 @@ enum TransactionDuplicatePlanner {
                 throw TransactionDuplicatePlannerError.unavailableSource(snapshot.id)
             }
             guard let accountID = snapshot.accountID, !accountID.isEmpty,
-                  let dateValue = snapshot.dateValue, validMonthID(for: dateValue) != nil,
+                  let dateValue = snapshot.dateValue, YearMonth(validatingPackedDate: dateValue) != nil,
                   snapshot.amount != nil else {
                 throw TransactionDuplicatePlannerError.missingRequiredField(snapshot.id)
             }
@@ -555,7 +555,7 @@ enum TransactionDuplicatePlanner {
         let allSnapshots = sourceSnapshots + duplicateSnapshots
         var months = Set<String>()
         for snapshot in allSnapshots {
-            guard let dateValue = snapshot.dateValue, let monthID = validMonthID(for: dateValue) else {
+            guard let dateValue = snapshot.dateValue, let monthID = YearMonth(validatingPackedDate: dateValue)?.rawValue else {
                 throw TransactionDuplicatePlannerError.missingRequiredField(snapshot.id)
             }
             months.insert(monthID)
@@ -571,11 +571,6 @@ enum TransactionDuplicatePlanner {
             months: months.sorted(),
             transactions: Set(allSnapshots.map(\.id)).sorted()
         )
-    }
-
-    private static func validMonthID(for packedDate: Int) -> String? {
-        guard let dateID = actualDateID(for: packedDate) else { return nil }
-        return String(dateID.prefix(7))
     }
 
     private static func actualDateID(for packedDate: Int) -> String? {
