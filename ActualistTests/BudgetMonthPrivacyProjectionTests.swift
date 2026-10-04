@@ -56,6 +56,29 @@ struct BudgetMonthPrivacyProjectionTests {
         #expect(projected.incomeAvailable == projected.toBudget)
     }
 
+    @Test func calculationFailureFallsBackInsteadOfTrapping() {
+        // Fifteen decimal places push sample leaves past the tracking bound, so
+        // the category and total calculations throw. Display must not trap.
+        let base = makeMonth()
+        let tracking = BudgetMonth(
+            month: base.month, incomeAvailable: 0, lastMonthOverspent: 0, forNextMonth: 0,
+            totalBudgeted: 0, toBudget: 0, fromLastMonth: 0, totalIncome: 0, totalSpent: 0,
+            totalBalance: 0, categoryGroups: base.categoryGroups, hasUserNote: false,
+            trackingSummary: TrackingBudgetSummary(
+                budgetedIncome: 0, budgetedExpenses: 0, receivedIncome: 0,
+                expenseActivity: 0, plannedSavings: 0, actualSavings: 0
+            )
+        )
+        let currency = BudgetCurrency(code: "XXX", decimalPlaces: 15, hideFraction: false)
+
+        let projected = BudgetMonthPrivacyProjection.project(tracking, currency: currency)
+
+        #expect(projected.totalBudgeted == 0)
+        #expect(projected.totalBalance == 0)
+        #expect(projected.trackingSummary?.plannedSavings == 0)
+        #expect(projected.categoryGroups.flatMap(\.categories).allSatisfy { $0.balance == 0 })
+    }
+
     @Test func nonMoneyMetadataPassesThroughTheProjection() throws {
         let projected = BudgetMonthPrivacyProjection.project(makeMonth())
         let group = try #require(projected.categoryGroups.first { $0.id == "everyday" })

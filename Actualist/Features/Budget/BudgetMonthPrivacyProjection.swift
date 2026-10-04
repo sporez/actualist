@@ -27,7 +27,8 @@ enum BudgetMonthPrivacyProjection {
         // Samples are bounded to hundreds of display units per leaf; reuse the
         // production aggregate so hidden tracking leaves cannot leak into totals.
         let table: BudgetTable = month.trackingSummary == nil ? .envelope : .tracking
-        let totals = try! BudgetFinancialCalculation.totals(groups: groups, table: table)
+        let totals = (try? BudgetFinancialCalculation.totals(groups: groups, table: table))
+            ?? fallbackTotals(table: table)
         let toBudget = table == .tracking ? 0 : leafAmount(
             sign: toBudgetSign(month: month.month),
             seed: "budget-leaf-to-budget-\(month.month)",
@@ -67,9 +68,9 @@ enum BudgetMonthPrivacyProjection {
             name: group.name,
             isIncome: group.isIncome,
             hidden: group.hidden,
-            budgeted: included.reduce(0) { $0 + $1.budgeted },
-            spent: included.reduce(0) { $0 + $1.spent },
-            balance: included.reduce(0) { $0 + $1.balance },
+            budgeted: boundedSum(included.map(\.budgeted), table: table),
+            spent: boundedSum(included.map(\.spent), table: table),
+            balance: boundedSum(included.map(\.balance), table: table),
             categories: categories,
             hasUserNote: group.hasUserNote
         )
@@ -105,13 +106,15 @@ enum BudgetMonthPrivacyProjection {
         // The snapshot already includes incoming rollover. Preserve whether it
         // contributed, without inventing a carry balance for a reset month.
         let uncarriedBalance = category.isIncome
-            ? category.budgeted - category.spent : category.budgeted + category.spent
+            ? category.budgeted &- category.spent : category.budgeted &+ category.spent
         let sampleCarry = table == .tracking && category.balance == uncarriedBalance ? 0 : leftover
-        let values = try! BudgetFinancialCalculation.category(
+        // Sample amounts are small, but a currency with many decimal places can
+        // push them past the calculation bounds. Show a zero balance, not a trap.
+        let values = (try? BudgetFinancialCalculation.category(
             table: table, isIncome: category.isIncome, budgeted: budgeted,
             activity: spent, carryover: category.carryover,
             previous: BudgetCategoryValue(budgeted: 0, spent: 0, balance: sampleCarry, carryover: true)
-        )
+        )) ?? BudgetCategoryValue(budgeted: budgeted, spent: spent, balance: 0, carryover: category.carryover)
         return BudgetMonthCategory(
             id: category.id,
             name: category.name,
@@ -124,6 +127,21 @@ enum BudgetMonthPrivacyProjection {
             carryover: category.carryover,
             hasTemplateDefinition: category.hasTemplateDefinition,
             hasUserNote: category.hasUserNote
+        )
+    }
+
+    private static func boundedSum(_ amounts: [Int], table: BudgetTable) -> Int {
+        (try? BudgetFinancialCalculation.sum(amounts, table: table)) ?? 0
+    }
+
+    /// Zeroed totals; tracking keeps its mode without exposing real figures.
+    private static func fallbackTotals(table: BudgetTable) -> BudgetFinancialCalculation.Totals {
+        BudgetFinancialCalculation.Totals(
+            budgeted: 0, spent: 0, balance: 0, income: 0,
+            tracking: table == .tracking ? TrackingBudgetSummary(
+                budgetedIncome: 0, budgetedExpenses: 0, receivedIncome: 0,
+                expenseActivity: 0, plannedSavings: 0, actualSavings: 0
+            ) : nil
         )
     }
 
