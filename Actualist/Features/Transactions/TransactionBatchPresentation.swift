@@ -1,10 +1,6 @@
 import Foundation
 import Observation
 
-struct TransactionBatchFeedSnapshot: Hashable {
-    let context: TransactionSelectionContext
-}
-
 @MainActor
 @Observable
 final class TransactionBatchPresentation {
@@ -149,23 +145,23 @@ final class TransactionBatchPresentation {
 
     func selectCategory(
         _ categoryID: String?,
-        feedSnapshot: TransactionBatchFeedSnapshot?,
+        feedContext: TransactionSelectionContext?,
         repository: any TransactionBatchRepositoryProtocol
     ) {
         guard case .categoryPicker(let pickerContext) = sheetContent,
-              let feedSnapshot,
+              let feedContext,
               case .selecting(let currentContext, _) = selection.state,
               pickerContext == currentContext,
-              pickerContext == feedSnapshot.context else {
+              pickerContext == feedContext else {
             if case .categoryPicker = sheetContent {
-                contextChanged(to: feedSnapshot?.context)
+                contextChanged(to: feedContext)
             }
             return
         }
         cancelCategoryPicker()
         prepare(
             intent: .categorize(categoryID: categoryID),
-            feedSnapshot: feedSnapshot,
+            feedContext: feedContext,
             repository: repository
         )
     }
@@ -173,15 +169,15 @@ final class TransactionBatchPresentation {
     @discardableResult
     func prepare(
         intent: TransactionBatchIntent,
-        feedSnapshot: TransactionBatchFeedSnapshot?,
+        feedContext: TransactionSelectionContext?,
         repository: any TransactionBatchRepositoryProtocol
     ) -> Task<Void, Never>? {
-        guard let feedSnapshot,
+        guard let feedContext,
               case .selecting(let context, _) = selection.state,
-              context == feedSnapshot.context,
+              context == feedContext,
               !commandFlowLocksSelection else {
-            if case .selecting(let context, _) = selection.state, context != feedSnapshot?.context {
-                contextChanged(to: feedSnapshot?.context)
+            if case .selecting(let context, _) = selection.state, context != feedContext {
+                contextChanged(to: feedContext)
             }
             return nil
         }
@@ -212,7 +208,7 @@ final class TransactionBatchPresentation {
 
     func confirm(
         repository: any TransactionBatchRepositoryProtocol,
-        currentFeedSnapshot: @escaping @MainActor () -> TransactionBatchFeedSnapshot?,
+        currentFeedContext: @escaping @MainActor () -> TransactionSelectionContext?,
         onCommitted: @escaping @MainActor (TransactionBatchOutcome) -> Void
     ) {
         guard let review = selection.beginSubmission() else { return }
@@ -226,7 +222,7 @@ final class TransactionBatchPresentation {
                 onCommitted(outcome)
             } catch {
                 selection.failSubmission(reviewID: review.id, message: error.userFacingMessage ?? error.localizedDescription)
-                let currentContext = currentFeedSnapshot()?.context
+                let currentContext = currentFeedContext()
                 if currentContext != review.context {
                     contextChanged(to: currentContext)
                 } else {
@@ -238,10 +234,10 @@ final class TransactionBatchPresentation {
 
     @discardableResult
     func prepareDuplicate(
-        feedSnapshot: TransactionBatchFeedSnapshot?,
+        feedContext: TransactionSelectionContext?,
         repository: any TransactionDuplicateRepositoryProtocol
     ) -> Task<Void, Never>? {
-        guard let selections = commandSelections(matching: feedSnapshot) else { return nil }
+        guard let selections = commandSelections(matching: feedContext) else { return nil }
         merge.cancelActive()
         guard let preparation = duplicate.beginPreparation(
             context: selections.context,
@@ -279,10 +275,10 @@ final class TransactionBatchPresentation {
 
     @discardableResult
     func prepareMerge(
-        feedSnapshot: TransactionBatchFeedSnapshot?,
+        feedContext: TransactionSelectionContext?,
         repository: any TransactionMergeRepositoryProtocol
     ) -> Task<Void, Never>? {
-        guard let selections = commandSelections(matching: feedSnapshot) else { return nil }
+        guard let selections = commandSelections(matching: feedContext) else { return nil }
         duplicate.cancelActive()
         guard let preparation = merge.beginPreparation(
             context: selections.context,
@@ -320,7 +316,7 @@ final class TransactionBatchPresentation {
 
     func confirmDuplicate(
         repository: any TransactionDuplicateRepositoryProtocol,
-        currentFeedSnapshot: @escaping @MainActor () -> TransactionBatchFeedSnapshot?,
+        currentFeedContext: @escaping @MainActor () -> TransactionSelectionContext?,
         onCommitted: @escaping @MainActor (TransactionDuplicateOutcome) -> Void
     ) {
         guard let review = duplicate.beginSubmission() else { return }
@@ -334,7 +330,7 @@ final class TransactionBatchPresentation {
                     reviewID: review.id,
                     message: error.userFacingMessage ?? error.localizedDescription
                 )
-                let currentContext = currentFeedSnapshot()?.context
+                let currentContext = currentFeedContext()
                 if currentContext != review.context {
                     contextChanged(to: currentContext)
                 } else {
@@ -346,7 +342,7 @@ final class TransactionBatchPresentation {
 
     func confirmMerge(
         repository: any TransactionMergeRepositoryProtocol,
-        currentFeedSnapshot: @escaping @MainActor () -> TransactionBatchFeedSnapshot?,
+        currentFeedContext: @escaping @MainActor () -> TransactionSelectionContext?,
         onCommitted: @escaping @MainActor (TransactionMergeOutcome) -> Void
     ) {
         guard let review = merge.beginSubmission() else { return }
@@ -363,7 +359,7 @@ final class TransactionBatchPresentation {
                     reviewID: review.id,
                     message: error.userFacingMessage ?? error.localizedDescription
                 )
-                let currentContext = currentFeedSnapshot()?.context
+                let currentContext = currentFeedContext()
                 if currentContext != review.context {
                     contextChanged(to: currentContext)
                 } else {
@@ -413,14 +409,14 @@ final class TransactionBatchPresentation {
     }
 
     private func commandSelections(
-        matching feedSnapshot: TransactionBatchFeedSnapshot?
+        matching feedContext: TransactionSelectionContext?
     ) -> (context: TransactionSelectionContext, identities: [TransactionSelectionIdentity])? {
-        guard let feedSnapshot,
+        guard let feedContext,
               case .selecting(let context, let selections) = selection.state,
-              context == feedSnapshot.context,
+              context == feedContext,
               !commandFlowLocksSelection else {
-            if case .selecting(let context, _) = selection.state, context != feedSnapshot?.context {
-                contextChanged(to: feedSnapshot?.context)
+            if case .selecting(let context, _) = selection.state, context != feedContext {
+                contextChanged(to: feedContext)
             }
             return nil
         }

@@ -70,25 +70,13 @@ struct TransactionCSVImportReviewView: View {
             }
         }
         .reviewSheetBottomBar {
-            Button(role: .cancel, action: onCancel) {
-                Text("Cancel")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
-            .accessibilityIdentifier("transaction-csv-import-cancel")
-            Button {
+            ReviewSheetSecondaryButton(action: onCancel)
+                .accessibilityIdentifier("transaction-csv-import-cancel")
+            ReviewSheetPrimaryButton {
                 Task { await coordinator.submit(repository: repository, onImported: onImported) }
             } label: {
                 Text(coordinator.submitTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 32)
             }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
             .disabled(!coordinator.canSubmit)
             .accessibilityIdentifier("transaction-csv-import-confirm")
         }

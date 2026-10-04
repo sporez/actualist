@@ -64,8 +64,7 @@ struct SavedTransactionFiltersPresentationHost: ViewModifier {
                         .presentationBackground(ActualistTheme.background)
                 }
             }
-            .onChange(of: appState.settings.selectedBudgetID) { presentation.dismiss() }
-            .onChange(of: appState.localFirstStore.budgetSessionGeneration) { presentation.dismiss() }
+            .onBudgetSessionChange { presentation.dismiss() }
     }
 
     private var sheetBinding: Binding<Bool> {

@@ -77,9 +77,7 @@ extension LocalFirstActualStore {
         let payeeNames = Dictionary(uniqueKeysWithValues: payees.compactMap { payee in
             payee.id.map { ($0, payee.name) }
         })
-        let categoryNames = Dictionary(uniqueKeysWithValues: categories.compactMap { category in
-            category.id.map { ($0, category.name) }
-        })
+        let categoryNames = categories.namesByID
         let transferPayeeIDs = Set(payees.compactMap { payee -> String? in
             guard payee.transferAccount != nil else { return nil }
             return payee.id

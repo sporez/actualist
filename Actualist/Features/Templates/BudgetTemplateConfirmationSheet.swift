@@ -12,6 +12,29 @@ struct BudgetTemplateConfirmationSheet: View {
 
     @State private var viewModel = BudgetTemplateApplyPreviewViewModel()
 
+    /// Reloads the preview whenever any input that shapes it changes.
+    private struct LoadKey: Hashable {
+        let confirmationID: String
+        let categoryID: String?
+        let month: String
+        let modeIdentity: BudgetModeIdentity?
+        let budgetID: String?
+        let localDataRevision: UInt64
+        let randomized: Bool
+    }
+
+    private var loadKey: LoadKey {
+        LoadKey(
+            confirmationID: confirmation.id,
+            categoryID: categoryID,
+            month: month,
+            modeIdentity: modeIdentity,
+            budgetID: appState.settings.selectedBudgetID,
+            localDataRevision: localDataRevision,
+            randomized: appState.settings.randomizedDisplayValuesEnabled
+        )
+    }
+
     private var isMonthConfirmation: Bool {
         confirmation != .category
     }
@@ -44,34 +67,23 @@ struct BudgetTemplateConfirmationSheet: View {
         }
         .safeAreaBar(edge: .bottom, spacing: 0) {
             ReviewSheetActions {
-                Button(role: .cancel) {
-                    cancel()
-                } label: {
-                    Text("Cancel")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                }
-                .buttonStyle(.glass)
+                ReviewSheetSecondaryButton(action: cancel)
 
-                Button(role: selectedConfirmation.buttonRole) {
+                ReviewSheetPrimaryButton(
+                    role: selectedConfirmation.buttonRole,
+                    tint: selectedConfirmation.buttonTint
+                ) {
                     guard let reviewRevision = viewModel.reviewRevision else { return }
                     apply(selectedConfirmation, reviewRevision)
                 } label: {
                     Text(selectedConfirmation.actionTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: 32)
                 }
                 .accessibilityIdentifier("template-apply-confirm")
-                .buttonStyle(.glassProminent)
-                .tint(selectedConfirmation.buttonTint)
                 .disabled(!viewModel.canApply)
             }
         }
         .background(ActualistTheme.background)
-        .task(id: "\(confirmation.id)|\(categoryID ?? "")|\(month)|\(String(describing: modeIdentity))|\(appState.settings.selectedBudgetID ?? "")|\(localDataRevision)|\(appState.settings.randomizedDisplayValuesEnabled)") {
+        .task(id: loadKey) {
             await load()
         }
     }

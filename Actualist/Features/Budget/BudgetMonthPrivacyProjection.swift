@@ -171,4 +171,35 @@ enum BudgetMonthPrivacyProjection {
             ? -1
             : 1
     }
+
+    // MARK: Overspent categories sheet
+
+    static func overspentCategoryName(_ option: BudgetOverspentCategoryOption, isEnabled: Bool) -> String {
+        guard isEnabled else { return option.categoryName }
+        return PrivacyDisplay.name(for: .category, seed: option.id)
+    }
+
+    static func overspentGroupName(_ option: BudgetOverspentCategoryOption, isEnabled: Bool) -> String {
+        guard isEnabled else { return option.groupName }
+        return PrivacyDisplay.name(for: .categoryGroup, seed: option.groupName)
+    }
+
+    /// Tracking budgets already show projected balances, so only envelope
+    /// amounts get a sample value here.
+    static func overspentAmountText(
+        _ option: BudgetOverspentCategoryOption,
+        isEnabled: Bool,
+        isTrackingBudget: Bool,
+        currency: BudgetCurrency
+    ) -> String {
+        guard isEnabled && !isTrackingBudget else {
+            return option.amountText(using: currency)
+        }
+        return PrivacyDisplay.money(
+            option.category.balance,
+            seed: "overspent-category-\(option.id)",
+            currency: currency,
+            maximumDollars: 900
+        )
+    }
 }

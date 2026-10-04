@@ -160,21 +160,9 @@ extension BudgetDatabase {
                     ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
 
                 // A peer may need these columns to create the budget row.
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: table.rawValue,
-                        row: rowID,
-                        column: "month",
-                        value: .int(Int64(monthValue))
-                    )
-                )
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: table.rawValue,
-                        row: rowID,
-                        column: "category",
-                        value: .string(categoryID)
-                    )
+                messages += try budgetRowIdentityMessages(
+                    table: table, rowID: rowID, monthValue: monthValue,
+                    categoryID: categoryID, builder: &builder
                 )
                 messages.append(
                     try builder.makeMessage(
@@ -327,23 +315,10 @@ extension BudgetDatabase {
         )
         let rowID = existingRowID ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
         let dataset = table.rawValue
-        var messages: [ActualSyncDecodedMessage] = []
         // The server may not know about budget rows created only in the imported file.
-        messages.append(
-            try builder.makeMessage(
-                dataset: dataset,
-                row: rowID,
-                column: "month",
-                value: .int(Int64(monthValue))
-            )
-        )
-        messages.append(
-            try builder.makeMessage(
-                dataset: dataset,
-                row: rowID,
-                column: "category",
-                value: .string(categoryID)
-            )
+        var messages = try budgetRowIdentityMessages(
+            table: table, rowID: rowID, monthValue: monthValue,
+            categoryID: categoryID, builder: &builder
         )
         if existingRowID == nil, columns.contains("carryover") {
             messages.append(
@@ -405,6 +380,31 @@ extension BudgetDatabase {
             return row?["id"] as String?
         }
         return row == nil ? nil : Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
+    }
+
+    /// The `month` and `category` cells that identify a budget row to a peer, in
+    /// that order. The caller appends its own cells after them.
+    func budgetRowIdentityMessages(
+        table: BudgetTable,
+        rowID: String,
+        monthValue: Int,
+        categoryID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        [
+            try builder.makeMessage(
+                dataset: table.rawValue,
+                row: rowID,
+                column: "month",
+                value: .int(Int64(monthValue))
+            ),
+            try builder.makeMessage(
+                dataset: table.rawValue,
+                row: rowID,
+                column: "category",
+                value: .string(categoryID)
+            )
+        ]
     }
 
     static func budgetRowID(monthValue: Int, categoryID: String) -> String {

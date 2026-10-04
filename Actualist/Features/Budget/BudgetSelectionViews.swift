@@ -180,34 +180,32 @@ struct BudgetOverspentCategoriesView: View {
         for category: BudgetOverspentCategoryOption
     ) -> some View {
         Button {
-            if viewModel.isTrackingBudget {
-                inspectedCategory = viewModel.categoryDetails(for: category.id)
-            } else if viewModel.isOverspentCoverSelecting {
-                guard !viewModel.isCoveringOverspentSelection else {
-                    return
-                }
-                viewModel.toggleOverspentCoverSelection(category)
-            } else {
-                viewModel.beginMoveMoney(for: category.id)
+            if case .inspect(let details) = viewModel.handleOverspentCategoryTap(category) {
+                inspectedCategory = details
             }
         } label: {
             ZStack {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(categoryName(category))
+                        Text(BudgetMonthPrivacyProjection.overspentCategoryName(category, isEnabled: isPrivacyModeEnabled))
                             .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.primaryText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.84)
 
-                        Text(groupName(category))
+                        Text(BudgetMonthPrivacyProjection.overspentGroupName(category, isEnabled: isPrivacyModeEnabled))
                             .font(ActualistTypography.rowBadge(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
 
                     Spacer()
 
-                    Text(amountText(category))
+                    Text(BudgetMonthPrivacyProjection.overspentAmountText(
+                        category,
+                        isEnabled: isPrivacyModeEnabled,
+                        isTrackingBudget: viewModel.isTrackingBudget,
+                        currency: viewModel.currency
+                    ))
                         .font(ActualistTypography.rowValue(for: density))
                         .foregroundStyle(.white)
                         .lineLimit(1)
@@ -273,35 +271,6 @@ struct BudgetOverspentCategoriesView: View {
             return partial + (-option.category.balance)
         }
         return viewModel.currency.formatted(total)
-    }
-
-    private func categoryName(_ category: BudgetOverspentCategoryOption) -> String {
-        guard isPrivacyModeEnabled else {
-            return category.categoryName
-        }
-
-        return PrivacyDisplay.name(for: .category, seed: category.id)
-    }
-
-    private func groupName(_ category: BudgetOverspentCategoryOption) -> String {
-        guard isPrivacyModeEnabled else {
-            return category.groupName
-        }
-
-        return PrivacyDisplay.name(for: .categoryGroup, seed: category.groupName)
-    }
-
-    private func amountText(_ category: BudgetOverspentCategoryOption) -> String {
-        guard isPrivacyModeEnabled && !viewModel.isTrackingBudget else {
-            return category.amountText(using: viewModel.currency)
-        }
-
-        return PrivacyDisplay.money(
-            category.category.balance,
-            seed: "overspent-category-\(category.id)",
-            currency: viewModel.currency,
-            maximumDollars: 900
-        )
     }
 }
 

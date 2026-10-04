@@ -95,13 +95,12 @@ struct TransactionDuplicateCoordinatorTests {
         let repository = DeferredDuplicateRepository(firstRequestFails: false)
         let presentation = TransactionBatchPresentation()
         let context = makeCommandContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context)
         let first = transaction(id: "first")
         let second = transaction(id: "second")
 
         presentation.enter(context: context)
         presentation.toggle(first)
-        let obsolete = try #require(presentation.prepareDuplicate(feedSnapshot: snapshot, repository: repository))
+        let obsolete = try #require(presentation.prepareDuplicate(feedContext: context, repository: repository))
         guard await repository.waitForFirstRequest() else {
             obsolete.cancel()
             repository.releaseFirstRequest()
@@ -112,7 +111,7 @@ struct TransactionDuplicateCoordinatorTests {
 
         presentation.cancelSheet()
         presentation.toggle(second)
-        guard let current = presentation.prepareDuplicate(feedSnapshot: snapshot, repository: repository) else {
+        guard let current = presentation.prepareDuplicate(feedContext: context, repository: repository) else {
             repository.releaseFirstRequest()
             await obsolete.value
             Issue.record("Expected a new duplicate review")
@@ -137,12 +136,10 @@ struct TransactionDuplicateCoordinatorTests {
         let repository = ThrowingDuplicateRepository()
         let presentation = TransactionBatchPresentation()
         let context = makeCommandContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context)
-
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "first"))
         presentation.toggle(transaction(id: "second"))
-        let task = try #require(presentation.prepareDuplicate(feedSnapshot: snapshot, repository: repository))
+        let task = try #require(presentation.prepareDuplicate(feedContext: context, repository: repository))
         await task.value
 
         #expect(presentation.commandSheet == nil)

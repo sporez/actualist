@@ -662,10 +662,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func deserializeRemoteNumericPayloadsRejectNonFiniteButPreservesHugeDoubles() async throws {
-        let fixtureURL = try makeSQLiteFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
-
-        let huge = try await database.deserializeSyncValue("N:1e300")
+        let huge = try ActualSyncSQLiteValue(serialized: "N:1e300")
         switch huge {
         case .double(let value):
             #expect(value == 1e300)
@@ -673,11 +670,11 @@ extension LocalFirstActualStoreTests {
             Issue.record("Expected 1e300 to decode as a Double")
         }
 
-        await #expect(throws: LocalFirstError.invalidSyncValue) {
-            _ = try await database.deserializeSyncValue("N:inf")
+        #expect(throws: LocalFirstError.invalidSyncValue) {
+            _ = try ActualSyncSQLiteValue(serialized: "N:inf")
         }
-        await #expect(throws: LocalFirstError.invalidSyncValue) {
-            _ = try await database.deserializeSyncValue("N:not-a-number")
+        #expect(throws: LocalFirstError.invalidSyncValue) {
+            _ = try ActualSyncSQLiteValue(serialized: "N:not-a-number")
         }
     }
 

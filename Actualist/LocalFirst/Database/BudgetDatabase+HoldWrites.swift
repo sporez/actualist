@@ -119,18 +119,10 @@ extension BudgetDatabase {
                 categoryID: categoryID
             )
             if existingRowID == nil {
-                messages.append(try builder.makeMessage(
-                    dataset: table.rawValue,
-                    row: rowID,
-                    column: "month",
-                    value: .int(Int64(monthValue))
-                ))
-                messages.append(try builder.makeMessage(
-                    dataset: table.rawValue,
-                    row: rowID,
-                    column: "category",
-                    value: .string(categoryID)
-                ))
+                messages += try budgetRowIdentityMessages(
+                    table: table, rowID: rowID, monthValue: monthValue,
+                    categoryID: categoryID, builder: &builder
+                )
             }
             messages.append(try builder.makeMessage(
                 dataset: table.rawValue,

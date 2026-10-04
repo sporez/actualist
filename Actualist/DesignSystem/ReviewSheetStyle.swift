@@ -108,6 +108,44 @@ struct ReviewSheetActions<Content: View>: View {
     }
 }
 
+/// The secondary (cancel/back) action of a review sheet's bottom bar. The
+/// native glass button style supplies the chrome; there is no wrapper surface.
+struct ReviewSheetSecondaryButton: View {
+    var title = "Cancel"
+    var role: ButtonRole? = .cancel
+    let action: () -> Void
+
+    var body: some View {
+        Button(role: role, action: action) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 32)
+                .padding(.horizontal, 12)
+        }
+        .buttonStyle(.glass)
+    }
+}
+
+/// The confirming action of a review sheet's bottom bar.
+struct ReviewSheetPrimaryButton<Label: View>: View {
+    var role: ButtonRole? = nil
+    var tint: Color = ActualistTheme.accent
+    let action: () -> Void
+    @ViewBuilder let label: Label
+
+    var body: some View {
+        Button(role: role, action: action) {
+            label
+                .font(.subheadline.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, minHeight: 32)
+        }
+        .buttonStyle(.glassProminent)
+        .tint(tint)
+    }
+}
+
 struct ReviewSummaryRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 

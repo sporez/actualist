@@ -56,12 +56,10 @@ struct TransactionFilterPresentationHost: ViewModifier {
                     )
                     .appSwitcherPrivacyProtected(using: appState)
                 } else {
-                    ContentUnavailableView("Choose a Budget", systemImage: "tray")
-                        .presentationBackground(ActualistTheme.background)
+                    ChooseBudgetUnavailableView()
                 }
             }
-            .onChange(of: appState.settings.selectedBudgetID) { presentation.dismiss() }
-            .onChange(of: appState.localFirstStore.budgetSessionGeneration) { presentation.dismiss() }
+            .onBudgetSessionChange { presentation.dismiss() }
     }
 
     private var sheetBinding: Binding<Bool> {

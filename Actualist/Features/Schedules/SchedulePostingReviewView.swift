@@ -87,27 +87,13 @@ struct SchedulePostingReviewView: View {
         }
         .accessibilityIdentifier("schedule-post-review")
         .reviewSheetBottomBar {
-            Button(role: .cancel) {
-                close()
-            } label: {
-                Text("Cancel")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
-            .accessibilityIdentifier("schedule-post-cancel")
-            Button {
+            ReviewSheetSecondaryButton { close() }
+                .accessibilityIdentifier("schedule-post-cancel")
+            ReviewSheetPrimaryButton {
                 coordinator.confirm(postingRepository: postingRepository)
             } label: {
                 Label("Post Transaction", systemImage: "arrow.up.circle")
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 32)
             }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
             .disabled(!review.canSubmit || coordinator.state.isBusy)
             .accessibilityIdentifier("schedule-post-confirm")
         }

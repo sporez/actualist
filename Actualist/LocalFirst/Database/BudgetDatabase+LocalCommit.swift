@@ -191,7 +191,7 @@ extension BudgetDatabase {
                     db: db
                 )
             }
-            let value = try deserializeSyncValue(message.serializedValue)
+            let value = try ActualSyncSQLiteValue(serialized: message.serializedValue)
             try apply(message: message, value: value, rowExists: hasRow, db: db)
             insertedRows.insert(rowKey)
             try insertCRDTMessage(message, db: db)

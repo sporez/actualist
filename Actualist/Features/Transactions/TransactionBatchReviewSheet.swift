@@ -65,23 +65,11 @@ struct TransactionBatchReviewSheet: View {
             }
         }
         .reviewSheetBottomBar {
-            Button(role: .cancel, action: onCancel) {
-                Text("Cancel")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
+            ReviewSheetSecondaryButton(action: onCancel)
 
-            Button(action: onConfirm) {
+            ReviewSheetPrimaryButton(tint: confirmTint, action: onConfirm) {
                 Text(display.confirmationTitle)
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 32)
             }
-            .buttonStyle(.glassProminent)
-            .tint(confirmTint)
             .disabled(!display.canSubmit)
         }
         .background(ActualistTheme.background)

@@ -164,30 +164,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
-        baseline: ActualTransaction? = nil,
-        actionSource: BudgetActionSource,
-        didUpdate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await updateTransactionAndRefresh(
-            transactionID,
-            with: draft,
-            budgetID: budgetID,
-            originalAccountID: originalAccountID,
-            originalMonth: originalMonth,
-            reconciliationAuthorization: nil,
-            baseline: baseline,
-            actionSource: actionSource,
-            didUpdate: didUpdate
-        )
-    }
-
-    func updateTransactionAndRefresh(
-        _ transactionID: String,
-        with draft: TransactionDraft,
-        budgetID: String,
-        originalAccountID: String,
-        originalMonth: String,
-        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         baseline: ActualTransaction? = nil,
         actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void

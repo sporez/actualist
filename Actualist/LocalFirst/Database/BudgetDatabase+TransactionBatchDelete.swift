@@ -161,7 +161,7 @@ extension BudgetDatabase {
         db: Database
     ) throws {
         for message in messages {
-            let value = try deserializeSyncValue(message.serializedValue)
+            let value = try ActualSyncSQLiteValue(serialized: message.serializedValue)
             if message.column == "tombstone", case .int(1) = value {
                 overlay.markTombstoned(message.row)
             } else if !overlay.tombstoned.contains(message.row),

@@ -367,9 +367,7 @@ extension LocalFirstActualStore {
         let categories = try await database.fetchCategories()
         let payees = try await database.fetchPayees(orderedForPicker: false)
         let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
-        let categoryNames = Dictionary(uniqueKeysWithValues: categories.compactMap { category in
-            category.id.map { ($0, category.name) }
-        })
+        let categoryNames = categories.namesByID
         // Transfer payees display the linked account name.
         let payeeNames = Dictionary(uniqueKeysWithValues: payees.compactMap { payee -> (String, String)? in
             guard let id = payee.id else {
