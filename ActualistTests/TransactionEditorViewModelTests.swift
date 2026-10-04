@@ -217,7 +217,7 @@ struct TransactionEditorViewModelTests {
         ])
 
         #expect(await model.submit(budgetID: "budget", repository: repository))
-        #expect(model.pendingSplitMismatch == TransactionSplitMismatch(transactionTotal: -1234, splitTotal: -1100))
+        #expect(model.splitState.pendingMismatch == TransactionSplitMismatch(transactionTotal: -1234, splitTotal: -1100))
         let mismatched = try await repository.onlyDraft()
         #expect(mismatched.splits.map(\.amountMinorUnits) == [-500, -600])
 
@@ -233,19 +233,6 @@ struct TransactionEditorViewModelTests {
         #expect(draft.splits.map(\.categoryID) == ["groceries", "household"])
         #expect(draft.splits.map(\.amountMinorUnits) == [-500, -734])
         #expect(draft.splits.map(\.payeeID) == [.value(nil), .value(nil)])
-    }
-
-    @Test func splitUpdateTotalUsesSplitSumAsTransactionAmount() {
-        let model = configuredModel()
-        model.splitState.replaceChildren([
-            Self.splitRow(id: "groceries", categoryID: "groceries", amount: -2500),
-            Self.splitRow(id: "household", categoryID: "household", amount: -1250)
-        ])
-
-        model.updateTotalFromSplits()
-
-        #expect(model.amountCents == 3750)
-        #expect(model.splitRemainingCents == 0)
     }
 
     @Test func splitRowRemovalCollapsesTwoCategoriesToRemainingCategory() {

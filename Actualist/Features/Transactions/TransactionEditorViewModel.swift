@@ -110,9 +110,6 @@ final class TransactionEditorViewModel {
         splitState.splitRows
     }
 
-    var pendingSplitMismatch: TransactionSplitMismatch? {
-        splitState.pendingMismatch
-    }
     var saveButtonTitle: String {
         switch submissionState {
         case .draft, .failed:
@@ -236,10 +233,6 @@ final class TransactionEditorViewModel {
 
     private var payeeOptions: TransactionEditorPayeeOptions {
         TransactionEditorPayeeOptions(accounts: accounts, payees: payees)
-    }
-
-    var payeeSections: [TransactionEditorPayeeSection] {
-        payeeOptions.sections
     }
 
     func setAmountInput(_ value: String) {
@@ -395,16 +388,6 @@ final class TransactionEditorViewModel {
         } catch {
             errorMessage = "The split amounts are too large."
         }
-    }
-
-    func updateTotalFromSplits() {
-        guard let total = splitState.checkedSplitTotalCents else {
-            errorMessage = "The split amounts are too large."
-            return
-        }
-        kind = total < 0 ? .spend : .inflow
-        amountDigits = total == 0 ? "" : String(abs(total))
-        splitState.clearMismatch()
     }
 
     private func applyCollapse(_ collapse: TransactionSplitEditorCollapse?) {

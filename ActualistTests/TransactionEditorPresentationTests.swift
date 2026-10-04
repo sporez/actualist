@@ -122,7 +122,7 @@ extension TransactionEditorViewModelTests {
             ActualPayee(id: "transfer-checking", name: "Ally Checking", category: nil, transferAccount: "checking")
         ]
 
-        let sections = model.payeeSections
+        let sections = TransactionEditorPayeeOptions(accounts: model.accounts, payees: model.payees).sections
 
         #expect(sections.map(\.kind) == [.payees, .transfers])
         #expect(sections.first?.options.map(\.title) == ["Corner Store"])
@@ -136,7 +136,7 @@ extension TransactionEditorViewModelTests {
             ActualPayee(id: "blank-transfer", name: "", category: nil, transferAccount: "missing-account")
         ]
 
-        let sections = model.payeeSections
+        let sections = TransactionEditorPayeeOptions(accounts: model.accounts, payees: model.payees).sections
 
         #expect(sections.map(\.kind) == [.payees])
         #expect(sections.first?.options.map(\.title) == ["Corner Store"])
