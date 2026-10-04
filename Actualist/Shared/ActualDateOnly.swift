@@ -12,6 +12,12 @@ enum ActualDateOnly {
         return ActualScheduleRecurrence.dayID(from: date, calendar: calendar)
     }
 
+    /// The calendar day `now` falls on in `timeZone` (the device zone by
+    /// default), not the UTC day.
+    static func today(now: Date = Date(), timeZone: TimeZone = .autoupdatingCurrent) -> String {
+        dayID(from: now, timeZone: timeZone)
+    }
+
     static func date(from dayID: String, timeZone: TimeZone) -> Date? {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
@@ -28,6 +34,16 @@ enum ActualDateOnly {
             return nil
         }
         return distance
+    }
+
+    /// Whole days since 1970-01-01 for a `yyyy-MM-dd` ID, or nil when it does
+    /// not parse. The calendar is fixed to GMT, so differences of epoch days
+    /// equal `dayDistance(from:to:)`.
+    static func epochDay(_ dayID: String) -> Int? {
+        guard let date = ActualScheduleRecurrence.date(from: dayID, calendar: Calendar.actualScheduleGregorian) else {
+            return nil
+        }
+        return Int((date.timeIntervalSince1970 / 86_400).rounded(.down))
     }
 
     static func dayDistance(fromCompact firstDayID: String, toCompact secondDayID: String) -> Int? {

@@ -14,7 +14,7 @@ extension LocalFirstActualStoreTests {
             selectedMonth: "2026-07"
         )
 
-        let widgetSource = try await store.fetchBudgetMonthUncached(
+        let widgetSource = try await store.readBudgetMonth(
             budgetID: "group-1",
             month: "2026-08"
         )

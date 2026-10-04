@@ -229,25 +229,3 @@ struct TransactionRowSemantics: Equatable, Hashable, Sendable {
         return trimmed.isEmpty ? nil : trimmed
     }
 }
-
-enum TransactionCategoryPresentation {
-    static func names(
-        for transaction: ActualTransaction,
-        categoryNames: [String: String],
-        transferPayeeIDs: Set<String>,
-        transferAccountIDsByPayeeID: [String: String] = [:],
-        offBudgetAccountIDs: Set<String>
-    ) -> [String] {
-        [
-            TransactionRowSemantics.project(
-                transaction,
-                lookup: TransactionRowLookup(
-                    categoryNames: categoryNames,
-                    transferPayeeIDs: transferPayeeIDs,
-                    transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
-                    offBudgetAccountIDs: offBudgetAccountIDs
-                )
-            ).categoryText
-        ]
-    }
-}

@@ -24,11 +24,11 @@ struct BudgetTemplateScheduleDecoderTests {
             let database = try makeDatabase(label: label, dateDefinition: definition)
             var builder = LocalFirstSyncMessageBuilder()
             do {
-                _ = try await database.budgetTemplateMessages(
+                _ = try await database.budgetTemplateApply(
                     command: .category("groceries"),
                     month: "2026-07",
                     builder: &builder
-                )
+                ).messages
                 Issue.record("Expected \(label) schedule recurrence to be refused")
             } catch LocalFirstError.unsupportedTemplate(let reason) {
                 #expect(reason == expectedReason)
@@ -44,11 +44,11 @@ struct BudgetTemplateScheduleDecoderTests {
         )
         var builder = LocalFirstSyncMessageBuilder()
         do {
-            _ = try await database.budgetTemplateMessages(
+            _ = try await database.budgetTemplateApply(
                 command: .category("groceries"),
                 month: "2026-07",
                 builder: &builder
-            )
+            ).messages
             Issue.record("Expected missing weekend mode to be refused")
         } catch LocalFirstError.unsupportedTemplate(let reason) {
             #expect(reason == "schedule")

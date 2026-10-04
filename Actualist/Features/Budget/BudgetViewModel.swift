@@ -38,23 +38,13 @@ final class BudgetViewModel {
         isLoading = false
     }
 
-    var assignmentDraft: BudgetAssignmentDraft? {
-        assignmentWorkflow.draft
-    }
-
     var moveMoneyDraft: BudgetMoveMoneyDraft? {
         moveMoneyWorkflow.draft
-    }
-
-    var monthTemplateSubmissionState: BudgetAssignmentSubmissionState {
-        templateWorkflow.submissionState
     }
 
     var canBeginOverspentCoverSelection: Bool {
         !isTrackingBudget && overspentCategoryOptions.count >= 2 && !overspentCoverSelection.isSubmitting
     }
-
-    var canOpenOverspentCover: Bool { !isTrackingBudget }
 
     var isOverspentCoverSelecting: Bool {
         overspentCoverSelection.isSelecting
@@ -107,19 +97,6 @@ final class BudgetViewModel {
 
             return alert.replacingCount(with: overspentCount)
         }
-    }
-
-    var overspendingAlertCount: Int? {
-        guard let budgetMonth else {
-            return nil
-        }
-
-        let overspentCategoryCount = overspentCategoryOptions.count
-        if overspentCategoryCount > 0 {
-            return overspentCategoryCount
-        }
-
-        return budgetMonth.lastMonthOverspent < 0 ? 1 : nil
     }
 
     var preferredMonth: String { YearMonth(date: Date()).rawValue }
@@ -188,14 +165,6 @@ final class BudgetViewModel {
         moveMoneyWorkflow.errorMessage
     }
 
-    var moveMoneyAmountDollars: Double {
-        moveMoneyWorkflow.amountDollars(using: currency)
-    }
-
-    var moveMoneyMaximumDollars: Double {
-        currency.displayUnits(fromMinorUnits: max(moveMoneyMaximumAmount, 1))
-    }
-
     var moveMoneyMaximumAmount: Int {
         moveMoneyWorkflow.maximumAmount(
             budgetMonth: budgetMonth,
@@ -248,10 +217,6 @@ final class BudgetViewModel {
             visibleGroups: visibleGroups,
             currency: currency
         )
-    }
-
-    var hasPendingMoveMoneyCoverIntro: Bool {
-        moveMoneyWorkflow.hasPendingCoverIntro
     }
 
     func playMoveMoneyCoverIntro() async {
@@ -516,10 +481,6 @@ final class BudgetViewModel {
 
     func cancelMoveMoney() {
         moveMoneyWorkflow.cancel()
-    }
-
-    func setMoveMoneyAmountDollars(_ value: Double) {
-        moveMoneyWorkflow.setAmountDollars(value, currency: currency)
     }
 
     func appendMoveMoneyDigit(_ digit: Int) {

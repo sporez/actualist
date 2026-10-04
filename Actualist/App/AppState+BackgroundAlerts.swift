@@ -80,10 +80,33 @@ extension AppState {
         }
     }
 
+    /// Scheduling runs on every appear and background transition. Repeating
+    /// the previous attempt's outcome and schedule would rewrite the whole
+    /// settings blob twice (memory and persisted copy) for no new information.
+    static let unchangedScheduleTolerance: TimeInterval = 10 * 60
+
+    static func isRedundantScheduleAttempt(
+        previous: BackgroundRefreshScheduleAttempt?,
+        succeeded: Bool,
+        earliestBeginDate: Date?,
+        message: String
+    ) -> Bool {
+        guard let previous, previous.succeeded == succeeded, previous.message == message else { return false }
+        switch (previous.earliestBeginDate, earliestBeginDate) {
+        case (nil, nil): return true
+        case let (old?, new?): return abs(new.timeIntervalSince(old)) < unchangedScheduleTolerance
+        default: return false
+        }
+    }
+
     func recordBackgroundRefreshScheduleAttempt(succeeded: Bool,
         earliestBeginDate: Date?,
         message: String
     ) {
+        guard !Self.isRedundantScheduleAttempt(
+            previous: settings.backgroundRefreshDebug.recentScheduleAttempts.first,
+            succeeded: succeeded, earliestBeginDate: earliestBeginDate, message: message
+        ) else { return }
         backgroundTransactionWorkflow.recordScheduleAttempt(succeeded: succeeded,
             earliestBeginDate: earliestBeginDate, message: message, in: &settings)
     }

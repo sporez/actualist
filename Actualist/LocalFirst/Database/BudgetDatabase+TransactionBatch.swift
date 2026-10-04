@@ -319,10 +319,13 @@ extension BudgetDatabase {
                 pairedReconciledTransactionIDs: requiredPairedReconciled.sorted()
             )
             : nil
+        let messagesByRow = Dictionary(grouping: messages, by: \.row)
         let rowChanges = try graphRows.map { snapshot in
             TransactionBatchRowChange(
                 before: Self.displayBatchSnapshot(snapshot),
-                after: try projectedBatchSnapshot(snapshot, messages: messages, columns: columns)
+                after: try projectedBatchSnapshot(
+                    snapshot, messages: messagesByRow[snapshot.id] ?? [], columns: columns
+                )
             )
         }
         var renderedRowIDs = Set(selections.map(\.transactionID))
@@ -455,6 +458,7 @@ extension BudgetDatabase {
         )
     }
 
+    /// `messages` are this row's messages only, in order.
     private func projectedBatchSnapshot(
         _ snapshot: TransactionBatchTransactionSnapshot,
         messages: [ActualSyncDecodedMessage],
@@ -480,7 +484,7 @@ extension BudgetDatabase {
         var importedID = snapshot.importedID
         var importedPayee = snapshot.importedPayee ?? snapshot.importedDescription
 
-        for message in messages where message.row == snapshot.id {
+        for message in messages {
             let value = try deserializeSyncValue(message.serializedValue)
             func string() -> String? {
                 if case .string(let text) = value { return text }

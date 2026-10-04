@@ -346,6 +346,9 @@ extension LocalFirstActualStoreTests {
         #expect(appState.isBudgetSwitchInProgress)
         #expect(appState.setupPhase == .ready)
         #expect(appState.isReadyForMainTabs)
+        await #expect(throws: ShortcutsError.budgetBusy) {
+            try await ShortcutsBudgetSession(appState: appState).prepare()
+        }
 
         await selectionTask.value
 

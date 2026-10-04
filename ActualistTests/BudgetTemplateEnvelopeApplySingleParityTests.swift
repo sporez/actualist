@@ -123,7 +123,7 @@ extension LocalFirstActualStoreTests {
         testCase: EnvelopeApplySingleCase
     ) async throws {
         let fixtureURL = try makeEnvelopeApplySingleFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         let monthBefore = try await database.fetchBudgetMonth(month: "2026-07")
         #expect(monthBefore.toBudget == 996_800)
         let baseline = try budgetTemplateApplySingleRows(
@@ -133,16 +133,16 @@ extension LocalFirstActualStoreTests {
         )
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category(testCase.categoryID),
             month: "2026-07",
             currentMonth: "2026-08",
             builder: &builder
-        )
+        ).messages
 
         #expect(!messages.isEmpty)
         #expect(!messages.contains { $0.dataset == "reflect_budgets" })
-        _ = try await database.applyLocalSyncMessages(messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
 
         let after = try budgetTemplateApplySingleRows(
             table: "zero_budgets",
@@ -161,7 +161,7 @@ extension LocalFirstActualStoreTests {
         testCase: EnvelopeApplySingleCase
     ) async throws {
         let fixtureURL = try makeJPYEnvelopeFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         #expect(try await database.fetchBudgetMonth(month: "2026-07").toBudget == 9_968)
         let baseline = try budgetTemplateApplySingleRows(
             table: "zero_budgets",
@@ -169,14 +169,14 @@ extension LocalFirstActualStoreTests {
             at: fixtureURL
         )
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category(testCase.categoryID),
             month: "2026-07",
             currentMonth: "2026-08",
             builder: &builder
-        )
+        ).messages
         #expect(!messages.contains { $0.dataset == "reflect_budgets" })
-        _ = try await database.applyLocalSyncMessages(messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let after = try budgetTemplateApplySingleRows(
             table: "zero_budgets",
             month: 202607,
@@ -191,16 +191,16 @@ extension LocalFirstActualStoreTests {
 
     @Test func budgetTemplateJPYEnvelopeOverwriteMatchesActual2681() async throws {
         let fixtureURL = try makeJPYEnvelopeFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
             currentMonth: "2026-08",
             builder: &builder
-        )
+        ).messages
         #expect(!messages.contains { $0.dataset == "reflect_budgets" })
-        _ = try await database.applyLocalSyncMessages(messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let after = try budgetTemplateApplySingleRows(
             table: "zero_budgets",
             month: 202607,

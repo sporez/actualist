@@ -29,9 +29,13 @@ extension LocalFirstActualStore: TransactionBatchRepositoryProtocol {
             review: review,
             authorization: authorization
         )
-        return await Task { @MainActor [self] in
-            do {
+        let tail = await finishDurableCommit(
+            database: database,
+            budgetID: review.context.budgetID,
+            requireSession: { [self] in
                 try requireSyncSession(database: database, budgetID: review.context.budgetID, generation: generation)
+            },
+            reload: { [self] in
                 if case .categorize = review.intent {
                     try await refreshRulesCache(database: database, budgetID: review.context.budgetID)
                 }
@@ -39,35 +43,15 @@ extension LocalFirstActualStore: TransactionBatchRepositoryProtocol {
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: review.context.budgetID,
-                    accountIDs: receipt.changedAccountIDs,
-                    monthIDs: receipt.changedMonthIDs
-                )
-                try requireSyncSession(database: database, budgetID: review.context.budgetID, generation: generation)
-                await schedulePendingLocalMessageFlush(database: database, budgetID: review.context.budgetID)
-                try requireSyncSession(database: database, budgetID: review.context.budgetID, generation: generation)
-                return TransactionBatchOutcome(receipt: receipt, refreshPending: false, sessionCurrent: true)
-            } catch {
-                var sessionCurrent = (try? requireSyncSession(
-                    database: database,
-                    budgetID: review.context.budgetID,
-                    generation: generation
-                )) != nil
-                if sessionCurrent {
-                    invalidateTransactionFeedCaches(budgetID: review.context.budgetID)
-                    await schedulePendingLocalMessageFlush(database: database, budgetID: review.context.budgetID)
-                    sessionCurrent = (try? requireSyncSession(
-                        database: database,
-                        budgetID: review.context.budgetID,
-                        generation: generation
-                    )) != nil
-                }
-                return TransactionBatchOutcome(
-                    receipt: receipt,
-                    refreshPending: true,
-                    sessionCurrent: sessionCurrent
+                    accountIDs: receipt.changedAccountIDs
                 )
             }
-        }.value
+        )
+        return TransactionBatchOutcome(
+            receipt: receipt,
+            refreshPending: tail.refreshPending,
+            sessionCurrent: tail.sessionCurrent
+        )
     }
 
     private func requireBatchSession(

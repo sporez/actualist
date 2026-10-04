@@ -92,7 +92,7 @@ extension BudgetDatabase {
                     db,
                     sql: "SELECT MAX(created_at) FROM actualist_action_log"
                   ),
-                  let date = Self.outboxDate(newest) else {
+                  let date = SyncTimestamp.wallTimeDate(from: newest) else {
                 return ActionLogDiagnosticSnapshot(count: count, newestCreatedAt: nil)
             }
             return ActionLogDiagnosticSnapshot(count: count, newestCreatedAt: date)

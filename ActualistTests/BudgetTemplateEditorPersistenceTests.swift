@@ -100,7 +100,7 @@ struct BudgetTemplateEditorPersistenceTests {
         let applied = try await database.budgetTemplateApply(command: command, month: "2026-07", currentMonth: "2026-07", builder: &builder)
         #expect(preview.categories.map(\.proposed) == applied.assignments.map(\.amount))
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
-        _ = try await database.applyLocalSyncMessages(applied.messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(applied.messages)
         for category in preview.categories {
             let actual = try await queue.read { db in
                 try Int.fetchOne(db, sql: "SELECT amount FROM \(tracking ? "reflect_budgets" : "zero_budgets") WHERE category = ? AND month = 202607", arguments: [category.categoryID])

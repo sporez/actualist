@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 @testable import Actualist
@@ -169,5 +170,18 @@ struct ReimportRollbackTests {
         )
         try bundle.keychain.saveActualSyncToken("reimport-token")
         return (bundle, fileSystem)
+    }
+}
+
+extension BudgetFileManager {
+    /// Observes the on-disk reimport backup (`.ReimportBackups/<sha256(fileID)>`
+    /// beside the budget directories) that the swap keeps until it is safe to drop.
+    func reimportBackupExists(fileID: String) throws -> Bool {
+        let hash = SHA256.hash(data: Data(fileID.utf8)).map { String(format: "%02x", $0) }.joined()
+        let backup = try budgetDirectory(fileID: fileID)
+            .deletingLastPathComponent()
+            .appending(path: ".ReimportBackups", directoryHint: .isDirectory)
+            .appending(path: hash, directoryHint: .isDirectory)
+        return FileManager.default.fileExists(atPath: backup.path)
     }
 }

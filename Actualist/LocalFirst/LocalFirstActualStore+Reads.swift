@@ -25,17 +25,6 @@ extension LocalFirstActualStore {
         return try await budgetMonth(budgetID: budgetID, selectedMonth: selected)
     }
 
-    /// Reads one month for an external snapshot without changing the month the
-    /// Budget screen currently owns in `loadedBudgetMonthsByBudget`.
-    func fetchBudgetMonthUncached(
-        budgetID: String,
-        month: String
-    ) async throws -> (month: BudgetMonth, currency: BudgetCurrency) {
-        let database = try requireDatabase(for: budgetID)
-        let snapshot = try await database.fetchBudgetSnapshot(month: month)
-        return (snapshot.month, snapshot.currency)
-    }
-
     func budgetMonth(
         budgetID: String,
         selectedMonth: String
@@ -162,10 +151,26 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let maps = try await nameMaps(database)
-        let transactions = try await database.fetchTransactions().filter { transaction in
+        let transactions = try await database.fetchTransactions()
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        publishCategoryTransactions(
+            budgetID: budgetID, categoryID: categoryID, month: month,
+            allTransactions: transactions, maps: maps
+        )
+    }
+
+    /// Filters an already-fetched transaction table into one category feed, so a
+    /// reload can serve every cached feed from a single read.
+    func publishCategoryTransactions(
+        budgetID: String,
+        categoryID: String,
+        month: String,
+        allTransactions: [ActualTransaction],
+        maps: TransactionNameMaps
+    ) {
+        let transactions = allTransactions.filter { transaction in
             transaction.belongs(toCategory: categoryID, month: month)
         }
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         categoryTransactionsByKey[categoryTransactionKey(budgetID, categoryID, month)] = TransactionFeedPage(
             loaded: LoadedAccountTransactions(
                 transactions: transactions,
@@ -213,7 +218,23 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let maps = try await nameMaps(database)
-        let transactions = try await database.fetchUncategorizedTransactions().filter { transaction in
+        let rows = try await database.fetchUncategorizedTransactions()
+        return try await publishUncategorizedTransactions(
+            database: database, budgetID: budgetID, month: month,
+            generation: generation, rows: rows, maps: maps
+        )
+    }
+
+    /// Filters already-fetched uncategorized candidates for one cached month key.
+    func publishUncategorizedTransactions(
+        database: BudgetDatabase,
+        budgetID: String,
+        month: String,
+        generation: Int,
+        rows: [ActualTransaction],
+        maps: TransactionNameMaps
+    ) async throws -> LoadedUncategorizedTransactions {
+        let transactions = rows.filter { transaction in
             Self.isUncategorized(
                 transaction,
                 transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
@@ -255,28 +276,6 @@ extension LocalFirstActualStore {
         if let uncategorized = Self.uncategorizedAlert(count: uncategorizedCount) {
             alerts.append(uncategorized)
         }
-        return alerts
-    }
-
-    static func budgetAlerts(
-        month: BudgetMonth,
-        transactions: [ActualTransaction],
-        transferAccountIDsByPayeeID: [String: String],
-        offBudgetAccountIDs: Set<String>,
-        isTrackingBudget: Bool
-    ) -> [BudgetMonthAlert] {
-        var alerts: [BudgetMonthAlert] = []
-        if !isTrackingBudget, let toBudget = toBudgetAlert(month: month) {
-            alerts.append(toBudget)
-        }
-        if let overspending = overspendingAlert(month: month, isTrackingBudget: isTrackingBudget) {
-            alerts.append(overspending)
-        }
-        alerts.append(contentsOf: uncategorizedAlerts(
-            transactions: transactions,
-            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
-            offBudgetAccountIDs: offBudgetAccountIDs
-        ))
         return alerts
     }
 
@@ -326,21 +325,6 @@ extension LocalFirstActualStore {
         )
     }
 
-    static func uncategorizedAlerts(
-        transactions: [ActualTransaction],
-        transferAccountIDsByPayeeID: [String: String],
-        offBudgetAccountIDs: Set<String>
-    ) -> [BudgetMonthAlert] {
-        let count = transactions.filter {
-            isUncategorized(
-                $0,
-                transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
-                offBudgetAccountIDs: offBudgetAccountIDs
-            )
-        }.count
-        return uncategorizedAlert(count: count).map { [$0] } ?? []
-    }
-
     // Cross-budget transfers from a budget account still need a category.
     // Split parents are excluded because their effective category is always
     // null; uncategorized children are independent `.inline` rows.
@@ -369,23 +353,16 @@ extension LocalFirstActualStore {
         return budgetMonth.editorCategoryGroups(currency: budgetCurrency(budgetID: budgetID))
     }
 
-    func editorCategoryGroups(
-        from budgetMonth: BudgetMonth,
-        budgetID: String
-    ) -> [TransactionEditorCategoryGroup] {
-        budgetMonth.editorCategoryGroups(currency: budgetCurrency(budgetID: budgetID))
-    }
-
-    func nameMaps(
-        _ database: BudgetDatabase
-    ) async throws -> (
+    typealias TransactionNameMaps = (
         accountNames: [String: String],
         categoryNames: [String: String],
         payeeNames: [String: String],
         transferPayeeIDs: Set<String>,
         transferAccountIDsByPayeeID: [String: String],
         offBudgetAccountIDs: Set<String>
-    ) {
+    )
+
+    func nameMaps(_ database: BudgetDatabase) async throws -> TransactionNameMaps {
         let accounts = try await database.fetchAccounts()
         let categories = try await database.fetchCategories()
         let payees = try await database.fetchPayees(orderedForPicker: false)

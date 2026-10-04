@@ -226,7 +226,25 @@ extension BudgetDatabase {
     /// split children included, tombstones and invalid `is_child` rows
     /// without a parent excluded. The window bound is month-widened by the
     /// caller; the reconciler applies the exact ±7-day filter.
-    func bankSyncExistingRows(accountID: String, window: ClosedRange<Int>) throws -> [BankSyncReconciliation.Existing] {
+    /// With `ids`, only those rows (still scoped to the account and window) are
+    /// read, in id chunks that stay under SQLite's bound-variable limit.
+    func bankSyncExistingRows(
+        accountID: String,
+        window: ClosedRange<Int>,
+        ids: [String]? = nil
+    ) throws -> [BankSyncReconciliation.Existing] {
+        if let ids, ids.isEmpty { return [] }
+        let idChunks: [[String]?] = ids.map { all in
+            stride(from: 0, to: all.count, by: 500).map { Array(all[$0..<min($0 + 500, all.count)]) }
+        } ?? [nil]
+        return try idChunks.flatMap { chunk in try bankSyncExistingRows(accountID: accountID, window: window, idChunk: chunk) }
+    }
+
+    private func bankSyncExistingRows(
+        accountID: String,
+        window: ClosedRange<Int>,
+        idChunk: [String]?
+    ) throws -> [BankSyncReconciliation.Existing] {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else { return [] }
             let columns = try columnSet(for: "transactions", db: db)
@@ -258,11 +276,13 @@ extension BudgetDatabase {
                 WHERE \(split.qualifiedAccount) = ?
                   AND \(split.qualifiedDate) BETWEEN ? AND ?
                   AND \(split.liveEffectivePredicate())
+                  \(idChunk.map { "AND t.id IN (\(Array(repeating: "?", count: $0.count).joined(separator: ",")))" } ?? "")
                 """
             return try Row.fetchAll(
                 db,
                 sql: sql,
-                arguments: [accountID, window.lowerBound, window.upperBound]
+                arguments: StatementArguments([accountID, window.lowerBound, window.upperBound] as [any DatabaseValueConvertible])
+                    + StatementArguments(idChunk ?? [])
             ).compactMap { row in
                 guard let id: String = row["id"],
                       let day: Int = row["date"] else {

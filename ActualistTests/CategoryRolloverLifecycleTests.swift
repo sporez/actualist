@@ -46,7 +46,7 @@ struct CategoryRolloverLifecycleTests {
         ])
         switch source {
         case "sync": try await store.reloadAfterRemoteSync(database: database, budgetID: "group-1")
-        case "transaction": try await store.reloadAfterTransactionMutation(database: database, budgetID: "group-1", accountIDs: ["checking"], monthIDs: ["2026-07"])
+        case "transaction": try await store.reloadAfterTransactionMutation(database: database, budgetID: "group-1", accountIDs: ["checking"])
         case "payee": try await store.reloadAfterPayeeMutation(database: database, budgetID: "group-1")
         case "account": try await store.reloadAfterAccountMutation(database: database, budgetID: "group-1")
         default: try await store.reloadSelectedBudgetCache(budgetID: "group-1")

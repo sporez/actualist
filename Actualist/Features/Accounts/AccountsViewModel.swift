@@ -36,6 +36,32 @@ final class AccountsViewModel {
     private var budgetID: String?
     private var submitGeneration = 0
 
+    private struct LayoutInputs: Equatable {
+        var displays: [AccountDisplay]
+        var groups: [ActualAccountGroup]
+        var preferredIDs: [String]
+    }
+
+    /// The last layout and the inputs it was built from. Not observed: reading
+    /// the sections during a render must not invalidate it.
+    @ObservationIgnored private var layoutMemo: (inputs: LayoutInputs, sections: [AccountListLayout.Section])?
+    /// Layouts actually built, for the work-count test.
+    @ObservationIgnored private(set) var layoutBuildCount = 0
+
+    /// One layout per distinct inputs, however many times a render asks.
+    func sections(
+        displays: [AccountDisplay],
+        groups: [ActualAccountGroup],
+        preferredIDs: [String]
+    ) -> [AccountListLayout.Section] {
+        let inputs = LayoutInputs(displays: displays, groups: groups, preferredIDs: preferredIDs)
+        if let layoutMemo, layoutMemo.inputs == inputs { return layoutMemo.sections }
+        let sections = AccountListLayout.sections(displays: displays, groups: groups, preferredIDs: preferredIDs)
+        layoutBuildCount += 1
+        layoutMemo = (inputs, sections)
+        return sections
+    }
+
     var canSubmitGroupEditor: Bool {
         !trimmedGroupEditorName.isEmpty && !isSubmitting
     }

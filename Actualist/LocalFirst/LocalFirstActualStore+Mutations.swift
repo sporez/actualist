@@ -20,8 +20,9 @@ extension LocalFirstActualStore {
             source: .ui
         )
         lastPayeeUndoMessagesByBudget[budgetID] = undo
-        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        }
     }
 
     func renamePayeeAndRefresh(
@@ -47,8 +48,9 @@ extension LocalFirstActualStore {
             source: .ui
         )
         lastPayeeUndoMessagesByBudget[budgetID] = undo
-        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        }
     }
 
     func mergePayeesAndRefresh(
@@ -74,8 +76,9 @@ extension LocalFirstActualStore {
             source: .ui
         )
         lastPayeeUndoMessagesByBudget[budgetID] = undo
-        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        }
     }
 
     func deletePayeeAndRefresh(budgetID: String, payeeID: String) async throws {
@@ -105,8 +108,9 @@ extension LocalFirstActualStore {
             source: .ui
         )
         lastPayeeUndoMessagesByBudget[budgetID] = undo
-        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        }
     }
 
     func updatePayeesAndRefresh(
@@ -126,8 +130,9 @@ extension LocalFirstActualStore {
             source: .ui
         )
         lastPayeeUndoMessagesByBudget[budgetID] = mutation.undo
-        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        }
     }
 
     func setGlobalCategoryLearningAndRefresh(budgetID: String, enabled: Bool) async throws {
@@ -144,8 +149,9 @@ extension LocalFirstActualStore {
             source: .ui
         )
         lastPayeeUndoMessagesByBudget[budgetID] = mutation.undo
-        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        }
     }
 
     func undoLastPayeeMutationAndRefresh(budgetID: String) async throws {
@@ -155,8 +161,9 @@ extension LocalFirstActualStore {
         }
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         lastPayeeUndoMessagesByBudget[budgetID] = nil
-        try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
+        }
     }
 
     func reloadAfterPayeeMutation(
@@ -204,8 +211,7 @@ extension LocalFirstActualStore {
             descriptor: .account(AccountActionDescriptor(name: name, offbudget: offbudget)),
             source: actionSource
         )
-        try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
     }
 
     func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
@@ -237,8 +243,7 @@ extension LocalFirstActualStore {
             expectedMode: mode
         )
         await didSetCarryover()
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: startMonth)
     }
 
@@ -269,8 +274,7 @@ extension LocalFirstActualStore {
                 expectedMode: mode
             )
         }
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: startMonth)
     }
 
@@ -292,8 +296,7 @@ extension LocalFirstActualStore {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         }
         await didUpdate()
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
@@ -315,8 +318,7 @@ extension LocalFirstActualStore {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         }
         await didUpdate()
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
@@ -381,8 +383,7 @@ extension LocalFirstActualStore {
             )
         }
         await didApply()
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
@@ -398,21 +399,18 @@ extension LocalFirstActualStore {
         if !repair.write.messages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(repair.write.messages)
         }
-        try await reloadAfterTransactionMutation(
+        try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: repair.write.affectedAccountIDs,
-            monthIDs: []
+            accountIDs: repair.write.affectedAccountIDs
         )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return repair.result
     }
 
     func reloadAfterTransactionMutation(
         database: BudgetDatabase,
         budgetID: String,
-        accountIDs: [String],
-        monthIDs: [String]
+        accountIDs: [String]
     ) async throws {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
         invalidateReports(budgetID: budgetID)

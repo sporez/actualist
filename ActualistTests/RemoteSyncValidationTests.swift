@@ -154,7 +154,7 @@ struct RemoteSyncValidationTests {
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node")
 
         await #expect(throws: LocalFirstError.invalidSyncValue) {
-            _ = try await database.applyLocalSyncMessages([message(t1, "txn", "amount", "X:oops")])
+            _ = try await database.commitLocalSyncMessagesAndEnqueue([message(t1, "txn", "amount", "X:oops")])
         }
         #expect(try scalar("SELECT COUNT(*) FROM messages_crdt", url) == "0")
     }

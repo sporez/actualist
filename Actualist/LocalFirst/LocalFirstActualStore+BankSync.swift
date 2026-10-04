@@ -185,13 +185,6 @@ extension LocalFirstActualStore {
         )
     }
 
-    private func bankSyncDeviceClient() throws -> SimpleFINBridgeClient {
-        guard let client = try bankSyncDeviceClientIfPresent() else {
-            throw BankSyncStoreError.notConfigured
-        }
-        return client
-    }
-
     /// Remote SimpleFIN-side accounts through the resolved provider
     /// (server first, device-claimed bridge fallback).
     func bankSyncRemoteAccounts(budgetID: String) async throws -> [SimpleFINRemoteAccount] {
@@ -233,8 +226,7 @@ extension LocalFirstActualStore {
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         bankSyncGenerationByAccount[localAccountID] = nil
-        try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
     }
 
     /// loot-core `unlinkAccount`: clear a SimpleFIN link's columns and leave
@@ -255,8 +247,7 @@ extension LocalFirstActualStore {
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         bankSyncGenerationByAccount[localAccountID] = nil
-        try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
     }
 
     // MARK: - Apply
@@ -284,6 +275,7 @@ extension LocalFirstActualStore {
         var builder = LocalFirstSyncMessageBuilder()
         var messages: [ActualSyncDecodedMessage] = []
         var resolvedPayeeIDs: [String: String] = [:]
+        var knownPayees: [ActualPayee]?
         var insertedCount = 0
         var updatedCount = 0
         var insertedIDsByAccount: [String: [String]] = [:]
@@ -304,10 +296,12 @@ extension LocalFirstActualStore {
             ))
         }
 
-        let existingByID = Dictionary(
+        // Only matched updates read existing rows, and only those rows.
+        let existingByID = plan.updates.isEmpty ? [:] : Dictionary(
             uniqueKeysWithValues: try await database.bankSyncExistingRows(
                 accountID: plan.link.accountID,
-                window: 0...99_999_999
+                window: 0...99_999_999,
+                ids: Array(Set(plan.updates.map(\.existingID)))
             ).map { ($0.id, $0) }
         )
         for update in plan.updates {
@@ -324,7 +318,6 @@ extension LocalFirstActualStore {
             updatedCount += 1
         }
 
-        var monthIDs = Set<String>()
         var affectedAccountIDs = Set([plan.link.accountID])
         for (index, candidate) in plan.inserts.enumerated() {
             try Task.checkCancellation()
@@ -332,6 +325,7 @@ extension LocalFirstActualStore {
             let payeeResolution = try await resolveBankSyncInsertPayee(
                 candidate: candidate,
                 resolvedPayeeIDs: &resolvedPayeeIDs,
+                knownPayees: &knownPayees,
                 database: database,
                 builder: &builder
             )
@@ -379,7 +373,6 @@ extension LocalFirstActualStore {
             messages.append(contentsOf: payeeResolution.messages)
             messages.append(contentsOf: transactionMessages)
             insertedIDsByAccount[plan.link.accountID, default: []].append(transactionID)
-            monthIDs.insert(draft.month.rawValue)
             insertedCount += 1
         }
 
@@ -433,19 +426,29 @@ extension LocalFirstActualStore {
             openingBalanceInserted: plan.openingBalance != nil,
             insertedTransactionIDsByAccount: insertedIDsByAccount
         )
+        // A committed write cannot be reported as though it rolled back.
+        var reloadError: Error?
+        let refreshPending: Bool
         do {
-            try requireSyncSession(database: database, budgetID: budgetID, generation: sessionGeneration)
-            try await reloadAfterTransactionMutation(
-                database: database,
-                budgetID: budgetID,
-                accountIDs: Array(affectedAccountIDs),
-                monthIDs: Array(monthIDs)
-            )
+            refreshPending = try await finishCommittedWrite(database: database, budgetID: budgetID) {
+                do {
+                    try requireSyncSession(database: database, budgetID: budgetID, generation: sessionGeneration)
+                    try await reloadAfterTransactionMutation(
+                        database: database,
+                        budgetID: budgetID,
+                        accountIDs: Array(affectedAccountIDs)
+                    )
+                } catch {
+                    reloadError = error
+                    throw error
+                }
+            }
         } catch {
-            // A committed write cannot be reported as though it rolled back.
             throw BankSyncCommittedRefreshError(result: result, underlyingError: error)
         }
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        if refreshPending, let reloadError {
+            throw BankSyncCommittedRefreshError(result: result, underlyingError: reloadError)
+        }
         return result
     }
 
@@ -490,6 +493,7 @@ extension LocalFirstActualStore {
     private func resolveBankSyncInsertPayee(
         candidate: BankSyncReconciliation.Candidate,
         resolvedPayeeIDs: inout [String: String],
+        knownPayees: inout [ActualPayee]?,
         database: BudgetDatabase,
         builder: inout LocalFirstSyncMessageBuilder
     ) async throws -> (payeeID: String, messages: [ActualSyncDecodedMessage]) {
@@ -502,9 +506,11 @@ extension LocalFirstActualStore {
         if let cachedID = resolvedPayeeIDs[key], !key.isEmpty {
             return (cachedID, [])
         }
+        if knownPayees == nil { knownPayees = try await database.fetchPayees() }
         let resolution = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: nil,
             payeeName: name,
+            knownPayees: knownPayees,
             builder: &builder
         )
         if !key.isEmpty {

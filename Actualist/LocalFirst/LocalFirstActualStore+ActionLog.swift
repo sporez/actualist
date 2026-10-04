@@ -65,7 +65,6 @@ extension LocalFirstActualStore {
         }
         _ = try await database.commitActionUndo(record: record)
         // One reload covers budget, account and every loaded transaction feed.
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
     }
 }

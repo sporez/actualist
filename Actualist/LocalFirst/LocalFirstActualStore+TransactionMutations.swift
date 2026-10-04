@@ -100,13 +100,11 @@ extension LocalFirstActualStore {
         await didCreate()
 
         let uniqueAccounts = Array(Set(changedAccounts))
-        try await reloadAfterTransactionMutation(
+        try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: uniqueAccounts,
-            monthIDs: [draft.month.rawValue]
+            accountIDs: uniqueAccounts
         )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
@@ -285,13 +283,11 @@ extension LocalFirstActualStore {
 
         let changedAccounts = Array(Set(update.affectedAccountIDs + [originalAccountID, draft.accountID]))
         let changedMonths = Array(Set([originalMonth, draft.month.rawValue]))
-        try await reloadAfterTransactionMutation(
+        try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: changedAccounts,
-            monthIDs: changedMonths
+            accountIDs: changedAccounts
         )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
@@ -422,13 +418,11 @@ extension LocalFirstActualStore {
         let changedAccounts = accountIDs.sorted()
         let changedMonths = monthIDs.sorted()
         let changedTransactions = transactionIDs.sorted()
-        try await reloadAfterTransactionMutation(
+        try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: changedAccounts,
-            monthIDs: changedMonths
+            accountIDs: changedAccounts
         )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(
@@ -546,13 +540,11 @@ extension LocalFirstActualStore {
         await didDelete()
 
         let changedAccounts = Array(Set(delete.affectedAccountIDs + [transaction.account]))
-        try await reloadAfterTransactionMutation(
+        try await finishCommittedTransactionWrite(
             database: database,
             budgetID: budgetID,
-            accountIDs: changedAccounts,
-            monthIDs: [monthID]
+            accountIDs: changedAccounts
         )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
         return TransactionMutationResult(
             ok: true,
             changed: ChangedResources(

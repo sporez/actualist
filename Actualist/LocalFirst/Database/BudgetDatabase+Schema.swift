@@ -8,9 +8,7 @@ extension BudgetDatabase {
     }
 
     func monthID(_ month: Int) -> String {
-        let year = month / 100
-        let monthNumber = month % 100
-        return String(format: "%04d-%02d", year, monthNumber)
+        YearMonth.id(packed: month)
     }
 
     func shiftedMonth(_ month: Int, by offset: Int) -> Int {
@@ -29,19 +27,6 @@ extension BudgetDatabase {
             return (year + 1) * 100 + 1
         }
         return year * 100 + monthNumber + 1
-    }
-
-    func date(fromDayID dayID: String) -> Date? {
-        let parts = dayID.split(separator: "-")
-        guard parts.count == 3,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]),
-              let day = Int(parts[2]) else {
-            return nil
-        }
-        return Calendar(identifier: .gregorian).date(
-            from: DateComponents(year: year, month: month, day: day)
-        )
     }
 
     func budgetTable(db: Database) throws -> BudgetTable {

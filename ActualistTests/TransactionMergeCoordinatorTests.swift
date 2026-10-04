@@ -25,7 +25,6 @@ struct TransactionMergeCoordinatorTests {
         #expect(coordinator.accept(review, for: submitting))
         #expect(coordinator.beginSubmission()?.orderedTransactionIDs == ["first", "second"])
         coordinator.failSubmission(reviewID: review.id, message: "The merge could not be saved.")
-        #expect(failedSelections(coordinator) == selections)
         #expect(coordinator.failureMessage == "The merge could not be saved.")
     }
 
@@ -40,7 +39,7 @@ struct TransactionMergeCoordinatorTests {
         #expect(coordinator.accept(swapped, for: preparation) == false)
         #expect(coordinator.isCurrent(preparation))
         coordinator.failPreparation(preparation, message: "This selection changed. Review it again before continuing.")
-        #expect(failedSelections(coordinator)?.map(\.transactionID) == ["later", "earlier"])
+        #expect(coordinator.failureMessage == "This selection changed. Review it again before continuing.")
     }
 
     @Test func staleMergeResultCannotReplaceTheCurrentReview() throws {
@@ -140,7 +139,6 @@ struct TransactionMergeCoordinatorTests {
 
         #expect(presentation.isSelectionMode)
         #expect(presentation.selection.orderedSelectedIdentities.map(\.transactionID) == ["second", "first"])
-        #expect(failedSelections(presentation.merge)?.map(\.transactionID) == ["second", "first"])
         #expect(presentation.selectionFailureMessage == "The merge review failed.")
     }
 }

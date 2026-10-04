@@ -102,7 +102,7 @@ struct BudgetMonthSwipeNavigationTests {
         let navigation = BudgetMonthSwipeNavigation()
         #expect(navigation.navigate(.next, model: model, budgetID: "budget", repository: BudgetViewportTestRepository()) == nil)
         #expect(model.selectedMonth == "2026-12")
-        #expect(model.assignmentDraft?.inputDigits == "7")
+        #expect(model.assignmentWorkflow.draft?.inputDigits == "7")
     }
 
     @Test func draftOpenedBeforeScheduledNavigationIsPreserved() async throws {
@@ -113,7 +113,7 @@ struct BudgetMonthSwipeNavigationTests {
         model.appendAssignmentDigit(3)
         await request.value
         #expect(model.selectedMonth == "2026-12")
-        #expect(model.assignmentDraft?.inputDigits == "3")
+        #expect(model.assignmentWorkflow.draft?.inputDigits == "3")
     }
 
     @Test func duplicateAndCancelledReadCannotMoveMonth() async throws {

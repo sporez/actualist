@@ -22,7 +22,6 @@ final class TransactionDuplicateCoordinator {
         case committed(TransactionDuplicateOutcome)
         case failed(
             context: TransactionSelectionContext,
-            selections: TransactionOrderedSelection,
             message: String
         )
     }
@@ -48,7 +47,7 @@ final class TransactionDuplicateCoordinator {
     }
 
     var failureMessage: String? {
-        if case .failed(_, _, let message) = state { return message }
+        if case .failed(_, let message) = state { return message }
         return nil
     }
 
@@ -104,7 +103,6 @@ final class TransactionDuplicateCoordinator {
         guard isCurrent(preparation) else { return }
         state = .failed(
             context: preparation.context,
-            selections: TransactionOrderedSelection(preparation.selections),
             message: message
         )
     }
@@ -141,7 +139,6 @@ final class TransactionDuplicateCoordinator {
         guard case .submitting(let review) = state, review.id == reviewID else { return }
         state = .failed(
             context: review.context,
-            selections: TransactionOrderedSelection(review.selections),
             message: message
         )
     }

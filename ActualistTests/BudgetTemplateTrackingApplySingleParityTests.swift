@@ -75,18 +75,18 @@ extension LocalFirstActualStoreTests {
         testCase: TrackingApplySingleCase
     ) async throws {
         let fixtureURL = try makeTrackingApplySingleFixture()
-        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateMessages(
+        let messages = try await database.budgetTemplateApply(
             command: .category(testCase.categoryID),
             month: "2026-07",
             builder: &builder
-        )
+        ).messages
 
         #expect(!messages.isEmpty)
         #expect(!messages.contains { $0.dataset == "zero_budgets" })
-        _ = try await database.applyLocalSyncMessages(messages)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
 
         #expect(
             try budgetTemplateApplySingleRow(

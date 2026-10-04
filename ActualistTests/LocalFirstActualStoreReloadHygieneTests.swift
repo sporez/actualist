@@ -59,7 +59,7 @@ extension LocalFirstActualStoreTests {
         let url = try makeSQLiteFixture(extraSQL: Self.collidingTablesSQL)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node")
 
-        _ = try await database.applyLocalSyncMessages(Self.collidingMessages())
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(Self.collidingMessages())
 
         #expect(try collidingRowCounts(url) == [1, 1])
     }

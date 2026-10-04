@@ -187,67 +187,6 @@ extension BudgetDatabase {
         return result.mapValues { $0.sorted() }
     }
 
-    func applyLocalSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {
-        try applyLocalSyncMessages(messages, outboxBaseTimestamp: nil)
-    }
-
-    func applyLocalSyncMessagesAndEnqueue(
-        _ messages: [ActualSyncDecodedMessage],
-        baseTimestamp: String
-    ) throws -> Int {
-        try applyLocalSyncMessages(messages, outboxBaseTimestamp: baseTimestamp)
-    }
-
-    func applyLocalSyncMessages(
-        _ messages: [ActualSyncDecodedMessage],
-        outboxBaseTimestamp: String?
-    ) throws -> Int {
-        guard !messages.isEmpty else {
-            return 0
-        }
-        try beforeBudgetDataMutation()
-
-        return try writeTrackingMerkle { db in
-            guard try tableExists("messages_crdt", db: db) else {
-                throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
-            }
-            if outboxBaseTimestamp != nil {
-                try ensureLocalSyncOutbox(db)
-            }
-
-            var appliedCount = 0
-            let sortedMessages = messages.sorted { $0.timestamp < $1.timestamp }
-            var insertedRows = Set<RowKey>()
-
-            for message in sortedMessages {
-                try validateLocalMessage(message, db: db)
-
-                if try hasSameOrNewerMessage(message, db: db) {
-                    throw LocalFirstError.localWriteSuperseded
-                }
-
-                let rowWasInserted = insertedRows.contains(RowKey(message))
-                let hasRow: Bool
-                if rowWasInserted {
-                    hasRow = true
-                } else {
-                    hasRow = try rowExists(table: message.dataset, rowID: message.row, db: db)
-                }
-
-                let value = try deserializeSyncValue(message.serializedValue)
-                try apply(message: message, value: value, rowExists: hasRow, db: db)
-                insertedRows.insert(RowKey(message))
-                try insertCRDTMessage(message, db: db)
-                if let outboxBaseTimestamp {
-                    try insertLocalSyncOutboxMessage(message, baseTimestamp: outboxBaseTimestamp, db: db)
-                }
-                appliedCount += 1
-            }
-
-            return appliedCount
-        }
-    }
-
     func pendingLocalSyncMessageCount() throws -> Int {
         try queue.read { db in
             guard try tableExists("actualist_outbox", db: db) else {
@@ -391,7 +330,7 @@ extension BudgetDatabase {
                             last_error = ?
                         WHERE timestamp = ?
                         """,
-                    arguments: [Self.outboxDateString(Date()), message, pending.message.timestamp]
+                    arguments: [SyncTimestamp.wallTimeString(for: Date()), message, pending.message.timestamp]
                 )
             }
         }
@@ -635,32 +574,10 @@ extension BudgetDatabase {
                 message.column,
                 message.serializedValue,
                 baseTimestamp,
-                Self.outboxDateString(Date())
+                SyncTimestamp.wallTimeString(for: Date())
             ]
         )
     }
-
-    static func outboxDateString(_ date: Date) -> String {
-        outboxDateFormatterLock.lock()
-        defer { outboxDateFormatterLock.unlock() }
-        return outboxDateFormatter.string(from: date)
-    }
-
-    static func outboxDate(_ string: String) -> Date? {
-        outboxDateFormatterLock.lock()
-        defer { outboxDateFormatterLock.unlock() }
-        return outboxDateFormatter.date(from: string)
-    }
-
-    private static let outboxDateFormatterLock = NSLock()
-    private static let outboxDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .iso8601)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-        return formatter
-    }()
 
     func deserializeSyncValue(_ value: String) throws -> ActualSyncSQLiteValue {
         try ActualSyncSQLiteValue(serialized: value)

@@ -23,7 +23,10 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
 
         let payees = try await database.fetchPayees(orderedForPicker: false)
         let categories = try await database.fetchCategories()
-        let candidates = try await database.fetchTransactionCSVImportCandidates(accountID: request.accountID)
+        let candidates = try await database.fetchTransactionCSVImportCandidates(
+            accountID: request.accountID,
+            scope: TransactionCSVImportMatcher.candidateScope(rows: rows)
+        )
 
         guard transactionFeedRequestIdentity.sessionID == sessionID,
               generation == budgetSessionGeneration,
@@ -83,8 +86,8 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         var messages: [ActualSyncDecodedMessage] = []
         var updates: [BudgetDatabase.TransactionCSVImportUpdate] = []
         var affectedAccountIDs: Set<String> = [request.accountID]
-        var monthIDs = Set<String>()
         var resolvedPayeeIDs: [String: String] = [:]
+        var knownPayees: [ActualPayee]?
         var insertedCount = 0
         var updatedCount = 0
         // Pinned Actual stamps inserted rows with a descending sort_order from
@@ -102,7 +105,6 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             case .update(let plan):
                 updates.append(BudgetDatabase.TransactionCSVImportUpdate(line: row.sourceLine, plan: plan))
                 updatedCount += 1
-                monthIDs.insert(String(row.dateText.prefix(7)))
             case .insert:
                 // Empty payee text resolves to a null payee, never an
                 // unnamed payee.
@@ -115,9 +117,11 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
                 } else if let existing = payeeIDByName[trimmedPayee.lowercased()] {
                     payeeID = existing
                 } else {
+                    if knownPayees == nil { knownPayees = try await database.fetchPayees() }
                     let resolution = try await database.resolveOrCreatePayeeMessages(
                         selectedPayeeID: nil,
                         payeeName: trimmedPayee,
+                        knownPayees: knownPayees,
                         builder: &builder
                     )
                     resolvedPayeeIDs[trimmedPayee.lowercased()] = resolution.payeeID
@@ -174,15 +178,12 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
                     )
                 }
                 insertedCount += 1
-                monthIDs.insert(String(row.dateText.prefix(7)))
             }
         }
 
         guard !messages.isEmpty || !updates.isEmpty else {
             return TransactionCSVImportApplyResult(insertedCount: 0, updatedCount: 0)
         }
-        // Known duplication: the commit tail below (reload, flush) is copied
-        // from the other store write methods until the shared tail exists.
         try requireSyncSession(
             database: database,
             budgetID: request.budgetID,
@@ -194,13 +195,11 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             insertMessages: messages,
             builder: &builder
         )
-        try await reloadAfterTransactionMutation(
+        try await finishCommittedTransactionWrite(
             database: database,
             budgetID: request.budgetID,
-            accountIDs: Array(affectedAccountIDs),
-            monthIDs: Array(monthIDs)
+            accountIDs: Array(affectedAccountIDs)
         )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: request.budgetID)
         return TransactionCSVImportApplyResult(
             insertedCount: insertedCount,
             updatedCount: updatedCount

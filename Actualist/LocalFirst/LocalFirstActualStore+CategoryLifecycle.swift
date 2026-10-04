@@ -80,8 +80,7 @@ extension LocalFirstActualStore {
         let messages = try await messages(database, &builder)
         if !messages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-            try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-            await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+            try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
         }
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }

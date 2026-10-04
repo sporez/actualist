@@ -43,7 +43,7 @@ struct TrackingBudgetLifecycleTests {
         let database = try #require(store.database)
         let before = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-08")
         _ = try await database.applyRemoteSyncMessages([ActualSyncDecodedMessage(timestamp: "2026-09-08T00:00:00.000Z-0000-0000000000000001", dataset: "transactions", row: "txn", column: "amount", serializedValue: "N:-100")])
-        try await store.reloadAfterTransactionMutation(database: database, budgetID: "group-1", accountIDs: ["checking"], monthIDs: ["2026-07"])
+        try await store.reloadAfterTransactionMutation(database: database, budgetID: "group-1", accountIDs: ["checking"])
         let cached = try #require(store.cachedBudgetMonth(budgetID: "group-1"))
         #expect(cached.month != before.month)
         #expect(cached.month.categoryGroups.first?.categories.first?.balance == 600)

@@ -107,8 +107,7 @@ struct LocalFirstSyncMessageBuilder: Sendable {
         dataset: String,
         row: String,
         column: String,
-        value: LocalFirstSyncValue,
-        now _: Date = Date()
+        value: LocalFirstSyncValue
     ) throws -> ActualSyncDecodedMessage {
         defer { sequence += 1 }
         return ActualSyncDecodedMessage(

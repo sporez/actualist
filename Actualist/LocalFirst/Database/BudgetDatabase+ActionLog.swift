@@ -276,7 +276,7 @@ extension BudgetDatabase {
                 """,
             arguments: [
                 record.id,
-                Self.outboxDateString(record.createdAt),
+                SyncTimestamp.wallTimeString(for: record.createdAt),
                 record.kind.rawValue,
                 record.status.rawValue,
                 record.month,
@@ -341,7 +341,7 @@ extension BudgetDatabase {
         let decoder = JSONDecoder()
         guard let id = row["id"] as String?,
               let createdAtString = row["created_at"] as String?,
-              let createdAt = Self.outboxDate(createdAtString),
+              let createdAt = SyncTimestamp.wallTimeDate(from: createdAtString),
               let kindValue = row["kind"] as String?,
               let kind = BudgetActionKind(rawValue: kindValue),
               let statusValue = row["status"] as String?,
@@ -664,7 +664,7 @@ extension BudgetDatabase {
     /// and the commit re-checks it so a Shortcuts write that landed after the
     /// review sheet opened cannot be silently skipped.
     private func requireNewestAppliedUndo(record: BudgetActionRecord, db: Database) throws {
-        let createdAt = Self.outboxDateString(record.createdAt)
+        let createdAt = SyncTimestamp.wallTimeString(for: record.createdAt)
         let moneyFlowKinds = BudgetActionKind.moneyFlowRawValues
         let kindPlaceholders = moneyFlowKinds.map { _ in "?" }.joined(separator: ", ")
         let newerApplied = try Int.fetchOne(
@@ -697,7 +697,7 @@ extension BudgetDatabase {
                 """,
             arguments: [
                 BudgetActionStatus.undone.rawValue,
-                Self.outboxDateString(now),
+                SyncTimestamp.wallTimeString(for: now),
                 id,
                 BudgetActionStatus.applied.rawValue
             ]

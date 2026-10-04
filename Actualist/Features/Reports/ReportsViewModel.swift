@@ -158,28 +158,6 @@ final class ReportsViewModel {
         return Array(symbols[offset...] + symbols[..<offset])
     }
 
-    func axisLabel(_ value: Int) -> String {
-        let amount = NSDecimalNumber(decimal: currency.displayAmount(fromMinorUnits: value)).doubleValue
-        let absolute = amount.magnitude
-        let symbol = axisSymbol
-        let sign = amount < 0 ? "−" : ""
-        if absolute >= 1_000_000 {
-            return "\(sign)\(symbol)\(String(format: "%.1fM", absolute / 1_000_000))"
-        }
-        if absolute >= 1_000 {
-            return "\(sign)\(symbol)\(String(format: "%.1fK", absolute / 1_000))"
-        }
-        return "\(sign)\(symbol)\(String(format: "%.0f", absolute))"
-    }
-
-    private var axisSymbol: String {
-        let sample = currency.formatted(0)
-        let stripped = sample.filter { character in
-            !character.isNumber && character != "." && character != "," && character != "-" && character != "−" && !character.isWhitespace
-        }
-        return stripped.isEmpty ? currency.code : stripped
-    }
-
     func calendarIntensity(_ amount: Int) -> Double {
         guard amount != 0, calendarMaximum > 0 else { return 0 }
         return max(0.22, min(Double(amount.magnitude) / Double(calendarMaximum), 1))

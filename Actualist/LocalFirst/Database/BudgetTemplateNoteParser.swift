@@ -39,13 +39,15 @@ enum BudgetTemplateNoteParser {
         let limitStart: String?
     }
 
+    /// Compiled once: the pattern is constant and the expression is immutable.
+    private static let directiveRegex = try? NSRegularExpression(
+        pattern: #"^\s*#(template|goal)(?:[ \t]+(.*))?$"#,
+        options: [.anchorsMatchLines]
+    )
+
     /// Scans every `#template` / `#goal` directive line in `note`, in order.
     static func directives(in note: String) -> [Directive] {
-        let pattern = #"^\s*#(template|goal)(?:[ \t]+(.*))?$"#
-        guard let regex = try? NSRegularExpression(
-            pattern: pattern,
-            options: [.anchorsMatchLines]
-        ) else { return [] }
+        guard let regex = directiveRegex else { return [] }
 
         let nsNote = note as NSString
         let matches = regex.matches(

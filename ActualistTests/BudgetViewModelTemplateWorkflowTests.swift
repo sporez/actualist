@@ -90,7 +90,7 @@ struct BudgetViewModelTemplateWorkflowTests {
         #expect(model.selectedMonth == "2026-08")
         #expect(model.budgetMonth?.month == "2026-08")
         #expect(model.errorMessage == nil)
-        #expect(model.monthTemplateSubmissionState == .draft)
+        #expect(model.templateWorkflow.submissionState == .draft)
 
         let template = try await repo.onlyTemplate()
         #expect(template.budgetID == "budget")
@@ -124,7 +124,7 @@ struct BudgetViewModelTemplateWorkflowTests {
         #expect(model.selectedMonth == "2026-09")
         #expect(model.budgetMonth?.month == "2026-09")
         #expect(model.errorMessage == nil)
-        #expect(model.monthTemplateSubmissionState == .draft)
+        #expect(model.templateWorkflow.submissionState == .draft)
 
         // The August mutation was still submitted to the repository.
         let template = try await repo.onlyTemplate()
@@ -184,7 +184,7 @@ struct BudgetViewModelTemplateWorkflowTests {
         #expect(model.selectedMonth == "2026-07")
         #expect(model.budgetMonth?.month == "2026-07")
         #expect(model.errorMessage == nil)
-        #expect(model.monthTemplateSubmissionState == .draft)
+        #expect(model.templateWorkflow.submissionState == .draft)
 
         let template = try await repo.onlyTemplate()
         #expect(template.budgetID == "budget-a")
@@ -215,7 +215,7 @@ struct BudgetViewModelTemplateWorkflowTests {
         #expect(model.budgetMonth?.month == "2026-09")
         // The stale August failure must not surface over September's state.
         #expect(model.errorMessage == "september-specific error")
-        #expect(model.monthTemplateSubmissionState == .draft)
+        #expect(model.templateWorkflow.submissionState == .draft)
     }
 
     // MARK: - No duplicate submission during in-flight request
@@ -245,7 +245,7 @@ struct BudgetViewModelTemplateWorkflowTests {
         let firstResult = await firstApply.value
         #expect(firstResult == true)
         #expect(model.selectedMonth == "2026-08")
-        #expect(model.monthTemplateSubmissionState == .draft)
+        #expect(model.templateWorkflow.submissionState == .draft)
     }
 }
 

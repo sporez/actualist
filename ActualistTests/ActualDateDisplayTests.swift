@@ -24,6 +24,34 @@ struct ActualDateDisplayTests {
             == "Thursday, March 5, 2026")
     }
 
+    @Test func mediumDayAndMonthNameStayGregorianOnEveryDeviceCalendar() {
+        for locale in Self.nonGregorianLocales {
+            #expect(ActualDateDisplay.mediumDay("2026-09-01", locale: locale) == "Sep 1, 2026", "\(locale.identifier)")
+            #expect(ActualDateDisplay.monthName("2026-09", locale: locale) == "September", "\(locale.identifier)")
+            #expect(TransactionCommandReviewFormatting.dateText("2026-09-01", locale: locale) == "Sep 1, 2026")
+        }
+        #expect(ActualDateDisplay.mediumDay("2026-13-01") == nil)
+        #expect(ActualDateDisplay.monthName("2026-13") == nil)
+        #expect(TransactionCommandReviewFormatting.dateText("", locale: Locale(identifier: "en_US")) == "Date unavailable")
+    }
+
+    @Test func todayIsTheDayInTheInjectedZoneNotTheUTCDay() {
+        // 2026-01-01T00:00Z is already Jan 1 at +14 and still Dec 31 at -8.
+        let instant = Date(timeIntervalSince1970: 1_767_225_600) // 2026-01-01T00:00:00Z
+        let east = TimeZone(secondsFromGMT: 14 * 3_600)!
+        let west = TimeZone(secondsFromGMT: -8 * 3_600)!
+        #expect(ActualDateOnly.today(now: instant, timeZone: east) == "2026-01-01")
+        #expect(ActualDateOnly.today(now: instant, timeZone: west) == "2025-12-31")
+        #expect(ActualDateOnly.today(now: instant.addingTimeInterval(12 * 3_600), timeZone: east) == "2026-01-02")
+    }
+
+    @Test func monthIDFormattingPadsAndKeepsOutOfRangeValues() {
+        #expect(YearMonth.id(year: 2026, month: 3) == "2026-03")
+        #expect(YearMonth.id(packed: 202_612) == "2026-12")
+        #expect(YearMonth.id(year: 12, month: 0) == "0012-00")
+        #expect(YearMonth(year: 1899, month: 1) == nil)
+    }
+
     @Test func malformedIdsFallBackToTheRawValue() {
         #expect(ActualDateDisplay.monthYear("2026-13") == nil)
         #expect(TransactionGrouping.displayTitle("not-a-day") == "not-a-day")

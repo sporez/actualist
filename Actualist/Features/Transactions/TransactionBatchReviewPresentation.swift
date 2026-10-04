@@ -252,14 +252,7 @@ private struct MemberFactory {
         let compact = String(format: "%08d", packed)
         guard compact.count == 8 else { return compact }
         let dayID = "\(compact.prefix(4))-\(compact.dropFirst(4).prefix(2))-\(compact.suffix(2))"
-        guard let date = ActualDateOnly.date(from: dayID, timeZone: ActualDateOnly.utc) else { return dayID }
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = locale
-        formatter.timeZone = ActualDateOnly.utc
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        return ActualDateDisplay.mediumDay(dayID, locale: locale) ?? dayID
     }
 
     private func clearedText(_ value: Bool?) -> String {

@@ -536,10 +536,12 @@ struct ActualScheduleRecurrence: Hashable, Sendable {
 }
 
 extension Calendar {
-    static var actualScheduleGregorian: Calendar {
+    /// Fixed (POSIX locale, GMT) and immutable, so one shared value replaces a
+    /// per-access allocation.
+    static let actualScheduleGregorian: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
         calendar.timeZone = .gmt
         return calendar
-    }
+    }()
 }

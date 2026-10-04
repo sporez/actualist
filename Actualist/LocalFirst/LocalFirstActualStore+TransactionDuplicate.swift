@@ -26,63 +26,25 @@ extension LocalFirstActualStore: TransactionDuplicateRepositoryProtocol {
 
         // Once SQLite commits, keep receipt delivery independent of caller
         // cancellation. Cache publication can be retried from the durable rows.
-        return await Task { @MainActor [self] in
-            do {
-                try requireSyncSession(
-                    database: database,
-                    budgetID: review.context.budgetID,
-                    generation: generation
-                )
+        let tail = await finishDurableCommit(
+            database: database,
+            budgetID: review.context.budgetID,
+            requireSession: { [self] in
+                try requireSyncSession(database: database, budgetID: review.context.budgetID, generation: generation)
+            },
+            reload: { [self] in
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: review.context.budgetID,
-                    accountIDs: receipt.changed.accounts,
-                    monthIDs: receipt.changed.months
-                )
-                try requireSyncSession(
-                    database: database,
-                    budgetID: review.context.budgetID,
-                    generation: generation
-                )
-                await schedulePendingLocalMessageFlush(
-                    database: database,
-                    budgetID: review.context.budgetID
-                )
-                try requireSyncSession(
-                    database: database,
-                    budgetID: review.context.budgetID,
-                    generation: generation
-                )
-                return TransactionDuplicateOutcome(
-                    receipt: receipt,
-                    refreshPending: false,
-                    sessionCurrent: true
-                )
-            } catch {
-                var sessionCurrent = (try? requireSyncSession(
-                    database: database,
-                    budgetID: review.context.budgetID,
-                    generation: generation
-                )) != nil
-                if sessionCurrent {
-                    invalidateTransactionFeedCaches(budgetID: review.context.budgetID)
-                    await schedulePendingLocalMessageFlush(
-                        database: database,
-                        budgetID: review.context.budgetID
-                    )
-                    sessionCurrent = (try? requireSyncSession(
-                        database: database,
-                        budgetID: review.context.budgetID,
-                        generation: generation
-                    )) != nil
-                }
-                return TransactionDuplicateOutcome(
-                    receipt: receipt,
-                    refreshPending: true,
-                    sessionCurrent: sessionCurrent
+                    accountIDs: receipt.changed.accounts
                 )
             }
-        }.value
+        )
+        return TransactionDuplicateOutcome(
+            receipt: receipt,
+            refreshPending: tail.refreshPending,
+            sessionCurrent: tail.sessionCurrent
+        )
     }
 
     private func requireDuplicateSession(

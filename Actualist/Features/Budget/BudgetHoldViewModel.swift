@@ -66,12 +66,7 @@ final class BudgetHoldViewModel {
         "\(monthTitle) → \(BudgetMonthNavigationPresentation.title(for: nextMonth))"
     }
     var nextMonthName: String {
-        guard let month = try? BudgetTemplateCalendar.parseMonth(nextMonth),
-              let date = try? BudgetTemplateCalendar.monthStartDate(month) else { return nextMonth }
-        return date.formatted(Date.FormatStyle(
-            locale: locale, calendar: BudgetTemplateCalendar.gregorian,
-            timeZone: BudgetTemplateCalendar.gregorian.timeZone
-        ).month(.wide))
+        ActualDateDisplay.monthName(nextMonth, locale: locale) ?? nextMonth
     }
     var holdTitle: String { "Hold for \(nextMonthName)" }
     var hasHeldMoney: Bool { (draft?.review.heldAmount ?? 0) > 0 }

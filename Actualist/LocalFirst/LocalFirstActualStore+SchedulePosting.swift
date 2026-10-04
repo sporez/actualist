@@ -126,7 +126,7 @@ extension LocalFirstActualStore {
             throw SchedulePostingError.reviewChanged
         }
 
-        let today = Self.schedulePostingToday()
+        let today = ActualDateOnly.today()
         let loaded = try await database.fetchSchedules(budgetID: session.budgetID, today: today)
         try requireSchedulePostingSession(session, database: database)
         guard let detail = loaded.detail(id: review.mutation.scheduleID),
@@ -210,30 +210,22 @@ extension LocalFirstActualStore {
     ) async -> SchedulePostingReceipt {
         // The retained finisher owns publication after commit. Cancellation of
         // the caller cannot turn a durable post into an apparent failed write.
-        let refreshPending = await Task { @MainActor [self] in
-            do {
-                try requireSchedulePostingSession(session, database: database)
+        let tail = await finishDurableCommit(
+            database: database,
+            budgetID: session.budgetID,
+            requireSession: { [self] in try requireSchedulePostingSession(session, database: database) },
+            reload: { [self] in
                 invalidateScheduleCache(budgetID: session.budgetID)
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: session.budgetID,
-                    accountIDs: receipt.affectedAccountIDs,
-                    monthIDs: receipt.affectedMonthIDs
+                    accountIDs: receipt.affectedAccountIDs
                 )
                 try requireSchedulePostingSession(session, database: database)
-                try await refreshSchedulesAfterWrite(budgetID: session.budgetID, asOf: Self.schedulePostingToday())
-                try requireSchedulePostingSession(session, database: database)
-                await schedulePendingLocalMessageFlush(database: database, budgetID: session.budgetID)
-                try requireSchedulePostingSession(session, database: database)
-                return false
-            } catch {
-                if (try? requireSchedulePostingSession(session, database: database)) != nil {
-                    invalidateTransactionFeedCaches(budgetID: session.budgetID)
-                    await schedulePendingLocalMessageFlush(database: database, budgetID: session.budgetID)
-                }
-                return true
+                try await refreshSchedulesAfterWrite(budgetID: session.budgetID, asOf: ActualDateOnly.today())
             }
-        }.value
+        )
+        let refreshPending = tail.refreshPending
         return SchedulePostingReceipt(
             scheduleID: receipt.scheduleID,
             transactionID: receipt.transactionID,
@@ -242,12 +234,6 @@ extension LocalFirstActualStore {
             appliedMessageCount: receipt.appliedMessageCount,
             refreshPending: refreshPending
         )
-    }
-
-    private static func schedulePostingToday(now: Date = Date()) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: now, calendar: calendar)
     }
 
     private static func schedulePostingDate(_ dayID: String) -> Date? {

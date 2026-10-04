@@ -14,7 +14,7 @@ struct AccountsView: View {
         guard let budgetID = appState.settings.selectedBudgetID else {
             return []
         }
-        return AccountListLayout.sections(
+        return viewModel.sections(
             displays: appState.accountRepository.accountDisplays(budgetID: budgetID),
             groups: appState.accountRepository.accountGroups(budgetID: budgetID),
             preferredIDs: appState.settings.accountOrderByBudgetID[budgetID] ?? []

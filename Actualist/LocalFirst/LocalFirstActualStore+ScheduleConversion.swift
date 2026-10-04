@@ -61,50 +61,36 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         context: ScheduleMutationSessionContext
     ) async -> ScheduleConversionReceipt {
-        let refreshPending = await Task { @MainActor [self] in
-            do {
-                try requireScheduleConversionSession(context, database: database)
+        let tail = await finishDurableCommit(
+            database: database,
+            budgetID: context.budgetID,
+            requireSession: { [self] in try requireScheduleConversionSession(context, database: database) },
+            reload: { [self] in
                 invalidateScheduleCache(budgetID: context.budgetID)
                 invalidateRulesCache(budgetID: context.budgetID)
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: context.budgetID,
-                    accountIDs: [committed.sourceAccountID],
-                    monthIDs: [committed.sourceMonthID]
+                    accountIDs: [committed.sourceAccountID]
                 )
                 try requireScheduleConversionSession(context, database: database)
                 try await scheduleMutationBeforeRefreshHook?()
                 try requireScheduleConversionSession(context, database: database)
                 try await refreshSchedulesAfterWrite(
                     budgetID: context.budgetID,
-                    asOf: Self.scheduleConversionToday()
+                    asOf: ActualDateOnly.today()
                 )
                 try requireScheduleConversionSession(context, database: database)
                 try await refreshRulesCache(database: database, budgetID: context.budgetID)
-                try requireScheduleConversionSession(context, database: database)
-                await schedulePendingLocalMessageFlush(database: database, budgetID: context.budgetID)
-                try requireScheduleConversionSession(context, database: database)
-                return false
-            } catch {
-                if (try? requireScheduleConversionSession(context, database: database)) != nil {
-                    invalidateTransactionFeedCaches(budgetID: context.budgetID)
-                    await schedulePendingLocalMessageFlush(database: database, budgetID: context.budgetID)
-                }
-                return true
             }
-        }.value
+        )
+        let refreshPending = tail.refreshPending
         return ScheduleConversionReceipt(
             scheduleID: committed.scheduleID,
             sourceTransactionIDs: committed.sourceTransactionIDs,
             appliedMessageCount: committed.appliedMessageCount,
             refreshPending: refreshPending
         )
-    }
-
-    private static func scheduleConversionToday(now: Date = Date()) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: now, calendar: calendar)
     }
 }
 

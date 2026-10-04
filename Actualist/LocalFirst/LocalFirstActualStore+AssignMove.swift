@@ -50,8 +50,7 @@ extension LocalFirstActualStore {
             expectedMode: mode
         )
         await didAssign()
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
@@ -140,8 +139,7 @@ extension LocalFirstActualStore {
             )
         }
         await didMove()
-        try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 }

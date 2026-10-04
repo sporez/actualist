@@ -6,8 +6,16 @@ extension BudgetDatabase {
     /// Existing live rows in the importing account, reduced for reconcile
     /// matching. Child split rows are excluded; a split family matches through
     /// its parent. Sorted by date so fuzzy candidates carry a stable order.
-    func fetchTransactionCSVImportCandidates(accountID: String) throws -> [TransactionCSVImportCandidate] {
-        try queue.read { db in
+    /// Only rows inside `scope`'s date window, or carrying one of its imported
+    /// IDs, are returned; the imported-ID side is not date-bound.
+    func fetchTransactionCSVImportCandidates(
+        accountID: String,
+        scope: TransactionCSVImportMatcher.CandidateScope
+    ) throws -> [TransactionCSVImportCandidate] {
+        // SQLite bounds the number of bound variables; past this, any row that
+        // carries an imported ID is a superset of the requested IDs.
+        let maxBoundImportedIDs = 500
+        return try queue.read { db in
             guard try tableExists("transactions", db: db) else {
                 return []
             }
@@ -28,6 +36,25 @@ extension BudgetDatabase {
             let clearedSelect = columns.contains("cleared")
                 ? "cleared, (cleared IS NULL) AS cleared_is_null"
                 : "NULL AS cleared, 1 AS cleared_is_null"
+            // The date window and the imported-ID side are alternatives.
+            var scopeTerms: [String] = []
+            var arguments: StatementArguments = [accountID]
+            if let window = scope.dateWindow {
+                scopeTerms.append("\(normalizedDateExpression("date")) BETWEEN ? AND ?")
+                arguments += StatementArguments([window.from, window.to])
+            }
+            if let importedIDColumn, !scope.importedIDs.isEmpty {
+                if scope.importedIDs.count > maxBoundImportedIDs {
+                    scopeTerms.append("(\(importedIDColumn) IS NOT NULL AND \(importedIDColumn) <> '')")
+                } else {
+                    let ids = scope.importedIDs.sorted()
+                    scopeTerms.append("\(importedIDColumn) IN (\(Array(repeating: "?", count: ids.count).joined(separator: ",")))")
+                    arguments += StatementArguments(ids)
+                }
+            }
+            guard !scopeTerms.isEmpty else {
+                return []
+            }
             let sql = """
                 SELECT id,
                        \(normalizedDateExpression("date")) AS date_text,
@@ -45,9 +72,10 @@ extension BudgetDatabase {
                 WHERE \(accountColumn) = ?
                   \(isChildFilter)
                   AND \(predicateForLiveRows(columns: columns))
+                  AND (\(scopeTerms.joined(separator: " OR ")))
                 ORDER BY date, id
                 """
-            return try Row.fetchAll(db, sql: sql, arguments: [accountID]).compactMap { row in
+            return try Row.fetchAll(db, sql: sql, arguments: arguments).compactMap { row in
                 let amount: Int? = row["amount"]
                 guard let amount else {
                     return nil

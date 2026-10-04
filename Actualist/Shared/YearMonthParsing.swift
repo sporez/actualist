@@ -3,12 +3,24 @@ import Foundation
 extension YearMonth {
     static let validYears = 1900...9999
 
+    /// `YYYY-MM` text with no range validation. Packed-date callers and the
+    /// date-component formatters depend on out-of-range values passing through
+    /// unchanged; use `init?(year:month:)` when the values come from input.
+    static func id(year: Int, month: Int) -> String {
+        String(format: "%04d-%02d", year, month)
+    }
+
+    /// `YYYY-MM` text for a packed `YYYYMM` month value (unvalidated).
+    static func id(packed monthValue: Int) -> String {
+        id(year: monthValue / 100, month: monthValue % 100)
+    }
+
     /// Nil unless the year is 1900...9999 and the month is 1...12.
     init?(year: Int, month: Int) {
         guard Self.validYears.contains(year), (1...12).contains(month) else {
             return nil
         }
-        self.init(rawValue: String(format: "%04d-%02d", year, month))
+        self.init(rawValue: Self.id(year: year, month: month))
     }
 
     /// Accepts `YYYY-MM`, `YYYY/MM`, `YYYY.MM` with any trailing content

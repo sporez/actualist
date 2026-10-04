@@ -25,12 +25,13 @@ extension LocalFirstActualStore {
         }
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        try await reloadAfterEntityNoteMutation(
-            target: target,
-            database: database,
-            budgetID: budgetID
-        )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterEntityNoteMutation(
+                target: target,
+                database: database,
+                budgetID: budgetID
+            )
+        }
     }
 
     private func reloadAfterEntityNoteMutation(

@@ -45,10 +45,10 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
                 == BudgetMoveMoneySliderMetrics.maximumAmount(baselineAmount: 11_220, currentAmount: 0)
         )
 
-        model.setMoveMoneyAmountDollars(120)
+        model.moveMoneyWorkflow.setAmountDollars(120, currency: model.currency)
         #expect(model.moveMoneyDraft?.amount == 12_000)
 
-        model.setMoveMoneyAmountDollars(-5)
+        model.moveMoneyWorkflow.setAmountDollars(-5, currency: model.currency)
         #expect(model.moveMoneyDraft?.amount == 0)
     }
 
@@ -68,15 +68,15 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
 
         #expect(model.moveMoneyDraft?.direction == .intoFocusedCategory)
         #expect(model.moveMoneyDraft?.amount == 0)
-        #expect(model.hasPendingMoveMoneyCoverIntro)
+        #expect(model.moveMoneyWorkflow.hasPendingCoverIntro)
         await finishCoverIntro(model)
         #expect(model.moveMoneyDraft?.amount == 0)
-        #expect(model.hasPendingMoveMoneyCoverIntro)
+        #expect(model.moveMoneyWorkflow.hasPendingCoverIntro)
 
         model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
         await finishCoverIntro(model)
         #expect(model.moveMoneyDraft?.amount == 7_693)
-        #expect(abs(model.moveMoneyAmountDollars - 76.93) < 0.001)
+        #expect(abs(model.moveMoneyWorkflow.amountDollars(using: model.currency) - 76.93) < 0.001)
         #expect(model.moveMoneySliderDetentFeedback == 1)
         #expect(model.moveMoneySliderSpec().detentAmount == 12_000)
         #expect(
@@ -103,7 +103,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
 
         #expect(option.categoryName == "Mortgage")
         #expect(option.amountText(using: model.currency).contains("76.93"))
-        #expect(model.assignmentDraft == nil)
+        #expect(model.assignmentWorkflow.draft == nil)
         #expect(model.moveMoneyDraft?.focusedCategoryID == option.id)
         #expect(model.moveMoneyDraft?.direction == .intoFocusedCategory)
         #expect(model.moveMoneyDraft?.amount == 0)
@@ -166,7 +166,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         model.beginAssignmentEditing(for: category)
         model.beginMoveMoney()
         model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
-        model.setMoveMoneyAmountDollars(25)
+        model.moveMoneyWorkflow.setAmountDollars(25, currency: model.currency)
 
         #expect(model.moveMoneyAvailableDisplayAmount == 8_720)
         #expect(model.moveMoneyCounterpartyAvailableDisplayAmount == 7_500)
@@ -197,14 +197,14 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         let category = try #require(model.budgetMonth?.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
         model.beginAssignmentEditing(for: category)
         model.beginMoveMoney()
-        model.setMoveMoneyAmountDollars(25)
+        model.moveMoneyWorkflow.setAmountDollars(25, currency: model.currency)
         model.selectMoveMoneyDestination(.toBudget)
 
         let saved = await model.submitMoveMoney(budgetID: "budget", repository: repository)
 
         #expect(saved)
         #expect(model.moveMoneyDraft == nil)
-        #expect(model.assignmentDraft == nil)
+        #expect(model.assignmentWorkflow.draft == nil)
         #expect(model.expandedGroupIDs == ["bills"])
 
         let move = try await repository.onlyMove()
@@ -234,7 +234,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         model.beginMoveMoney()
         model.toggleMoveMoneyDirection()
         model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
-        model.setMoveMoneyAmountDollars(25)
+        model.moveMoneyWorkflow.setAmountDollars(25, currency: model.currency)
 
         #expect(model.moveMoneyDraft?.direction == .intoFocusedCategory)
         #expect(model.moveMoneySliderSpec().detentAmount == 12_000)
@@ -273,10 +273,10 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         model.beginMoveMoney()
         model.toggleMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
         model.setFocusedMoveMoneyAllocation("utilities")
-        model.setMoveMoneyAmountDollars(249.29)
+        model.moveMoneyWorkflow.setAmountDollars(249.29, currency: model.currency)
         model.toggleMoveMoneyDestination(.toBudget)
         model.setFocusedMoveMoneyAllocation("to-budget")
-        model.setMoveMoneyAmountDollars(100)
+        model.moveMoneyWorkflow.setAmountDollars(100, currency: model.currency)
 
         #expect(model.moveMoneyDisplayAmount == 34_929)
         #expect(model.moveMoneyAvailableDisplayAmount == -24_929)
@@ -336,7 +336,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         let category = try #require(model.budgetMonth?.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
         model.beginAssignmentEditing(for: category)
         model.beginMoveMoney()
-        model.setMoveMoneyAmountDollars(25)
+        model.moveMoneyWorkflow.setAmountDollars(25, currency: model.currency)
         model.selectMoveMoneyDestination(.category(id: "gas", name: "Gas"))
 
         let saved = await model.submitMoveMoney(budgetID: "budget", repository: repository)
@@ -379,7 +379,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         #expect(model.moveMoneyDraft?.amount == 11_220)
 
         model.setMoveMoneySliderEditing(false)
-        model.setMoveMoneySliderAmountDollars(model.moveMoneyMaximumDollars)
+        model.setMoveMoneySliderAmountDollars(model.currency.displayUnits(fromMinorUnits: max(model.moveMoneyMaximumAmount, 1)))
         #expect(model.moveMoneyDraft?.amount == 11_220)
         #expect(model.moveMoneySliderDetentFeedback == 1)
     }
@@ -397,7 +397,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         model.setMoveMoneySliderEditing(true)
 
         for _ in 0..<40 {
-            model.setMoveMoneySliderAmountDollars(model.moveMoneyMaximumDollars)
+            model.setMoveMoneySliderAmountDollars(model.currency.displayUnits(fromMinorUnits: max(model.moveMoneyMaximumAmount, 1)))
         }
 
         #expect(model.moveMoneyDraft?.amount == scaledAvailable)
@@ -407,7 +407,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
     @Test func moveMoneyKeypadDoesNotTriggerSliderDetent() throws {
         let model = try makeMoveMoneyModel(visibleCategoryBalance: 11_220)
 
-        model.setMoveMoneyAmountDollars(130)
+        model.moveMoneyWorkflow.setAmountDollars(130, currency: model.currency)
         #expect(model.moveMoneyDraft?.amount == 13_000)
         #expect(model.moveMoneySliderDetentFeedback == 0)
         #expect(model.moveMoneySliderSpec().isOvershooting)
@@ -431,7 +431,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         model.toggleMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
         model.toggleMoveMoneyDestination(.toBudget)
         model.setFocusedMoveMoneyAllocation("utilities")
-        model.setMoveMoneyAmountDollars(60)
+        model.moveMoneyWorkflow.setAmountDollars(60, currency: model.currency)
 
         let remaining = model.moveMoneySliderSpec(for: "to-budget")
         #expect(remaining.detentAmount == 4_000)
@@ -450,18 +450,18 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         let model = try makeMoveMoneyModel(visibleCategoryBalance: -7_693)
 
         #expect(model.moveMoneyDraft?.amount == 0)
-        #expect(model.hasPendingMoveMoneyCoverIntro)
+        #expect(model.moveMoneyWorkflow.hasPendingCoverIntro)
         #expect(model.moveMoneySliderDetentFeedback == 0)
 
         await finishCoverIntro(model)
         #expect(model.moveMoneyDraft?.amount == 0)
-        #expect(model.hasPendingMoveMoneyCoverIntro)
+        #expect(model.moveMoneyWorkflow.hasPendingCoverIntro)
 
         model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
         await finishCoverIntro(model)
 
         #expect(model.moveMoneyDraft?.amount == 7_693)
-        #expect(model.hasPendingMoveMoneyCoverIntro == false)
+        #expect(model.moveMoneyWorkflow.hasPendingCoverIntro == false)
         #expect(model.moveMoneySliderDetentFeedback == 1)
         #expect(model.moveMoneyAvailableDisplayAmount == 0)
     }
@@ -482,7 +482,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         #expect(amount > 0)
         #expect(amount < 7_693)
         #expect(model.moveMoneySliderDetentFeedback == 0)
-        #expect(model.hasPendingMoveMoneyCoverIntro == false)
+        #expect(model.moveMoneyWorkflow.hasPendingCoverIntro == false)
     }
 
     private func finishCoverIntro(_ model: BudgetViewModel) async {

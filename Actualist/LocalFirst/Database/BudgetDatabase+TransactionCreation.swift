@@ -14,9 +14,12 @@ extension BudgetDatabase {
         }
     }
 
+    /// A batch passes `knownPayees` (the picker-ordered table, read once) so
+    /// each unknown name does not reload the whole payee table.
     func resolveOrCreatePayeeMessages(
         selectedPayeeID: String?,
         payeeName: String,
+        knownPayees: [ActualPayee]? = nil,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> (payeeID: String, messages: [ActualSyncDecodedMessage]) {
         if let selectedPayeeID, !selectedPayeeID.isEmpty {
@@ -28,7 +31,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing payee name")
         }
 
-        if let existing = try fetchPayees().first(where: {
+        if let existing = try (knownPayees ?? fetchPayees()).first(where: {
             $0.transferAccount == nil && $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame
         }), let id = existing.id, !id.isEmpty {
             return (id, [])
