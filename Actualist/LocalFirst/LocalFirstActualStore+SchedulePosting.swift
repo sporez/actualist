@@ -152,7 +152,7 @@ extension LocalFirstActualStore {
             throw SchedulePostingError.unsupportedSchedule
         }
 
-        let payeeID = detail.payee.id
+        let payeeID = detail.payee.postingPayeeID
         let baseDraft = TransactionDraft(
             accountID: accountID,
             date: transactionDate,

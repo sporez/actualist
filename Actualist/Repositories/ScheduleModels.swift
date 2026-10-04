@@ -108,6 +108,11 @@ struct SchedulePayeeReference: Hashable, Sendable {
     let id: String?
     let name: String?
     let isMissing: Bool
+
+    /// The payee id a posted transaction may carry. A missing payee (no mapping
+    /// row, or a mapping whose payee is gone) posts with no payee, like Actual's
+    /// null `schedule._payee`, never the unresolved mapping id.
+    var postingPayeeID: String? { isMissing ? nil : id }
 }
 
 enum ScheduleUnsupportedReason: Hashable, Sendable {

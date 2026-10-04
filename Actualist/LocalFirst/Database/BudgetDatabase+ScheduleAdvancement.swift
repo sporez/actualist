@@ -201,7 +201,7 @@ extension BudgetDatabase {
             accountID: accountID,
             date: transactionDate,
             amountMinorUnits: amount,
-            payeeID: detail.payee.id,
+            payeeID: detail.payee.postingPayeeID,
             payeeName: detail.payee.name ?? "",
             categoryID: nil,
             notes: nil,

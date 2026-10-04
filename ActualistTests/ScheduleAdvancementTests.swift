@@ -180,6 +180,30 @@ struct ScheduleAdvancementTests {
         #expect(try metadataObject(beside: fixture.url)["lastScheduleRun"] == nil)
     }
 
+    @Test func autoPostDoesNotWriteAnUnresolvedPayeeMappingID() async throws {
+        let conditions = """
+        [{"op":"is","field":"account","value":"checking"},{"op":"is","field":"description","value":"ghost-mapping"},{"op":"is","field":"amount","value":-10000},{"op":"is","field":"date","value":"\(Self.today)"}]
+        """
+        let fixture = try makeDatabase(
+            extraSQL: Self.schemaSQL + scheduleInsertSQL(
+                scheduleID: "rent",
+                conditions: conditions,
+                actions: "[{\"op\":\"link-schedule\",\"value\":\"rent\"}]",
+                nextDayID: Self.today
+            ),
+            metadata: ["note": "retain-me"]
+        )
+
+        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+
+        #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
+        let queue = try DatabaseQueue(path: fixture.url.path)
+        let description = try queue.readSync { db in
+            try String.fetchOne(db, sql: "SELECT description FROM transactions WHERE schedule = 'rent'")
+        }
+        #expect(description == nil)
+    }
+
     @Test func storeAdvancesOpenSessionAndIgnoresStaleGeneration() async throws {
         let bundle = try await support.makeOpenedWritableStoreBundle(
             additionalFixtureSQL: Self.storeScheduleSQL
