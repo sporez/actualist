@@ -2,12 +2,8 @@
 set -euo pipefail
 
 _script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT="${PROJECT:-Actualist.xcodeproj}"
-if [[ -n "${SCHEME+x}" && -n "${ACTUALIST_SCHEME+x}" && "$SCHEME" != "$ACTUALIST_SCHEME" ]]; then
-  echo "error: SCHEME contradicts ACTUALIST_SCHEME" >&2
-  exit 2
-fi
-SCHEME="${ACTUALIST_SCHEME:-${SCHEME:-Actualist}}"
+PROJECT="${ACTUALIST_PROJECT:-Actualist.xcodeproj}"
+SCHEME="${ACTUALIST_SCHEME:-Actualist}"
 
 case "$SCHEME" in
   Actualist)
@@ -24,10 +20,6 @@ case "$SCHEME" in
     ;;
 esac
 
-if [[ -n "${BUNDLE_ID+x}" && "$BUNDLE_ID" != "$EXPECTED_BUNDLE_ID" ]]; then
-  echo "error: BUNDLE_ID contradicts the identity selected by ACTUALIST_SCHEME" >&2
-  exit 2
-fi
 if [[ -n "${ACTUALIST_BUNDLE_ID+x}" && "$ACTUALIST_BUNDLE_ID" != "$EXPECTED_BUNDLE_ID" ]]; then
   echo "error: ACTUALIST_BUNDLE_ID contradicts the identity selected by ACTUALIST_SCHEME" >&2
   exit 2
@@ -37,20 +29,20 @@ fi
 # shellcheck source=lib/load-destinations.sh
 source "$_script_dir/lib/load-destinations.sh"
 
-CONFIGURATION="${CONFIGURATION:-$DEFAULT_CONFIGURATION}"
-SIMULATOR_ID="${SIMULATOR_ID:-${ACTUALIST_SIMULATOR_ID:-}}"
-SIMULATOR_NAME="${SIMULATOR_NAME:-${ACTUALIST_SIMULATOR_NAME:-iPhone 17 Pro}}"
-BUNDLE_ID="${BUNDLE_ID:-${ACTUALIST_BUNDLE_ID:-}}"
+CONFIGURATION="${ACTUALIST_CONFIGURATION:-$DEFAULT_CONFIGURATION}"
+SIMULATOR_ID="${ACTUALIST_SIMULATOR_ID:-}"
+SIMULATOR_NAME="${ACTUALIST_SIMULATOR_NAME:-iPhone 17 Pro}"
+BUNDLE_ID="${ACTUALIST_BUNDLE_ID:-}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-.derivedData}"
-SCREENSHOT_DIR="${SCREENSHOT_DIR:-.artifacts/screenshots}"
-BOOT_IF_NEEDED="${BOOT_IF_NEEDED:-0}"
-CAPTURE_SCREENSHOT="${CAPTURE_SCREENSHOT:-0}"
-LAUNCH_APP="${LAUNCH_APP:-1}"
-RESET_APP="${RESET_APP:-0}"
-ENTER_DEMO="${ENTER_DEMO:-0}"
+SCREENSHOT_DIR="${ACTUALIST_SCREENSHOT_DIR:-.artifacts/screenshots}"
+BOOT_IF_NEEDED=0
+CAPTURE_SCREENSHOT=0
+LAUNCH_APP=1
+RESET_APP=0
+ENTER_DEMO=0
 TRACKING_DEMO=0
-SCREEN_NAME="${SCREEN_NAME:-}"
-LAUNCH_WAIT_SECONDS="${LAUNCH_WAIT_SECONDS:-}"
+SCREEN_NAME=""
+LAUNCH_WAIT_SECONDS="${ACTUALIST_LAUNCH_WAIT_SECONDS:-}"
 
 DESTINATION="platform=iOS Simulator,id=${SIMULATOR_ID}"
 APP_PATH="${DERIVED_DATA_PATH}/Build/Products/${CONFIGURATION}-iphonesimulator/Actualist.app"
@@ -75,9 +67,12 @@ Options:
   -h, --help          Show this help.
 
 Environment overrides:
-  ACTUALIST_SCHEME (Actualist or Actualist Dev; SCHEME is also accepted), PROJECT, CONFIGURATION,
-  SIMULATOR_ID, SIMULATOR_NAME, BUNDLE_ID, ACTUALIST_BUNDLE_ID,
-  DERIVED_DATA_PATH, SCREENSHOT_DIR, LAUNCH_WAIT_SECONDS
+  ACTUALIST_SCHEME (Actualist or Actualist Dev), ACTUALIST_PROJECT,
+  ACTUALIST_CONFIGURATION, ACTUALIST_SIMULATOR_ID, ACTUALIST_SIMULATOR_NAME,
+  ACTUALIST_BUNDLE_ID, ACTUALIST_SCREENSHOT_DIR, ACTUALIST_LAUNCH_WAIT_SECONDS,
+  DERIVED_DATA_PATH (shared with scripts/test.sh)
+The old unprefixed names (SCHEME, CONFIGURATION, BUNDLE_ID, SIMULATOR_ID, ...)
+are no longer read.
 EOF
 }
 
