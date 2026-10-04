@@ -16,7 +16,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         let trimmedID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedName = try Self.validatedAccountGroupName(name)
+        let trimmedName = try Self.validatedName(name, label: "account group")
         guard !trimmedID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing account group")
         }
@@ -71,7 +71,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         let groupID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedName = try Self.validatedAccountGroupName(name)
+        let trimmedName = try Self.validatedName(name, label: "account group")
         return try queue.read { db in
             try requireAccountGroupManagementEnabled(db: db)
             let group = try requiredLiveAccountGroup(groupID, db: db)
@@ -259,14 +259,6 @@ extension BudgetDatabase {
             sql: "SELECT EXISTS(SELECT 1 FROM __migrations__ WHERE id = ?)",
             arguments: [Self.accountGroupsMigrationID]
         ) ?? false
-    }
-
-    private static func validatedAccountGroupName(_ name: String) throws -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("account group name cannot be empty")
-        }
-        return trimmed
     }
 
     private func rejectDuplicateAccountGroupName(

@@ -9,7 +9,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         let id = try validatedCategoryLifecycleID(categoryID, kind: "category")
-        let name = try validatedCategoryName(name)
+        let name = try Self.validatedName(name, label: "category")
         return try queue.read { db in
             let categoryColumns = try requiredColumns(
                 table: "categories",
@@ -67,7 +67,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         let id = try validatedCategoryLifecycleID(groupID, kind: "category group")
-        let name = try validatedCategoryGroupName(name)
+        let name = try Self.validatedName(name, label: "category group")
         return try queue.read { db in
             let columns = try requiredColumns(
                 table: "category_groups",
@@ -102,7 +102,7 @@ extension BudgetDatabase {
         name: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        let name = try validatedCategoryName(name)
+        let name = try Self.validatedName(name, label: "category")
         return try queue.read { db in
             let category = try requiredCategory(categoryID, db: db)
             try requireCategoryManagementAllowed(isIncome: category.isIncome, kind: "categories", db: db)
@@ -117,7 +117,7 @@ extension BudgetDatabase {
         name: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        let name = try validatedCategoryGroupName(name)
+        let name = try Self.validatedName(name, label: "category group")
         return try queue.read { db in
             let group = try requiredCategoryGroup(groupID, db: db)
             try requireCategoryManagementAllowed(isIncome: group.isIncome, kind: "groups", db: db)
@@ -242,15 +242,11 @@ extension BudgetDatabase {
         return trimmed
     }
 
-    func validatedCategoryName(_ name: String) throws -> String {
+    /// Trimmed, non-empty display name; `label` names the thing in the error
+    /// ("category", "category group", "payee", "account group").
+    static func validatedName(_ name: String, label: String) throws -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw LocalFirstError.invalidLocalWrite("category name cannot be empty") }
-        return trimmed
-    }
-
-    func validatedCategoryGroupName(_ name: String) throws -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw LocalFirstError.invalidLocalWrite("category group name cannot be empty") }
+        guard !trimmed.isEmpty else { throw LocalFirstError.invalidLocalWrite("\(label) name cannot be empty") }
         return trimmed
     }
 

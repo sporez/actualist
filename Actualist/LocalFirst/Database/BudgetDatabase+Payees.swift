@@ -20,7 +20,7 @@ extension BudgetDatabase {
         payeeID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        let trimmedName = try validatedPayeeName(name)
+        let trimmedName = try Self.validatedName(name, label: "payee")
         return try queue.read { db in
             let columns = try requiredColumns(table: "payees", required: ["name"], db: db)
             try rejectDuplicatePayeeName(trimmedName, excluding: nil, db: db)
@@ -62,7 +62,7 @@ extension BudgetDatabase {
         name: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        let trimmedName = try validatedPayeeName(name)
+        let trimmedName = try Self.validatedName(name, label: "payee")
         return try queue.read { db in
             let payee = try requiredRegularPayee(payeeID, db: db)
             guard payee.name != trimmedName else {
@@ -405,14 +405,6 @@ extension BudgetDatabase {
             arguments: ["learn-categories"]
         )
         return value.map { $0 != "false" } ?? true
-    }
-
-    private func validatedPayeeName(_ name: String) throws -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("payee name cannot be empty")
-        }
-        return trimmed
     }
 
     private func rejectDuplicatePayeeName(
