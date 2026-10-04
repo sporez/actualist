@@ -6,12 +6,7 @@ extension LocalFirstActualStore {
         scope: TransactionQueryScope,
         query: TransactionFeedQuery
     ) -> LoadedAccountTransactions? {
-        let key: TransactionFeedCacheKey = switch scope {
-        case .account(let accountID):
-            .account(budgetID: budgetID, accountID: accountID, query: query)
-        case .spending:
-            .spending(budgetID: budgetID, query: query)
-        }
+        let key = TransactionFeedCacheKey(budgetID: budgetID, queryScope: scope, query: query)
         return transactionFeedPagesByKey[key]?.loaded
     }
 
@@ -44,12 +39,7 @@ extension LocalFirstActualStore {
         query: TransactionFeedQuery
     ) async throws {
         let database = try requireDatabase(for: budgetID)
-        let key: TransactionFeedCacheKey = switch scope {
-        case .account(let accountID):
-            .account(budgetID: budgetID, accountID: accountID, query: query)
-        case .spending:
-            .spending(budgetID: budgetID, query: query)
-        }
+        let key = TransactionFeedCacheKey(budgetID: budgetID, queryScope: scope, query: query)
         try await refreshTransactionFeed(key: key, database: database)
     }
 
@@ -100,12 +90,7 @@ extension LocalFirstActualStore {
         query: TransactionFeedQuery
     ) async throws {
         let database = try requireDatabase(for: budgetID)
-        let key: TransactionFeedCacheKey = switch scope {
-        case .account(let accountID):
-            .account(budgetID: budgetID, accountID: accountID, query: query)
-        case .spending:
-            .spending(budgetID: budgetID, query: query)
-        }
+        let key = TransactionFeedCacheKey(budgetID: budgetID, queryScope: scope, query: query)
         try await loadOlderTransactionFeed(key: key, database: database)
     }
 
@@ -203,12 +188,7 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedAccountTransactions {
         let database = try requireDatabase(for: budgetID)
         let sessionID = transactionFeedRequestIdentity.sessionID
-        let key: TransactionFeedCacheKey = switch scope {
-        case .account(let accountID):
-            .account(budgetID: budgetID, accountID: accountID, query: query)
-        case .spending:
-            .spending(budgetID: budgetID, query: query)
-        }
+        let key = TransactionFeedCacheKey(budgetID: budgetID, queryScope: scope, query: query)
         let loaded = try await loadTransactionFeedPage(
             database: database,
             budgetID: budgetID,

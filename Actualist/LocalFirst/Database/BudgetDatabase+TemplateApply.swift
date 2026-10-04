@@ -155,22 +155,9 @@ extension BudgetDatabase {
         )
         let rowID = existingRowID ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
         let dataset = table.rawValue
-        var messages: [ActualSyncDecodedMessage] = []
-        messages.append(
-            try builder.makeMessage(
-                dataset: dataset,
-                row: rowID,
-                column: "month",
-                value: .int(Int64(monthValue))
-            )
-        )
-        messages.append(
-            try builder.makeMessage(
-                dataset: dataset,
-                row: rowID,
-                column: "category",
-                value: .string(categoryID)
-            )
+        var messages = try budgetRowIdentityMessages(
+            table: table, rowID: rowID, monthValue: monthValue,
+            categoryID: categoryID, builder: &builder
         )
         if existingRowID == nil, columns.contains("carryover") {
             messages.append(

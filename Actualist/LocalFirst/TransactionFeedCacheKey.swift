@@ -47,6 +47,19 @@ struct TransactionFeedCacheKey: Hashable, Sendable {
     }
 }
 
+// An extension keeps the synthesized memberwise initializer; the distinct label
+// keeps `.account` / `.spending` unambiguous between the two scope enums.
+extension TransactionFeedCacheKey {
+    init(budgetID: String, queryScope: TransactionQueryScope, query: TransactionFeedQuery) {
+        switch queryScope {
+        case .account(let accountID):
+            self = .account(budgetID: budgetID, accountID: accountID, query: query)
+        case .spending:
+            self = .spending(budgetID: budgetID, query: query)
+        }
+    }
+}
+
 typealias TransactionFeedPageReadHook = @MainActor @Sendable (
     TransactionFeedCacheKey,
     String?,
