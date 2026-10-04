@@ -24,6 +24,7 @@ final class AppState {
     private let settingsStore: AppSettingsStore
     private let keychain: KeychainStore
     private let credentialRetryPreparation: @MainActor () -> Void
+    private let widgetSnapshotClearer: @MainActor () -> Void
     @ObservationIgnored private let sessionRecovery = AppSessionRecovery()
     @ObservationIgnored private let appSyncCoordinator = AppSyncCoordinator()
     @ObservationIgnored private let launchWarmupCoordinator = LaunchWarmupCoordinator()
@@ -65,11 +66,13 @@ final class AppState {
             Task {
                 try? await UNUserNotificationCenter.current().setBadgeCount(badgeCount)
             }
-        }
+        },
+        widgetSnapshotClearer: @escaping @MainActor () -> Void = { WidgetSnapshotCoordinator.shared.clearSnapshot() }
     ) {
         self.settingsStore = settingsStore
         self.keychain = keychain
         self.credentialRetryPreparation = credentialRetryPreparation
+        self.widgetSnapshotClearer = widgetSnapshotClearer
         self.backgroundTransactionWorkflow = BackgroundTransactionWorkflow(
             settingsStore: settingsStore,
             notificationAuthorizationRequester: notificationAuthorizationRequester,
@@ -318,6 +321,7 @@ final class AppState {
         do {
             sessionRecovery.invalidate()
             appSyncCoordinator.cancelRefresh()
+            widgetSnapshotClearer()
             try localFirstStore.eraseLocalData()
             settings.localFirstServerURLString = ""
             settings.fallbackServerURLString = ""

@@ -121,6 +121,15 @@ final class WidgetSnapshotCoordinator {
         refresh()
     }
 
+    /// Removes the saved snapshot now and invalidates any in-flight publish, so
+    /// sign-out never waits on the asynchronous observation path.
+    func clearSnapshot() {
+        _ = publicationGeneration.begin()
+        publishTask?.cancel()
+        publishTask = nil
+        replaceSnapshot(nil)
+    }
+
     func refresh() {
         let generation = publicationGeneration.begin()
         publishTask?.cancel()
