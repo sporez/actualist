@@ -11,12 +11,14 @@ final class SpringboardQuickActionsUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
         app.launch()
-        XCTAssertTrue(app.tabBars.buttons["Budget"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        let compact = app.usesCompactLayout
         app.terminate()
 
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         springboard.activate()
-        let appIcon = springboard.icons[try UITestAppIdentity.appDisplayName]
+        // iPad Springboard lists the icon more than once (home page and dock).
+        let appIcon = springboard.icons.matching(identifier: try UITestAppIdentity.appDisplayName).firstMatch
         XCTAssertTrue(appIcon.waitForExistence(timeout: 5))
         appIcon.press(forDuration: 1.5)
 
@@ -31,9 +33,13 @@ final class SpringboardQuickActionsUITests: XCTestCase {
         appIcon.press(forDuration: 1.5)
         XCTAssertTrue(springboard.buttons["Spending"].waitForExistence(timeout: 3))
         springboard.buttons["Spending"].tap()
-        XCTAssertTrue(
-            app.tabBars.buttons["Spending"].waitForExistence(timeout: 15)
-                && app.tabBars.buttons["Spending"].isSelected
-        )
+        if compact {
+            XCTAssertTrue(
+                app.tabBars.buttons["Spending"].waitForExistence(timeout: 15)
+                    && app.tabBars.buttons["Spending"].isSelected
+            )
+        } else {
+            XCTAssertTrue(app.navigationBars["Spending"].waitForExistence(timeout: 15))
+        }
     }
 }

@@ -58,15 +58,20 @@ final class TrackingBudgetUITests: XCTestCase {
         app.buttons["Actual Purple (dark)"].tap()
         app.terminate()
         app = launch()
-        let month = displayedMonthButton(in: app)
-        XCTAssertTrue(month.waitForExistence(timeout: 15))
-        month.tap()
-        app.buttons["Aug"].tap()
-        let groceries = app.buttons["budget-category-groceries"]
-        if !groceries.isHittable { app.swipeUp() }
-        XCTAssertTrue(groceries.waitForExistence(timeout: 5))
-        groceries.tap()
-        app.buttons["Details"].tap()
+        let wide = app.frame.width >= 792
+        if wide {
+            stepWideBudgetGrid(toShow: "2026-08", in: app)
+            let groceries = app.buttons["available-2026-08-groceries"]
+            XCTAssertTrue(groceries.waitForExistence(timeout: 5))
+            groceries.tap()
+        } else {
+            selectCompactBudgetMonth(year: 2026, abbreviation: "Aug", in: app)
+            let groceries = app.buttons["budget-category-groceries"]
+            if !groceries.isHittable { app.swipeUp() }
+            XCTAssertTrue(groceries.waitForExistence(timeout: 5))
+            groceries.tap()
+            app.buttons["Details"].tap()
+        }
         let transaction = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Fresh Market'")).firstMatch
         XCTAssertTrue(transaction.waitForExistence(timeout: 5))
         for index in 0..<2 {
@@ -94,14 +99,10 @@ final class TrackingBudgetUITests: XCTestCase {
     func testPastMonthRolloverThemesAndPrivacy() throws {
         var app = launch()
         if app.frame.width >= 792 {
-            // Step back from the real current month to August 2026, the last
-            // month with demo data.
-            for _ in 0..<12 where !app.buttons["available-2026-08-groceries"].exists {
-                app.buttons["Previous month"].tap()
-            }
+            // August 2026 is the last month with demo data, whatever the run date.
+            stepWideBudgetGrid(toShow: "2026-08", in: app)
         } else {
-            displayedMonthButton(in: app).tap()
-            app.buttons["Aug"].tap()
+            selectCompactBudgetMonth(year: 2026, abbreviation: "Aug", in: app)
         }
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Saved'")).firstMatch.waitForExistence(timeout: 5))
         capture("tracking-past-month-dark", app)
@@ -164,7 +165,11 @@ final class TrackingBudgetUITests: XCTestCase {
         XCTAssertEqual(sample.value as? String, "1")
         app.terminate()
         app = launch()
-        let review = app.buttons["budget-alert-overspending"]
+        // The compact screen has an overspending alert row; the wide grid shows the
+        // same alert as a button in each month header.
+        let review = app.frame.width >= 792
+            ? app.buttons.matching(NSPredicate(format: "label CONTAINS 'Overspent categories'")).firstMatch
+            : app.buttons["budget-alert-overspending"]
         XCTAssertTrue(review.waitForExistence(timeout: 10))
         review.tap()
         XCTAssertTrue(app.navigationBars["Overspent Categories"].waitForExistence(timeout: 5))
@@ -190,6 +195,10 @@ final class TrackingBudgetUITests: XCTestCase {
             let add = app.buttons["Add Transaction"]
             XCTAssertTrue(add.waitForExistence(timeout: 10))
             add.tap()
+            let editor = app.navigationBars["Add Transaction"]
+            XCTAssertTrue(editor.waitForExistence(timeout: 5))
+            // The iPad number pad is modal and covers Category until dismissed.
+            dismissNumberPadPopover(in: app, editor: editor)
             let category = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Category'")).firstMatch
             XCTAssertTrue(category.waitForExistence(timeout: 5))
             category.tap()
@@ -292,14 +301,5 @@ final class TrackingBudgetUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
-    }
-
-    /// The tracking demo opens on the real current month, while its data ends
-    /// in August 2026, so match whichever month the navigation bar shows
-    /// rather than a hard-coded one.
-    private func displayedMonthButton(in app: XCUIApplication) -> XCUIElement {
-        app.navigationBars.buttons.matching(
-            NSPredicate(format: "label MATCHES %@", ".*[A-Z][a-z]{2} 20[0-9]{2}$")
-        ).firstMatch
     }
 }

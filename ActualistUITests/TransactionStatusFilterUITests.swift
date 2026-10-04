@@ -138,6 +138,7 @@ final class TransactionStatusFilterUITests: XCTestCase {
 
     func testFilterSurvivesEditorReturnAndResetsAfterTabExit() throws {
         let app = launchSpending()
+        try requireCompactLayout(app, wideCoverage: "TransactionStatusFilterUITests.testSpendingFilterMenuAndClearIndicator (wide Spending filter menu)")
         selectSpendingFilter("Cleared", in: app)
         let indicator = app.buttons["Clear Cleared Filter"]
         XCTAssertTrue(indicator.waitForExistence(timeout: 5))

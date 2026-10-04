@@ -4,9 +4,12 @@ import XCTest
 final class TransactionEditorUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
-    func testAmountFormatsMinorUnitsAndScrollDismissesKeyboard() {
+    func testAmountFormatsMinorUnitsAndScrollDismissesKeyboard() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = launchDemo()
+        guard app.windows.firstMatch.frame.width <= 700 else {
+            throw XCTSkip("Docked keyboard flow; wide equivalent: testEditorInteractionRegressionOnIPad")
+        }
 
         let addTransaction = app.buttons["Add Transaction"]
         XCTAssertTrue(addTransaction.waitForExistence(timeout: 10))
@@ -52,6 +55,7 @@ final class TransactionEditorUITests: XCTestCase {
         let editorTitle = openAddTransaction(in: app)
         app.typeText("5")
         XCTAssertTrue(formattedAmount(containing: "0.05", in: app).waitForExistence(timeout: 5))
+        dismissNumberPadPopover(in: app, editor: editorTitle)
 
         editorTitle.swipeDown(velocity: .fast)
         XCTAssertFalse(editorTitle.waitForNonExistence(timeout: 2), "Swipe dismissed unsaved input")
@@ -61,7 +65,7 @@ final class TransactionEditorUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 5))
         // iOS 26 anchors the confirmation as a popover; tapping outside it is
         // Keep Editing.
-        app.otherElements["PopoverDismissRegion"].tap()
+        app.otherElements["PopoverDismissRegion"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Discard Changes"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(editorTitle.exists)
         XCTAssertTrue(formattedAmount(containing: "0.05", in: app).exists)
@@ -77,6 +81,7 @@ final class TransactionEditorUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = launchDemo()
         let editorTitle = openAddTransaction(in: app)
+        dismissNumberPadPopover(in: app, editor: editorTitle)
 
         app.buttons["transaction-editor-close"].tap()
         XCTAssertTrue(editorTitle.waitForNonExistence(timeout: 5))
@@ -249,8 +254,15 @@ final class TransactionEditorUITests: XCTestCase {
     }
 
     private func assertNoEditorKeyboard(in app: XCUIApplication) {
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(waitUntilDismissed(app.keyboards.firstMatch, in: app))
         XCTAssertTrue(app.popovers.containing(.key, identifier: "1").firstMatch.waitForNonExistence(timeout: 5))
+    }
+
+    /// iPhone removes the keyboard element when it hides. iPad keeps an
+    /// off-screen keyboard element, so "dismissed" means absent or outside the window.
+    private func waitUntilDismissed(_ keyboard: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 5) -> Bool {
+        let dismissed = NSPredicate { _, _ in !keyboard.exists || !keyboard.frame.intersects(app.frame) }
+        return XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: dismissed, object: nil)], timeout: timeout) == .completed
     }
 
     private func captureScreenshot(named name: String) {
@@ -304,8 +316,13 @@ final class TransactionEditorUITests: XCTestCase {
         addTransaction.tap()
         let editorScroll = app.scrollViews["transaction-editor-scroll"]
         XCTAssertTrue(editorScroll.waitForExistence(timeout: 5))
-        editorScroll.swipeDown()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        if app.windows.firstMatch.frame.width > 700 {
+            // The iPad number pad is a modal popover that a scroll cannot dismiss.
+            dismissNumberPadPopover(in: app, editor: app.navigationBars["Add Transaction"])
+        } else {
+            editorScroll.swipeDown()
+        }
+        assertNoEditorKeyboard(in: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Transaction editor portrait"

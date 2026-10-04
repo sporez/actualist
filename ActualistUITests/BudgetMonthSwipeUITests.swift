@@ -6,7 +6,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
     @MainActor func testEdgeMonthNavigationAndScrollCoexist() throws {
-        let app = launch()
+        let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let original = title(app)
@@ -32,7 +32,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         capture("month-edge-scroll", app)
     }
 
-    @MainActor func testShortSwipesSpringBackAndCommittedSlideFinishes() {
+    @MainActor func testShortSwipesSpringBackAndCommittedSlideFinishes() throws {
         let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
         settings.launch()
         settings.buttons["com.apple.settings.accessibility"].tap()
@@ -45,7 +45,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
             settings.activate()
             if toggle.value as? String != original { toggle.switches.firstMatch.tap() }
         }
-        let app = launch()
+        let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let row = app.buttons["budget-category-rent"]
@@ -72,7 +72,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     }
 
     @MainActor func testSettledRowsKeepTheirBrightness() throws {
-        let app = launch()
+        let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let identifiers = ["rent", "groceries", "utilities", "transportation", "insurance"]
@@ -108,7 +108,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     }
 
     @MainActor func testScrolledMonthRoundTripRetainsPosition() throws {
-        let app = launch()
+        let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         drag(scroll, from: .init(dx: 0.5, dy: 0.8), to: .init(dx: 0.5, dy: 0.45))
@@ -129,8 +129,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Save assignment"].exists)
     }
 
-    @MainActor func testBottomRubberBandKeepsAddTransactionCollapsedUntilNextGesture() {
-        let app = launchFreshDemo()
+    @MainActor func testBottomRubberBandKeepsAddTransactionCollapsedUntilNextGesture() throws {
+        let app = try launchFreshDemo()
         let scroll = app.scrollViews["budget-compact-scroll"]
         let expanded = app.buttons["budget-add-transaction-expanded"]
         let collapsed = app.buttons["budget-add-transaction-collapsed"]
@@ -150,8 +150,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         capture("bottom-rubber-band-add-transaction", app)
     }
 
-    @MainActor func testPickerStillOpensAfterRejectedGesture() {
-        let app = launch()
+    @MainActor func testPickerStillOpensAfterRejectedGesture() throws {
+        let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let original = title(app)
@@ -162,8 +162,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         capture("month-picker-after-drag", app)
     }
 
-    @MainActor func testRowTapAndLongPressSurviveWhileEditingBlocksSwipe() {
-        let app = launch()
+    @MainActor func testRowTapAndLongPressSurviveWhileEditingBlocksSwipe() throws {
+        let app = try launch()
         let row = app.buttons["budget-category-rent"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         row.tap()
@@ -191,7 +191,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     }
 
     @MainActor func testAssignmentDismissalLeavesNoBlankScrollRegion() throws {
-        let app = launchFreshDemo()
+        let app = try launchFreshDemo()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         for categoryID in ["vacation", "retirement"] {
@@ -221,7 +221,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     }
 
     @MainActor func testVisibleRowEditingDoesNotExposeArtificialScrollRange() throws {
-        let app = launchFreshDemo()
+        let app = try launchFreshDemo()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
 
@@ -251,7 +251,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     }
 
     @MainActor func testShownHiddenCategoryDetailsAndMoveMoneyOpen() throws {
-        let app = launchFreshDemo()
+        let app = try launchFreshDemo()
         let row = app.buttons["budget-category-rent"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
 
@@ -294,8 +294,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         capture("shown-hidden-category-actions", app)
     }
 
-    @MainActor func testAssignmentExitPathsRestoreBottomRow() {
-        let app = launchFreshDemo()
+    @MainActor func testAssignmentExitPathsRestoreBottomRow() throws {
+        let app = try launchFreshDemo()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let row = app.buttons["budget-category-retirement"]
@@ -316,8 +316,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         }
     }
 
-    @MainActor func testChangingCategoryAndReturningFromAnotherTabKeepsKeypad() {
-        let app = launchFreshDemo()
+    @MainActor func testChangingCategoryAndReturningFromAnotherTabKeepsKeypad() throws {
+        let app = try launchFreshDemo()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let last = app.buttons["budget-category-retirement"]
@@ -334,12 +334,13 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: restored, object: nil)], timeout: 3), .completed)
     }
 
-    @MainActor func testLightThemeAndLargeTextSwipe() {
+    @MainActor func testLightThemeAndLargeTextSwipe() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
         app.launch()
         let theme = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
         XCTAssertTrue(theme.waitForExistence(timeout: 15))
+        try requireCompactLayout(app, wideCoverage: "IPadReviewUITests wide budget grid tests")
         theme.tap()
         app.buttons["Actual Purple (light)"].tap()
         setMonthSwiping(true, app: app)
@@ -361,7 +362,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         app.buttons["Actual Purple (dark)"].tap()
     }
 
-    @MainActor func testReduceMotionKeepsMonthNavigation() {
+    @MainActor func testReduceMotionKeepsMonthNavigation() throws {
         let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
         settings.launch()
         settings.buttons["com.apple.settings.accessibility"].tap()
@@ -374,7 +375,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
             settings.activate()
             if toggle.value as? String != original { toggle.switches.firstMatch.tap() }
         }
-        let app = launch()
+        let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let month = title(app)
@@ -409,11 +410,13 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         }
     }
 
-    @MainActor private func launch() -> XCUIApplication {
+    @MainActor private func launch() throws -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
         app.launch()
+        XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
+        try requireCompactLayout(app, wideCoverage: "IPadReviewUITests wide budget grid tests")
         setMonthSwiping(true, app: app)
         app.terminate()
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
@@ -425,7 +428,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         return app
     }
 
-    @MainActor private func launchFreshDemo() -> XCUIApplication {
+    @MainActor private func launchFreshDemo() throws -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
@@ -434,11 +437,13 @@ final class BudgetMonthSwipeUITests: XCTestCase {
             "-actualist-screen", "budget"
         ]
         app.launch()
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        try requireCompactLayout(app, wideCoverage: "IPadReviewUITests wide budget grid tests")
         return app
     }
 
-    @MainActor func testAppearanceToggleDisablesAndReenablesMonthSwiping() {
-        let app = launch()
+    @MainActor func testAppearanceToggleDisablesAndReenablesMonthSwiping() throws {
+        let app = try launch()
         for enabled in [false, true, false] {
             app.terminate()
             app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]

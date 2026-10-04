@@ -29,11 +29,12 @@ final class AdaptiveSettingsUITests: XCTestCase {
     @MainActor
     func testDemoSupportCanShareReportDismissAndReopen() throws {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication(bundleIdentifier: try UITestAppIdentity.appIdentifier)
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
         app.launch()
 
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
+        guard app.frame.width < 700 else { throw XCTSkip("Requires compact navigation; wide equivalent: testWideSettingsKeepsMenuWhileSwitchingDetail") }
         let themePicker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
         XCTAssertTrue(themePicker.waitForExistence(timeout: 5))
         themePicker.tap()
@@ -75,11 +76,12 @@ final class AdaptiveSettingsUITests: XCTestCase {
     @MainActor
     func testDemoSupportShareWithAlwaysPrivacyInLightTheme() throws {
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication(bundleIdentifier: "com.sporez.actualist")
+        let app = XCUIApplication(bundleIdentifier: try UITestAppIdentity.appIdentifier)
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
         app.launch()
 
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
+        guard app.frame.width < 700 else { throw XCTSkip("Requires compact navigation; wide equivalent: testWideSettingsKeepsMenuWhileSwitchingDetail") }
         let themePicker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
         XCTAssertTrue(themePicker.waitForExistence(timeout: 5))
         themePicker.tap()
