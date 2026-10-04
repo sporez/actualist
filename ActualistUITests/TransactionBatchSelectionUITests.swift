@@ -15,9 +15,13 @@ final class TransactionBatchSelectionUITests: XCTestCase {
         }
     }
 
+    /// Batch Clear picks its direction from the selection alone, so a Clear
+    /// review needs a selected row that is not cleared yet.
+    private static let unclearedTransactionID = "din-00151"
+
     func testClearReviewCanBeCanceledWithoutLeavingSelectionMode() throws {
         let app = launchFreshSpendingDemo(theme: "Actual Purple (dark)")
-        selectFirstLoadedTransaction(in: app)
+        selectFirstLoadedTransaction(in: app, transactionID: Self.unclearedTransactionID)
         app.buttons["transaction-selection-actions"].tap()
         app.buttons["Clear Transactions"].tap()
 
@@ -92,7 +96,7 @@ final class TransactionBatchSelectionUITests: XCTestCase {
 
     func testConfirmedClearHasOneHistoryUndo() throws {
         let app = launchFreshSpendingDemo()
-        let transactionID = "din-00151"
+        let transactionID = Self.unclearedTransactionID
         let uncleared = app.buttons["transaction-row-\(transactionID)"]
         XCTAssertTrue(uncleared.waitForExistence(timeout: 10))
         XCTAssertFalse(uncleared.label.contains("Cleared"))
@@ -137,7 +141,7 @@ final class TransactionBatchSelectionUITests: XCTestCase {
             theme: "Actual Purple (light)",
             dynamicType: "UICTContentSizeCategoryAccessibilityXXXL"
         )
-        selectFirstLoadedTransaction(in: app)
+        selectFirstLoadedTransaction(in: app, transactionID: Self.unclearedTransactionID)
         app.buttons["transaction-selection-actions"].tap()
         app.buttons["Clear Transactions"].tap()
 

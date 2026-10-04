@@ -197,7 +197,12 @@ final class TransactionCommandUITests: XCTestCase {
             XCTAssertTrue(scrollTo(button, in: app), "Missing selectable transaction \(id)")
             button.tap()
         }
-        XCTAssertTrue(app.staticTexts["transaction-selection-count"].label.contains("\(ids.count)"))
+        let count = app.staticTexts["transaction-selection-count"]
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "\(ids.count)"),
+            object: count
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation], timeout: 5), .completed, "Selection count: \(count.label)")
     }
 
     private func openMergeReview(in app: XCUIApplication) {
@@ -208,12 +213,12 @@ final class TransactionCommandUITests: XCTestCase {
     }
 
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        if element.waitForExistence(timeout: 2) { return true }
+        if element.waitForExistence(timeout: 2), element.isHittable { return true }
         for _ in 0..<8 {
             app.swipeUp()
-            if element.exists { return true }
+            if element.exists, element.isHittable { return true }
         }
-        return element.exists
+        return element.exists && element.isHittable
     }
 
     private func openBudget(in app: XCUIApplication) {
