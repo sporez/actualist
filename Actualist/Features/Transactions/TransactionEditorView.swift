@@ -483,12 +483,7 @@ struct TransactionEditorView: View {
                 childPayeePickerRowID = nil
             },
             onCustomSelect: { name in
-                viewModel.splitState.setPayee(
-                    id: row.id,
-                    payeeID: nil,
-                    name: name,
-                    isTransfer: false
-                )
+                viewModel.setSplitCustomPayee(rowID: row.id, name: name)
                 childPayeePickerRowID = nil
             }
         )
@@ -501,19 +496,11 @@ struct TransactionEditorView: View {
             isLoading: viewModel.isLoadingCategoryBalances,
             showsUncategorizedOption: true,
             onSelectCategory: { option in
-                viewModel.splitState.setCategory(
-                    id: row.id,
-                    categoryID: option.id,
-                    name: option.title
-                )
+                viewModel.setSplitCategory(rowID: row.id, categoryID: option.id, name: option.title)
                 childCategoryPickerRowID = nil
             },
             onClearCategory: {
-                viewModel.splitState.setCategory(
-                    id: row.id,
-                    categoryID: nil,
-                    name: nil
-                )
+                viewModel.setSplitCategory(rowID: row.id, categoryID: nil, name: nil)
                 childCategoryPickerRowID = nil
             }
         )

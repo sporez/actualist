@@ -126,6 +126,20 @@ struct TransactionSplitEditorStateTests {
         #expect(state.splitRows.count == 1)
     }
 
+    @Test func nonASCIIDecimalDigitsMapToASCIIAndNonDecimalDigitsAreIgnored() {
+        var state = TransactionSplitEditorState(children: [
+            Self.row(id: "a", amount: 0), Self.row(id: "b", amount: 0), Self.row(id: "c", amount: 0)
+        ])
+
+        state.setAmountDigits(id: "a", value: "١٢٣", defaultNegative: true)
+        state.setAmountDigits(id: "b", value: "①", defaultNegative: true)
+        state.setAmountDigits(id: "c", value: "１２,०५", defaultNegative: false)
+
+        #expect(state.splitRows.map(\.amountMinorUnits) == [-123, 0, 1205])
+        #expect(TransactionSplitEditorState.sanitizedAmountDigits("007x9") == "79")
+        #expect(TransactionSplitEditorState.sanitizedAmountDigits(String(repeating: "9", count: 20)).count == 16)
+    }
+
     private static func family(
         amount: Int,
         children: [ActualTransaction]

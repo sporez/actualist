@@ -12,7 +12,6 @@ enum TransactionFlowKind: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class TransactionEditorViewModel {
-    private static let maximumAmountDigitCount = 16
     private let originalImportedPayee: String?
     private let originalIsParent: Bool
     private var categoryState = TransactionEditorCategoryState()
@@ -236,7 +235,7 @@ final class TransactionEditorViewModel {
     }
 
     func setAmountInput(_ value: String) {
-        amountDigits = Self.sanitizedAmountDigits(value)
+        amountDigits = TransactionSplitEditorState.sanitizedAmountDigits(value)
         splitState.clearMismatch()
     }
 
@@ -773,10 +772,5 @@ final class TransactionEditorViewModel {
             clearCategory()
             splitState.discard()
         }
-    }
-
-    private static func sanitizedAmountDigits(_ value: String) -> String {
-        let trimmed = value.filter(\.isNumber).drop(while: { $0 == "0" })
-        return String(trimmed.prefix(maximumAmountDigitCount))
     }
 }

@@ -32,7 +32,7 @@ struct TransactionSplitEditorView: View {
             HStack(spacing: 10) {
                 Button {
                     focusedField.wrappedValue = nil
-                    viewModel.splitState.addChild()
+                    viewModel.addSplit()
                 } label: {
                     Label("Add Split", systemImage: "plus.circle.fill")
                         .font(ActualistTypography.control(for: density))
@@ -90,7 +90,7 @@ struct TransactionSplitEditorView: View {
 
                 HStack(spacing: 6) {
                     Button {
-                        viewModel.splitState.toggleAmountSign(id: row.id)
+                        viewModel.toggleSplitSign(rowID: row.id)
                     } label: {
                         Text(row.amountMinorUnits < 0 ? "−" : "+")
                             .font(ActualistTypography.rowTitle(for: density))
@@ -151,7 +151,7 @@ struct TransactionSplitEditorView: View {
                         .foregroundStyle(ActualistTheme.primaryText)
                 }
 
-                if viewModel.splitState.canRemoveSplitRow {
+                if viewModel.canRemoveSplitRow {
                     Button {
                         focusedField.wrappedValue = nil
                         viewModel.removeSplit(rowID: row.id)
@@ -179,9 +179,9 @@ struct TransactionSplitEditorView: View {
 
     private func notesBinding(for rowID: String) -> Binding<String> {
         Binding {
-            viewModel.splitState.splitRows.first(where: { $0.id == rowID })?.displayNotes ?? ""
+            viewModel.splitNotes(rowID: rowID)
         } set: { value in
-            viewModel.splitState.setNotes(id: rowID, notes: value)
+            viewModel.setSplitNotes(rowID: rowID, notes: value)
         }
     }
 }
