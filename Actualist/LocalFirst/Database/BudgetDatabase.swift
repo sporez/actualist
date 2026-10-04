@@ -22,7 +22,10 @@ actor BudgetDatabase {
     ) throws {
         self.databaseURL = databaseURL
         self.beforeBudgetDataMutation = beforeBudgetDataMutation
-        queue = try DatabaseQueue(path: databaseURL.path)
+        queue = try DatabaseQueue(
+            path: databaseURL.path,
+            configuration: Self.untrustedFileConfiguration()
+        )
         let compatibility = LaunchSignpost.begin(LaunchStage.budgetDatabaseCompatibility)
         defer { LaunchSignpost.end(LaunchStage.budgetDatabaseCompatibility, compatibility) }
         try Self.prepareBankSyncStatusCompatibility(in: queue)

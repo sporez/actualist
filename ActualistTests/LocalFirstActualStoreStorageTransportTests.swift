@@ -67,10 +67,22 @@ extension LocalFirstActualStoreTests {
             .appending(path: "ActualistBudgetArchive-\(UUID().uuidString)", directoryHint: .isDirectory)
         let fileManager = BudgetFileManager(
             applicationSupportURL: rootURL,
-            resourceLimits: testResourceLimits()
+            resourceLimits: testResourceLimits(
+                maximumCompressedBudgetBytes: 1_048_576,
+                maximumExpandedBudgetBytes: 1_048_576,
+                maximumArchiveEntryBytes: 1_048_576
+            )
         )
         let stagingURL = try fileManager.prepareDownloadStaging(fileID: "file-1")
-        try makeArchive(at: stagingURL, entries: [("nested/db.sqlite", Data("sqlite".utf8))])
+        let sourceURL = rootURL.appending(path: "source.sqlite")
+        try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        try DatabaseQueue(path: sourceURL.path).write { db in
+            try db.execute(sql: "CREATE TABLE accounts (id TEXT PRIMARY KEY); INSERT INTO accounts VALUES ('a1')")
+        }
+        try makeArchive(
+            at: stagingURL,
+            entries: [("nested/db.sqlite", try Data(contentsOf: sourceURL))]
+        )
 
         let databaseURL = try fileManager.importBudgetZip(
             at: stagingURL,
@@ -78,7 +90,11 @@ extension LocalFirstActualStoreTests {
             metadata: testBudgetMetadata()
         )
 
-        #expect(try Data(contentsOf: databaseURL) == Data("sqlite".utf8))
+        // Import sanitizes (and rewrites) the file, so compare content, not bytes.
+        let accountIDs = try DatabaseQueue(path: databaseURL.path).read { db in
+            try String.fetchAll(db, sql: "SELECT id FROM accounts")
+        }
+        #expect(accountIDs == ["a1"])
         #expect(!FileManager.default.fileExists(atPath: stagingURL.path))
     }
 

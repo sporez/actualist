@@ -27,19 +27,14 @@ extension BudgetDatabase {
             try fileManager.removeItem(at: destinationURL)
         }
         do {
-            var configuration = Configuration()
-            configuration.prepareDatabase { db in
-                try db.execute(sql: "PRAGMA journal_mode = DELETE")
-            }
+            let configuration = Self.untrustedFileConfiguration(deleteJournal: true)
             let destination = try DatabaseQueue(
                 path: destinationURL.path,
                 configuration: configuration
             )
             try queue.backup(to: destination)
             try destination.write { db in
-                for table in Self.portableExportStrippedTables {
-                    try db.execute(sql: "DROP TABLE IF EXISTS \(quotedIdentifier(table))")
-                }
+                try Self.sanitizeUntrustedSchema(in: db)
                 let integrity = try String.fetchAll(db, sql: "PRAGMA integrity_check")
                 guard integrity == ["ok"] else {
                     throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
@@ -55,6 +50,8 @@ extension BudgetDatabase {
                     try db.checkpoint(.truncate)
                 }
             }
+            // Dropped tables leave their rows in free pages; rewrite the file.
+            try destination.vacuum()
         } catch {
             try? fileManager.removeItem(at: destinationURL)
             removeSnapshotSidecars(of: destinationURL, fileManager: fileManager)
@@ -66,10 +63,11 @@ extension BudgetDatabase {
     /// Read-only check for an already extracted portable database. Does not run
     /// open-time compatibility writes.
     static func validatePortableDatabase(at databaseURL: URL) throws {
-        var configuration = Configuration()
-        configuration.readonly = true
         do {
-            let queue = try DatabaseQueue(path: databaseURL.path, configuration: configuration)
+            let queue = try DatabaseQueue(
+                path: databaseURL.path,
+                configuration: untrustedFileConfiguration(readonly: true)
+            )
             try queue.read { db in
                 try validatePortableDatabaseContents(db)
             }

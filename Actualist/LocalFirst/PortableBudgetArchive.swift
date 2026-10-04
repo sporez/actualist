@@ -146,6 +146,11 @@ struct PortableBudgetArchive {
 
         let pair = try selectPair(in: raw)
         let metadata = try sanitizedMetadata(at: pair.metadataURL, avoiding: pair.embeddedIdentity)
+        do {
+            try BudgetDatabase.sanitizeUntrustedDatabase(at: pair.databaseURL)
+        } catch {
+            throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
+        }
         try BudgetDatabase.validatePortableDatabase(at: pair.databaseURL)
 
         let validated = work.appending(path: "validated", directoryHint: .isDirectory)

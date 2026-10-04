@@ -400,9 +400,8 @@ struct BudgetFileManager {
         try hardenBudgetArtifact(at: extractionURL, excludeFromBackup: true)
         try extractArchive(at: zipURL, to: extractionURL)
 
-        guard let importedDatabase = try findDatabase(in: extractionURL) else {
-            throw LocalFirstError.missingImportedDatabase
-        }
+        let importedDatabase = try findDatabase(in: extractionURL)
+        try BudgetDatabase.sanitizeUntrustedDatabase(at: importedDatabase)
 
         let databaseURL = try containedURL(databaseURL)
         if fileManager.fileExists(atPath: databaseURL.path) {
@@ -436,27 +435,42 @@ struct BudgetFileManager {
         }
     }
 
-    private func findDatabase(in directory: URL) throws -> URL? {
+    /// Mirrors upstream's download import (`cloud-storage.ts`): the archive
+    /// root's `db.sqlite` wins, otherwise exactly one nested `db.sqlite`.
+    /// Other names, including other `*.sqlite` files, are never a budget.
+    private func findDatabase(in directory: URL) throws -> URL {
         let directory = try containedURL(directory)
         guard let enumerator = fileManager.enumerator(
             at: directory,
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
         ) else {
-            return nil
+            throw LocalFirstError.missingImportedDatabase
         }
 
-        for case let url as URL in enumerator {
+        var root: URL?
+        var nested: [URL] = []
+        for case let url as URL in enumerator where url.lastPathComponent == "db.sqlite" {
             let url = try containedURL(url)
-            guard url.lastPathComponent == "db.sqlite" || url.pathExtension == "sqlite" else {
+            guard try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
                 continue
             }
-            let values = try url.resourceValues(forKeys: [.isRegularFileKey])
-            if values.isRegularFile == true {
-                return url
+            if url.deletingLastPathComponent() == directory {
+                root = url
+            } else {
+                nested.append(url)
             }
         }
-        return nil
+        if let root {
+            return root
+        }
+        guard let only = nested.first else {
+            throw LocalFirstError.missingImportedDatabase
+        }
+        guard nested.count == 1 else {
+            throw LocalFirstError.invalidDownloadedBudget
+        }
+        return only
     }
 
     private func validate(fileID: String) throws {
