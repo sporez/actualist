@@ -246,7 +246,7 @@ private struct BudgetGridMonthCells: View {
             .hoverEffect(.highlight)
             .accessibilityLabel("\(category.title), \(month.title), \(semantics.budgetedLabel), \(month.currency.formatted(value.budgeted))")
             .accessibilityIdentifier("assigned-\(month.id)-\(category.id)")
-            .popover(isPresented: Binding(get: { presentsAssignment }, set: { if !$0 && presentsAssignment { viewport.cancelAssignmentEditing() } })) {
+            .popover(isPresented: Binding(get: { presentsAssignment }, set: { if !$0 { viewport.assignmentPopoverDismissed(categoryID: category.id, month: month.id) } })) {
                 BudgetAssignmentPopover(viewport: viewport, actions: actions, categoryName: category.title)
                     .presentationCompactAdaptation(.popover)
                     .appSwitcherPrivacyProtected(using: appState)

@@ -43,6 +43,9 @@ final class BudgetViewportModel {
             : SelectedCell(categoryID: selectedCell.categoryID, month: firstMonth)
     }
 
+    /// Which layout owns the assignment presentation. The session changes it
+    /// before the previous host tears down.
+    var assignmentHost: AdaptiveRootPresentationMode = .sidebar
     private(set) var inspectedCell: SelectedCell?
     var selectedCategoryMonth: String? { inspectedCell?.month }
 
@@ -327,6 +330,15 @@ final class BudgetViewportModel {
         // forward by the assignment, without changing the navigation anchor.
         _ = await refreshVisibleMonths()
         return true
+    }
+
+    /// A popover reports dismissal both for a user tap outside and when its
+    /// host is torn down by a resize. Only the wide grid's own presentation may
+    /// cancel; once the compact host owns the draft, teardown hands it off.
+    func assignmentPopoverDismissed(categoryID: String, month: String) {
+        guard assignmentHost == .sidebar,
+              assignmentPresentationCell == SelectedCell(categoryID: categoryID, month: month) else { return }
+        cancelAssignmentEditing()
     }
 
     func cancelAssignmentEditing() {

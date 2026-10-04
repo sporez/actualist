@@ -40,6 +40,7 @@ final class AdaptiveBudgetSession {
                 await self.prepare(context, appState: appState)
             }
             guard !Task.isCancelled, self.requestedContext == context else { return }
+            self.viewport.assignmentHost = context.mode
             self.presentedContext = context
             self.lastPresentedContext = context
         }
