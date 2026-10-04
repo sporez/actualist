@@ -118,4 +118,20 @@ extension LocalFirstActualStoreTests {
 
         #expect(Set(result.changed.accounts) == ["checking", "savings"])
     }
+
+    @Test func templateApplyBuildsFromTheBudgetAfterARemotePreviousMonthEdit() async throws {
+        let store = try await makeOpenedWritableStore()
+        landRemote([
+            remoteMessage("zero_budgets", "202606-copycat", "month", "N:202606"),
+            remoteMessage("zero_budgets", "202606-copycat", "category", "S:copycat"),
+            remoteMessage("zero_budgets", "202606-copycat", "amount", "N:4000"),
+        ], on: store)
+
+        let loaded = try await store.applyBudgetTemplateAndRefresh(
+            expectedMode: nil, command: .category("copycat"), budgetID: "group-1", month: "2026-07"
+        ) {}
+
+        let copycat = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "copycat" })
+        #expect(copycat.budgeted == 4_000)
+    }
 }
