@@ -6,24 +6,12 @@ import GRDB
 extension BudgetDatabase {
     func budgetTemplateReviewRevision(month: String, db: Database) throws -> BudgetTemplateReviewRevision {
         let modeIdentity = try budgetModeIdentity(db: db)
-        guard try tableExists("messages_crdt", db: db) else {
-            return BudgetTemplateReviewRevision(
-                month: month,
-                modeIdentity: modeIdentity,
-                messageCount: 0,
-                maxMessageTimestamp: nil
-            )
-        }
-
-        let row = try Row.fetchOne(
-            db,
-            sql: "SELECT COUNT(*) AS message_count, MAX(timestamp) AS max_timestamp FROM messages_crdt"
-        )
+        let watermark = try crdtMessageWatermark(db: db)
         return BudgetTemplateReviewRevision(
             month: month,
             modeIdentity: modeIdentity,
-            messageCount: row?["message_count"] ?? 0,
-            maxMessageTimestamp: row?["max_timestamp"]
+            messageCount: watermark.messageCount,
+            maxMessageTimestamp: watermark.maxMessageTimestamp
         )
     }
 
