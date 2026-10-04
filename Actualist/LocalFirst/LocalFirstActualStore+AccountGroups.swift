@@ -100,7 +100,6 @@ extension LocalFirstActualStore {
             return
         }
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
     }
 }

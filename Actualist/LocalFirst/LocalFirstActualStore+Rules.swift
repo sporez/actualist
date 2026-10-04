@@ -37,8 +37,9 @@ extension LocalFirstActualStore {
             descriptor: .rule(RuleActionDescriptor(operation: .create)),
             source: .ui
         )
-        try await reloadAfterRuleMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterRuleMutation(database: database, budgetID: budgetID)
+        }
     }
 
     func updateRuleAndRefresh(budgetID: String, ruleID: String, draft: RuleDraft) async throws {
@@ -54,8 +55,9 @@ extension LocalFirstActualStore {
             descriptor: .rule(RuleActionDescriptor(operation: .update)),
             source: .ui
         )
-        try await reloadAfterRuleMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterRuleMutation(database: database, budgetID: budgetID)
+        }
     }
 
     func deleteRuleAndRefresh(budgetID: String, ruleID: String) async throws {
@@ -67,8 +69,9 @@ extension LocalFirstActualStore {
             descriptor: .rule(RuleActionDescriptor(operation: .delete)),
             source: .ui
         )
-        try await reloadAfterRuleMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await reloadAfterRuleMutation(database: database, budgetID: budgetID)
+        }
     }
 
     private func reloadAfterRuleMutation(database: BudgetDatabase, budgetID: String) async throws {

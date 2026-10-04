@@ -40,9 +40,7 @@ extension LocalFirstActualStore {
         // callers never receive cancellation for a hold that already landed.
         return try await Task { @MainActor [self] in
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+            try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             return try await budgetMonth(budgetID: budgetID, selectedMonth: review.month)
         }.value
