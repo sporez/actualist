@@ -177,7 +177,7 @@ extension BudgetDatabase {
         var requiredTargetReconciled = Set<String>()
         var requiredPairedReconciled = Set<String>()
         var learningIDs = Set<String>()
-        var handledForDelete = Set<String>()
+        var deleteOverlay = BatchDeleteOverlay()
         var builder = LocalFirstSyncMessageBuilder()
 
         for selection in selections {
@@ -274,20 +274,17 @@ extension BudgetDatabase {
                     if let account = row.accountID { accountIDs.insert(account) }
                     if let month = Self.monthID(row.dateValue) { monthIDs.insert(month) }
                 case .delete:
-                    if handledForDelete.contains(selection.transactionID) {
-                        affectedIDs.insert(selection.transactionID)
-                    } else {
-                        let write = try batchDeleteTransactionMessages(
-                            transactionID: selection.transactionID,
-                            columns: columns,
-                            db: db,
-                            builder: &builder
-                        )
-                        messages += write.messages
-                        affectedIDs.formUnion(write.affectedTransactionIDs)
-                        handledForDelete.formUnion(write.affectedTransactionIDs)
-                        accountIDs.formUnion(write.affectedAccountIDs)
-                    }
+                    let write = try batchDeleteWrite(
+                        transactionID: selection.transactionID,
+                        overlay: &deleteOverlay,
+                        columns: columns,
+                        db: db,
+                        builder: &builder
+                    )
+                    messages += write.messages
+                    affectedIDs.insert(selection.transactionID)
+                    affectedIDs.formUnion(write.affectedTransactionIDs)
+                    accountIDs.formUnion(write.affectedAccountIDs)
                     if let account = row.accountID { accountIDs.insert(account) }
                     if let month = Self.monthID(row.dateValue) { monthIDs.insert(month) }
                 }
@@ -368,7 +365,7 @@ extension BudgetDatabase {
             effectsDescription: Self.batchEffectsDescription(
                 intent: intent,
                 selectedCount: selections.count,
-                changedCount: affectedIDs.count,
+                changedCount: isDelete ? deleteOverlay.tombstoned.count : affectedIDs.count,
                 skippedCount: dispositions.filter { if case .skipped = $0 { true } else { false } }.count,
                 categoryID: categoryID
             ),
@@ -379,7 +376,7 @@ extension BudgetDatabase {
             operation: intent.actionKind,
             selectedTransactionIDs: selections.map(\.transactionID),
             snapshotTransactionIDs: graphSnapshots.keys.sorted(),
-            affectedTransactionIDs: affectedIDs.sorted(),
+            affectedTransactionIDs: isDelete ? deleteOverlay.tombstoned.sorted() : affectedIDs.sorted(),
             categoryID: categoryID,
             clearTarget: targetClear
         )
@@ -407,45 +404,6 @@ extension BudgetDatabase {
         return (
             Set(review.targetReconciledTransactionIDs),
             Set(review.pairedReconciledTransactionIDs)
-        )
-    }
-
-    private func batchDeleteTransactionMessages(
-        transactionID: String,
-        columns: TransactionRowColumns,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
-        guard let existing = try transactionBatchSnapshot(id: transactionID, columns: columns, db: db),
-              existing.tombstone != true else {
-            throw LocalFirstError.invalidLocalWrite("missing transaction")
-        }
-        if existing.isParent == true || existing.isChild == true {
-            return try deleteSplitFamilyMessages(
-                transactionID: transactionID,
-                columns: columns,
-                db: db,
-                builder: &builder
-            )
-        }
-        var messages = [try tombstoneMessage(rowID: transactionID, builder: &builder)]
-        var affectedIDs: Set<String> = [transactionID]
-        var affectedAccounts = Set([existing.accountID].compactMap { $0 })
-        if let pairedID = existing.transferID,
-           let paired = try transactionBatchSnapshot(id: pairedID, columns: columns, db: db) {
-            affectedIDs.insert(pairedID)
-            if let account = paired.accountID { affectedAccounts.insert(account) }
-            if paired.isChild == true, let transferColumn = columns.transferID {
-                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
-                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
-            } else {
-                messages.append(try tombstoneMessage(rowID: pairedID, builder: &builder))
-            }
-        }
-        return TransactionWriteResult(
-            messages: messages,
-            affectedAccountIDs: Array(affectedAccounts),
-            affectedTransactionIDs: Array(affectedIDs)
         )
     }
 

@@ -657,7 +657,7 @@ struct TransactionBatchMutationTests {
         }
     }
 
-    private func context(for store: LocalFirstActualStore) -> TransactionSelectionContext {
+    func context(for store: LocalFirstActualStore) -> TransactionSelectionContext {
         TransactionSelectionContext(
             budgetID: "group-1", sessionGeneration: store.budgetSessionGeneration,
             scope: .spending,
@@ -665,7 +665,7 @@ struct TransactionBatchMutationTests {
         )
     }
 
-    private func makeBatchFixture(
+    func makeBatchFixture(
         additionalFixtureSQL: String = "",
         transactionFeedPageReadHook: TransactionFeedPageReadHook? = nil
     ) async throws -> LocalFirstActualStoreTests.OpenedWritableStoreBundle {
@@ -675,11 +675,11 @@ struct TransactionBatchMutationTests {
         )
     }
 
-    private func identity(_ id: String) -> TransactionSelectionIdentity {
+    func identity(_ id: String) -> TransactionSelectionIdentity {
         TransactionSelectionIdentity(transactionID: id, familyRootID: id, role: .root)!
     }
 
-    private func readRows<T>(
+    func readRows<T>(
         _ bundle: LocalFirstActualStoreTests.OpenedWritableStoreBundle,
         _ read: (Database) throws -> T
     ) throws -> T {

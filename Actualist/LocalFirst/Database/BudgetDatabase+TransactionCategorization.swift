@@ -84,27 +84,21 @@ extension BudgetDatabase {
                     builder: &builder
                 )
             }
-            var affectedAccounts: Set<String> = [existing.account]
-            var affectedTransactions: Set<String> = [trimmedTransactionID]
-            var messages = [try tombstoneMessage(rowID: trimmedTransactionID, builder: &builder)]
-
-            if let pairedID = existing.transferID, let transferColumn = columns.transferID {
-                affectedTransactions.insert(pairedID)
-                if let oldPaired = existing.pairedAccount {
-                    affectedAccounts.insert(oldPaired)
-                }
-                if existing.pairedIsChild {
-                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
-                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
-                } else {
-                    messages.append(try tombstoneMessage(rowID: pairedID, builder: &builder))
-                }
+            let pair = existing.transferID.flatMap { pairedID in
+                columns.transferID == nil
+                    ? nil
+                    : PlainTransactionDeletePair(
+                        id: pairedID,
+                        accountID: existing.pairedAccount,
+                        isChild: existing.pairedIsChild
+                    )
             }
-
-            return TransactionWriteResult(
-                messages: messages,
-                affectedAccountIDs: Array(affectedAccounts),
-                affectedTransactionIDs: Array(affectedTransactions)
+            return try plainTransactionDeleteWrite(
+                transactionID: trimmedTransactionID,
+                accountID: existing.account,
+                pair: pair,
+                columns: columns,
+                builder: &builder
             )
         }
     }
