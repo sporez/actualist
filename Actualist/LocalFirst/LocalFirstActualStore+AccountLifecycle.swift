@@ -78,9 +78,14 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
     ) async -> Result {
         // A committed account change is durable. Cancellation or refresh failure
         // must not turn it into a failed write that the UI invites the user to repeat.
-        return await Task { @MainActor [self] in
-            do {
+        let tail = await finishDurableCommit(
+            database: database,
+            budgetID: budgetID,
+            invalidatesFeedCachesOnFailure: false,
+            requireSession: { [self] in
                 try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            },
+            reload: { [self] in
                 if let unlinkedAccountID {
                     bankSyncGenerationByAccount[unlinkedAccountID] = nil
                 }
@@ -94,16 +99,8 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
                 let diagnostics = try await database.actionLogDiagnosticSnapshot()
                 try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
                 actionLogDiagnosticSnapshot = diagnostics
-                await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
-                return result
-            } catch {
-                if (try? requireSyncSession(
-                    database: database, budgetID: budgetID, generation: generation
-                )) != nil {
-                    await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
-                }
-                return result.markingRefreshPending()
             }
-        }.value
+        )
+        return tail.refreshPending ? result.markingRefreshPending() : result
     }
 }

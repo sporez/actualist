@@ -74,52 +74,26 @@ extension LocalFirstActualStore {
     ) async -> SavedTransactionFilterMutationResult {
         // The commit receipt is already durable; caller cancellation or session
         // retirement may only affect refresh/publication, never report save failure.
-        await Task { @MainActor [self] in
-            do {
-                try requireSavedFilterSession(database: database, context: context)
-                let refreshed = try await refreshSavedTransactionFilters(budgetID: context.budgetID)
-                try requireSavedFilterSession(database: database, context: context)
-                guard case .available(let filters) = refreshed else {
-                    return SavedTransactionFilterMutationResult(
-                        filters: nil,
-                        changed: receipt.changed,
-                        appliedMessageCount: receipt.appliedMessageCount,
-                        refreshPending: true,
-                        sessionCurrent: true
-                    )
+        let tail: DurableCommitTailOutcome<[SavedTransactionFilter]> = await finishDurableCommit(
+            database: database,
+            budgetID: context.budgetID,
+            flushes: receipt.changed,
+            invalidatesFeedCachesOnFailure: false,
+            requireSession: { [self] in try requireSavedFilterSession(database: database, context: context) },
+            reload: { [self] in
+                guard case .available(let filters) = try await refreshSavedTransactionFilters(budgetID: context.budgetID) else {
+                    throw SavedFilterRefreshUnavailable()
                 }
-                if receipt.changed {
-                    await schedulePendingLocalMessageFlush(database: database, budgetID: context.budgetID)
-                    try requireSavedFilterSession(
-                        database: database, context: context
-                    )
-                }
-                return SavedTransactionFilterMutationResult(
-                    filters: filters,
-                    changed: receipt.changed,
-                    appliedMessageCount: receipt.appliedMessageCount,
-                    refreshPending: false,
-                    sessionCurrent: true
-                )
-            } catch {
-                var sessionCurrent = (try? requireSavedFilterSession(
-                    database: database, context: context
-                )) != nil
-                if sessionCurrent, receipt.changed {
-                    await schedulePendingLocalMessageFlush(database: database, budgetID: context.budgetID)
-                    sessionCurrent = (try? requireSavedFilterSession(
-                        database: database, context: context
-                    )) != nil
-                }
-                return SavedTransactionFilterMutationResult(
-                    filters: nil,
-                    changed: receipt.changed,
-                    appliedMessageCount: receipt.appliedMessageCount,
-                    refreshPending: true,
-                    sessionCurrent: sessionCurrent
-                )
+                return filters
             }
-        }.value
+        )
+        return SavedTransactionFilterMutationResult(
+            filters: tail.value,
+            changed: receipt.changed,
+            appliedMessageCount: receipt.appliedMessageCount,
+            refreshPending: tail.refreshPending,
+            sessionCurrent: tail.sessionCurrent
+        )
     }
 
     private func awaitSavedFilterAfterCommitHook() async {
@@ -162,3 +136,6 @@ extension LocalFirstActualStore {
         return database
     }
 }
+
+/// The refresh after a committed saved-filter write could not read the filters.
+private struct SavedFilterRefreshUnavailable: Error {}

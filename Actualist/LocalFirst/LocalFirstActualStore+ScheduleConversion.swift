@@ -61,9 +61,11 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         context: ScheduleConversionSessionContext
     ) async -> ScheduleConversionReceipt {
-        let refreshPending = await Task { @MainActor [self] in
-            do {
-                try requireScheduleConversionSession(context, database: database)
+        let tail = await finishDurableCommit(
+            database: database,
+            budgetID: context.budgetID,
+            requireSession: { [self] in try requireScheduleConversionSession(context, database: database) },
+            reload: { [self] in
                 invalidateScheduleCache(budgetID: context.budgetID)
                 invalidateRulesCache(budgetID: context.budgetID)
                 try await reloadAfterTransactionMutation(
@@ -81,18 +83,9 @@ extension LocalFirstActualStore {
                 )
                 try requireScheduleConversionSession(context, database: database)
                 try await refreshRulesCache(database: database, budgetID: context.budgetID)
-                try requireScheduleConversionSession(context, database: database)
-                await schedulePendingLocalMessageFlush(database: database, budgetID: context.budgetID)
-                try requireScheduleConversionSession(context, database: database)
-                return false
-            } catch {
-                if (try? requireScheduleConversionSession(context, database: database)) != nil {
-                    invalidateTransactionFeedCaches(budgetID: context.budgetID)
-                    await schedulePendingLocalMessageFlush(database: database, budgetID: context.budgetID)
-                }
-                return true
             }
-        }.value
+        )
+        let refreshPending = tail.refreshPending
         return ScheduleConversionReceipt(
             scheduleID: committed.scheduleID,
             sourceTransactionIDs: committed.sourceTransactionIDs,

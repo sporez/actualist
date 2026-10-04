@@ -210,9 +210,11 @@ extension LocalFirstActualStore {
     ) async -> SchedulePostingReceipt {
         // The retained finisher owns publication after commit. Cancellation of
         // the caller cannot turn a durable post into an apparent failed write.
-        let refreshPending = await Task { @MainActor [self] in
-            do {
-                try requireSchedulePostingSession(session, database: database)
+        let tail = await finishDurableCommit(
+            database: database,
+            budgetID: session.budgetID,
+            requireSession: { [self] in try requireSchedulePostingSession(session, database: database) },
+            reload: { [self] in
                 invalidateScheduleCache(budgetID: session.budgetID)
                 try await reloadAfterTransactionMutation(
                     database: database,
@@ -222,18 +224,9 @@ extension LocalFirstActualStore {
                 )
                 try requireSchedulePostingSession(session, database: database)
                 try await refreshSchedulesAfterWrite(budgetID: session.budgetID, asOf: Self.schedulePostingToday())
-                try requireSchedulePostingSession(session, database: database)
-                await schedulePendingLocalMessageFlush(database: database, budgetID: session.budgetID)
-                try requireSchedulePostingSession(session, database: database)
-                return false
-            } catch {
-                if (try? requireSchedulePostingSession(session, database: database)) != nil {
-                    invalidateTransactionFeedCaches(budgetID: session.budgetID)
-                    await schedulePendingLocalMessageFlush(database: database, budgetID: session.budgetID)
-                }
-                return true
             }
-        }.value
+        )
+        let refreshPending = tail.refreshPending
         return SchedulePostingReceipt(
             scheduleID: receipt.scheduleID,
             transactionID: receipt.transactionID,

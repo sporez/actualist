@@ -131,9 +131,12 @@ extension LocalFirstActualStore {
 
         // This unstructured MainActor task owns publication after the database has
         // committed. Caller cancellation cannot erase or misreport that receipt.
-        return await Task { @MainActor [self] in
-            do {
-                try requireScheduleMutationSession(context, database: database)
+        let tail = await finishDurableCommit(
+            database: database,
+            budgetID: context.budgetID,
+            invalidatesFeedCachesOnFailure: false,
+            requireSession: { [self] in try requireScheduleMutationSession(context, database: database) },
+            reload: { [self] in
                 invalidateScheduleCache(budgetID: context.budgetID)
                 invalidateRulesCache(budgetID: context.budgetID)
                 try await scheduleMutationBeforeRefreshHook?()
@@ -144,15 +147,8 @@ extension LocalFirstActualStore {
                 try await refreshSchedulesAfterWrite(budgetID: context.budgetID, asOf: today)
                 try requireScheduleMutationSession(context, database: database)
                 try await refreshRulesCache(database: database, budgetID: context.budgetID)
-                try requireScheduleMutationSession(context, database: database)
-                await schedulePendingLocalMessageFlush(database: database, budgetID: context.budgetID)
-                return ScheduleMutationOutcome(receipt: receipt, refreshPending: false)
-            } catch {
-                if (try? requireScheduleMutationSession(context, database: database)) != nil {
-                    await schedulePendingLocalMessageFlush(database: database, budgetID: context.budgetID)
-                }
-                return ScheduleMutationOutcome(receipt: receipt, refreshPending: true)
             }
-        }.value
+        )
+        return ScheduleMutationOutcome(receipt: receipt, refreshPending: tail.refreshPending)
     }
 }
