@@ -118,86 +118,88 @@ struct AppSettings: Codable, Equatable {
         self.pendingNewTransactionIDsByAccount = pendingNewTransactionIDsByAccount
     }
 
+    /// A mistyped or unknown value in one field falls back to that field's
+    /// default instead of discarding the whole settings blob.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        localFirstServerURLString = try container.decodeIfPresent(String.self, forKey: .localFirstServerURLString) ?? ""
-        fallbackServerURLString = try container.decodeIfPresent(String.self, forKey: .fallbackServerURLString) ?? ""
-        selectedBudgetID = try container.decodeIfPresent(String.self, forKey: .selectedBudgetID)
-        selectedBudgetName = try container.decodeIfPresent(String.self, forKey: .selectedBudgetName)
-        selectedLocalFirstFileID = try container.decodeIfPresent(String.self, forKey: .selectedLocalFirstFileID)
-        selectedLocalFirstGroupID = try container.decodeIfPresent(String.self, forKey: .selectedLocalFirstGroupID)
-        theme = try container.decodeIfPresent(ActualistThemeOption.self, forKey: .theme) ?? .actualPurple
-        displayDensity = try container.decodeIfPresent(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
-        monthDisplayPreference = try container.decodeIfPresent(MonthDisplayPreference.self, forKey: .monthDisplayPreference) ?? .automatic
-        greenIncomeTransactionAmountsEnabled = try container.decodeIfPresent(
+        localFirstServerURLString = container.lenient(String.self, forKey: .localFirstServerURLString) ?? ""
+        fallbackServerURLString = container.lenient(String.self, forKey: .fallbackServerURLString) ?? ""
+        selectedBudgetID = container.lenient(String.self, forKey: .selectedBudgetID)
+        selectedBudgetName = container.lenient(String.self, forKey: .selectedBudgetName)
+        selectedLocalFirstFileID = container.lenient(String.self, forKey: .selectedLocalFirstFileID)
+        selectedLocalFirstGroupID = container.lenient(String.self, forKey: .selectedLocalFirstGroupID)
+        theme = container.lenient(ActualistThemeOption.self, forKey: .theme) ?? .actualPurple
+        displayDensity = container.lenient(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
+        monthDisplayPreference = container.lenient(MonthDisplayPreference.self, forKey: .monthDisplayPreference) ?? .automatic
+        greenIncomeTransactionAmountsEnabled = container.lenient(
             Bool.self,
             forKey: .greenIncomeTransactionAmountsEnabled
         ) ?? false
-        includeCarryoverCategoriesInOverspentAlerts = try container.decodeIfPresent(
+        includeCarryoverCategoriesInOverspentAlerts = container.lenient(
             Bool.self,
             forKey: .includeCarryoverCategoriesInOverspentAlerts
         ) ?? false
-        showTotalAssigned = try container.decodeIfPresent(
+        showTotalAssigned = container.lenient(
             Bool.self,
             forKey: .showTotalAssigned
         ) ?? false
-        monthSwipingEnabled = try container.decodeIfPresent(Bool.self, forKey: .monthSwipingEnabled) ?? false
-        hideCarryoverArrows = try container.decodeIfPresent(
+        monthSwipingEnabled = container.lenient(Bool.self, forKey: .monthSwipingEnabled) ?? false
+        hideCarryoverArrows = container.lenient(
             Bool.self,
             forKey: .hideCarryoverArrows
         ) ?? false
-        showHiddenCategories = try container.decodeIfPresent(
+        showHiddenCategories = container.lenient(
             Bool.self,
             forKey: .showHiddenCategories
         ) ?? false
-        randomizedDisplayValuesEnabled = try container.decodeIfPresent(
+        randomizedDisplayValuesEnabled = container.lenient(
             Bool.self,
             forKey: .randomizedDisplayValuesEnabled
         ) ?? false
-        shortcutsEnabled = try container.decodeIfPresent(
+        shortcutsEnabled = container.lenient(
             Bool.self,
             forKey: .shortcutsEnabled
         ) ?? true
-        appSwitcherPrivacyMode = try container.decodeIfPresent(
+        appSwitcherPrivacyMode = container.lenient(
             AppSwitcherPrivacyMode.self,
             forKey: .appSwitcherPrivacyMode
         ) ?? .whenBackgrounded
-        developerModeUnlocked = try container.decodeIfPresent(
+        developerModeUnlocked = container.lenient(
             Bool.self,
             forKey: .developerModeUnlocked
         ) ?? false
-        accountOrderByBudgetID = try container.decodeIfPresent(
+        accountOrderByBudgetID = container.lenient(
             [String: [String]].self,
             forKey: .accountOrderByBudgetID
         ) ?? [:]
-        defaultAccountIDByBudgetID = try container.decodeIfPresent(
+        defaultAccountIDByBudgetID = container.lenient(
             [String: String].self,
             forKey: .defaultAccountIDByBudgetID
         ) ?? [:]
-        let persistedReportCardOrder = try container.decodeIfPresent(
+        let persistedReportCardOrder = container.lenient(
             [String].self,
             forKey: .reportCardOrder
         ) ?? []
         reportCardOrder = ReportCardOrderPreference.normalized(
             persistedReportCardOrder.compactMap(ReportCardKind.init(rawValue:))
         )
-        backgroundTransactionRefreshEnabled = try container.decodeIfPresent(
+        backgroundTransactionRefreshEnabled = container.lenient(
             Bool.self,
             forKey: .backgroundTransactionRefreshEnabled
         ) ?? false
-        simplefinBackgroundSyncEnabled = try container.decodeIfPresent(
+        simplefinBackgroundSyncEnabled = container.lenient(
             Bool.self,
             forKey: .simplefinBackgroundSyncEnabled
         ) ?? false
-        backgroundRefreshDebug = try container.decodeIfPresent(
+        backgroundRefreshDebug = container.lenient(
             BackgroundRefreshDebugInfo.self,
             forKey: .backgroundRefreshDebug
         ) ?? BackgroundRefreshDebugInfo()
-        localFirstSyncDebug = try container.decodeIfPresent(
+        localFirstSyncDebug = container.lenient(
             LocalFirstSyncDebugInfo.self,
             forKey: .localFirstSyncDebug
         ) ?? LocalFirstSyncDebugInfo()
-        pendingNewTransactionIDsByAccount = try container.decodeIfPresent(
+        pendingNewTransactionIDsByAccount = container.lenient(
             [String: [String]].self,
             forKey: .pendingNewTransactionIDsByAccount
         ) ?? [:]
@@ -366,6 +368,12 @@ struct LocalFirstSyncDebugEvent: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+private extension KeyedDecodingContainer {
+    func lenient<T: Decodable>(_ type: T.Type, forKey key: Key) -> T? {
+        (try? decodeIfPresent(type, forKey: key)) ?? nil
+    }
+}
+
 struct AppSettingsStore {
     @MainActor
     static let live = AppSettingsStore(defaults: .standard)
@@ -373,9 +381,18 @@ struct AppSettingsStore {
     let defaults: UserDefaults
     private let key = "actualist.settings.v1"
 
+    /// Holds the first blob that could not be read as a settings object so a
+    /// later save cannot destroy the only copy.
+    static let corruptBackupKey = "actualist.settings.v1.corrupt-backup"
+
     func load() -> AppSettings {
-        guard let data = defaults.data(forKey: key),
-              let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
+        guard let data = defaults.data(forKey: key) else {
+            return AppSettings()
+        }
+        guard let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
+            if defaults.data(forKey: Self.corruptBackupKey) == nil {
+                defaults.set(data, forKey: Self.corruptBackupKey)
+            }
             return AppSettings()
         }
 
