@@ -177,7 +177,7 @@ extension BudgetDatabase {
         var requiredTargetReconciled = Set<String>()
         var requiredPairedReconciled = Set<String>()
         var learningIDs = Set<String>()
-        var deleteOverlay = BatchDeleteOverlay()
+        var familyOverlay = BatchFamilyOverlay()
         var builder = LocalFirstSyncMessageBuilder()
 
         for selection in selections {
@@ -214,7 +214,18 @@ extension BudgetDatabase {
                     )))
                     continue
                 }
-                if row.cleared != targetClear {
+                if row.isParent == true || row.isChild == true {
+                    let clearMessages = try batchClearFamilyMessages(
+                        transactionID: selection.transactionID,
+                        target: targetClear,
+                        overlay: &familyOverlay,
+                        columns: columns,
+                        db: db,
+                        builder: &builder
+                    )
+                    messages += clearMessages
+                    affectedIDs.formUnion(clearMessages.map(\.row))
+                } else if row.cleared != targetClear {
                     messages.append(try builder.makeMessage(
                         dataset: "transactions",
                         row: selection.transactionID,
@@ -276,7 +287,7 @@ extension BudgetDatabase {
                 case .delete:
                     let write = try batchDeleteWrite(
                         transactionID: selection.transactionID,
-                        overlay: &deleteOverlay,
+                        overlay: &familyOverlay,
                         columns: columns,
                         db: db,
                         builder: &builder
@@ -365,7 +376,7 @@ extension BudgetDatabase {
             effectsDescription: Self.batchEffectsDescription(
                 intent: intent,
                 selectedCount: selections.count,
-                changedCount: isDelete ? deleteOverlay.tombstoned.count : affectedIDs.count,
+                changedCount: isDelete ? familyOverlay.tombstoned.count : affectedIDs.count,
                 skippedCount: dispositions.filter { if case .skipped = $0 { true } else { false } }.count,
                 categoryID: categoryID
             ),
@@ -376,7 +387,7 @@ extension BudgetDatabase {
             operation: intent.actionKind,
             selectedTransactionIDs: selections.map(\.transactionID),
             snapshotTransactionIDs: graphSnapshots.keys.sorted(),
-            affectedTransactionIDs: isDelete ? deleteOverlay.tombstoned.sorted() : affectedIDs.sorted(),
+            affectedTransactionIDs: isDelete ? familyOverlay.tombstoned.sorted() : affectedIDs.sorted(),
             categoryID: categoryID,
             clearTarget: targetClear
         )

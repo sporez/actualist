@@ -10,22 +10,23 @@ import Testing
 struct TransactionBatchDeleteTests {
     private let base = TransactionBatchMutationTests()
 
-    private static func row(
+    static func row(
         _ id: String, account: String = "checking", amount: Int, parent: String? = nil,
-        isParent: Bool = false, transfer: String? = nil, category: String? = "groceries"
+        isParent: Bool = false, transfer: String? = nil, category: String? = "groceries",
+        cleared: Bool = false, reconciled: Bool = false
     ) -> String {
         """
         INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent,
                                   description, cleared, reconciled, transferred_id, isChild)
             VALUES ('\(id)', '\(account)', 20260705, \(amount), \(category.map { "'\($0)'" } ?? "NULL"), 0,
-                    \(parent.map { "'\($0)'" } ?? "NULL"), \(isParent ? 1 : 0), 'coffee', 0, 0,
+                    \(parent.map { "'\($0)'" } ?? "NULL"), \(isParent ? 1 : 0), 'coffee', \(cleared ? 1 : 0), \(reconciled ? 1 : 0),
                     \(transfer.map { "'\($0)'" } ?? "NULL"), \(parent == nil ? 0 : 1));
 
         """
     }
 
     /// Parent `p` (-900, no category) with children `c1...cN` of -300 each.
-    private static func family(children: Int, transferOn child: String? = nil, to leg: String? = nil) -> String {
+    static func family(children: Int, transferOn child: String? = nil, to leg: String? = nil) -> String {
         var sql = row("p", amount: -300 * children, isParent: true, category: nil)
         for index in 1...children {
             let id = "c\(index)"
@@ -34,7 +35,7 @@ struct TransactionBatchDeleteTests {
         return sql
     }
 
-    private func child(_ id: String) -> TransactionSelectionIdentity {
+    func child(_ id: String) -> TransactionSelectionIdentity {
         TransactionSelectionIdentity(transactionID: id, familyRootID: "p", role: .child)!
     }
 

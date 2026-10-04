@@ -1,14 +1,14 @@
 import Foundation
 import GRDB
 
-/// Per-plan view of the split families a batch delete touches.
+/// Per-plan view of the split families a batch action touches (delete, Clear).
 ///
 /// Selections are applied one after another, so each one must see the
 /// families as the previous selections left them. Re-reading SQLite would
 /// return the pre-batch state and either re-delete rows or skip selected ones.
 /// `tombstoned` is the authoritative set of rows this plan actually deletes;
 /// a selection already in it is covered by an earlier one.
-struct BatchDeleteOverlay {
+struct BatchFamilyOverlay {
     private var families: [String: [SplitTransactionRecord]] = [:]
     private var rootByRow: [String: String] = [:]
     private(set) var tombstoned: Set<String> = []
@@ -92,7 +92,7 @@ extension BudgetDatabase {
     /// Returns no messages when an earlier selection already tombstoned it.
     func batchDeleteWrite(
         transactionID: String,
-        overlay: inout BatchDeleteOverlay,
+        overlay: inout BatchFamilyOverlay,
         columns: TransactionRowColumns,
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
@@ -100,7 +100,7 @@ extension BudgetDatabase {
         if overlay.tombstoned.contains(transactionID) {
             return TransactionWriteResult(messages: [], affectedAccountIDs: [], affectedTransactionIDs: [])
         }
-        guard try loadBatchDeleteFamily(containing: transactionID, overlay: &overlay, columns: columns, db: db),
+        guard try loadBatchFamily(containing: transactionID, overlay: &overlay, columns: columns, db: db),
               let record = overlay.record(transactionID),
               let family = overlay.family(containing: transactionID) else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
@@ -119,7 +119,7 @@ extension BudgetDatabase {
         } else {
             var pair: PlainTransactionDeletePair?
             if let pairedID = record.transferID,
-               try loadBatchDeleteFamily(containing: pairedID, overlay: &overlay, columns: columns, db: db),
+               try loadBatchFamily(containing: pairedID, overlay: &overlay, columns: columns, db: db),
                let paired = overlay.record(pairedID) {
                 pair = PlainTransactionDeletePair(id: pairedID, accountID: paired.account, isChild: paired.isChild)
             }
@@ -137,9 +137,9 @@ extension BudgetDatabase {
 
     /// Loads the family from SQLite unless an earlier selection already did.
     /// Returns false for a missing or already tombstoned row.
-    private func loadBatchDeleteFamily(
+    func loadBatchFamily(
         containing id: String,
-        overlay: inout BatchDeleteOverlay,
+        overlay: inout BatchFamilyOverlay,
         columns: TransactionRowColumns,
         db: Database
     ) throws -> Bool {
@@ -156,7 +156,7 @@ extension BudgetDatabase {
     /// (tombstoned counterparts, split children that lose their transfer link).
     private func absorbBatchDeleteMessages(
         _ messages: [ActualSyncDecodedMessage],
-        overlay: inout BatchDeleteOverlay,
+        overlay: inout BatchFamilyOverlay,
         columns: TransactionRowColumns,
         db: Database
     ) throws {
@@ -167,7 +167,7 @@ extension BudgetDatabase {
             } else if !overlay.tombstoned.contains(message.row),
                       message.column == columns.transferID || message.column == columns.payee,
                       case .null = value {
-                _ = try loadBatchDeleteFamily(containing: message.row, overlay: &overlay, columns: columns, db: db)
+                _ = try loadBatchFamily(containing: message.row, overlay: &overlay, columns: columns, db: db)
                 if message.column == columns.transferID { overlay.clearTransferLink(of: message.row) }
             }
         }
