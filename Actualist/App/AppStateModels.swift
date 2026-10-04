@@ -17,6 +17,16 @@ enum ServerConnectionStatus: Equatable {
     case syncBlocked
 }
 
+/// Result of opening or reimporting a budget, so callers branch on the type
+/// instead of comparing `lastErrorMessage` against localized error text.
+enum BudgetOpenOutcome: Equatable {
+    case opened
+    case needsEncryptionPassword
+    /// `message` is nil when the failure was a user/system cancellation.
+    case failed(message: String?)
+    case superseded
+}
+
 enum AppBudgetList {
     static func unique(_ budgets: [ActualBudget]) -> [ActualBudget] {
         var seenSyncIDs: Set<String> = []

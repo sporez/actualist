@@ -119,11 +119,7 @@ struct SettingsBudgetPickerSheet: View {
     }
 
     private var encryptedBudgetUnlockErrorMessage: String? {
-        guard let message = appState.lastErrorMessage,
-              message != LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription else {
-            return nil
-        }
-        return message
+        appState.lastErrorMessage
     }
 
     private func clearEncryptedBudgetPassword() {
@@ -131,8 +127,8 @@ struct SettingsBudgetPickerSheet: View {
     }
 
     private func selectBudget(_ budget: ActualBudget) async {
-        await appState.selectBudgetForCurrentBackend(budget)
-        if appState.lastErrorMessage == LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription {
+        let outcome = await appState.selectBudgetForCurrentBackend(budget)
+        if outcome == .needsEncryptionPassword {
             encryptedBudgetPrompt = budget
             return
         }

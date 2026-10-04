@@ -238,25 +238,27 @@ final class BudgetPickerViewModel {
             try? await Task.sleep(for: openTimeout)
             work.cancel()
         }
-        await work.value
+        let outcome = await work.value
         timer.cancel()
 
         // A newer open (or dismissal) should own the screen state; bail before
         // overwriting it with a stale result.
         guard generation == openGeneration, !Task.isCancelled else { return }
 
-        let encryptedMessage = LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
         if work.isCancelled {
             let message = "Opening this budget is taking too long. Check your connection to the Actual server and try again."
             appState.lastErrorMessage = message
             openState = .failed(message: message)
-        } else if appState.lastErrorMessage == encryptedMessage {
-            openState = .needsEncryptionPassword(budget)
-        } else if let message = appState.lastErrorMessage {
-            openState = .failed(message: message)
         } else {
-            // Success: AppState moves to .ready and RootView swaps in MainTabView.
-            openState = .idle
+            switch outcome {
+            case .needsEncryptionPassword:
+                openState = .needsEncryptionPassword(budget)
+            case .failed(let message?):
+                openState = .failed(message: message)
+            case .opened, .failed(nil), .superseded:
+                // Success: AppState moves to .ready and RootView swaps in MainTabView.
+                openState = .idle
+            }
         }
     }
 }

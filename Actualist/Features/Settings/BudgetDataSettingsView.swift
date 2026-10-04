@@ -414,11 +414,10 @@ struct BudgetDataSettingsView: View {
             return
         }
         isReimporting = true
-        await appState.reimportLocalFirstBudget(encryptionPassword: encryptionPassword)
+        let outcome = await appState.reimportLocalFirstBudget(encryptionPassword: encryptionPassword)
         isReimporting = false
 
-        guard appState.lastErrorMessage
-            == LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription else {
+        guard outcome == .needsEncryptionPassword else {
             return
         }
         reimportPassword = ""

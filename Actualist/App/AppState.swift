@@ -350,7 +350,10 @@ final class AppState {
         }
     }
 
-    func selectBudgetForCurrentBackend(_ budget: ActualBudget, encryptionPassword: String? = nil) async {
+    @discardableResult
+    func selectBudgetForCurrentBackend(
+        _ budget: ActualBudget, encryptionPassword: String? = nil
+    ) async -> BudgetOpenOutcome {
         await selectLocalFirstBudget(budget, encryptionPassword: encryptionPassword)
     }
 
@@ -466,9 +469,10 @@ final class AppState {
         settingsStore.save(settings)
     }
 
-    func reimportLocalFirstBudget(encryptionPassword: String? = nil) async {
+    @discardableResult
+    func reimportLocalFirstBudget(encryptionPassword: String? = nil) async -> BudgetOpenOutcome {
         guard let budget = selectedBudget else {
-            return
+            return .superseded
         }
 
         appSyncCoordinator.cancelRefresh()
@@ -481,25 +485,38 @@ final class AppState {
             connectionStatus = .online
             lastErrorMessage = nil
             localDataRevision &+= 1
+            return .opened
         case .failed(let error, let status):
-            lastErrorMessage = error.userFacingMessage
             connectionStatus = status
+            return recordOpenFailure(error)
         case .superseded:
-            break
+            return .superseded
         }
     }
 
-    private func selectLocalFirstBudget(_ budget: ActualBudget, encryptionPassword: String? = nil) async {
+    /// Publishes a failed open and classifies it. A missing encryption
+    /// password is a prompt, not an error banner.
+    private func recordOpenFailure(_ error: Error) -> BudgetOpenOutcome {
+        if case LocalFirstError.encryptedBudgetRequiresPassword = error {
+            lastErrorMessage = nil
+            return .needsEncryptionPassword
+        }
+        lastErrorMessage = error.userFacingMessage
+        return .failed(message: lastErrorMessage)
+    }
+
+    private func selectLocalFirstBudget(
+        _ budget: ActualBudget, encryptionPassword: String? = nil
+    ) async -> BudgetOpenOutcome {
         do {
             if encryptionPassword?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
                try localFirstStore.requiresEncryptionPasswordToOpen(budget) {
-                lastErrorMessage = LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
-                return
+                lastErrorMessage = nil
+                return .needsEncryptionPassword
             }
         } catch {
-            lastErrorMessage = error.userFacingMessage
             sessionRecovery.noteFailure(error, hasOpenBudget: isReadyForMainTabs)
-            return
+            return recordOpenFailure(error)
         }
 
         sessionRecovery.invalidate()
@@ -539,20 +556,23 @@ final class AppState {
                 keychain: keychain, credentialError: credentialError
             )
             localDataRevision &+= 1
+            return .opened
         case .restored(let error):
-            lastErrorMessage = error.userFacingMessage
+            let outcome = recordOpenFailure(error)
             sessionRecovery.noteFailure(error, hasOpenBudget: true)
             connectionStatus = .offline
             selectedBudget = previousBudget
             setupPhase = .ready
+            return outcome
         case .failed(let error):
-            lastErrorMessage = error.userFacingMessage
+            let outcome = recordOpenFailure(error)
             sessionRecovery.noteFailure(error, hasOpenBudget: localFirstStore.hasOpenBudget)
             connectionStatus = .offline
             if settings.selectedBudgetID.map({ localFirstStore.isOpen(budgetID: $0) }) != true {
                 setupPhase = .selectingBudget
             }
-        case .superseded: break
+            return outcome
+        case .superseded: return .superseded
         }
     }
 
@@ -684,7 +704,7 @@ final class AppState {
         guard !Task.isCancelled, sessionRecovery.isCurrent(identity) else { return }
         budgets = discovery.budgets
         if budgets.count == 1, let budget = budgets.first, settings.selectedBudgetID == nil {
-            await selectLocalFirstBudget(budget)
+            _ = await selectLocalFirstBudget(budget)
         } else if let budget = discovery.selectedBudget {
             selectedBudget = budget
             setupPhase = discovery.selectedIsOpen ? .ready : .selectingBudget
