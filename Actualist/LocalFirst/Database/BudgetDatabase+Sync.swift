@@ -96,7 +96,7 @@ extension BudgetDatabase {
                 }
                 let value: ActualSyncSQLiteValue
                 do {
-                    value = try deserializeSyncValue(message.serializedValue)
+                    value = try ActualSyncSQLiteValue(serialized: message.serializedValue)
                 } catch {
                     // Decryptable but unreadable: keep it in the log, never apply it,
                     // and never let it wedge the rest of the batch.
@@ -577,10 +577,6 @@ extension BudgetDatabase {
                 SyncTimestamp.wallTimeString(for: Date())
             ]
         )
-    }
-
-    func deserializeSyncValue(_ value: String) throws -> ActualSyncSQLiteValue {
-        try ActualSyncSQLiteValue(serialized: value)
     }
 }
 

@@ -61,7 +61,7 @@ extension BudgetDatabase {
             throw BudgetModeWriteError.unsupportedAction
         }
         for draft in budgetDrafts where draft.column == "amount" {
-            if case .int(let amount) = try deserializeSyncValue(draft.serializedValue) {
+            if case .int(let amount) = try ActualSyncSQLiteValue(serialized: draft.serializedValue) {
                 guard let value = Int(exactly: amount),
                       (-Money.maximumUserAmountMinorUnits...Money.maximumUserAmountMinorUnits).contains(value) else {
                     throw LocalFirstError.numericValueOutOfRange
@@ -73,13 +73,13 @@ extension BudgetDatabase {
         let incomeByID = try templateCategoryIsIncomeByID(db: db)
         for draft in budgetDrafts where draft.column == "carryover" {
             // Row creation writes carryover=false, including new income assignments.
-            let value = try deserializeSyncValue(draft.serializedValue)
+            let value = try ActualSyncSQLiteValue(serialized: draft.serializedValue)
             let explicitCarryover: Bool
             if case .carryover = descriptor { explicitCarryover = true } else { explicitCarryover = false }
             guard case .int(let flag) = value, flag != 0 || explicitCarryover else { continue }
             let categoryMessage = budgetDrafts.first { $0.row == draft.row && $0.column == "category" }
             let categoryID: String?
-            if let categoryMessage, case .string(let id) = try deserializeSyncValue(categoryMessage.serializedValue) {
+            if let categoryMessage, case .string(let id) = try ActualSyncSQLiteValue(serialized: categoryMessage.serializedValue) {
                 categoryID = id
             } else {
                 categoryID = try String.fetchOne(db,

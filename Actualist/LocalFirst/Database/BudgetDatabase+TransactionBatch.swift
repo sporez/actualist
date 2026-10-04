@@ -485,7 +485,7 @@ extension BudgetDatabase {
         var importedPayee = snapshot.importedPayee ?? snapshot.importedDescription
 
         for message in messages {
-            let value = try deserializeSyncValue(message.serializedValue)
+            let value = try ActualSyncSQLiteValue(serialized: message.serializedValue)
             func string() -> String? {
                 if case .string(let text) = value { return text }
                 return nil
