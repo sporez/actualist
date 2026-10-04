@@ -12,9 +12,7 @@ struct SettingsDeveloperDiagnosticsSheet: View {
     let retryPendingSync: () async -> Void
     @State private var isRetryingSync = false
     #if DEBUG
-    @Binding var isPostingDebugNotification: Bool
-    @Binding var debugNotificationMessage: String?
-    let postDebugNotification: () async -> Void
+    @State private var debugNotification = DebugNotificationViewModel()
     #endif
 
     var body: some View {
@@ -42,17 +40,17 @@ struct SettingsDeveloperDiagnosticsSheet: View {
                 #if DEBUG
                 Section("Notifications") {
                     Button {
-                        Task { await postDebugNotification() }
+                        Task { await debugNotification.post(using: appState) }
                     } label: {
                         SettingsActionLabel(
-                            title: isPostingDebugNotification ? "Posting Test Alert" : "Post Test Transaction Alert",
+                            title: debugNotification.isPosting ? "Posting Test Alert" : "Post Test Transaction Alert",
                             systemImage: "bell.badge"
                         )
                     }
-                    .disabled(isPostingDebugNotification)
+                    .disabled(debugNotification.isPosting)
 
-                    if let debugNotificationMessage {
-                        Text(debugNotificationMessage)
+                    if let message = debugNotification.message {
+                        Text(message)
                             .font(.footnote)
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
@@ -191,10 +189,7 @@ private struct LocalFirstSyncDiagnosticRows: View {
     }
 
     private func formattedDate(_ date: Date?) -> String {
-        guard let date else {
-            return "Never"
-        }
-        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())
+        DiagnosticTimestamp.text(date, placeholder: "Never")
     }
 }
 
@@ -394,11 +389,7 @@ private struct BackgroundRefreshScheduleAttemptRow: View {
     }
 
     private func formattedDate(_ date: Date?) -> String {
-        guard let date else {
-            return "Not yet"
-        }
-
-        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())
+        DiagnosticTimestamp.text(date, placeholder: "Not yet")
     }
 }
 
@@ -461,10 +452,12 @@ private struct BackgroundRefreshDebugRunRow: View {
     }
 
     private func formattedDate(_ date: Date?) -> String {
-        guard let date else {
-            return "Not yet"
-        }
+        DiagnosticTimestamp.text(date, placeholder: "Not yet")
+    }
+}
 
-        return date.formatted(.dateTime.month(.abbreviated).day().hour().minute().second())
+private enum DiagnosticTimestamp {
+    static func text(_ date: Date?, placeholder: String) -> String {
+        date?.formatted(.dateTime.month(.abbreviated).day().hour().minute().second()) ?? placeholder
     }
 }

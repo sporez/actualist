@@ -6,9 +6,6 @@ struct AdvancedSettingsView: View {
 
     @State private var isDeveloperDiagnosticsPresented = false
     @State private var hideDeveloperModeTask: Task<Void, Never>?
-    #if DEBUG
-    @State private var debugNotification = DebugNotificationViewModel()
-    #endif
 
     var body: some View {
         List {
@@ -33,20 +30,6 @@ struct AdvancedSettingsView: View {
         .navigationTitle("Advanced")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $isDeveloperDiagnosticsPresented) {
-            #if DEBUG
-            SettingsDeveloperDiagnosticsSheet(
-                hideDeveloperMode: hideDeveloperMode,
-                debug: appState.settings.backgroundRefreshDebug,
-                syncStatus: appState.localFirstSyncStatus,
-                syncDebug: appState.settings.localFirstSyncDebug,
-                endpointHealth: appState.localFirstStore.endpointHealthDisplay,
-                retryPendingSync: appState.retryPendingLocalFirstSync,
-                isPostingDebugNotification: $debugNotification.isPosting,
-                debugNotificationMessage: $debugNotification.message,
-                postDebugNotification: { await debugNotification.post(using: appState) }
-            )
-            .environment(appState)
-            #else
             SettingsDeveloperDiagnosticsSheet(
                 hideDeveloperMode: hideDeveloperMode,
                 debug: appState.settings.backgroundRefreshDebug,
@@ -56,7 +39,6 @@ struct AdvancedSettingsView: View {
                 retryPendingSync: appState.retryPendingLocalFirstSync
             )
             .environment(appState)
-            #endif
         }
     }
 
