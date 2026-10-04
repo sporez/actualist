@@ -14,3 +14,6 @@ extension ScheduleMutationCommandError: LocalCommitPassthroughError {}
 extension ScheduleConversionError: LocalCommitPassthroughError {}
 extension SchedulePostingRefusal: LocalCommitPassthroughError {}
 extension TransactionCSVImportError: LocalCommitPassthroughError {}
+
+/// A plan that calls `Task.checkCancellation()` must surface as cancellation, not as a failed write.
+extension CancellationError: LocalCommitPassthroughError {}

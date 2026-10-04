@@ -55,4 +55,12 @@ struct LocalCommitPassthroughTests {
             try await commit(database, throwing: DatabaseError(message: "boom"))
         }
     }
+
+    @Test func cancellationFromAPlanReachesTheCallerAsCancellation() async throws {
+        let database = try makeDatabase()
+
+        await #expect(throws: CancellationError.self) {
+            try await commit(database, throwing: CancellationError())
+        }
+    }
 }
