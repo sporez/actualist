@@ -13,10 +13,7 @@ struct PayeeRulesView: View {
     var body: some View {
         List {
             if let errorMessage = viewModel.errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(ActualistTheme.danger)
-                    .settingsRowChrome()
+                RulesListErrorText(message: errorMessage)
             }
 
             Section {
@@ -55,47 +52,14 @@ struct PayeeRulesView: View {
         }
         .task { await viewModel.load(scope: .payee(payee.id), using: appState) }
         .refreshable { await viewModel.load(scope: .payee(payee.id), using: appState) }
-        .sheet(item: $editorTarget) { target in
-            RuleEditorView(
-                target: target,
-                isSubmitting: viewModel.isSubmitting,
-                errorMessage: viewModel.errorMessage
-            ) { draft in
-                await viewModel.save(
-                    ruleID: target.rule?.id,
-                    draft: draft,
-                    using: appState
-                )
-            }
-            .appSwitcherPrivacyAwareDragIndicator()
-            .appSwitcherPrivacyProtected(using: appState)
-        }
+        .ruleEditorSheet(target: $editorTarget, viewModel: viewModel)
     }
 
     private func ruleRow(_ rule: ManagedRule) -> some View {
         Button {
             editorTarget = RuleEditorTarget(rule: rule, fallbackPayeeID: payee.id)
         } label: {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(rule.isScheduleOwned ? "Schedule · Read-only" : rule.draft?.stage.displayName ?? "Read-only")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                Text(rule.summary(options: viewModel.options))
-                    .foregroundStyle(ActualistTheme.primaryText)
-                    .multilineTextAlignment(.leading)
-                if !rule.isEditable {
-                    Label(
-                        rule.isScheduleOwned
-                            ? "Managed by an Actual schedule"
-                            : "Contains fields this version cannot safely edit",
-                        systemImage: "lock.fill"
-                    )
-                    .font(.caption2)
-                    .foregroundStyle(ActualistTheme.warning)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+            RuleRowLabel(rule: rule, options: viewModel.options)
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -104,18 +68,7 @@ struct PayeeRulesView: View {
                     .tint(ActualistTheme.danger)
             }
         }
-        .confirmationDialog(
-            "Delete Rule?",
-            isPresented: $pendingDeleteRule.isPresented(matching: rule.id),
-            titleVisibility: .visible
-        ) {
-            Button("Delete Rule", role: .destructive) {
-                Task { _ = await viewModel.delete(ruleID: rule.id, using: appState) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Future transactions will no longer be processed by this rule.")
-        }
+        .ruleDeleteConfirmation(pendingRule: $pendingDeleteRule, rule: rule, viewModel: viewModel)
     }
 }
 
