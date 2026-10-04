@@ -25,6 +25,12 @@ final class TransactionCSVImportCoordinator {
     @ObservationIgnored private var loadedAccountID: String?
     @ObservationIgnored private var loadedBudgetID: String?
 
+    @ObservationIgnored private let maxFileBytes: Int
+
+    init(maxFileBytes: Int = TransactionCSVImportLimits.maxFileBytes) {
+        self.maxFileBytes = maxFileBytes
+    }
+
     var failureMessage: String? {
         if case .failed(let message) = state { return message }
         return nil
@@ -56,13 +62,9 @@ final class TransactionCSVImportCoordinator {
         loadedBudgetID = budgetID
         state = .loading
         do {
-            let secured = url.startAccessingSecurityScopedResource()
-            defer {
-                if secured {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
-            let data = try Data(contentsOf: url)
+            // Off the main actor, with security-scoped access held for the
+            // read. An oversized file throws before prepare is called.
+            let data = try await TransactionCSVImportPipeline.readFile(at: url, maxBytes: maxFileBytes)
             let review = try await repository.prepareTransactionCSVImport(
                 TransactionCSVImportPreparationRequest(
                     budgetID: budgetID,

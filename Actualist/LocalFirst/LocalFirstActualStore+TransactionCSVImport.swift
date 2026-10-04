@@ -16,13 +16,10 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         let sessionID = transactionFeedRequestIdentity.sessionID
         let generation = budgetSessionGeneration
 
-        let table = try TransactionCSVParser(
-            options: TransactionCSVParser.Options(
-                delimiter: request.options.delimiter,
-                hasHeaderRow: request.options.hasHeaderRow
-            )
-        ).parse(request.data)
-        let rows = try TransactionCSVImportMapper.map(table)
+        let rows = try await TransactionCSVImportPipeline.rows(
+            from: request.data,
+            options: request.options
+        )
 
         let payees = try await database.fetchPayees(orderedForPicker: false)
         let categories = try await database.fetchCategories()
@@ -39,11 +36,18 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             transferPayeeIDs: Self.transferPayeeIDs(payees),
             categoryIDByName: Self.categoryIDByName(categories)
         )
-        let dispositions = TransactionCSVImportMatcher.match(
+        let dispositions = await TransactionCSVImportPipeline.match(
             rows: rows,
             candidates: candidates,
             context: context
         )
+        // The match ran off the main actor; reject a review whose session
+        // ended meanwhile.
+        guard generation == budgetSessionGeneration,
+              self.database === database,
+              openedBudgetID == request.budgetID else {
+            throw CancellationError()
+        }
         return TransactionCSVImportReview(
             rows: zip(rows, dispositions).map {
                 TransactionCSVImportReviewRow(row: $0, disposition: $1)

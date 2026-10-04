@@ -48,6 +48,8 @@ enum TransactionCSVImportRowError: Error, Equatable {
 enum TransactionCSVImportError: Error, Equatable {
     case invalidEncoding
     case invalidDelimiter
+    case fileTooLarge
+    case tooManyRows
     case invalidRow(line: Int, reason: TransactionCSVImportRowError)
     /// A matched row changed after review, so nothing was written.
     case matchChanged(line: Int)
@@ -58,6 +60,10 @@ enum TransactionCSVImportError: Error, Equatable {
             return "The file is not readable as UTF-8 text."
         case .invalidDelimiter:
             return "The file could not be split into columns."
+        case .fileTooLarge:
+            return "The file is larger than \(TransactionCSVImportLimits.maxFileBytes / (1024 * 1024)) MB, which is more than an import can take."
+        case .tooManyRows:
+            return "The file has more than \(TransactionCSVImportLimits.maxRows.formatted()) rows, which is more than an import can take."
         case .invalidRow(let line, let reason):
             return "Row \(line) could not be read because \(reason.message)."
         case .matchChanged(let line):
