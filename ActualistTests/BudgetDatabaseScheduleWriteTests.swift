@@ -205,6 +205,22 @@ struct BudgetDatabaseScheduleWriteTests {
         #expect(try readString("SELECT actions FROM rules WHERE id = 'rule'", fixture.url) == actions)
     }
 
+    @Test func skipOnEndedSchedulesLastOccurrenceLeavesTheNextDateUnchanged() async throws {
+        // Upstream `skipNextDate` (schedules/app.ts) asks getNextDate for the day after;
+        // an exhausted schedule falls back to its last occurrence, which equals the
+        // current next date, so nothing is written.
+        let conditions = #"[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":{"start":"2026-09-25","frequency":"weekly","endMode":"on_date","endDate":"2026-10-02"}}]"#
+        let fixture = try makeFixture(conditions: conditions, nextDate: "2026-10-02")
+        let review = try await fixture.database.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule"
+        )
+        let result = try await fixture.database.skipNextDate(review: review, now: date(2026, 10, 3))
+
+        #expect(result.kind == .unchanged)
+        #expect(result.appliedMessageCount == 0)
+        #expect(try readString("SELECT local_next_date FROM schedules_next_date WHERE id = 'next'", fixture.url) == "20261002")
+    }
+
     @Test func dateResetChangesBaseOnlyWhenCalculatedDateDiffers() async throws {
         let conditions = #"[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":{"start":"2026-09-27","frequency":"weekly"}}]"#
         let fixture = try makeFixture(conditions: conditions, nextDate: "2026-09-27")
