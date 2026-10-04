@@ -72,6 +72,8 @@ final class LocalFirstActualStore:
     var loadedBudgetMonthsByBudget: [String: LoadedBudgetMonth] = [:]
     var templateBrowserByBudget: [String: BudgetTemplateBrowserSnapshot] = [:]
     var schedulesByBudget: [String: LoadedSchedules] = [:]
+    /// Automatic posts refused by the latest schedule run, in user-facing form.
+    var scheduleAutoPostRefusals: [ScheduleAutoPostRefusal] = []
     @ObservationIgnored var scheduleRequestIdentity = ScheduleRequestIdentity()
     @ObservationIgnored var scheduleReadHook: ScheduleReadHook?
     @ObservationIgnored let schedulePostingGate = SchedulePostingGate()
@@ -270,6 +272,7 @@ final class LocalFirstActualStore:
         loadedBudgetMonthsByBudget = [:]
         templateBrowserByBudget = [:]
         schedulesByBudget = [:]
+        scheduleAutoPostRefusals = []
         transactionFeedPagesByKey = [:]
         categoryTransactionsByKey = [:]
         uncategorizedTransactionsByKey = [:]

@@ -432,8 +432,8 @@ extension BudgetDatabase {
                 in: mappingColumns,
                 table: "payee_mapping"
             )
-        } catch LocalFirstError.invalidLocalWrite(let message) {
-            throw ScheduleMutationCommandError.unsupportedCapability(message)
+        } catch LocalFirstError.invalidLocalWrite {
+            throw ScheduleMutationCommandError.unsupportedSchema
         }
         let payeeColumns = try scheduleRequiredColumns(table: "payees", required: ["id"], db: db)
         guard try Row.fetchOne(

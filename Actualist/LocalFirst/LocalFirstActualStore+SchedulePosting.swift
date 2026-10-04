@@ -182,13 +182,7 @@ extension LocalFirstActualStore {
             throw SchedulePostingError.reviewChanged
         } catch ScheduleMutationCommandError.unsupportedCapability {
             throw SchedulePostingError.unsupportedSchedule
-        } catch LocalFirstError.invalidLocalWrite("schedule occurrence is no longer available to post") {
-            throw SchedulePostingError.occurrenceNoLongerPostable
-        } catch LocalFirstError.invalidLocalWrite("schedule account is closed or unavailable") {
-            throw SchedulePostingError.occurrenceNoLongerPostable
-        } catch LocalFirstError.invalidLocalWrite("schedule post date no longer matches its occurrence") {
-            throw SchedulePostingError.reviewChanged
-        } catch LocalFirstError.invalidLocalWrite("a matching rule removes this scheduled transaction") {
+        } catch ScheduleMutationCommandError.unsupportedSchema {
             throw SchedulePostingError.unsupportedSchedule
         }
         await scheduleMutationAfterCommitHook?()

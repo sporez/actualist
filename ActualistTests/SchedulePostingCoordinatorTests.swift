@@ -81,6 +81,22 @@ struct SchedulePostingCoordinatorTests {
         }
     }
 
+    @Test func typedRefusalShowsItsCopyWithoutInternalWriteText() async {
+        let repository = SchedulePostingCoordinatorRepositoryFake()
+        repository.postError = SchedulePostingRefusal.draftMismatch
+        let coordinator = await preparedCoordinator(repository)
+
+        coordinator.confirm(postingRepository: repository)
+        await waitForFailure(coordinator)
+
+        guard case .failed(let message) = coordinator.state else {
+            Issue.record("Expected a failed state")
+            return
+        }
+        #expect(message == SchedulePostingRefusal.draftMismatch.errorDescription)
+        #expect(!message.contains("local-first write"))
+    }
+
     @Test func canceledSyncLateCompletionCannotReplaceIdleState() async {
         let repository = SchedulePostingCoordinatorRepositoryFake()
         repository.pausePostBeforeSyncCompletion = true

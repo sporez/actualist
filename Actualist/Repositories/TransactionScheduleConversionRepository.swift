@@ -48,6 +48,7 @@ enum ScheduleConversionError: Error, Hashable, Sendable {
     case reviewChanged
     case transactionNotFuture
     case unsupportedSource(String)
+    case unsupportedSchema
     case identityConflict
 }
 
@@ -59,6 +60,7 @@ extension ScheduleConversionError: LocalizedError {
         case .transactionNotFuture:
             "Only a transaction dated after today can be converted to a schedule."
         case .unsupportedSource(let reason): reason
+        case .unsupportedSchema: ScheduleMutationUserNotice.unsupportedBudgetSchedules
         case .identityConflict:
             "This schedule could not be created because its identity is already in use."
         }

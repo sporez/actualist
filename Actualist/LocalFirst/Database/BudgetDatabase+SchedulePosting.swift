@@ -25,7 +25,7 @@ extension BudgetDatabase {
               draft.scheduleID == review.scheduleID,
               ActualScheduleRecurrence.date(from: postedDayID) != nil,
               ActualScheduleRecurrence.date(from: today) != nil else {
-            throw LocalFirstError.invalidLocalWrite("schedule post command is invalid")
+            throw SchedulePostingRefusal.invalidCommand
         }
         return try sessionWritesAllowed.withLock { allowed in
             guard allowed else { throw LocalFirstError.budgetNotOpened }
@@ -35,7 +35,7 @@ extension BudgetDatabase {
                 guard let accountID = current.projection.accountID,
                       let accountColumns = try? columnSet(for: "accounts", db: db),
                       accountColumns.contains("id") else {
-                    throw LocalFirstError.invalidLocalWrite("schedule account is unavailable")
+                    throw SchedulePostingRefusal.accountUnavailable
                 }
                 let closed = column("closed", fallback: "0", columns: accountColumns)
                 let tombstone = column("tombstone", fallback: "0", columns: accountColumns)
@@ -44,7 +44,7 @@ extension BudgetDatabase {
                     sql: "SELECT \(closed) AS closed, \(tombstone) AS tombstone FROM accounts WHERE id = ? LIMIT 1",
                     arguments: [accountID]
                 ), !flexibleBool(accountRow["closed"]), !flexibleBool(accountRow["tombstone"]) else {
-                    throw LocalFirstError.invalidLocalWrite("schedule account is closed or unavailable")
+                    throw SchedulePostingRefusal.accountUnavailable
                 }
 
                 let latest = try fetchSchedules(budgetID: review.budgetID, today: today, db: db)
@@ -56,7 +56,7 @@ extension BudgetDatabase {
                       current.review.schedule.completed == false,
                       !current.review.schedule.tombstone,
                       !current.review.rule.tombstone else {
-                    throw LocalFirstError.invalidLocalWrite("schedule occurrence is no longer available to post")
+                    throw SchedulePostingRefusal.occurrenceUnavailable
                 }
                 let expectedDay: String
                 if postedDayID == today {
@@ -64,16 +64,16 @@ extension BudgetDatabase {
                 } else {
                     guard let effectiveDate = current.effectiveNextDate,
                           postedDayID == effectiveDate else {
-                        throw LocalFirstError.invalidLocalWrite("schedule post date no longer matches its occurrence")
+                        throw SchedulePostingRefusal.occurrenceDateMismatch
                     }
                     expectedDay = effectiveDate
                 }
                 guard ActualScheduleRecurrence.date(from: expectedDay) != nil else {
-                    throw LocalFirstError.invalidLocalWrite("schedule occurrence date is invalid")
+                    throw SchedulePostingRefusal.occurrenceUnavailable
                 }
                 guard try Self.actualDateValue(draft.date) == Int(expectedDay.replacingOccurrences(of: "-", with: "")),
                       draft.scheduleID == review.scheduleID else {
-                    throw LocalFirstError.invalidLocalWrite("schedule post draft no longer matches the occurrence")
+                    throw SchedulePostingRefusal.draftMismatch
                 }
                 let initialTransfer = try draft.payeeID.map {
                     try transferAccountID(ifPayee: $0, db: db) != nil
@@ -81,7 +81,7 @@ extension BudgetDatabase {
                 let ruleInputDraft = schedulePostingDraft(draft, isTransfer: initialTransfer)
                 let evaluated = try previewRules(for: ruleInputDraft, db: db)
                 guard !evaluated.deletesTransaction else {
-                    throw LocalFirstError.invalidLocalWrite("a matching rule removes this scheduled transaction")
+                    throw SchedulePostingRefusal.ruleDeletesTransaction
                 }
                 let projected = TransactionRulePreviewProjection.applying(evaluated, to: ruleInputDraft)
                 let finalTransfer = try projected.payeeID.map {
@@ -102,12 +102,10 @@ extension BudgetDatabase {
                     db: db
                 )
                 guard graph.primaryScheduleID == review.scheduleID else {
-                    throw LocalFirstError.invalidLocalWrite(
-                        "A matching rule changed the transaction's schedule link, so Actual will not mark this occurrence as paid. Update the rule to keep it linked to this schedule."
-                    )
+                    throw SchedulePostingRefusal.ruleChangedScheduleLink
                 }
                 guard let occurrenceDate = schedule.effectiveNextDate else {
-                    throw LocalFirstError.invalidLocalWrite("schedule occurrence date is unavailable")
+                    throw SchedulePostingRefusal.occurrenceUnavailable
                 }
                 let matchStartDate = scheduleTransactionLowerBound(
                     occurrenceDate: occurrenceDate,
@@ -116,9 +114,7 @@ extension BudgetDatabase {
                 )
                 let transactionDay = schedulePostingDayID(graph.primaryDate)
                 guard transactionDay >= matchStartDate else {
-                    throw LocalFirstError.invalidLocalWrite(
-                        "The transaction date is before Actual's payment match window for this occurrence, so Actual will not mark it as paid. Choose a date on or after \(matchStartDate) or update the matching rule's date."
-                    )
+                    throw SchedulePostingRefusal.beforeMatchWindow(earliestDayID: matchStartDate)
                 }
                 let descriptor = CreateTransactionDescriptor(
                     month: YearMonth(date: finalDraft.date).rawValue,

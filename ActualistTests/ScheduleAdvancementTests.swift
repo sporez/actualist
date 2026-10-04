@@ -131,7 +131,9 @@ struct ScheduleAdvancementTests {
             .detail(id: "rent")?.account.availability == .closed)
     }
 
-    @Test func failedPostLeavesMarkerUnsetAndDoesNotPostTheNextSchedule() async throws {
+    /// The old behavior stopped the whole run at `rent` (delete rule), so
+    /// `utilities` never posted and the marker stayed unset on every sync.
+    @Test func refusedPostSkipsOnlyThatScheduleAndStillMarksTheDay() async throws {
         let deletingActions = #"[{"op":"link-schedule","value":"rent"},{"op":"delete-transaction","value":""}]"#
         let fixture = try makeDatabase(
             extraSQL: oneTimeScheduleSQL(
@@ -148,15 +150,34 @@ struct ScheduleAdvancementTests {
             metadata: ["note": "retain-me", "vendorExtension": ["keep": true]]
         )
 
+        let result = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+
+        #expect(try scheduleTransactionCount("rent", fixture.url) == 0)
+        #expect(try scheduleTransactionCount("utilities", fixture.url) == 1)
+        #expect(result.receipts.map(\.scheduleID) == ["utilities"])
+        #expect(result.refusals == [ScheduleAutoPostRefusal(
+            scheduleID: "rent", scheduleName: "rent", refusal: .ruleDeletesTransaction
+        )])
+        let object = try metadataObject(beside: fixture.url)
+        #expect(object["lastScheduleRun"] as? String == Self.today)
+        #expect(object["note"] as? String == "retain-me")
+        let vendorExtension = try #require(object["vendorExtension"] as? [String: Any])
+        #expect(vendorExtension["keep"] as? Bool == true)
+    }
+
+    @Test func nonRefusalErrorStopsTheRunAndLeavesTheMarkerUnset() async throws {
+        let fixture = try makeDatabase(
+            extraSQL: oneTimeScheduleSQL(scheduleID: "rent", dayID: Self.today, amount: -10_000)
+                + oneTimeScheduleSQL(scheduleID: "utilities", dayID: Self.today, amount: -2_000, includeSchema: false)
+                + "DROP TABLE messages_crdt;",
+            metadata: ["note": "retain-me"]
+        )
+
         _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
 
         #expect(try scheduleTransactionCount("rent", fixture.url) == 0)
         #expect(try scheduleTransactionCount("utilities", fixture.url) == 0)
-        let object = try metadataObject(beside: fixture.url)
-        #expect(object["lastScheduleRun"] == nil)
-        #expect(object["note"] as? String == "retain-me")
-        let vendorExtension = try #require(object["vendorExtension"] as? [String: Any])
-        #expect(vendorExtension["keep"] as? Bool == true)
+        #expect(try metadataObject(beside: fixture.url)["lastScheduleRun"] == nil)
     }
 
     @Test func storeAdvancesOpenSessionAndIgnoresStaleGeneration() async throws {

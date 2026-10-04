@@ -27,6 +27,9 @@ extension LocalFirstActualStore {
         guard ownsScheduleAdvancementSession(database: database, budgetID: budgetID, generation: generation) else {
             return
         }
+        if !result.skippedForToday {
+            scheduleAutoPostRefusals = result.refusals
+        }
         await publishScheduleAdvancement(
             result,
             database: database,

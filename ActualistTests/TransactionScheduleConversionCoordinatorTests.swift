@@ -253,9 +253,7 @@ struct TransactionScheduleConversionCoordinatorTests {
 
     @Test func unsupportedSchemaConversionFailureSurfacesTesterVoicedNotice() async throws {
         let repository = FakeConversionRepository()
-        repository.convertError = ScheduleConversionError.unsupportedSource(
-            "missing column schedules.posts_transaction"
-        )
+        repository.convertError = ScheduleConversionError.unsupportedSchema
         let coordinator = TransactionScheduleConversionCoordinator()
         repository.reviewResult = Self.review(transactionID: "future", context: repository.context)
         coordinator.beginReview(

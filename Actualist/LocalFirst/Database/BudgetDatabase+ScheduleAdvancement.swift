@@ -1,32 +1,47 @@
 import Foundation
 
+/// One schedule whose automatic post was deterministically refused.
+struct ScheduleAutoPostRefusal: Hashable, Sendable {
+    let scheduleID: String
+    let scheduleName: String?
+    let refusal: SchedulePostingRefusal
+}
+
 struct ScheduleAdvancementResult: Sendable {
     let receipts: [SchedulePostingWriteReceipt]
     let scheduleMutated: Bool
+    var refusals: [ScheduleAutoPostRefusal] = []
+    /// The day marker already matched, so nothing ran and refusals are unknown.
+    var skippedForToday = false
 }
 
 extension BudgetDatabase {
     /// Posts due or missed automatic schedules and advances paid occurrences.
     /// `metadata.json` `lastScheduleRun` is local, like Actual's metadata marker,
     /// and is patched with JSONSerialization so unknown keys survive. It is
-    /// written only after the run finishes with no post failure.
+    /// written when the run finishes. A typed `SchedulePostingRefusal` skips only
+    /// that schedule and the day is still marked done (Actual sets
+    /// `lastScheduleRun` after any successful sync and never retries a refusal
+    /// the same day). Cancellation and any other error stop the run with the
+    /// marker unset, so the next sync retries.
     func advanceSchedules(
         budgetID: String,
         today: String,
         now: Date = Date()
     ) throws -> ScheduleAdvancementResult {
         if scheduleAdvancementDayMarker() == today {
-            return ScheduleAdvancementResult(receipts: [], scheduleMutated: false)
+            return ScheduleAdvancementResult(receipts: [], scheduleMutated: false, skippedForToday: true)
         }
 
         var receipts: [SchedulePostingWriteReceipt] = []
+        var refusals: [ScheduleAutoPostRefusal] = []
         var scheduleMutated = false
         let ordered = schedulesInAdvancementOrder(
             Array(try fetchSchedules(budgetID: budgetID, today: today).detailsByID.values)
         )
         for detail in ordered {
             if Task.isCancelled {
-                return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+                return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
             }
             let step: ScheduleAdvancementStep
             do {
@@ -36,27 +51,28 @@ extension BudgetDatabase {
                     today: today,
                     now: now,
                     receipts: &receipts,
+                    refusals: &refusals,
                     scheduleMutated: &scheduleMutated
                 )
             } catch is CancellationError {
-                return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+                return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
             }
             if step == .stopRun {
-                return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+                return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
             }
         }
 
         if Task.isCancelled {
-            return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+            return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
         }
         // A marker write failure must not hide committed posts. Leaving the
         // marker unset makes the next successful sync retry.
         do {
             try writeScheduleAdvancementDayMarker(today)
         } catch {
-            return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+            return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
         }
-        return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated)
+        return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
     }
 
     private enum ScheduleAdvancementStep {
@@ -73,6 +89,7 @@ extension BudgetDatabase {
         today: String,
         now: Date,
         receipts: inout [SchedulePostingWriteReceipt],
+        refusals: inout [ScheduleAutoPostRefusal],
         scheduleMutated: inout Bool
     ) throws -> ScheduleAdvancementStep {
         for _ in 0..<Self.maximumOccurrencesPerSchedule {
@@ -101,6 +118,18 @@ extension BudgetDatabase {
                         today: today,
                         now: now
                     ))
+                } catch let refusal as SchedulePostingRefusal {
+                    refusals.append(ScheduleAutoPostRefusal(
+                        scheduleID: scheduleID, scheduleName: detail.name, refusal: refusal
+                    ))
+                    return .nextSchedule
+                } catch is ScheduleMutationCommandError {
+                    // Review preconditions (shared rule, missing schema, changed
+                    // review) are typed and deterministic per schedule.
+                    refusals.append(ScheduleAutoPostRefusal(
+                        scheduleID: scheduleID, scheduleName: detail.name, refusal: .unsupportedOccurrence
+                    ))
+                    return .nextSchedule
                 } catch {
                     return .stopRun
                 }
@@ -166,7 +195,7 @@ extension BudgetDatabase {
               let amount = detail.amount.postingAmount,
               let postedDayID = detail.effectiveNextDate,
               let transactionDate = Self.postingDate(postedDayID) else {
-            throw LocalFirstError.invalidLocalWrite("schedule occurrence is unsupported")
+            throw SchedulePostingRefusal.unsupportedOccurrence
         }
         let draft = TransactionDraft(
             accountID: accountID,

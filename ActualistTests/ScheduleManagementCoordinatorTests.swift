@@ -168,15 +168,11 @@ struct ScheduleManagementCoordinatorTests {
     @Test func unsupportedSchemaSaveFailureSurfacesTesterVoicedNotice() async {
         let cases: [(any Error, String)] = [
             (
-                ScheduleMutationCommandError.unsupportedCapability(
-                    "missing column schedules.posts_transaction"
-                ),
+                ScheduleMutationCommandError.unsupportedSchema,
                 ScheduleMutationUserNotice.unsupportedBudgetSchedules
             ),
             (
-                ScheduleMutationCommandError.unsupportedCapability(
-                    "missing schedules table"
-                ),
+                ScheduleMutationCommandError.unsupportedSchema,
                 ScheduleMutationUserNotice.unsupportedBudgetSchedules
             ),
             (

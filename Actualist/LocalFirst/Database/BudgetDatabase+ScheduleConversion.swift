@@ -146,6 +146,8 @@ extension BudgetDatabase {
                 }
             } catch ScheduleMutationCommandError.identityConflict {
                 throw ScheduleConversionError.identityConflict
+            } catch ScheduleMutationCommandError.unsupportedSchema {
+                throw ScheduleConversionError.unsupportedSchema
             } catch ScheduleMutationCommandError.unsupportedCapability(let reason) {
                 throw ScheduleConversionError.unsupportedSource(reason)
             }

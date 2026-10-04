@@ -480,7 +480,7 @@ final class ScheduleManagementCoordinator {
                     switch commandError {
                     case .reviewChanged, .identityConflict:
                         state = .failed(message(for: error))
-                    case .duplicateName, .unsupportedCapability(_), .invalidCommand(_):
+                    case .duplicateName, .unsupportedSchema, .unsupportedCapability(_), .invalidCommand(_):
                         state = .editing(session.withNotice(message(for: error)))
                     }
                 } else {
@@ -664,21 +664,10 @@ enum ScheduleMutationUserNotice {
         switch error {
         case .reviewChanged, .identityConflict, .duplicateName, .invalidCommand:
             error.errorDescription ?? saveFailed
+        case .unsupportedSchema:
+            unsupportedBudgetSchedules
         case .unsupportedCapability(let detail):
-            capabilityDetail(detail)
+            detail
         }
-    }
-
-    static func conversionSource(_ reason: String) -> String {
-        capabilityDetail(reason)
-    }
-
-    static func capabilityDetail(_ detail: String) -> String {
-        isInternalSchemaDetail(detail) ? unsupportedBudgetSchedules : detail
-    }
-
-    private static func isInternalSchemaDetail(_ detail: String) -> Bool {
-        detail.contains("missing column ")
-            || (detail.hasPrefix("missing ") && detail.hasSuffix(" table"))
     }
 }

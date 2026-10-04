@@ -192,10 +192,10 @@ final class TransactionScheduleConversionCoordinator {
         switch error {
         case let conversionError as ScheduleConversionError:
             switch conversionError {
-            case .reviewChanged, .transactionNotFuture, .identityConflict:
+            case .reviewChanged, .transactionNotFuture, .identityConflict, .unsupportedSchema:
                 conversionError.errorDescription ?? conversionSaveFailed
             case .unsupportedSource(let reason):
-                ScheduleMutationUserNotice.conversionSource(reason)
+                reason
             }
         case let localFirstError as LocalFirstError:
             // Unwrapped local-write refusals carry internal detail strings.

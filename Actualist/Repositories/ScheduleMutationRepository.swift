@@ -149,6 +149,8 @@ enum ScheduleMutationCommandError: Error, Hashable, Sendable {
     case reviewChanged
     case identityConflict
     case duplicateName
+    /// The budget's schedule tables or columns predate what Actualist writes.
+    case unsupportedSchema
     case unsupportedCapability(String)
     case invalidCommand(String)
 }
@@ -162,6 +164,8 @@ extension ScheduleMutationCommandError: LocalizedError {
             "This schedule could not be created because its identity is already in use."
         case .duplicateName:
             "A live schedule already uses this name."
+        case .unsupportedSchema:
+            ScheduleMutationUserNotice.unsupportedBudgetSchedules
         case .unsupportedCapability(let message), .invalidCommand(let message):
             message
         }

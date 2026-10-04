@@ -118,6 +118,8 @@ extension BudgetDatabase {
             throw error
         } catch let error as ScheduleConversionError {
             throw error
+        } catch let error as SchedulePostingRefusal {
+            throw error
         } catch let error as TransactionCSVImportError {
             throw error
         } catch let error as LocalFirstError {

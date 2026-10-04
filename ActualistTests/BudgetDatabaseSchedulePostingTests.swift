@@ -29,7 +29,7 @@ struct BudgetDatabaseSchedulePostingTests {
         #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
             .detail(id: "rent")?.status == .paid)
 
-        await #expect(throws: LocalFirstError.self) {
+        await #expect(throws: SchedulePostingRefusal.self) {
             try await fixture.database.postScheduleOccurrence(
                 review: review,
                 draft: draft(),
@@ -49,7 +49,7 @@ struct BudgetDatabaseSchedulePostingTests {
             """)
         let paidReview = try await paid.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
         let before = try readInt("SELECT COUNT(*) FROM messages_crdt", paid.url)
-        await #expect(throws: LocalFirstError.self) {
+        await #expect(throws: SchedulePostingRefusal.self) {
             try await paid.database.postScheduleOccurrence(
                 review: paidReview, draft: draft(), transactionID: "duplicate",
                 postedDayID: Self.today, asOf: Self.today, now: Self.noon
@@ -69,6 +69,30 @@ struct BudgetDatabaseSchedulePostingTests {
             )
         }
         #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", stale.url) == staleBefore)
+    }
+
+    @Test func draftDateMismatchThrowsTypedRefusalWithoutInternalText() async throws {
+        let fixture = try makeFixture()
+        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        var mismatched = draft()
+        mismatched = TransactionDraft(
+            accountID: mismatched.accountID,
+            date: Calendar.current.date(byAdding: .day, value: -1, to: Self.date)!,
+            amountMinorUnits: mismatched.amountMinorUnits,
+            payeeID: nil, payeeName: "", categoryID: nil, notes: nil,
+            cleared: false, isTransfer: false, scheduleID: "rent"
+        )
+        let before = try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url)
+
+        await #expect(throws: SchedulePostingRefusal.draftMismatch) {
+            try await fixture.database.postScheduleOccurrence(
+                review: review, draft: mismatched, transactionID: "mismatch",
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            )
+        }
+
+        #expect(SchedulePostingRefusal.draftMismatch.errorDescription?.contains("local-first write") == false)
+        #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url) == before)
     }
 
     @Test func concurrentSameClientPostsCommitAtMostOneOccurrence() async throws {
@@ -220,7 +244,7 @@ struct BudgetDatabaseSchedulePostingTests {
             .detail(id: "rent")?.status == .paid)
 
         let messagesAfterPost = try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url)
-        await #expect(throws: LocalFirstError.self) {
+        await #expect(throws: SchedulePostingRefusal.self) {
             try await fixture.database.postScheduleOccurrence(
                 review: review, draft: draft(), transactionID: "approximate-repeat",
                 postedDayID: Self.today, asOf: Self.today, now: Self.noon
@@ -441,8 +465,8 @@ struct BudgetDatabaseSchedulePostingTests {
     ) async throws -> String {
         do {
             _ = try await operation()
-        } catch LocalFirstError.invalidLocalWrite(let reason) {
-            return reason
+        } catch let refusal as SchedulePostingRefusal {
+            return try #require(refusal.errorDescription)
         }
         throw SchedulePostingTestFailure.expectedRejection
     }
