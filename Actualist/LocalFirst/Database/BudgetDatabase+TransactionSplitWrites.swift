@@ -528,6 +528,13 @@ extension BudgetDatabase {
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> (messages: [ActualSyncDecodedMessage], accounts: Set<String>, transactions: Set<String>) {
+        // An untouched row must not create or unlink a transfer. Amount and notes
+        // matter only when they have to reach an existing pair.
+        let linkInputsUnchanged = old.account == new.account && old.payee == new.payee
+            && old.transferID == new.transferID && old.isParent == new.isParent
+        if linkInputsUnchanged, old.transferID == nil || (old.amount == new.amount && old.notes == new.notes) {
+            return ([], [], [])
+        }
         if new.isParent {
             return try transferMessagesOnDelete(old, columns: columns, db: db, builder: &builder)
         }
