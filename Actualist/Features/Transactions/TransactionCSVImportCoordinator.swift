@@ -133,6 +133,28 @@ final class TransactionCSVImportCoordinator {
         return summary
     }
 
+    struct SummaryLine: Equatable, Identifiable {
+        let title: String
+        let count: Int
+        let symbol: String
+        var id: String { title }
+    }
+
+    /// Review summary rows in display order. Duplicates and rows that match a
+    /// reconciled transaction are different outcomes, so they stay separate.
+    var summaryLines: [SummaryLine] {
+        guard let summary else { return [] }
+        var lines = [
+            SummaryLine(title: "New rows", count: summary.insert, symbol: "plus.square"),
+            SummaryLine(title: "Existing rows updated", count: summary.update, symbol: "pencil.line"),
+            SummaryLine(title: "Duplicates left unchanged", count: summary.ignored, symbol: "checkmark.circle")
+        ]
+        if summary.skipped > 0 {
+            lines.append(SummaryLine(title: "Matches reconciled rows", count: summary.skipped, symbol: "lock.circle"))
+        }
+        return lines
+    }
+
     var canSubmit: Bool {
         guard case .reviewing(let review) = state else { return false }
         return review.rows.contains { isIncluded($0) }
