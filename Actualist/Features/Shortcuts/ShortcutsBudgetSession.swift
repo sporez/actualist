@@ -34,7 +34,16 @@ extension ShortcutsBudgetSession {
 final class ShortcutsBudgetSession {
     private let appState: AppState
     private var isWriting = false
-    private var writeWaiters: [CheckedContinuation<Void, Never>] = []
+    private var writeWaiters: [WriteWaiter] = []
+
+    private struct WriteWaiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Void, any Error>
+    }
+
+    /// Writes waiting behind the active one. Observable so tests can wait for
+    /// a queued write deterministically.
+    var queuedWriteCount: Int { writeWaiters.count }
 
     init(appState: AppState) {
         self.appState = appState
@@ -89,13 +98,10 @@ final class ShortcutsBudgetSession {
     func withExclusiveWrite<T: Sendable>(
         _ work: @MainActor (PreparedBudget) async throws -> T
     ) async throws -> T {
-        if isWriting {
-            await withCheckedContinuation { continuation in
-                writeWaiters.append(continuation)
-            }
-        }
-        isWriting = true
+        try await acquireWrite()
         defer { finishWrite() }
+        // A task cancelled while queued may already have been handed the lock.
+        try Task.checkCancellation()
         if appState.isBudgetSwitchInProgress {
             throw ShortcutsError.budgetBusy
         }
@@ -131,11 +137,40 @@ final class ShortcutsBudgetSession {
         }
     }
 
-    private func finishWrite() {
-        isWriting = false
-        if !writeWaiters.isEmpty {
-            writeWaiters.removeFirst().resume()
+    /// Returns owning the write lock, or throws without owning it when the
+    /// task is cancelled while queued.
+    private func acquireWrite() async throws {
+        guard isWriting else {
+            isWriting = true
+            return
         }
+        let id = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
+                if Task.isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                } else {
+                    writeWaiters.append(WriteWaiter(id: id, continuation: continuation))
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.cancelQueuedWrite(id) }
+        }
+    }
+
+    private func cancelQueuedWrite(_ id: UUID) {
+        guard let index = writeWaiters.firstIndex(where: { $0.id == id }) else { return }
+        writeWaiters.remove(at: index).continuation.resume(throwing: CancellationError())
+    }
+
+    /// Ownership passes straight to the next waiter, so `isWriting` stays true
+    /// across the hand-off and a newly arriving write cannot jump the queue.
+    private func finishWrite() {
+        guard !writeWaiters.isEmpty else {
+            isWriting = false
+            return
+        }
+        writeWaiters.removeFirst().continuation.resume()
     }
 
     func accounts(includeClosed: Bool, matching query: String? = nil) async throws -> [AccountEntity] {
