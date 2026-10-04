@@ -173,7 +173,7 @@ enum RuleConditionEvaluator {
             let expectedText = normalizedExpectedText(comparisonText(expected), kind: kind)
             let matches: Bool
             if operation == "matches" {
-                matches = (try? NSRegularExpression(pattern: expectedText))
+                matches = RuleRegexCache.expression(for: expectedText)
                     .map { $0.firstMatch(in: actualText, range: NSRange(actualText.startIndex..., in: actualText)) != nil }
                     ?? false
             } else if operation == "hasTags" || operation == "hasAnyTag" {

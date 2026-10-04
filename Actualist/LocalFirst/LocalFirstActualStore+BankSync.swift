@@ -284,6 +284,7 @@ extension LocalFirstActualStore {
         var builder = LocalFirstSyncMessageBuilder()
         var messages: [ActualSyncDecodedMessage] = []
         var resolvedPayeeIDs: [String: String] = [:]
+        var knownPayees: [ActualPayee]?
         var insertedCount = 0
         var updatedCount = 0
         var insertedIDsByAccount: [String: [String]] = [:]
@@ -334,6 +335,7 @@ extension LocalFirstActualStore {
             let payeeResolution = try await resolveBankSyncInsertPayee(
                 candidate: candidate,
                 resolvedPayeeIDs: &resolvedPayeeIDs,
+                knownPayees: &knownPayees,
                 database: database,
                 builder: &builder
             )
@@ -492,6 +494,7 @@ extension LocalFirstActualStore {
     private func resolveBankSyncInsertPayee(
         candidate: BankSyncReconciliation.Candidate,
         resolvedPayeeIDs: inout [String: String],
+        knownPayees: inout [ActualPayee]?,
         database: BudgetDatabase,
         builder: inout LocalFirstSyncMessageBuilder
     ) async throws -> (payeeID: String, messages: [ActualSyncDecodedMessage]) {
@@ -504,9 +507,11 @@ extension LocalFirstActualStore {
         if let cachedID = resolvedPayeeIDs[key], !key.isEmpty {
             return (cachedID, [])
         }
+        if knownPayees == nil { knownPayees = try await database.fetchPayees() }
         let resolution = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: nil,
             payeeName: name,
+            knownPayees: knownPayees,
             builder: &builder
         )
         if !key.isEmpty {

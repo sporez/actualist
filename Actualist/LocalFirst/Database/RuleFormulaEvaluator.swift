@@ -59,11 +59,13 @@ enum RuleFormulaEvaluator {
         return Int(rounded)
     }
 
+    private static let balanceOfExpression = try? NSRegularExpression(
+        pattern: #"BALANCE_OF\s*\(\s*"((?:[^"\\]|\\.)*)"\s*\)"#,
+        options: [.caseInsensitive]
+    )
+
     static func extractBalanceOfLiterals(_ formula: String) -> [String] {
-        guard let expression = try? NSRegularExpression(
-            pattern: #"BALANCE_OF\s*\(\s*"((?:[^"\\]|\\.)*)"\s*\)"#,
-            options: [.caseInsensitive]
-        ) else { return [] }
+        guard let expression = balanceOfExpression else { return [] }
         let range = NSRange(formula.startIndex..., in: formula)
         var seen = Set<String>()
         var literals: [String] = []

@@ -88,6 +88,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         var affectedAccountIDs: Set<String> = [request.accountID]
         var monthIDs = Set<String>()
         var resolvedPayeeIDs: [String: String] = [:]
+        var knownPayees: [ActualPayee]?
         var insertedCount = 0
         var updatedCount = 0
         // Pinned Actual stamps inserted rows with a descending sort_order from
@@ -118,9 +119,11 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
                 } else if let existing = payeeIDByName[trimmedPayee.lowercased()] {
                     payeeID = existing
                 } else {
+                    if knownPayees == nil { knownPayees = try await database.fetchPayees() }
                     let resolution = try await database.resolveOrCreatePayeeMessages(
                         selectedPayeeID: nil,
                         payeeName: trimmedPayee,
+                        knownPayees: knownPayees,
                         builder: &builder
                     )
                     resolvedPayeeIDs[trimmedPayee.lowercased()] = resolution.payeeID
