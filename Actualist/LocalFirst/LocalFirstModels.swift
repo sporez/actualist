@@ -54,4 +54,3 @@ struct LocalFirstBudgetMetadata: Codable, Equatable, Sendable {
         case groupID = "groupId"
     }
 }
-
