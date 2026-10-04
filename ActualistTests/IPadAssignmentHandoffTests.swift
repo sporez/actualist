@@ -124,6 +124,22 @@ extension IPadAssignmentHandoffTests {
         #expect(await write.value)
         #expect(try await repository.budgetMonth(budgetID: "budget", selectedMonth: "2026-07").month.totalBudgeted == 1012)
     }
+
+    @Test func escapeCancelsTheSharedDraftWithoutWriting() async throws {
+        let repository = BudgetViewportTestRepository()
+        await repository.set(BudgetViewportFixtures.loaded("2026-07", budgeted: 1000))
+        let workflow = BudgetAssignmentWorkflow()
+        let compact = BudgetViewModel(assignmentWorkflow: workflow)
+        await compact.selectMonth("2026-07", budgetID: "budget", repository: repository)
+        let viewport = BudgetViewportModel(repository: repository, assignmentWorkflow: workflow)
+        await viewport.adoptCompactState(compact, budgetID: "budget")
+        viewport.beginAssignmentEditing(categoryID: "groceries", month: "2026-07")
+        #expect(await viewport.handleHardwareInput("7"))
+        #expect(workflow.isPresented)
+        #expect(await viewport.handleHardwareInput("\u{1b}"))
+        #expect(!workflow.isPresented)
+        #expect(try await repository.budgetMonth(budgetID: "budget", selectedMonth: "2026-07").month.totalBudgeted == 1000)
+    }
 }
 
 extension IPadAssignmentHandoffTests {
