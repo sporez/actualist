@@ -161,8 +161,7 @@ extension BudgetDatabase {
                 resolvedPayee = "COALESCE(pm.\(quotedIdentifier(target)), \(rawPayee))"
             }
         }
-        let liveTransactions = predicateForLiveRows(columns: transactionColumns)
-            .replacingOccurrences(of: "tombstone", with: "t.tombstone")
+        let liveTransactions = predicateForLiveRows(columns: transactionColumns, tableAlias: "t")
         let rows = try Row.fetchAll(
             db,
             sql: """

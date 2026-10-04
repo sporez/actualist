@@ -327,11 +327,11 @@ extension BudgetDatabase {
         db: Database
     ) throws -> [ActualSyncDecodedMessage] {
         guard !changedTransactionIDs.isEmpty else { return [] }
-        let rules = try fetchRules(db: db)
         guard try globalCategoryLearningEnabled(db: db),
                   try tableExists("transactions", db: db),
                   try tableExists("payees", db: db),
                   try tableExists("rules", db: db) else { return [] }
+            let rules = try fetchRules(db: db)
             let transactionColumns = try columnSet(for: "transactions", db: db)
             guard transactionColumns.contains("id"), transactionColumns.contains("date"),
                   transactionColumns.contains("category"),
@@ -396,7 +396,7 @@ extension BudgetDatabase {
                     \(mappingJoin)
                     \(accountJoin)
                     JOIN payees p ON p.id = \(resolvedPayee)
-                    WHERE \(predicateForLiveRows(columns: transactionColumns).replacingOccurrences(of: "tombstone", with: "t.tombstone"))
+                    WHERE \(predicateForLiveRows(columns: transactionColumns, tableAlias: "t"))
                       AND \(normalizedDateExpression("t.date")) >= ?
                       AND \(normalizedDateExpression("t.date")) <= ?
                       AND \(resolvedPayee) IN (\(payeePlaceholders))
