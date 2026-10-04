@@ -73,8 +73,12 @@ final class BudgetViewModel {
         )
     }
 
+    /// Not observed: filling the memo during a render must not invalidate it.
+    @ObservationIgnored private var overspentOptionsMemo = BudgetOverspendingOptionsMemo()
+    @ObservationIgnored var overspentOptionsBuildCount: Int { overspentOptionsMemo.buildCount }
+
     var overspentCategoryOptions: [BudgetOverspentCategoryOption] {
-        BudgetOverspendingPresentation.options(in: budgetMonth, isTrackingBudget: isTrackingBudget,
+        overspentOptionsMemo.options(in: budgetMonth, isTrackingBudget: isTrackingBudget,
             includeCarryover: includeCarryoverCategoriesInOverspentAlerts)
     }
 
