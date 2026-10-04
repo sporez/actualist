@@ -89,6 +89,31 @@ struct BudgetCategoryVisibilityWorkflowTests {
         #expect(loaded == nil)
         #expect(!workflow.isSubmitting)
     }
+
+    @Test func budgetSwitchDuringTheWriteDropsTheOldBudgetsResult() async throws {
+        let repository = DelayedVisibilityRepository()
+        let workflow = BudgetCategoryVisibilityWorkflow()
+        var selectedBudgetID: String? = "budget"
+        let task = Task { @MainActor in
+            await workflow.setCategoryHidden(
+                true,
+                categoryID: "mortgage",
+                groupHidden: false,
+                selectedMonth: "2026-06",
+                budgetID: "budget",
+                currentBudgetID: { selectedBudgetID },
+                repository: repository
+            )
+        }
+        await repository.waitUntilStarted()
+        selectedBudgetID = "other-budget"
+        await repository.finish()
+        let loaded = await task.value
+
+        #expect(loaded == nil)
+        #expect(!workflow.isSubmitting)
+        #expect(workflow.errorMessage == nil)
+    }
 }
 
 private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
