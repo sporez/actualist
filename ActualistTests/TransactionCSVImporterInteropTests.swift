@@ -77,7 +77,13 @@ struct TransactionCSVImporterInteropTests {
         let output = URL(filePath: rawOutput, directoryHint: .isDirectory)
             .standardizedFileURL
             .resolvingSymlinksInPath()
-        let requiredRoot = "/Users/neil/CC/actualist-dev/.artifacts/csv-export-interop"
+        // <repo>/ActualistTests/<this file> -> <repo>/.artifacts/csv-export-interop
+        let requiredRoot = URL(filePath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appending(path: ".artifacts/csv-export-interop", directoryHint: .isDirectory)
+            .standardizedFileURL
+            .path
         guard output.path.hasPrefix(requiredRoot + "/"), output.path.count > requiredRoot.count + 1 else {
             throw FixtureError.outputOutsideOwnedArtifactDirectory(output.path)
         }

@@ -15,10 +15,22 @@ import uuid
 import shutil
 
 
-ROOT = Path("/Users/neil/CC/actualist-dev")
+def _required_path(name):
+    value = os.environ.get(name)
+    if not value or not os.path.isabs(value):
+        sys.exit(f"error: set {name} to an absolute path (see README: Machine-local paths)")
+    return Path(value)
+
+
+# This checkout, derived from the harness location (scripts/parity/csv-export-interop).
+ROOT = Path(__file__).resolve().parents[3]
 HARNESS = ROOT / "scripts/parity/csv-export-interop"
-PINNED = Path("/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual")
-NODE = Path("/Users/neil/.nvm/versions/node/v24.21.0/bin/node")
+# Machine-local inputs come from the environment; nothing here names a user or host.
+PINNED = _required_path("ACTUALIST_PARITY_ORACLE_ROOT")
+NODE = _required_path("ACTUALIST_PARITY_NODE")
+PROTECTED_CHECKOUT = Path(os.environ.get("ACTUALIST_PARITY_PROTECTED_CHECKOUT") or PINNED.parents[2])
+YARN_CACHE = Path.home() / ".yarn/berry/cache"
+SANDBOX_PARAMS = ["-D", f"PROTECTED_CHECKOUT={PROTECTED_CHECKOUT}", "-D", f"YARN_CACHE={YARN_CACHE}"]
 EXPECTED_ACTUAL_COMMIT = "59fe126f637d858c061e1eeedbef5436c8f2225a"
 EXPECTED_NODE_SHA256 = "e4b5a3af0e05c75de2eae013904145f40fe7fc2a6e6f17510128bf45cca4e79b"
 EXPECTED_YARN_SHA256 = "471ffb15e0523663865bbf46a69e7d157ecf532412eb436c48dfab6e3f2abe88"
@@ -353,7 +365,7 @@ def main():
             "preparationCapSeconds": PREPARATION_SECONDS,
             "stageCapsSeconds": {"swift-fixture": 1200, "actual-parser-mapping": 120},
             "outputRoot": str(output),
-            "protectedWriteDeny": ["/Users/neil/CC/actualist", "/Users/neil/.yarn/berry/cache"],
+            "protectedWriteDeny": [str(PROTECTED_CHECKOUT), str(YARN_CACHE)],
             "network": "denied for COW copy and Node stages",
         }
         run_receipt_path = output / "receipts/orchestrator.json"
@@ -369,8 +381,15 @@ def main():
             raise RunFailure("pinned Node executable hash mismatch")
         verify_pinned_checkout(preparation_deadline, prep_log)
         check_deadline(preparation_deadline, "source freeze", PREPARATION_CLEANUP_SECONDS)
+        # The committed freeze names external inputs with @ORACLE_ROOT@ and @NODE@
+        # placeholders; render them for this machine before checking.
+        rendered_freeze = output / "source-freeze.rendered.sha256"
+        rendered_freeze.write_text(
+            (HARNESS / "source-freeze.sha256").read_text()
+            .replace("@ORACLE_ROOT@", str(PINNED)).replace("@NODE@", str(NODE))
+        )
         run_command(
-            ["/usr/bin/shasum", "-a", "256", "-c", str(HARNESS / "source-freeze.sha256")],
+            ["/usr/bin/shasum", "-a", "256", "-c", str(rendered_freeze)],
             cwd=ROOT, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
             deadline=preparation_deadline, log_path=prep_log,
             label="source freeze verification",
@@ -378,7 +397,7 @@ def main():
         shutil.copyfile(HARNESS / "source-freeze.sha256", output / "source-freeze.sha256")
         overlay = output / "actual-overlay"
         run_command(
-            ["/usr/bin/sandbox-exec", "-f", str(PROFILE), "/bin/cp", "-cR", str(PINNED), str(overlay)],
+            ["/usr/bin/sandbox-exec", *SANDBOX_PARAMS, "-f", str(PROFILE), "/bin/cp", "-cR", str(PINNED), str(overlay)],
             cwd=ROOT, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
             deadline=preparation_deadline, log_path=prep_log,
             label="sandboxed APFS copy-on-write preparation",
@@ -476,13 +495,14 @@ def main():
             "YARN_ENABLE_GLOBAL_CACHE": "0",
             "YARN_CACHE_FOLDER": str(output / "yarn-cache"),
             "GIT_OPTIONAL_LOCKS": "0",
+            "ACTUALIST_CSV_INTEROP_OWNED_ROOT": str(OWNED_ROOT),
             "ACTUALIST_CSV_INTEROP_FIXTURE_DIR": str(output / "fixture"),
             "ACTUALIST_CSV_INTEROP_EVIDENCE_DIR": str(output / "evidence"),
             "ACTUALIST_CSV_INTEROP_ACTUAL_OVERLAY": str(overlay),
             "ACTUALIST_CSV_INTEROP_OVERLAY_HARNESS": str(output / "overlay-harness"),
         }
         node_command = [
-            "/usr/bin/sandbox-exec", "-f", str(PROFILE), str(NODE),
+            "/usr/bin/sandbox-exec", *SANDBOX_PARAMS, "-f", str(PROFILE), str(NODE),
             str(overlay / "node_modules/vitest/vitest.mjs"), "run",
             "--configLoader", "native",
             "--config", str(output / "overlay-harness/oracle.vitest.config.ts"),

@@ -7,8 +7,7 @@ Actual's import/apply workflow and does not claim a lossless split round trip.
 ## Inputs and owned outputs
 
 - The read-only Actual checkout is
-  `/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual`,
-  at commit `59fe126f637d858c061e1eeedbef5436c8f2225a`.
+  `$ACTUALIST_PARITY_ORACLE_ROOT` (the pinned v26.9.0 oracle), at commit `59fe126f637d858c061e1eeedbef5436c8f2225a`.
 - `source-freeze.sha256` covers the harness scripts/config/profile and README,
   the fixture producer and production encoder, the selected `scripts/test.sh`
   and destination-loader inputs, exact Node 24.21.0, and the pinned
@@ -16,7 +15,7 @@ Actual's import/apply workflow and does not claim a lossless split round trip.
   `scripts/lib/destinations.sh` is read to select the simulator but is not
   copied or included in the manifest.
 - Each attempt exclusively creates the fresh mode-0700
-  `/Users/neil/CC/actualist-dev/.artifacts/csv-export-interop` directory. Any
+  `<this checkout>/.artifacts/csv-export-interop` directory. Any
   existing root or symlinked path is refused. Failure preserves the root and
   every receipt/log for owner review; there is no retry or cleanup path.
 - Generated fixture, observations, COW overlay, Node home/cache/tmp, receipts,
@@ -27,7 +26,9 @@ Actual's import/apply workflow and does not claim a lossless split round trip.
 The source freeze verifies the pinned sources; it is not a filesystem security
 boundary. The copy and Node commands run with `readonly-inputs.sb`, which denies
 all outbound/inbound networking and all writes under both
-`/Users/neil/CC/actualist` and `/Users/neil/.yarn/berry/cache`. The profile does
+the checkout that contains the oracle (`ACTUALIST_PARITY_PROTECTED_CHECKOUT`,
+default: three levels above the oracle root) and `~/.yarn/berry/cache`, passed
+to the profile as `sandbox-exec -D` parameters. The profile does
 not impose a general read allowlist or deny normal writes outside those protected
 trees. Node's home, cache and temporary paths are redirected into the owned
 output. The COW overlay is writable and isolated under that output. Xcode and
@@ -97,6 +98,21 @@ is selected externally, Category_Group/Split_Amount/Cleared are not restored by
 these mappings, status is a separate import choice, split rows are not
 reconstructed, and JavaScript extreme-number precision is observational.
 
+## Machine-local paths
+
+Nothing in this harness names a user or machine. The checkout root is derived
+from the script location. Export these before running either entry point:
+
+- `ACTUALIST_PARITY_ORACLE_ROOT`: absolute path of the pinned Actual v26.9.0
+  checkout.
+- `ACTUALIST_PARITY_NODE`: absolute path of the exact Node 24.21.0 binary.
+- `ACTUALIST_PARITY_PROTECTED_CHECKOUT` (optional): checkout that must stay
+  write-denied; defaults to `<oracle root>/../../..`.
+
+`source-freeze.sha256` names the oracle and Node inputs as `@ORACLE_ROOT@` and
+`@NODE@`; `orchestrate.py` renders them from the variables above before running
+`shasum -c`.
+
 ## Prerequisites and public command
 
 This candidate is **not authorized to run**. A main-owner review and separate
@@ -107,7 +123,7 @@ DerivedData, or simulator owner active.
 Exact one-shot public command (not run during this source-only change):
 
 ```sh
-cd /Users/neil/CC/actualist-dev
+cd "$ACTUALIST_ROOT"   # this checkout
 ACTUALIST_CSV_INTEROP_OUTPUT="$PWD/.artifacts/csv-export-interop" \
   scripts/parity/csv-export-interop/run-proposal.sh
 ```
@@ -133,7 +149,7 @@ creates a separate mode-0700 DEV artifact root and removes nothing.
 Exact proposed diagnostic command (not run or authorized):
 
 ```sh
-cd /Users/neil/CC/actualist-dev
+cd "$ACTUALIST_ROOT"   # this checkout
 python3 scripts/parity/csv-export-interop/diagnose-orchestrator.py
 ```
 

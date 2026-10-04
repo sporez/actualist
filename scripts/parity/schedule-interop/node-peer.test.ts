@@ -459,10 +459,12 @@ function safeIdentifier(value: string) {
   return value;
 }
 
-const admittedRemoteOrigin = 'https://actualist-test.sporez.us';
+// Optional disposable lab server origin, supplied by the operator. Unset means
+// only loopback origins are admitted.
+const admittedRemoteOrigin = process.env.SCHEDULE_INTEROP_ADMITTED_REMOTE_ORIGIN ?? '';
 
 function loopbackOrigin(value: string) {
-  if (value === admittedRemoteOrigin) return value;
+  if (admittedRemoteOrigin && value === admittedRemoteOrigin) return value;
   const parsed = new URL(value);
   assert.equal(parsed.protocol, 'http:');
   assert.equal(parsed.hostname, '127.0.0.1');

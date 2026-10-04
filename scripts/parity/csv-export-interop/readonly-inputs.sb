@@ -2,5 +2,6 @@
 (allow default)
 (deny network-outbound)
 (deny network-inbound)
-(deny file-write* (subpath "/Users/neil/CC/actualist"))
-(deny file-write* (subpath "/Users/neil/.yarn/berry/cache"))
+; Paths are passed by orchestrate.py with sandbox-exec -D.
+(deny file-write* (subpath (param "PROTECTED_CHECKOUT")))
+(deny file-write* (subpath (param "YARN_CACHE")))

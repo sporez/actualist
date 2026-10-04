@@ -58,7 +58,8 @@ function requiredDirectory(name: string): string {
   const value = process.env[name];
   assert.ok(value, `Missing ${name}`);
   const resolved = path.resolve(value);
-  const ownedRoot = '/Users/neil/CC/actualist-dev/.artifacts/csv-export-interop';
+  const ownedRoot = path.resolve(process.env.ACTUALIST_CSV_INTEROP_OWNED_ROOT ?? '');
+  assert.ok(process.env.ACTUALIST_CSV_INTEROP_OWNED_ROOT, 'Missing ACTUALIST_CSV_INTEROP_OWNED_ROOT');
   assert.ok(
     resolved === ownedRoot || resolved.startsWith(`${ownedRoot}${path.sep}`),
     `${name} must remain under the ignored DEV-owned CSV interoperability directory`,

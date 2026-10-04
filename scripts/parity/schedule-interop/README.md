@@ -66,6 +66,9 @@ non-secret values:
 - `TEST_RUNNER_SCHEDULE_INTEROP_ACTUAL_REVISION`
 - `TEST_RUNNER_SCHEDULE_INTEROP_FREEZE_ID`
 
+`SCHEDULE_INTEROP_ADMITTED_REMOTE_ORIGIN` (operator environment, optional) names
+one disposable lab server origin the peer may talk to besides loopback.
+
 The test sees the corresponding `SCHEDULE_INTEROP_*` names. No custom
 `.xctestrun`, scheme change, or shared runner edit is needed. Credentials stay
 in a host mode-`0600` file and are delivered to the configured test only in the
