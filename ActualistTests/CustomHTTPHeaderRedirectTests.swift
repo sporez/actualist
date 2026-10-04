@@ -228,7 +228,11 @@ private final class HeaderRedirectTestServer: Sendable {
         }
         listener.start(queue: queue)
         let settled = listenerSettled
-        try await withTimeLimit(.seconds(2), timeoutError: URLError(.timedOut)) {
+        // Setup only: the listener must report ready before the test proceeds.
+        // The earlier 200 × 10 ms poll stretched under a loaded parallel run; a
+        // hard 2 s limit timed out there (full runs bce881cd and b7b75f7d) while
+        // passing in isolation. Ten seconds matches the suite's other watchdogs.
+        try await withTimeLimit(.seconds(10), timeoutError: URLError(.timedOut)) {
             await withTaskCancellationHandler {
                 await settled.wait()
             } onCancel: {
