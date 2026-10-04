@@ -72,8 +72,10 @@ struct BudgetMoveMoneyView: View {
                 return
             }
 
+            // A cancelled sleep (the task restarts with the focused category)
+            // must leave the flag clear so the picker can still auto-present.
+            do { try await Task.sleep(nanoseconds: 320_000_000) } catch { return }
             didAutoPresentDestinationPicker = true
-            try? await Task.sleep(nanoseconds: 320_000_000)
             guard viewModel.isMoveMoneyPresented,
                   viewModel.moveMoneyDraft?.destination == nil else {
                 return

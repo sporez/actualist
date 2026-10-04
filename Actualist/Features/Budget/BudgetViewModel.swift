@@ -11,6 +11,7 @@ final class BudgetViewModel {
     private var loadedBudgetAlerts: [BudgetAlert] = []
     var expandedGroupIDs: Set<String> = []
     private var loadGeneration = 0
+    let refreshCoalescer = BudgetRefreshCoalescer()
     var isLoading = true
     var errorMessage: String?
     var currency: BudgetCurrency = .usd
@@ -301,15 +302,6 @@ final class BudgetViewModel {
         let repository = appState.budgetRepository
 
         await selectMonth(month, budgetID: budgetID, repository: repository)
-    }
-
-    func refreshSelectedMonth(using appState: AppState) async {
-        guard let selectedMonth else {
-            await load(using: appState)
-            return
-        }
-
-        await selectMonth(selectedMonth, using: appState)
     }
 
     func selectMonth(
