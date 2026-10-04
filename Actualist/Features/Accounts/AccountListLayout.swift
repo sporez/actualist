@@ -11,6 +11,10 @@ enum AccountListLayout {
             buckets.flatMap(\.accounts)
         }
 
+        var totalMinorUnits: Int {
+            accounts.reduce(0) { $0 + ($1.balance ?? 0) }
+        }
+
         var showsGroupHeaders: Bool {
             buckets.contains { $0.group != nil }
         }

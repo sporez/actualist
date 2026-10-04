@@ -396,12 +396,10 @@ struct BudgetDataSettingsView: View {
 
     private var reimportConfirmationMessage: String {
         let base = "Actualist will delete the local copy of this budget and download a fresh one from the server."
-        let pendingCount = appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
-        guard pendingCount > 0 else {
-            return "\(base) Your server data is not changed."
-        }
-        let noun = pendingCount == 1 ? "change" : "changes"
-        return "\(base) Warning: \(pendingCount) local \(noun) have not been confirmed by the server and will be permanently lost."
+        return LocalDataLossWarning.message(
+            base: base,
+            pendingChangeCount: appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
+        )
     }
 
     private func exportBudget() async {

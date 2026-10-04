@@ -119,6 +119,12 @@ final class SettingsViewModel {
         UIPasteboard.general.string = ActualistDiagnosticReportBuilder.make(appState: appState).text
     }
 
+    var canSaveConnection: Bool {
+        ConnectionInputValidation.canConnect(
+            serverURL: serverURLString, password: actualPassword, isBusy: isTesting
+        )
+    }
+
     var connectionSecurityWarning: String? {
         ActualServerConnectionSecurity.warningMessage(for: serverURLString)
     }

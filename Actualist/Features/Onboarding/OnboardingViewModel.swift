@@ -86,14 +86,16 @@ final class OnboardingViewModel {
     }
 
     var canLoadLoginMethods: Bool {
-        !serverURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        ConnectionInputValidation.hasContent(serverURLString)
             && !isLoadingLoginMethods
             && !isConnecting
             && !isEnteringDemo
     }
 
     var canConnectWithPassword: Bool {
-        !serverURLString.isEmpty && !actualPassword.isEmpty && !isConnecting
+        ConnectionInputValidation.canConnect(
+            serverURL: serverURLString, password: actualPassword, isBusy: isConnecting
+        )
     }
 
     var supportsPassword: Bool {
