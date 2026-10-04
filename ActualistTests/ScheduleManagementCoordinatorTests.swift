@@ -146,6 +146,35 @@ struct ScheduleManagementCoordinatorTests {
         }
     }
 
+    @Test func createContextChangeWhileLoadingEndsInRecoverableFailure() async {
+        let store = ScheduleManagementRepositoryFake()
+        store.bumpGenerationAfterFirstContextRead = true
+        let coordinator = ScheduleManagementCoordinator()
+
+        coordinator.beginCreate(
+            expectedBudgetID: "budget",
+            expectedGeneration: 1,
+            today: "2026-09-28",
+            currency: .usd,
+            isPrivacyModeEnabled: false,
+            mutationRepository: store,
+            transactionRepository: RecordingTransactionRepository(
+                editorOptionsResult: TransactionEditorOptions(
+                    accounts: [], categories: [], categoryGroups: [], payees: []
+                )
+            )
+        )
+        // The coordinator checks the context a second time, synchronously
+        // followed by its state change, so the state is settled once this resumes.
+        await store.secondContextRead.wait()
+
+        guard case .failed(let message) = coordinator.state else {
+            Issue.record("A context change while loading must not leave the editor loading")
+            return
+        }
+        #expect(message.contains("budget changed"))
+    }
+
     @Test func cancelWhileLoadingInvalidatesTheEditorPresentation() {
         let store = ScheduleManagementRepositoryFake()
         let coordinator = ScheduleManagementCoordinator()
@@ -300,6 +329,9 @@ struct ScheduleManagementCoordinatorTests {
 private final class ScheduleManagementRepositoryFake: ScheduleRepositoryProtocol, ScheduleMutationRepositoryProtocol {
     var generation = 1
     var pauseNextReview = false
+    var bumpGenerationAfterFirstContextRead = false
+    private var contextReads = 0
+    let secondContextRead = TestLatch()
     private(set) var createCalls = 0
     private(set) var refreshCalls = 0
     let reviewEntered = TestLatch()
@@ -333,7 +365,15 @@ private final class ScheduleManagementRepositoryFake: ScheduleRepositoryProtocol
     }
 
     func scheduleMutationSessionContext(budgetID: String) throws -> ScheduleMutationSessionContext {
-        ScheduleMutationSessionContext(budgetID: budgetID, generation: generation)
+        contextReads += 1
+        defer {
+            if bumpGenerationAfterFirstContextRead {
+                bumpGenerationAfterFirstContextRead = false
+                generation += 1
+            }
+            if contextReads == 2 { secondContextRead.trip() }
+        }
+        return ScheduleMutationSessionContext(budgetID: budgetID, generation: generation)
     }
 
     func scheduleMutationReview(budgetID: String, scheduleID: String) async throws -> ReviewedScheduleMutation {

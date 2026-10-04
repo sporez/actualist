@@ -107,13 +107,17 @@ final class ScheduleManagementCoordinator {
                     month: String(today.prefix(7))
                 )
                 try Task.checkCancellation()
-                guard isCurrent(request), currentContextMatches(
+                guard isCurrent(request) else { return }
+                guard currentContextMatches(
                     context,
                     expectedBudgetID: expectedBudgetID,
                     expectedGeneration: expectedGeneration,
                     repository: mutationRepository
-                ) else { return }
-                guard isCurrent(request) else { return }
+                ) else {
+                    state = .failed("The selected budget changed while the editor was loading. Reopen Schedules and try again.")
+                    finish(request)
+                    return
+                }
                 let draft = ScheduleEditorDraft(todayDayID: today)
                 state = .editing(ScheduleEditorSession(
                     identity: context,
