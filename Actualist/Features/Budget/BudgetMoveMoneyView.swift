@@ -102,14 +102,12 @@ struct BudgetMoveMoneyView: View {
         Button(action: submitMoveMoney) {
             Text(viewModel.isSubmittingMoveMoney ? "saving" : "done")
                 .font(ActualistTypography.control(for: density))
-                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
-                .background(ActualistTheme.accent, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glassProminent)
+        .tint(ActualistTheme.accent)
         .disabled(!viewModel.canSubmitMoveMoney)
-        .opacity(viewModel.canSubmitMoveMoney ? 1 : 0.45)
         .padding(.horizontal, 12)
         .accessibilityLabel("Move money")
     }
@@ -159,10 +157,8 @@ struct BudgetMoveMoneyView: View {
                             .font(.title.weight(.bold))
                             .symbolRenderingMode(.palette)
                             .foregroundStyle(Color.black.opacity(0.72), Color.white.opacity(0.92))
-                            .padding(10)
-                            .background(Color.white.opacity(0.12), in: Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.glass)
                     .disabled(draft.isSubmitting)
                     .accessibilityLabel("Switch move money direction")
 
@@ -187,9 +183,9 @@ struct BudgetMoveMoneyView: View {
                         .font(.title2.weight(.medium))
                         .foregroundStyle(ActualistTheme.primaryText)
                         .frame(width: 54, height: 54)
-                        .background(Color.white.opacity(0.12), in: Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
                 .disabled(draft.isSubmitting)
             }
             .padding(.top, BudgetMoveMoneyLayout.closeButtonTopInset)
