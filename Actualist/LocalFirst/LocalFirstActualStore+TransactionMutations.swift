@@ -352,8 +352,6 @@ extension LocalFirstActualStore {
         }
 
         let database = try requireDatabase(for: budgetID)
-        var builder = LocalFirstSyncMessageBuilder()
-        var messages: [ActualSyncDecodedMessage] = []
         var transactionIDs = Set<String>()
         var accountIDs = Set<String>()
         var monthIDs = Set<String>()
@@ -368,11 +366,6 @@ extension LocalFirstActualStore {
             guard let monthID = transaction.date.actualYearMonth else {
                 throw LocalFirstError.invalidLocalWrite("invalid transaction date")
             }
-            messages += try await database.categorizeTransactionMessages(
-                transactionID: transactionID,
-                categoryID: categoryID,
-                builder: &builder
-            )
             accountIDs.insert(transaction.account)
             monthIDs.insert(monthID)
             items.append(BudgetCategorizeFact(
@@ -383,16 +376,31 @@ extension LocalFirstActualStore {
         }
 
         let representativeMonth = monthIDs.sorted().first ?? ""
-        _ = try await database.commitUserAction(
-            messages,
-            descriptor: .categorize(CategorizeTransactionDescriptor(
-                month: representativeMonth,
-                categoryID: categoryID,
-                items: items
-            )),
-            source: actionSource,
-            learningTransactionIDs: transactionIDs
-        )
+        let descriptor = BudgetActionDescriptor.categorize(CategorizeTransactionDescriptor(
+            month: representativeMonth,
+            categoryID: categoryID,
+            items: items
+        ))
+        let orderedIDs = items.map(\.transactionID)
+        await userActionBeforeCommitHook?()
+        _ = try await database.commitUserActionPlan(source: actionSource) { database, db in
+            var builder = LocalFirstSyncMessageBuilder()
+            var messages: [ActualSyncDecodedMessage] = []
+            for transactionID in orderedIDs {
+                messages += try database.categorizeTransactionMessages(
+                    transactionID: transactionID,
+                    categoryID: categoryID,
+                    db: db,
+                    builder: &builder
+                )
+            }
+            return UserActionPlan(
+                drafts: messages,
+                descriptor: descriptor,
+                learningTransactionIDs: Set(orderedIDs),
+                outcome: ()
+            )
+        }
         try await reloadRulesIfNeeded(learningIDs: transactionIDs, database: database, budgetID: budgetID)
         await didUpdate()
         let changedAccounts = accountIDs.sorted()

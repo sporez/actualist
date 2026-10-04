@@ -8,6 +8,24 @@ extension BudgetDatabase {
         categoryID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
+        try queue.read { db in
+            try categorizeTransactionMessages(
+                transactionID: transactionID,
+                categoryID: categoryID,
+                db: db,
+                builder: &builder
+            )
+        }
+    }
+
+    /// Validates and builds from the live row read through `db`, so a categorize
+    /// built inside its write transaction sees a remote split or transfer change.
+    func categorizeTransactionMessages(
+        transactionID: String,
+        categoryID: String,
+        db: Database,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
         let trimmedTransactionID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedCategoryID = categoryID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTransactionID.isEmpty else {
@@ -16,38 +34,35 @@ extension BudgetDatabase {
         guard !trimmedCategoryID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing category")
         }
-
-        return try queue.read { db in
-            let transactionColumns = try requiredColumns(
-                table: "transactions",
-                required: ["category"],
-                db: db
-            )
-            guard try liveRowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
-                throw LocalFirstError.invalidLocalWrite("missing transaction")
-            }
-
-            let payeeColumn = try firstExistingColumn(["description", "payee"], in: transactionColumns, table: "transactions")
-            try validateCategorizationTarget(
-                transactionID: trimmedTransactionID,
-                columns: transactionColumns,
-                payeeColumn: payeeColumn,
-                db: db
-            )
-            if try tableExists("categories", db: db),
-               try !liveRowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
-                throw LocalFirstError.invalidLocalWrite("missing category")
-            }
-
-            return [
-                try builder.makeMessage(
-                    dataset: "transactions",
-                    row: trimmedTransactionID,
-                    column: "category",
-                    value: .string(trimmedCategoryID)
-                )
-            ]
+        let transactionColumns = try requiredColumns(
+            table: "transactions",
+            required: ["category"],
+            db: db
+        )
+        guard try liveRowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
+
+        let payeeColumn = try firstExistingColumn(["description", "payee"], in: transactionColumns, table: "transactions")
+        try validateCategorizationTarget(
+            transactionID: trimmedTransactionID,
+            columns: transactionColumns,
+            payeeColumn: payeeColumn,
+            db: db
+        )
+        if try tableExists("categories", db: db),
+           try !liveRowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+
+        return [
+            try builder.makeMessage(
+                dataset: "transactions",
+                row: trimmedTransactionID,
+                column: "category",
+                value: .string(trimmedCategoryID)
+            )
+        ]
     }
 
     func deleteTransactionMessages(

@@ -50,4 +50,23 @@ extension LocalFirstActualStoreTests {
         #expect(categories["groceries"]?.budgeted == 60_000)
         #expect(categories["utilities"]?.budgeted == 10_000)
     }
+
+    @Test func categorizeRejectsARowThatBecameASplitParentBeforeCommit() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let store = bundle.store
+        let transaction = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        landRemote([remoteMessage("transactions", "txn", "is_parent", "N:1")], on: store)
+
+        await #expect(throws: LocalFirstError.unsupportedSplitWrite) {
+            _ = try await store.categorizeTransactionAndRefresh(
+                transaction, categoryID: "utilities", budgetID: "group-1"
+            ) {}
+        }
+
+        let url = try bundle.fileManager.databaseURL(fileID: "file-1")
+        let category = try await DatabaseQueue(path: url.path).read { db in
+            try String.fetchOne(db, sql: "SELECT category FROM transactions WHERE id = 'txn'")
+        }
+        #expect(category == "groceries")
+    }
 }
