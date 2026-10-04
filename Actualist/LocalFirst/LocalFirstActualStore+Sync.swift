@@ -279,6 +279,11 @@ extension LocalFirstActualStore {
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            // One run uploads at most one batch (`pendingLocalSyncMessages(limit:)`).
+            // Confirmed rows are deleted above, so any that remain are a later batch.
+            if remainingCount > 0 {
+                shouldFlushPendingLocalMessagesAgain = true
+            }
             recordSyncDebugEvent(
                 outcome: .succeeded,
                 pendingBefore: pending.count,
