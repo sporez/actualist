@@ -82,24 +82,23 @@ extension BudgetDatabase {
             if case .string(let formula) = action.options?["formula"] { return formula }
             return nil
         }
-        return try drafts.map { draft in
+        // Keep BALANCE_OF's cutoff on the draft's logical day, not the
+        // absolute instant represented by its date-only Date value.
+        // A failed prefetch must throw: an empty map would evaluate every
+        // BALANCE_OF as 0 and Bank Sync would write that amount.
+        let balances = try prefetchBalanceOf(
+            formulas: formulas,
+            cutoffs: drafts.map { BalanceOfCutoff(date: $0.date, sortOrder: $0.sortOrder) },
+            db: db,
+            dateTimeZone: dateTimeZone
+        )
+        return try drafts.enumerated().map { index, draft in
             var context = ruleEvaluationContext(
                 for: draft,
                 metadata: metadata,
                 dateTimeZone: dateTimeZone
             )
-            // Keep BALANCE_OF's cutoff on the draft's logical day, not the
-            // absolute instant represented by its date-only Date value.
-            // A failed prefetch must throw: an empty map would evaluate every
-            // BALANCE_OF as 0 and Bank Sync would write that amount.
-            context.balanceOfPrefetch = try prefetchBalanceOf(
-                formulas: formulas,
-                date: draft.date,
-                sortOrder: draft.sortOrder,
-                excludingTransactionID: nil,
-                db: db,
-                dateTimeZone: dateTimeZone
-            )
+            context.balanceOfPrefetch = balances[index]
             let result = RuleConditionEvaluator.applying(rules, to: context, schedules: schedules)
             return TransactionRulePreview(
                 categoryID: result.categoryID,
