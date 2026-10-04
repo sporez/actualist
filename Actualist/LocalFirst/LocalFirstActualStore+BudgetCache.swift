@@ -13,16 +13,34 @@ extension LocalFirstActualStore {
         let prefix = "\(budgetID)|"
         // Open feeds observe these snapshots directly. Replace their contents
         // after a write instead of evicting them until the screen is reopened.
-        for key in Array(categoryTransactionsByKey.keys) where key.hasPrefix(prefix) {
+        let categoryScopes = categoryTransactionsByKey.keys.filter { $0.hasPrefix(prefix) }.compactMap { key in
             let scope = key.dropFirst(prefix.count).split(separator: "|", maxSplits: 1)
-            guard scope.count == 2 else { continue }
-            try await refreshCategoryTransactions(
-                budgetID: budgetID, categoryID: String(scope[0]), month: String(scope[1])
-            )
-            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            return scope.count == 2 ? (categoryID: String(scope[0]), month: String(scope[1])) : nil
         }
-        for key in Array(uncategorizedTransactionsByKey.keys) where key.hasPrefix(prefix) {
-            _ = try await uncategorizedTransactions(budgetID: budgetID, month: String(key.dropFirst(prefix.count)))
+        let uncategorizedMonths = uncategorizedTransactionsByKey.keys.filter { $0.hasPrefix(prefix) }
+            .map { String($0.dropFirst(prefix.count)) }
+        // One name-map read and one table read serve every cached feed.
+        if !categoryScopes.isEmpty || !uncategorizedMonths.isEmpty {
+            let maps = try await nameMaps(database)
+            if !categoryScopes.isEmpty {
+                let transactions = try await database.fetchTransactions()
+                for scope in categoryScopes {
+                    try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+                    publishCategoryTransactions(
+                        budgetID: budgetID, categoryID: scope.categoryID, month: scope.month,
+                        allTransactions: transactions, maps: maps
+                    )
+                }
+            }
+            if !uncategorizedMonths.isEmpty {
+                let rows = try await database.fetchUncategorizedTransactions()
+                for month in uncategorizedMonths {
+                    _ = try await publishUncategorizedTransactions(
+                        database: database, budgetID: budgetID, month: month,
+                        generation: generation, rows: rows, maps: maps
+                    )
+                }
+            }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         }
         guard let selected = loadedBudgetMonthsByBudget[budgetID]?.selectedMonth else { return }
