@@ -122,6 +122,8 @@ extension BudgetDatabase {
         }
     }
 
+    static let maximumCarryoverMonthSpan = 600
+
     // Actual applies rollover changes through the existing budget horizon.
     func categoryCarryoverMessages(
         categoryID: String,
@@ -216,9 +218,18 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         var messages: [ActualSyncDecodedMessage] = []
-        let effectiveThroughMonthValue = max(
-            throughMonthValue,
-            try maxActiveBudgetMonth(table: table, columns: columns, db: db)
+        // Bound the fan-out: a stray far-future budget row must not turn one
+        // carryover toggle into a loop over thousands of months.
+        let cappedLastMonthValue = shiftedMonth(startMonthValue, by: Self.maximumCarryoverMonthSpan - 1)
+        guard throughMonthValue <= cappedLastMonthValue else {
+            throw LocalFirstError.invalidLocalWrite("carryover month range too large")
+        }
+        let effectiveThroughMonthValue = min(
+            cappedLastMonthValue,
+            max(
+                throughMonthValue,
+                try maxActiveBudgetMonth(table: table, columns: columns, db: db)
+            )
         )
         for categoryID in categoryIDs {
             var monthValue = startMonthValue

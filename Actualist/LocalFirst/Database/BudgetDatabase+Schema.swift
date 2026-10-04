@@ -225,46 +225,7 @@ extension BudgetDatabase {
     }
 
     func canonicalMonthID(_ value: String?) -> String? {
-        guard let value else {
-            return nil
-        }
-
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return nil
-        }
-
-        let parts = trimmed.split { character in
-            character == "-" || character == "/" || character == "."
-        }
-        if parts.count >= 2,
-           let year = Int(parts[0]),
-           let month = Int(parts[1]),
-           let monthID = canonicalMonthID(year: year, month: month) {
-            return monthID
-        }
-
-        let digits = String(trimmed.prefix { $0.isNumber })
-        guard digits.count >= 6 else {
-            return nil
-        }
-
-        let yearEnd = digits.index(digits.startIndex, offsetBy: 4)
-        let monthEnd = digits.index(yearEnd, offsetBy: 2)
-        guard let year = Int(digits[..<yearEnd]),
-              let month = Int(digits[yearEnd..<monthEnd]) else {
-            return nil
-        }
-
-        return canonicalMonthID(year: year, month: month)
-    }
-
-    func canonicalMonthID(year: Int, month: Int) -> String? {
-        guard (1900...9999).contains(year), (1...12).contains(month) else {
-            return nil
-        }
-
-        return String(format: "%04d-%02d", year, month)
+        YearMonth.canonicalID(value)
     }
 
     func flexibleDouble(_ value: DatabaseValueConvertible?) -> Double {
@@ -315,7 +276,9 @@ extension BudgetDatabase {
     static func actualMonthValue(_ month: String) throws -> Int {
         let normalized = month.trimmingCharacters(in: .whitespacesAndNewlines)
         let compact = normalized.replacingOccurrences(of: "-", with: "")
-        guard compact.count == 6, let value = Int(compact) else {
+        guard compact.count == 6,
+              let value = Int(compact),
+              YearMonth(year: value / 100, month: value % 100) != nil else {
             throw LocalFirstError.invalidLocalWrite("invalid month")
         }
         return value
