@@ -66,7 +66,11 @@ extension BudgetDatabase {
         }
         let budgetType = try String.fetchOne(
             db,
-            sql: "SELECT value FROM preferences WHERE id = 'budgetType' LIMIT 1"
+            sql: """
+                SELECT value FROM preferences
+                WHERE id = 'budgetType' AND \(predicateForLiveRows(columns: columns))
+                LIMIT 1
+                """
         )
         return budgetType == "tracking"
     }
@@ -121,6 +125,19 @@ extension BudgetDatabase {
         return try Row.fetchOne(
             db,
             sql: "SELECT id FROM \(quotedIdentifier(table)) WHERE id = ? LIMIT 1",
+            arguments: [rowID]
+        ) != nil
+    }
+
+    /// Existence check for write validation: a tombstoned or deleted row does not
+    /// count. Upserts, sync apply and uniqueness checks keep `rowExists`.
+    func liveRowExists(table: String, rowID: String, db: Database) throws -> Bool {
+        guard try rowExists(table: table, rowID: rowID, db: db) else { return false }
+        guard table != "zero_budgets" else { return true }
+        let predicate = predicateForLiveRows(columns: try columnSet(for: table, db: db))
+        return try Row.fetchOne(
+            db,
+            sql: "SELECT id FROM \(quotedIdentifier(table)) WHERE id = ? AND \(predicate) LIMIT 1",
             arguments: [rowID]
         ) != nil
     }
@@ -212,46 +229,7 @@ extension BudgetDatabase {
     }
 
     func canonicalMonthID(_ value: String?) -> String? {
-        guard let value else {
-            return nil
-        }
-
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return nil
-        }
-
-        let parts = trimmed.split { character in
-            character == "-" || character == "/" || character == "."
-        }
-        if parts.count >= 2,
-           let year = Int(parts[0]),
-           let month = Int(parts[1]),
-           let monthID = canonicalMonthID(year: year, month: month) {
-            return monthID
-        }
-
-        let digits = String(trimmed.prefix { $0.isNumber })
-        guard digits.count >= 6 else {
-            return nil
-        }
-
-        let yearEnd = digits.index(digits.startIndex, offsetBy: 4)
-        let monthEnd = digits.index(yearEnd, offsetBy: 2)
-        guard let year = Int(digits[..<yearEnd]),
-              let month = Int(digits[yearEnd..<monthEnd]) else {
-            return nil
-        }
-
-        return canonicalMonthID(year: year, month: month)
-    }
-
-    func canonicalMonthID(year: Int, month: Int) -> String? {
-        guard (1900...9999).contains(year), (1...12).contains(month) else {
-            return nil
-        }
-
-        return String(format: "%04d-%02d", year, month)
+        YearMonth.canonicalID(value)
     }
 
     func flexibleDouble(_ value: DatabaseValueConvertible?) -> Double {
@@ -289,8 +267,10 @@ extension BudgetDatabase {
         return false
     }
 
-    static func actualDateValue(_ date: Date) throws -> Int {
-        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
+    static func actualDateValue(_ date: Date, timeZone: TimeZone = .autoupdatingCurrent) throws -> Int {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
         guard let year = components.year, let month = components.month, let day = components.day else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction date")
         }
@@ -300,7 +280,9 @@ extension BudgetDatabase {
     static func actualMonthValue(_ month: String) throws -> Int {
         let normalized = month.trimmingCharacters(in: .whitespacesAndNewlines)
         let compact = normalized.replacingOccurrences(of: "-", with: "")
-        guard compact.count == 6, let value = Int(compact) else {
+        guard compact.count == 6,
+              let value = Int(compact),
+              YearMonth(year: value / 100, month: value % 100) != nil else {
             throw LocalFirstError.invalidLocalWrite("invalid month")
         }
         return value

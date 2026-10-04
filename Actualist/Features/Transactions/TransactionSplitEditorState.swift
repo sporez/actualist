@@ -422,9 +422,17 @@ struct TransactionSplitEditorState: Equatable, Sendable {
         pendingMismatch = nil
     }
 
-    private static func sanitizedAmountDigits(_ value: String) -> String {
-        let trimmed = value.filter(\.isNumber).drop(while: { $0 == "0" })
-        return String(trimmed.prefix(maximumAmountDigitCount))
+    /// Maps any Unicode decimal digit (Arabic-Indic, Devanagari, fullwidth) to
+    /// ASCII, drops everything else (including `①`-style non-decimal digits and
+    /// separators), strips leading zeros, and caps the length.
+    static func sanitizedAmountDigits(_ value: String) -> String {
+        var digits = ""
+        for scalar in value.unicodeScalars where scalar.properties.numericType == .decimal {
+            guard let number = scalar.properties.numericValue,
+                  let digit = Int(exactly: number), (0...9).contains(digit) else { continue }
+            digits.append(String(digit))
+        }
+        return String(digits.drop(while: { $0 == "0" }).prefix(maximumAmountDigitCount))
     }
 }
 

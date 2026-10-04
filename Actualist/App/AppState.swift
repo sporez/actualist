@@ -21,17 +21,18 @@ final class AppState {
     private(set) var isBudgetSwitchInProgress = false
     let routeCoordinator = AppRouteCoordinator()
 
-    private let settingsStore: AppSettingsStore
-    private let keychain: KeychainStore
+    let settingsStore: AppSettingsStore
+    let keychain: KeychainStore
     private let credentialRetryPreparation: @MainActor () -> Void
+    private let widgetSnapshotClearer: @MainActor () -> Void
     @ObservationIgnored private let sessionRecovery = AppSessionRecovery()
     @ObservationIgnored private let appSyncCoordinator = AppSyncCoordinator()
     @ObservationIgnored private let launchWarmupCoordinator = LaunchWarmupCoordinator()
-    @ObservationIgnored private let backgroundTransactionWorkflow: BackgroundTransactionWorkflow
+    @ObservationIgnored let backgroundTransactionWorkflow: BackgroundTransactionWorkflow
     @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
     private var developerUnlockTracker = DeveloperUnlockTracker()
 
-    private var backgroundSessionIdentity: BackgroundTransactionWorkflow.SessionIdentity {
+    var backgroundSessionIdentity: BackgroundTransactionWorkflow.SessionIdentity {
         backgroundTransactionWorkflow.sessionIdentity(
             settings: settings,
             recoveryIdentity: sessionRecovery.identity
@@ -45,9 +46,9 @@ final class AppState {
                 self?.recordLocalFirstSyncDebugEvent(event)
             }
         )
-        store.fallbackServerURLString = settings.fallbackServerURLString.isEmpty
-            ? nil
-            : settings.fallbackServerURLString
+        store.fallbackServerURLString = ActualServerConnectionSecurity.usableFallback(
+            settings.fallbackServerURLString
+        )
         return store
     }()
 
@@ -65,11 +66,13 @@ final class AppState {
             Task {
                 try? await UNUserNotificationCenter.current().setBadgeCount(badgeCount)
             }
-        }
+        },
+        widgetSnapshotClearer: @escaping @MainActor () -> Void = { WidgetSnapshotCoordinator.shared.clearSnapshot() }
     ) {
         self.settingsStore = settingsStore
         self.keychain = keychain
         self.credentialRetryPreparation = credentialRetryPreparation
+        self.widgetSnapshotClearer = widgetSnapshotClearer
         self.backgroundTransactionWorkflow = BackgroundTransactionWorkflow(
             settingsStore: settingsStore,
             notificationAuthorizationRequester: notificationAuthorizationRequester,
@@ -88,8 +91,15 @@ final class AppState {
         !settings.localFirstServerURLString.isEmpty && credentialAvailability == .available
     }
 
+    /// Cached by `AppSessionRecovery` so SwiftUI bodies never read Keychain.
+    /// The fallback read is only reachable before the initial refresh.
     var credentialAvailability: AppSessionRecovery.CredentialAvailability {
-        AppSessionRecovery.credentialAvailability(keychain: keychain)
+        sessionRecovery.cachedCredentialAvailability
+            ?? AppSessionRecovery.credentialAvailability(keychain: keychain)
+    }
+
+    func refreshCredentialAvailability() {
+        sessionRecovery.refreshCredentialAvailability(keychain: keychain)
     }
 
     var credentialRecoveryMessage: String? { sessionRecovery.message }
@@ -181,8 +191,8 @@ final class AppState {
             lastErrorMessage = LocalFirstError.missingServerURL.localizedDescription
             return nil
         }
-        if let blockedMessage = ActualServerConnectionSecurity.blockedMessage(for: normalized) {
-            lastErrorMessage = blockedMessage
+        if let rejection = ActualServerConnectionSecurity.rejection(for: normalized) {
+            lastErrorMessage = rejection
             return nil
         }
 
@@ -228,8 +238,8 @@ final class AppState {
             lastErrorMessage = LocalFirstError.missingServerURL.localizedDescription
             return false
         }
-        if let blockedMessage = ActualServerConnectionSecurity.blockedMessage(for: normalized) {
-            lastErrorMessage = blockedMessage
+        if let rejection = ActualServerConnectionSecurity.rejection(for: normalized) {
+            lastErrorMessage = rejection
             return false
         }
 
@@ -250,6 +260,7 @@ final class AppState {
             }
 
             try localFirstStore.commitConnection(staged)
+            refreshCredentialAvailability()
             sessionRecovery.invalidate()
             activeIdentity = sessionRecovery.identity
             settings.localFirstServerURLString = normalized
@@ -318,7 +329,9 @@ final class AppState {
         do {
             sessionRecovery.invalidate()
             appSyncCoordinator.cancelRefresh()
+            widgetSnapshotClearer()
             try localFirstStore.eraseLocalData()
+            refreshCredentialAvailability()
             settings.localFirstServerURLString = ""
             settings.fallbackServerURLString = ""
             localFirstStore.fallbackServerURLString = nil
@@ -346,19 +359,10 @@ final class AppState {
         }
     }
 
-    /// Updates the optional fallback server URL used when the primary server is
-    /// unreachable (e.g. a Tailscale URL when away from home Wi-Fi). An empty
-    /// string clears it. This does not affect the saved connection, sync token,
-    /// or budget selection — the fallback is the same logical server reached via
-    /// a different network path.
-    func updateFallbackServerURL(_ serverURL: String) {
-        let normalized = ActualServerURLNormalizer.normalize(serverURL)
-        settings.fallbackServerURLString = normalized
-        localFirstStore.fallbackServerURLString = normalized.isEmpty ? nil : normalized
-        settingsStore.save(settings)
-    }
-
-    func selectBudgetForCurrentBackend(_ budget: ActualBudget, encryptionPassword: String? = nil) async {
+    @discardableResult
+    func selectBudgetForCurrentBackend(
+        _ budget: ActualBudget, encryptionPassword: String? = nil
+    ) async -> BudgetOpenOutcome {
         await selectLocalFirstBudget(budget, encryptionPassword: encryptionPassword)
     }
 
@@ -374,6 +378,7 @@ final class AppState {
             return
         }
         launchWarmupCoordinator.beginForeground(appState: self)
+        refreshCredentialAvailability()
 
         if setupPhase == .restoringBudget {
             await LaunchSignpost.measure(LaunchStage.cachedBudgetRestore) {
@@ -474,9 +479,10 @@ final class AppState {
         settingsStore.save(settings)
     }
 
-    func reimportLocalFirstBudget(encryptionPassword: String? = nil) async {
+    @discardableResult
+    func reimportLocalFirstBudget(encryptionPassword: String? = nil) async -> BudgetOpenOutcome {
         guard let budget = selectedBudget else {
-            return
+            return .superseded
         }
 
         appSyncCoordinator.cancelRefresh()
@@ -489,25 +495,38 @@ final class AppState {
             connectionStatus = .online
             lastErrorMessage = nil
             localDataRevision &+= 1
+            return .opened
         case .failed(let error, let status):
-            lastErrorMessage = error.userFacingMessage
             connectionStatus = status
+            return recordOpenFailure(error)
         case .superseded:
-            break
+            return .superseded
         }
     }
 
-    private func selectLocalFirstBudget(_ budget: ActualBudget, encryptionPassword: String? = nil) async {
+    /// Publishes a failed open and classifies it. A missing encryption
+    /// password is a prompt, not an error banner.
+    private func recordOpenFailure(_ error: Error) -> BudgetOpenOutcome {
+        if case LocalFirstError.encryptedBudgetRequiresPassword = error {
+            lastErrorMessage = nil
+            return .needsEncryptionPassword
+        }
+        lastErrorMessage = error.userFacingMessage
+        return .failed(message: lastErrorMessage)
+    }
+
+    private func selectLocalFirstBudget(
+        _ budget: ActualBudget, encryptionPassword: String? = nil
+    ) async -> BudgetOpenOutcome {
         do {
             if encryptionPassword?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
                try localFirstStore.requiresEncryptionPasswordToOpen(budget) {
-                lastErrorMessage = LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
-                return
+                lastErrorMessage = nil
+                return .needsEncryptionPassword
             }
         } catch {
-            lastErrorMessage = error.userFacingMessage
             sessionRecovery.noteFailure(error, hasOpenBudget: isReadyForMainTabs)
-            return
+            return recordOpenFailure(error)
         }
 
         sessionRecovery.invalidate()
@@ -547,20 +566,23 @@ final class AppState {
                 keychain: keychain, credentialError: credentialError
             )
             localDataRevision &+= 1
+            return .opened
         case .restored(let error):
-            lastErrorMessage = error.userFacingMessage
+            let outcome = recordOpenFailure(error)
             sessionRecovery.noteFailure(error, hasOpenBudget: true)
             connectionStatus = .offline
             selectedBudget = previousBudget
             setupPhase = .ready
+            return outcome
         case .failed(let error):
-            lastErrorMessage = error.userFacingMessage
+            let outcome = recordOpenFailure(error)
             sessionRecovery.noteFailure(error, hasOpenBudget: localFirstStore.hasOpenBudget)
             connectionStatus = .offline
             if settings.selectedBudgetID.map({ localFirstStore.isOpen(budgetID: $0) }) != true {
                 setupPhase = .selectingBudget
             }
-        case .superseded: break
+            return outcome
+        case .superseded: return .superseded
         }
     }
 
@@ -581,56 +603,6 @@ final class AppState {
     var canCancelReauthentication: Bool {
         guard let budgetID = settings.selectedBudgetID else { return false }
         return localFirstStore.isOpen(budgetID: budgetID)
-    }
-
-    func updateDisplayDensity(_ density: ActualistDisplayDensity) {
-        settings.displayDensity = density
-        settingsStore.save(settings)
-    }
-
-    func updateMonthDisplayPreference(_ preference: MonthDisplayPreference) {
-        settings.monthDisplayPreference = preference
-        settingsStore.save(settings)
-    }
-
-    func updateGreenIncomeTransactionAmountsEnabled(_ isEnabled: Bool) {
-        settings.greenIncomeTransactionAmountsEnabled = isEnabled
-        settingsStore.save(settings)
-    }
-
-    func updateIncludeCarryoverCategoriesInOverspentAlerts(_ isEnabled: Bool) {
-        settings.includeCarryoverCategoriesInOverspentAlerts = isEnabled
-        settingsStore.save(settings)
-    }
-
-    func updateShowTotalAssigned(_ isEnabled: Bool) {
-        settings.showTotalAssigned = isEnabled
-        settingsStore.save(settings)
-    }
-
-    func updateMonthSwipingEnabled(_ isEnabled: Bool) {
-        settings.monthSwipingEnabled = isEnabled
-        settingsStore.save(settings)
-    }
-
-    func updateHideCarryoverArrows(_ isHidden: Bool) {
-        settings.hideCarryoverArrows = isHidden
-        settingsStore.save(settings)
-    }
-
-    func updateShowHiddenCategories(_ isEnabled: Bool) {
-        settings.showHiddenCategories = isEnabled
-        settingsStore.save(settings)
-    }
-
-    func updateRandomizedDisplayValuesEnabled(_ isEnabled: Bool) {
-        settings.randomizedDisplayValuesEnabled = isEnabled
-        settingsStore.save(settings)
-    }
-
-    func updateShortcutsEnabled(_ isEnabled: Bool) {
-        settings.shortcutsEnabled = isEnabled
-        settingsStore.save(settings)
     }
 
     func updateAppSwitcherPrivacyMode(_ mode: AppSwitcherPrivacyMode) {
@@ -679,128 +651,6 @@ final class AppState {
         developerUnlockTracker.reset()
     }
 
-    func updateTheme(_ theme: ActualistThemeOption) {
-        settings.theme = theme
-        ActualistTheme.activate(theme)
-        themeRevision += 1
-        settingsStore.save(settings)
-    }
-
-    func orderedAccounts(_ accounts: [ActualAccount], budgetID: String) -> [ActualAccount] {
-        AccountOrderPreference.ordered(
-            accounts,
-            preferredIDs: settings.accountOrderByBudgetID[budgetID] ?? []
-        )
-    }
-
-    func updateAccountOrder(_ accountIDs: [String], budgetID: String) {
-        settings.accountOrderByBudgetID[budgetID] = accountIDs
-        settingsStore.save(settings)
-    }
-
-    func resetAccountOrder(budgetID: String) {
-        settings.accountOrderByBudgetID[budgetID] = nil
-        settingsStore.save(settings)
-    }
-
-    func defaultAccountID(forBudgetID budgetID: String) -> String? {
-        settings.defaultAccountIDByBudgetID[budgetID]
-    }
-
-    func setDefaultAccountID(_ accountID: String?, budgetID: String) {
-        settings.defaultAccountIDByBudgetID[budgetID] = accountID
-        settingsStore.save(settings)
-    }
-
-    func updateReportCardOrder(_ reportCardOrder: [ReportCardKind]) {
-        settings.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
-        settingsStore.save(settings)
-    }
-
-    func resetReportCardOrder() {
-        settings.reportCardOrder = ReportCardOrderPreference.defaultOrder
-        settingsStore.save(settings)
-    }
-
-    func updateBackgroundTransactionRefreshEnabled(_ isEnabled: Bool) async {
-        let outcome = await backgroundTransactionWorkflow.enable(isEnabled, keychain: keychain)
-        settings.backgroundTransactionRefreshEnabled = (outcome == .enabled)
-        await backgroundTransactionWorkflow.suppressDeliveriesIfNeeded(alertsEnabled:
-            settings.backgroundTransactionRefreshEnabled, budgetID: settings.selectedBudgetID, store: localFirstStore)
-        settingsStore.save(settings)
-        switch outcome {
-        case .enabled:
-            BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
-        case .disabled, .authorizationDenied:
-            BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
-        case .credentialPromotionFailed(let message):
-            lastErrorMessage = message
-            BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
-        }
-    }
-
-    /// Enabling background bank sync promotes Keychain items for background
-    /// access (like the alerts toggle) but never requests notification
-    /// authorization — it posts nothing.
-    func updateSimpleFINBackgroundSyncEnabled(_ isEnabled: Bool) async {
-        let outcome = backgroundTransactionWorkflow.enableBankSync(isEnabled, keychain: keychain)
-        if case .credentialPromotionFailed(let message) = outcome {
-            lastErrorMessage = message
-        }
-        settings.simplefinBackgroundSyncEnabled = (outcome == .enabled)
-        settingsStore.save(settings)
-        if outcome == .enabled {
-            BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: self)
-        } else {
-            BackgroundTransactionRefreshCoordinator.shared.cancelOrReschedule(for: self)
-        }
-    }
-
-    func prepareBackgroundTransactionNotifications() async {
-        let identity = backgroundSessionIdentity
-        if let prepared = await backgroundTransactionWorkflow.prepare(isEnabled:
-            settings.backgroundTransactionRefreshEnabled, settings: settings,
-            budgetID: settings.selectedBudgetID, store: localFirstStore),
-           identity == backgroundSessionIdentity {
-            backgroundTransactionWorkflow.applyPreparedProjection(prepared, updatesBadge: settings.backgroundTransactionRefreshEnabled, to: &settings)
-        }
-        settingsStore.save(settings)
-    }
-
-    func performBackgroundTransactionRefresh(timeLimit: Duration = .seconds(25)) async -> Bool {
-        let identity = backgroundSessionIdentity
-        let result = await backgroundTransactionWorkflow.performRefresh(
-            timeLimit: timeLimit,
-            isDemoMode: isDemoMode,
-            settings: settings,
-            selectedBudget: selectedBudget,
-            budgets: budgets,
-            hasSyncCredentials: hasSyncCredentials,
-            store: localFirstStore,
-            liveEligibility: { [weak self] in
-                guard let self else {
-                    return .init(sessionIsCurrent: false, alertsEnabled: false, bankSyncEnabled: false)
-                }
-                return self.backgroundTransactionWorkflow.liveEligibility(
-                    expected: identity,
-                    current: self.backgroundSessionIdentity
-                )
-            }
-        )
-        if identity == backgroundSessionIdentity {
-            backgroundTransactionWorkflow.applyRefreshResult(result, to: &settings)
-        } else { return false }
-        switch result.outcome {
-        case .success:
-            return true
-        case .skipped, .cancelled, .timedOut:
-            return false
-        case .failed(let message):
-            lastErrorMessage = message
-            return false
-        }
-    }
-
     private func restoreSelectedBudgetForLaunch() async {
         let identity = sessionRecovery.identity
         switch await sessionRecovery.restoreForLaunch(
@@ -830,66 +680,9 @@ final class AppState {
         }
     }
 
-    func recordBackgroundRefreshScheduleAttempt(succeeded: Bool,
-        earliestBeginDate: Date?,
-        message: String
-    ) {
-        backgroundTransactionWorkflow.recordScheduleAttempt(succeeded: succeeded,
-            earliestBeginDate: earliestBeginDate, message: message, in: &settings)
-    }
-
-    func pendingNewTransactionIDs(budgetID: String, accountID: String) -> Set<String> {
-        backgroundTransactionWorkflow.pendingNewTransactionIDs(budgetID: budgetID,
-            accountID: accountID, in: settings)
-    }
-
-    func pendingNewTransactionIDs(budgetID: String) -> Set<String> {
-        backgroundTransactionWorkflow.pendingNewTransactionIDs(budgetID: budgetID, in: settings)
-    }
-
-    func clearPendingNewTransactionIDs(_ intent: PendingNewTransactionReviewIntent) async {
-        guard settings.selectedBudgetID == intent.budgetID else { return }
-        let identity = backgroundSessionIdentity
-        if let outcome = await backgroundTransactionWorkflow.clearPendingNewTransactionIDs(budgetID:
-            intent.budgetID, accountID: intent.accountID, transactionIDs: intent.transactionIDs,
-            settings: settings, store: localFirstStore),
-           identity == backgroundSessionIdentity {
-            backgroundTransactionWorkflow.applyPendingReviewOutcome(outcome, to: &settings)
-        }
-    }
-
-    @discardableResult
-    func updateApplicationBadge() -> Int {
-        backgroundTransactionWorkflow.updateApplicationBadge(in: settings)
-    }
-
-    func routeToSpendingFromNotification(budgetID: String) async {
-        guard settings.selectedBudgetID == budgetID else { return }
-        // A notification tap can arrive while the Settings cover is presented
-        // (for example, the developer test notification is posted from there).
-        // Dismiss it first so the Spending route is actually visible, the same
-        // way widget deep links defer navigation through `afterDismissingSettings`.
-        routeCoordinator.afterDismissingSettings { [weak self] in
-            guard let self else { return }
-            self.accountNavigationPath = []
-            self.selectedTab = .spending
-            self.routeCoordinator.enqueue(.tab(.spending))
-        }
-    }
-
     #if DEBUG
     func setBudgetSwitchInProgressForTesting(_ isInProgress: Bool) {
         isBudgetSwitchInProgress = isInProgress
-    }
-
-    func postDebugNewTransactionNotification() async throws {
-        guard let budgetID = settings.selectedBudgetID else {
-            throw DebugNotificationError.missingBudget
-        }
-        try await backgroundTransactionWorkflow.postDebugNotification(
-            budgetID: budgetID,
-            repository: accountRepository
-        )
     }
     #endif
 
@@ -921,7 +714,7 @@ final class AppState {
         guard !Task.isCancelled, sessionRecovery.isCurrent(identity) else { return }
         budgets = discovery.budgets
         if budgets.count == 1, let budget = budgets.first, settings.selectedBudgetID == nil {
-            await selectLocalFirstBudget(budget)
+            _ = await selectLocalFirstBudget(budget)
         } else if let budget = discovery.selectedBudget {
             selectedBudget = budget
             setupPhase = discovery.selectedIsOpen ? .ready : .selectingBudget

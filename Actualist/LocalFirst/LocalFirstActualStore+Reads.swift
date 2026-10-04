@@ -458,7 +458,8 @@ extension BudgetMonth {
                         id: firstIncomeCategory.id,
                         title: "To Budget",
                         amount: toBudget,
-                        valueText: currency.formatted(toBudget)
+                        valueText: currency.formatted(toBudget),
+                        isToBudget: true
                     )
                 ]
             ))

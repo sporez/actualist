@@ -7,28 +7,31 @@ final class FakeTransactionCSVImportRepository: TransactionCSVImportRepositoryPr
     private(set) var prepareCallCount = 0
     private(set) var applyRequests: [TransactionCSVImportApplyRequest] = []
     var applyError: (any Error)?
+    var dispositions: [TransactionCSVImportDisposition] = [.insert(isTransfer: false)]
 
     func prepareTransactionCSVImport(
         _ request: TransactionCSVImportPreparationRequest
     ) async throws -> TransactionCSVImportReview {
         prepareCallCount += 1
         let date = TransactionCSVImportMapper.dayDate(fromISO: "2026-09-27")!
-        let row = TransactionCSVImportRow(
-            id: "csv-row-1",
-            sourceLine: 1,
-            dateText: "2026-09-27",
-            date: date,
-            amountMinorUnits: -100,
-            payeeName: "Sample Market",
-            notes: nil,
-            categoryName: nil,
-            cleared: nil,
-            importedID: nil
-        )
-        return TransactionCSVImportReview(
-            rows: [TransactionCSVImportReviewRow(row: row, disposition: .insert(isTransfer: false))],
-            sessionGeneration: 7
-        )
+        let rows = dispositions.enumerated().map { index, disposition in
+            TransactionCSVImportReviewRow(
+                row: TransactionCSVImportRow(
+                    id: "csv-row-\(index + 1)",
+                    sourceLine: index + 1,
+                    dateText: "2026-09-27",
+                    date: date,
+                    amountMinorUnits: -100,
+                    payeeName: "Sample Market",
+                    notes: nil,
+                    categoryName: nil,
+                    cleared: nil,
+                    importedID: nil
+                ),
+                disposition: disposition
+            )
+        }
+        return TransactionCSVImportReview(rows: rows, sessionGeneration: 7)
     }
 
     func applyTransactionCSVImport(
@@ -47,6 +50,22 @@ struct TransactionCSVImportCoordinatorTests {
             .appending(path: "csv-coordinator-\(UUID().uuidString).csv")
         try Data(text.utf8).write(to: url)
         return url
+    }
+
+    @Test func reviewSummaryCountsReconciledSkipsSeparatelyFromDuplicates() async throws {
+        let repository = FakeTransactionCSVImportRepository()
+        repository.dispositions = [.insert(isTransfer: false), .ignored, .skippedReconciled]
+        let coordinator = TransactionCSVImportCoordinator()
+        await coordinator.load(
+            contentsOf: try writeCSV(),
+            accountID: "checking",
+            budgetID: "group-1",
+            repository: repository
+        )
+        let counts = Dictionary(uniqueKeysWithValues: coordinator.summaryLines.map { ($0.title, $0.count) })
+        #expect(counts["New rows"] == 1)
+        #expect(counts["Duplicates left unchanged"] == 1)
+        #expect(counts["Matches reconciled rows"] == 1)
     }
 
     @Test func onImportedRunsOnceAfterACommittedImport() async throws {

@@ -9,13 +9,16 @@ extension BudgetDatabase {
     /// The identity table in particular must not travel: `prepareBudgetIdentity`
     /// only inserts when absent, so a carried row would make the imported
     /// budget reuse the source budget's local storage identity.
+    /// `actualist_sync_checkpoint` is this install's own last-sync record and
+    /// must not travel into another install either.
     static let portableExportStrippedTables = [
         "kvcache",
         "kvcache_key",
         "actualist_action_log",
         "actualist_outbox",
         "actualist_local_migrations",
-        "actualist_budget_identity"
+        "actualist_budget_identity",
+        "actualist_sync_checkpoint"
     ]
 
     /// Writes a consistent snapshot of the open database. This uses GRDB's

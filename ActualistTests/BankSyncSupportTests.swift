@@ -125,7 +125,7 @@ struct BankSyncSupportTests {
     // MARK: - 90-day lookback
 
     @Test func lookbackNeverStartsEarlierThan89DaysAgo() {
-        let now = BankSyncAmounts.date(fromDayID: "20260830")!
+        let now = BankSyncAmounts.date(fromDayID: "20260830", timeZone: ActualDateOnly.utc)!
         #expect(BankSyncAmounts.lookbackStartDate(
             oldestLiveTransactionDayID: "20200101",
             now: now
@@ -133,7 +133,7 @@ struct BankSyncSupportTests {
     }
 
     @Test func lookbackUsesNewerOldestTransaction() {
-        let now = BankSyncAmounts.date(fromDayID: "20260830")!
+        let now = BankSyncAmounts.date(fromDayID: "20260830", timeZone: ActualDateOnly.utc)!
         #expect(BankSyncAmounts.lookbackStartDate(
             oldestLiveTransactionDayID: "20260801",
             now: now

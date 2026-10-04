@@ -18,6 +18,7 @@ enum ShortcutsError: LocalizedError, Equatable {
     case ambiguousMatch
     case unsupportedSplit
     case unsupportedTransfer
+    case reconciledTransaction
     case accountClosed
     case currencyMismatch
     case invalidName
@@ -62,6 +63,8 @@ enum ShortcutsError: LocalizedError, Equatable {
             "Split transactions can only be changed in Actualist. Shortcuts will not change a split."
         case .unsupportedTransfer:
             "That transfer cannot be changed that way. Open it in Actualist."
+        case .reconciledTransaction:
+            "That transaction is reconciled. Open it in Actualist to change it."
         case .accountClosed:
             "That account is closed. Choose an open account."
         case .currencyMismatch:
@@ -82,6 +85,9 @@ enum ShortcutsError: LocalizedError, Equatable {
     static func mapping(_ error: Error, fallback: ShortcutsError = .writeFailed) -> ShortcutsError {
         if let error = error as? ShortcutsError {
             return error
+        }
+        if error is ReconciledTransactionMutationError {
+            return .reconciledTransaction
         }
         if let error = error as? LocalFirstError {
             switch error {

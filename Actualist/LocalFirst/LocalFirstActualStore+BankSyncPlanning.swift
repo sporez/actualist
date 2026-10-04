@@ -527,8 +527,8 @@ extension LocalFirstActualStore {
     ) -> ClosedRange<Int> {
         guard let firstID = candidateDayIDs.min(),
               let lastID = candidateDayIDs.max(),
-              let first = BankSyncAmounts.date(fromDayID: firstID),
-              let last = BankSyncAmounts.date(fromDayID: lastID) else {
+              let first = BankSyncAmounts.date(fromDayID: firstID, timeZone: ActualDateOnly.utc),
+              let last = BankSyncAmounts.date(fromDayID: lastID, timeZone: ActualDateOnly.utc) else {
             return 0...99_999_999
         }
         var calendar = Calendar(identifier: .gregorian)

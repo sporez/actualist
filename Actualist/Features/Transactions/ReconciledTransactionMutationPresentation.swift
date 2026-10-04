@@ -4,6 +4,7 @@ enum ReconciledTransactionMutationIntent: Hashable, Sendable {
     case update
     case ruleDelete
     case delete
+    case categorize
     case unlock
 }
 
@@ -33,6 +34,8 @@ struct ReconciledTransactionMutationPresentation: Hashable, Sendable {
             "Edit Reconciled Transaction?"
         case .ruleDelete, .delete:
             "Delete Reconciled Transaction?"
+        case .categorize:
+            "Categorize Reconciled Transaction?"
         case .unlock:
             "Unlock Reconciled Transaction?"
         }
@@ -46,6 +49,8 @@ struct ReconciledTransactionMutationPresentation: Hashable, Sendable {
             "Edit Transaction"
         case .ruleDelete, .delete:
             "Delete Transaction"
+        case .categorize:
+            "Categorize Transaction"
         case .unlock:
             "Unlock Transaction"
         }
@@ -59,7 +64,11 @@ struct ReconciledTransactionMutationPresentation: Hashable, Sendable {
             return "This keeps the transaction cleared and removes its reconciliation lock. You can then edit it normally."
         }
 
-        let action = intent == .update ? "Editing" : "Deleting"
+        let action = switch intent {
+        case .update: "Editing"
+        case .categorize: "Categorizing"
+        default: "Deleting"
+        }
         if review.targetRequiresUnlock && review.includesPairedTransfer {
             return "This transaction and the other side of its transfer include reconciled data. \(action) it can change previously balanced accounts."
         }

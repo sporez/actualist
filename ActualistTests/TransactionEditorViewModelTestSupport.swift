@@ -82,6 +82,7 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
     private let pausedRulePreviewPayeeNames: Set<String>
     private var reconciliationReview: ReconciledTransactionMutationReview?
     private var updateAuthorizations: [ReconciledTransactionMutationAuthorization?] = []
+    private var updateBaselines: [ActualTransaction?] = []
     private var deleteAuthorizations: [ReconciledTransactionMutationAuthorization?] = []
     private var unlockTransactionIDs: [String] = []
     private var pausedRulePreviewContinuations: [String: CheckedContinuation<Void, Never>] = [:]
@@ -247,9 +248,11 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction?,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         updateAuthorizations.append(reconciliationAuthorization)
+        updateBaselines.append(baseline)
         if let reconciliationReview,
            reconciliationAuthorization != reconciliationReview.authorization {
             throw ReconciledTransactionMutationError.confirmationRequired(reconciliationReview)
@@ -268,6 +271,7 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let createError {
@@ -294,6 +298,7 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         await didUpdate()
@@ -398,6 +403,10 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
 
     func onlyRulePreviewDraft() async throws -> TransactionDraft {
         try #require(rulePreviewDrafts.first)
+    }
+
+    func recordedUpdateBaselines() async -> [ActualTransaction?] {
+        updateBaselines
     }
 
     func recordedUpdateAuthorizations() async -> [ReconciledTransactionMutationAuthorization?] {

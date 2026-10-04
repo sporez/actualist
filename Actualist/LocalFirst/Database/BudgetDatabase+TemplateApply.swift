@@ -32,75 +32,93 @@ extension BudgetDatabase {
         currentMonth: String? = nil,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> BudgetTemplateApplyResult {
-        return try queue.read { db in
-            let prepared = try budgetTemplatePlan(
+        try queue.read { db in
+            try budgetTemplateApply(
                 command: command,
                 month: month,
                 currentMonth: currentMonth,
-                skipAvailableClamp: false,
-                goalDefOverrides: [:],
-                skipStaleCheck: false,
-                db: db
+                db: db,
+                builder: &builder
             )
-            let writes = prepared.compute.writes
-            let table = prepared.table
-            let columns = prepared.columns
-            let canWriteGoals = prepared.canWriteGoals
-            let orphanGoalCategoryIDs = prepared.orphanGoalCategoryIDs
-            let monthValue = try Self.actualMonthValue(month)
+        }
+    }
 
-            var messages: [ActualSyncDecodedMessage] = []
-            for write in writes.sorted(by: { $0.categoryID < $1.categoryID }) {
-                messages += try assignCategoryBudgetMessages(
+    /// Plans from the live budget read through `db`, so an apply built in its own
+    /// write transaction starts from the amounts and notes as they are at commit.
+    func budgetTemplateApply(
+        command: BudgetTemplateCommand,
+        month: String,
+        currentMonth: String? = nil,
+        db: Database,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> BudgetTemplateApplyResult {
+        let prepared = try budgetTemplatePlan(
+            command: command,
+            month: month,
+            currentMonth: currentMonth,
+            skipAvailableClamp: false,
+            goalDefOverrides: [:],
+            skipStaleCheck: false,
+            db: db
+        )
+        let writes = prepared.compute.writes
+        let table = prepared.table
+        let columns = prepared.columns
+        let canWriteGoals = prepared.canWriteGoals
+        let orphanGoalCategoryIDs = prepared.orphanGoalCategoryIDs
+        let monthValue = try Self.actualMonthValue(month)
+
+        var messages: [ActualSyncDecodedMessage] = []
+        for write in writes.sorted(by: { $0.categoryID < $1.categoryID }) {
+            messages += try assignCategoryBudgetMessages(
+                categoryID: write.categoryID,
+                budgeted: write.amount,
+                monthValue: monthValue,
+                table: table,
+                columns: columns,
+                db: db,
+                builder: &builder
+            )
+            if canWriteGoals {
+                messages += try assignCategoryGoalMessages(
                     categoryID: write.categoryID,
-                    budgeted: write.amount,
+                    goal: write.goal,
+                    longGoal: write.longGoal,
                     monthValue: monthValue,
                     table: table,
                     columns: columns,
                     db: db,
                     builder: &builder
                 )
-                if canWriteGoals {
-                    messages += try assignCategoryGoalMessages(
-                        categoryID: write.categoryID,
-                        goal: write.goal,
-                        longGoal: write.longGoal,
-                        monthValue: monthValue,
-                        table: table,
-                        columns: columns,
-                        db: db,
-                        builder: &builder
-                    )
-                }
             }
-            if canWriteGoals {
-                for categoryID in orphanGoalCategoryIDs.sorted() {
-                    messages += try assignCategoryGoalMessages(
-                        categoryID: categoryID,
-                        goal: nil,
-                        longGoal: nil,
-                        monthValue: monthValue,
-                        table: table,
-                        columns: columns,
-                        db: db,
-                        builder: &builder
-                    )
-                }
-            }
-            messages += try tombstoneOrphanCleanupGroupMessages(db: db, builder: &builder)
-            return BudgetTemplateApplyResult(
-                messages: messages,
-                assignments: writes.compactMap { write in
-                    guard prepared.currentBudgeted[write.categoryID] != write.amount else {
-                        return nil
-                    }
-                    return BudgetTemplateAssignment(
-                        categoryID: write.categoryID,
-                        amount: write.amount
-                    )
-                }
-            )
         }
+        if canWriteGoals {
+            for categoryID in orphanGoalCategoryIDs.sorted() {
+                messages += try assignCategoryGoalMessages(
+                    categoryID: categoryID,
+                    goal: nil,
+                    longGoal: nil,
+                    monthValue: monthValue,
+                    table: table,
+                    columns: columns,
+                    db: db,
+                    builder: &builder
+                )
+            }
+        }
+        messages += try tombstoneOrphanCleanupGroupMessages(db: db, builder: &builder)
+        return BudgetTemplateApplyResult(
+            messages: messages,
+            assignments: writes.compactMap { write in
+                guard prepared.currentBudgeted[write.categoryID] != write.amount else {
+                    return nil
+                }
+                return BudgetTemplateAssignment(
+                    categoryID: write.categoryID,
+                    amount: write.amount
+                )
+            }
+        )
     }
 
     func categoryGoals(month: String, db: Database) throws -> [String: Int] {
@@ -214,12 +232,27 @@ extension BudgetDatabase {
             return []
         }
 
+        // An unreadable definition may reference any group, so fail closed: keep
+        // every group rather than tombstone one that is still in use.
+        let livePredicate = predicateForLiveRows(columns: categoryColumns, tableAlias: "c")
+        let invalidDefinitions = try Int.fetchOne(
+            db,
+            sql: """
+                SELECT COUNT(*) FROM categories c
+                WHERE \(livePredicate)
+                  AND c.cleanup_def IS NOT NULL
+                  AND json_valid(c.cleanup_def) = 0
+                """
+        ) ?? 0
+        guard invalidDefinitions == 0 else {
+            return []
+        }
         let referenced = try String.fetchAll(
             db,
             sql: """
                 SELECT DISTINCT json_extract(je.value, '$.groupId') AS group_id
-                FROM categories c, json_each(c.cleanup_def) je
-                WHERE \(predicateForLiveRows(columns: categoryColumns, tableAlias: "c"))
+                FROM categories c, json_each(CASE WHEN json_valid(c.cleanup_def) THEN c.cleanup_def ELSE '[]' END) je
+                WHERE \(livePredicate)
                   AND c.cleanup_def IS NOT NULL
                   AND json_extract(je.value, '$.groupId') IS NOT NULL
                 """

@@ -13,12 +13,15 @@ enum ReportValueTone: Equatable {
 final class ReportsViewModel {
     private(set) var snapshot: ReportsDashboardSnapshot?
     private(set) var displaySnapshot: ReportsDashboardSnapshot?
+    /// Budget that produced `snapshot`; nil while nothing is loaded.
+    private(set) var snapshotBudgetID: String?
     private(set) var range: ReportDateRange?
     private(set) var isLoading = true
     private(set) var isRefreshing = false
     private(set) var errorMessage: String?
     private(set) var isPrivacyModeEnabled = false
     private(set) var currency: BudgetCurrency = .usd
+    private var loadGeneration = 0
 
     func load(using appState: AppState, now: Date = ReportClock.now) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
@@ -54,6 +57,14 @@ final class ReportsViewModel {
         currency: BudgetCurrency = .usd,
         now: Date
     ) async {
+        loadGeneration += 1
+        let request = loadGeneration
+        if snapshotBudgetID != budgetID {
+            // Never show another budget's numbers while this one loads.
+            snapshot = nil
+            displaySnapshot = nil
+            snapshotBudgetID = nil
+        }
         let requestedRange = ReportDateRange.dashboard(through: now)
         range = requestedRange
         isPrivacyModeEnabled = privacyModeEnabled
@@ -61,13 +72,16 @@ final class ReportsViewModel {
         errorMessage = nil
 
         if let cached = repository.cachedReportsDashboard(budgetID: budgetID, range: requestedRange) {
-            apply(cached)
+            apply(cached, budgetID: budgetID)
         }
 
         isLoading = snapshot == nil
         do {
-            apply(try await repository.refreshReportsDashboard(budgetID: budgetID, range: requestedRange))
+            let fresh = try await repository.refreshReportsDashboard(budgetID: budgetID, range: requestedRange)
+            guard request == loadGeneration else { return }
+            apply(fresh, budgetID: budgetID)
         } catch {
+            guard request == loadGeneration else { return }
             if snapshot == nil {
                 errorMessage = error.userFacingMessage
             }
@@ -201,7 +215,8 @@ final class ReportsViewModel {
             .reduce(0) { max($0, max($1.income.magnitude, $1.expenses.magnitude)) } ?? 0
     }
 
-    private func apply(_ snapshot: ReportsDashboardSnapshot) {
+    private func apply(_ snapshot: ReportsDashboardSnapshot, budgetID: String) {
+        snapshotBudgetID = budgetID
         self.snapshot = snapshot
         displaySnapshot = sanitized(snapshot)
     }

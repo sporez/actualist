@@ -12,7 +12,6 @@ enum TransactionFlowKind: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class TransactionEditorViewModel {
-    private static let maximumAmountDigitCount = 16
     private let originalImportedPayee: String?
     private let originalIsParent: Bool
     private var categoryState = TransactionEditorCategoryState()
@@ -110,9 +109,6 @@ final class TransactionEditorViewModel {
         splitState.splitRows
     }
 
-    var pendingSplitMismatch: TransactionSplitMismatch? {
-        splitState.pendingMismatch
-    }
     var saveButtonTitle: String {
         switch submissionState {
         case .draft, .failed:
@@ -238,12 +234,8 @@ final class TransactionEditorViewModel {
         TransactionEditorPayeeOptions(accounts: accounts, payees: payees)
     }
 
-    var payeeSections: [TransactionEditorPayeeSection] {
-        payeeOptions.sections
-    }
-
     func setAmountInput(_ value: String) {
-        amountDigits = Self.sanitizedAmountDigits(value)
+        amountDigits = TransactionSplitEditorState.sanitizedAmountDigits(value)
         splitState.clearMismatch()
     }
 
@@ -395,16 +387,6 @@ final class TransactionEditorViewModel {
         } catch {
             errorMessage = "The split amounts are too large."
         }
-    }
-
-    func updateTotalFromSplits() {
-        guard let total = splitState.checkedSplitTotalCents else {
-            errorMessage = "The split amounts are too large."
-            return
-        }
-        kind = total < 0 ? .spend : .inflow
-        amountDigits = total == 0 ? "" : String(abs(total))
-        splitState.clearMismatch()
     }
 
     private func applyCollapse(_ collapse: TransactionSplitEditorCollapse?) {
@@ -790,10 +772,5 @@ final class TransactionEditorViewModel {
             clearCategory()
             splitState.discard()
         }
-    }
-
-    private static func sanitizedAmountDigits(_ value: String) -> String {
-        let trimmed = value.filter(\.isNumber).drop(while: { $0 == "0" })
-        return String(trimmed.prefix(maximumAmountDigitCount))
     }
 }

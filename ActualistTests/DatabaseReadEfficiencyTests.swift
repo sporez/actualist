@@ -32,7 +32,10 @@ struct DatabaseReadEfficiencyTests {
         #expect(month.categoryGroups.first?.categories.first?.id == "groceries")
         #expect(month.totalBudgeted == 50_000 + 123 * groupCount)
         #expect(month.totalSpent == -12_345)
-        #expect(reads.withLock { $0 } == 2)
+        // Constant in the group count: the category catalog plus the income
+        // category lookup behind the inferred hold, once for this month and once
+        // for the previous month (From Last Month follows upstream envelope.ts).
+        #expect(reads.withLock { $0 } == 3)
     }
 
     @Test func transactionNameMapsDoNotRankPayeesOrReadHistory() async throws {

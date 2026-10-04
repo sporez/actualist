@@ -141,6 +141,12 @@ extension BudgetDatabase {
         }
 
         let converting = !current.isParent && !current.isChild
+        try validateSplitDraftIDs(
+            draft.splits,
+            parentID: current.isChild ? (current.parentID ?? current.id) : current.id,
+            familyChildIDs: Set(oldRows.filter(\.isChild).map(\.id)),
+            db: db
+        )
         var parent = try splitParentRecord(
             id: current.isChild ? (current.parentID ?? current.id) : current.id,
             draft: draft,
@@ -294,7 +300,7 @@ extension BudgetDatabase {
         guard try tableExists("categories", db: db) else { return }
         for split in splits {
             if let categoryID = split.categoryID,
-               try !rowExists(table: "categories", rowID: categoryID, db: db) {
+               try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
         }
@@ -522,6 +528,13 @@ extension BudgetDatabase {
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> (messages: [ActualSyncDecodedMessage], accounts: Set<String>, transactions: Set<String>) {
+        // An untouched row must not create or unlink a transfer. Amount and notes
+        // matter only when they have to reach an existing pair.
+        let linkInputsUnchanged = old.account == new.account && old.payee == new.payee
+            && old.transferID == new.transferID && old.isParent == new.isParent
+        if linkInputsUnchanged, old.transferID == nil || (old.amount == new.amount && old.notes == new.notes) {
+            return ([], [], [])
+        }
         if new.isParent {
             return try transferMessagesOnDelete(old, columns: columns, db: db, builder: &builder)
         }

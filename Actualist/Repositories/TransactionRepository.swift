@@ -129,18 +129,21 @@ protocol TransactionRepositoryProtocol: AnyObject {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction?,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func categorizeTransactionAndRefresh(
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func categorizeTransactionsAndRefresh(
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func deleteTransactionAndRefresh(
@@ -262,6 +265,7 @@ extension TransactionRepositoryProtocol {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction?,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await updateTransactionAndRefresh(
@@ -356,6 +360,9 @@ struct TransactionEditorCategoryOption: Identifiable, Hashable, Sendable {
     let title: String
     let amount: Int?
     let valueText: String?
+    /// True only for the synthetic To Budget option, so a real category that
+    /// happens to be named "To Budget" is never mistaken for it.
+    var isToBudget: Bool = false
 }
 
 struct LoadedAccountTransactions: Hashable, Sendable {

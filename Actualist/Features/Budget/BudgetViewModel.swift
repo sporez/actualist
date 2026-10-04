@@ -11,6 +11,7 @@ final class BudgetViewModel {
     private var loadedBudgetAlerts: [BudgetAlert] = []
     var expandedGroupIDs: Set<String> = []
     private var loadGeneration = 0
+    let refreshCoalescer = BudgetRefreshCoalescer()
     var isLoading = true
     var errorMessage: String?
     var currency: BudgetCurrency = .usd
@@ -303,15 +304,6 @@ final class BudgetViewModel {
         await selectMonth(month, budgetID: budgetID, repository: repository)
     }
 
-    func refreshSelectedMonth(using appState: AppState) async {
-        guard let selectedMonth else {
-            await load(using: appState)
-            return
-        }
-
-        await selectMonth(selectedMonth, using: appState)
-    }
-
     func selectMonth(
         _ month: String,
         budgetID: String,
@@ -466,14 +458,13 @@ final class BudgetViewModel {
         }
     }
 
-    // Maps a selected picker option back to the cover source it represents. The
-    // "To Budget" option is synthetic (its title is the reserved
-    // `BudgetMoveMoneyDestination.toBudget.title`), so it routes to `.toBudget`;
-    // every other option is a real expense category.
+    // Maps a selected picker option back to the cover source it represents. Only
+    // the synthetic To Budget option carries `isToBudget`; a real category that
+    // happens to be named "To Budget" stays a category.
     func coverSource(
         for option: TransactionEditorCategoryOption
     ) -> BudgetOverspentCoverSource {
-        if option.title == BudgetMoveMoneyDestination.toBudget.title {
+        if option.isToBudget {
             return .toBudget
         }
         return .category(id: option.id, name: option.title)

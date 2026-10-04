@@ -15,10 +15,15 @@ final class BudgetCalendarCoordinator: NSObject {
     private let now: @MainActor () -> Date
     private let currentTimeZoneID: @MainActor () -> String
     private let publishWidgets: @MainActor () -> Void
+    private let reloadCache: @MainActor (AppState, String, Date) async throws -> Void
 
     init(now: @escaping @MainActor () -> Date = { Date() },
          currentTimeZoneID: @escaping @MainActor () -> String = { TimeZone.autoupdatingCurrent.identifier },
-         publishWidgets: @escaping @MainActor () -> Void = { WidgetSnapshotCoordinator.shared.refresh() }) {
+         publishWidgets: @escaping @MainActor () -> Void = { WidgetSnapshotCoordinator.shared.refresh() },
+         reloadCache: @escaping @MainActor (AppState, String, Date) async throws -> Void = { appState, budgetID, date in
+             try await appState.localFirstStore.reloadSelectedBudgetCache(budgetID: budgetID, now: date)
+         }) {
+        self.reloadCache = reloadCache
         self.now = now
         self.currentTimeZoneID = currentTimeZoneID
         self.publishWidgets = publishWidgets
@@ -88,14 +93,19 @@ final class BudgetCalendarCoordinator: NSObject {
         let day = ActualScheduleRecurrence.dayID(from: date, calendar: calendar)
         guard force || day != currentDay || zone != timeZoneID else { return }
         guard let appState else { return }
-        if let budgetID = appState.settings.selectedBudgetID,
-           appState.localFirstStore.isOpen(budgetID: budgetID) {
-            try? await appState.localFirstStore.reloadSelectedBudgetCache(budgetID: budgetID, now: date)
+        let reloadedBudgetID = appState.settings.selectedBudgetID
+        var reloaded = true
+        if let reloadedBudgetID, appState.localFirstStore.isOpen(budgetID: reloadedBudgetID) {
+            do { try await reloadCache(appState, reloadedBudgetID, date) } catch { reloaded = false }
         }
         guard !Task.isCancelled, requested == generation else { return }
-        currentMonth = month
-        currentDay = day
-        timeZoneID = zone
+        // Only a completed reload of the still-selected budget advances the
+        // day; otherwise the next refresh retries it.
+        if reloaded, appState.settings.selectedBudgetID == reloadedBudgetID {
+            currentMonth = month
+            currentDay = day
+            timeZoneID = zone
+        }
         // Also redraw cached summaries if a local read failed. Their typed
         // planned/actual values can select the new headline without SQLite.
         appState.recordLocalDataMutation()

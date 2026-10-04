@@ -183,4 +183,20 @@ struct AccountTransactionsViewModelReadStateTests {
         #expect(model.statusFilter == .cleared)
         #expect(display.groups.flatMap(\.rows).map(\.id) == ["cleared"])
     }
+
+    @Test func categoryScopeLoadOlderLeavesNoLoadingOlderPhaseWhenPageIsNotAtEnd() async {
+        let unfinished = AccountTransactionsViewModelTests.loaded(
+            [AccountTransactionsViewModelTests.transaction(id: "category-row", category: "food")],
+            reachedEnd: false,
+            nextOffset: 1,
+            totalMatchCount: 2
+        )
+        let repository = AccountTransactionsRecordingRepository(categorySnapshot: unfinished)
+        let model = AccountTransactionsViewModel(scope: .category(AccountTransactionsViewModelTests.categoryDetails))
+
+        await model.loadOlder(budgetID: "budget", repository: repository)
+
+        #expect(!model.isLoadingOlder)
+        #expect(repository.olderLoadCalls.isEmpty)
+    }
 }

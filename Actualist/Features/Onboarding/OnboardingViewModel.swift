@@ -13,11 +13,23 @@ final class OnboardingViewModel {
     var isUsingPassword = false
     var isEnteringDemo = false
 
+    typealias LoginMethodsLoader = @MainActor (AppState, String) async -> ActualLoginMethodsResponse?
+    private let loginMethodsLoader: LoginMethodsLoader
+    private var loginMethodsGeneration = 0
+
+    init(loginMethodsLoader: @escaping LoginMethodsLoader = { appState, url in
+        await appState.loadLocalFirstLoginMethods(serverURLString: url)
+    }) {
+        self.loginMethodsLoader = loginMethodsLoader
+    }
+
     func hydrate(from appState: AppState) {
         serverURLString = appState.settings.localFirstServerURLString
     }
 
     func serverURLDidChange() {
+        loginMethodsGeneration += 1
+        isLoadingLoginMethods = false
         loginMethods = []
         hasLoadedLoginMethods = false
         isUsingPassword = false
@@ -28,8 +40,8 @@ final class OnboardingViewModel {
         using appState: AppState,
         browserSession: @escaping ActualOpenIDBrowserSession
     ) async {
-        await loadLoginMethods(using: appState)
-        guard hasLoadedLoginMethods, supportsOpenID, !supportsPassword else {
+        guard await loadLoginMethods(using: appState),
+              supportsOpenID, !supportsPassword else {
             return
         }
         await connectWithOpenID(using: appState, browserSession: browserSession)
@@ -44,17 +56,23 @@ final class OnboardingViewModel {
         isEnteringDemo = false
     }
 
-    private func loadLoginMethods(using appState: AppState) async {
+    /// Returns true only when the response was applied. A response for a
+    /// superseded request or an edited URL is dropped so it can never start
+    /// OpenID against a server the user is no longer pointing at.
+    private func loadLoginMethods(using appState: AppState) async -> Bool {
+        loginMethodsGeneration += 1
+        let generation = loginMethodsGeneration
+        let requestedURL = serverURLString
         isLoadingLoginMethods = true
         appState.lastErrorMessage = nil
-        if let response = await appState.loadLocalFirstLoginMethods(
-            serverURLString: serverURLString
-        ) {
-            loginMethods = response.availableLoginMethods
-            hasLoadedLoginMethods = true
-            isUsingPassword = supportsPassword && !supportsOpenID
-        }
+        let response = await loginMethodsLoader(appState, requestedURL)
+        guard generation == loginMethodsGeneration else { return false }
         isLoadingLoginMethods = false
+        guard serverURLString == requestedURL, let response else { return false }
+        loginMethods = response.availableLoginMethods
+        hasLoadedLoginMethods = true
+        isUsingPassword = supportsPassword && !supportsOpenID
+        return true
     }
 
     func connectWithPassword(using appState: AppState) async {
@@ -86,14 +104,16 @@ final class OnboardingViewModel {
     }
 
     var canLoadLoginMethods: Bool {
-        !serverURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        ConnectionInputValidation.hasContent(serverURLString)
             && !isLoadingLoginMethods
             && !isConnecting
             && !isEnteringDemo
     }
 
     var canConnectWithPassword: Bool {
-        !serverURLString.isEmpty && !actualPassword.isEmpty && !isConnecting
+        ConnectionInputValidation.canConnect(
+            serverURL: serverURLString, password: actualPassword, isBusy: isConnecting
+        )
     }
 
     var supportsPassword: Bool {
@@ -238,25 +258,27 @@ final class BudgetPickerViewModel {
             try? await Task.sleep(for: openTimeout)
             work.cancel()
         }
-        await work.value
+        let outcome = await work.value
         timer.cancel()
 
         // A newer open (or dismissal) should own the screen state; bail before
         // overwriting it with a stale result.
         guard generation == openGeneration, !Task.isCancelled else { return }
 
-        let encryptedMessage = LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
         if work.isCancelled {
             let message = "Opening this budget is taking too long. Check your connection to the Actual server and try again."
             appState.lastErrorMessage = message
             openState = .failed(message: message)
-        } else if appState.lastErrorMessage == encryptedMessage {
-            openState = .needsEncryptionPassword(budget)
-        } else if let message = appState.lastErrorMessage {
-            openState = .failed(message: message)
         } else {
-            // Success: AppState moves to .ready and RootView swaps in MainTabView.
-            openState = .idle
+            switch outcome {
+            case .needsEncryptionPassword:
+                openState = .needsEncryptionPassword(budget)
+            case .failed(let message?):
+                openState = .failed(message: message)
+            case .opened, .failed(nil), .superseded:
+                // Success: AppState moves to .ready and RootView swaps in MainTabView.
+                openState = .idle
+            }
         }
     }
 }

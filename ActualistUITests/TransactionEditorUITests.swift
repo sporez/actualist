@@ -83,7 +83,9 @@ final class TransactionEditorUITests: XCTestCase {
         let editorTitle = openAddTransaction(in: app)
         dismissNumberPadPopover(in: app, editor: editorTitle)
 
-        app.buttons["transaction-editor-close"].tap()
+        let close = app.buttons["transaction-editor-close"]
+        XCTAssertEqual(close.label, "Close", "The icon-only close button must expose a Close label")
+        close.tap()
         XCTAssertTrue(editorTitle.waitForNonExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Discard Changes"].exists)
     }

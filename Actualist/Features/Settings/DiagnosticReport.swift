@@ -224,7 +224,7 @@ enum ActualistDiagnosticReportBuilder {
         )
     }
 
-    private static func sensitiveValues(appState: AppState) -> [String] {
+    static func sensitiveValues(appState: AppState) -> [String] {
         let settings = appState.settings
         let store = appState.localFirstStore
         var values = [
@@ -243,8 +243,11 @@ enum ActualistDiagnosticReportBuilder {
             appState.selectedBudget?.name
         ].compactMap { $0 }
 
-        if let host = URLComponents(string: settings.localFirstServerURLString)?.host {
-            values.append(host)
+        values.append(contentsOf: [settings.fallbackServerURLString, store.fallbackServerURLString].compactMap { $0 })
+        for urlString in [settings.localFirstServerURLString, settings.fallbackServerURLString] {
+            if let host = URLComponents(string: urlString)?.host {
+                values.append(host)
+            }
         }
         for budget in appState.budgets + store.cachedBudgets {
             values.append(contentsOf: [budget.budgetID, budget.cloudFileId, budget.groupId, budget.name].compactMap { $0 })

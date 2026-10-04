@@ -447,7 +447,7 @@ extension LocalFirstActualStoreTests {
         #expect(credit.isEmpty)
     }
 
-    private static let walletImportColumnsSQL = """
+    static let walletImportColumnsSQL = """
         ALTER TABLE transactions ADD COLUMN financial_id TEXT;
         ALTER TABLE transactions ADD COLUMN imported_description TEXT;
         ALTER TABLE transactions ADD COLUMN sort_order REAL;

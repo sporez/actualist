@@ -21,6 +21,7 @@ final class TransactionEditorMutationCoordinator {
     }
 
     let transactionID: String?
+    private let baseline: ActualTransaction?
     let originalAccountID: String?
     let originalMonth: String?
 
@@ -31,6 +32,7 @@ final class TransactionEditorMutationCoordinator {
 
     init(transaction: ActualTransaction?) {
         transactionID = transaction?.id
+        baseline = transaction
         originalAccountID = transaction?.account
         originalMonth = transaction?.date.actualYearMonth
         isTransactionReconciled = transaction?.reconciled ?? false
@@ -213,7 +215,7 @@ final class TransactionEditorMutationCoordinator {
             } catch {
                 outcome = .failed(error.userFacingMessage ?? error.localizedDescription)
             }
-        case .delete:
+        case .delete, .categorize:
             outcome = .cancelled
         }
         if case .confirming = state {
@@ -248,7 +250,8 @@ final class TransactionEditorMutationCoordinator {
         return .updating(
             transactionID: transactionID,
             originalAccountID: originalAccountID,
-            originalMonth: originalMonth
+            originalMonth: originalMonth,
+            baseline: baseline
         )
     }
 

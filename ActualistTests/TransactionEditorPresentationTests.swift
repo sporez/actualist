@@ -122,7 +122,7 @@ extension TransactionEditorViewModelTests {
             ActualPayee(id: "transfer-checking", name: "Ally Checking", category: nil, transferAccount: "checking")
         ]
 
-        let sections = model.payeeSections
+        let sections = TransactionEditorPayeeOptions(accounts: model.accounts, payees: model.payees).sections
 
         #expect(sections.map(\.kind) == [.payees, .transfers])
         #expect(sections.first?.options.map(\.title) == ["Corner Store"])
@@ -136,7 +136,7 @@ extension TransactionEditorViewModelTests {
             ActualPayee(id: "blank-transfer", name: "", category: nil, transferAccount: "missing-account")
         ]
 
-        let sections = model.payeeSections
+        let sections = TransactionEditorPayeeOptions(accounts: model.accounts, payees: model.payees).sections
 
         #expect(sections.map(\.kind) == [.payees])
         #expect(sections.first?.options.map(\.title) == ["Corner Store"])
@@ -503,6 +503,29 @@ extension TransactionEditorViewModelTests {
         #expect(model.selectedCategoryID == nil)
         #expect(model.splitRows.map(\.categoryID) == ["services", "services"])
         #expect(model.selectedCategoryName == "Split")
+    }
+
+    @Test func splitRowIntentsEditRowsAndAmountInputAcceptsNonASCIIDigits() {
+        let model = TransactionEditorViewModel()
+        model.setAmountInput("١٢٣")
+        model.splitState.replaceChildren([
+            Self.splitRow(id: "a", categoryID: "services", amount: -100),
+            Self.splitRow(id: "b", categoryID: nil, amount: 0)
+        ])
+
+        model.toggleSplitSign(rowID: "a")
+        model.setSplitNotes(rowID: "a", notes: "memo")
+        model.setSplitCustomPayee(rowID: "b", name: "Cafe")
+        model.setSplitCategory(rowID: "b", categoryID: "food", name: "Food")
+        model.addSplit()
+
+        #expect(model.amountDigits == "123")
+        #expect(model.splitRows.count == 3)
+        #expect(model.splitRows[0].amountMinorUnits == 100)
+        #expect(model.splitNotes(rowID: "a") == "memo")
+        #expect(model.splitRows[1].payeeName == "Cafe")
+        #expect(model.splitRows[1].categoryID == "food")
+        #expect(model.canRemoveSplitRow)
     }
 
     @Test func formatsSplitAmountsAndLabelsOverage() {

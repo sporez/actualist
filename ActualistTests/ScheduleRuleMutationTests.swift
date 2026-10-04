@@ -30,6 +30,20 @@ struct ScheduleRuleMutationTests {
         ) == "2026-10-12")
     }
 
+    @Test func skippingTheLastOccurrenceOfAnEndedScheduleYieldsNoLaterDate() throws {
+        let recurrence = try ActualScheduleRecurrence(
+            startDayID: "2026-09-25",
+            frequency: .weekly,
+            ending: .onDate("2026-10-02")
+        )
+        // No occurrence after the end, so the stored next date stays on the last one
+        // (upstream skipNextDate falls back to the last occurrence and writes nothing).
+        #expect(try ScheduleRuleMutation.nextDateAfterSkip(
+            recurrence: recurrence,
+            currentDayID: "2026-10-02"
+        ) == nil)
+    }
+
     @Test func exhaustedRecurrenceFallsBackToItsLastOccurrenceNeverAnotherDate() throws {
         let recurrence = try ActualScheduleRecurrence(
             startDayID: "2026-09-27",

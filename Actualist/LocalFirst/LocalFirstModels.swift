@@ -47,6 +47,8 @@ enum LocalFirstError: LocalizedError, Equatable {
     case keychainFailure(String, OSStatus)
     case hybridLogicalClockOverflow
     case localWriteSuperseded
+    /// An import's `imported_id` already exists on the account, so applying it would duplicate the transaction.
+    case importedTransactionConflict
     case syncUploadNotConfirmed(Int)
     case unauthenticatedPlaintextEnvelope
     /// A remote or stored timestamp is more than five minutes ahead of this device.
@@ -126,6 +128,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Actualist could not create a local sync timestamp because the clock counter overflowed."
         case .localWriteSuperseded:
             "Actualist did not save the change because a newer local value already exists."
+        case .importedTransactionConflict:
+            "Some of these transactions were already imported by another update. Nothing was saved. Try again."
         case .syncUploadNotConfirmed(let count):
             "The Actual server did not confirm \(count) uploaded sync message\(count == 1 ? "" : "s"). The changes remain pending on this device."
         case .unauthenticatedPlaintextEnvelope:

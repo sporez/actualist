@@ -612,6 +612,8 @@ struct AccountTransactionsView: View {
                 )
             )
                 .focused($isSearchFieldFocused)
+                // Focus once the field is in the hierarchy, so showSearch needs no scheduling.
+                .task { isSearchFieldFocused = true }
                 .font(ActualistTypography.body(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .tint(ActualistTheme.accent)
@@ -756,14 +758,6 @@ struct AccountTransactionsView: View {
     private func showSearch() {
         withAnimation(.snappy(duration: 0.22)) {
             isSearchFieldVisible = true
-        }
-
-        Task { @MainActor in
-            await Task.yield()
-            guard isSearchFieldVisible else {
-                return
-            }
-            isSearchFieldFocused = true
         }
     }
 

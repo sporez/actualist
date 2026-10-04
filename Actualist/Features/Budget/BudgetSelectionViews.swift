@@ -338,6 +338,7 @@ struct BudgetMonthPicker: View {
                     Image(systemName: "chevron.left")
                         .font(.body.weight(.bold))
                 }
+                .accessibilityLabel("Previous year")
                 .disabled(!hasPreviousYear)
 
                 Spacer()
@@ -354,6 +355,7 @@ struct BudgetMonthPicker: View {
                     Image(systemName: "chevron.right")
                         .font(.body.weight(.bold))
                 }
+                .accessibilityLabel("Next year")
                 .disabled(!hasNextYear)
             }
             .foregroundStyle(ActualistTheme.accent)

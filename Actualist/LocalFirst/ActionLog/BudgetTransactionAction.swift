@@ -203,12 +203,13 @@ enum BudgetTransactionLogging {
     static func shouldRecordUpdate(
         existing: ActualTransaction,
         draft: TransactionDraft,
-        resolvedPayeeID: String?
+        resolvedPayeeID: String?,
+        timeZone: TimeZone = .autoupdatingCurrent
     ) -> Bool {
         if existing.account != draft.accountID {
             return true
         }
-        if existing.date != actualDateString(draft.date) {
+        if existing.date != ActualDateOnly.dayID(from: draft.date, timeZone: timeZone) {
             return true
         }
         if (existing.amount ?? 0) != draft.amountMinorUnits {
@@ -257,15 +258,6 @@ enum BudgetTransactionLogging {
         let beforeRelated = Set(existing.childIDs + [existing.transferID].compactMap { $0 })
         let afterRelated = Set(affectedIDs).subtracting([primaryID])
         return beforeRelated != afterRelated
-    }
-
-    private static func actualDateString(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
     }
 }
 

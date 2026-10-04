@@ -20,14 +20,16 @@ extension BudgetDatabase {
         reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil,
         expectedTemplateReviewRevision: BudgetTemplateReviewRevision? = nil,
         expectedHoldReview: BudgetHoldReview? = nil,
-        pendingNewTransactions: PendingNewTransactionCommit? = nil
+        pendingNewTransactions: PendingNewTransactionCommit? = nil,
+        expectedAbsentImportedIDs: ImportedIDAbsence? = nil
     ) throws -> Int {
         let review = LocalCommitReview(
             mode: expectedMode,
             bankLink: expectedBankLink,
             reconciledMutation: reconciledMutationPrecondition,
             templateRevision: expectedTemplateReviewRevision,
-            hold: expectedHoldReview
+            hold: expectedHoldReview,
+            absentImportedIDs: expectedAbsentImportedIDs
         )
         guard !drafts.isEmpty else {
             try queue.read { db in
@@ -108,21 +110,7 @@ extension BudgetDatabase {
                 committedClock = clock
                 return (plan.outcome, appliedCount)
             }
-        } catch let error as BudgetModeWriteError {
-            throw error
-        } catch let error as ReconciledTransactionMutationError {
-            throw error
-        } catch let error as AccountLifecycleCommandError {
-            throw error
-        } catch let error as ScheduleMutationCommandError {
-            throw error
-        } catch let error as ScheduleConversionError {
-            throw error
-        } catch let error as SchedulePostingRefusal {
-            throw error
-        } catch let error as TransactionCSVImportError {
-            throw error
-        } catch let error as LocalFirstError {
+        } catch let error as any LocalCommitPassthroughError {
             throw error
         } catch {
             throw LocalFirstError.invalidLocalWrite("the database transaction was rolled back")
@@ -131,15 +119,16 @@ extension BudgetDatabase {
         return result
     }
 
-    private struct LocalCommitReview {
+    struct LocalCommitReview {
         let mode: BudgetModeIdentity?
         let bankLink: BankSyncLinkIdentity?
         let reconciledMutation: ReconciledTransactionMutationPrecondition?
         let templateRevision: BudgetTemplateReviewRevision?
         let hold: BudgetHoldReview?
+        let absentImportedIDs: ImportedIDAbsence?
     }
 
-    private func validateLocalCommit(
+    func validateLocalCommit(
         _ review: LocalCommitReview,
         drafts: [ActualSyncDecodedMessage],
         action: ActionLogCommit?,
@@ -152,6 +141,7 @@ extension BudgetDatabase {
             drafts, expectedMode: review.mode, descriptor: action?.descriptor, db: db
         )
         try validateReconciledMutationPrecondition(review.reconciledMutation, db: db)
+        try validateImportedIDsAbsent(review.absentImportedIDs, db: db)
     }
 
     struct CommittedDraftsResult: Sendable {

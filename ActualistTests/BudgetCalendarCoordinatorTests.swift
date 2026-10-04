@@ -131,6 +131,57 @@ struct BudgetCalendarCoordinatorTests {
         coordinator.endForeground()
     }
 
+    @Test func failedReloadDoesNotAdvanceTheDayAndTheNextRefreshRetries() async throws {
+        let fixtures = LocalFirstActualStoreTests()
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let appState = try fixtures.makeAppState(for: bundle)
+        var reloads = 0
+        let coordinator = BudgetCalendarCoordinator(
+            now: { Self.date("2026-07") },
+            publishWidgets: {},
+            reloadCache: { _, _, _ in
+                reloads += 1
+                if reloads == 1 { throw LocalFirstError.unsupportedWrite }
+            }
+        )
+        coordinator.configure(appState: appState)
+
+        await coordinator.refresh()
+        #expect(reloads == 1)
+        #expect(coordinator.currentDay == nil)
+        #expect(coordinator.currentMonth == nil)
+
+        await coordinator.refresh()
+        #expect(reloads == 2)
+        #expect(coordinator.currentDay != nil)
+        #expect(coordinator.currentMonth == "2026-07")
+    }
+
+    @Test func budgetSwitchDuringReloadDoesNotAdvanceTheDay() async throws {
+        let fixtures = LocalFirstActualStoreTests()
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let appState = try fixtures.makeAppState(for: bundle)
+        let openBudgetID = appState.settings.selectedBudgetID
+        var reloads = 0
+        let coordinator = BudgetCalendarCoordinator(
+            now: { Self.date("2026-07") },
+            publishWidgets: {},
+            reloadCache: { appState, _, _ in
+                reloads += 1
+                if reloads == 1 { appState.settings.selectedBudgetID = "another-budget" }
+            }
+        )
+        coordinator.configure(appState: appState)
+
+        await coordinator.refresh()
+        #expect(coordinator.currentDay == nil)
+
+        appState.settings.selectedBudgetID = openBudgetID
+        await coordinator.refresh()
+        #expect(reloads == 2)
+        #expect(coordinator.currentDay != nil)
+    }
+
     private static func date(_ month: String) -> Date {
         ReportCalendar.date(fromMonthID: month, calendar: ReportCalendar.gregorianLocal)!
     }

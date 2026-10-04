@@ -178,8 +178,12 @@ final class BankSyncViewModel {
             // must surface even when the server is unreachable or its
             // answer is unreadable (the provider resolution falls back to
             // the device key in exactly that case).
-            hasDeviceKey = false
-            hasDeviceKey = try store.hasBankSyncDeviceKey()
+            do {
+                hasDeviceKey = try store.hasBankSyncDeviceKey()
+            } catch {
+                hasDeviceKey = false
+                throw error
+            }
             applyCachedSession()
             if phase != .ready {
                 phase = .loading
@@ -225,20 +229,21 @@ final class BankSyncViewModel {
             return
         }
         remoteAccountsStatus = .loading
+        let generation = loadGeneration
         do {
             let accounts = try await store.bankSyncRemoteAccounts(budgetID: budgetID)
-            guard sessionIsCurrent else { return }
+            guard sessionIsCurrent, generation == loadGeneration else { return }
             try Task.checkCancellation()
             remoteAccounts = accounts
             remoteAccountsStatus = .ready
         } catch where error.isCancellation {
-            guard sessionIsCurrent else { return }
+            guard sessionIsCurrent, generation == loadGeneration else { return }
             if case .loading = remoteAccountsStatus {
                 remoteAccountsStatus = .idle
             }
         } catch {
-            guard sessionIsCurrent else { return }
-            remoteAccountsStatus = .failed(error.localizedDescription)
+            guard sessionIsCurrent, generation == loadGeneration else { return }
+            remoteAccountsStatus = error.userFacingMessage.map(RemoteAccountsStatus.failed) ?? .idle
         }
     }
 

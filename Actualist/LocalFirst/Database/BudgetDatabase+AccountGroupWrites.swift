@@ -70,6 +70,7 @@ extension BudgetDatabase {
         name: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
+        let groupID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedName = try Self.validatedAccountGroupName(name)
         return try queue.read { db in
             try requireAccountGroupManagementEnabled(db: db)
@@ -93,13 +94,17 @@ extension BudgetDatabase {
         groupID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
+        let groupID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try queue.read { db in
             try requireAccountGroupManagementEnabled(db: db)
             _ = try requiredLiveAccountGroup(groupID, db: db)
             let accountColumns = try columnSet(for: "accounts", db: db)
             guard accountColumns.contains("account_group_id") else {
                 throw LocalFirstError.invalidLocalWrite("missing column accounts.account_group_id")
             }
+            // Without the tombstone the group would stay live while its members
+            // were already ungrouped, so a missing column is a failure.
+            _ = try requiredColumns(table: "account_groups", required: ["tombstone"], db: db)
 
             var messages: [ActualSyncDecodedMessage] = []
             let memberIDs = try String.fetchAll(
@@ -123,17 +128,14 @@ extension BudgetDatabase {
                 )
             }
 
-            let groupColumns = try columnSet(for: "account_groups", db: db)
-            if groupColumns.contains("tombstone") {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "account_groups",
-                        row: groupID,
-                        column: "tombstone",
-                        value: .bool(true)
-                    )
+            messages.append(
+                try builder.makeMessage(
+                    dataset: "account_groups",
+                    row: groupID,
+                    column: "tombstone",
+                    value: .bool(true)
                 )
-            }
+            )
             return messages
         }
     }
@@ -150,7 +152,7 @@ extension BudgetDatabase {
                 required: ["account_group_id"],
                 db: db
             )
-            guard try rowExists(table: "accounts", rowID: accountID, db: db) else {
+            guard try liveRowExists(table: "accounts", rowID: accountID, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing account")
             }
             if let groupID {

@@ -704,6 +704,7 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 
@@ -711,6 +712,7 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 

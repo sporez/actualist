@@ -10,7 +10,6 @@ struct ConnectionSyncSettingsView: View {
     @State private var viewModel = SettingsViewModel()
     @State private var isSyncingNow = false
     @State private var isEraseLocalDataConfirmationPresented = false
-    @State private var isErasingLocalData = false
 
     var body: some View {
         List {
@@ -37,11 +36,10 @@ struct ConnectionSyncSettingsView: View {
                         isEraseLocalDataConfirmationPresented = true
                     } label: {
                         SettingsActionLabel(
-                            title: isErasingLocalData ? "Exiting" : "Exit Demo Mode",
+                            title: "Exit Demo Mode",
                             systemImage: "arrow.uturn.backward"
                         )
                     }
-                    .disabled(isErasingLocalData)
                     .eraseLocalDataConfirmationDialog(
                         isPresented: $isEraseLocalDataConfirmationPresented,
                         isDemoMode: true,
@@ -88,15 +86,6 @@ struct ConnectionSyncSettingsView: View {
         }
     }
 
-    private var canSaveConnection: Bool {
-        guard !viewModel.serverURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              !viewModel.isTesting else {
-            return false
-        }
-
-        return !viewModel.actualPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     private var lastSyncedText: String {
         guard let lastSyncedAt = appState.localFirstSyncStatus?.lastSyncedAt else {
             return "Unknown"
@@ -122,12 +111,10 @@ struct ConnectionSyncSettingsView: View {
             return "Actualist will remove the demo budget and return to onboarding."
         }
         let base = "Actualist will remove the sync token, cached encryption keys, imported budget files, and local selections from this device."
-        let pendingCount = appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
-        guard pendingCount > 0 else {
-            return "\(base) Your server data is not changed."
-        }
-        let noun = pendingCount == 1 ? "change" : "changes"
-        return "\(base) Warning: \(pendingCount) local \(noun) have not been confirmed by the server and will be permanently lost."
+        return LocalDataLossWarning.message(
+            base: base,
+            pendingChangeCount: appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
+        )
     }
 
     private func syncNow() async {
@@ -140,15 +127,10 @@ struct ConnectionSyncSettingsView: View {
     }
 
     private func eraseLocalData() {
-        guard !isErasingLocalData else {
-            return
-        }
-        isErasingLocalData = true
         appState.disconnectAndEraseLocalData()
         viewModel.actualPassword = ""
         viewModel.serverURLString = appState.settings.localFirstServerURLString
         viewModel.fallbackServerURLString = appState.settings.fallbackServerURLString
-        isErasingLocalData = false
     }
 
     // MARK: - Non-demo sections (extracted so the demo body can omit them)
@@ -168,6 +150,12 @@ struct ConnectionSyncSettingsView: View {
                 text: $viewModel.fallbackServerURLString,
                 onSubmit: { viewModel.commitFallbackServerURL(using: appState) }
             )
+
+            if let error = viewModel.fallbackServerURLError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.danger)
+            }
 
             Text("The fallback server is tried automatically when the primary server can't be reached — for example, a Tailscale URL when you're away from home Wi-Fi.")
                 .font(.footnote)
@@ -268,7 +256,7 @@ struct ConnectionSyncSettingsView: View {
                     systemImage: "network"
                 )
             }
-            .disabled(!canSaveConnection)
+            .disabled(!viewModel.canSaveConnection)
 
             Button {
                 Task { await syncNow() }
@@ -292,11 +280,10 @@ struct ConnectionSyncSettingsView: View {
                 isEraseLocalDataConfirmationPresented = true
             } label: {
                 SettingsActionLabel(
-                    title: isErasingLocalData ? "Erasing" : "Disconnect & Erase Local Data",
+                    title: "Disconnect & Erase Local Data",
                     systemImage: "trash"
                 )
             }
-            .disabled(isErasingLocalData)
             .eraseLocalDataConfirmationDialog(
                 isPresented: $isEraseLocalDataConfirmationPresented,
                 isDemoMode: false,

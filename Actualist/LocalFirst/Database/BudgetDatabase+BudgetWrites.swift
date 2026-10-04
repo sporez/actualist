@@ -106,7 +106,7 @@ extension BudgetDatabase {
                 db: db
             )
             if try tableExists("categories", db: db),
-               try !rowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
+               try !liveRowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
 
@@ -121,6 +121,8 @@ extension BudgetDatabase {
             )
         }
     }
+
+    static let maximumCarryoverMonthSpan = 600
 
     // Actual applies rollover changes through the existing budget horizon.
     func categoryCarryoverMessages(
@@ -216,21 +218,24 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         var messages: [ActualSyncDecodedMessage] = []
-        let effectiveThroughMonthValue = max(
-            throughMonthValue,
-            try maxActiveBudgetMonth(table: table, columns: columns, db: db)
+        // Bound the fan-out: a stray far-future budget row must not turn one
+        // carryover toggle into a loop over thousands of months.
+        let cappedLastMonthValue = shiftedMonth(startMonthValue, by: Self.maximumCarryoverMonthSpan - 1)
+        guard throughMonthValue <= cappedLastMonthValue else {
+            throw LocalFirstError.invalidLocalWrite("carryover month range too large")
+        }
+        let effectiveThroughMonthValue = min(
+            cappedLastMonthValue,
+            max(
+                throughMonthValue,
+                try maxActiveBudgetMonth(table: table, columns: columns, db: db)
+            )
         )
+        let existingRowIDs = try budgetRowIDs(table: table, columns: columns, db: db)
         for categoryID in categoryIDs {
             var monthValue = startMonthValue
             while monthValue <= effectiveThroughMonthValue {
-                let existingRowID = try budgetRowID(
-                    table: table,
-                    monthValue: monthValue,
-                    categoryID: categoryID,
-                    columns: columns,
-                    db: db
-                )
-                let rowID = existingRowID
+                let rowID = existingRowIDs[monthID(monthValue)]?[categoryID]
                     ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
 
                 // A peer may need these columns to create the budget row.
@@ -341,6 +346,7 @@ extension BudgetDatabase {
         monthValue: Int,
         isIncome: Bool,
         isTrackingBudget: Bool = false,
+        history: TemplateHistory? = nil,
         db: Database
     ) throws -> Int {
         let previousMonthValue = try BudgetTemplateEngine().sourceMonthValue(
@@ -348,7 +354,7 @@ extension BudgetDatabase {
             lookBack: 1
         )
         let previousMonth = monthID(previousMonthValue)
-        let previousValues = try categoryValues(through: previousMonth, db: db)[categoryID]
+        let previousValues = try categoryValues(through: previousMonth, db: db, history: history)[categoryID]
             ?? BudgetCategoryValue()
         // Actual: leftover < 0 && !carryover || is_income || tracking && !carryover
         if isIncome {
@@ -535,58 +541,78 @@ extension BudgetDatabase {
         month: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
+        try queue.read { db in
+            try moveMoneyMessages(commands: commands, month: month, db: db, builder: &builder)
+        }
+    }
+
+    /// Reads the live budget rows through `db`, so a Move Money commit built in
+    /// its own write transaction starts from the latest assigned amounts.
+    func moveMoneyMessages(
+        commands: [BudgetMoveMoneyCommand],
+        month: String,
+        db: Database,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
         guard !commands.isEmpty else {
             return []
         }
         let monthValue = try Self.actualMonthValue(month)
 
-        return try queue.read { db in
-            let table = try budgetTable(db: db)
-            guard BudgetActionEligibility.allows(.moveMoney, in: table) else {
-                throw BudgetModeWriteError.unsupportedAction
-            }
-            let columns = try requiredColumns(
-                table: table.rawValue,
-                required: ["month", "category", "amount"],
-                db: db
-            )
-            let initialBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
-            var budgetedByCategory = initialBudgets.mapValues(\.budgeted)
-            var affectedCategoryIDs: Set<String> = []
-
-            for command in commands {
-                guard command.amount > 0 else {
-                    throw LocalFirstError.invalidLocalWrite("missing amount")
-                }
-                guard command.fromCategoryID != nil || command.toCategoryID != nil else {
-                    throw LocalFirstError.invalidLocalWrite("missing category")
-                }
-                if let fromCategoryID = command.fromCategoryID?.trimmingCharacters(in: .whitespacesAndNewlines) {
-                    try validateBudgetCategoryID(fromCategoryID, db: db)
-                    budgetedByCategory[fromCategoryID, default: 0] -= command.amount
-                    affectedCategoryIDs.insert(fromCategoryID)
-                }
-                if let toCategoryID = command.toCategoryID?.trimmingCharacters(in: .whitespacesAndNewlines) {
-                    try validateBudgetCategoryID(toCategoryID, db: db)
-                    budgetedByCategory[toCategoryID, default: 0] += command.amount
-                    affectedCategoryIDs.insert(toCategoryID)
-                }
-            }
-
-            var messages: [ActualSyncDecodedMessage] = []
-            for categoryID in affectedCategoryIDs.sorted() {
-                messages.append(contentsOf: try assignCategoryBudgetMessages(
-                    categoryID: categoryID,
-                    budgeted: budgetedByCategory[categoryID] ?? 0,
-                    monthValue: monthValue,
-                    table: table,
-                    columns: columns,
-                    db: db,
-                    builder: &builder
-                ))
-            }
-            return messages
+        let table = try budgetTable(db: db)
+        guard BudgetActionEligibility.allows(.moveMoney, in: table) else {
+            throw BudgetModeWriteError.unsupportedAction
         }
+        let columns = try requiredColumns(
+            table: table.rawValue,
+            required: ["month", "category", "amount"],
+            db: db
+        )
+        let initialBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
+        var budgetedByCategory = initialBudgets.mapValues(\.budgeted)
+        var affectedCategoryIDs: Set<String> = []
+
+        for command in commands {
+            guard command.amount > 0 else {
+                throw LocalFirstError.invalidLocalWrite("missing amount")
+            }
+            guard command.amount <= BudgetMoveMoneyCommand.maximumAmount else {
+                throw LocalFirstError.numericValueOutOfRange
+            }
+            guard command.fromCategoryID != nil || command.toCategoryID != nil else {
+                throw LocalFirstError.invalidLocalWrite("missing category")
+            }
+            if let fromCategoryID = command.fromCategoryID?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                try validateBudgetCategoryID(fromCategoryID, db: db)
+                budgetedByCategory[fromCategoryID] = try BudgetTemplateEngine.checkedSubtract(
+                    budgetedByCategory[fromCategoryID] ?? 0,
+                    command.amount
+                )
+                affectedCategoryIDs.insert(fromCategoryID)
+            }
+            if let toCategoryID = command.toCategoryID?.trimmingCharacters(in: .whitespacesAndNewlines) {
+                try validateBudgetCategoryID(toCategoryID, db: db)
+                budgetedByCategory[toCategoryID] = try BudgetTemplateEngine.checkedAdd(
+                    budgetedByCategory[toCategoryID] ?? 0,
+                    command.amount
+                )
+                affectedCategoryIDs.insert(toCategoryID)
+            }
+        }
+
+        var messages: [ActualSyncDecodedMessage] = []
+        for categoryID in affectedCategoryIDs.sorted() {
+            messages.append(contentsOf: try assignCategoryBudgetMessages(
+                categoryID: categoryID,
+                budgeted: budgetedByCategory[categoryID] ?? 0,
+                monthValue: monthValue,
+                table: table,
+                columns: columns,
+                db: db,
+                builder: &builder
+            ))
+        }
+        return messages
     }
 
     func validateBudgetCategoryID(_ categoryID: String, db: Database) throws {
@@ -595,7 +621,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing category")
         }
         if try tableExists("categories", db: db),
-           try !rowExists(table: "categories", rowID: trimmed, db: db) {
+           try !liveRowExists(table: "categories", rowID: trimmed, db: db) {
             throw LocalFirstError.invalidLocalWrite("missing category")
         }
     }

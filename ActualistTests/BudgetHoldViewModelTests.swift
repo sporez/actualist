@@ -235,6 +235,35 @@ struct BudgetHoldViewModelTests {
         #expect(await requests.commands.count == 1)
     }
 
+    @Test func commitCompletedAfterInvalidationIsStillReportedAsCommitted() async throws {
+        let entered = TestLatch()
+        let release = TestLatch()
+        let review = makeReview()
+        let result = loaded(review)
+        let repository = RecordingBudgetRepository(holdReview: { review }, holdApply: { _, _ in
+            entered.trip()
+            await release.wait()
+            return result
+        })
+        let model = makeModel()
+        await model.load(repository: repository)
+        let task = Task { await model.holdOutcome(repository: repository) }
+        let deadline = Task {
+            try await Task.sleep(for: .seconds(5))
+            entered.trip()
+            release.trip()
+        }
+        defer { deadline.cancel(); task.cancel(); release.trip() }
+        await entered.wait()
+        #expect(model.isSaving)
+        model.invalidate()
+        release.trip()
+        // The write committed even though the sheet was invalidated, so the
+        // caller must still publish localDataRevision.
+        #expect(await task.value == .committedButInvalidated)
+        #expect(model.draft == nil)
+    }
+
     @Test func monthContextCrossesYearBoundary() {
         let model = BudgetHoldViewModel(
             target: BudgetHoldTarget(budgetID: "budget", month: "2026-12", modeIdentity: identity),

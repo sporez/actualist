@@ -388,6 +388,7 @@ struct BudgetView: View {
                 groupHidden: BudgetCategoryVisibility.isHidden(group.hidden),
                 selectedMonth: viewModel.selectedMonth,
                 budgetID: appState.settings.selectedBudgetID,
+                currentBudgetID: { appState.settings.selectedBudgetID },
                 repository: appState.budgetRepository
             ) != nil else {
                 return
@@ -403,6 +404,7 @@ struct BudgetView: View {
                 group: group,
                 selectedMonth: viewModel.selectedMonth,
                 budgetID: appState.settings.selectedBudgetID,
+                currentBudgetID: { appState.settings.selectedBudgetID },
                 repository: appState.budgetRepository
             ) != nil else {
                 return

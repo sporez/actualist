@@ -8,6 +8,7 @@ final class SettingsViewModel {
     private var hasHydratedConnection = false
     var serverURLString = ""
     var fallbackServerURLString = ""
+    var fallbackServerURLError: String?
     var actualPassword = ""
     var isTesting = false
     var isLoadingBudgets = false
@@ -21,6 +22,7 @@ final class SettingsViewModel {
     func hydrate(from appState: AppState) {
         serverURLString = appState.settings.localFirstServerURLString
         fallbackServerURLString = appState.settings.fallbackServerURLString
+        fallbackServerURLError = nil
         selectedAppIcon = AppIcon.current()
     }
 
@@ -30,8 +32,24 @@ final class SettingsViewModel {
         hasHydratedConnection = true
     }
 
+    private struct HeadersSummaryKey: Equatable {
+        let revision: Int
+        let serverURLString: String
+        let fallbackServerURLString: String
+    }
+
+    /// Keychain is read only when the revision or either URL changes, not on
+    /// every view-body evaluation. An unreadable Keychain is never cached, so a
+    /// locked device does not stick on "Unavailable".
+    @ObservationIgnored private var headersSummaryCache: (key: HeadersSummaryKey, value: String)?
+
     func customHeadersSummary(using store: LocalFirstActualStore) -> String {
-        _ = store.customHeadersRevision
+        let key = HeadersSummaryKey(
+            revision: store.customHeadersRevision,
+            serverURLString: serverURLString,
+            fallbackServerURLString: fallbackServerURLString
+        )
+        if let cached = headersSummaryCache, cached.key == key { return cached.value }
         guard let configuration = try? store.keychain.readCustomHTTPHeaders() else { return "Unavailable" }
         let urls = [serverURLString, fallbackServerURLString]
         let count = zip(ActualServerEndpointRole.allCases, urls).reduce(0) { count, pair in
@@ -39,7 +57,9 @@ final class SettingsViewModel {
                   let endpoint = configuration[pair.0], endpoint.applies(to: url) else { return count }
             return count + endpoint.headers.count
         }
-        return "\(count) Configured"
+        let summary = "\(count) Configured"
+        headersSummaryCache = (key, summary)
+        return summary
     }
 
     func setAppIcon(_ icon: AppIcon) async {
@@ -69,7 +89,7 @@ final class SettingsViewModel {
     }
 
     func commitFallbackServerURL(using appState: AppState) {
-        appState.updateFallbackServerURL(fallbackServerURLString)
+        fallbackServerURLError = appState.updateFallbackServerURL(fallbackServerURLString)
     }
 
     /// Reloads the budget list and reports whether discovery completed
@@ -97,6 +117,12 @@ final class SettingsViewModel {
 
     func copyDiagnosticReport(using appState: AppState) {
         UIPasteboard.general.string = ActualistDiagnosticReportBuilder.make(appState: appState).text
+    }
+
+    var canSaveConnection: Bool {
+        ConnectionInputValidation.canConnect(
+            serverURL: serverURLString, password: actualPassword, isBusy: isTesting
+        )
     }
 
     var connectionSecurityWarning: String? {

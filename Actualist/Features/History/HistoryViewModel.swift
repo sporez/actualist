@@ -36,6 +36,7 @@ final class HistoryViewModel {
     private var currentModeIdentity: BudgetModeIdentity?
     private var privacyEnabled = false
     private var preparationGeneration = 0
+    private var loadGeneration = 0
 
     var isPreparingUndoForRowID: String? {
         if case .preparing(let actionID) = undoState {
@@ -82,10 +83,12 @@ final class HistoryViewModel {
         await load(using: appState)
     }
 
-    private func load(
+    func load(
         budgetID: String,
         repository: any BudgetRepositoryProtocol
     ) async {
+        loadGeneration += 1
+        let request = loadGeneration
         if rows.isEmpty {
             loadState = .loading
         }
@@ -96,6 +99,8 @@ final class HistoryViewModel {
             records = try await fetchedRecords
             categoryNames = try await fetchedNames
             let identity = try await fetchedModeIdentity
+            // A newer load owns the screen; an older response must not replace it.
+            guard request == loadGeneration else { return }
             if let previousModeIdentity = currentModeIdentity,
                previousModeIdentity != identity {
                 // A conversion invalidates every open budget undo review. The
@@ -114,6 +119,7 @@ final class HistoryViewModel {
             rebuildRows()
             loadState = .loaded
         } catch {
+            guard request == loadGeneration else { return }
             loadState = error.isCancellation ? (rows.isEmpty ? .idle : .loaded) : .failed(Self.loadFailureMessage(for: error))
         }
     }

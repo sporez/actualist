@@ -23,63 +23,66 @@ extension BudgetDatabase {
     }
 
     func fetchTransaction(id: String) throws -> ActualTransaction? {
+        try queue.read { db in try fetchTransaction(id: id, db: db) }
+    }
+
+    /// Reads through `db`, so a write transaction can read the live row it is about to change.
+    func fetchTransaction(id: String, db: Database) throws -> ActualTransaction? {
         let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return nil
         }
 
-        return try queue.read { db in
-            guard try tableExists("transactions", db: db) else {
-                return nil
-            }
-
-            let columns = try columnSet(for: "transactions", db: db)
-            let split = transactionSplitQueryExpressions(columns: columns)
-            let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-            let joins = try transactionReadJoins(
-                db: db,
-                split: split,
-                transactionColumns: columns,
-                includeNames: false
-            )
-            let familyPredicate: String
-            let arguments: [DatabaseValueConvertible]
-            if split.hasParentIDColumn {
-                familyPredicate = """
-                    t.id = ?
-                    OR \(split.effectiveParentID) = ?
-                    OR t.id = (
-                        SELECT parent_id FROM transactions
-                        WHERE id = ? AND \(predicateForLiveRows(columns: columns))
-                    )
-                    """
-                arguments = [trimmed, trimmed, trimmed]
-            } else {
-                familyPredicate = "t.id = ?"
-                arguments = [trimmed]
-            }
-
-            let sql = """
-                SELECT \(transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate))
-                FROM transactions t
-                \(joins.sql)
-                \(split.parentJoin())
-                WHERE \(split.liveEffectivePredicate())
-                  AND (\(familyPredicate))
-                ORDER BY \(split.defaultOrder(normalizedDate: normalizedDate))
-                """
-            let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
-            let assembled = assembleTransactions(from: rows)
-            if let match = assembled.first(where: { $0.id == trimmed }) {
-                return match
-            }
-            for parent in assembled {
-                if let child = parent.subtransactions.first(where: { $0.id == trimmed }) {
-                    return child
-                }
-            }
-            return assembled.first
+        guard try tableExists("transactions", db: db) else {
+            return nil
         }
+
+        let columns = try columnSet(for: "transactions", db: db)
+        let split = transactionSplitQueryExpressions(columns: columns)
+        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let joins = try transactionReadJoins(
+            db: db,
+            split: split,
+            transactionColumns: columns,
+            includeNames: false
+        )
+        let familyPredicate: String
+        let arguments: [DatabaseValueConvertible]
+        if split.hasParentIDColumn {
+            familyPredicate = """
+                t.id = ?
+                OR \(split.effectiveParentID) = ?
+                OR t.id = (
+                    SELECT parent_id FROM transactions
+                    WHERE id = ? AND \(predicateForLiveRows(columns: columns))
+                )
+                """
+            arguments = [trimmed, trimmed, trimmed]
+        } else {
+            familyPredicate = "t.id = ?"
+            arguments = [trimmed]
+        }
+
+        let sql = """
+            SELECT \(transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate))
+            FROM transactions t
+            \(joins.sql)
+            \(split.parentJoin())
+            WHERE \(split.liveEffectivePredicate())
+              AND (\(familyPredicate))
+            ORDER BY \(split.defaultOrder(normalizedDate: normalizedDate))
+            """
+        let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
+        let assembled = assembleTransactions(from: rows)
+        if let match = assembled.first(where: { $0.id == trimmed }) {
+            return match
+        }
+        for parent in assembled {
+            if let child = parent.subtransactions.first(where: { $0.id == trimmed }) {
+                return child
+            }
+        }
+        return assembled.first
     }
 
     func fetchTransactionPage(
@@ -257,31 +260,7 @@ extension BudgetDatabase {
     }
 
     func existingImportedIDs(accountID: String) throws -> Set<String> {
-        try queue.read { db in
-            guard try tableExists("transactions", db: db) else {
-                return []
-            }
-            let columns = try columnSet(for: "transactions", db: db)
-            guard let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains),
-                  let accountColumn = ["acct", "account"].first(where: columns.contains) else {
-                return []
-            }
-            let values = try String.fetchAll(
-                db,
-                sql: """
-                    SELECT \(importedIDColumn)
-                    FROM transactions
-                    WHERE \(accountColumn) = ?
-                      AND \(importedIDColumn) IS NOT NULL
-                      AND \(predicateForLiveRows(columns: columns))
-                    """,
-                arguments: [accountID]
-            )
-            return Set(values.compactMap { value in
-                let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                return trimmed.isEmpty ? nil : trimmed
-            })
-        }
+        try queue.read { db in try existingImportedIDs(accountID: accountID, db: db) }
     }
 
     func mapTransactionRow(_ row: Row) -> ActualTransaction {

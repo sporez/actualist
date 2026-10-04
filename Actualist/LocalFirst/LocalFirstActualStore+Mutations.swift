@@ -357,28 +357,27 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         let mode = try await database.requireBudgetMode(expectedMode)
-        var builder = LocalFirstSyncMessageBuilder()
-        let result = try await database.budgetTemplateApply(
-            command: command,
-            month: month,
-            builder: &builder
-        )
-
-        if result.assignments.isEmpty {
+        await userActionBeforeCommitHook?()
+        _ = try await database.commitUserActionPlan(
+            source: actionSource,
+            expectedMode: reviewRevision?.modeIdentity ?? mode,
+            expectedTemplateReviewRevision: reviewRevision
+        ) { database, db in
+            var builder = LocalFirstSyncMessageBuilder()
+            let result = try database.budgetTemplateApply(
+                command: command,
+                month: month,
+                db: db,
+                builder: &builder
+            )
             // A goal-only or orphan-cleanup write moved no money; History
             // records money-flow gestures only.
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(
-                result.messages,
-                expectedMode: reviewRevision?.modeIdentity ?? mode,
-                expectedTemplateReviewRevision: reviewRevision
-            )
-        } else {
-            _ = try await database.commitUserAction(
-                result.messages,
-                descriptor: .template(month: month, mode: command.mode, assignments: result.assignments),
-                source: actionSource,
-                expectedMode: reviewRevision?.modeIdentity ?? mode,
-                expectedTemplateReviewRevision: reviewRevision
+            return UserActionPlan(
+                drafts: result.messages,
+                descriptor: result.assignments.isEmpty
+                    ? nil
+                    : .template(month: month, mode: command.mode, assignments: result.assignments),
+                outcome: ()
             )
         }
         await didApply()

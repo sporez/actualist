@@ -293,9 +293,10 @@ extension LocalFirstActualStoreTests {
             requiresEncryptionPassword: true
         )
 
-        await appState.selectBudgetForCurrentBackend(encryptedBudget)
+        let outcome = await appState.selectBudgetForCurrentBackend(encryptedBudget)
 
-        #expect(appState.lastErrorMessage == LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription)
+        #expect(outcome == .needsEncryptionPassword)
+        #expect(appState.lastErrorMessage == nil)
         #expect(appState.settings.selectedBudgetID == "group-1")
         #expect(bundle.store.isOpen(budgetID: "group-1"))
         #expect(appState.setupPhase == .ready)
@@ -703,17 +704,16 @@ extension LocalFirstActualStoreTests {
         #expect(fixture.appState.lastErrorMessage == nil)
         let budget = try #require(fixture.appState.budgets.first)
 
-        await fixture.appState.selectBudgetForCurrentBackend(budget)
-        #expect(
-            fixture.appState.lastErrorMessage
-                == LocalFirstError.encryptedBudgetRequiresPassword.localizedDescription
-        )
+        let firstOutcome = await fixture.appState.selectBudgetForCurrentBackend(budget)
+        #expect(firstOutcome == .needsEncryptionPassword)
+        #expect(fixture.appState.lastErrorMessage == nil)
         #expect(fixture.appState.setupPhase == .selectingBudget)
 
-        await fixture.appState.selectBudgetForCurrentBackend(
+        let secondOutcome = await fixture.appState.selectBudgetForCurrentBackend(
             budget,
             encryptionPassword: password
         )
+        #expect(secondOutcome == .opened)
 
         #expect(fixture.appState.lastErrorMessage == nil)
         #expect(fixture.appState.setupPhase == .ready)

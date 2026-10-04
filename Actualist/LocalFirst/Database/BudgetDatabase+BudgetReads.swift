@@ -31,7 +31,7 @@ extension BudgetDatabase {
 
     private func fetchBudgetMonth(month: String, db: Database) throws -> BudgetMonth {
         let table = try budgetTable(db: db)
-        let categoryValues = try categoryValues(through: month, db: db)
+        let (categoryValues, previousValues) = try categoryValuesWithPrevious(through: month, db: db)
         let userNoteIDs = try allUserNoteIDs(db: db)
         let groups = try fetchCategoryGroups(
             categoryValues: categoryValues,
@@ -41,15 +41,20 @@ extension BudgetDatabase {
         let totals = try BudgetFinancialCalculation.totals(groups: groups, table: table)
         let availability = table == .tracking ? (toBudget: 0, holdForNextMonth: 0)
             : try envelopeAvailability(month: month, totalBalance: totals.balance, db: db)
+        // Tracking budgets have no To Budget, From Last Month or Available Funds.
+        let fromLastMonth = table == .tracking ? 0 : try envelopeCarryIn(
+            month: month, groups: groups, previousValues: previousValues, db: db
+        ).fromLastMonth
 
         return BudgetMonth(
             month: month,
-            incomeAvailable: availability.toBudget,
+            incomeAvailable: table == .tracking ? 0
+                : try BudgetTemplateEngine.checkedAdd(totals.income, fromLastMonth),
             lastMonthOverspent: 0,
             forNextMonth: availability.holdForNextMonth,
             totalBudgeted: totals.budgeted,
             toBudget: availability.toBudget,
-            fromLastMonth: 0,
+            fromLastMonth: fromLastMonth,
             totalIncome: totals.income,
             totalSpent: totals.spent,
             totalBalance: totals.balance,
@@ -72,8 +77,8 @@ extension BudgetDatabase {
         return (toBudget, holdForNextMonth)
     }
 
-    func envelopeToBudget(month: String, db: Database) throws -> Int {
-        let categoryValues = try categoryValues(through: month, db: db)
+    func envelopeToBudget(month: String, db: Database, history: TemplateHistory? = nil) throws -> Int {
+        let categoryValues = try categoryValues(through: month, db: db, history: history)
         let groups = try fetchCategoryGroups(categoryValues: categoryValues, db: db)
         let totalBalance = groups.filter { !$0.isIncome }.reduce(0) { $0 + $1.balance }
         return try envelopeAvailability(
@@ -86,8 +91,8 @@ extension BudgetDatabase {
     /// Tracking spreadsheet `total-saved`: budgeted income minus budgeted expenses.
     /// Hidden expense groups and hidden categories are omitted, matching Actual's
     /// tracking sheet (`createSummary` / `group-budget`).
-    func trackingTotalSaved(month: String, db: Database) throws -> Int {
-        let categoryValues = try categoryValues(through: month, db: db)
+    func trackingTotalSaved(month: String, db: Database, history: TemplateHistory? = nil) throws -> Int {
+        let categoryValues = try categoryValues(through: month, db: db, history: history)
         let groups = try fetchCategoryGroups(categoryValues: categoryValues, db: db)
         return try BudgetFinancialCalculation.totals(groups: groups, table: .tracking)
             .tracking?.plannedSavings ?? 0
@@ -275,46 +280,39 @@ extension BudgetDatabase {
         }
     }
 
-    func categoryValues(through month: String, db: Database) throws -> [String: BudgetCategoryValue] {
-        let table = try budgetTable(db: db)
-        let incomeByCategory = table == .tracking ? try templateCategoryIsIncomeByID(db: db) : [:]
-        let budgetedByMonth = try categoryBudgetsByMonth(db: db)
-        let spentByMonth = try categorySpendingByMonth(db: db)
+    /// With a `history`, reads and recurrence are shared with the rest of one
+    /// template plan.
+    func categoryValues(
+        through month: String,
+        db: Database,
+        history: TemplateHistory? = nil
+    ) throws -> [String: BudgetCategoryValue] {
+        guard let history else {
+            return try categoryValuesWithPrevious(through: month, db: db).current
+        }
         guard canonicalMonthID(month) == month else {
             throw LocalFirstError.invalidLocalWrite("invalid budget month")
         }
-        let targetMonthInt = monthInt(month)
-        let earliestMonthInt = Array(Set(budgetedByMonth.keys).union(spentByMonth.keys))
-            .compactMap { canonicalMonthID($0).map(monthInt) }
-            .filter { $0 <= targetMonthInt }
-            .min() ?? targetMonthInt
+        let target = monthInt(month)
+        return try templateHistoryCategoryValues(history, at: target, keepFrom: target, db: db)
+    }
 
-        var valuesByCategory: [String: BudgetCategoryValue] = [:]
-
-        var monthCursor = earliestMonthInt
-        while monthCursor <= targetMonthInt {
-            let budgetMonth = monthID(monthCursor)
-            let budgeted = budgetedByMonth[budgetMonth] ?? [:]
-            let spent = spentByMonth[budgetMonth] ?? [:]
-            let categoryIDs = Set(budgeted.keys).union(spent.keys).union(valuesByCategory.keys)
-            var nextValues: [String: BudgetCategoryValue] = [:]
-
-            for categoryID in categoryIDs {
-                let budget = budgeted[categoryID] ?? (budgeted: 0, carryover: false)
-                let spentAmount = spent[categoryID] ?? 0
-                let value = try BudgetFinancialCalculation.category(
-                    table: table, isIncome: incomeByCategory[categoryID] ?? false,
-                    budgeted: budget.budgeted, activity: spentAmount, carryover: budget.carryover,
-                    previous: valuesByCategory[categoryID] ?? BudgetCategoryValue()
-                )
-                nextValues[categoryID] = value
-            }
-
-            valuesByCategory = nextValues
-            monthCursor = nextMonth(after: monthCursor)
+    /// `previous` is the month before `month` (empty when `month` is the first
+    /// month with data), captured while the same recurrence runs.
+    func categoryValuesWithPrevious(
+        through month: String,
+        db: Database
+    ) throws -> (current: [String: BudgetCategoryValue], previous: [String: BudgetCategoryValue]) {
+        guard canonicalMonthID(month) == month else {
+            throw LocalFirstError.invalidLocalWrite("invalid budget month")
         }
-
-        return valuesByCategory
+        let target = monthInt(month)
+        let timeline = try categoryValueTimeline(
+            inputs: try categoryValueInputs(db: db),
+            through: target,
+            keepFrom: target
+        )
+        return (timeline.snapshots[target] ?? [:], timeline.previous)
     }
 
     func categoryBudgetSource(db: Database) throws -> (table: BudgetTable, columns: Set<String>)? {

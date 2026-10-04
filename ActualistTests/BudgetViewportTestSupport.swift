@@ -15,6 +15,13 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
     private var assignmentSignals: [CheckedContinuation<Void, Never>] = []
     private var budgetMonthReads: [String: Int] = [:]
     private(set) var currentMonthReads = 0
+    private var recentActionsReads = 0
+    private var recentActionsHandler: (@Sendable (Int) async -> [BudgetActionRecord])?
+
+    /// Overrides `recentBudgetActions`; the handler receives the 1-based read index.
+    func setRecentActionsHandler(_ handler: (@Sendable (Int) async -> [BudgetActionRecord])?) {
+        recentActionsHandler = handler
+    }
 
     /// How many times a month was read from the repository. Used to prove the
     /// launch path consumes the restored snapshot instead of reading it again.
@@ -30,6 +37,10 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
     }
     func setCurrentReadError(_ error: Error?) { currentReadError = error }
     func block(_ month: String) { blockedMonths.insert(month) }
+    /// When set, a read returns the response stored when the read began, like
+    /// a database read that began before a later commit.
+    func setReadsSnapshotAtStart(_ enabled: Bool) { readsSnapshotAtStart = enabled }
+    private var readsSnapshotAtStart = false
 
     func waitUntilReadBlocked(_ month: String) async {
         if !pendingReads[month, default: []].isEmpty { return }
@@ -61,6 +72,7 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
 
     func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth {
         budgetMonthReads[selectedMonth, default: 0] += 1
+        let startResponse = responses[selectedMonth]
         if blockedMonths.contains(selectedMonth) {
             blockedSignals.removeValue(forKey: selectedMonth)?.forEach { $0.resume() }
             await withCheckedContinuation { continuation in
@@ -68,7 +80,7 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
             }
         }
         if let error = readErrors[selectedMonth] { throw error }
-        guard let response = responses[selectedMonth] else { throw ViewportTestError.missingMonth(selectedMonth) }
+        guard let response = readsSnapshotAtStart ? startResponse : responses[selectedMonth] else { throw ViewportTestError.missingMonth(selectedMonth) }
         return response
     }
 
@@ -92,7 +104,11 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
     func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil, command: BudgetTemplateCommand, budgetID: String, month: String, didApply: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil, command: BudgetMoveMoneyCommand, budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
+    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] {
+        recentActionsReads += 1
+        guard let recentActionsHandler else { return [] }
+        return await recentActionsHandler(recentActionsReads)
+    }
     func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
     func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview { throw ViewportTestError.unsupported }
     func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws { throw ViewportTestError.unsupported }

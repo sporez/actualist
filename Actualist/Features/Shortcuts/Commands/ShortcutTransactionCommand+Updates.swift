@@ -61,6 +61,7 @@ extension ShortcutTransactionCommand {
             budgetID: prepared.budgetID,
             originalAccountID: original.account,
             originalMonth: original.date.actualYearMonth ?? draft.month.rawValue,
+            baseline: original,
             actionSource: .shortcuts,
             didUpdate: {}
         )

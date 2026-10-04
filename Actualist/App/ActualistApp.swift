@@ -35,7 +35,11 @@ struct ActualistApp: App {
         let appState = AppState()
         #endif
         PortableExportFiles().sweepStale()
+        #if DEBUG
         let simulatorLaunchCommand = SimulatorLaunchCommand.fromProcessInfo()
+        #else
+        let simulatorLaunchCommand: SimulatorLaunchCommand? = nil
+        #endif
         if let simulatorLaunchCommand {
             SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(
                 simulatorLaunchCommand,
@@ -75,6 +79,11 @@ struct ActualistApp: App {
                     if let command = simulatorLaunchCommand {
                         await SimulatorLaunchApplier.apply(command, to: appState)
                     }
+                }
+                .onReceive(
+                    NotificationCenter.default.publisher(for: UIApplication.protectedDataDidBecomeAvailableNotification)
+                ) { _ in
+                    appState.refreshCredentialAvailability()
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {

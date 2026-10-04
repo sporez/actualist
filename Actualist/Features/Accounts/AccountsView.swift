@@ -240,7 +240,7 @@ struct AccountsView: View {
                         )
                             .font(ActualistTypography.sectionTitle(for: density))
                         Spacer()
-                        Text(sectionTotalText(section.accounts, title: section.kind.title))
+                        Text(sectionTotalText(section))
                             .font(ActualistTypography.rowValue(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
@@ -455,19 +455,15 @@ struct AccountsView: View {
         isExpanded ? title : "\(title) (\(count))"
     }
 
-    private func total(_ rows: [AccountDisplay]) -> Int {
-        rows.reduce(0) { $0 + ($1.balance ?? 0) }
-    }
-
-    private func sectionTotalText(_ rows: [AccountDisplay], title: String) -> String {
-        let amount = total(rows)
+    private func sectionTotalText(_ section: AccountListLayout.Section) -> String {
+        let amount = section.totalMinorUnits
         guard appState.settings.randomizedDisplayValuesEnabled else {
             return currency.formatted(amount)
         }
 
         return PrivacyDisplay.money(
             amount,
-            seed: "account-section-\(title)-\(rows.map(\.id).joined(separator: "-"))",
+            seed: "account-section-\(section.kind.title)-\(section.accounts.map(\.id).joined(separator: "-"))",
             currency: currency,
             maximumDollars: 15_000
         )
@@ -686,7 +682,7 @@ struct AccountRow: View {
 
             Text(balanceText)
                 .font(ActualistTypography.rowValue(for: density))
-                .foregroundStyle((row.balance ?? 0) >= 0 ? ActualistTheme.positive : ActualistTheme.primaryText)
+                .foregroundStyle(balanceColor)
 
             Image(systemName: "chevron.right")
                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -726,6 +722,14 @@ struct AccountRow: View {
             currency: currency,
             maximumDollars: 15_000
         )
+    }
+
+    private var balanceColor: Color {
+        switch row.balanceTone {
+        case .positive: ActualistTheme.positive
+        case .neutral: ActualistTheme.secondaryText
+        case .negative: ActualistTheme.danger
+        }
     }
 
     private func bankSyncColor(_ state: ActualBankSyncState) -> Color {

@@ -339,17 +339,17 @@ extension BudgetDatabase {
         try queue.read { db in
             let columns = try resolveTransactionRowColumns(db: db)
             if try tableExists("accounts", db: db),
-               try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
+               try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing account")
             }
             if let categoryID = draft.categoryID,
                try tableExists("categories", db: db),
-               try !rowExists(table: "categories", rowID: categoryID, db: db) {
+               try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
             if let payeeID = draft.payeeID,
                try tableExists("payees", db: db),
-               try !rowExists(table: "payees", rowID: payeeID, db: db) {
+               try !liveRowExists(table: "payees", rowID: payeeID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing payee")
             }
             let messages = try transactionRowMessages(

@@ -36,6 +36,22 @@ struct TransactionEditorMutationCoordinatorTests {
         #expect(await repository.recordedUpdateAuthorizations().last! == review.authorization)
     }
 
+    @Test func updateCarriesTheLoadedTransactionAsTheDiffBaseline() async {
+        let repository = RecordingTransactionRepository()
+        let loaded = transaction()
+        let coordinator = TransactionEditorMutationCoordinator(transaction: loaded)
+
+        let outcome = await coordinator.submit(
+            validation: .valid,
+            draft: draft(),
+            budgetID: "budget",
+            repository: repository
+        )
+
+        #expect(outcome == .saved)
+        #expect(await repository.recordedUpdateBaselines() == [loaded])
+    }
+
     @Test func reconciledClearRequestsUnlockAndPreservesClearedState() async throws {
         let review = self.review(target: ["txn", "child"])
         let repository = RecordingTransactionRepository(reconciliationReview: review)

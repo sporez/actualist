@@ -83,8 +83,9 @@ final class EntityNotesViewModel {
                 userBody: text,
                 budgetID: budgetID
             )
+            // The note is committed even if the sheet was cancelled meanwhile.
             guard requestGeneration == generation else {
-                return false
+                return true
             }
             phase = .editing(errorMessage: nil)
             return true

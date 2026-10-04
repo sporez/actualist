@@ -297,10 +297,16 @@ extension BudgetDatabase {
 
     /// Newest first. Empty when the table does not exist (fresh import before
     /// the first recorded write), which is the reimport / first-launch state.
-    func recentBudgetActions(limit: Int = BudgetDatabase.actionLogRetentionLimit) throws -> [BudgetActionRecord] {
+    /// `limit` nil returns every retained row (retention already bounds the
+    /// table); rows that cannot be decoded are skipped, not fatal.
+    func recentBudgetActions(limit: Int? = nil) throws -> [BudgetActionRecord] {
+        try recentBudgetActionPage(limit: limit).records
+    }
+
+    func recentBudgetActionPage(limit: Int? = nil) throws -> BudgetActionLogPage {
         try queue.read { db in
             guard try tableExists("actualist_action_log", db: db) else {
-                return []
+                return BudgetActionLogPage(records: [], skippedRowCount: 0)
             }
             let modeColumn = try columnSet(for: "actualist_action_log", db: db).contains("mode_identity_json")
                 ? ", mode_identity_json"
@@ -314,13 +320,20 @@ extension BudgetDatabase {
                     ORDER BY created_at DESC, id DESC
                     LIMIT ?
                     """,
-                arguments: [max(limit, 200)]
+                arguments: [limit.map { max($0, 0) } ?? -1]
             )
             var records: [BudgetActionRecord] = []
+            var skipped = 0
             for row in rows {
-                records.append(try decodeActionLogRow(row))
+                // A row written by a newer build (unknown kind) or with a bad
+                // payload must not hide every other record.
+                if let record = try? decodeActionLogRow(row) {
+                    records.append(record)
+                } else {
+                    skipped += 1
+                }
             }
-            return records
+            return BudgetActionLogPage(records: records, skippedRowCount: skipped)
         }
     }
 
@@ -693,4 +706,10 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("this action is no longer applied")
         }
     }
+}
+
+struct BudgetActionLogPage: Equatable, Sendable {
+    var records: [BudgetActionRecord]
+    /// Rows present in the log that could not be decoded.
+    var skippedRowCount: Int
 }

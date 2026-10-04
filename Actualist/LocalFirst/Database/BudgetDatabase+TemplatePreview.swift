@@ -102,11 +102,14 @@ extension BudgetDatabase {
         now: Date = Date()
     ) throws -> BudgetTemplateApplyPreviewPair {
         try queue.read { db in
+            // Both modes read the same snapshot, so they share one history.
+            let history = TemplateHistory()
             let fillEmpty = previewBudgetTemplateOutcome(
                 command: .fillEmpty,
                 month: month,
                 currentMonth: currentMonth,
                 now: now,
+                history: history,
                 db: db
             )
             let overwrite = previewBudgetTemplateOutcome(
@@ -114,6 +117,7 @@ extension BudgetDatabase {
                 month: month,
                 currentMonth: currentMonth,
                 now: now,
+                history: history,
                 db: db
             )
             return BudgetTemplateApplyPreviewPair(fillEmpty: fillEmpty, overwrite: overwrite)
@@ -125,6 +129,7 @@ extension BudgetDatabase {
         month: String,
         currentMonth: String?,
         now: Date,
+        history: TemplateHistory,
         db: Database
     ) -> BudgetTemplatePreviewOutcome {
         do {
@@ -134,6 +139,7 @@ extension BudgetDatabase {
                     month: month,
                     currentMonth: currentMonth,
                     now: now,
+                    history: history,
                     db: db
                 )
             )
@@ -147,6 +153,7 @@ extension BudgetDatabase {
         month: String,
         currentMonth: String?,
         now: Date,
+        history: TemplateHistory = TemplateHistory(),
         db: Database
     ) throws -> BudgetTemplateApplyPreview {
         let prepared = try budgetTemplatePlan(
@@ -156,10 +163,11 @@ extension BudgetDatabase {
             skipAvailableClamp: false,
             goalDefOverrides: [:],
             skipStaleCheck: false,
+            history: history,
             db: db
         )
         let names = try templateCategoryNames(db: db)
-        let currentValues = try categoryValues(through: month, db: db)
+        let currentValues = try categoryValues(through: month, db: db, history: history)
         let reviewRevision = try budgetTemplateReviewRevision(month: month, db: db)
         let currency = try budgetCurrency(db: db)
         let includedTrackingCategoryIDs: Set<String>
@@ -328,6 +336,7 @@ extension BudgetDatabase {
         skipAvailableClamp: Bool,
         goalDefOverrides: [String: String],
         skipStaleCheck: Bool,
+        history: TemplateHistory = TemplateHistory(),
         db: Database
     ) throws -> BudgetTemplatePreparedPlan {
         let monthValue = try Self.actualMonthValue(month)
@@ -392,8 +401,8 @@ extension BudgetDatabase {
         var categoryTemplates: [String: [BudgetTemplateEntry]] = [:]
         var orphanGoalCategoryIDs: [String] = []
         let initialAvailableBudget = try isTracking
-            ? trackingTotalSaved(month: monthID(monthValue), db: db)
-            : envelopeToBudget(month: monthID(monthValue), db: db)
+            ? trackingTotalSaved(month: monthID(monthValue), db: db, history: history)
+            : envelopeToBudget(month: monthID(monthValue), db: db, history: history)
         var availableBudget = initialAvailableBudget
         var incomeCatalog = try templateIncomeCatalog(db: db)
         let activeSchedules = try templateActiveSchedules(db: db)
@@ -455,6 +464,7 @@ extension BudgetDatabase {
             categoryIsIncome: categoryIsIncome,
             previouslyBudgetedByCategory: currentBudgets.mapValues(\.budgeted),
             isTrackingBudget: isTracking,
+            history: history,
             db: db
         )
         let compute = try templateEngine.computePlan(

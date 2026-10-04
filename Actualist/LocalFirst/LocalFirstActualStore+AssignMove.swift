@@ -112,28 +112,33 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         let mode = try await database.requireBudgetMode(expectedMode)
-        var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.moveMoneyMessages(
-            commands: commands,
+        await userActionBeforeCommitHook?()
+        let descriptor = BudgetActionDescriptor.move(
             month: month,
-            builder: &builder
+            legs: commands.map {
+                BudgetMoveLeg(
+                    fromCategoryID: $0.fromCategoryID,
+                    toCategoryID: $0.toCategoryID,
+                    amount: $0.amount
+                )
+            }
         )
-
-        _ = try await database.commitUserAction(
-            messages,
-            descriptor: .move(
-                month: month,
-                legs: commands.map {
-                    BudgetMoveLeg(
-                        fromCategoryID: $0.fromCategoryID,
-                        toCategoryID: $0.toCategoryID,
-                        amount: $0.amount
-                    )
-                }
-            ),
+        _ = try await database.commitUserActionPlan(
             source: actionSource,
             expectedMode: mode
-        )
+        ) { database, db in
+            var builder = LocalFirstSyncMessageBuilder()
+            return UserActionPlan(
+                drafts: try database.moveMoneyMessages(
+                    commands: commands,
+                    month: month,
+                    db: db,
+                    builder: &builder
+                ),
+                descriptor: descriptor,
+                outcome: ()
+            )
+        }
         await didMove()
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)

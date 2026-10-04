@@ -21,7 +21,7 @@ struct OnboardingView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Actualist")
-                            .font(.system(size: 40, weight: .bold, design: .rounded))
+                            .font(.system(.largeTitle, design: .rounded, weight: .bold))
                             .foregroundStyle(ActualistTheme.primaryText)
 
                         Text("Connect to your Actual Budget server.")
@@ -73,6 +73,7 @@ struct OnboardingView: View {
                                 )
                                 .font(ActualistTypography.rowTitle(for: density))
                                 .foregroundStyle(ActualistTheme.primaryText)
+                                .textContentType(.password)
                                 .textInputAutocapitalization(.never)
                                 .multilineTextAlignment(.leading)
                                 .accessibilityLabel("Server Password")

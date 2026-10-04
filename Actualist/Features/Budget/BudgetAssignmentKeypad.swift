@@ -48,6 +48,7 @@ struct BudgetAssignmentKeypad: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Dismiss keypad")
+                .keyboardShortcut(.cancelAction)
             }
 
             if let errorMessage {

@@ -45,23 +45,15 @@ struct TransactionCSVImportReviewView: View {
             )
             .accessibilityIdentifier("transaction-csv-import-review")
 
-            if let summary = coordinator.summary {
+            if !coordinator.summaryLines.isEmpty {
                 VStack(spacing: 8) {
-                    ReviewSummaryRow(
-                        title: "New rows",
-                        value: "\(summary.insert)",
-                        symbol: "plus.square"
-                    )
-                    ReviewSummaryRow(
-                        title: "Existing rows updated",
-                        value: "\(summary.update)",
-                        symbol: "pencil.line"
-                    )
-                    ReviewSummaryRow(
-                        title: "Duplicates left unchanged",
-                        value: "\(summary.ignored + summary.skipped)",
-                        symbol: "checkmark.circle"
-                    )
+                    ForEach(coordinator.summaryLines) { line in
+                        ReviewSummaryRow(
+                            title: line.title,
+                            value: "\(line.count)",
+                            symbol: line.symbol
+                        )
+                    }
                 }
                 .actualistReviewCard()
             }

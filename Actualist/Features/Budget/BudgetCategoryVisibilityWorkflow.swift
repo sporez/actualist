@@ -19,6 +19,7 @@ final class BudgetCategoryVisibilityWorkflow {
         groupHidden: Bool,
         selectedMonth: String?,
         budgetID: String?,
+        currentBudgetID: (@MainActor () -> String?)? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         if groupHidden {
@@ -27,7 +28,8 @@ final class BudgetCategoryVisibilityWorkflow {
         }
         return await submit(
             selectedMonth: selectedMonth,
-            budgetID: budgetID
+            budgetID: budgetID,
+            currentBudgetID: currentBudgetID
         ) { month, budgetID in
             try await repository.setCategoryHiddenAndRefresh(
                 categoryID: categoryID,
@@ -43,6 +45,7 @@ final class BudgetCategoryVisibilityWorkflow {
         group: BudgetMonthCategoryGroup,
         selectedMonth: String?,
         budgetID: String?,
+        currentBudgetID: (@MainActor () -> String?)? = nil,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         if group.isIncome {
@@ -51,7 +54,8 @@ final class BudgetCategoryVisibilityWorkflow {
         }
         return await submit(
             selectedMonth: selectedMonth,
-            budgetID: budgetID
+            budgetID: budgetID,
+            currentBudgetID: currentBudgetID
         ) { month, budgetID in
             try await repository.setCategoryGroupHiddenAndRefresh(
                 groupID: group.id,
@@ -65,6 +69,7 @@ final class BudgetCategoryVisibilityWorkflow {
     private func submit(
         selectedMonth: String?,
         budgetID: String?,
+        currentBudgetID: (@MainActor () -> String?)?,
         work: (String, String) async throws -> LoadedBudgetMonth
     ) async -> LoadedBudgetMonth? {
         guard !isSubmitting else {
@@ -86,12 +91,16 @@ final class BudgetCategoryVisibilityWorkflow {
                 return nil
             }
             isSubmitting = false
+            // The write committed to the budget captured above; if another budget
+            // is selected now, the caller must not refresh or apply for it.
+            if let currentBudgetID, currentBudgetID() != budgetID { return nil }
             return loaded
         } catch {
             guard token == generation else {
                 return nil
             }
             isSubmitting = false
+            if let currentBudgetID, currentBudgetID() != budgetID { return nil }
             errorMessage = error.userFacingMessage
             return nil
         }

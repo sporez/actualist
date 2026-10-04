@@ -19,6 +19,7 @@ final class UncategorizedTransactionsViewModel {
     var isSelecting = false
     var isBulkCategorizing = false
     private(set) var hasLoadedSnapshot = false
+    private(set) var reconciledCategorization: UncategorizedReconciledCategorization?
 
     init(cachedSnapshot: LoadedUncategorizedTransactions? = nil) {
         guard let cachedSnapshot else {
@@ -241,6 +242,22 @@ final class UncategorizedTransactionsViewModel {
               canSubmitSelection else {
             return .failed
         }
+        return await submitSelection(
+            categoryID: option.id,
+            month: month,
+            budgetID: budgetID,
+            repository: repository,
+            authorizations: [:]
+        )
+    }
+
+    private func submitSelection(
+        categoryID: String,
+        month: String,
+        budgetID: String,
+        repository: any TransactionRepositoryProtocol,
+        authorizations: [String: ReconciledTransactionMutationAuthorization]
+    ) async -> CategorizationResult {
         let selected = selectedTransactions
         guard selected.count == selectedTransactionIDs.count,
               selected.allSatisfy(canCategorize) else {
@@ -257,8 +274,9 @@ final class UncategorizedTransactionsViewModel {
         do {
             _ = try await repository.categorizeTransactionsAndRefresh(
                 selected,
-                categoryID: option.id,
-                budgetID: budgetID
+                categoryID: categoryID,
+                budgetID: budgetID,
+                reconciliationAuthorizations: authorizations
             ) {}
             let resolvedIDs = selectedTransactionIDs
             transactions.removeAll { resolvedIDs.contains($0.rowID) }
@@ -277,9 +295,112 @@ final class UncategorizedTransactionsViewModel {
             endSelection()
             return .categorized(hasRemainingTransactions: !transactions.isEmpty)
         } catch {
-            errorMessage = error.userFacingMessage
+            if error is ReconciledTransactionMutationError {
+                await presentSelectionReview(
+                    categoryID: categoryID,
+                    month: month,
+                    selected: selected,
+                    budgetID: budgetID,
+                    repository: repository,
+                    refusal: error
+                )
+            } else {
+                errorMessage = error.userFacingMessage
+            }
             return .failed
         }
+    }
+
+    /// Reviews every selected row so one confirmation covers the whole batch
+    /// instead of prompting row by row as the store refuses each in turn.
+    private func presentSelectionReview(
+        categoryID: String,
+        month: String,
+        selected: [ActualTransaction],
+        budgetID: String,
+        repository: any TransactionRepositoryProtocol,
+        refusal: Error
+    ) async {
+        var reviews: [ReconciledTransactionMutationReview] = []
+        do {
+            for transaction in selected {
+                if let review = try await repository.reconciledMutationReview(
+                    budgetID: budgetID,
+                    transactionID: transaction.rowID
+                ) {
+                    reviews.append(review)
+                }
+            }
+        } catch {
+            errorMessage = error.userFacingMessage
+            return
+        }
+        if reviews.isEmpty,
+           case .confirmationRequired(let review) = refusal as? ReconciledTransactionMutationError {
+            reviews = [review]
+        }
+        guard !reviews.isEmpty else {
+            errorMessage = refusal.userFacingMessage
+            return
+        }
+        reconciledCategorization = UncategorizedReconciledCategorization(
+            scope: .selection,
+            categoryID: categoryID,
+            month: month,
+            reviews: reviews
+        )
+        errorMessage = nil
+    }
+
+    func confirmReconciledCategorization(
+        _ pending: UncategorizedReconciledCategorization,
+        using appState: AppState
+    ) async -> CategorizationResult {
+        guard let budgetID = appState.settings.selectedBudgetID else {
+            return .failed
+        }
+        return await confirmReconciledCategorization(
+            pending,
+            budgetID: budgetID,
+            repository: appState.transactionRepository
+        )
+    }
+
+    func confirmReconciledCategorization(
+        _ pending: UncategorizedReconciledCategorization,
+        budgetID: String,
+        repository: any TransactionRepositoryProtocol
+    ) async -> CategorizationResult {
+        guard reconciledCategorization == nil || reconciledCategorization == pending else {
+            return .failed
+        }
+        reconciledCategorization = nil
+        switch pending.scope {
+        case .single(let transaction):
+            return await categorizeAndMaybeRefreshRemaining(
+                transaction,
+                categoryID: pending.categoryID,
+                budgetID: budgetID,
+                monthForRemainingRefresh: pending.month,
+                repository: repository,
+                authorizations: pending.authorizations
+            )
+        case .selection:
+            guard let month = pending.month else {
+                return .failed
+            }
+            return await submitSelection(
+                categoryID: pending.categoryID,
+                month: month,
+                budgetID: budgetID,
+                repository: repository,
+                authorizations: pending.authorizations
+            )
+        }
+    }
+
+    func dismissReconciledCategorization() {
+        reconciledCategorization = nil
     }
 
     func categorize(
@@ -303,7 +424,8 @@ final class UncategorizedTransactionsViewModel {
         categoryID: String,
         budgetID: String,
         monthForRemainingRefresh month: String?,
-        repository: any TransactionRepositoryProtocol
+        repository: any TransactionRepositoryProtocol,
+        authorizations: [String: ReconciledTransactionMutationAuthorization] = [:]
     ) async -> CategorizationResult {
         guard !isCategorizing, canCategorize(transaction) else {
             return .failed
@@ -320,7 +442,8 @@ final class UncategorizedTransactionsViewModel {
             _ = try await repository.categorizeTransactionAndRefresh(
                 transaction,
                 categoryID: categoryID,
-                budgetID: budgetID
+                budgetID: budgetID,
+                reconciliationAuthorizations: authorizations
             ) {}
             transactions.removeAll { $0.rowID == transactionID }
 
@@ -338,7 +461,16 @@ final class UncategorizedTransactionsViewModel {
 
             return .categorized(hasRemainingTransactions: !transactions.isEmpty)
         } catch {
-            errorMessage = error.userFacingMessage
+            if case .confirmationRequired(let review) = error as? ReconciledTransactionMutationError {
+                reconciledCategorization = UncategorizedReconciledCategorization(
+                    scope: .single(transaction),
+                    categoryID: categoryID,
+                    month: month,
+                    reviews: [review]
+                )
+            } else {
+                errorMessage = error.userFacingMessage
+            }
             return .failed
         }
     }

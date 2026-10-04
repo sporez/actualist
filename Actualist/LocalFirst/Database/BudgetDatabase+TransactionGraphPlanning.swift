@@ -32,7 +32,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("transactions.schedule is unavailable")
         }
         if try tableExists("accounts", db: db),
-           try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
+           try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
         try validatePostingAccount(draft.accountID, db: db)
@@ -132,10 +132,16 @@ extension BudgetDatabase {
         }
         let columns = try resolveTransactionRowColumns(db: db)
         if try tableExists("accounts", db: db),
-           try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
+           try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
         try validateSplitCategories(draft.splits, db: db)
+        try validateSplitDraftIDs(
+            draft.splits,
+            parentID: parentTransactionID,
+            familyChildIDs: [],
+            db: db
+        )
         let parent = try splitParentRecord(
             id: parentTransactionID,
             draft: draft,

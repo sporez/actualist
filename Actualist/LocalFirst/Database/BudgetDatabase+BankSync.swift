@@ -5,7 +5,8 @@ extension BudgetDatabase {
     func commitBankSyncMessages(
         _ messages: [ActualSyncDecodedMessage],
         expectedLink: BankSyncLinkIdentity,
-        pendingNewTransactions: PendingNewTransactionCommit? = nil
+        pendingNewTransactions: PendingNewTransactionCommit? = nil,
+        expectedAbsentImportedIDs: ImportedIDAbsence? = nil
     ) throws -> Int {
         try sessionWritesAllowed.withLock { allowed in
             guard allowed else { throw LocalFirstError.budgetNotOpened }
@@ -13,7 +14,8 @@ extension BudgetDatabase {
             return try commitLocalSyncMessagesAndEnqueue(
                 messages,
                 expectedBankLink: expectedLink,
-                pendingNewTransactions: pendingNewTransactions
+                pendingNewTransactions: pendingNewTransactions,
+                expectedAbsentImportedIDs: expectedAbsentImportedIDs
             )
         }
     }
@@ -207,11 +209,12 @@ extension BudgetDatabase {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else { return nil }
             let columns = try columnSet(for: "transactions", db: db)
+            let split = transactionSplitQueryExpressions(columns: columns)
             let oldest: Int? = try Int.fetchOne(
                 db,
                 sql: """
                     SELECT MIN(date) FROM transactions
-                    WHERE acct = ? AND \(predicateForLiveRows(columns: columns))
+                    WHERE \(split.account) = ? AND \(predicateForLiveRows(columns: columns))
                     """,
                 arguments: [accountID]
             )

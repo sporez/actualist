@@ -336,6 +336,32 @@ extension LocalFirstActualStoreTests {
     }
 
     @MainActor
+    @Test func staleRemoteAccountsResultIsIgnoredAfterAReload() async throws {
+        let transport = stubbedTransport(
+            transactions: [],
+            remoteAccounts: [SimpleFINRemoteAccount(
+                accountID: "sfin-2", name: "Brokerage", balance: "1.00", currency: "USD",
+                institution: nil, orgName: "Friendly Bank", orgDomain: "bank.example", orgID: nil
+            )]
+        )
+        let (model, _) = try await makeViewModel(transport: transport, linkSavings: true)
+        let gate = TestLatch()
+        await transport.setAccountsGate(gate)
+        let task = Task { await model.ensureRemoteAccounts() }
+        defer { task.cancel(); gate.trip() }
+        await transport.accountsEntered.wait()
+        #expect(model.remoteAccountsStatus == .loading)
+
+        await model.load()
+        gate.trip()
+        await task.value
+
+        // The obsolete fetch has completed; a reload already owns this state.
+        #expect(model.remoteAccountsStatus == .idle)
+        #expect(model.remoteAccounts.isEmpty)
+    }
+
+    @MainActor
     @Test func noLinkedAccountsDoesNotStartDownload() async throws {
         let transport = stubbedTransport(transactions: [])
         let (model, _) = try await makeViewModel(transport: transport, linkSavings: false)

@@ -144,6 +144,7 @@ extension LocalFirstActualStore {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction? = nil,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await updateTransactionAndRefresh(
@@ -153,6 +154,7 @@ extension LocalFirstActualStore {
             originalAccountID: originalAccountID,
             originalMonth: originalMonth,
             reconciliationAuthorization: reconciliationAuthorization,
+            baseline: baseline,
             actionSource: .ui,
             didUpdate: didUpdate
         )
@@ -164,6 +166,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
+        baseline: ActualTransaction? = nil,
         actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
@@ -174,6 +177,7 @@ extension LocalFirstActualStore {
             originalAccountID: originalAccountID,
             originalMonth: originalMonth,
             reconciliationAuthorization: nil,
+            baseline: baseline,
             actionSource: actionSource,
             didUpdate: didUpdate
         )
@@ -186,12 +190,11 @@ extension LocalFirstActualStore {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction? = nil,
         actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
-        let existing = try await database.fetchTransaction(id: transactionID)
-        let existingState = try await database.existingTransactionState(id: transactionID)
         let draft = try await database.draftByResolvingSchedule(
             draft,
             existingTransactionID: transactionID
@@ -202,76 +205,81 @@ extension LocalFirstActualStore {
             database: database,
             builder: &builder
         )
-        let update = try await database.updateTransactionMessages(
-            transactionID: transactionID,
-            draft: draft,
-            payeeID: payeeResolution.payeeID,
-            reconciliationAuthorization: reconciliationAuthorization,
-            builder: &builder
-        )
-
-        let messages = payeeResolution.messages + update.messages
-        let reconciledMutationPrecondition = ReconciledTransactionMutationPrecondition(
-            transactionID: transactionID,
-            authorization: reconciliationAuthorization
-        )
+        let payeeMessages = payeeResolution.messages
+        let resolvedPayeeID = payeeResolution.payeeID
+        let createdPayeeID = payeeMessages.isEmpty ? nil : resolvedPayeeID
+        let typedPayeeName = trimmedPayeeName(draft.payeeName)
         let learningIDs: Set<String> = draft.categoryID == nil ? [] : [transactionID]
-        let shouldRecord = existing.map {
-            BudgetTransactionLogging.shouldRecordUpdate(
-                existing: $0,
-                draft: draft,
-                resolvedPayeeID: payeeResolution.payeeID
+        let payeeBuilder = builder
+        await userActionBeforeCommitHook?()
+        // The existing row, its family and the History decision are read inside
+        // the write transaction so a remote edit that landed since the editor
+        // opened is not judged against stale state.
+        let update = try await database.commitUserActionPlan(
+            source: actionSource,
+            reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition(
+                transactionID: transactionID,
+                authorization: reconciliationAuthorization
             )
-        } ?? true
-        if shouldRecord {
-            let createdPayeeID = payeeResolution.messages.isEmpty ? nil : payeeResolution.payeeID
-            let unsafeGraph = BudgetTransactionLogging.topologyChanged(
-                existing: existingState,
-                draft: draft,
-                primaryID: transactionID,
-                affectedIDs: update.affectedTransactionIDs
+        ) { database, db in
+            var builder = payeeBuilder
+            let existing = try database.fetchTransaction(id: transactionID, db: db)
+            let existingState = try database.existingTransactionState(
+                id: transactionID,
+                columns: try database.resolveTransactionRowColumns(db: db),
+                db: db
             )
-            _ = try await database.commitUserAction(
-                messages,
-                descriptor: .editTransaction(EditTransactionDescriptor(
+            let update = try database.updateTransactionMessages(
+                transactionID: transactionID,
+                draft: draft,
+                payeeID: resolvedPayeeID,
+                reconciliationAuthorization: reconciliationAuthorization,
+                baseline: baseline,
+                db: db,
+                builder: &builder
+            )
+            let descriptor: BudgetActionDescriptor?
+            let shouldRecord = existing.map {
+                BudgetTransactionLogging.shouldRecordUpdate(
+                    existing: $0,
+                    draft: draft,
+                    resolvedPayeeID: resolvedPayeeID
+                )
+            } ?? true
+            if shouldRecord {
+                descriptor = .editTransaction(EditTransactionDescriptor(
                     month: draft.month.rawValue,
-                    payeeName: trimmedPayeeName(draft.payeeName) ?? existing?.payeeName,
+                    payeeName: typedPayeeName ?? existing?.payeeName,
                     transactionID: transactionID,
                     affectedIDs: update.affectedTransactionIDs,
-                    unsafeGraph: unsafeGraph,
+                    unsafeGraph: BudgetTransactionLogging.topologyChanged(
+                        existing: existingState,
+                        draft: draft,
+                        primaryID: transactionID,
+                        affectedIDs: update.affectedTransactionIDs
+                    ),
                     createdPayeeID: createdPayeeID
-                )),
-                source: actionSource,
-                learningTransactionIDs: learningIDs,
-                reconciledMutationPrecondition: reconciledMutationPrecondition
-            )
-        } else if let existing {
-            let metadata = BudgetTransactionLogging.metadataChanges(existing: existing, draft: draft)
-            if metadata.notes || metadata.cleared {
-                _ = try await database.commitUserAction(
-                    messages,
-                    descriptor: .transactionMetadata(TransactionMetadataActionDescriptor(
+                ))
+            } else if let existing {
+                let metadata = BudgetTransactionLogging.metadataChanges(existing: existing, draft: draft)
+                descriptor = metadata.notes || metadata.cleared
+                    ? .transactionMetadata(TransactionMetadataActionDescriptor(
                         month: draft.month.rawValue,
-                        payeeName: trimmedPayeeName(draft.payeeName) ?? existing.payeeName,
+                        payeeName: typedPayeeName ?? existing.payeeName,
                         notesChanged: metadata.notes,
                         clearedChanged: metadata.cleared
-                    )),
-                    source: actionSource,
-                    learningTransactionIDs: learningIDs,
-                    reconciledMutationPrecondition: reconciledMutationPrecondition
-                )
+                    ))
+                    : nil
             } else {
-                _ = try await database.commitLocalSyncMessagesAndEnqueue(
-                    messages,
-                    reconciledMutationPrecondition: reconciledMutationPrecondition
-                )
+                descriptor = nil
             }
-        } else {
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(
-                messages,
-                reconciledMutationPrecondition: reconciledMutationPrecondition
+            return UserActionPlan(
+                drafts: payeeMessages + update.messages,
+                descriptor: descriptor,
+                learningTransactionIDs: learningIDs,
+                outcome: update
             )
-        }
+        }.outcome
         try await reloadRulesIfNeeded(learningIDs: learningIDs, database: database, budgetID: budgetID)
         await didUpdate()
 
@@ -298,12 +306,14 @@ extension LocalFirstActualStore {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await categorizeTransactionAndRefresh(
             transaction,
             categoryID: categoryID,
             budgetID: budgetID,
+            reconciliationAuthorizations: reconciliationAuthorizations,
             actionSource: .ui,
             didUpdate: didUpdate
         )
@@ -313,6 +323,7 @@ extension LocalFirstActualStore {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
         actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
@@ -320,6 +331,7 @@ extension LocalFirstActualStore {
             [transaction],
             categoryID: categoryID,
             budgetID: budgetID,
+            reconciliationAuthorizations: reconciliationAuthorizations,
             actionSource: actionSource,
             didUpdate: didUpdate
         )
@@ -329,12 +341,14 @@ extension LocalFirstActualStore {
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await categorizeTransactionsAndRefresh(
             transactions,
             categoryID: categoryID,
             budgetID: budgetID,
+            reconciliationAuthorizations: reconciliationAuthorizations,
             actionSource: .ui,
             didUpdate: didUpdate
         )
@@ -344,6 +358,7 @@ extension LocalFirstActualStore {
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
         actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
@@ -352,8 +367,6 @@ extension LocalFirstActualStore {
         }
 
         let database = try requireDatabase(for: budgetID)
-        var builder = LocalFirstSyncMessageBuilder()
-        var messages: [ActualSyncDecodedMessage] = []
         var transactionIDs = Set<String>()
         var accountIDs = Set<String>()
         var monthIDs = Set<String>()
@@ -368,11 +381,6 @@ extension LocalFirstActualStore {
             guard let monthID = transaction.date.actualYearMonth else {
                 throw LocalFirstError.invalidLocalWrite("invalid transaction date")
             }
-            messages += try await database.categorizeTransactionMessages(
-                transactionID: transactionID,
-                categoryID: categoryID,
-                builder: &builder
-            )
             accountIDs.insert(transaction.account)
             monthIDs.insert(monthID)
             items.append(BudgetCategorizeFact(
@@ -383,16 +391,32 @@ extension LocalFirstActualStore {
         }
 
         let representativeMonth = monthIDs.sorted().first ?? ""
-        _ = try await database.commitUserAction(
-            messages,
-            descriptor: .categorize(CategorizeTransactionDescriptor(
-                month: representativeMonth,
-                categoryID: categoryID,
-                items: items
-            )),
-            source: actionSource,
-            learningTransactionIDs: transactionIDs
-        )
+        let descriptor = BudgetActionDescriptor.categorize(CategorizeTransactionDescriptor(
+            month: representativeMonth,
+            categoryID: categoryID,
+            items: items
+        ))
+        let orderedIDs = items.map(\.transactionID)
+        await userActionBeforeCommitHook?()
+        _ = try await database.commitUserActionPlan(source: actionSource) { database, db in
+            var builder = LocalFirstSyncMessageBuilder()
+            var messages: [ActualSyncDecodedMessage] = []
+            for transactionID in orderedIDs {
+                messages += try database.categorizeTransactionMessages(
+                    transactionID: transactionID,
+                    categoryID: categoryID,
+                    reconciliationAuthorization: reconciliationAuthorizations[transactionID],
+                    db: db,
+                    builder: &builder
+                )
+            }
+            return UserActionPlan(
+                drafts: messages,
+                descriptor: descriptor,
+                learningTransactionIDs: Set(orderedIDs),
+                outcome: ()
+            )
+        }
         try await reloadRulesIfNeeded(learningIDs: transactionIDs, database: database, budgetID: budgetID)
         await didUpdate()
         let changedAccounts = accountIDs.sorted()
@@ -474,38 +498,51 @@ extension LocalFirstActualStore {
         }
 
         let database = try requireDatabase(for: budgetID)
-        let existingState = try await database.existingTransactionState(id: transactionID)
-        var builder = LocalFirstSyncMessageBuilder()
-        let delete = try await database.deleteTransactionMessages(
-            transactionID: transactionID,
-            reconciliationAuthorization: reconciliationAuthorization,
-            builder: &builder
-        )
-
-        let graph: BudgetTransactionGraph
-        if existingState.isParent {
-            graph = .split(childIDs: existingState.childIDs)
-        } else if let pairedID = existingState.transferID {
-            graph = .transfer(pairedID: pairedID)
-        } else {
-            graph = .simple
-        }
-        _ = try await database.commitUserAction(
-            delete.messages,
-            descriptor: .deleteTransaction(DeleteTransactionDescriptor(
-                month: monthID,
-                amount: transaction.amount ?? 0,
-                payeeName: transaction.payeeName,
-                categoryID: transaction.category,
-                transactionIDs: delete.affectedTransactionIDs,
-                graph: graph
-            )),
+        let amount = transaction.amount ?? 0
+        let payeeName = transaction.payeeName
+        let categoryID = transaction.category
+        await userActionBeforeCommitHook?()
+        let committed = try await database.commitUserActionPlan(
             source: actionSource,
             reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition(
                 transactionID: transactionID,
                 authorization: reconciliationAuthorization
             )
-        )
+        ) { database, db in
+            var builder = LocalFirstSyncMessageBuilder()
+            let delete = try database.deleteTransactionMessages(
+                transactionID: transactionID,
+                reconciliationAuthorization: reconciliationAuthorization,
+                db: db,
+                builder: &builder
+            )
+            let existingState = try database.existingTransactionState(
+                id: transactionID,
+                columns: try database.resolveTransactionRowColumns(db: db),
+                db: db
+            )
+            let graph: BudgetTransactionGraph
+            if existingState.isParent {
+                graph = .split(childIDs: existingState.childIDs)
+            } else if let pairedID = existingState.transferID {
+                graph = .transfer(pairedID: pairedID)
+            } else {
+                graph = .simple
+            }
+            return UserActionPlan(
+                drafts: delete.messages,
+                descriptor: .deleteTransaction(DeleteTransactionDescriptor(
+                    month: monthID,
+                    amount: amount,
+                    payeeName: payeeName,
+                    categoryID: categoryID,
+                    transactionIDs: delete.affectedTransactionIDs,
+                    graph: graph
+                )),
+                outcome: delete
+            )
+        }
+        let delete = committed.outcome
         await didDelete()
 
         let changedAccounts = Array(Set(delete.affectedAccountIDs + [transaction.account]))
@@ -534,6 +571,9 @@ extension LocalFirstActualStore {
         let trimmedName = draft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
         if draft.payeeID == nil && trimmedName.isEmpty && (draft.isSplit || draft.isParent) {
             return (nil, [])
+        }
+        if let selectedPayeeID = draft.payeeID, !selectedPayeeID.isEmpty {
+            try await database.requireLivePayee(selectedPayeeID)
         }
         let resolved = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: draft.payeeID,

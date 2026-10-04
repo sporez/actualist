@@ -411,11 +411,21 @@ extension LocalFirstActualStore {
                 notificationID: $0
             )
         }
-        _ = try await database.commitBankSyncMessages(
-            messages,
-            expectedLink: plan.link,
-            pendingNewTransactions: pendingCommit
-        )
+        do {
+            _ = try await database.commitBankSyncMessages(
+                messages,
+                expectedLink: plan.link,
+                pendingNewTransactions: pendingCommit,
+                expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence(
+                    accountID: plan.link.accountID,
+                    importedIDs: plan.inserts.compactMap(\.financialID)
+                )
+            )
+        } catch LocalFirstError.importedTransactionConflict {
+            // Another writer imported one of these rows after the plan was
+            // reviewed. The generation is consumed, so a new download is required.
+            throw BankSyncStoreError.staleGeneration
+        }
 
         let result = BankSyncReview.ApplyResult(
             insertedCount: insertedCount,

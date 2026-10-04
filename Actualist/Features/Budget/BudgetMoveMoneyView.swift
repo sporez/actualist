@@ -72,8 +72,10 @@ struct BudgetMoveMoneyView: View {
                 return
             }
 
+            // A cancelled sleep (the task restarts with the focused category)
+            // must leave the flag clear so the picker can still auto-present.
+            do { try await Task.sleep(nanoseconds: 320_000_000) } catch { return }
             didAutoPresentDestinationPicker = true
-            try? await Task.sleep(nanoseconds: 320_000_000)
             guard viewModel.isMoveMoneyPresented,
                   viewModel.moveMoneyDraft?.destination == nil else {
                 return
@@ -100,14 +102,12 @@ struct BudgetMoveMoneyView: View {
         Button(action: submitMoveMoney) {
             Text(viewModel.isSubmittingMoveMoney ? "saving" : "done")
                 .font(ActualistTypography.control(for: density))
-                .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
-                .background(ActualistTheme.accent, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.glassProminent)
+        .tint(ActualistTheme.accent)
         .disabled(!viewModel.canSubmitMoveMoney)
-        .opacity(viewModel.canSubmitMoveMoney ? 1 : 0.45)
         .padding(.horizontal, 12)
         .accessibilityLabel("Move money")
     }
@@ -157,10 +157,8 @@ struct BudgetMoveMoneyView: View {
                             .font(.title.weight(.bold))
                             .symbolRenderingMode(.palette)
                             .foregroundStyle(Color.black.opacity(0.72), Color.white.opacity(0.92))
-                            .padding(10)
-                            .background(Color.white.opacity(0.12), in: Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.glass)
                     .disabled(draft.isSubmitting)
                     .accessibilityLabel("Switch move money direction")
 
@@ -185,9 +183,9 @@ struct BudgetMoveMoneyView: View {
                         .font(.title2.weight(.medium))
                         .foregroundStyle(ActualistTheme.primaryText)
                         .frame(width: 54, height: 54)
-                        .background(Color.white.opacity(0.12), in: Circle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
                 .disabled(draft.isSubmitting)
             }
             .padding(.top, BudgetMoveMoneyLayout.closeButtonTopInset)
@@ -215,15 +213,18 @@ struct BudgetMoveMoneyView: View {
 
                 Spacer()
 
-                Text(moveDisplayAmountText(draft))
-                    .font(ActualistTypography.rowValue(for: density))
-                    .foregroundStyle(ActualistTheme.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        isNumberPadVisible = true
-                    }
+                Button {
+                    isNumberPadVisible = true
+                } label: {
+                    Text(moveDisplayAmountText(draft))
+                        .font(ActualistTypography.rowValue(for: density))
+                        .foregroundStyle(ActualistTheme.accent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the amount keypad")
 
                 Text(moveCounterpartyAvailableText(draft))
                     .font(ActualistTypography.rowBadge(for: density))
@@ -384,16 +385,19 @@ struct BudgetMoveMoneyView: View {
 
                 Spacer()
 
-                Text(moveAllocationAmountText(allocation))
-                    .font(ActualistTypography.rowValue(for: density))
-                    .foregroundStyle(ActualistTheme.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        viewModel.setFocusedMoveMoneyAllocation(allocation.id)
-                        isNumberPadVisible = true
-                    }
+                Button {
+                    viewModel.setFocusedMoveMoneyAllocation(allocation.id)
+                    isNumberPadVisible = true
+                } label: {
+                    Text(moveAllocationAmountText(allocation))
+                        .font(ActualistTypography.rowValue(for: density))
+                        .foregroundStyle(ActualistTheme.accent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens the amount keypad")
             }
 
             BudgetMoveMoneyAmountSlider(
