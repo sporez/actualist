@@ -41,7 +41,14 @@ final class TransactionEditorSubmissionCoordinator {
 
     enum EditingIdentity: Equatable, Sendable {
         case creating
-        case updating(transactionID: String, originalAccountID: String, originalMonth: String)
+        /// `baseline` is the transaction the editor loaded; the store diffs the
+        /// draft against it so untouched fields are not rewritten.
+        case updating(
+            transactionID: String,
+            originalAccountID: String,
+            originalMonth: String,
+            baseline: ActualTransaction? = nil
+        )
     }
 
     /// Synchronous preflight outcome. `.proceed` hands back the resolved
@@ -126,14 +133,15 @@ final class TransactionEditorSubmissionCoordinator {
                         self?.transitionToRefetching(token: token)
                     }
                 }
-            case .updating(let transactionID, let originalAccountID, let originalMonth):
+            case .updating(let transactionID, let originalAccountID, let originalMonth, let baseline):
                 result = try await repository.updateTransactionAndRefresh(
                     transactionID,
                     with: draft,
                     budgetID: budgetID,
                     originalAccountID: originalAccountID,
                     originalMonth: originalMonth,
-                    reconciliationAuthorization: reconciliationAuthorization
+                    reconciliationAuthorization: reconciliationAuthorization,
+                    baseline: baseline
                 ) { [weak self] in
                     await MainActor.run {
                         self?.transitionToRefetching(token: token)

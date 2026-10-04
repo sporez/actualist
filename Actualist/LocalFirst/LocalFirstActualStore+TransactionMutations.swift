@@ -144,6 +144,7 @@ extension LocalFirstActualStore {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction? = nil,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await updateTransactionAndRefresh(
@@ -153,6 +154,7 @@ extension LocalFirstActualStore {
             originalAccountID: originalAccountID,
             originalMonth: originalMonth,
             reconciliationAuthorization: reconciliationAuthorization,
+            baseline: baseline,
             actionSource: .ui,
             didUpdate: didUpdate
         )

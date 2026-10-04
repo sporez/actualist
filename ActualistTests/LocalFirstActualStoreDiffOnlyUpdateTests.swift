@@ -85,8 +85,8 @@ extension LocalFirstActualStoreTests {
 
         _ = try await store.updateTransactionAndRefresh(
             "txn", with: try draftEditing(baseline, notes: .some("edited")), budgetID: "group-1",
-            originalAccountID: "checking", originalMonth: "2026-07", baseline: baseline,
-            actionSource: .ui, didUpdate: {}
+            originalAccountID: "checking", originalMonth: "2026-07",
+            reconciliationAuthorization: nil, baseline: baseline, didUpdate: {}
         )
         let cells = try newLocalCells(since: before, at: url)
         #expect(!cells.contains { $0.hasSuffix(".tombstone") })

@@ -129,6 +129,7 @@ protocol TransactionRepositoryProtocol: AnyObject {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction?,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func categorizeTransactionAndRefresh(
@@ -262,6 +263,7 @@ extension TransactionRepositoryProtocol {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction?,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await updateTransactionAndRefresh(
