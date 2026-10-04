@@ -37,6 +37,10 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
     }
     func setCurrentReadError(_ error: Error?) { currentReadError = error }
     func block(_ month: String) { blockedMonths.insert(month) }
+    /// When set, a read returns the response stored when the read began, like
+    /// a database read that began before a later commit.
+    func setReadsSnapshotAtStart(_ enabled: Bool) { readsSnapshotAtStart = enabled }
+    private var readsSnapshotAtStart = false
 
     func waitUntilReadBlocked(_ month: String) async {
         if !pendingReads[month, default: []].isEmpty { return }
@@ -68,6 +72,7 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
 
     func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth {
         budgetMonthReads[selectedMonth, default: 0] += 1
+        let startResponse = responses[selectedMonth]
         if blockedMonths.contains(selectedMonth) {
             blockedSignals.removeValue(forKey: selectedMonth)?.forEach { $0.resume() }
             await withCheckedContinuation { continuation in
@@ -75,7 +80,7 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
             }
         }
         if let error = readErrors[selectedMonth] { throw error }
-        guard let response = responses[selectedMonth] else { throw ViewportTestError.missingMonth(selectedMonth) }
+        guard let response = readsSnapshotAtStart ? startResponse : responses[selectedMonth] else { throw ViewportTestError.missingMonth(selectedMonth) }
         return response
     }
 
