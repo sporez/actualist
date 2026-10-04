@@ -190,8 +190,6 @@ extension LocalFirstActualStore {
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
-        let existing = try await database.fetchTransaction(id: transactionID)
-        let existingState = try await database.existingTransactionState(id: transactionID)
         let draft = try await database.draftByResolvingSchedule(
             draft,
             existingTransactionID: transactionID
@@ -202,76 +200,80 @@ extension LocalFirstActualStore {
             database: database,
             builder: &builder
         )
-        let update = try await database.updateTransactionMessages(
-            transactionID: transactionID,
-            draft: draft,
-            payeeID: payeeResolution.payeeID,
-            reconciliationAuthorization: reconciliationAuthorization,
-            builder: &builder
-        )
-
-        let messages = payeeResolution.messages + update.messages
-        let reconciledMutationPrecondition = ReconciledTransactionMutationPrecondition(
-            transactionID: transactionID,
-            authorization: reconciliationAuthorization
-        )
+        let payeeMessages = payeeResolution.messages
+        let resolvedPayeeID = payeeResolution.payeeID
+        let createdPayeeID = payeeMessages.isEmpty ? nil : resolvedPayeeID
+        let typedPayeeName = trimmedPayeeName(draft.payeeName)
         let learningIDs: Set<String> = draft.categoryID == nil ? [] : [transactionID]
-        let shouldRecord = existing.map {
-            BudgetTransactionLogging.shouldRecordUpdate(
-                existing: $0,
-                draft: draft,
-                resolvedPayeeID: payeeResolution.payeeID
+        let payeeBuilder = builder
+        await userActionBeforeCommitHook?()
+        // The existing row, its family and the History decision are read inside
+        // the write transaction so a remote edit that landed since the editor
+        // opened is not judged against stale state.
+        let update = try await database.commitUserActionPlan(
+            source: actionSource,
+            reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition(
+                transactionID: transactionID,
+                authorization: reconciliationAuthorization
             )
-        } ?? true
-        if shouldRecord {
-            let createdPayeeID = payeeResolution.messages.isEmpty ? nil : payeeResolution.payeeID
-            let unsafeGraph = BudgetTransactionLogging.topologyChanged(
-                existing: existingState,
-                draft: draft,
-                primaryID: transactionID,
-                affectedIDs: update.affectedTransactionIDs
+        ) { database, db in
+            var builder = payeeBuilder
+            let existing = try database.fetchTransaction(id: transactionID, db: db)
+            let existingState = try database.existingTransactionState(
+                id: transactionID,
+                columns: try database.resolveTransactionRowColumns(db: db),
+                db: db
             )
-            _ = try await database.commitUserAction(
-                messages,
-                descriptor: .editTransaction(EditTransactionDescriptor(
+            let update = try database.updateTransactionMessages(
+                transactionID: transactionID,
+                draft: draft,
+                payeeID: resolvedPayeeID,
+                reconciliationAuthorization: reconciliationAuthorization,
+                db: db,
+                builder: &builder
+            )
+            let descriptor: BudgetActionDescriptor?
+            let shouldRecord = existing.map {
+                BudgetTransactionLogging.shouldRecordUpdate(
+                    existing: $0,
+                    draft: draft,
+                    resolvedPayeeID: resolvedPayeeID
+                )
+            } ?? true
+            if shouldRecord {
+                descriptor = .editTransaction(EditTransactionDescriptor(
                     month: draft.month.rawValue,
-                    payeeName: trimmedPayeeName(draft.payeeName) ?? existing?.payeeName,
+                    payeeName: typedPayeeName ?? existing?.payeeName,
                     transactionID: transactionID,
                     affectedIDs: update.affectedTransactionIDs,
-                    unsafeGraph: unsafeGraph,
+                    unsafeGraph: BudgetTransactionLogging.topologyChanged(
+                        existing: existingState,
+                        draft: draft,
+                        primaryID: transactionID,
+                        affectedIDs: update.affectedTransactionIDs
+                    ),
                     createdPayeeID: createdPayeeID
-                )),
-                source: actionSource,
-                learningTransactionIDs: learningIDs,
-                reconciledMutationPrecondition: reconciledMutationPrecondition
-            )
-        } else if let existing {
-            let metadata = BudgetTransactionLogging.metadataChanges(existing: existing, draft: draft)
-            if metadata.notes || metadata.cleared {
-                _ = try await database.commitUserAction(
-                    messages,
-                    descriptor: .transactionMetadata(TransactionMetadataActionDescriptor(
+                ))
+            } else if let existing {
+                let metadata = BudgetTransactionLogging.metadataChanges(existing: existing, draft: draft)
+                descriptor = metadata.notes || metadata.cleared
+                    ? .transactionMetadata(TransactionMetadataActionDescriptor(
                         month: draft.month.rawValue,
-                        payeeName: trimmedPayeeName(draft.payeeName) ?? existing.payeeName,
+                        payeeName: typedPayeeName ?? existing.payeeName,
                         notesChanged: metadata.notes,
                         clearedChanged: metadata.cleared
-                    )),
-                    source: actionSource,
-                    learningTransactionIDs: learningIDs,
-                    reconciledMutationPrecondition: reconciledMutationPrecondition
-                )
+                    ))
+                    : nil
             } else {
-                _ = try await database.commitLocalSyncMessagesAndEnqueue(
-                    messages,
-                    reconciledMutationPrecondition: reconciledMutationPrecondition
-                )
+                descriptor = nil
             }
-        } else {
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(
-                messages,
-                reconciledMutationPrecondition: reconciledMutationPrecondition
+            return UserActionPlan(
+                drafts: payeeMessages + update.messages,
+                descriptor: descriptor,
+                learningTransactionIDs: learningIDs,
+                outcome: update
             )
-        }
+        }.outcome
         try await reloadRulesIfNeeded(learningIDs: learningIDs, database: database, budgetID: budgetID)
         await didUpdate()
 

@@ -10,6 +10,28 @@ extension BudgetDatabase {
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
+        try queue.read { db in
+            try updateTransactionMessages(
+                transactionID: transactionID,
+                draft: draft,
+                payeeID: payeeID,
+                reconciliationAuthorization: reconciliationAuthorization,
+                db: db,
+                builder: &builder
+            )
+        }
+    }
+
+    /// Reads the existing row and its pair through `db`, so an update built in its
+    /// own write transaction sees the family and transfer state at commit time.
+    func updateTransactionMessages(
+        transactionID: String,
+        draft: TransactionDraft,
+        payeeID: String?,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
+        db: Database,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> TransactionWriteResult {
         let trimmedTransactionID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTransactionID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
@@ -18,111 +40,109 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
 
-        return try queue.read { db in
-            let columns = try resolveTransactionRowColumns(db: db)
-            guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
-                throw LocalFirstError.invalidLocalWrite("missing transaction")
+        let columns = try resolveTransactionRowColumns(db: db)
+        guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
+        }
+        try validateReconciledMutationAuthorization(
+            transactionID: trimmedTransactionID,
+            authorization: reconciliationAuthorization,
+            columns: columns,
+            db: db
+        )
+        if try tableExists("accounts", db: db),
+           try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
+            throw LocalFirstError.invalidLocalWrite("missing account")
+        }
+
+        let existing = try existingTransactionState(id: trimmedTransactionID, columns: columns, db: db)
+        let isFamilyWrite = existing.isParent || existing.isChild || draft.isSplit
+        if !isFamilyWrite {
+            guard draft.amountMinorUnits != 0 else {
+                throw LocalFirstError.invalidLocalWrite("missing amount")
             }
-            try validateReconciledMutationAuthorization(
+        } else {
+            return try splitFamilyUpdateMessages(
                 transactionID: trimmedTransactionID,
-                authorization: reconciliationAuthorization,
-                columns: columns,
-                db: db
-            )
-            if try tableExists("accounts", db: db),
-               try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
-                throw LocalFirstError.invalidLocalWrite("missing account")
-            }
-
-            let existing = try existingTransactionState(id: trimmedTransactionID, columns: columns, db: db)
-            let isFamilyWrite = existing.isParent || existing.isChild || draft.isSplit
-            if !isFamilyWrite {
-                guard draft.amountMinorUnits != 0 else {
-                    throw LocalFirstError.invalidLocalWrite("missing amount")
-                }
-            } else {
-                return try splitFamilyUpdateMessages(
-                    transactionID: trimmedTransactionID,
-                    draft: draft,
-                    payeeID: payeeID,
-                    columns: columns,
-                    db: db,
-                    builder: &builder
-                )
-            }
-            guard let payeeID else {
-                throw LocalFirstError.invalidLocalWrite("missing payee")
-            }
-            let dateValue = try Self.actualDateValue(draft.date)
-            let isTransferDraft = draft.isTransfer
-            let mainCategory: String?
-            let pairedCategory: String?
-            if isTransferDraft {
-                // Put the category on the budget side of a cross-budget transfer.
-                let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
-                let categories = try transferCategories(
-                    draft: draft,
-                    sourceAccountID: draft.accountID,
-                    destinationAccountID: destination,
-                    db: db
-                )
-                mainCategory = categories.source
-                pairedCategory = categories.destination
-            } else {
-                mainCategory = draft.categoryID
-                pairedCategory = nil
-            }
-            if let mainCategory,
-               try tableExists("categories", db: db),
-               try !liveRowExists(table: "categories", rowID: mainCategory, db: db) {
-                throw LocalFirstError.invalidLocalWrite("missing category")
-            }
-
-            var messages: [ActualSyncDecodedMessage] = []
-            var affectedAccounts: Set<String> = [existing.account, draft.accountID]
-            var affectedTransactions: Set<String> = [trimmedTransactionID]
-
-            messages += try transactionRowMessages(
-                rowID: trimmedTransactionID,
-                accountID: draft.accountID,
-                dateValue: dateValue,
-                amountMinorUnits: draft.amountMinorUnits,
-                payeeID: payeeID,
-                categoryID: mainCategory,
-                notes: draft.notes,
-                cleared: draft.cleared,
-                reconciled: draft.reconciled,
-                isParent: false,
-                parentID: nil,
-                isChild: false,
-                transferID: nil,
-                sortOrder: nil,
-                columns: columns,
-                builder: &builder,
-                scheduleID: draft.scheduleID
-            )
-
-            // Keep transfer transitions aligned with loot-core's onUpdate.
-            messages += try transferTransitionMessages(
-                mainID: trimmedTransactionID,
                 draft: draft,
                 payeeID: payeeID,
-                dateValue: dateValue,
-                pairedCategory: pairedCategory,
-                existing: existing,
                 columns: columns,
-                affectedAccounts: &affectedAccounts,
-                affectedTransactions: &affectedTransactions,
                 db: db,
                 builder: &builder
             )
-
-            return TransactionWriteResult(
-                messages: messages,
-                affectedAccountIDs: Array(affectedAccounts),
-                affectedTransactionIDs: Array(affectedTransactions)
-            )
         }
+        guard let payeeID else {
+            throw LocalFirstError.invalidLocalWrite("missing payee")
+        }
+        let dateValue = try Self.actualDateValue(draft.date)
+        let isTransferDraft = draft.isTransfer
+        let mainCategory: String?
+        let pairedCategory: String?
+        if isTransferDraft {
+            // Put the category on the budget side of a cross-budget transfer.
+            let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
+            let categories = try transferCategories(
+                draft: draft,
+                sourceAccountID: draft.accountID,
+                destinationAccountID: destination,
+                db: db
+            )
+            mainCategory = categories.source
+            pairedCategory = categories.destination
+        } else {
+            mainCategory = draft.categoryID
+            pairedCategory = nil
+        }
+        if let mainCategory,
+           try tableExists("categories", db: db),
+           try !liveRowExists(table: "categories", rowID: mainCategory, db: db) {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+
+        var messages: [ActualSyncDecodedMessage] = []
+        var affectedAccounts: Set<String> = [existing.account, draft.accountID]
+        var affectedTransactions: Set<String> = [trimmedTransactionID]
+
+        messages += try transactionRowMessages(
+            rowID: trimmedTransactionID,
+            accountID: draft.accountID,
+            dateValue: dateValue,
+            amountMinorUnits: draft.amountMinorUnits,
+            payeeID: payeeID,
+            categoryID: mainCategory,
+            notes: draft.notes,
+            cleared: draft.cleared,
+            reconciled: draft.reconciled,
+            isParent: false,
+            parentID: nil,
+            isChild: false,
+            transferID: nil,
+            sortOrder: nil,
+            columns: columns,
+            builder: &builder,
+            scheduleID: draft.scheduleID
+        )
+
+        // Keep transfer transitions aligned with loot-core's onUpdate.
+        messages += try transferTransitionMessages(
+            mainID: trimmedTransactionID,
+            draft: draft,
+            payeeID: payeeID,
+            dateValue: dateValue,
+            pairedCategory: pairedCategory,
+            existing: existing,
+            columns: columns,
+            affectedAccounts: &affectedAccounts,
+            affectedTransactions: &affectedTransactions,
+            db: db,
+            builder: &builder
+        )
+
+        return TransactionWriteResult(
+            messages: messages,
+            affectedAccountIDs: Array(affectedAccounts),
+            affectedTransactionIDs: Array(affectedTransactions)
+        )
     }
 
     func existingTransactionState(id: String) throws -> ExistingTransactionState {

@@ -95,4 +95,27 @@ extension LocalFirstActualStoreTests {
         }
         #expect(live == 0)
     }
+
+    @Test func updateReportsTheAccountTheRowHasWhenTheWriteRuns() async throws {
+        let store = try await makeOpenedWritableStore()
+        landRemote([remoteMessage("transactions", "txn", "acct", "S:savings")], on: store)
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: try makeDate(year: 2026, month: 7, day: 3),
+            amountMinorUnits: -12_345,
+            payeeID: "coffee",
+            payeeName: "Coffee Shop",
+            categoryID: "groceries",
+            notes: "edited",
+            cleared: false,
+            isTransfer: false
+        )
+
+        let result = try await store.updateTransactionAndRefresh(
+            "txn", with: draft, budgetID: "group-1",
+            originalAccountID: "checking", originalMonth: "2026-07"
+        ) {}
+
+        #expect(Set(result.changed.accounts) == ["checking", "savings"])
+    }
 }
