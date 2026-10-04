@@ -12,9 +12,13 @@ struct ShortcutIntentTests {
     private let fixtures = LocalFirstActualStoreTests()
 
     private func makeSession() async throws -> ShortcutsBudgetSession {
+        try await makeSessionAndAppState().session
+    }
+
+    private func makeSessionAndAppState() async throws -> (session: ShortcutsBudgetSession, appState: AppState) {
         let bundle = try await fixtures.makeOpenedWritableStoreBundle()
         let appState = try fixtures.makeAppState(for: bundle)
-        return ShortcutsBudgetSession(appState: appState)
+        return (ShortcutsBudgetSession(appState: appState), appState)
     }
 
     private func account(_ id: String = "checking") -> AccountEntity {
@@ -279,7 +283,7 @@ struct ShortcutIntentTests {
     }
 
     @Test func writeAndOpenIntentsExercisePerformPaths() async throws {
-        let session = try await makeSession()
+        let (session, appState) = try await makeSessionAndAppState()
         let logged = try await ShortcutTransactionCommand.log(
             .init(amountMinorUnits: 250, direction: .spend, accountID: "checking", payeeName: "Intent Shop"),
             session: session
@@ -305,122 +309,169 @@ struct ShortcutIntentTests {
         log.category = category()
         log.notes = "note"
         log.cleared = false
-        _ = try await log.perform()
+        let loggedByIntent = try await log.perform().value
+        #expect(loggedByIntent?.payee == "Intent Cafe")
+        #expect(loggedByIntent?.notes == "note")
+        #expect(loggedByIntent?.cleared == false)
+        #expect(loggedByIntent?.isTransfer == false)
+        #expect(loggedByIntent?.amount.map { abs($0.amount) } == Decimal(string: "3.5"))
 
         let transfer = LogTransferIntent()
         transfer.session = session
         transfer.fromAccount = account("checking")
         transfer.toAccount = account("savings")
         transfer.amount = amount("4.00")
-        _ = try await transfer.perform()
+        let transferred = try await transfer.perform().value
+        #expect(transferred?.isTransfer == true)
+        #expect(transferred?.amount.map { abs($0.amount) } == 4)
 
         let update = UpdateTransactionIntent()
         update.session = session
         update.transaction = transaction
         update.notes = "updated from intent"
-        _ = try await update.perform()
+        let updated = try await update.perform().value
+        #expect(updated?.id == logged.id)
+        #expect(updated?.notes == "updated from intent")
 
         let categorize = CategorizeTransactionIntent()
         categorize.session = session
         categorize.transaction = transaction
         categorize.category = category("utilities")
-        _ = try await categorize.perform()
+        let categorized = try await categorize.perform().value
+        #expect(categorized?.id == logged.id)
+        #expect(categorized?.category != nil)
+        #expect(categorized?.category != logged.category)
 
         let cleared = SetTransactionClearedIntent()
         cleared.session = session
         cleared.transaction = transaction
         cleared.cleared = true
-        _ = try await cleared.perform()
+        let clearedResult = try await cleared.perform().value
+        #expect(clearedResult?.id == logged.id)
+        #expect(clearedResult?.cleared == true)
 
         let getOne = GetTransactionIntent()
         getOne.session = session
         getOne.transaction = transaction
-        _ = try await getOne.perform()
+        let fetched = try await getOne.perform().value
+        #expect(fetched?.id == logged.id)
+        #expect(fetched?.cleared == true)
 
         let delete = DeleteTransactionIntent()
         delete.session = session
         delete.transaction = transaction
-        _ = try await delete.perform()
+        let deleted = try await delete.perform().value
+        #expect(deleted?.id == logged.id)
+        await #expect(throws: (any Error).self) {
+            _ = try await getOne.perform()
+        }
 
         let importText = ImportTransactionFromTextIntent()
         importText.session = session
         importText.text = "1.25 coffee Groceries Checking"
-        _ = try await importText.perform()
+        let imported = try await importText.perform().value
+        #expect(imported?.amount.map { abs($0.amount) } == Decimal(string: "1.25"))
+        #expect(imported?.isTransfer == false)
 
         let assign = AssignCategoryBudgetIntent()
         assign.session = session
         assign.category = category()
         assign.amount = amount("20.00")
         assign.month = month()
-        _ = try await assign.perform()
+        let assigned = try await assign.perform().value
+        #expect(assigned?.id == "groceries")
+        #expect(assigned?.budgeted?.amount == 20)
 
         let add = AddToCategoryBudgetIntent()
         add.session = session
         add.category = category()
         add.amount = amount("5.00")
         add.month = month()
-        _ = try await add.perform()
+        let added = try await add.perform().value
+        #expect(added?.id == "groceries")
+        #expect(added?.budgeted?.amount == 25)
 
         let move = MoveMoneyIntent()
         move.session = session
         move.fromCategory = category()
         move.amount = amount("1.00")
         move.month = month()
-        _ = try await move.perform()
+        let moved = try await move.perform().value
+        #expect(moved?.id == "groceries")
+        #expect(moved?.budgeted?.amount == 24)
 
         let template = ApplyBudgetTemplateIntent()
         template.session = session
         template.mode = .fillEmpty
         template.category = category()
         template.month = month()
-        _ = try await template.perform()
+        let templated = try await template.perform().value
+        #expect(templated?.month == "2026-07")
 
         let carryover = SetCategoryCarryoverIntent()
         carryover.session = session
         carryover.category = category("utilities")
         carryover.enabled = true
         carryover.startMonth = month()
-        _ = try await carryover.perform()
+        let carried = try await carryover.perform().value
+        #expect(carried?.id == "utilities")
+        #expect(carried?.carryover == true)
 
         let createPayee = CreatePayeeIntent()
         createPayee.session = session
         createPayee.name = "Intent Payee"
-        _ = try await createPayee.perform()
+        let payee = try await createPayee.perform().value
+        #expect(payee?.name == "Intent Payee")
 
         let createAccount = CreateAccountIntent()
         createAccount.session = session
         createAccount.name = "Intent Cash"
         createAccount.offBudget = true
-        _ = try await createAccount.perform()
+        let newAccount = try await createAccount.perform().value
+        #expect(newAccount?.name == "Intent Cash")
+        #expect(newAccount?.offBudget == true)
 
         let openBudget = OpenBudgetIntent()
         openBudget.session = session
         _ = try await openBudget.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .tab(.budget))
+        #expect(appState.selectedTab == .budget)
         let openAccounts = OpenAccountsIntent()
         openAccounts.session = session
         _ = try await openAccounts.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .tab(.accounts))
+        #expect(appState.selectedTab == .accounts)
         let openSpending = OpenSpendingIntent()
         openSpending.session = session
         _ = try await openSpending.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .tab(.spending))
+        #expect(appState.selectedTab == .spending)
         let openReports = OpenReportsIntent()
         openReports.session = session
         _ = try await openReports.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .tab(.reports))
+        #expect(appState.selectedTab == .reports)
 
         let openAccount = OpenAccountIntent()
         openAccount.session = session
         openAccount.account = account()
         _ = try await openAccount.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .account(id: "checking"))
+        #expect(appState.selectedTab == .accounts)
 
         let openCategory = OpenCategoryIntent()
         openCategory.session = session
         openCategory.category = category()
         openCategory.month = month()
         _ = try await openCategory.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .category(id: "groceries", month: "2026-07"))
+        #expect(appState.selectedTab == .budget)
 
         let openUncategorized = OpenUncategorizedIntent()
         openUncategorized.session = session
         openUncategorized.month = month()
         _ = try await openUncategorized.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .uncategorized(month: "2026-07"))
 
         let openNew = OpenNewTransactionIntent()
         openNew.session = session
@@ -431,6 +482,15 @@ struct ShortcutIntentTests {
         openNew.notes = "from shortcut"
         openNew.direction = .inflow
         _ = try await openNew.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .newTransaction(ShortcutEditorPrefill(
+            accountID: "checking",
+            amountMinorUnits: 999,
+            payeeName: "Prefill",
+            categoryID: "groceries",
+            categoryName: "groceries",
+            notes: "from shortcut",
+            direction: .inflow
+        )))
     }
 
     @Test func intentResponseEdgeCasesUseTheOwningTestSession() async throws {
@@ -447,7 +507,8 @@ struct ShortcutIntentTests {
         let noneIntent = GetAccountsIntent()
         noneIntent.session = session
         noneIntent.includeClosed = false
-        _ = try await noneIntent.perform()
+        let none = try await noneIntent.perform().value
+        #expect(none?.isEmpty == true)
 
         bundle.store.accountsByBudget["group-1"] = [
             AccountDisplay(
@@ -458,7 +519,8 @@ struct ShortcutIntentTests {
         let oneIntent = GetAccountsIntent()
         oneIntent.session = session
         oneIntent.includeClosed = false
-        _ = try await oneIntent.perform()
+        let one = try await oneIntent.perform().value
+        #expect(one?.map(\.id) == ["solo"])
 
         bundle.store.accountsByBudget["group-1"] = [
             AccountDisplay(
@@ -475,12 +537,14 @@ struct ShortcutIntentTests {
             offBudget: false,
             closed: false
         )
-        _ = try await balance.perform()
+        let ghostBalance = try await balance.perform().value
+        #expect(ghostBalance?.amount == 0)
 
         let openNew = OpenNewTransactionIntent()
         openNew.session = session
         openNew.direction = .spend
         _ = try await openNew.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .newTransaction(ShortcutEditorPrefill(direction: .spend)))
     }
 
     @Test func disabledShortcutsRefuseIntentPerform() async throws {
