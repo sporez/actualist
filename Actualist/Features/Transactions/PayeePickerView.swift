@@ -134,12 +134,7 @@ struct PayeePickerView: View {
             }
         }
         .presentationDetents([.large])
-        .onAppear {
-            Task {
-                await Task.yield()
-                isSearchFocused = true
-            }
-        }
+        .task { isSearchFocused = true }
     }
 
     private var searchField: some View {
