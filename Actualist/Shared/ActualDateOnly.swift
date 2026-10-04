@@ -30,6 +30,16 @@ enum ActualDateOnly {
         return distance
     }
 
+    /// Whole days since 1970-01-01 for a `yyyy-MM-dd` ID, or nil when it does
+    /// not parse. The calendar is fixed to GMT, so differences of epoch days
+    /// equal `dayDistance(from:to:)`.
+    static func epochDay(_ dayID: String) -> Int? {
+        guard let date = ActualScheduleRecurrence.date(from: dayID, calendar: Calendar.actualScheduleGregorian) else {
+            return nil
+        }
+        return Int((date.timeIntervalSince1970 / 86_400).rounded(.down))
+    }
+
     static func dayDistance(fromCompact firstDayID: String, toCompact secondDayID: String) -> Int? {
         guard let first = dashedDayID(fromCompact: firstDayID),
               let second = dashedDayID(fromCompact: secondDayID) else { return nil }

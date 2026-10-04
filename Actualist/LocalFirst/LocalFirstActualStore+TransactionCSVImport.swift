@@ -23,7 +23,10 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
 
         let payees = try await database.fetchPayees(orderedForPicker: false)
         let categories = try await database.fetchCategories()
-        let candidates = try await database.fetchTransactionCSVImportCandidates(accountID: request.accountID)
+        let candidates = try await database.fetchTransactionCSVImportCandidates(
+            accountID: request.accountID,
+            scope: TransactionCSVImportMatcher.candidateScope(rows: rows)
+        )
 
         guard transactionFeedRequestIdentity.sessionID == sessionID,
               generation == budgetSessionGeneration,

@@ -321,11 +321,92 @@ struct TransactionCSVImportUpdatePlan: Hashable, Sendable {
 enum TransactionCSVImportMatcher {
     static let fuzzyDateWindowDays = 7
 
+    /// Which existing rows can matter for a file: every row dated within the
+    /// fuzzy window of some file row, plus any row carrying one of the file's
+    /// imported IDs (the exact tier is not date-bound).
+    struct CandidateScope: Sendable {
+        /// Inclusive `yyyy-MM-dd` bounds; nil when no file row has a valid date.
+        let dateWindow: (from: String, to: String)?
+        let importedIDs: Set<String>
+    }
+
+    static func candidateScope(rows: [TransactionCSVImportRow]) -> CandidateScope {
+        let days = rows.compactMap { ActualDateOnly.epochDay($0.dateText) }
+        let window = days.min().flatMap { first in days.max().map { last in
+            (from: max("0001-01-01", dayID(epochDay: first - fuzzyDateWindowDays)),
+             to: min("9999-12-31", dayID(epochDay: last + fuzzyDateWindowDays)))
+        } }
+        return CandidateScope(
+            dateWindow: window,
+            importedIDs: Set(rows.compactMap(\.importedID).filter { !$0.isEmpty })
+        )
+    }
+
+    private static func dayID(epochDay: Int) -> String {
+        ActualScheduleRecurrence.dayID(from: Date(timeIntervalSince1970: Double(epochDay) * 86_400))
+    }
+
+    /// Candidates indexed once per match: by imported ID, and by amount with
+    /// each date parsed to an epoch day a single time. Orders are positions in
+    /// the original candidate list, which break ties exactly as before.
+    private struct CandidateIndex {
+        let candidates: [TransactionCSVImportCandidate]
+        private let ordersByImportedID: [String: [Int]]
+        private let datedByAmount: [Int: [(order: Int, epochDay: Int)]]
+
+        init(_ candidates: [TransactionCSVImportCandidate]) {
+            self.candidates = candidates
+            var byID: [String: [Int]] = [:]
+            var byAmount: [Int: [(order: Int, epochDay: Int)]] = [:]
+            for (order, candidate) in candidates.enumerated() {
+                if let importedID = candidate.importedID {
+                    byID[importedID, default: []].append(order)
+                }
+                if let day = ActualDateOnly.epochDay(candidate.dateText) {
+                    byAmount[candidate.amountMinorUnits, default: []].append((order, day))
+                }
+            }
+            ordersByImportedID = byID
+            datedByAmount = byAmount
+        }
+
+        func firstUnclaimed(importedID: String, claimed: Set<String>) -> TransactionCSVImportCandidate? {
+            ordersByImportedID[importedID]?
+                .lazy.map { candidates[$0] }.first { !claimed.contains($0.id) }
+        }
+
+        func fuzzyCandidates(
+            row: TransactionCSVImportRow,
+            claimed: Set<String>
+        ) -> [(candidate: TransactionCSVImportCandidate, distance: Int, order: Int)] {
+            guard let rowDay = ActualDateOnly.epochDay(row.dateText),
+                  let sameAmount = datedByAmount[row.amountMinorUnits] else { return [] }
+            var matches: [(candidate: TransactionCSVImportCandidate, distance: Int, order: Int)] = []
+            for (order, day) in sameAmount {
+                let candidate = candidates[order]
+                let distance = abs(rowDay - day)
+                guard !claimed.contains(candidate.id), distance <= TransactionCSVImportMatcher.fuzzyDateWindowDays else {
+                    continue
+                }
+                // strictIdChecking (default for import): when both rows have an
+                // imported_id, only the exact tier applies.
+                if row.importedID != nil && candidate.importedID != nil {
+                    continue
+                }
+                matches.append((candidate, distance, order))
+            }
+            return matches.sorted {
+                $0.distance == $1.distance ? $0.order < $1.order : $0.distance < $1.distance
+            }
+        }
+    }
+
     static func match(
         rows: [TransactionCSVImportRow],
         candidates: [TransactionCSVImportCandidate],
         context: TransactionCSVImportMatchContext
     ) -> [TransactionCSVImportDisposition] {
+        let index = CandidateIndex(candidates)
         var claimed: Set<String> = []
         var dispositions: [TransactionCSVImportDisposition] = []
         dispositions.reserveCapacity(rows.count)
@@ -338,9 +419,7 @@ enum TransactionCSVImportMatcher {
             // Tier 1: exact imported_id (candidates are already account-scoped).
             // Upstream compares with SQL `imported_id = ?`, which is exact.
             if let importedID = row.importedID, !importedID.isEmpty,
-               let candidate = candidates.first(where: {
-                   !claimed.contains($0.id) && $0.importedID == importedID
-               }) {
+               let candidate = index.firstUnclaimed(importedID: importedID, claimed: claimed) {
                 claimed.insert(candidate.id)
                 dispositions.append(disposition(row: row, candidate: candidate, resolvedPayeeID: resolvedPayeeID, context: context))
                 continue
@@ -349,7 +428,7 @@ enum TransactionCSVImportMatcher {
             // Fuzzy pool: same integer amount, date inside the ±7-day window,
             // unclaimed, and strict-id checking skips candidates that carry
             // their own imported_id when the incoming row has one.
-            let fuzzy = fuzzyCandidates(row: row, candidates: candidates, claimed: claimed)
+            let fuzzy = index.fuzzyCandidates(row: row, claimed: claimed)
 
             // Tier 2: same resolved payee.
             if let resolvedPayeeID,
@@ -370,38 +449,13 @@ enum TransactionCSVImportMatcher {
         return dispositions
     }
 
-    private static func fuzzyCandidates(
-        row: TransactionCSVImportRow,
-        candidates: [TransactionCSVImportCandidate],
-        claimed: Set<String>
-    ) -> [(candidate: TransactionCSVImportCandidate, distance: Int, order: Int)] {
-        var matches: [(candidate: TransactionCSVImportCandidate, distance: Int, order: Int)] = []
-        for (order, candidate) in candidates.enumerated() {
-            guard !claimed.contains(candidate.id),
-                  candidate.amountMinorUnits == row.amountMinorUnits,
-                  let distance = ActualDateOnly.dayDistance(from: candidate.dateText, to: row.dateText),
-                  abs(distance) <= fuzzyDateWindowDays else {
-                continue
-            }
-            // strictIdChecking (default for import): when both rows have an
-            // imported_id, only the exact tier applies.
-            if row.importedID != nil && candidate.importedID != nil {
-                continue
-            }
-            matches.append((candidate, abs(distance), order))
-        }
-        return matches.sorted {
-            $0.distance == $1.distance ? $0.order < $1.order : $0.distance < $1.distance
-        }
-    }
-
     /// Fill semantics (`existing || trans`): the existing row's truthy value
     /// wins for payee/category/notes/cleared; `imported_payee` is overwritten
     /// with the file's payee text and `imported_id` only when the file has
     /// one. Date and amount are never updated (the import handler never sets
     /// `updateDates`). An unchanged match is ignored; a reconciled match is
     /// skipped entirely.
-    private static func disposition(
+    static func disposition(
         row: TransactionCSVImportRow,
         candidate: TransactionCSVImportCandidate,
         resolvedPayeeID: String?,
