@@ -6,8 +6,10 @@ import Testing
 @MainActor
 struct BudgetTemplateEditorPreviewCoordinatorTests {
     @Test func replacingARequestSuppressesTheOlderPreview() async throws {
-        let coordinator = BudgetTemplateEditorPreviewCoordinator()
+        let debounce = ManualTestDelay()
+        let coordinator = BudgetTemplateEditorPreviewCoordinator(sleep: { try await debounce.sleep(for: $0) })
         var results: [Int] = []
+        let finished = TestLatch()
 
         coordinator.schedule(
             drafts: [.monthlyFixed(amount: 100)],
@@ -21,6 +23,7 @@ struct BudgetTemplateEditorPreviewCoordinatorTests {
                 }
             }
         )
+        #expect(try await debounce.waitUntilSleeping() == .milliseconds(40))
         coordinator.schedule(
             drafts: [.monthlyFixed(amount: 200)],
             delay: .zero,
@@ -31,28 +34,41 @@ struct BudgetTemplateEditorPreviewCoordinatorTests {
                 if case .success(let preview) = result {
                     results.append(preview?.budgeted ?? -1)
                 }
+                finished.trip()
             }
         )
-
-        try await Task.sleep(for: .milliseconds(100))
+        await finished.wait()
+        // The older request wakes only after the newer one completed.
+        debounce.resume()
+        let barrier = TestLatch()
+        coordinator.schedule(drafts: [], delay: .zero, load: { _ in nil }, completion: { _ in barrier.trip() })
+        await barrier.wait()
         #expect(results == [200])
     }
 
     @Test func cancelPreventsAQueuedPreviewFromLoading() async throws {
-        let coordinator = BudgetTemplateEditorPreviewCoordinator()
+        let debounce = ManualTestDelay()
+        let coordinator = BudgetTemplateEditorPreviewCoordinator(sleep: { try await debounce.sleep(for: $0) })
         var didLoad = false
+        var completions = 0
+
         coordinator.schedule(
-            drafts: [.monthlyFixed()],
+            drafts: [.monthlyFixed(amount: 100)],
             delay: .milliseconds(40),
             load: { _ in
                 didLoad = true
                 return BudgetTemplateCategoryDryRun(budgeted: 100, perTemplate: [100])
             },
-            completion: { _ in }
+            completion: { _ in completions += 1 }
         )
+        _ = try await debounce.waitUntilSleeping()
         coordinator.cancel()
+        debounce.resume()
+        let barrier = TestLatch()
+        coordinator.schedule(drafts: [], delay: .zero, load: { _ in nil }, completion: { _ in barrier.trip() })
+        await barrier.wait()
 
-        try await Task.sleep(for: .milliseconds(100))
         #expect(!didLoad)
+        #expect(completions == 0)
     }
 }

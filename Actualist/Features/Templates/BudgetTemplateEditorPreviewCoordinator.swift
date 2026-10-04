@@ -8,8 +8,16 @@ final class BudgetTemplateEditorPreviewCoordinator {
     typealias Loader = @MainActor ([BudgetTemplateDraft]) async throws -> BudgetTemplateCategoryDryRun?
     typealias Completion = @MainActor (Result<BudgetTemplateCategoryDryRun?, Error>) -> Void
 
+    /// The debounce wait. Injectable so tests control the delay instead of sleeping.
+    typealias Sleep = @Sendable (Duration) async throws -> Void
+
     private var generation = 0
     private var task: Task<Void, Never>?
+    private let sleep: Sleep
+
+    init(sleep: @escaping Sleep = { try await Task.sleep(for: $0) }) {
+        self.sleep = sleep
+    }
 
     func schedule(
         drafts: [BudgetTemplateDraft],
@@ -20,10 +28,11 @@ final class BudgetTemplateEditorPreviewCoordinator {
         generation += 1
         let requestGeneration = generation
         task?.cancel()
+        let sleep = self.sleep
         task = Task { [weak self] in
             if delay > .zero {
                 do {
-                    try await Task.sleep(for: delay)
+                    try await sleep(delay)
                 } catch {
                     return
                 }

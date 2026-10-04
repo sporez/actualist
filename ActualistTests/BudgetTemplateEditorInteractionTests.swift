@@ -92,9 +92,10 @@ struct BudgetTemplateEditorInteractionTests {
             #expect(vm.dryRun == nil)
             #expect(!vm.inputShowsError(for: .amount, id: id))
             #expect(vm.authoringIssueMessages.isEmpty)
-            try await Task.sleep(for: .milliseconds(25))
         }
-        #expect(await repository.dryRunCount == 1)
+        // Every edit above runs on the main actor without suspending, so an
+        // unwanted preview task is cancelled before it starts; the final
+        // dryRunCount == 2 below fails if one ever loaded.
         vm.inputFocusChanged(to: nil)
         try await waitForTemplatePreview(vm)
         #expect(vm.dryRun?.budgeted == 25_025)
@@ -122,12 +123,13 @@ struct BudgetTemplateEditorInteractionTests {
         vm.inputFocusChanged(to: .init(itemID: id, field: .interval))
         #expect(vm.previewState == .loading)
         vm.edit(.setInput("", field: .interval, id: id))
-        try await Task.sleep(for: .milliseconds(40))
+        // The queued preview was cancelled before it could start (no suspension
+        // since it was scheduled), so it can never load.
         #expect(vm.previewState == .editing)
-        #expect(await repository.dryRunCount == 1)
         vm.inputFocusChanged(to: nil)
         #expect(vm.inputShowsError(for: .interval, id: id))
         #expect(!vm.canSave)
+        #expect(await repository.dryRunCount == 1)
     }
 
     @Test func authoringIssuesWaitForCompletionButSaveUsesCurrentDraft() async throws {

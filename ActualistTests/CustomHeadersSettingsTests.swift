@@ -93,11 +93,7 @@ extension CustomHTTPHeaderTransportTests {
         let model = CustomHeadersSettingsViewModel(store: store, primaryURLString: "https://primary.example", fallbackURLString: "", verifier: .init(session: session))
         let id = model.endpoints[0].headers[0].id
         model.updateHeader(id, role: .primary, value: "draft-secret")
-        model.testConnection(for: .primary)
-        for _ in 0..<200 {
-            if !model.isTesting { break }
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        await model.testConnection(for: .primary)?.value
         #expect(model.phase == .result(.primary, .acceptsWithAndWithoutHeaders))
         #expect(HeaderTransportURLProtocol.requests.first?.value(forHTTPHeaderField: "X-Primary") == "draft-secret")
         #expect(try keychain.readCustomHTTPHeaders().primary?.headers[0].value == "primary-secret")

@@ -198,6 +198,7 @@ private final class HeaderRedirectTestServer: Sendable {
     private let listener: NWListener
     private let queue = DispatchQueue(label: "Actualist.HeaderRedirectTest")
     private let state = Mutex((ready: false, requests: [String]()))
+    private let listenerSettled = TestLatch()
     private let identity = UUID().uuidString
     private let response: @Sendable (String) -> String
 
@@ -211,16 +212,28 @@ private final class HeaderRedirectTestServer: Sendable {
 
     func start() async throws {
         listener.stateUpdateHandler = { [self] update in
-            if case .ready = update { state.withLock { $0.ready = true } }
+            switch update {
+            case .ready:
+                state.withLock { $0.ready = true }
+                listenerSettled.trip()
+            case .failed, .cancelled:
+                listenerSettled.trip()
+            default:
+                break
+            }
         }
         listener.newConnectionHandler = { [self] connection in
             connection.start(queue: queue)
             receive(connection, collected: Data())
         }
         listener.start(queue: queue)
-        for _ in 0..<200 {
-            if state.withLock({ $0.ready }) { break }
-            try await Task.sleep(for: .milliseconds(10))
+        let settled = listenerSettled
+        try await withTimeLimit(.seconds(2), timeoutError: URLError(.timedOut)) {
+            await withTaskCancellationHandler {
+                await settled.wait()
+            } onCancel: {
+                settled.trip()
+            }
         }
         guard state.withLock({ $0.ready }) else { throw URLError(.timedOut) }
         try await proveOwnership()
