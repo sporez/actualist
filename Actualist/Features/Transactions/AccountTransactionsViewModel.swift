@@ -352,25 +352,21 @@ final class AccountTransactionsViewModel {
             return
         }
         guard !isLoading else { return }
+        // Category pages always report `reachedEnd`; return before any phase change.
+        let olderScope: TransactionQueryScope
+        switch scope {
+        case .account(let account): olderScope = .account(account.id)
+        case .spending: olderScope = .spending
+        case .category: return
+        }
         let requestID = readSession.beginOlderLocal(identity)
 
         do {
-            switch scope {
-            case .account(let account):
-                try await repository.loadOlderTransactions(
-                    budgetID: identity.budgetID,
-                    scope: .account(account.id),
-                    query: identity.query
-                )
-            case .spending:
-                try await repository.loadOlderTransactions(
-                    budgetID: identity.budgetID,
-                    scope: .spending,
-                    query: identity.query
-                )
-            case .category:
-                return
-            }
+            try await repository.loadOlderTransactions(
+                budgetID: identity.budgetID,
+                scope: olderScope,
+                query: identity.query
+            )
             readSession.finish(requestID, identity: identity)
         } catch {
             readSession.fail(requestID, identity: identity, error: error)
