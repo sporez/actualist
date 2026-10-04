@@ -123,25 +123,6 @@ struct BudgetActionRecord: Equatable, Sendable {
 }
 
 extension BudgetActionSummary: Codable {
-    private enum SummaryKind: String, Codable {
-        case assign
-        case move
-        case template
-        case createTransaction
-        case editTransaction
-        case deleteTransaction
-        case categorize
-        case payee
-        case rule
-        case account
-        case carryover
-        case learningPref
-        case transactionMetadata
-        case transactionBatch
-        case transactionDuplicate
-        case transactionMerge
-    }
-
     private enum CodingKeys: String, CodingKey {
         case type
         case payload
@@ -150,7 +131,7 @@ extension BudgetActionSummary: Codable {
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let payload = try container.nestedContainer(keyedBy: CodingKeys.self, forKey: .payload)
-        switch try container.decode(SummaryKind.self, forKey: .type) {
+        switch try container.decode(BudgetActionKind.self, forKey: .type) {
         case .assign:
             self = .assign(try payload.decode(AssignBudgetAction.self, forKey: .payload))
         case .move:
@@ -191,52 +172,52 @@ extension BudgetActionSummary: Codable {
         var payload = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .payload)
         switch self {
         case .assign(let assign):
-            try container.encode(SummaryKind.assign, forKey: .type)
+            try container.encode(BudgetActionKind.assign, forKey: .type)
             try payload.encode(assign, forKey: .payload)
         case .move(let move):
-            try container.encode(SummaryKind.move, forKey: .type)
+            try container.encode(BudgetActionKind.move, forKey: .type)
             try payload.encode(move, forKey: .payload)
         case .template(let template):
-            try container.encode(SummaryKind.template, forKey: .type)
+            try container.encode(BudgetActionKind.template, forKey: .type)
             try payload.encode(template, forKey: .payload)
         case .createTransaction(let create):
-            try container.encode(SummaryKind.createTransaction, forKey: .type)
+            try container.encode(BudgetActionKind.createTransaction, forKey: .type)
             try payload.encode(create, forKey: .payload)
         case .editTransaction(let edit):
-            try container.encode(SummaryKind.editTransaction, forKey: .type)
+            try container.encode(BudgetActionKind.editTransaction, forKey: .type)
             try payload.encode(edit, forKey: .payload)
         case .deleteTransaction(let delete):
-            try container.encode(SummaryKind.deleteTransaction, forKey: .type)
+            try container.encode(BudgetActionKind.deleteTransaction, forKey: .type)
             try payload.encode(delete, forKey: .payload)
         case .categorize(let categorize):
-            try container.encode(SummaryKind.categorize, forKey: .type)
+            try container.encode(BudgetActionKind.categorize, forKey: .type)
             try payload.encode(categorize, forKey: .payload)
         case .payee(let payee):
-            try container.encode(SummaryKind.payee, forKey: .type)
+            try container.encode(BudgetActionKind.payee, forKey: .type)
             try payload.encode(payee, forKey: .payload)
         case .rule(let rule):
-            try container.encode(SummaryKind.rule, forKey: .type)
+            try container.encode(BudgetActionKind.rule, forKey: .type)
             try payload.encode(rule, forKey: .payload)
         case .account(let account):
-            try container.encode(SummaryKind.account, forKey: .type)
+            try container.encode(BudgetActionKind.account, forKey: .type)
             try payload.encode(account, forKey: .payload)
         case .carryover(let carryover):
-            try container.encode(SummaryKind.carryover, forKey: .type)
+            try container.encode(BudgetActionKind.carryover, forKey: .type)
             try payload.encode(carryover, forKey: .payload)
         case .learningPref(let learning):
-            try container.encode(SummaryKind.learningPref, forKey: .type)
+            try container.encode(BudgetActionKind.learningPref, forKey: .type)
             try payload.encode(learning, forKey: .payload)
         case .transactionMetadata(let metadata):
-            try container.encode(SummaryKind.transactionMetadata, forKey: .type)
+            try container.encode(BudgetActionKind.transactionMetadata, forKey: .type)
             try payload.encode(metadata, forKey: .payload)
         case .transactionBatch(let batch):
-            try container.encode(SummaryKind.transactionBatch, forKey: .type)
+            try container.encode(BudgetActionKind.transactionBatch, forKey: .type)
             try payload.encode(batch, forKey: .payload)
         case .transactionDuplicate(let duplicate):
-            try container.encode(SummaryKind.transactionDuplicate, forKey: .type)
+            try container.encode(BudgetActionKind.transactionDuplicate, forKey: .type)
             try payload.encode(duplicate, forKey: .payload)
         case .transactionMerge(let merge):
-            try container.encode(SummaryKind.transactionMerge, forKey: .type)
+            try container.encode(BudgetActionKind.transactionMerge, forKey: .type)
             try payload.encode(merge, forKey: .payload)
         }
     }

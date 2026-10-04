@@ -262,12 +262,6 @@ enum BudgetTransactionLogging {
 }
 
 extension BudgetTransactionGraph: Codable {
-    private enum GraphKind: String, Codable {
-        case simple
-        case transfer
-        case split
-    }
-
     private enum CodingKeys: String, CodingKey {
         case type
         case pairedID
@@ -276,7 +270,7 @@ extension BudgetTransactionGraph: Codable {
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(GraphKind.self, forKey: .type) {
+        switch try container.decode(BudgetTransactionGraphKind.self, forKey: .type) {
         case .simple:
             self = .simple
         case .transfer:
@@ -290,12 +284,12 @@ extension BudgetTransactionGraph: Codable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .simple:
-            try container.encode(GraphKind.simple, forKey: .type)
+            try container.encode(BudgetTransactionGraphKind.simple, forKey: .type)
         case .transfer(let pairedID):
-            try container.encode(GraphKind.transfer, forKey: .type)
+            try container.encode(BudgetTransactionGraphKind.transfer, forKey: .type)
             try container.encode(pairedID, forKey: .pairedID)
         case .split(let childIDs):
-            try container.encode(GraphKind.split, forKey: .type)
+            try container.encode(BudgetTransactionGraphKind.split, forKey: .type)
             try container.encode(childIDs, forKey: .childIDs)
         }
     }
