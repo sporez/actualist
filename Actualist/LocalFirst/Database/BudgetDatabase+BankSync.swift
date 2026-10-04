@@ -209,11 +209,12 @@ extension BudgetDatabase {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else { return nil }
             let columns = try columnSet(for: "transactions", db: db)
+            let split = transactionSplitQueryExpressions(columns: columns)
             let oldest: Int? = try Int.fetchOne(
                 db,
                 sql: """
                     SELECT MIN(date) FROM transactions
-                    WHERE acct = ? AND \(predicateForLiveRows(columns: columns))
+                    WHERE \(split.account) = ? AND \(predicateForLiveRows(columns: columns))
                     """,
                 arguments: [accountID]
             )
