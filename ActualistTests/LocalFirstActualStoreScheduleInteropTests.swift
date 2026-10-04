@@ -211,11 +211,7 @@ struct LocalFirstActualStoreScheduleInteropTests {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
-    private static func today() -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: Date(), calendar: calendar)
-    }
+    private static func today() -> String { TestLocalDay.today() }
 
     struct Configuration {
         let controlOrigin: URL

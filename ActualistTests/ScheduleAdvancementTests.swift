@@ -346,11 +346,7 @@ struct ScheduleAdvancementTests {
         Int(dayID.replacingOccurrences(of: "-", with: ""))!
     }
 
-    private static func localToday() -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: Date(), calendar: calendar)
-    }
+    private static func localToday() -> String { TestLocalDay.today() }
 
     func oneTimeScheduleSQL(
         scheduleID: String,

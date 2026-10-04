@@ -402,17 +402,11 @@ struct BudgetDatabaseSchedulePostingTests {
     }
 
     private static var packedToday: Int { Int(today.replacingOccurrences(of: "-", with: ""))! }
-    private static var today: String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: Date(), calendar: calendar)
-    }
+    private static var today: String { TestLocalDay.today() }
     private static var noon: Date { date }
 
     private static func dayID(_ date: Date) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: date, calendar: calendar)
+        TestLocalDay.dayID(date)
     }
 
     private static var nextMonthDay: String {

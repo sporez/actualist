@@ -345,9 +345,8 @@ struct BudgetDatabaseScheduleConversionTests {
     }
 
     private static var dates: (today: String, tomorrow: String) {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        let today = ActualScheduleRecurrence.dayID(from: Date(), calendar: calendar)
+        let calendar = TestLocalDay.calendar
+        let today = TestLocalDay.today()
         let date = ActualScheduleRecurrence.date(from: today, calendar: calendar)!
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: date)!
         return (today, ActualScheduleRecurrence.dayID(from: tomorrow, calendar: calendar))

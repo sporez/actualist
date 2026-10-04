@@ -247,11 +247,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         return bundle
     }
 
-    private static func today() -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: Date(), calendar: calendar)
-    }
+    private static func today() -> String { TestLocalDay.today() }
 
     private static var packedToday: Int { Int(today().replacingOccurrences(of: "-", with: ""))! }
 
