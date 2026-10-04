@@ -78,6 +78,54 @@ enum ReportExplorerRangePreset: String, CaseIterable, Hashable, Sendable {
     }
 }
 
+/// Caps the number of periods one explorer query can generate (D6c).
+enum ReportExplorerRangeLimits {
+    static let maximumDays = 1_100
+    static let maximumMonths = 600
+
+    /// Inclusive span of the range in the unit the interval buckets by.
+    static func exceeds(startDay: String, endDay: String, interval: ReportInterval) -> Bool {
+        switch interval {
+        case .day:
+            guard let start = ReportCalendar.date(fromDayID: startDay),
+                  let end = ReportCalendar.date(fromDayID: endDay) else { return false }
+            let days = ReportCalendar.gregorianUTC.dateComponents([.day], from: start, to: end).day ?? 0
+            return days + 1 > maximumDays
+        case .month:
+            guard let start = monthNumber(startDay), let end = monthNumber(endDay) else { return false }
+            return end - start + 1 > maximumMonths
+        }
+    }
+
+    /// Latest end and earliest start the custom range pickers should offer
+    /// for a fixed opposite bound, so a picker cannot build an oversized range.
+    static func earliestStart(forEnd end: Date, interval: ReportInterval) -> Date {
+        let calendar = ReportCalendar.gregorianUTC
+        switch interval {
+        case .day:
+            return calendar.date(byAdding: .day, value: -(maximumDays - 1), to: end) ?? end
+        case .month:
+            return calendar.date(byAdding: .month, value: -(maximumMonths - 1), to: end) ?? end
+        }
+    }
+
+    static func latestEnd(forStart start: Date, interval: ReportInterval) -> Date {
+        let calendar = ReportCalendar.gregorianUTC
+        switch interval {
+        case .day:
+            return calendar.date(byAdding: .day, value: maximumDays - 1, to: start) ?? start
+        case .month:
+            return calendar.date(byAdding: .month, value: maximumMonths - 1, to: start) ?? start
+        }
+    }
+
+    private static func monthNumber(_ dayID: String) -> Int? {
+        let parts = dayID.split(separator: "-")
+        guard parts.count == 3, let year = Int(parts[0]), let month = Int(parts[1]) else { return nil }
+        return year * 12 + month
+    }
+}
+
 struct ReportExplorerQuery: Hashable, Sendable {
     let metric: ReportExplorerMetric
     let startDay: String
@@ -109,6 +157,9 @@ struct ReportExplorerQuery: Hashable, Sendable {
             return .invalidRange
         }
         guard startDay <= endDay else { return .invalidRange }
+        if ReportExplorerRangeLimits.exceeds(startDay: startDay, endDay: endDay, interval: interval) {
+            return .rangeTooLarge
+        }
         if metric == .spendingAverage,
            String(startDay.prefix(7)) != String(endDay.prefix(7)) {
             return .spendingAverageRequiresSingleMonth
@@ -243,6 +294,7 @@ struct ReportExplorerSnapshot: Equatable, Sendable {
 
 enum ReportExplorerError: LocalizedError, Equatable {
     case invalidRange
+    case rangeTooLarge
     case spendingAverageRequiresSingleMonth
     case unsupportedNetWorthCategoryFilter
 
@@ -250,6 +302,9 @@ enum ReportExplorerError: LocalizedError, Equatable {
         switch self {
         case .invalidRange:
             "The report start date must be on or before its end date."
+        case .rangeTooLarge:
+            "That range is too long. Choose up to \(ReportExplorerRangeLimits.maximumDays) days for daily "
+                + "reports or \(ReportExplorerRangeLimits.maximumMonths) months for monthly reports."
         case .spendingAverageRequiresSingleMonth:
             "Spending Average compares one month at a time."
         case .unsupportedNetWorthCategoryFilter:

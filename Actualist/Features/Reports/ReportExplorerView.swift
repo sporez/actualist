@@ -147,7 +147,8 @@ struct ReportExplorerView: View {
         .sheet(isPresented: $isCustomRangePresented) {
             ReportCustomRangeSheet(
                 start: viewModel.customStartDate,
-                end: viewModel.customEndDate
+                end: viewModel.customEndDate,
+                interval: viewModel.query.interval
             ) { start, end in
                 viewModel.selectCustomRange(start: start, end: end)
             }
@@ -399,11 +400,13 @@ private struct ReportCustomRangeSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var start: Date
     @State private var end: Date
+    let interval: ReportInterval
     let onApply: (Date, Date) -> Void
 
-    init(start: Date, end: Date, onApply: @escaping (Date, Date) -> Void) {
+    init(start: Date, end: Date, interval: ReportInterval, onApply: @escaping (Date, Date) -> Void) {
         _start = State(initialValue: start)
         _end = State(initialValue: end)
+        self.interval = interval
         self.onApply = onApply
     }
 
@@ -412,10 +415,20 @@ private struct ReportCustomRangeSheet: View {
             ReviewSheetContent {
                 ReviewSheetHeader(title: "Choose the date range")
                 VStack(spacing: 8) {
-                    DatePicker("Start", selection: $start, displayedComponents: .date)
+                    DatePicker(
+                        "Start",
+                        selection: $start,
+                        in: ReportExplorerRangeLimits.earliestStart(forEnd: end, interval: interval)...end,
+                        displayedComponents: .date
+                    )
                         .accessibilityIdentifier("report-custom-range-start")
                     ActualistTheme.separator.frame(height: 1)
-                    DatePicker("End", selection: $end, displayedComponents: .date)
+                    DatePicker(
+                        "End",
+                        selection: $end,
+                        in: start...ReportExplorerRangeLimits.latestEnd(forStart: start, interval: interval),
+                        displayedComponents: .date
+                    )
                         .accessibilityIdentifier("report-custom-range-end")
                 }
                 .font(.body)

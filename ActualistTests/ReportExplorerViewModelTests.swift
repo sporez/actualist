@@ -69,6 +69,55 @@ struct ReportExplorerViewModelTests {
         #expect(repository.requestedQueries.isEmpty)
     }
 
+    @Test func oversizedCustomRangeIsRejectedAndOneYearDailyStaysValid() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
+        let repository = ControlledExplorerRepository()
+
+        model.selectInterval(.day)
+        model.selectCustomRange(
+            start: try reportDate(year: 1926, month: 1, day: 1),
+            end: now
+        )
+        await model.load(budgetID: "budget", repository: repository, privacyModeEnabled: false)
+        #expect(model.query.validationError == .rangeTooLarge)
+        #expect(model.loadState == .invalidRange)
+        #expect(model.invalidRangeMessage == ReportExplorerError.rangeTooLarge.errorDescription)
+        #expect(repository.requestedQueries.isEmpty)
+
+        model.selectCustomRange(
+            start: try reportDate(year: 2025, month: 2, day: 1),
+            end: now
+        )
+        #expect(model.query.validationError == nil)
+    }
+
+    @Test func rangeCapsAreInclusiveAndFollowTheSelectedGranularity() {
+        func query(_ start: String, _ end: String, _ interval: ReportInterval) -> ReportExplorerQuery {
+            ReportExplorerQuery(metric: .cashFlow, startDay: start, endDay: end, interval: interval)
+        }
+        // 1,100 days inclusive: 2023-01-01 ... 2026-01-04 (2023-01-01 + 1099 days).
+        #expect(query("2023-01-01", "2026-01-04", .day).validationError == nil)
+        #expect(query("2023-01-01", "2026-01-05", .day).validationError == .rangeTooLarge)
+        // The same wide range is fine monthly, until it spans more than 600 months.
+        #expect(query("2023-01-01", "2026-01-05", .month).validationError == nil)
+        #expect(query("1976-01-01", "2025-12-31", .month).validationError == nil)
+        #expect(query("1975-12-31", "2025-12-31", .month).validationError == .rangeTooLarge)
+        // Start after end keeps its own error, and changing granularity re-validates.
+        #expect(query("2026-02-01", "2026-01-01", .day).validationError == .invalidRange)
+    }
+
+    @Test func changingGranularityRevalidatesAnExistingCustomRange() async throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let model = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
+        model.selectCustomRange(start: try reportDate(year: 2020, month: 1, day: 1), end: now)
+        model.selectInterval(.month)
+        #expect(model.loadState == .idle)
+        model.selectInterval(.day)
+        #expect(model.loadState == .invalidRange)
+        #expect(model.invalidRangeMessage == ReportExplorerError.rangeTooLarge.errorDescription)
+    }
+
     @Test func spendingAverageSelectsOneComparisonMonthAndIgnoresRangeIntents() async throws {
         let now = try reportDate(year: 2026, month: 1, day: 15)
         let model = ReportExplorerViewModel(reportCard: .threeMonthAverage, now: now)
