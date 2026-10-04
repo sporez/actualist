@@ -57,7 +57,7 @@ struct ScheduleEndedNextDateTests {
         ) == nil)
     }
 
-    private static var scheduleSchemaSQL: String {
+    static var scheduleSchemaSQL: String {
         """
         CREATE TABLE rules (
             id TEXT PRIMARY KEY, stage TEXT, conditions TEXT, actions TEXT,

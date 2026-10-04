@@ -14,6 +14,8 @@ struct ScheduleCreationMessagePlanRequest: Sendable {
 
 /// Shared schedule/rule/next-date row and CRDT plan for ordinary authoring and
 /// transaction conversion. Callers supply their own raw rule JSON semantics.
+/// Like Actual's `db.insert`, no message names the `id` column: the CRDT row id
+/// is the identity and applying the first field message creates the row.
 extension BudgetDatabase {
     func scheduleCreationMessages(
         _ request: ScheduleCreationMessagePlanRequest,
@@ -52,7 +54,6 @@ extension BudgetDatabase {
             builder: &builder
         )
         let scheduleValues: [(String, LocalFirstSyncValue)] = [
-            ("id", .string(request.identity.scheduleID)),
             ("rule", .string(request.identity.ruleID)),
             ("completed", .bool(false)),
             ("posts_transaction", .bool(request.postsTransaction)),
@@ -88,8 +89,6 @@ extension BudgetDatabase {
         let timestamp = Int64((request.now.timeIntervalSince1970 * 1_000).rounded(.towardZero))
         let dateValue = try request.nextDate.map { try scheduleDateValue($0) } ?? .null
         messages += [
-            try builder.makeMessage(dataset: "schedules_next_date", row: request.identity.nextDateID,
-                                    column: "id", value: .string(request.identity.nextDateID)),
             try builder.makeMessage(dataset: "schedules_next_date", row: request.identity.nextDateID,
                                     column: "schedule_id", value: .string(request.identity.scheduleID)),
             try builder.makeMessage(dataset: "schedules_next_date", row: request.identity.nextDateID,
