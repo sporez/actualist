@@ -46,7 +46,7 @@ extension BudgetDatabase {
         // Reject the whole batch before applying anything, like upstream receiveMessages.
         try SyncTimestamp.validateRemoteBatch(messages.map(\.timestamp), now: now)
 
-        let result = try queue.write { db in
+        let result = try writeTrackingMerkle { db in
             guard try tableExists("messages_crdt", db: db) else {
                 return RemoteSyncApplyResult.empty
             }
@@ -207,7 +207,7 @@ extension BudgetDatabase {
         }
         try beforeBudgetDataMutation()
 
-        return try queue.write { db in
+        return try writeTrackingMerkle { db in
             guard try tableExists("messages_crdt", db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
             }
@@ -568,6 +568,8 @@ extension BudgetDatabase {
     }
 
     func insertCRDTMessage(_ message: ActualSyncDecodedMessage, db: Database) throws {
+        // Before the row exists: a trie rebuilt from the log must not already contain it.
+        try recordMerkleInsert(message.timestamp, db: db)
         try db.execute(
             sql: """
                 INSERT INTO messages_crdt (timestamp, dataset, row, column, value)

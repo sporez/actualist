@@ -62,7 +62,7 @@ extension BudgetDatabase {
         var committedClock = localClock
         let result: (outcome: Outcome, appliedCount: Int)
         do {
-            result = try queue.write { db in
+            result = try writeTrackingMerkle { db in
                 let plan = try prepare(db)
                 guard !plan.drafts.isEmpty else { return (plan.outcome, 0) }
                 guard var clock = committedClock else {

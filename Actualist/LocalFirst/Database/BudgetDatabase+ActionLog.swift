@@ -563,7 +563,7 @@ extension BudgetDatabase {
         }
         let appliedCount: Int
         do {
-            appliedCount = try queue.write { db in
+            appliedCount = try writeTrackingMerkle { db in
                 try Task.checkCancellation()
                 guard try tableExists("messages_crdt", db: db) else {
                     throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")

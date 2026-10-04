@@ -101,6 +101,7 @@ actor SyncClient {
         let messages = try decodedMessages(from: response, configuration: configuration)
         let applied = try await database.applyRemoteSyncMessagesTrackingInserts(messages)
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
+        try await noteMerkleDivergence(database: database, serverMerkle: response.merkle)
         return applied
     }
 
@@ -137,6 +138,7 @@ actor SyncClient {
         try validateResponseSize(responseData)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         var responseEnvelopes = response.messages
+        var confirmationMerkle: String?
         let pushedEnvelopesByTimestamp = Dictionary(
             request.messages.map { ($0.timestamp, $0) },
             uniquingKeysWith: { _, newest in newest }
@@ -163,6 +165,7 @@ actor SyncClient {
             try validateResponseSize(confirmationData)
             let confirmationResponse = try ActualSync_SyncResponse(serializedBytes: confirmationData)
             responseEnvelopes.append(contentsOf: confirmationResponse.messages)
+            confirmationMerkle = confirmationResponse.merkle
             confirmedTimestamps.formUnion(try confirmedUploadTimestamps(
                 in: confirmationResponse.messages,
                 matching: pushedEnvelopesByTimestamp,
@@ -185,6 +188,7 @@ actor SyncClient {
         let remoteMessages = try decodedMessages(from: combinedResponse, configuration: configuration)
         let applyResult = try await database.applyRemoteSyncMessagesTrackingInserts(remoteMessages)
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
+        try await noteMerkleDivergence(database: database, serverMerkle: confirmationMerkle ?? response.merkle)
 
         return LocalFirstSyncResult(
             pushedMessageCount: messages.count,
@@ -192,6 +196,16 @@ actor SyncClient {
             insertedTransactionIDsByAccount: applyResult.insertedTransactionIDsByAccount,
             quarantinedTimestamps: applyResult.quarantinedTimestamps
         )
+    }
+
+    /// Detection only: logs whether this file and the server disagree after a pull.
+    /// An empty or unreadable server merkle (older servers) skips the comparison.
+    private func noteMerkleDivergence(database: BudgetDatabase, serverMerkle: String) async throws {
+        guard let server = MerkleTrie(jsonString: serverMerkle),
+              let divergence = try await database.merkleDivergence(from: server) else {
+            return
+        }
+        Self.securityLogger.info("Sync merkle differs from the server at \(divergence, privacy: .public) ms")
     }
 
     private func validateResponseSize(_ data: Data) throws {

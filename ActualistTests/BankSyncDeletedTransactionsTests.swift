@@ -200,9 +200,13 @@ struct BankSyncDeletedTransactionsTests {
         let first = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(first.inserts.count == 1)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        var builder = LocalFirstSyncMessageBuilder()
-        let preference = try builder.makeMessage(
-            dataset: "preferences", row: "sync-reimport-deleted-savings", column: "value", value: .string("false")
+        // A remote message needs a real timestamp; builder drafts carry a pending placeholder.
+        let preference = ActualSyncDecodedMessage(
+            timestamp: "2026-07-04T12:00:00.000Z-0000-peernode0000001",
+            dataset: "preferences",
+            row: "sync-reimport-deleted-savings",
+            column: "value",
+            serializedValue: LocalFirstSyncValue.string("false").serialized
         )
         _ = try await database.applyRemoteSyncMessages([preference])
         let second = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")

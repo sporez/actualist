@@ -7,6 +7,10 @@ actor BudgetDatabase {
     let databaseURL: URL
     let queue: DatabaseQueue
     var localClock: HybridLogicalClock?
+    /// Committed merkle trie (see `BudgetDatabase+Merkle.swift`); nil until first needed.
+    var merkleCache: MerkleTrie?
+    var merkleWorking: MerkleTrie?
+    var merkleStaged: MerkleTrie?
     var tableExistsCache: [String: Bool] = [:]
     var columnSetCache: [String: Set<String>] = [:]
     /// Cross-launch cache authority. Every database path that changes Actual
@@ -34,6 +38,7 @@ actor BudgetDatabase {
         try Self.prepareAccountGroupCompatibility(in: queue)
         try Self.prepareBudgetIdentity(in: queue)
         try Self.prepareMessagesTimestampIndex(in: queue)
+        try Self.prepareMerkleTrie(in: queue, localNodeID: localNodeID)
         if let localNodeID {
             let latestTimestamp = try queue.read { db in
                 let hasMessagesTable = try Bool.fetchOne(
