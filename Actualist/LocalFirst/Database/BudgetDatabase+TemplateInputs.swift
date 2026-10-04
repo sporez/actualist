@@ -8,6 +8,7 @@ extension BudgetDatabase {
         categoryIsIncome: [String: Bool],
         previouslyBudgetedByCategory: [String: Int] = [:],
         isTrackingBudget: Bool = false,
+        history: TemplateHistory,
         db: Database
     ) throws -> (
         categories: [String: BudgetTemplateEngine.Category],
@@ -15,10 +16,16 @@ extension BudgetDatabase {
     ) {
         let spentByMonth: [String: [String: Int]]
         if needsSpendingHistory(categoryTemplates) {
-            spentByMonth = try categorySpendingByMonth(db: db)
+            spentByMonth = try templateHistoryInputs(history, db: db).spentByMonth
         } else {
             spentByMonth = [:]
         }
+        try primeLeftoverHistory(
+            categoryTemplates: categoryTemplates,
+            monthValue: monthValue,
+            history: history,
+            db: db
+        )
 
         var monthSources = try templateIncomeCatalog(db: db)
         let activeSchedules = try templateActiveSchedules(db: db)
@@ -46,6 +53,7 @@ extension BudgetDatabase {
                         previouslyBudgeted: previouslyBudgetedByCategory[categoryID] ?? 0,
                         isTrackingBudget: isTrackingBudget,
                         spentByMonth: spentByMonth,
+                        history: history,
                         db: db
                     )
                 )
@@ -151,6 +159,7 @@ extension BudgetDatabase {
         previouslyBudgeted: Int,
         isTrackingBudget: Bool,
         spentByMonth: [String: [String: Int]],
+        history: TemplateHistory,
         db: Database
     ) throws -> BudgetTemplateEngine.Category {
         let lookBacks = Set(
@@ -164,26 +173,18 @@ extension BudgetDatabase {
                 monthValue,
                 by: -lookBack
             )
-            copiedBudgetedByLookBack[lookBack] = try categoryBudgets(
-                month: monthID(sourceMonthValue),
-                db: db
-            )[categoryID]?.budgeted ?? 0
+            copiedBudgetedByLookBack[lookBack] = try templateHistoryInputs(history, db: db)
+                .budgetedByMonth[monthID(sourceMonthValue)]?[categoryID]?.budgeted ?? 0
         }
 
-        let needsPreviousBalance = entries.contains { entry in
-            entry.type == "by"
-                || entry.type == "refill"
-                || entry.type == "spend"
-                || entry.type == "schedule"
-                || BudgetTemplateEngine.hasEffectiveLimit(entry)
-        }
         let fromLastMonth: Int
-        if needsPreviousBalance {
+        if Self.needsPreviousBalance(entries) {
             fromLastMonth = try templateFromLastMonth(
                 categoryID: categoryID,
                 monthValue: monthValue,
                 isIncome: isIncome,
                 isTrackingBudget: isTrackingBudget,
+                history: history,
                 db: db
             )
         } else {
@@ -195,6 +196,7 @@ extension BudgetDatabase {
             entries: entries,
             monthValue: monthValue,
             spentByMonth: spentByMonth,
+            history: history,
             db: db
         )
         return BudgetTemplateEngine.Category(
@@ -211,6 +213,7 @@ extension BudgetDatabase {
                 categoryID: categoryID,
                 entries: entries,
                 spentByMonth: spentByMonth,
+                history: history,
                 db: db
             ),
             budgetedByMonth: spendMonths.budgetedByMonth,
@@ -283,6 +286,7 @@ extension BudgetDatabase {
         categoryID: String,
         entries: [BudgetTemplateEntry],
         spentByMonth: [String: [String: Int]],
+        history: TemplateHistory,
         db: Database
     ) throws -> Int? {
         guard entries.contains(where: { $0.type == "average" }) else {
@@ -298,7 +302,7 @@ extension BudgetDatabase {
             }
         }
 
-        if let budgetMonth = try templateFirstBudgetMonth(categoryID: categoryID, db: db) {
+        if let budgetMonth = try templateHistoryFirstBudgetMonth(history, categoryID: categoryID, db: db) {
             consider(budgetMonth)
         }
         for (monthID, byCategory) in spentByMonth {
@@ -311,29 +315,40 @@ extension BudgetDatabase {
         return earliest
     }
 
-    private func templateFirstBudgetMonth(
-        categoryID: String,
+    static func needsPreviousBalance(_ entries: [BudgetTemplateEntry]) -> Bool {
+        entries.contains { entry in
+            entry.type == "by"
+                || entry.type == "refill"
+                || entry.type == "spend"
+                || entry.type == "schedule"
+                || BudgetTemplateEngine.hasEffectiveLimit(entry)
+        }
+    }
+
+    /// Runs the month recurrence once, through the month before `monthValue`,
+    /// keeping every month a Spend template or the carry-in lookup will ask for.
+    private func primeLeftoverHistory(
+        categoryTemplates: [String: [BudgetTemplateEntry]],
+        monthValue: Int,
+        history: TemplateHistory,
         db: Database
-    ) throws -> Int? {
-        guard let source = try categoryBudgetSource(db: db) else {
-            return nil
+    ) throws {
+        guard categoryTemplates.values.contains(where: Self.needsPreviousBalance) else {
+            return
         }
-        let categoryColumn = column("category", fallback: "NULL", columns: source.columns)
-        let row = try Row.fetchOne(
-            db,
-            sql: """
-                SELECT MIN(\(normalizedMonthExpression("month"))) AS month
-                FROM \(quotedIdentifier(source.table.rawValue))
-                WHERE \(categoryColumn) = ?
-                  AND month IS NOT NULL
-                """,
-            arguments: [categoryID]
+        let previousMonthValue = try BudgetTemplateCalendar.shiftedMonth(monthValue, by: -1)
+        let earliestSpendMonth = categoryTemplates.values.joined().compactMap { entry -> Int? in
+            guard entry.type == "spend", let fromMonth = entry.fromMonth else {
+                return nil
+            }
+            return try? BudgetTemplateCalendar.parseMonth(fromMonth)
+        }.min()
+        _ = try templateHistoryCategoryValues(
+            history,
+            at: previousMonthValue,
+            keepFrom: min(earliestSpendMonth ?? previousMonthValue, previousMonthValue),
+            db: db
         )
-        guard let raw = flexibleString(row?["month"]),
-              let month = try? BudgetTemplateCalendar.parseMonth(raw) else {
-            return nil
-        }
-        return month
     }
 
     private func needsSpendingHistory(
@@ -351,6 +366,7 @@ extension BudgetDatabase {
         entries: [BudgetTemplateEntry],
         monthValue: Int,
         spentByMonth: [String: [String: Int]],
+        history: TemplateHistory,
         db: Database
     ) throws -> (
         budgetedByMonth: [Int: Int],
@@ -374,13 +390,16 @@ extension BudgetDatabase {
         var leftoverByMonth: [Int: Int] = [:]
         var spentByMonthValue: [Int: Int] = [:]
         let earliest = fromMonths.min() ?? monthValue
+        let budgetedHistory = try templateHistoryInputs(history, db: db).budgetedByMonth
         var cursor = earliest
         while cursor < monthValue {
             let month = monthID(cursor)
-            budgetedByMonth[cursor] = try categoryBudgets(month: month, db: db)[categoryID]?.budgeted ?? 0
+            budgetedByMonth[cursor] = budgetedHistory[month]?[categoryID]?.budgeted ?? 0
             spentByMonthValue[cursor] = spentByMonth[month]?[categoryID] ?? 0
-            leftoverByMonth[cursor] = try categoryValues(
-                through: month,
+            leftoverByMonth[cursor] = try templateHistoryCategoryValues(
+                history,
+                at: cursor,
+                keepFrom: earliest,
                 db: db
             )[categoryID]?.balance ?? 0
             cursor = try BudgetTemplateCalendar.shiftedMonth(cursor, by: 1)

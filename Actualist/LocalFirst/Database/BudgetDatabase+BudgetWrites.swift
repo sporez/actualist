@@ -352,6 +352,7 @@ extension BudgetDatabase {
         monthValue: Int,
         isIncome: Bool,
         isTrackingBudget: Bool = false,
+        history: TemplateHistory? = nil,
         db: Database
     ) throws -> Int {
         let previousMonthValue = try BudgetTemplateEngine().sourceMonthValue(
@@ -359,7 +360,7 @@ extension BudgetDatabase {
             lookBack: 1
         )
         let previousMonth = monthID(previousMonthValue)
-        let previousValues = try categoryValues(through: previousMonth, db: db)[categoryID]
+        let previousValues = try categoryValues(through: previousMonth, db: db, history: history)[categoryID]
             ?? BudgetCategoryValue()
         // Actual: leftover < 0 && !carryover || is_income || tracking && !carryover
         if isIncome {
