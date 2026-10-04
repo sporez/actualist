@@ -224,6 +224,6 @@ struct LocalFirstActualStoreAccountLifecycleTests {
     @MainActor
     private final class FeedHook {
         var action: (@MainActor () throws -> Void)?
-        var submission: Task<AccountLifecycleCommitResult, Error>?
+        var submission: Task<AccountLifecycleMutationResult, Error>?
     }
 }

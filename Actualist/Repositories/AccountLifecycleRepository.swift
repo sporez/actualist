@@ -10,13 +10,13 @@ protocol AccountLifecycleRepositoryProtocol: Sendable {
     func renameAccountAndRefresh(
         budgetID: String,
         command: AccountRenameCommand
-    ) async throws -> AccountLifecycleCommitResult
+    ) async throws -> AccountLifecycleMutationResult
 
     @MainActor
     func reopenAccountAndRefresh(
         budgetID: String,
         command: AccountReopenCommand
-    ) async throws -> AccountLifecycleCommitResult
+    ) async throws -> AccountLifecycleMutationResult
 
     @MainActor
     func commitAccountLifecycleAndRefresh(

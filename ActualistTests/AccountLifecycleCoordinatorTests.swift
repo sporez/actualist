@@ -463,8 +463,8 @@ struct AccountLifecycleCoordinatorTests {
 private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryProtocol {
     var suspendRename = false
     var suspendReopen = false
-    var renameResult: AccountLifecycleCommitResult?
-    var reopenResult: AccountLifecycleCommitResult?
+    var renameResult: AccountLifecycleMutationResult?
+    var reopenResult: AccountLifecycleMutationResult?
     var closeResult: AccountLifecycleCommitResult?
     var reviewResult: AccountLifecycleReview?
     var reviewError: Error?
@@ -476,8 +476,8 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
     private(set) var lastRenameCommand: AccountRenameCommand?
     private(set) var lastReopenCommand: AccountReopenCommand?
 
-    private var renameContinuation: CheckedContinuation<AccountLifecycleCommitResult, any Error>?
-    private var reopenContinuation: CheckedContinuation<AccountLifecycleCommitResult, any Error>?
+    private var renameContinuation: CheckedContinuation<AccountLifecycleMutationResult, any Error>?
+    private var reopenContinuation: CheckedContinuation<AccountLifecycleMutationResult, any Error>?
     private let renameStarted = TestLatch()
     private let reopenStarted = TestLatch()
 
@@ -495,7 +495,7 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
     func renameAccountAndRefresh(
         budgetID: String,
         command: AccountRenameCommand
-    ) async throws -> AccountLifecycleCommitResult {
+    ) async throws -> AccountLifecycleMutationResult {
         renameCalls += 1
         lastRenameCommand = command
         if let mutationError { throw mutationError }
@@ -520,7 +520,7 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
     func reopenAccountAndRefresh(
         budgetID: String,
         command: AccountReopenCommand
-    ) async throws -> AccountLifecycleCommitResult {
+    ) async throws -> AccountLifecycleMutationResult {
         reopenCalls += 1
         lastReopenCommand = command
         if let mutationError { throw mutationError }
@@ -563,7 +563,7 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
         try await waitForLifecycleLatch(renameStarted, description: "rename request")
     }
 
-    func finishRename(with result: AccountLifecycleCommitResult) {
+    func finishRename(with result: AccountLifecycleMutationResult) {
         suspendRename = false
         renameContinuation?.resume(returning: result)
         renameContinuation = nil
@@ -573,7 +573,7 @@ private final class LifecycleCoordinatorRepository: AccountLifecycleRepositoryPr
         try await waitForLifecycleLatch(reopenStarted, description: "reopen request")
     }
 
-    func finishReopen(with result: AccountLifecycleCommitResult) {
+    func finishReopen(with result: AccountLifecycleMutationResult) {
         suspendReopen = false
         reopenContinuation?.resume(returning: result)
         reopenContinuation = nil

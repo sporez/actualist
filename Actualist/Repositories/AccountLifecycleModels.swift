@@ -87,10 +87,50 @@ struct AccountLifecycleOutcome: Hashable, Sendable {
     var refreshPending = false
 }
 
+/// Result of the review-less rename and reopen commands. Only close and delete
+/// are reviewed, so only `AccountLifecycleCommitResult` can ask for a new review.
+enum AccountLifecycleMutationResult: Hashable, Sendable {
+    case applied(AccountLifecycleOutcome)
+    case noChange(AccountLifecycleOutcome)
+}
+
 enum AccountLifecycleCommitResult: Hashable, Sendable {
     case applied(AccountLifecycleOutcome)
     case reviewChanged(AccountLifecycleReview)
     case noChange(AccountLifecycleOutcome)
+}
+
+/// Lets the store mark a durable commit whose follow-up cache refresh failed.
+protocol AccountLifecycleRefreshMarkable: Sendable {
+    func markingRefreshPending() -> Self
+}
+
+extension AccountLifecycleMutationResult: AccountLifecycleRefreshMarkable {
+    func markingRefreshPending() -> Self {
+        switch self {
+        case .applied(var outcome):
+            outcome.refreshPending = true
+            return .applied(outcome)
+        case .noChange(var outcome):
+            outcome.refreshPending = true
+            return .noChange(outcome)
+        }
+    }
+}
+
+extension AccountLifecycleCommitResult: AccountLifecycleRefreshMarkable {
+    func markingRefreshPending() -> Self {
+        switch self {
+        case .applied(var outcome):
+            outcome.refreshPending = true
+            return .applied(outcome)
+        case .noChange(var outcome):
+            outcome.refreshPending = true
+            return .noChange(outcome)
+        case .reviewChanged:
+            return self
+        }
+    }
 }
 
 enum AccountLifecycleCommandError: Error, Hashable, Sendable {

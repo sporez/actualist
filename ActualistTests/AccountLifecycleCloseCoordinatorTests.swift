@@ -339,14 +339,14 @@ private final class AccountLifecycleCloseCoordinatorRepository: AccountLifecycle
     func renameAccountAndRefresh(
         budgetID: String,
         command: AccountRenameCommand
-    ) async throws -> AccountLifecycleCommitResult {
+    ) async throws -> AccountLifecycleMutationResult {
         throw AccountLifecycleCommandError.invalidPreparedMutation
     }
 
     func reopenAccountAndRefresh(
         budgetID: String,
         command: AccountReopenCommand
-    ) async throws -> AccountLifecycleCommitResult {
+    ) async throws -> AccountLifecycleMutationResult {
         throw AccountLifecycleCommandError.invalidPreparedMutation
     }
 

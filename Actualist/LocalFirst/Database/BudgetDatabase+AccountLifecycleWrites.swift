@@ -13,7 +13,7 @@ extension BudgetDatabase {
         _ precondition: AccountLifecycleMutationPrecondition,
         actionID: String = UUID().uuidString,
         now: Date = Date()
-    ) throws -> AccountLifecycleCommitResult {
+    ) throws -> AccountLifecycleMutationResult {
         try sessionWritesAllowed.withLock { allowed in
             guard allowed else { throw LocalFirstError.budgetNotOpened }
             try Task.checkCancellation()
@@ -23,7 +23,7 @@ extension BudgetDatabase {
                 case .noChange(let outcome):
                     return LocalCommitPlan(
                         drafts: [], action: nil,
-                        outcome: AccountLifecycleCommitResult.noChange(outcome)
+                        outcome: AccountLifecycleMutationResult.noChange(outcome)
                     )
                 case .apply(let outcome):
                     var builder = LocalFirstSyncMessageBuilder()
@@ -53,7 +53,7 @@ extension BudgetDatabase {
                             source: .ui,
                             actionID: actionID
                         ),
-                        outcome: AccountLifecycleCommitResult.applied(outcome)
+                        outcome: AccountLifecycleMutationResult.applied(outcome)
                     )
                 }
             }.outcome

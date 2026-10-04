@@ -14,14 +14,14 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
     func renameAccountAndRefresh(
         budgetID: String,
         command: AccountRenameCommand
-    ) async throws -> AccountLifecycleCommitResult {
+    ) async throws -> AccountLifecycleMutationResult {
         try await applyAccountLifecycle(.rename(command), budgetID: budgetID)
     }
 
     func reopenAccountAndRefresh(
         budgetID: String,
         command: AccountReopenCommand
-    ) async throws -> AccountLifecycleCommitResult {
+    ) async throws -> AccountLifecycleMutationResult {
         try await applyAccountLifecycle(.reopen(command), budgetID: budgetID)
     }
 
@@ -54,7 +54,7 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
     private func applyAccountLifecycle(
         _ command: AccountLifecycleMutationPrecondition,
         budgetID: String
-    ) async throws -> AccountLifecycleCommitResult {
+    ) async throws -> AccountLifecycleMutationResult {
         try Task.checkCancellation()
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
@@ -69,13 +69,13 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
         )
     }
 
-    private func finishAccountLifecycleCommit(
-        _ result: AccountLifecycleCommitResult,
+    private func finishAccountLifecycleCommit<Result: AccountLifecycleRefreshMarkable>(
+        _ result: Result,
         database: BudgetDatabase,
         budgetID: String,
         generation: Int,
         unlinkedAccountID: String?
-    ) async -> AccountLifecycleCommitResult {
+    ) async -> Result {
         // A committed account change is durable. Cancellation or refresh failure
         // must not turn it into a failed write that the UI invites the user to repeat.
         return await Task { @MainActor [self] in
@@ -102,16 +102,7 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
                 )) != nil {
                     await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
                 }
-                switch result {
-                case .applied(var outcome):
-                    outcome.refreshPending = true
-                    return .applied(outcome)
-                case .noChange(var outcome):
-                    outcome.refreshPending = true
-                    return .noChange(outcome)
-                case .reviewChanged:
-                    return result
-                }
+                return result.markingRefreshPending()
             }
         }.value
     }

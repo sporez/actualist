@@ -55,7 +55,7 @@ struct AccountRenameSheet: View {
                         .buttonStyle(.glass)
                         if coordinator.errorMessage != nil {
                             Button(action: onRetry) {
-                                Text("Review Again")
+                                Text("Edit Again")
                                     .font(.subheadline.weight(.semibold))
                                     .multilineTextAlignment(.center)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -161,7 +161,7 @@ struct AccountReopenSheet: View {
                         .buttonStyle(.glass)
                         if coordinator.errorMessage != nil {
                             Button(action: onRetry) {
-                                Text("Review Again")
+                                Text("Edit Again")
                                     .font(.subheadline.weight(.semibold))
                                     .multilineTextAlignment(.center)
                                     .fixedSize(horizontal: false, vertical: true)

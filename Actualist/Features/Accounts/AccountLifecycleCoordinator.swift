@@ -164,8 +164,6 @@ final class AccountLifecycleCoordinator {
                     return
                 case .noChange(let outcome):
                     state = .completed(outcome)
-                case .reviewChanged(let review):
-                    state = .reviewing(review)
                 }
                 finishOperation(requestGeneration)
             } catch {
@@ -210,8 +208,6 @@ final class AccountLifecycleCoordinator {
                     return
                 case .noChange(let outcome):
                     state = .completed(outcome)
-                case .reviewChanged(let review):
-                    state = .reviewing(review)
                 }
                 finishOperation(requestGeneration)
             } catch {
