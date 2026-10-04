@@ -146,7 +146,9 @@ struct BudgetOverspentCategoriesView: View {
 
     @ViewBuilder
     private var content: some View {
-        if displayedOptions.isEmpty {
+        // Resolved once per render, not once per row.
+        let options = displayedOptions
+        if options.isEmpty {
             GlassPanel {
                 VStack(spacing: 12) {
                     Image(systemName: "checkmark.circle.fill")
@@ -160,10 +162,10 @@ struct BudgetOverspentCategoriesView: View {
             }
         } else {
             VStack(spacing: 0) {
-                ForEach(displayedOptions) { category in
+                ForEach(options) { category in
                     overspentButton(for: category)
 
-                    if category.id != displayedOptions.last?.id {
+                    if category.id != options.last?.id {
                         Divider()
                             .overlay(ActualistTheme.separator)
                             .padding(.leading, 18)
