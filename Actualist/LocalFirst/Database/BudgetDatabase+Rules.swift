@@ -92,7 +92,7 @@ extension BudgetDatabase {
             db: db,
             dateTimeZone: dateTimeZone
         )
-        return try drafts.enumerated().map { index, draft in
+        return drafts.enumerated().map { index, draft in
             var context = ruleEvaluationContext(
                 for: draft,
                 metadata: metadata,
