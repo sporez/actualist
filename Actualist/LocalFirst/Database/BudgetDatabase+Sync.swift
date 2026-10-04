@@ -20,26 +20,31 @@ extension BudgetDatabase {
         }
     }
 
-    func latestSyncTimestamp() throws -> String {
+    /// The `since` for the next pull, clamped so a stored row dated far in the
+    /// future cannot freeze sync (see `SyncTimestamp.clampedSince`).
+    func latestSyncTimestamp(now: Date = Date()) throws -> String {
         try queue.read { db in
             guard try tableExists("messages_crdt", db: db) else {
-                return "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+                return SyncTimestamp.zeroString
             }
             let row = try Row.fetchOne(db, sql: "SELECT MAX(timestamp) AS timestamp FROM messages_crdt")
-            return row?["timestamp"] as String? ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+            return SyncTimestamp.clampedSince(storedMaximum: row?["timestamp"] as String?, now: now)
         }
     }
 
-    func applyRemoteSyncMessages(_ messages: [ActualSyncDecodedMessage]) throws -> Int {
-        try applyRemoteSyncMessagesTrackingInserts(messages).appliedMessageCount
+    func applyRemoteSyncMessages(_ messages: [ActualSyncDecodedMessage], now: Date = Date()) throws -> Int {
+        try applyRemoteSyncMessagesTrackingInserts(messages, now: now).appliedMessageCount
     }
 
     func applyRemoteSyncMessagesTrackingInserts(
-        _ messages: [ActualSyncDecodedMessage]
+        _ messages: [ActualSyncDecodedMessage],
+        now: Date = Date()
     ) throws -> RemoteSyncApplyResult {
         guard !messages.isEmpty else {
             return .empty
         }
+        // Reject the whole batch before applying anything, like upstream receiveMessages.
+        try SyncTimestamp.validateRemoteBatch(messages.map(\.timestamp), now: now)
 
         let result = try queue.write { db in
             guard try tableExists("messages_crdt", db: db) else {
@@ -51,9 +56,16 @@ extension BudgetDatabase {
             var insertedRows = Set<RowKey>()
             var didAdvanceLaunchRevision = false
             var insertedTransactionIDs = Set<String>()
+            var quarantinedTimestamps: [String] = []
 
             for message in sortedMessages {
-                if try hasSameOrNewerMessage(message, db: db) {
+                // An exact duplicate is skipped: inserting it twice would cancel in the merkle XOR.
+                if try existsExact(message, db: db) {
+                    continue
+                }
+                // A superseded message is stored as old, never applied, as upstream does.
+                if try existsNewer(message, db: db) {
+                    try insertCRDTMessage(message, db: db)
                     continue
                 }
 
@@ -82,7 +94,16 @@ extension BudgetDatabase {
                 } else {
                     hasRow = try rowExists(table: message.dataset, rowID: message.row, db: db)
                 }
-                let value = try deserializeSyncValue(message.serializedValue)
+                let value: ActualSyncSQLiteValue
+                do {
+                    value = try deserializeSyncValue(message.serializedValue)
+                } catch {
+                    // Decryptable but unreadable: keep it in the log, never apply it,
+                    // and never let it wedge the rest of the batch.
+                    try insertCRDTMessage(message, db: db)
+                    quarantinedTimestamps.append(message.timestamp)
+                    continue
+                }
                 if message.dataset != "prefs" {
                     try apply(message: message, value: value, rowExists: hasRow, db: db)
                     insertedRows.insert(RowKey(message))
@@ -99,7 +120,8 @@ extension BudgetDatabase {
                 insertedTransactionIDsByAccount: try liveTopLevelTransactionIDsByAccount(
                     candidateIDs: insertedTransactionIDs,
                     db: db
-                )
+                ),
+                quarantinedTimestamps: quarantinedTimestamps
             )
         }
         if var clock = localClock {
@@ -375,18 +397,33 @@ extension BudgetDatabase {
         }
     }
 
+    func existsExact(_ message: ActualSyncDecodedMessage, db: Database) throws -> Bool {
+        try messageExists(message, comparison: "=", db: db)
+    }
+
+    func existsNewer(_ message: ActualSyncDecodedMessage, db: Database) throws -> Bool {
+        try messageExists(message, comparison: ">", db: db)
+    }
+
+    /// Local writes refuse both an identical and a newer message for the cell.
     func hasSameOrNewerMessage(_ message: ActualSyncDecodedMessage, db: Database) throws -> Bool {
-        let row = try Row.fetchOne(
+        try messageExists(message, comparison: ">=", db: db)
+    }
+
+    private func messageExists(
+        _ message: ActualSyncDecodedMessage,
+        comparison: String,
+        db: Database
+    ) throws -> Bool {
+        try Row.fetchOne(
             db,
             sql: """
                 SELECT timestamp FROM messages_crdt
-                WHERE dataset = ? AND row = ? AND column = ? AND timestamp >= ?
-                ORDER BY timestamp ASC
+                WHERE dataset = ? AND row = ? AND column = ? AND timestamp \(comparison) ?
                 LIMIT 1
                 """,
             arguments: [message.dataset, message.row, message.column, message.timestamp]
-        )
-        return row != nil
+        ) != nil
     }
 
     func validateLocalMessage(_ message: ActualSyncDecodedMessage, db: Database) throws {
@@ -625,7 +662,7 @@ extension BudgetDatabase {
 
     func deserializeSyncValue(_ value: String) throws -> ActualSyncSQLiteValue {
         guard let type = value.first else {
-            throw LocalFirstError.invalidDownloadedBudget
+            throw LocalFirstError.invalidSyncValue
         }
         let payload = String(value.dropFirst(2))
         switch type {
@@ -633,10 +670,10 @@ extension BudgetDatabase {
             return .null
         case "N":
             guard let number = Double(payload) else {
-                throw LocalFirstError.invalidDownloadedBudget
+                throw LocalFirstError.invalidSyncValue
             }
             guard number.isFinite else {
-                throw LocalFirstError.invalidDownloadedBudget
+                throw LocalFirstError.invalidSyncValue
             }
             if number.rounded() == number, let int = Int64(exactly: number) {
                 return .int(int)
@@ -645,7 +682,7 @@ extension BudgetDatabase {
         case "S":
             return .string(payload)
         default:
-            throw LocalFirstError.invalidDownloadedBudget
+            throw LocalFirstError.invalidSyncValue
         }
     }
 }

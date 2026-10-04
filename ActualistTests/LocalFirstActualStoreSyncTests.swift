@@ -233,7 +233,7 @@ extension LocalFirstActualStoreTests {
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(
             [draft],
-            now: Date(timeIntervalSince1970: 0)
+            now: Date(timeIntervalSince1970: 1_784_980_800)
         )
 
         let localTimestamp = try #require(
@@ -696,10 +696,10 @@ extension LocalFirstActualStoreTests {
             Issue.record("Expected 1e300 to decode as a Double")
         }
 
-        await #expect(throws: LocalFirstError.invalidDownloadedBudget) {
+        await #expect(throws: LocalFirstError.invalidSyncValue) {
             _ = try await database.deserializeSyncValue("N:inf")
         }
-        await #expect(throws: LocalFirstError.invalidDownloadedBudget) {
+        await #expect(throws: LocalFirstError.invalidSyncValue) {
             _ = try await database.deserializeSyncValue("N:not-a-number")
         }
     }

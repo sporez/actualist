@@ -33,6 +33,7 @@ actor BudgetDatabase {
         try Self.preparePendingNewTransactionSchema(in: queue)
         try Self.prepareAccountGroupCompatibility(in: queue)
         try Self.prepareBudgetIdentity(in: queue)
+        try Self.prepareMessagesTimestampIndex(in: queue)
         if let localNodeID {
             let latestTimestamp = try queue.read { db in
                 let hasMessagesTable = try Bool.fetchOne(
@@ -216,6 +217,9 @@ actor BudgetDatabase {
     struct RemoteSyncApplyResult: Equatable, Sendable {
         let appliedMessageCount: Int
         let insertedTransactionIDsByAccount: [String: [String]]
+        /// Timestamps of decryptable messages whose value could not be read. They are
+        /// stored in `messages_crdt` but never applied.
+        var quarantinedTimestamps: [String] = []
 
         static let empty = RemoteSyncApplyResult(
             appliedMessageCount: 0,

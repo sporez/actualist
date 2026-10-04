@@ -24,15 +24,19 @@ struct LocalFirstSyncResult: Equatable, Sendable {
     let pushedMessageCount: Int
     let appliedRemoteMessageCount: Int
     let insertedTransactionIDsByAccount: [String: [String]]
+    /// Timestamps of remote values stored but not applied because they were unreadable.
+    let quarantinedTimestamps: [String]
 
     init(
         pushedMessageCount: Int,
         appliedRemoteMessageCount: Int,
-        insertedTransactionIDsByAccount: [String: [String]] = [:]
+        insertedTransactionIDsByAccount: [String: [String]] = [:],
+        quarantinedTimestamps: [String] = []
     ) {
         self.pushedMessageCount = pushedMessageCount
         self.appliedRemoteMessageCount = appliedRemoteMessageCount
         self.insertedTransactionIDsByAccount = insertedTransactionIDsByAccount
+        self.quarantinedTimestamps = quarantinedTimestamps
     }
 }
 
@@ -185,7 +189,8 @@ actor SyncClient {
         return LocalFirstSyncResult(
             pushedMessageCount: messages.count,
             appliedRemoteMessageCount: applyResult.appliedMessageCount,
-            insertedTransactionIDsByAccount: applyResult.insertedTransactionIDsByAccount
+            insertedTransactionIDsByAccount: applyResult.insertedTransactionIDsByAccount,
+            quarantinedTimestamps: applyResult.quarantinedTimestamps
         )
     }
 
@@ -250,19 +255,28 @@ actor SyncClient {
             guard let encryptionContext = configuration.encryptionContext else {
                 throw LocalFirstError.encryptedBudgetRequiresPassword
             }
-            let encryptedData = try ActualSync_EncryptedData(serializedBytes: envelope.content)
-            messageData = try ActualBudgetCrypto.decrypt(
-                ActualEncryptedData(
-                    data: encryptedData.data,
-                    iv: encryptedData.iv,
-                    authTag: encryptedData.authTag
-                ),
-                keyData: encryptionContext.keyData
-            )
+            do {
+                let encryptedData = try ActualSync_EncryptedData(serializedBytes: envelope.content)
+                messageData = try ActualBudgetCrypto.decrypt(
+                    ActualEncryptedData(
+                        data: encryptedData.data,
+                        iv: encryptedData.iv,
+                        authTag: encryptedData.authTag
+                    ),
+                    keyData: encryptionContext.keyData
+                )
+            } catch {
+                throw LocalFirstError.undecryptableMessage
+            }
         } else {
             messageData = envelope.content
         }
-        let message = try ActualSync_Message(serializedBytes: messageData)
+        let message: ActualSync_Message
+        do {
+            message = try ActualSync_Message(serializedBytes: messageData)
+        } catch {
+            throw LocalFirstError.undecryptableMessage
+        }
         return ActualSyncDecodedMessage(
             timestamp: envelope.timestamp,
             dataset: message.dataset,

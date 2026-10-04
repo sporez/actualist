@@ -14,7 +14,7 @@ enum SafeSyncDiagnostic {
             switch error {
             case .budgetEncryptionChanged, .missingSyncToken, .remoteDataLimitExceeded,
                  .invalidEncryptedPayload, .unauthenticatedPlaintextEnvelope,
-                 .syncUploadNotConfirmed:
+                 .syncUploadNotConfirmed, .clockDrift, .invalidSyncTimestamp, .undecryptableMessage:
                 return error.localizedDescription
             default: break
             }
@@ -23,7 +23,24 @@ enum SafeSyncDiagnostic {
     }
 
     static func eventMessage(_ message: String, outcome: LocalFirstSyncDebugEvent.Outcome) -> String {
-        outcome == .failed ? storedError(message) : legacyEvent(outcome: outcome)
+        if isQuarantineMessage(message) { return message }
+        return outcome == .failed ? storedError(message) : legacyEvent(outcome: outcome)
+    }
+
+    /// Counts and timestamps only. Quarantined values and keys never appear.
+    static func quarantineMessage(count: Int, earliest: String, latest: String) -> String {
+        "Skipped \(count) synced value\(count == 1 ? "" : "s") that could not be read (\(earliest) to \(latest))."
+    }
+
+    private static func isQuarantineMessage(_ text: String) -> Bool {
+        let parts = text.dropFirst("Skipped ".count).split(separator: " ")
+        guard text.hasPrefix("Skipped "),
+              let count = parts.first.flatMap({ Int($0) }), count > 0,
+              let earliest = parts.last(where: { $0.hasPrefix("(") })?.dropFirst(),
+              let latest = parts.last?.dropLast(2),
+              SyncTimestamp.parse(String(earliest)) != nil,
+              SyncTimestamp.parse(String(latest)) != nil else { return false }
+        return text == quarantineMessage(count: count, earliest: String(earliest), latest: String(latest))
     }
 
     static func legacyEvent(outcome: LocalFirstSyncDebugEvent.Outcome) -> String {
@@ -54,6 +71,9 @@ enum SafeSyncDiagnostic {
             LocalFirstError.remoteDataLimitExceeded.localizedDescription,
             LocalFirstError.invalidEncryptedPayload.localizedDescription,
             LocalFirstError.unauthenticatedPlaintextEnvelope.localizedDescription,
+            LocalFirstError.clockDrift.localizedDescription,
+            LocalFirstError.invalidSyncTimestamp.localizedDescription,
+            LocalFirstError.undecryptableMessage.localizedDescription,
             KeychainReadError.unreadable.localizedDescription,
             KeychainReadError.unavailable(errSecInteractionNotAllowed).localizedDescription,
             genericFailure,

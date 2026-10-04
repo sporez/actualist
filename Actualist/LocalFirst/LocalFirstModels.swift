@@ -46,6 +46,14 @@ enum LocalFirstError: LocalizedError, Equatable {
     case localWriteSuperseded
     case syncUploadNotConfirmed(Int)
     case unauthenticatedPlaintextEnvelope
+    /// A remote or stored timestamp is more than five minutes ahead of this device.
+    case clockDrift
+    /// A remote message carries a timestamp that is not a valid Actual timestamp.
+    case invalidSyncTimestamp
+    /// A server message could not be decrypted or parsed. Fatal, as upstream.
+    case undecryptableMessage
+    /// A decrypted message carries a value Actualist cannot read. Quarantined, never fatal.
+    case invalidSyncValue
 
     var errorDescription: String? {
         switch self {
@@ -115,6 +123,14 @@ enum LocalFirstError: LocalizedError, Equatable {
             "The Actual server did not confirm \(count) uploaded sync message\(count == 1 ? "" : "s"). The changes remain pending on this device."
         case .unauthenticatedPlaintextEnvelope:
             "The Actual server returned unauthenticated plaintext data for an encrypted budget."
+        case .clockDrift:
+            "Sync stopped because a change is dated more than 5 minutes in the future. The clock on this device or on the server is wrong. Check Date & Time on both, then try again."
+        case .invalidSyncTimestamp:
+            "Sync stopped because the Actual server sent a change with an invalid timestamp. Nothing from that sync was applied."
+        case .undecryptableMessage:
+            "Actualist could not decrypt a change from the Actual server. Check the budget's encryption password."
+        case .invalidSyncValue:
+            "Actualist found a synced value it could not read."
         }
     }
 }

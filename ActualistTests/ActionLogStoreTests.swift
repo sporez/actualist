@@ -281,11 +281,11 @@ extension LocalFirstActualStoreTests {
         let old = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
         _ = try await database.applyRemoteSyncMessages([
             ActualSyncDecodedMessage(
-                timestamp: "2099-01-01T00:00:00.000Z-0000-0000000000000001",
+                timestamp: "\(SyncTimestamp.wallTimeString(for: Date().addingTimeInterval(60)))-0000-0000000000000001",
                 dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:tracking"
             ),
             ActualSyncDecodedMessage(
-                timestamp: "2099-01-02T00:00:00.000Z-0000-0000000000000001",
+                timestamp: "\(SyncTimestamp.wallTimeString(for: Date().addingTimeInterval(120)))-0000-0000000000000001",
                 dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:envelope"
             )
         ])

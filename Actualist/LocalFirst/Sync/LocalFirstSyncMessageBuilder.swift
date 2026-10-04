@@ -25,24 +25,14 @@ enum LocalFirstSyncValue: Equatable, Sendable {
 }
 
 struct HybridLogicalClock: Equatable, Sendable {
-    private static let timestampLength = 24
     private static let nodeIDLength = 16
-    private static let wallTimeFormatterLock = NSLock()
-    private static let wallTimeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .iso8601)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-        return formatter
-    }()
 
     let nodeID: String
     private(set) var lastTimestamp: String
 
     init(
         nodeID: String,
-        lastTimestamp: String = "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        lastTimestamp: String = SyncTimestamp.zeroString
     ) {
         self.nodeID = Self.normalizedNodeID(nodeID)
         self.lastTimestamp = lastTimestamp
@@ -62,13 +52,18 @@ struct HybridLogicalClock: Equatable, Sendable {
         return String(compact.suffix(nodeIDLength))
     }
 
+    /// Mirrors upstream `Timestamp.send`: the clock never moves backward, and it
+    /// refuses to mint a timestamp more than five minutes ahead of `now`.
     mutating func next(now: Date = Date()) throws -> String {
-        let nowWallTime = Self.wallTimeString(for: now)
-        let parsedLast = Self.parse(lastTimestamp)
+        let nowWallTime = SyncTimestamp.wallTimeString(for: now)
+        let parsedLast = SyncTimestamp.parse(lastTimestamp)
         let nextWallTime: String
         let counter: Int
 
         if let parsedLast, parsedLast.wallTime >= nowWallTime {
+            if parsedLast.exceedsDrift(now: now) {
+                throw LocalFirstError.clockDrift
+            }
             nextWallTime = parsedLast.wallTime
             counter = parsedLast.counter + 1
         } else {
@@ -86,11 +81,13 @@ struct HybridLogicalClock: Equatable, Sendable {
         return timestamp
     }
 
+    /// Ignores anything that is not a strictly valid timestamp. Drift is judged
+    /// by the batch validation before a remote message can be observed.
     mutating func observe(_ timestamp: String) {
-        guard let observed = Self.parse(timestamp) else {
+        guard let observed = SyncTimestamp.parse(timestamp) else {
             return
         }
-        guard let current = Self.parse(lastTimestamp) else {
+        guard let current = SyncTimestamp.parse(lastTimestamp) else {
             lastTimestamp = timestamp
             return
         }
@@ -98,27 +95,6 @@ struct HybridLogicalClock: Equatable, Sendable {
             || (observed.wallTime == current.wallTime && observed.counter > current.counter) {
             lastTimestamp = timestamp
         }
-    }
-
-    private static func wallTimeString(for date: Date) -> String {
-        wallTimeFormatterLock.lock()
-        defer { wallTimeFormatterLock.unlock() }
-        return wallTimeFormatter.string(from: date)
-    }
-
-    private static func parse(_ timestamp: String) -> (wallTime: String, counter: Int)? {
-        guard timestamp.count >= timestampLength + 6 else {
-            return nil
-        }
-        let wallEnd = timestamp.index(timestamp.startIndex, offsetBy: timestampLength)
-        let wallTime = String(timestamp[..<wallEnd])
-        let counterStart = timestamp.index(after: wallEnd)
-        let counterEnd = timestamp.index(counterStart, offsetBy: 4, limitedBy: timestamp.endIndex) ?? timestamp.endIndex
-        guard counterEnd <= timestamp.endIndex else {
-            return nil
-        }
-        let counter = Int(timestamp[counterStart..<counterEnd], radix: 16) ?? 0
-        return (wallTime, counter)
     }
 }
 

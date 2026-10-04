@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Actualist
 
@@ -155,7 +156,7 @@ struct AccountLifecycleWriteTests {
 
     private func peerMessage(column: String, value: String) -> ActualSyncDecodedMessage {
         ActualSyncDecodedMessage(
-            timestamp: "2030-09-27T12:00:00.000Z-0000-peer000000000000",
+            timestamp: "\(SyncTimestamp.wallTimeString(for: Date().addingTimeInterval(60)))-0000-peer000000000000",
             dataset: "accounts",
             row: "checking",
             column: column,

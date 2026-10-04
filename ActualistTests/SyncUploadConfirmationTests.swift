@@ -64,7 +64,7 @@ extension LocalFirstActualStoreTests {
         encrypted.authTag[0] ^= 1
         envelope.content = try encrypted.serializedData()
 
-        await #expect(throws: LocalFirstError.invalidEncryptionPassword) {
+        await #expect(throws: LocalFirstError.undecryptableMessage) {
             try await attemptUploadConfirmation(message: message, response: envelope, context: context)
         }
     }

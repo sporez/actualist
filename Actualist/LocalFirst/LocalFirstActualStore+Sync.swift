@@ -221,7 +221,8 @@ extension LocalFirstActualStore {
                 insertedTransactionIDsByAccount: mergedTransactionIDsByAccount(
                     totalResult.insertedTransactionIDsByAccount,
                     result.insertedTransactionIDsByAccount
-                )
+                ),
+                quarantinedTimestamps: totalResult.quarantinedTimestamps + result.quarantinedTimestamps
             )
         } while shouldFlushPendingLocalMessagesAgain
 
@@ -275,6 +276,7 @@ extension LocalFirstActualStore {
                 )
             }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            recordQuarantinedSyncValues(result.quarantinedTimestamps)
             try await database.deletePendingLocalSyncMessages(pending)
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
@@ -365,6 +367,7 @@ extension LocalFirstActualStore {
                 )
             }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            recordQuarantinedSyncValues(pullResult.quarantinedTimestamps)
             #if DEBUG
             print("[Actualist LocalFirst] Applied \(pullResult.appliedMessageCount) remote sync messages")
             #endif
@@ -379,7 +382,8 @@ extension LocalFirstActualStore {
                 insertedTransactionIDsByAccount: mergedTransactionIDsByAccount(
                     flushedResult.insertedTransactionIDsByAccount,
                     pullResult.insertedTransactionIDsByAccount
-                )
+                ),
+                quarantinedTimestamps: flushedResult.quarantinedTimestamps + pullResult.quarantinedTimestamps
             )
             await recordSyncStatus(
                 budgetID: budgetID,

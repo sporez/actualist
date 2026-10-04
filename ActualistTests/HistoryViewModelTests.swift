@@ -193,7 +193,7 @@ extension LocalFirstActualStoreTests {
         let database = try bundle.store.requireDatabase(for: "group-1")
         _ = try await database.applyRemoteSyncMessages([
             ActualSyncDecodedMessage(
-                timestamp: "2099-02-01T00:00:00.000Z-0000-0000000000000001",
+                timestamp: "\(SyncTimestamp.wallTimeString(for: Date().addingTimeInterval(60)))-0000-0000000000000001",
                 dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:tracking"
             )
         ])
