@@ -8,6 +8,7 @@ extension BudgetDatabase {
         draft: TransactionDraft,
         payeeID: String?,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
+        baseline: ActualTransaction? = nil,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
         try queue.read { db in
@@ -16,6 +17,7 @@ extension BudgetDatabase {
                 draft: draft,
                 payeeID: payeeID,
                 reconciliationAuthorization: reconciliationAuthorization,
+                baseline: baseline,
                 db: db,
                 builder: &builder
             )
@@ -24,11 +26,16 @@ extension BudgetDatabase {
 
     /// Reads the existing row and its pair through `db`, so an update built in its
     /// own write transaction sees the family and transfer state at commit time.
+    /// A simple row writes only the cells that differ between `baseline` (what the
+    /// caller loaded; the in-transaction row when nil) and the draft, as loot-core's
+    /// `diffItems` does. A full write would overwrite remote edits and resurrect a
+    /// row deleted elsewhere (`tombstone=false`).
     func updateTransactionMessages(
         transactionID: String,
         draft: TransactionDraft,
         payeeID: String?,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
+        baseline: ActualTransaction? = nil,
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
@@ -75,6 +82,9 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing payee")
         }
         let dateValue = try Self.actualDateValue(draft.date)
+        guard let baselineRow = try baseline ?? fetchTransaction(id: trimmedTransactionID, db: db) else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
+        }
         let isTransferDraft = draft.isTransfer
         let mainCategory: String?
         let pairedCategory: String?
@@ -89,6 +99,12 @@ extension BudgetDatabase {
             )
             mainCategory = categories.source
             pairedCategory = categories.destination
+        } else if draft.accountID != baselineRow.account,
+                  try accountOffBudget(draft.accountID, db: db) {
+            // loot-core `batchUpdateTransactions`: moving a row to an off-budget
+            // account clears its category.
+            mainCategory = nil
+            pairedCategory = nil
         } else {
             mainCategory = draft.categoryID
             pairedCategory = nil
@@ -103,24 +119,18 @@ extension BudgetDatabase {
         var affectedAccounts: Set<String> = [existing.account, draft.accountID]
         var affectedTransactions: Set<String> = [trimmedTransactionID]
 
-        messages += try transactionRowMessages(
-            rowID: trimmedTransactionID,
-            accountID: draft.accountID,
-            dateValue: dateValue,
-            amountMinorUnits: draft.amountMinorUnits,
+        let change = SimpleRowChange(
+            baseline: baselineRow,
+            draft: draft,
             payeeID: payeeID,
-            categoryID: mainCategory,
-            notes: draft.notes,
-            cleared: draft.cleared,
-            reconciled: draft.reconciled,
-            isParent: false,
-            parentID: nil,
-            isChild: false,
-            transferID: nil,
-            sortOrder: nil,
+            category: mainCategory,
+            dateValue: dateValue
+        )
+        messages += try simpleRowDiffMessages(
+            transactionID: trimmedTransactionID,
+            change: change,
             columns: columns,
-            builder: &builder,
-            scheduleID: draft.scheduleID
+            builder: &builder
         )
 
         // Keep transfer transitions aligned with loot-core's onUpdate.
@@ -130,6 +140,7 @@ extension BudgetDatabase {
             payeeID: payeeID,
             dateValue: dateValue,
             pairedCategory: pairedCategory,
+            change: change,
             existing: existing,
             columns: columns,
             affectedAccounts: &affectedAccounts,
@@ -240,6 +251,7 @@ extension BudgetDatabase {
         payeeID: String,
         dateValue: Int,
         pairedCategory: String?,
+        change: SimpleRowChange,
         existing: ExistingTransactionState,
         columns: TransactionRowColumns,
         affectedAccounts: inout Set<String>,
@@ -264,20 +276,30 @@ extension BudgetDatabase {
 
             if let pairedID = existing.transferID {
                 // loot-core leaves the paired row's date and cleared state unchanged.
+                // Unlike loot-core, which rewrites the whole pair, only the legs'
+                // cells whose source value changed are written (plan D7h).
                 affectedTransactions.insert(pairedID)
-                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.account, value: .string(destination)))
-                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .string(fromPayeeID)))
-                if columns.hasNotes {
+                if change.payeeChanged {
+                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.account, value: .string(destination)))
+                }
+                if change.accountChanged {
+                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .string(fromPayeeID)))
+                }
+                if columns.hasNotes, change.notesChanged {
                     messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "notes", value: draft.notes.map(LocalFirstSyncValue.string) ?? .null))
                 }
-                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-draft.amountMinorUnits))))
-                let sourceOffBudget = try accountOffBudget(draft.accountID, db: db)
-                let destinationOffBudget = try accountOffBudget(destination, db: db)
-                if sourceOffBudget == destinationOffBudget || destinationOffBudget {
-                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
-                } else if let pairedCategory {
-                    // The off-budget editor may not have loaded the paired row's category.
-                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .string(pairedCategory)))
+                if change.amountChanged {
+                    messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-draft.amountMinorUnits))))
+                }
+                if change.categoryChanged || change.accountChanged || change.payeeChanged {
+                    let sourceOffBudget = try accountOffBudget(draft.accountID, db: db)
+                    let destinationOffBudget = try accountOffBudget(destination, db: db)
+                    if sourceOffBudget == destinationOffBudget || destinationOffBudget {
+                        messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
+                    } else if let pairedCategory {
+                        // The off-budget editor may not have loaded the paired row's category.
+                        messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .string(pairedCategory)))
+                    }
                 }
             } else {
                 let pairedID = UUID().uuidString

@@ -164,6 +164,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
+        baseline: ActualTransaction? = nil,
         actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
@@ -174,6 +175,7 @@ extension LocalFirstActualStore {
             originalAccountID: originalAccountID,
             originalMonth: originalMonth,
             reconciliationAuthorization: nil,
+            baseline: baseline,
             actionSource: actionSource,
             didUpdate: didUpdate
         )
@@ -186,6 +188,7 @@ extension LocalFirstActualStore {
         originalAccountID: String,
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction? = nil,
         actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
@@ -229,6 +232,7 @@ extension LocalFirstActualStore {
                 draft: draft,
                 payeeID: resolvedPayeeID,
                 reconciliationAuthorization: reconciliationAuthorization,
+                baseline: baseline,
                 db: db,
                 builder: &builder
             )
