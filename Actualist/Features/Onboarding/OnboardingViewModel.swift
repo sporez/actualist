@@ -13,11 +13,23 @@ final class OnboardingViewModel {
     var isUsingPassword = false
     var isEnteringDemo = false
 
+    typealias LoginMethodsLoader = @MainActor (AppState, String) async -> ActualLoginMethodsResponse?
+    private let loginMethodsLoader: LoginMethodsLoader
+    private var loginMethodsGeneration = 0
+
+    init(loginMethodsLoader: @escaping LoginMethodsLoader = { appState, url in
+        await appState.loadLocalFirstLoginMethods(serverURLString: url)
+    }) {
+        self.loginMethodsLoader = loginMethodsLoader
+    }
+
     func hydrate(from appState: AppState) {
         serverURLString = appState.settings.localFirstServerURLString
     }
 
     func serverURLDidChange() {
+        loginMethodsGeneration += 1
+        isLoadingLoginMethods = false
         loginMethods = []
         hasLoadedLoginMethods = false
         isUsingPassword = false
@@ -28,8 +40,8 @@ final class OnboardingViewModel {
         using appState: AppState,
         browserSession: @escaping ActualOpenIDBrowserSession
     ) async {
-        await loadLoginMethods(using: appState)
-        guard hasLoadedLoginMethods, supportsOpenID, !supportsPassword else {
+        guard await loadLoginMethods(using: appState),
+              supportsOpenID, !supportsPassword else {
             return
         }
         await connectWithOpenID(using: appState, browserSession: browserSession)
@@ -44,17 +56,23 @@ final class OnboardingViewModel {
         isEnteringDemo = false
     }
 
-    private func loadLoginMethods(using appState: AppState) async {
+    /// Returns true only when the response was applied. A response for a
+    /// superseded request or an edited URL is dropped so it can never start
+    /// OpenID against a server the user is no longer pointing at.
+    private func loadLoginMethods(using appState: AppState) async -> Bool {
+        loginMethodsGeneration += 1
+        let generation = loginMethodsGeneration
+        let requestedURL = serverURLString
         isLoadingLoginMethods = true
         appState.lastErrorMessage = nil
-        if let response = await appState.loadLocalFirstLoginMethods(
-            serverURLString: serverURLString
-        ) {
-            loginMethods = response.availableLoginMethods
-            hasLoadedLoginMethods = true
-            isUsingPassword = supportsPassword && !supportsOpenID
-        }
+        let response = await loginMethodsLoader(appState, requestedURL)
+        guard generation == loginMethodsGeneration else { return false }
         isLoadingLoginMethods = false
+        guard serverURLString == requestedURL, let response else { return false }
+        loginMethods = response.availableLoginMethods
+        hasLoadedLoginMethods = true
+        isUsingPassword = supportsPassword && !supportsOpenID
+        return true
     }
 
     func connectWithPassword(using appState: AppState) async {
