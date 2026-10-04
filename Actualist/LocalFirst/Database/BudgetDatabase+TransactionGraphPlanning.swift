@@ -136,6 +136,12 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
         try validateSplitCategories(draft.splits, db: db)
+        try validateSplitDraftIDs(
+            draft.splits,
+            parentID: parentTransactionID,
+            familyChildIDs: [],
+            db: db
+        )
         let parent = try splitParentRecord(
             id: parentTransactionID,
             draft: draft,

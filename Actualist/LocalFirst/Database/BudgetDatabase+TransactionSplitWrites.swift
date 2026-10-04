@@ -141,6 +141,12 @@ extension BudgetDatabase {
         }
 
         let converting = !current.isParent && !current.isChild
+        try validateSplitDraftIDs(
+            draft.splits,
+            parentID: current.isChild ? (current.parentID ?? current.id) : current.id,
+            familyChildIDs: Set(oldRows.filter(\.isChild).map(\.id)),
+            db: db
+        )
         var parent = try splitParentRecord(
             id: current.isChild ? (current.parentID ?? current.id) : current.id,
             draft: draft,
