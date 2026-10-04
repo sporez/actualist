@@ -30,7 +30,7 @@ struct ScheduleRuleMutationTests {
         ) == "2026-10-12")
     }
 
-    @Test func exhaustedRecurrenceDoesNotSynthesizeAnotherDate() throws {
+    @Test func exhaustedRecurrenceFallsBackToItsLastOccurrenceNeverAnotherDate() throws {
         let recurrence = try ActualScheduleRecurrence(
             startDayID: "2026-09-27",
             frequency: .weekly,
@@ -39,12 +39,17 @@ struct ScheduleRuleMutationTests {
         #expect(try ScheduleRuleMutation.initialNextDate(
             for: .recurring(recurrence, operation: "is"),
             asOf: "2026-09-28"
-        ) == nil)
+        ) == "2026-09-27")
         #expect(try ScheduleRuleMutation.updateNextDate(
             for: .recurring(recurrence, operation: "is"),
             asOf: "2026-09-28",
             currentEffectiveDate: "2026-09-27"
         ) == nil)
+        #expect(try ScheduleRuleMutation.updateNextDate(
+            for: .recurring(recurrence, operation: "is"),
+            asOf: "2026-09-28",
+            currentEffectiveDate: "2026-09-20"
+        ) == "2026-09-27")
     }
 
     @Test func conditionMergeKeepsUnrelatedArrayOrderAndUnknownObjectKeys() throws {

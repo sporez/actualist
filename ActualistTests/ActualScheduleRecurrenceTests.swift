@@ -127,6 +127,53 @@ struct ActualScheduleRecurrenceTests {
         #expect(try exhausted.nextOccurrence(onOrAfter: "2026-09-02") == nil)
     }
 
+    @Test func lastOccurrenceOfCountAndDateEndings() throws {
+        #expect(try recurrence(start: "2026-09-01", frequency: .weekly, ending: .afterOccurrences(3))
+            .lastOccurrence() == "2026-09-15")
+        #expect(try recurrence(start: "2026-09-01", frequency: .daily, interval: 2, ending: .onDate("2026-09-06"))
+            .lastOccurrence() == "2026-09-05")
+        // February has no 31st, so the third occurrence is in May.
+        #expect(try recurrence(start: "2026-01-31", frequency: .monthly, ending: .afterOccurrences(3))
+            .lastOccurrence() == "2026-05-31")
+        #expect(try recurrence(start: "2024-02-29", frequency: .yearly, ending: .onDate("2027-12-31"))
+            .lastOccurrence() == "2024-02-29")
+        #expect(try recurrence(start: "2026-09-01", frequency: .weekly).lastOccurrence() == nil)
+    }
+
+    @Test func lastOccurrenceEndBeforeStartIsNilAndZeroCountIsRejected() throws {
+        #expect(try recurrence(start: "2026-09-10", frequency: .daily, ending: .onDate("2026-09-01"))
+            .lastOccurrence() == nil)
+        #expect(throws: ActualScheduleRecurrenceError.invalidEnding) {
+            try recurrence(start: "2026-09-01", frequency: .daily, ending: .afterOccurrences(0))
+        }
+    }
+
+    @Test func lastOccurrenceAppliesWeekendSolveAfterChoosingTheNaturalDate() throws {
+        // 2026-09-05 is a Saturday; the second weekly occurrence is Saturday 2026-09-12.
+        let after = try recurrence(
+            start: "2026-09-05", frequency: .weekly, skipWeekend: true,
+            adjustment: .after, ending: .afterOccurrences(2)
+        )
+        let before = try recurrence(
+            start: "2026-09-05", frequency: .weekly, skipWeekend: true,
+            adjustment: .before, ending: .afterOccurrences(2)
+        )
+        #expect(try after.lastOccurrence() == "2026-09-14")
+        #expect(try before.lastOccurrence() == "2026-09-11")
+        #expect(try after.lastOccurrence(applyWeekendAdjustment: false) == "2026-09-12")
+    }
+
+    @Test func lastOccurrenceOfSplitMonthlyRulesUsesEachFamilyCount() throws {
+        let split = try recurrence(
+            start: "2026-09-01",
+            frequency: .monthly,
+            patterns: [.dayOfMonth(1), .weekday(.friday, ordinal: 1)],
+            ending: .afterOccurrences(3)
+        )
+        // Day-1 family: Sep 1, Oct 1, Nov 1. First-Friday family: Sep 4, Oct 2, Nov 6.
+        #expect(try split.lastOccurrence() == "2026-11-06")
+    }
+
     @Test func malformedNumericConfigurationFailsClosed() {
         let invalidIntervals: [RuleJSONValue] = [
             .number(0),

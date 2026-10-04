@@ -167,7 +167,9 @@ enum ScheduleRuleMutation {
         switch rule {
         case .oneTime(let dayID, _): return dayID
         case .recurring(let recurrence, _):
-            return try recurrence.nextOccurrence(onOrAfter: dayID)
+            // An ended schedule keeps its last occurrence, like Actual's getNextDate.
+            // An ended schedule keeps its last occurrence, like Actual's getNextDate.
+            return try recurrence.nextOccurrence(onOrAfter: dayID) ?? recurrence.lastOccurrence()
         case .unavailable:
             throw ScheduleRuleMutationError.invalidDefinition
         }
