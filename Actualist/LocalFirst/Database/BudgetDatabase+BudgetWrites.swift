@@ -231,17 +231,11 @@ extension BudgetDatabase {
                 try maxActiveBudgetMonth(table: table, columns: columns, db: db)
             )
         )
+        let existingRowIDs = try budgetRowIDs(table: table, columns: columns, db: db)
         for categoryID in categoryIDs {
             var monthValue = startMonthValue
             while monthValue <= effectiveThroughMonthValue {
-                let existingRowID = try budgetRowID(
-                    table: table,
-                    monthValue: monthValue,
-                    categoryID: categoryID,
-                    columns: columns,
-                    db: db
-                )
-                let rowID = existingRowID
+                let rowID = existingRowIDs[monthID(monthValue)]?[categoryID]
                     ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
 
                 // A peer may need these columns to create the budget row.
