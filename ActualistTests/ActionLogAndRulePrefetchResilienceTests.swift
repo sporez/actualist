@@ -29,7 +29,7 @@ struct ActionLogAndRulePrefetchResilienceTests {
         let queue = try DatabaseQueue(path: url.path)
         try queue.write { db in
             for index in 0..<count {
-                let createdAt = BudgetDatabase.outboxDateString(Date(timeIntervalSince1970: 1_800_000_000 + Double(index)))
+                let createdAt = SyncTimestamp.wallTimeString(for: Date(timeIntervalSince1970: 1_800_000_000 + Double(index)))
                 try db.execute(
                     sql: """
                         INSERT INTO actualist_action_log

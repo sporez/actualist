@@ -126,7 +126,7 @@ extension LocalFirstActualStore {
             throw SchedulePostingError.reviewChanged
         }
 
-        let today = Self.schedulePostingToday()
+        let today = ActualDateOnly.today()
         let loaded = try await database.fetchSchedules(budgetID: session.budgetID, today: today)
         try requireSchedulePostingSession(session, database: database)
         guard let detail = loaded.detail(id: review.mutation.scheduleID),
@@ -223,7 +223,7 @@ extension LocalFirstActualStore {
                     monthIDs: receipt.affectedMonthIDs
                 )
                 try requireSchedulePostingSession(session, database: database)
-                try await refreshSchedulesAfterWrite(budgetID: session.budgetID, asOf: Self.schedulePostingToday())
+                try await refreshSchedulesAfterWrite(budgetID: session.budgetID, asOf: ActualDateOnly.today())
             }
         )
         let refreshPending = tail.refreshPending
@@ -235,12 +235,6 @@ extension LocalFirstActualStore {
             appliedMessageCount: receipt.appliedMessageCount,
             refreshPending: refreshPending
         )
-    }
-
-    private static func schedulePostingToday(now: Date = Date()) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: now, calendar: calendar)
     }
 
     private static func schedulePostingDate(_ dayID: String) -> Date? {

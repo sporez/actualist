@@ -12,6 +12,12 @@ enum ActualDateOnly {
         return ActualScheduleRecurrence.dayID(from: date, calendar: calendar)
     }
 
+    /// The calendar day `now` falls on in `timeZone` (the device zone by
+    /// default), not the UTC day.
+    static func today(now: Date = Date(), timeZone: TimeZone = .autoupdatingCurrent) -> String {
+        dayID(from: now, timeZone: timeZone)
+    }
+
     static func date(from dayID: String, timeZone: TimeZone) -> Date? {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")

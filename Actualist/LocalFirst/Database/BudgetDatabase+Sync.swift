@@ -391,7 +391,7 @@ extension BudgetDatabase {
                             last_error = ?
                         WHERE timestamp = ?
                         """,
-                    arguments: [Self.outboxDateString(Date()), message, pending.message.timestamp]
+                    arguments: [SyncTimestamp.wallTimeString(for: Date()), message, pending.message.timestamp]
                 )
             }
         }
@@ -635,32 +635,10 @@ extension BudgetDatabase {
                 message.column,
                 message.serializedValue,
                 baseTimestamp,
-                Self.outboxDateString(Date())
+                SyncTimestamp.wallTimeString(for: Date())
             ]
         )
     }
-
-    static func outboxDateString(_ date: Date) -> String {
-        outboxDateFormatterLock.lock()
-        defer { outboxDateFormatterLock.unlock() }
-        return outboxDateFormatter.string(from: date)
-    }
-
-    static func outboxDate(_ string: String) -> Date? {
-        outboxDateFormatterLock.lock()
-        defer { outboxDateFormatterLock.unlock() }
-        return outboxDateFormatter.date(from: string)
-    }
-
-    private static let outboxDateFormatterLock = NSLock()
-    private static let outboxDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .iso8601)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-        return formatter
-    }()
 
     func deserializeSyncValue(_ value: String) throws -> ActualSyncSQLiteValue {
         guard let type = value.first else {

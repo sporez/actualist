@@ -5,16 +5,7 @@ import Foundation
 /// winners, or authorization.
 enum TransactionCommandReviewFormatting {
     static func dateText(_ dayID: String, locale: Locale) -> String {
-        guard let date = ActualDateOnly.date(from: dayID, timeZone: ActualDateOnly.utc) else {
-            return dayID.isEmpty ? "Date unavailable" : dayID
-        }
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = locale
-        formatter.timeZone = ActualDateOnly.utc
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
+        ActualDateDisplay.mediumDay(dayID, locale: locale) ?? (dayID.isEmpty ? "Date unavailable" : dayID)
     }
 
     static func amountText(

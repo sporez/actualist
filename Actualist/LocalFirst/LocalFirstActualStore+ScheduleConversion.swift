@@ -79,7 +79,7 @@ extension LocalFirstActualStore {
                 try requireScheduleConversionSession(context, database: database)
                 try await refreshSchedulesAfterWrite(
                     budgetID: context.budgetID,
-                    asOf: Self.scheduleConversionToday()
+                    asOf: ActualDateOnly.today()
                 )
                 try requireScheduleConversionSession(context, database: database)
                 try await refreshRulesCache(database: database, budgetID: context.budgetID)
@@ -92,12 +92,6 @@ extension LocalFirstActualStore {
             appliedMessageCount: committed.appliedMessageCount,
             refreshPending: refreshPending
         )
-    }
-
-    private static func scheduleConversionToday(now: Date = Date()) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: now, calendar: calendar)
     }
 }
 

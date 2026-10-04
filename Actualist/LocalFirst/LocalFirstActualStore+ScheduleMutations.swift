@@ -141,10 +141,7 @@ extension LocalFirstActualStore {
                 invalidateRulesCache(budgetID: context.budgetID)
                 try await scheduleMutationBeforeRefreshHook?()
                 try requireScheduleMutationSession(context, database: database)
-                var calendar = Calendar(identifier: .gregorian)
-                calendar.timeZone = .autoupdatingCurrent
-                let today = ActualScheduleRecurrence.dayID(from: Date(), calendar: calendar)
-                try await refreshSchedulesAfterWrite(budgetID: context.budgetID, asOf: today)
+                try await refreshSchedulesAfterWrite(budgetID: context.budgetID, asOf: ActualDateOnly.today())
                 try requireScheduleMutationSession(context, database: database)
                 try await refreshRulesCache(database: database, budgetID: context.budgetID)
             }

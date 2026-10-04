@@ -462,7 +462,7 @@ extension BudgetDatabase {
         }
         return ReconciliationRow(
             id: id,
-            month: String(format: "%04d-%02d", packedDate / 10_000, (packedDate / 100) % 100),
+            month: YearMonth.id(year: packedDate / 10_000, month: (packedDate / 100) % 100),
             reconciled: flexibleBool(row["reconciled"])
         )
     }

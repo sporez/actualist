@@ -62,7 +62,7 @@ extension BudgetDatabase {
             let committed: (outcome: ScheduleConversionWriteReceipt, appliedCount: Int)
             do {
                 committed = try commitLocalPlan(now: now) { db in
-                    let currentDay = Self.scheduleConversionToday()
+                    let currentDay = ActualDateOnly.today()
                     guard review.asOfDayID == currentDay else {
                         throw ScheduleConversionError.reviewChanged
                     }
@@ -319,11 +319,5 @@ extension BudgetDatabase {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return String(decoding: try encoder.encode(values), as: UTF8.self)
-    }
-
-    private static func scheduleConversionToday(now: Date = Date()) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: now, calendar: calendar)
     }
 }

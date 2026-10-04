@@ -436,7 +436,7 @@ struct BudgetMonthPicker: View {
     }
 
     private static func monthID(year: Int, month: Int) -> String {
-        String(format: "%04d-%02d", year, month)
+        YearMonth.id(year: year, month: month)
     }
 
     private static func year(from monthID: String) -> Int? {

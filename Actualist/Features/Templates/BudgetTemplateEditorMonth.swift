@@ -20,10 +20,7 @@ struct BudgetTemplateEditorMonth: Equatable {
     var storage: String { BudgetTemplateCalendar.monthID(year * 100 + month) }
 
     func title(locale: Locale) -> String {
-        guard let date = try? BudgetTemplateCalendar.monthStartDate(year * 100 + month) else { return "Choose month" }
-        return date.formatted(Date.FormatStyle(
-            locale: locale, calendar: BudgetTemplateCalendar.gregorian
-        ).month(.wide).year())
+        ActualDateDisplay.monthYear(storage, width: .wide, locale: locale) ?? "Choose month"
     }
 
     static func monthNames(locale: Locale) -> [String] {

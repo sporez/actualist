@@ -64,7 +64,7 @@ enum BudgetTemplateCalendar {
     }
 
     static func monthID(_ month: Int) -> String {
-        String(format: "%04d-%02d", month / 100, month % 100)
+        YearMonth.id(packed: month)
     }
 
     static func currentMonthValue(now: Date = Date()) -> Int {

@@ -151,7 +151,7 @@ extension BudgetDatabase {
             matchingMode: current.projection.occurrenceMatchingMode,
             postsTransaction: schedule.postsTransaction
         )
-        let transactionDay = schedulePostingDayID(graph.primaryDate)
+        let transactionDay = ActualDateOnly.dayID(from: graph.primaryDate, timeZone: .autoupdatingCurrent)
         guard transactionDay >= matchStartDate else {
             throw SchedulePostingRefusal.beforeMatchWindow(earliestDayID: matchStartDate)
         }
@@ -169,7 +169,7 @@ extension BudgetDatabase {
             scheduleID: review.scheduleID,
             transactionID: transactionID,
             occurrenceDayID: occurrenceDate,
-            postedDayID: schedulePostingDayID(finalDraft.date),
+            postedDayID: ActualDateOnly.dayID(from: finalDraft.date, timeZone: .autoupdatingCurrent),
             appliedMessageCount: 0,
             affectedAccountIDs: graph.write.affectedAccountIDs,
             affectedTransactionIDs: graph.write.affectedTransactionIDs,
@@ -213,11 +213,4 @@ extension BudgetDatabase {
             scheduleID: draft.scheduleID
         )
     }
-
-    private func schedulePostingDayID(_ date: Date) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: date, calendar: calendar)
-    }
-
 }

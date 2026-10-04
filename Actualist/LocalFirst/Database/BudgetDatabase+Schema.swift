@@ -8,9 +8,7 @@ extension BudgetDatabase {
     }
 
     func monthID(_ month: Int) -> String {
-        let year = month / 100
-        let monthNumber = month % 100
-        return String(format: "%04d-%02d", year, monthNumber)
+        YearMonth.id(packed: month)
     }
 
     func shiftedMonth(_ month: Int, by offset: Int) -> Int {

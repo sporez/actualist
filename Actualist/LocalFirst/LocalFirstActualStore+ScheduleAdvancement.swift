@@ -12,7 +12,7 @@ extension LocalFirstActualStore {
             return
         }
         if Task.isCancelled { return }
-        let today = Self.scheduleAdvancementToday()
+        let today = ActualDateOnly.today()
         let result: ScheduleAdvancementResult
         do {
             result = try await database.advanceSchedules(budgetID: budgetID, today: today)
@@ -95,12 +95,5 @@ extension LocalFirstActualStore {
         invalidateScheduleCache(budgetID: budgetID)
         invalidateTransactionFeedCaches(budgetID: budgetID)
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
-    }
-
-    /// Same local day-id calendar manual posting uses. Not UTC midnight.
-    private static func scheduleAdvancementToday(now: Date = Date()) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: now, calendar: calendar)
     }
 }

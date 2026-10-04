@@ -36,7 +36,7 @@ struct SyncTimestamp: Equatable, Sendable {
         }
         let wallTime = parts[0...2].joined(separator: "-")
         guard wallTime.count == wallTimeLength,
-              let date = wallTimeFormatter.withLock({ $0.date(from: wallTime) }),
+              let date = wallTimeDate(from: wallTime),
               wallTimeString(for: date) == wallTime else {
             return nil
         }
@@ -56,6 +56,12 @@ struct SyncTimestamp: Equatable, Sendable {
 
     static func wallTimeString(for date: Date) -> String {
         wallTimeFormatter.withLock { $0.string(from: date) }
+    }
+
+    /// Lenient inverse of `wallTimeString(for:)`, also used for the outbox and
+    /// action-log `created_at` text. `parse` adds the strict round-trip check.
+    static func wallTimeDate(from string: String) -> Date? {
+        wallTimeFormatter.withLock { $0.date(from: string) }
     }
 
     /// `true` when this timestamp is more than the allowed drift ahead of `now`.

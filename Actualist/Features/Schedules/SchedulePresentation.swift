@@ -12,9 +12,7 @@ struct SchedulesViewContext: Hashable, Sendable {
     let asOfDayID: String
 
     static func currentDay(now: Date = Date(), timeZone: TimeZone = .autoupdatingCurrent) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        return ActualScheduleRecurrence.dayID(from: now, calendar: calendar)
+        ActualDateOnly.today(now: now, timeZone: timeZone)
     }
 }
 

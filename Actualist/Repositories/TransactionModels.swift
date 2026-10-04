@@ -17,7 +17,7 @@ struct YearMonth: Hashable, Sendable, RawRepresentable {
 
     init(date: Date) {
         let components = Calendar(identifier: .gregorian).dateComponents([.year, .month], from: date)
-        self.rawValue = String(format: "%04d-%02d", components.year ?? 1970, components.month ?? 1)
+        self.rawValue = Self.id(year: components.year ?? 1970, month: components.month ?? 1)
     }
 }
 
