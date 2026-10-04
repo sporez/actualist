@@ -206,7 +206,11 @@ final class IPadReviewUITests: XCTestCase {
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '12.34'")).firstMatch.exists)
         screenshot("review-editor-wide-retained")
+        // The draft has edits, so closing asks before discarding them.
         editor.buttons.firstMatch.tap()
+        let discard = app.buttons["Discard Changes"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 5))
+        discard.tap()
         XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
     }
 
