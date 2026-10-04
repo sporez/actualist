@@ -9,6 +9,15 @@ cd "$ROOT"
 
 status=0
 
+# The oracle verifiers need node and the size report needs rg; a missing tool
+# must fail the gate rather than silently skip or half-run.
+for tool in rg node; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "error: required tool '$tool' not found on PATH." >&2
+    exit 2
+  fi
+done
+
 section() {
   printf '\n== %s ==\n' "$1"
 }
@@ -47,7 +56,7 @@ else
 fi
 
 section "Actual 26.8.1 split oracle"
-"$ROOT/scripts/split-parity/verify.mjs" || status=1
+node "$ROOT/scripts/split-parity/verify.mjs" || status=1
 
 section "Actual 26.8.1 template editor oracle"
 node "$ROOT/scripts/template-parity/verify.mjs" || status=1
