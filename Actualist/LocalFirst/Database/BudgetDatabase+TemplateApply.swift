@@ -232,12 +232,27 @@ extension BudgetDatabase {
             return []
         }
 
+        // An unreadable definition may reference any group, so fail closed: keep
+        // every group rather than tombstone one that is still in use.
+        let livePredicate = predicateForLiveRows(columns: categoryColumns, tableAlias: "c")
+        let invalidDefinitions = try Int.fetchOne(
+            db,
+            sql: """
+                SELECT COUNT(*) FROM categories c
+                WHERE \(livePredicate)
+                  AND c.cleanup_def IS NOT NULL
+                  AND json_valid(c.cleanup_def) = 0
+                """
+        ) ?? 0
+        guard invalidDefinitions == 0 else {
+            return []
+        }
         let referenced = try String.fetchAll(
             db,
             sql: """
                 SELECT DISTINCT json_extract(je.value, '$.groupId') AS group_id
-                FROM categories c, json_each(c.cleanup_def) je
-                WHERE \(predicateForLiveRows(columns: categoryColumns, tableAlias: "c"))
+                FROM categories c, json_each(CASE WHEN json_valid(c.cleanup_def) THEN c.cleanup_def ELSE '[]' END) je
+                WHERE \(livePredicate)
                   AND c.cleanup_def IS NOT NULL
                   AND json_extract(je.value, '$.groupId') IS NOT NULL
                 """

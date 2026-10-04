@@ -66,7 +66,11 @@ extension BudgetDatabase {
         }
         let budgetType = try String.fetchOne(
             db,
-            sql: "SELECT value FROM preferences WHERE id = 'budgetType' LIMIT 1"
+            sql: """
+                SELECT value FROM preferences
+                WHERE id = 'budgetType' AND \(predicateForLiveRows(columns: columns))
+                LIMIT 1
+                """
         )
         return budgetType == "tracking"
     }
