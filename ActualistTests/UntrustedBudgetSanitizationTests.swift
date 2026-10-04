@@ -53,6 +53,13 @@ struct UntrustedBudgetSanitizationTests {
                 CREATE TABLE actualist_action_log (id TEXT PRIMARY KEY, summary TEXT);
                 INSERT INTO actualist_action_log VALUES ('a1', 'logged');
                 CREATE TABLE actualist_local_migrations (name TEXT PRIMARY KEY, applied_at TEXT);
+                CREATE TABLE actualist_sync_checkpoint (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    last_synced_at REAL NOT NULL,
+                    last_applied_message_count INTEGER NOT NULL,
+                    last_uploaded_message_count INTEGER NOT NULL
+                );
+                INSERT INTO actualist_sync_checkpoint VALUES (1, 1790000000, 41, 7);
                 CREATE TRIGGER wipe AFTER INSERT ON messages_crdt BEGIN DELETE FROM accounts; END;
                 """)
         }
@@ -135,6 +142,18 @@ struct UntrustedBudgetSanitizationTests {
         let storageID = try await opened.fetchBudgetModeIdentity().storageID
         #expect(storageID != Self.knownStorageID)
         #expect(try await opened.pendingLocalSyncMessageCount() == 0)
+    }
+
+    @Test func syncCheckpointDoesNotSurviveImportOrExport() async throws {
+        let imported = try makeHostileDatabaseURL()
+        try BudgetDatabase.sanitizeUntrustedDatabase(at: imported)
+        #expect(!(try schema(of: imported)).tables.contains("actualist_sync_checkpoint"))
+
+        let source = try makeHostileDatabaseURL()
+        let database = try BudgetDatabase(databaseURL: source)
+        let snapshotURL = source.deletingLastPathComponent().appending(path: "snapshot.sqlite")
+        try await database.writePortableSnapshot(to: snapshotURL)
+        #expect(!(try schema(of: snapshotURL)).tables.contains("actualist_sync_checkpoint"))
     }
 
     @Test func portableValidationDropsBookkeepingTriggersAndViewsThatAreNotMirrors() throws {
