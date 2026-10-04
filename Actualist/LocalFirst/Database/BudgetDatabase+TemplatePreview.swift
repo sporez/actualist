@@ -203,7 +203,7 @@ extension BudgetDatabase {
             let goalAfter = write?.goal
             let goalChanged = goalBefore != goalAfter
             let entries = prepared.entriesByCategory[categoryID] ?? []
-            let isGoalOnly = isGoalOnly(entries)
+            let isGoalOnly = entries.isGoalOnly
             let isOrphanGoal = prepared.orphanGoalCategoryIDs.contains(categoryID)
             let isGoalOnlyUpdate = isGoalOnly && goalChanged || isOrphanGoal
             guard current != proposed || shortfall > 0 || goalChanged else {
@@ -273,7 +273,7 @@ extension BudgetDatabase {
 
         let evaluatedDemand = prepared.compute.evaluatedDemand
         var netFundingRequired = 0
-        for (categoryID, entries) in prepared.entriesByCategory where !isGoalOnly(entries) {
+        for (categoryID, entries) in prepared.entriesByCategory where !entries.isGoalOnly {
             let targetChange = try BudgetTemplateEngine.checkedSubtract(
                 prepared.compute.evaluatedDemandByCategory[categoryID] ?? 0,
                 prepared.currentBudgeted[categoryID] ?? 0
@@ -432,7 +432,7 @@ extension BudgetDatabase {
                         activeScheduleIDs: incomeCatalog.activeScheduleIDs
                     )
                     categoryTemplates[categoryID] = entries
-                    if !isGoalOnly(entries) {
+                    if !entries.isGoalOnly {
                         availableBudget = try BudgetTemplateEngine.checkedAdd(
                             availableBudget,
                             currentBudgeted

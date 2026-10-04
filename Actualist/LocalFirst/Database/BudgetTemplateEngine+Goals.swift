@@ -1,10 +1,13 @@
 import Foundation
 
 extension BudgetTemplateEngine.Category {
+    var isGoalOnly: Bool { entries.isGoalOnly }
+}
+
+extension Array where Element == BudgetTemplateEntry {
+    /// Goal directives only: no `template` entry other than a limit.
     var isGoalOnly: Bool {
-        !entries.contains {
-            $0.directive == "template" && $0.type != "limit"
-        } && entries.contains(where: \.isGoal)
+        !contains { $0.directive == "template" && $0.type != "limit" } && contains(where: \.isGoal)
     }
 }
 

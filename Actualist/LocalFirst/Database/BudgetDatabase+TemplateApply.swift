@@ -278,10 +278,4 @@ extension BudgetDatabase {
             )
         }
     }
-
-    func isGoalOnly(_ entries: [BudgetTemplateEntry]) -> Bool {
-        !entries.contains {
-            $0.directive == "template" && $0.type != "limit"
-        } && entries.contains(where: \.isGoal)
-    }
 }
