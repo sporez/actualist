@@ -131,7 +131,7 @@ extension LocalFirstActualStore {
             )
         } catch {
             // No selectable budget may survive a failed or unconfirmed import.
-            try? fileManager.deleteImportedBudget(fileID: fileID)
+            try? fileManager.discardUnfinishedBudget(fileID: fileID)
             discardSavedEncryptionKey(fileID: fileID, keyID: savedKeyID)
             throw error
         }

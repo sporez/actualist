@@ -31,6 +31,9 @@ enum LocalFirstError: LocalizedError, Equatable {
     case missingImportedDatabase
     case invalidDownloadedBudget
     case localBudgetHardeningFailed
+    /// A reimport failed and the previous local copy could not be put back;
+    /// the copy is kept and restored the next time the budget opens.
+    case reimportRollbackFailed
     case remoteDataLimitExceeded
     case insufficientStorage
     case invalidLocalWrite(String)
@@ -99,6 +102,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "The downloaded budget file could not be imported."
         case .localBudgetHardeningFailed:
             "Actualist could not secure the local budget files."
+        case .reimportRollbackFailed:
+            "Actualist could not restore your previous budget copy after the reimport failed. Your previous copy is kept on this device. Try again."
         case .remoteDataLimitExceeded:
             "The server response exceeded Actualist's safe resource limits."
         case .insufficientStorage:

@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+import os
 
 struct LocalFirstResourceLimits: Equatable, Sendable {
     let maximumCompressedBudgetBytes: UInt64
@@ -38,6 +39,7 @@ struct BudgetReimportWorkspace {
 
 struct BudgetFileManager {
     private static let sqliteSidecarSuffixes = ["-wal", "-shm", "-journal"]
+    private static let logger = Logger(subsystem: "com.sporez.actualist", category: "BudgetFiles")
 
     let applicationSupportURL: URL
     private let fileManager: FileManager
@@ -331,6 +333,9 @@ struct BudgetFileManager {
     ) throws {
         try reimportCheckpoint(.beforeSwap)
         let liveDirectory = try budgetDirectory(fileID: fileID)
+        // A backup with no live directory is the only remaining copy of the
+        // budget: restore it before anything can replace or delete it.
+        try restoreBackupIfLiveMissing(fileID: fileID)
         guard fileManager.fileExists(atPath: liveDirectory.path) else {
             throw LocalFirstError.missingImportedDatabase
         }
@@ -348,6 +353,7 @@ struct BudgetFileManager {
             at: backupDirectory.deletingLastPathComponent(),
             excludeFromBackup: true
         )
+        // The live directory exists here, so an older backup is a superseded copy.
         if fileManager.fileExists(atPath: backupDirectory.path) {
             try fileManager.removeItem(at: backupDirectory)
         }
@@ -356,7 +362,13 @@ struct BudgetFileManager {
         do {
             try fileManager.moveItem(at: stagedDirectory, to: liveDirectory)
         } catch {
-            try? fileManager.moveItem(at: backupDirectory, to: liveDirectory)
+            do {
+                try fileManager.moveItem(at: backupDirectory, to: liveDirectory)
+            } catch {
+                // The backup stays where it is; the next open restores it.
+                Self.logger.error("Reimport swap failed and the backup could not be restored")
+                throw LocalFirstError.reimportRollbackFailed
+            }
             throw error
         }
     }
@@ -367,10 +379,42 @@ struct BudgetFileManager {
         guard fileManager.fileExists(atPath: backupDirectory.path) else {
             return
         }
-        if fileManager.fileExists(atPath: liveDirectory.path) {
-            try fileManager.removeItem(at: liveDirectory)
+        do {
+            if fileManager.fileExists(atPath: liveDirectory.path) {
+                try fileManager.removeItem(at: liveDirectory)
+            }
+            try fileManager.moveItem(at: backupDirectory, to: liveDirectory)
+        } catch {
+            // The backup is untouched by a failed move; the next open restores it.
+            Self.logger.error("Reimport rollback failed and the backup was kept")
+            throw LocalFirstError.reimportRollbackFailed
         }
-        try fileManager.moveItem(at: backupDirectory, to: liveDirectory)
+    }
+
+    /// Removes a failed create/import so it cannot be selected. The budget
+    /// list shows a directory only while it holds `metadata.json`, so a failed
+    /// delete falls back to removing that file, then to hiding the directory.
+    /// Throws only when a selectable budget may remain.
+    func discardUnfinishedBudget(fileID: String) throws {
+        do {
+            try deleteImportedBudget(fileID: fileID)
+            return
+        } catch {
+            Self.logger.error("Unfinished budget cleanup failed; making it unselectable")
+        }
+        let directory = try budgetDirectory(fileID: fileID)
+        let metadata = try metadataURL(fileID: fileID)
+        guard fileManager.fileExists(atPath: metadata.path) else {
+            return
+        }
+        do {
+            try fileManager.removeItem(at: metadata)
+        } catch {
+            let hidden = try containedURL(
+                budgetRootURL().appending(path: ".Discarded-\(UUID().uuidString)", directoryHint: .isDirectory)
+            )
+            try fileManager.moveItem(at: directory, to: hidden)
+        }
     }
 
     func reimportBackupExists(fileID: String) throws -> Bool {
@@ -504,9 +548,28 @@ struct BudgetFileManager {
             budgetRootURL().appending(path: legacyName, directoryHint: .isDirectory)
         )
         guard fileManager.fileExists(atPath: legacy.path) else {
+            try restoreBackupIfLiveMissing(fileID: fileID)
             return
         }
         try fileManager.moveItem(at: legacy, to: target)
+    }
+
+    /// A reimport that failed and could not restore its backup leaves no live
+    /// directory. Every open and reimport entry point passes through here.
+    private func restoreBackupIfLiveMissing(fileID: String) throws {
+        let live = try budgetDirectory(fileID: fileID)
+        let backup = try reimportBackupDirectory(fileID: fileID)
+        guard !fileManager.fileExists(atPath: live.path),
+              fileManager.fileExists(atPath: backup.path) else {
+            return
+        }
+        do {
+            try fileManager.moveItem(at: backup, to: live)
+            Self.logger.notice("Restored a budget from its reimport backup")
+        } catch {
+            Self.logger.error("Restoring a budget from its reimport backup failed")
+            throw LocalFirstError.reimportRollbackFailed
+        }
     }
 
     private func budgetRootURL() throws -> URL {

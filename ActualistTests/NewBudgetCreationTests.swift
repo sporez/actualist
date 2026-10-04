@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import Synchronization
 import Testing
 @testable import Actualist
 
@@ -12,7 +13,9 @@ struct NewBudgetCreationTests {
     // MARK: - Fixtures
 
     @MainActor
-    private func makeStore() -> (store: LocalFirstActualStore, fileManager: BudgetFileManager) {
+    private func makeStore(
+        fileSystem: FileManager = .default
+    ) -> (store: LocalFirstActualStore, fileManager: BudgetFileManager) {
         let keychain = KeychainStore(
             service: "com.sporez.actualist.tests",
             account: UUID().uuidString,
@@ -20,7 +23,7 @@ struct NewBudgetCreationTests {
         )
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "NewBudget-\(UUID().uuidString)", directoryHint: .isDirectory)
-        let fileManager = BudgetFileManager(applicationSupportURL: rootURL)
+        let fileManager = BudgetFileManager(applicationSupportURL: rootURL, fileManager: fileSystem)
         let store = LocalFirstActualStore(keychain: keychain, fileManager: fileManager)
         return (store, fileManager)
     }
@@ -248,6 +251,46 @@ struct NewBudgetCreationTests {
         let uploads = await transport.uploads
         #expect(uploads.count == 2)
         #expect(Set(uploads.map(\.fileID)).count == 1)
+    }
+
+    /// The failed-creation cleanup used `try?`, so a failed delete left the
+    /// half-created budget selectable.
+    @MainActor
+    @Test func failedCleanupLeavesNoSelectableBudget() async throws {
+        let fileSystem = FailingFileManager()
+        let (store, fileManager) = makeStore(fileSystem: fileSystem)
+        let transport = NewBudgetFakeRegistrationTransport(
+            uploadResults: [.failure(ActualAPIError.transport(.timedOut))]
+        )
+        let recovery = NewBudgetRegistrationRecoveryStub(listResults: [.success([])])
+        // Positive control: metadata is written before registration, so the
+        // budget is selectable when the cleanup's first delete is attempted.
+        let metadataSeenAtFirstDelete = Mutex<Bool?>(nil)
+        fileSystem.rules.withLock {
+            $0.failRemove = { url in
+                metadataSeenAtFirstDelete.withLock {
+                    $0 = $0 ?? FileManager.default.fileExists(
+                        atPath: url.appending(path: "metadata.json").path
+                    )
+                }
+                return true
+            }
+        }
+
+        await #expect(throws: ActualFileRegistrationError.uploadUnconfirmed) {
+            try await store.createNewBudget(
+                named: "Fresh Budget",
+                serverURLString: "https://newbudget.example",
+                token: "session-token",
+                registrationTransport: transport,
+                listUserFiles: recovery.listUserFiles,
+                userInfo: recovery.userInfo,
+                identityGenerator: makeIdentitySequence(prefix: "seed")
+            )
+        }
+
+        #expect(metadataSeenAtFirstDelete.withLock { $0 } == true)
+        #expect(try fileManager.importedBudgetFileIDs().isEmpty)
     }
 
     @MainActor

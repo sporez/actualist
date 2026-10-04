@@ -442,7 +442,12 @@ extension LocalFirstActualStore {
             guard activeReimportID == operationID else { throw error }
             reset()
             if didSwap {
-                try? fileManager.rollbackReimport(fileID: fileID)
+                // A failed rollback keeps the backup; the next open restores it.
+                do {
+                    try fileManager.rollbackReimport(fileID: fileID)
+                } catch {
+                    throw LocalFirstError.reimportRollbackFailed
+                }
             }
             if fileManager.importedDatabaseExists(fileID: fileID) {
                 let rollbackGeneration = budgetSessionGeneration

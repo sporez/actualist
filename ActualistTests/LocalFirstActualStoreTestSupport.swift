@@ -285,6 +285,7 @@ extension LocalFirstActualStoreTests {
         pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
         additionalFixtureSQL: String = "",
         reimportFailureCheckpoint: BudgetReimportCheckpoint? = nil,
+        budgetFileManager: FileManager = .default,
         transactionFeedPageReadHook: TransactionFeedPageReadHook? = nil
     ) async throws -> OpenedWritableStoreBundle {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
@@ -331,6 +332,7 @@ extension LocalFirstActualStoreTests {
             .appending(path: "ActualistWritableStore-\(UUID().uuidString)", directoryHint: .isDirectory)
         let fileManager = BudgetFileManager(
             applicationSupportURL: rootURL,
+            fileManager: budgetFileManager,
             reimportFailureInjector: { checkpoint in
                 if checkpoint == reimportFailureCheckpoint {
                     throw LocalFirstTestSyncError.failed
