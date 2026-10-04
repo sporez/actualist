@@ -411,4 +411,26 @@ struct ShortcutTransactionCommandTests {
         #expect(transaction.amount?.amount == Decimal(string: "-12.50"))
         #expect(transaction.account == "Checking")
     }
+
+    @Test func categorizingAReconciledTransactionFailsClosedWithAClearMessage() async throws {
+        let (session, _) = try await makeSession(
+            extraSQL: """
+            ALTER TABLE transactions ADD COLUMN reconciled INTEGER;
+            UPDATE transactions SET reconciled = 1 WHERE id = 'txn';
+            """
+        )
+        do {
+            _ = try await ShortcutTransactionCommand.categorize(
+                transactionID: "txn", categoryID: "utilities", session: session
+            )
+            Issue.record("Shortcuts categorized a reconciled transaction")
+        } catch {
+            #expect(
+                error.localizedDescription
+                    == "That transaction is reconciled. Open it in Actualist to change it."
+            )
+        }
+        let unchanged = try await session.actualTransaction(id: "txn")
+        #expect(unchanged.category == "groceries")
+    }
 }

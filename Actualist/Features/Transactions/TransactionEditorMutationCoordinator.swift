@@ -215,7 +215,7 @@ final class TransactionEditorMutationCoordinator {
             } catch {
                 outcome = .failed(error.userFacingMessage ?? error.localizedDescription)
             }
-        case .delete:
+        case .delete, .categorize:
             outcome = .cancelled
         }
         if case .confirming = state {

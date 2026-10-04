@@ -306,12 +306,14 @@ extension LocalFirstActualStore {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await categorizeTransactionAndRefresh(
             transaction,
             categoryID: categoryID,
             budgetID: budgetID,
+            reconciliationAuthorizations: reconciliationAuthorizations,
             actionSource: .ui,
             didUpdate: didUpdate
         )
@@ -321,6 +323,7 @@ extension LocalFirstActualStore {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
         actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
@@ -328,6 +331,7 @@ extension LocalFirstActualStore {
             [transaction],
             categoryID: categoryID,
             budgetID: budgetID,
+            reconciliationAuthorizations: reconciliationAuthorizations,
             actionSource: actionSource,
             didUpdate: didUpdate
         )
@@ -337,12 +341,14 @@ extension LocalFirstActualStore {
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await categorizeTransactionsAndRefresh(
             transactions,
             categoryID: categoryID,
             budgetID: budgetID,
+            reconciliationAuthorizations: reconciliationAuthorizations,
             actionSource: .ui,
             didUpdate: didUpdate
         )
@@ -352,6 +358,7 @@ extension LocalFirstActualStore {
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
         actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
@@ -398,6 +405,7 @@ extension LocalFirstActualStore {
                 messages += try database.categorizeTransactionMessages(
                     transactionID: transactionID,
                     categoryID: categoryID,
+                    reconciliationAuthorization: reconciliationAuthorizations[transactionID],
                     db: db,
                     builder: &builder
                 )

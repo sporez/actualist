@@ -108,20 +108,12 @@ struct UncategorizedTransactionsView: View {
                 showsUncategorizedOption: false
             ) { option in
                 Task {
-                    let resolved = await viewModel.categorize(
+                    handle(await viewModel.categorize(
                         selection.transaction,
                         as: option,
                         month: month,
                         using: appState
-                    )
-                    if resolved.didChange {
-                        onChanged()
-                    }
-
-                    if resolved.resolvedAll {
-                        onResolvedAll()
-                        dismiss()
-                    }
+                    ))
                 }
             }
             .appSwitcherPrivacyProtected(using: appState)
@@ -134,22 +126,52 @@ struct UncategorizedTransactionsView: View {
                 showsUncategorizedOption: false
             ) { option in
                 Task {
-                    let resolved = await viewModel.categorizeSelection(
+                    handle(await viewModel.categorizeSelection(
                         as: option,
                         month: month,
                         using: appState
-                    )
-                    if resolved.didChange {
-                        onChanged()
-                    }
-
-                    if resolved.resolvedAll {
-                        onResolvedAll()
-                        dismiss()
-                    }
+                    ))
                 }
             }
             .appSwitcherPrivacyProtected(using: appState)
+        }
+        .confirmationDialog(
+            viewModel.reconciledCategorization?.presentation?.title ?? "Reconciled Transaction",
+            isPresented: reconciledCategorizationBinding,
+            titleVisibility: .visible,
+            presenting: viewModel.reconciledCategorization
+        ) { pending in
+            // `pending` is captured here: SwiftUI clears the binding as the
+            // dialog dismisses, before this task would otherwise run.
+            Button(pending.presentation?.confirmationTitle ?? "Categorize") {
+                Task {
+                    handle(await viewModel.confirmReconciledCategorization(pending, using: appState))
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                viewModel.dismissReconciledCategorization()
+            }
+        } message: { pending in
+            Text(pending.presentation?.message ?? "")
+        }
+    }
+
+    private var reconciledCategorizationBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.reconciledCategorization != nil },
+            set: { presented in
+                if !presented { viewModel.dismissReconciledCategorization() }
+            }
+        )
+    }
+
+    private func handle(_ resolved: UncategorizedTransactionsViewModel.CategorizationResult) {
+        if resolved.didChange {
+            onChanged()
+        }
+        if resolved.resolvedAll {
+            onResolvedAll()
+            dismiss()
         }
     }
 

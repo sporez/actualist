@@ -379,7 +379,7 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(model.categoryNames(for: regular) == ["Uncategorized"])
     }
 
-    private static func transaction(
+    static func transaction(
         id: String,
         account: String = "checking",
         payee: String = "store",
@@ -424,6 +424,29 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
     private let categorizeError: Error?
     private var categoryID: String?
     private var categorizedTransactionIDs: [String] = []
+    /// Reviews the fake store would demand a matching authorization for.
+    var reconciledReviews: [String: ReconciledTransactionMutationReview] = [:]
+    private(set) var submittedAuthorizations: [[String: ReconciledTransactionMutationAuthorization]] = []
+
+    private func enforceReconciliation(
+        _ transactions: [ActualTransaction],
+        _ authorizations: [String: ReconciledTransactionMutationAuthorization]
+    ) throws {
+        submittedAuthorizations.append(authorizations)
+        for transaction in transactions {
+            if let review = reconciledReviews[transaction.rowID],
+               authorizations[transaction.rowID] != review.authorization {
+                throw ReconciledTransactionMutationError.confirmationRequired(review)
+            }
+        }
+    }
+
+    func reconciledMutationReview(
+        budgetID: String,
+        transactionID: String
+    ) async throws -> ReconciledTransactionMutationReview? {
+        reconciledReviews[transactionID]
+    }
 
     init(
         loaded: LoadedUncategorizedTransactions,
@@ -467,11 +490,13 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let categorizeError {
             throw categorizeError
         }
+        try enforceReconciliation([transaction], reconciliationAuthorizations)
 
         self.categoryID = categoryID
         categorizedTransactionIDs = [transaction.rowID]
@@ -490,11 +515,13 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let categorizeError {
             throw categorizeError
         }
+        try enforceReconciliation(transactions, reconciliationAuthorizations)
 
         self.categoryID = categoryID
         categorizedTransactionIDs = transactions.map(\.rowID)

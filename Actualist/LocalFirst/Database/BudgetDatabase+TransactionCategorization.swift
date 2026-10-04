@@ -6,12 +6,14 @@ extension BudgetDatabase {
     func categorizeTransactionMessages(
         transactionID: String,
         categoryID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try queue.read { db in
             try categorizeTransactionMessages(
                 transactionID: transactionID,
                 categoryID: categoryID,
+                reconciliationAuthorization: reconciliationAuthorization,
                 db: db,
                 builder: &builder
             )
@@ -23,6 +25,7 @@ extension BudgetDatabase {
     func categorizeTransactionMessages(
         transactionID: String,
         categoryID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
@@ -48,6 +51,14 @@ extension BudgetDatabase {
             transactionID: trimmedTransactionID,
             columns: transactionColumns,
             payeeColumn: payeeColumn,
+            db: db
+        )
+        // Same fail-closed guard as edit and delete, evaluated on the rows of
+        // this write transaction (the row, its split family, its transfer pair).
+        try validateReconciledMutationAuthorization(
+            transactionID: trimmedTransactionID,
+            authorization: reconciliationAuthorization,
+            columns: try resolveTransactionRowColumns(db: db),
             db: db
         )
         if try tableExists("categories", db: db),

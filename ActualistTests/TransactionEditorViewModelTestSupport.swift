@@ -271,6 +271,7 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let createError {
@@ -297,6 +298,7 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         await didUpdate()

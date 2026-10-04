@@ -136,12 +136,14 @@ protocol TransactionRepositoryProtocol: AnyObject {
         _ transaction: ActualTransaction,
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func categorizeTransactionsAndRefresh(
         _ transactions: [ActualTransaction],
         categoryID: String,
         budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func deleteTransactionAndRefresh(
