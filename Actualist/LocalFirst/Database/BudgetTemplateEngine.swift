@@ -550,13 +550,24 @@ struct BudgetTemplateEngine {
         entry.directive == "template" && entry.type != "remainder" && entry.type != "limit"
     }
 
+    /// `Double(Int.max)` is 2^63, which `Int(_:)` traps on, so the upper bound
+    /// is strict and the rounded value is converted with `Int(exactly:)`.
     static func actualRound(_ amount: Double) throws -> Int {
         guard amount.isFinite,
               amount >= Double(Int.min),
-              amount <= Double(Int.max) else {
+              amount < Double(Int.max),
+              let rounded = Int(exactly: floor(amount + 0.5)) else {
             throw LocalFirstError.numericValueOutOfRange
         }
-        return Int(floor(amount + 0.5))
+        return rounded
+    }
+
+    /// `abs(Int.min)` traps; reject it instead.
+    static func checkedMagnitude(_ value: Int) throws -> Int {
+        guard value != Int.min else {
+            throw LocalFirstError.numericValueOutOfRange
+        }
+        return abs(value)
     }
 
     static func decimalScale(_ decimalPlaces: Int) throws -> Double {

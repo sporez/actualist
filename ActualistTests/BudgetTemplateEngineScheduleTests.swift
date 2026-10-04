@@ -281,6 +281,73 @@ struct BudgetTemplateEngineScheduleTests {
         }
     }
 
+    @Test func actualRoundRejectsTwoToTheSixtyThirdInsteadOfTrapping() {
+        #expect(throws: LocalFirstError.self) {
+            _ = try BudgetTemplateEngine.actualRound(9_223_372_036_854_775_808.0)
+        }
+        #expect(throws: LocalFirstError.self) {
+            _ = try BudgetTemplateEngine.actualRound(Double(Int.max))
+        }
+        #expect(throws: LocalFirstError.self) {
+            _ = try BudgetTemplateEngine.actualRound(.nan)
+        }
+        #expect((try? BudgetTemplateEngine.actualRound(Double(Int.min))) == Int.min)
+        #expect((try? BudgetTemplateEngine.actualRound(2.5)) == 3)
+        #expect((try? BudgetTemplateEngine.actualRound(-2.5)) == -2)
+    }
+
+    @Test func sinkingRemainderOverflowThrowsInsteadOfTrapping() throws {
+        // target - lastMonthBalance = Int.max - (-1) overflows Int.
+        #expect(throws: LocalFirstError.self) {
+            _ = try writeAmounts(categories: [
+                "insurance": category(
+                    json: schedule(name: "Insurance"),
+                    fromLastMonth: -1,
+                    resolvedSchedules: ["Insurance": yearlySinking(name: "Insurance", target: Int.max)]
+                )
+            ])
+        }
+    }
+
+    @Test func scheduleMagnitudeGuardRejectsIntMinAmount() {
+        #expect(throws: LocalFirstError.self) {
+            _ = try BudgetTemplateEngine.checkedMagnitude(Int.min)
+        }
+        #expect((try? BudgetTemplateEngine.checkedMagnitude(-5)) == 5)
+    }
+
+    @Test func overflowingScheduleTargetSumThrowsInsteadOfTrapping() throws {
+        #expect(throws: LocalFirstError.self) {
+            _ = try writeAmounts(categories: [
+                "bills": category(
+                    json: "[" + [schedule(name: "Rent"), schedule(name: "Insurance")]
+                        .map { String($0.dropFirst().dropLast()) }
+                        .joined(separator: ",") + "]",
+                    resolvedSchedules: [
+                        "Rent": yearlySinking(name: "Rent", target: Int.max),
+                        "Insurance": yearlySinking(name: "Insurance", target: Int.max)
+                    ]
+                )
+            ])
+        }
+    }
+
+    private func yearlySinking(name: String, target: Int) -> BudgetTemplateEngine.ResolvedSchedule {
+        BudgetTemplateEngine.ResolvedSchedule(
+            name: name,
+            amount: -1,
+            nextDate: "2026-12-01",
+            monthsUntil: 5,
+            interval: 1,
+            frequency: "yearly",
+            completed: false,
+            full: false,
+            isRepeating: true,
+            recurrence: nil,
+            monthlyRepeatingTarget: target
+        )
+    }
+
     private func writeAmounts(
         categories: [String: BudgetTemplateEngine.Category],
         monthSources: BudgetTemplateEngine.MonthSources = BudgetTemplateEngine.MonthSources(

@@ -570,17 +570,26 @@ extension BudgetDatabase {
             guard command.amount > 0 else {
                 throw LocalFirstError.invalidLocalWrite("missing amount")
             }
+            guard command.amount <= BudgetMoveMoneyCommand.maximumAmount else {
+                throw LocalFirstError.numericValueOutOfRange
+            }
             guard command.fromCategoryID != nil || command.toCategoryID != nil else {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
             if let fromCategoryID = command.fromCategoryID?.trimmingCharacters(in: .whitespacesAndNewlines) {
                 try validateBudgetCategoryID(fromCategoryID, db: db)
-                budgetedByCategory[fromCategoryID, default: 0] -= command.amount
+                budgetedByCategory[fromCategoryID] = try BudgetTemplateEngine.checkedSubtract(
+                    budgetedByCategory[fromCategoryID] ?? 0,
+                    command.amount
+                )
                 affectedCategoryIDs.insert(fromCategoryID)
             }
             if let toCategoryID = command.toCategoryID?.trimmingCharacters(in: .whitespacesAndNewlines) {
                 try validateBudgetCategoryID(toCategoryID, db: db)
-                budgetedByCategory[toCategoryID, default: 0] += command.amount
+                budgetedByCategory[toCategoryID] = try BudgetTemplateEngine.checkedAdd(
+                    budgetedByCategory[toCategoryID] ?? 0,
+                    command.amount
+                )
                 affectedCategoryIDs.insert(toCategoryID)
             }
         }

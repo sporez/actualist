@@ -273,6 +273,10 @@ struct LoadedBudgetMonth: Equatable {
 }
 
 struct BudgetMoveMoneyCommand: Hashable, Sendable {
+    /// Largest accepted single move in minor units. It keeps the per-category
+    /// budgeted sums far from `Int` overflow.
+    static let maximumAmount = 1_000_000_000_000
+
     let fromCategoryID: String?
     let toCategoryID: String?
     let amount: Int

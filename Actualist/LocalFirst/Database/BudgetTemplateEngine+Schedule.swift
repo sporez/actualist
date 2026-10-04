@@ -30,22 +30,27 @@ extension BudgetTemplateEngine {
         let sinking = instances.filter { !isPayMonthOf($0) }
             .sorted { $0.nextDate < $1.nextDate }
 
-        let totalPayMonthOf = payMonthOf.reduce(0) { $0 + $1.monthlyRepeatingTarget }
-        let totalSinking = sinking.reduce(0) { $0 + $1.monthlyRepeatingTarget }
+        let totalPayMonthOf = try payMonthOf.reduce(0) {
+            try Self.checkedAdd($0, $1.monthlyRepeatingTarget)
+        }
+        let totalSinking = try sinking.reduce(0) {
+            try Self.checkedAdd($0, $1.monthlyRepeatingTarget)
+        }
+        let totalRequired = try Self.checkedAdd(totalSinking, totalPayMonthOf)
         let totalSinkingBase = sinking.reduce(0.0) { $0 + monthlyBaseContribution($1) }
         let balance = try Self.checkedAdd(category.fromLastMonth, alreadyBudgeted)
         let lastMonthGoal = category.lastMonthGoal
         let subMonthlyCount = instances.filter(isSubMonthly).count
 
-        if balance >= totalSinking + totalPayMonthOf
-            || lastMonthGoal < totalSinking + totalPayMonthOf
+        if balance >= totalRequired
+            || lastMonthGoal < totalRequired
             && lastMonthGoal != 0
             && balance >= lastMonthGoal
             && subMonthlyCount > 0 {
             return try Self.actualRound(Double(totalPayMonthOf) + totalSinkingBase)
         }
 
-        let sinkingContribution = sinkingContributionTotal(
+        let sinkingContribution = try sinkingContributionTotal(
             sinking,
             lastMonthBalance: category.fromLastMonth
         )
@@ -114,7 +119,7 @@ extension BudgetTemplateEngine {
         }
         let occurrenceMonthEnd = occurrenceMonth.end
         let sign = schedule.monthlyRepeatingTarget >= 0 ? 1 : -1
-        let magnitude = abs(schedule.amount)
+        let magnitude = try Self.checkedMagnitude(schedule.amount)
         var total = 0
         var guardCount = 0
         while true {
@@ -217,7 +222,8 @@ extension BudgetTemplateEngine {
     }
 
     private func dailyIntervalMonths(_ schedule: ResolvedSchedule) -> Int {
-        guard let date = BudgetTemplateCalendar.validatedDate(schedule.nextDate),
+        guard schedule.interval != Int.min,
+              let date = BudgetTemplateCalendar.validatedDate(schedule.nextDate),
               let previous = BudgetTemplateCalendar.gregorian.date(
                 byAdding: .day,
                 value: -schedule.interval,
@@ -236,18 +242,19 @@ extension BudgetTemplateEngine {
     private func sinkingContributionTotal(
         _ schedules: [ResolvedSchedule],
         lastMonthBalance: Int
-    ) -> Double {
+    ) throws -> Double {
         var remainder = 0
         var total = 0.0
         for (index, schedule) in schedules.enumerated() {
-            remainder = index == 0
-                ? schedule.monthlyRepeatingTarget - lastMonthBalance
-                : schedule.monthlyRepeatingTarget - remainder
+            remainder = try Self.checkedSubtract(
+                schedule.monthlyRepeatingTarget,
+                index == 0 ? lastMonthBalance : remainder
+            )
             if remainder >= 0 {
-                total += Double(remainder) / Double(schedule.monthsUntil + 1)
+                total += Double(remainder) / Double(try Self.checkedAdd(schedule.monthsUntil, 1))
                 remainder = 0
             } else {
-                remainder = abs(remainder)
+                remainder = try Self.checkedMagnitude(remainder)
             }
         }
         return total
