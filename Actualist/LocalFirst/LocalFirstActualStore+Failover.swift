@@ -15,7 +15,8 @@ extension LocalFirstActualStore {
             return (primary, nil)
         }
         let fallback = URL(string: ActualServerURLNormalizer.normalize(fallbackRaw))
-        guard let primary, let fallback, fallback != primary else {
+        guard ActualServerConnectionSecurity.rejection(for: fallbackRaw) == nil,
+              let primary, let fallback, fallback != primary else {
             return (primary, nil)
         }
         return (primary, fallback)

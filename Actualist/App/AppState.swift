@@ -46,9 +46,9 @@ final class AppState {
                 self?.recordLocalFirstSyncDebugEvent(event)
             }
         )
-        store.fallbackServerURLString = settings.fallbackServerURLString.isEmpty
-            ? nil
-            : settings.fallbackServerURLString
+        store.fallbackServerURLString = ActualServerConnectionSecurity.usableFallback(
+            settings.fallbackServerURLString
+        )
         return store
     }()
 
@@ -184,8 +184,8 @@ final class AppState {
             lastErrorMessage = LocalFirstError.missingServerURL.localizedDescription
             return nil
         }
-        if let blockedMessage = ActualServerConnectionSecurity.blockedMessage(for: normalized) {
-            lastErrorMessage = blockedMessage
+        if let rejection = ActualServerConnectionSecurity.rejection(for: normalized) {
+            lastErrorMessage = rejection
             return nil
         }
 
@@ -231,8 +231,8 @@ final class AppState {
             lastErrorMessage = LocalFirstError.missingServerURL.localizedDescription
             return false
         }
-        if let blockedMessage = ActualServerConnectionSecurity.blockedMessage(for: normalized) {
-            lastErrorMessage = blockedMessage
+        if let rejection = ActualServerConnectionSecurity.rejection(for: normalized) {
+            lastErrorMessage = rejection
             return false
         }
 
@@ -355,11 +355,18 @@ final class AppState {
     /// string clears it. This does not affect the saved connection, sync token,
     /// or budget selection — the fallback is the same logical server reached via
     /// a different network path.
-    func updateFallbackServerURL(_ serverURL: String) {
+    /// Returns the rejection message, leaving every setting unchanged, when the
+    /// address fails `ActualServerConnectionSecurity.rejection(for:)`.
+    @discardableResult
+    func updateFallbackServerURL(_ serverURL: String) -> String? {
         let normalized = ActualServerURLNormalizer.normalize(serverURL)
+        if let rejection = ActualServerConnectionSecurity.rejection(for: normalized) {
+            return rejection
+        }
         settings.fallbackServerURLString = normalized
         localFirstStore.fallbackServerURLString = normalized.isEmpty ? nil : normalized
         settingsStore.save(settings)
+        return nil
     }
 
     func selectBudgetForCurrentBackend(_ budget: ActualBudget, encryptionPassword: String? = nil) async {

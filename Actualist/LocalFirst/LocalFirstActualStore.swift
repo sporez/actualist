@@ -381,6 +381,29 @@ enum ActualServerConnectionSecurity {
         return localHTTPWarning
     }
 
+    static let unsupportedSchemeMessage = "Server addresses must start with https:// (or http:// for a local network server)."
+    static let embeddedCredentialsMessage = "Server addresses can't include a username or password. Remove it from the address."
+
+    /// The one rule for every server URL the app accepts (primary and fallback).
+    /// Returns a user-facing reason, or `nil` when the address is acceptable.
+    /// Empty input is not a rejection; callers decide what empty means.
+    static func rejection(for input: String) -> String? {
+        guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let components = normalizedComponents(input) else { return nil }
+        guard let scheme = components.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+            return unsupportedSchemeMessage
+        }
+        if components.user != nil || components.password != nil {
+            return embeddedCredentialsMessage
+        }
+        return blockedMessage(for: input)
+    }
+
+    /// A stored fallback is ignored, not erased, when it fails today's rule.
+    static func usableFallback(_ stored: String) -> String? {
+        stored.isEmpty || rejection(for: stored) != nil ? nil : stored
+    }
+
     static func blockedMessage(for input: String) -> String? {
         guard let components = normalizedComponents(input),
               components.scheme?.lowercased() == "http",

@@ -169,6 +169,12 @@ struct ConnectionSyncSettingsView: View {
                 onSubmit: { viewModel.commitFallbackServerURL(using: appState) }
             )
 
+            if let error = viewModel.fallbackServerURLError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.danger)
+            }
+
             Text("The fallback server is tried automatically when the primary server can't be reached — for example, a Tailscale URL when you're away from home Wi-Fi.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)

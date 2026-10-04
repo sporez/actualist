@@ -8,6 +8,7 @@ final class SettingsViewModel {
     private var hasHydratedConnection = false
     var serverURLString = ""
     var fallbackServerURLString = ""
+    var fallbackServerURLError: String?
     var actualPassword = ""
     var isTesting = false
     var isLoadingBudgets = false
@@ -21,6 +22,7 @@ final class SettingsViewModel {
     func hydrate(from appState: AppState) {
         serverURLString = appState.settings.localFirstServerURLString
         fallbackServerURLString = appState.settings.fallbackServerURLString
+        fallbackServerURLError = nil
         selectedAppIcon = AppIcon.current()
     }
 
@@ -69,7 +71,7 @@ final class SettingsViewModel {
     }
 
     func commitFallbackServerURL(using appState: AppState) {
-        appState.updateFallbackServerURL(fallbackServerURLString)
+        fallbackServerURLError = appState.updateFallbackServerURL(fallbackServerURLString)
     }
 
     /// Reloads the budget list and reports whether discovery completed
