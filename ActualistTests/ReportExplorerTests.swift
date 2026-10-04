@@ -431,6 +431,23 @@ struct ReportExplorerTests {
         #expect(snapshot.totals.budgeted == 31_000)
     }
 
+    @Test func budgetOverviewIgnoresTransferredSourceIncomeAndDeletedBudgetRows() async throws {
+        let database = try BudgetDatabase(databaseURL: makeFixture(extraSQL: """
+            INSERT INTO categories VALUES ('old-category', 'Old', 'expense-group', 0, 0, 1);
+            INSERT INTO category_mapping VALUES ('old-category', 'groceries');
+            INSERT INTO zero_budgets VALUES (202601, 'old-category', 5000);
+            INSERT INTO zero_budgets VALUES (202601, 'salary', 90000);
+            """))
+        let snapshot = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .budgetOverview,
+            startDay: "2026-01-01",
+            endDay: "2026-01-31",
+            interval: .month
+        ))
+
+        #expect(snapshot.totals.budgeted == 31_000)
+    }
+
     @Test func spendingAverageKeepsCurrentDrilldownSeparateFromFilteredHistoryQuery() async throws {
         let database = try BudgetDatabase(databaseURL: makeFixture(extraSQL: """
             INSERT INTO transactions VALUES ('current', 'checking', 20260110, -1200, 'groceries', NULL, 0, NULL, 0, 0, NULL);

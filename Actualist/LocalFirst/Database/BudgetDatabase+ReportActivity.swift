@@ -106,6 +106,10 @@ extension BudgetDatabase {
         }
     }
 
+    /// Budgeted expenses for one month over explicit live expense category ids.
+    /// Budget rows of deleted categories are excluded by the id list, and a
+    /// delete-with-transfer already moved the amount onto the destination row,
+    /// so `category_mapping` is deliberately not joined here.
     func reportBudgetedExpenses(
         month: String,
         categoryIDs: Set<String>,
@@ -119,13 +123,6 @@ extension BudgetDatabase {
         let budgetMonth = column("month", fallback: "NULL", columns: budgetColumns)
         let budgetCategory = column("category", fallback: "NULL", columns: budgetColumns)
         let normalizedMonth = normalizedMonthExpression("z.\(budgetMonth)")
-        let transferColumn = try categoryMappingTransferColumn(db: db)
-        let mappedCategory = transferColumn.map {
-            "COALESCE(cm.\(quotedIdentifier($0)), z.\(budgetCategory))"
-        } ?? "z.\(budgetCategory)"
-        let categoryMappingJoin = transferColumn == nil
-            ? ""
-            : "LEFT JOIN category_mapping cm ON cm.id = z.\(budgetCategory)"
         let sortedCategoryIDs = categoryIDs.sorted()
         let placeholders = Array(repeating: "?", count: sortedCategoryIDs.count).joined(separator: ", ")
         var arguments: [DatabaseValueConvertible] = [month]
@@ -136,30 +133,23 @@ extension BudgetDatabase {
             sql: """
                 SELECT SUM(z.\(budgetAmount)) AS amount
                 FROM \(quotedIdentifier(table.rawValue)) z
-                \(categoryMappingJoin)
                 WHERE \(normalizedMonth) = ?
-                  AND \(mappedCategory) IN (\(placeholders))
+                  AND z.\(budgetCategory) IN (\(placeholders))
                 """,
             arguments: StatementArguments(arguments)
         )
         return row?["amount"] ?? 0
     }
 
+    /// Dashboard variant: live non-income categories. Envelope budgets keep
+    /// hidden categories; tracking budgets exclude them (upstream
+    /// budget-analysis-spreadsheet `showHiddenCategories || !cat.hidden`).
     func reportBudgetedExpenses(month: String, db: Database) throws -> Int {
-        let table = try budgetTable(db: db)
-        guard try tableExists(table.rawValue, db: db) else { return 0 }
-        let columns = try columnSet(for: table.rawValue, db: db)
-        let amount = column("amount", fallback: "0", columns: columns)
-        let budgetMonth = column("month", fallback: "NULL", columns: columns)
-        let row = try Row.fetchOne(
-            db,
-            sql: """
-                SELECT SUM(z.\(amount)) AS amount
-                FROM \(quotedIdentifier(table.rawValue)) z
-                WHERE \(normalizedMonthExpression("z.\(budgetMonth)")) = ?
-                """,
-            arguments: [month]
-        )
-        return row?["amount"] ?? 0
+        let includesHidden = try !isTrackingBudget(db: db)
+        let catalog = try reportExplorerFilterCatalog(db: db)
+        let categoryIDs = Set(catalog.categories.lazy.filter {
+            !$0.isIncome && (includesHidden || !$0.isHidden)
+        }.map(\.id))
+        return try reportBudgetedExpenses(month: month, categoryIDs: categoryIDs, db: db)
     }
 }

@@ -319,6 +319,46 @@ struct ReportsTests {
         #expect(snapshot.threeMonthAverage.points.last?.current == 24_200)
     }
 
+    @Test func budgetedExpensesCountOnlyLiveExpenseCategoryBudgets() async throws {
+        let url = try makeReportsFixture(extraSQL: """
+            UPDATE zero_budgets SET amount = 99900 WHERE category = 'salary';
+            UPDATE zero_budgets SET amount = 5000 WHERE category = 'deleted-category';
+            INSERT INTO categories VALUES ('old-category', 'Old', 'expense-group', 0, 0, 1);
+            INSERT INTO category_mapping VALUES ('old-category', 'groceries');
+            INSERT INTO zero_budgets VALUES (202607, 'old-category', 7000, 0);
+            INSERT INTO categories VALUES ('null-tombstone', 'Null Tombstone', 'expense-group', 0, 0, NULL);
+            INSERT INTO zero_budgets VALUES (202607, 'null-tombstone', 300, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: url)
+        let snapshot = try await database.fetchReportsDashboard(range: ReportDateRange(
+            anchorMonth: "2026-07",
+            startDay: "2026-02-01",
+            endDay: "2026-07-31"
+        ))
+
+        // groceries 50,000 + hidden-expense 10,000 (envelope keeps hidden) + live NULL-tombstone 300.
+        #expect(snapshot.budgetOverview.budgetedExpenses == 60_300)
+    }
+
+    @Test func trackingBudgetedExpensesExcludeHiddenAndIncomeCategories() async throws {
+        let url = try makeReportsFixture(extraSQL: """
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('budgetType', 'tracking');
+            CREATE TABLE reflect_budgets (month INTEGER, category TEXT, amount INTEGER, carryover INTEGER);
+            INSERT INTO reflect_budgets VALUES (202607, 'groceries', 50000, 0);
+            INSERT INTO reflect_budgets VALUES (202607, 'hidden-expense', 10000, 0);
+            INSERT INTO reflect_budgets VALUES (202607, 'salary', 99900, 0);
+            """)
+        let database = try BudgetDatabase(databaseURL: url)
+        let snapshot = try await database.fetchReportsDashboard(range: ReportDateRange(
+            anchorMonth: "2026-07",
+            startDay: "2026-02-01",
+            endDay: "2026-07-31"
+        ))
+
+        #expect(snapshot.budgetOverview.budgetedExpenses == 50_000)
+    }
+
     private var reportRange: ReportDateRange {
         ReportDateRange(anchorMonth: "2026-07", startDay: "2026-02-01", endDay: "2026-07-16")
     }
