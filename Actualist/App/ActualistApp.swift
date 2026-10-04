@@ -18,6 +18,15 @@ enum AppSwitcherSnapshotPolicy {
             !isAppInitiatedSystemUISuppressed && scenePhase != .active
         }
     }
+
+    @MainActor
+    static func shouldCover(appState: AppState, scenePhase: ScenePhase) -> Bool {
+        shouldCover(
+            mode: appState.settings.appSwitcherPrivacyMode,
+            scenePhase: scenePhase,
+            isAppInitiatedSystemUISuppressed: appState.isAppSwitcherCoverSuppressedForSystemUI
+        )
+    }
 }
 
 @main
@@ -124,11 +133,7 @@ private struct AppSwitcherPrivacyProtectionModifier: ViewModifier {
     }
 
     private var shouldCover: Bool {
-        AppSwitcherSnapshotPolicy.shouldCover(
-            mode: appState.settings.appSwitcherPrivacyMode,
-            scenePhase: scenePhase,
-            isAppInitiatedSystemUISuppressed: appState.isAppSwitcherCoverSuppressedForSystemUI
-        )
+        AppSwitcherSnapshotPolicy.shouldCover(appState: appState, scenePhase: scenePhase)
     }
 }
 
@@ -141,11 +146,7 @@ private struct AppSwitcherPrivacyAwareDragIndicatorModifier: ViewModifier {
     }
 
     private var shouldCover: Bool {
-        AppSwitcherSnapshotPolicy.shouldCover(
-            mode: appState.settings.appSwitcherPrivacyMode,
-            scenePhase: scenePhase,
-            isAppInitiatedSystemUISuppressed: appState.isAppSwitcherCoverSuppressedForSystemUI
-        )
+        AppSwitcherSnapshotPolicy.shouldCover(appState: appState, scenePhase: scenePhase)
     }
 }
 

@@ -276,21 +276,11 @@ final class ShortcutsBudgetSession {
     }
 
     private func reconstructedBudget(budgetID: String, settings: AppSettings) -> ActualBudget? {
-        if let selected = appState.selectedBudget, selected.syncID == budgetID {
-            return selected
-        }
-        if let budget = appState.budgets.first(where: { $0.syncID == budgetID }) {
-            return budget
-        }
-        guard let fileID = settings.selectedLocalFirstFileID else {
-            return nil
-        }
-        return ActualBudget(
-            budgetID: fileID,
-            cloudFileId: fileID,
-            groupId: settings.selectedLocalFirstGroupID,
-            name: settings.selectedBudgetName ?? "Selected Budget",
-            state: nil
+        ActualBudget.resolved(
+            budgetID: budgetID,
+            selectedBudget: appState.selectedBudget,
+            budgets: appState.budgets,
+            settings: settings
         )
     }
 }

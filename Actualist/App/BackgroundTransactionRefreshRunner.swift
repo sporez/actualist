@@ -190,21 +190,11 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         selectedBudget: ActualBudget?,
         budgets: [ActualBudget]
     ) -> ActualBudget? {
-        if let selectedBudget, selectedBudget.syncID == budgetID {
-            return selectedBudget
-        }
-        if let budget = budgets.first(where: { $0.syncID == budgetID }) {
-            return budget
-        }
-        guard let fileID = settings.selectedLocalFirstFileID else {
-            return nil
-        }
-        return ActualBudget(
-            budgetID: fileID,
-            cloudFileId: fileID,
-            groupId: settings.selectedLocalFirstGroupID,
-            name: settings.selectedBudgetName ?? "Selected Budget",
-            state: nil
+        ActualBudget.resolved(
+            budgetID: budgetID,
+            selectedBudget: selectedBudget,
+            budgets: budgets,
+            settings: settings
         )
     }
 }

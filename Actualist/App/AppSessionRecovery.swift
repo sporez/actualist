@@ -233,14 +233,7 @@ final class AppSessionRecovery {
     func restore(settings: AppSettings, store: LocalFirstActualStore) async -> Outcome {
         let identity = generation
         guard settings.selectedBudgetID != nil,
-              let fileID = settings.selectedLocalFirstFileID else { return .missingCache }
-        let budget = ActualBudget(
-            budgetID: fileID,
-            cloudFileId: fileID,
-            groupId: settings.selectedLocalFirstGroupID,
-            name: settings.selectedBudgetName ?? "Selected Budget",
-            state: nil
-        )
+              let budget = ActualBudget.reconstructedFromSettings(settings) else { return .missingCache }
         do {
             let opened = try await store.openCachedBudget(budget, expectedGeneration: store.budgetSessionGeneration)
             guard identity == generation, !Task.isCancelled else { return .superseded }
