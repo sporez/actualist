@@ -130,7 +130,7 @@ final class IPadReviewUITests: XCTestCase {
         cell.tap()
         XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
         app.buttons["7"].tap()
-        defer { restore(window, width: originalWidth) }
+        restoreWindowOnTeardown(window, width: originalWidth)
         try narrow(window, app: app)
         XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
         screenshot("review-assignment-compact-retained")
@@ -160,7 +160,7 @@ final class IPadReviewUITests: XCTestCase {
         cell.tap()
         XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
         app.buttons["7"].tap()
-        defer { restore(window, width: originalWidth) }
+        restoreWindowOnTeardown(window, width: originalWidth)
         var removed = false
         for _ in 0..<8 where !removed {
             XCTAssertTrue(resize(window, by: -60))
@@ -195,7 +195,7 @@ final class IPadReviewUITests: XCTestCase {
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Category'")).firstMatch.tap()
         let picker = app.navigationBars["Category"]
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
-        defer { restore(window, width: originalWidth) }
+        restoreWindowOnTeardown(window, width: originalWidth)
         try narrow(window, app: app, expectsTabs: false)
         XCTAssertTrue(picker.waitForExistence(timeout: 5))
         screenshot("review-editor-picker-compact")
@@ -316,6 +316,8 @@ final class IPadReviewUITests: XCTestCase {
         if expectsTabs { XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8)) }
     }
 
+    /// `defer` does not run when an XCTest assertion aborts the test, which left
+    /// the iPad window narrow and made every later wide test skip or fail.
     private func restoreWindowOnTeardown(_ window: XCUIElement, width: CGFloat) {
         addTeardownBlock { @MainActor [self] in restore(window, width: width) }
     }
