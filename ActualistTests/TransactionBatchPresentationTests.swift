@@ -8,11 +8,9 @@ struct TransactionBatchPresentationTests {
         let repository = DeferredFirstBatchReviewRepository(firstRequestFails: true)
         let presentation = TransactionBatchPresentation()
         let context = makeContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context)
-
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "first"))
-        let obsoleteTask = try #require(presentation.prepare(intent: .delete, feedSnapshot: snapshot, repository: repository))
+        let obsoleteTask = try #require(presentation.prepare(intent: .delete, feedContext: context, repository: repository))
         guard await repository.waitForFirstRequest() else {
             obsoleteTask.cancel()
             repository.releaseFirstRequest()
@@ -24,7 +22,7 @@ struct TransactionBatchPresentationTests {
         presentation.cancelSheet()
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "second"))
-        guard let currentTask = presentation.prepare(intent: .delete, feedSnapshot: snapshot, repository: repository) else {
+        guard let currentTask = presentation.prepare(intent: .delete, feedContext: context, repository: repository) else {
             repository.releaseFirstRequest()
             await obsoleteTask.value
             Issue.record("Expected a new review task")
@@ -50,11 +48,9 @@ struct TransactionBatchPresentationTests {
         let repository = DeferredFirstBatchReviewRepository(firstRequestFails: false)
         let presentation = TransactionBatchPresentation()
         let context = makeContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context)
-
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "first"))
-        let obsoleteTask = try #require(presentation.prepare(intent: .delete, feedSnapshot: snapshot, repository: repository))
+        let obsoleteTask = try #require(presentation.prepare(intent: .delete, feedContext: context, repository: repository))
         guard await repository.waitForFirstRequest() else {
             obsoleteTask.cancel()
             repository.releaseFirstRequest()
@@ -66,7 +62,7 @@ struct TransactionBatchPresentationTests {
         presentation.cancelSheet()
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "second"))
-        guard let currentTask = presentation.prepare(intent: .delete, feedSnapshot: snapshot, repository: repository) else {
+        guard let currentTask = presentation.prepare(intent: .delete, feedContext: context, repository: repository) else {
             repository.releaseFirstRequest()
             await obsoleteTask.value
             Issue.record("Expected a new review task")

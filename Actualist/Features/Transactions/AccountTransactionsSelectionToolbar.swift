@@ -5,7 +5,7 @@ import SwiftUI
 /// file-size gate. Pure presentation forwarding: no state is owned here.
 struct AccountTransactionsSelectionToolbar: ToolbarContent {
     let batchPresentation: TransactionBatchPresentation
-    let feedSnapshot: TransactionBatchFeedSnapshot?
+    let feedContext: TransactionSelectionContext?
     let budgetID: String?
     let transactionRepository: any TransactionRepositoryProtocol
     let appState: AppState
@@ -18,7 +18,7 @@ struct AccountTransactionsSelectionToolbar: ToolbarContent {
             onClear: {
                 batchPresentation.prepare(
                     intent: .clear,
-                    feedSnapshot: feedSnapshot,
+                    feedContext: feedContext,
                     repository: appState.localFirstStore
                 )
             },
@@ -31,19 +31,19 @@ struct AccountTransactionsSelectionToolbar: ToolbarContent {
             onDelete: {
                 batchPresentation.prepare(
                     intent: .delete,
-                    feedSnapshot: feedSnapshot,
+                    feedContext: feedContext,
                     repository: appState.localFirstStore
                 )
             },
             onDuplicate: {
                 batchPresentation.prepareDuplicate(
-                    feedSnapshot: feedSnapshot,
+                    feedContext: feedContext,
                     repository: appState.localFirstStore
                 )
             },
             onMerge: {
                 batchPresentation.prepareMerge(
-                    feedSnapshot: feedSnapshot,
+                    feedContext: feedContext,
                     repository: appState.localFirstStore
                 )
             }

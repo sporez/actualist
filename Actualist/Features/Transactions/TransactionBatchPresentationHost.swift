@@ -5,7 +5,7 @@ struct TransactionBatchPresentationHost: ViewModifier {
     let selectedBudgetID: String?
     let sessionGeneration: Int
     let context: TransactionSelectionContext?
-    let feedSnapshot: @MainActor () -> TransactionBatchFeedSnapshot?
+    let feedContext: @MainActor () -> TransactionSelectionContext?
     let batchRepository: any TransactionBatchRepositoryProtocol
     let onCommitted: @MainActor (TransactionBatchOutcome) -> Void
     let duplicateRepository: any TransactionDuplicateRepositoryProtocol
@@ -59,7 +59,7 @@ struct TransactionBatchPresentationHost: ViewModifier {
             TransactionBatchInteractionSheet(
                 presentation: presentation,
                 isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                feedSnapshot: feedSnapshot,
+                feedContext: feedContext,
                 repository: batchRepository,
                 onCommitted: onCommitted
             )
@@ -73,7 +73,7 @@ struct TransactionBatchPresentationHost: ViewModifier {
     private func confirmDuplicate() {
         presentation.confirmDuplicate(
             repository: duplicateRepository,
-            currentFeedSnapshot: feedSnapshot,
+            currentFeedContext: feedContext,
             onCommitted: onDuplicateCommitted
         )
     }
@@ -81,7 +81,7 @@ struct TransactionBatchPresentationHost: ViewModifier {
     private func confirmMerge() {
         presentation.confirmMerge(
             repository: mergeRepository,
-            currentFeedSnapshot: feedSnapshot,
+            currentFeedContext: feedContext,
             onCommitted: onMergeCommitted
         )
     }

@@ -3,7 +3,7 @@ import SwiftUI
 struct TransactionBatchInteractionSheet: View {
     @Bindable var presentation: TransactionBatchPresentation
     let isPrivacyModeEnabled: Bool
-    let feedSnapshot: @MainActor () -> TransactionBatchFeedSnapshot?
+    let feedContext: @MainActor () -> TransactionSelectionContext?
     let repository: any TransactionBatchRepositoryProtocol
     let onCommitted: @MainActor (TransactionBatchOutcome) -> Void
 
@@ -17,7 +17,7 @@ struct TransactionBatchInteractionSheet: View {
                         onSelect: { categoryID in
                             presentation.selectCategory(
                                 categoryID,
-                                feedSnapshot: feedSnapshot(),
+                                feedContext: feedContext(),
                                 repository: repository
                             )
                         },
@@ -46,7 +46,7 @@ struct TransactionBatchInteractionSheet: View {
                 onConfirm: {
                     presentation.confirm(
                         repository: repository,
-                        currentFeedSnapshot: feedSnapshot,
+                        currentFeedContext: feedContext,
                         onCommitted: onCommitted
                     )
                 }

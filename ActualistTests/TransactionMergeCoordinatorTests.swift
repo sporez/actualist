@@ -100,7 +100,6 @@ struct TransactionMergeCoordinatorTests {
         let repository = RecordingMergeRepository()
         let presentation = TransactionBatchPresentation()
         let context = makeCommandContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context)
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "first"))
         presentation.toggle(transaction(id: "second"))
@@ -110,11 +109,11 @@ struct TransactionMergeCoordinatorTests {
             reconciledIDs: ["paired", "first"]
         )
 
-        let task = try #require(presentation.prepareMerge(feedSnapshot: snapshot, repository: repository))
+        let task = try #require(presentation.prepareMerge(feedContext: context, repository: repository))
         await task.value
         presentation.confirmMerge(
             repository: repository,
-            currentFeedSnapshot: { snapshot },
+            currentFeedContext: { context },
             onCommitted: { _ in }
         )
         await repository.waitForCommit()
@@ -130,11 +129,10 @@ struct TransactionMergeCoordinatorTests {
         let repository = ThrowingMergeRepository()
         let presentation = TransactionBatchPresentation()
         let context = makeCommandContext()
-        let snapshot = TransactionBatchFeedSnapshot(context: context)
         presentation.enter(context: context)
         presentation.toggle(transaction(id: "second"))
         presentation.toggle(transaction(id: "first"))
-        let task = try #require(presentation.prepareMerge(feedSnapshot: snapshot, repository: repository))
+        let task = try #require(presentation.prepareMerge(feedContext: context, repository: repository))
         await task.value
 
         #expect(presentation.isSelectionMode)

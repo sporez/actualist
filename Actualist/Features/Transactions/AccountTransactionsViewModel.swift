@@ -115,22 +115,20 @@ final class AccountTransactionsViewModel {
         ).displayState
     }
 
-    func transactionBatchFeedSnapshot(
+    func transactionBatchFeedContext(
         budgetID: String?,
         sessionGeneration: Int,
         repository: any TransactionRepositoryProtocol
-    ) -> TransactionBatchFeedSnapshot? {
+    ) -> TransactionSelectionContext? {
         guard let queryScope = scope.queryScope,
               let budgetID,
               let identity = readIdentity(budgetID: budgetID),
               activeCachedSnapshot(identity, repository: repository) != nil else { return nil }
-        return TransactionBatchFeedSnapshot(
-            context: TransactionSelectionContext(
-                budgetID: budgetID,
-                sessionGeneration: sessionGeneration,
-                scope: queryScope,
-                querySignature: identity.query.signature
-            )
+        return TransactionSelectionContext(
+            budgetID: budgetID,
+            sessionGeneration: sessionGeneration,
+            scope: queryScope,
+            querySignature: identity.query.signature
         )
     }
 
@@ -353,12 +351,7 @@ final class AccountTransactionsViewModel {
         }
         guard !isLoading else { return }
         // Category pages always report `reachedEnd`; return before any phase change.
-        let olderScope: TransactionQueryScope
-        switch scope {
-        case .account(let account): olderScope = .account(account.id)
-        case .spending: olderScope = .spending
-        case .category: return
-        }
+        guard let olderScope = scope.queryScope else { return }
         let requestID = readSession.beginOlderLocal(identity)
 
         do {
@@ -450,20 +443,11 @@ final class AccountTransactionsViewModel {
         _ identity: TransactionFeedReadSession.Identity,
         repository: any TransactionRepositoryProtocol
     ) async throws {
-        switch scope {
-        case .account(let account):
+        if let queryScope = scope.queryScope {
             try await repository.refreshTransactions(
-                budgetID: identity.budgetID,
-                scope: .account(account.id),
-                query: identity.query
+                budgetID: identity.budgetID, scope: queryScope, query: identity.query
             )
-        case .spending:
-            try await repository.refreshTransactions(
-                budgetID: identity.budgetID,
-                scope: .spending,
-                query: identity.query
-            )
-        case .category(let details):
+        } else if case .category(let details) = scope {
             try await repository.refreshCategoryTransactions(
                 budgetID: identity.budgetID, categoryID: details.category.id, month: details.month
             )
@@ -474,26 +458,15 @@ final class AccountTransactionsViewModel {
         _ identity: TransactionFeedReadSession.Identity,
         repository: any TransactionRepositoryProtocol
     ) -> LoadedAccountTransactions? {
-        switch scope {
-        case .account(let account):
+        if let queryScope = scope.queryScope {
             return repository.cachedTransactions(
-                budgetID: identity.budgetID,
-                scope: .account(account.id),
-                query: identity.query
-            )
-        case .spending:
-            return repository.cachedTransactions(
-                budgetID: identity.budgetID,
-                scope: .spending,
-                query: identity.query
-            )
-        case .category(let details):
-            return repository.cachedCategoryTransactions(
-                budgetID: identity.budgetID,
-                categoryID: details.category.id,
-                month: details.month
+                budgetID: identity.budgetID, scope: queryScope, query: identity.query
             )
         }
+        guard case .category(let details) = scope else { return nil }
+        return repository.cachedCategoryTransactions(
+            budgetID: identity.budgetID, categoryID: details.category.id, month: details.month
+        )
     }
 
     private func unfilteredSnapshot(

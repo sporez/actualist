@@ -4,6 +4,7 @@ struct AccountTransactionsView: View {
     @Environment(AppState.self) private var appState
     @Environment(RootTransactionEditorPresenter.self) private var transactionPresenter
     @Environment(\.actualistDensity) private var density
+    @Environment(\.budgetCurrency) private var budgetCurrency
     @Environment(\.dismiss) private var dismiss
     let scope: TransactionFeedScope
     let onChanged: @MainActor () -> Void
@@ -74,11 +75,6 @@ struct AccountTransactionsView: View {
         appState.settings.selectedBudgetID
     }
 
-    private var budgetCurrency: BudgetCurrency {
-        guard let budgetID else { return .usd }
-        return appState.localFirstStore.budgetCurrency(budgetID: budgetID)
-    }
-
     /// Schedule-authoring capability from the store's cached schedules read.
     /// Unknown (schedules not loaded yet) keeps the entry available; the write
     /// path's tester-voiced failure remains the backstop.
@@ -91,8 +87,8 @@ struct AccountTransactionsView: View {
         appState.transactionRepository
     }
 
-    private var transactionBatchFeedSnapshot: TransactionBatchFeedSnapshot? {
-        viewModel.transactionBatchFeedSnapshot(
+    private var transactionBatchFeedContext: TransactionSelectionContext? {
+        viewModel.transactionBatchFeedContext(
             budgetID: budgetID,
             sessionGeneration: appState.localFirstStore.budgetSessionGeneration,
             repository: transactionRepository
@@ -299,7 +295,7 @@ struct AccountTransactionsView: View {
                     if transactionBatchPresentation.isSelectionMode {
                         AccountTransactionsSelectionToolbar(
                             batchPresentation: transactionBatchPresentation,
-                            feedSnapshot: transactionBatchFeedSnapshot,
+                            feedContext: transactionBatchFeedContext,
                             budgetID: budgetID,
                             transactionRepository: transactionRepository,
                             appState: appState
@@ -329,7 +325,7 @@ struct AccountTransactionsView: View {
                                 onMoreFilters: presentTransactionFilters,
                                 onSavedFilters: presentSavedTransactionFilters,
                                 onSelectTransactions: {
-                                    transactionBatchPresentation.enter(context: transactionBatchFeedSnapshot?.context)
+                                    transactionBatchPresentation.enter(context: transactionBatchFeedContext)
                                 },
                                 onExportCSV: { isCSVExportPresented = true },
                                 onImportCSV: { isCSVImportPresented = true }
@@ -344,7 +340,7 @@ struct AccountTransactionsView: View {
                                 onMoreFilters: presentTransactionFilters,
                                 onSavedFilters: presentSavedTransactionFilters,
                                 onSelectTransactions: {
-                                    transactionBatchPresentation.enter(context: transactionBatchFeedSnapshot?.context)
+                                    transactionBatchPresentation.enter(context: transactionBatchFeedContext)
                                 }
                             )
                         }
@@ -458,9 +454,9 @@ struct AccountTransactionsView: View {
             presentation: transactionBatchPresentation,
             selectedBudgetID: budgetID,
             sessionGeneration: appState.localFirstStore.budgetSessionGeneration,
-            context: transactionBatchFeedSnapshot?.context,
-            feedSnapshot: {
-                viewModel.transactionBatchFeedSnapshot(
+            context: transactionBatchFeedContext,
+            feedContext: {
+                viewModel.transactionBatchFeedContext(
                     budgetID: budgetID,
                     sessionGeneration: appState.localFirstStore.budgetSessionGeneration,
                     repository: transactionRepository
