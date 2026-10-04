@@ -493,6 +493,7 @@ final class FakeKeychainBackend: KeychainBackend, @unchecked Sendable {
     var copyFailureStatus: OSStatus?
     var copyFailureAccountStatuses: [String: OSStatus] = [:]
     private(set) var updateCallCount = 0
+    private(set) var copyCallCount = 0
 
     private var items: [String: [String: Any]] = [:]
 
@@ -507,6 +508,7 @@ final class FakeKeychainBackend: KeychainBackend, @unchecked Sendable {
     }
 
     func copyMatching(_ query: CFDictionary, result: UnsafeMutablePointer<AnyObject?>?) -> OSStatus {
+        copyCallCount += 1
         let query = query as NSDictionary
         if let account = query[kSecAttrAccount as String] as? String,
            let status = copyFailureAccountStatuses[account] { return status }

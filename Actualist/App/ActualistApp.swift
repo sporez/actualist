@@ -80,6 +80,11 @@ struct ActualistApp: App {
                         await SimulatorLaunchApplier.apply(command, to: appState)
                     }
                 }
+                .onReceive(
+                    NotificationCenter.default.publisher(for: UIApplication.protectedDataDidBecomeAvailableNotification)
+                ) { _ in
+                    appState.refreshCredentialAvailability()
+                }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active {
                         BudgetCalendarCoordinator.shared.beginForeground()

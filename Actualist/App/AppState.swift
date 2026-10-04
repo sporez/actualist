@@ -91,8 +91,15 @@ final class AppState {
         !settings.localFirstServerURLString.isEmpty && credentialAvailability == .available
     }
 
+    /// Cached by `AppSessionRecovery` so SwiftUI bodies never read Keychain.
+    /// The fallback read is only reachable before the initial refresh.
     var credentialAvailability: AppSessionRecovery.CredentialAvailability {
-        AppSessionRecovery.credentialAvailability(keychain: keychain)
+        sessionRecovery.cachedCredentialAvailability
+            ?? AppSessionRecovery.credentialAvailability(keychain: keychain)
+    }
+
+    func refreshCredentialAvailability() {
+        sessionRecovery.refreshCredentialAvailability(keychain: keychain)
     }
 
     var credentialRecoveryMessage: String? { sessionRecovery.message }
@@ -253,6 +260,7 @@ final class AppState {
             }
 
             try localFirstStore.commitConnection(staged)
+            refreshCredentialAvailability()
             sessionRecovery.invalidate()
             activeIdentity = sessionRecovery.identity
             settings.localFirstServerURLString = normalized
@@ -323,6 +331,7 @@ final class AppState {
             appSyncCoordinator.cancelRefresh()
             widgetSnapshotClearer()
             try localFirstStore.eraseLocalData()
+            refreshCredentialAvailability()
             settings.localFirstServerURLString = ""
             settings.fallbackServerURLString = ""
             localFirstStore.fallbackServerURLString = nil
@@ -369,6 +378,7 @@ final class AppState {
             return
         }
         launchWarmupCoordinator.beginForeground(appState: self)
+        refreshCredentialAvailability()
 
         if setupPhase == .restoringBudget {
             await LaunchSignpost.measure(LaunchStage.cachedBudgetRestore) {

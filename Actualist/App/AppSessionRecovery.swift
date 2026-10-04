@@ -27,7 +27,7 @@ final class AppSessionRecovery {
     }
 
     func retry(keychain: KeychainStore, hasOpenBudget: Bool, hasSelection: Bool) -> RetryAction {
-        let availability = Self.credentialAvailability(keychain: keychain)
+        let availability = refreshCredentialAvailability(keychain: keychain)
         invalidate()
         switch availability {
         case .unavailable(let error):
@@ -43,6 +43,19 @@ final class AppSessionRecovery {
         }
     }
 
+    /// Last observed availability, safe to read from a SwiftUI `body`. It holds
+    /// the classification only (never credential bytes) and is refreshed at
+    /// lifecycle points, so views never touch Keychain. `.unavailable` is kept
+    /// distinct from `.absent`.
+    private(set) var cachedCredentialAvailability: CredentialAvailability?
+
+    @discardableResult
+    func refreshCredentialAvailability(keychain: KeychainStore) -> CredentialAvailability {
+        let availability = Self.credentialAvailability(keychain: keychain)
+        if cachedCredentialAvailability != availability { cachedCredentialAvailability = availability }
+        return availability
+    }
+
     static func credentialAvailability(keychain: KeychainStore) -> CredentialAvailability {
         do {
             return try keychain.readActualSyncToken() == nil ? .absent : .available
@@ -54,7 +67,7 @@ final class AppSessionRecovery {
     }
 
     func initialSession(settings: AppSettings, keychain: KeychainStore) -> (SetupPhase, ServerConnectionStatus) {
-        let availability = Self.credentialAvailability(keychain: keychain)
+        let availability = refreshCredentialAvailability(keychain: keychain)
         if settings.selectedBudgetID != nil, settings.selectedLocalFirstFileID != nil {
             return (.restoringBudget, availability == .available ? .connecting : .offline)
         }
@@ -72,7 +85,7 @@ final class AppSessionRecovery {
         selectedBudgetID: String?, store: LocalFirstActualStore, keychain: KeychainStore
     ) -> SetupPhase {
         if let selectedBudgetID, store.isOpen(budgetID: selectedBudgetID) { return .ready }
-        switch Self.credentialAvailability(keychain: keychain) {
+        switch refreshCredentialAvailability(keychain: keychain) {
         case .available: return .selectingBudget
         case .absent: return .needsConnection
         case .unavailable(let error):
@@ -90,7 +103,7 @@ final class AppSessionRecovery {
 
     func requireDiscoveryCredentials(settings: AppSettings, keychain: KeychainStore) throws {
         guard !settings.localFirstServerURLString.isEmpty else { throw LocalFirstError.missingServerURL }
-        switch Self.credentialAvailability(keychain: keychain) {
+        switch refreshCredentialAvailability(keychain: keychain) {
         case .available: break
         case .absent: throw LocalFirstError.missingSyncToken
         case .unavailable(let error):
@@ -101,7 +114,7 @@ final class AppSessionRecovery {
 
     func restoredStatus(isDemoMode: Bool, keychain: KeychainStore) -> ServerConnectionStatus {
         if isDemoMode { return .offline }
-        switch Self.credentialAvailability(keychain: keychain) {
+        switch refreshCredentialAvailability(keychain: keychain) {
         case .available: return .connecting
         case .absent: return .offline
         case .unavailable(let error):
@@ -112,7 +125,7 @@ final class AppSessionRecovery {
 
     func blockedError(keychain: KeychainStore) -> KeychainReadError? {
         if case .blocked(let error) = state { return error }
-        if case .unavailable(let error) = Self.credentialAvailability(keychain: keychain) {
+        if case .unavailable(let error) = refreshCredentialAvailability(keychain: keychain) {
             noteFailure(error, hasOpenBudget: false)
             return error
         }
@@ -127,7 +140,7 @@ final class AppSessionRecovery {
             noteFailure(credentialError, hasOpenBudget: true)
             return (.offline, credentialError.localizedDescription)
         }
-        switch Self.credentialAvailability(keychain: keychain) {
+        switch refreshCredentialAvailability(keychain: keychain) {
         case .available:
             clear()
             return (.online, nil)
@@ -274,7 +287,7 @@ final class AppSessionRecovery {
             }
             guard identity == generation else { return .superseded }
             if let blocked = blockedError(keychain: keychain) { return .blocked(blocked) }
-            if case .absent = Self.credentialAvailability(keychain: keychain) { return .needsConnection }
+            if case .absent = refreshCredentialAvailability(keychain: keychain) { return .needsConnection }
             return .failed(error)
         }
     }
