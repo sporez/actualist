@@ -36,6 +36,13 @@ final class TransactionCSVImportCoordinator {
         return nil
     }
 
+    /// Import is not recorded in History and has no Undo yet (plan D5), so the
+    /// review states it before the user commits.
+    var reviewNotice: String? {
+        guard case .reviewing = state else { return nil }
+        return "Imported transactions can't be undone."
+    }
+
     var isSubmitting: Bool {
         if case .submitting = state { return true }
         return false

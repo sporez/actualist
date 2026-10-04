@@ -81,4 +81,19 @@ struct TransactionCSVImportCoordinatorTests {
         #expect(importedCount == 0)
         #expect(coordinator.failureMessage?.contains("Nothing was imported") == true)
     }
+
+    @Test func reviewStatesThatImportCannotBeUndone() async throws {
+        let repository = FakeTransactionCSVImportRepository()
+        let coordinator = TransactionCSVImportCoordinator()
+        #expect(coordinator.reviewNotice == nil)
+        await coordinator.load(
+            contentsOf: try writeCSV(),
+            accountID: "checking",
+            budgetID: "group-1",
+            repository: repository
+        )
+        #expect(coordinator.reviewNotice == "Imported transactions can't be undone.")
+        await coordinator.submit(repository: repository)
+        #expect(coordinator.reviewNotice == nil)
+    }
 }

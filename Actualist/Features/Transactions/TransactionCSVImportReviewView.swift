@@ -66,6 +66,13 @@ struct TransactionCSVImportReviewView: View {
                 .actualistReviewCard()
             }
 
+            if let notice = coordinator.reviewNotice {
+                Label(notice, systemImage: "arrow.uturn.backward.circle")
+                    .font(.caption)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .accessibilityIdentifier("transaction-csv-import-undo-notice")
+            }
+
             ForEach(review.rows) { row in
                 importRow(row)
             }
