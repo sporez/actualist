@@ -234,6 +234,9 @@ extension BudgetDatabase {
         }
         if try tableExists("transactions", db: db), try columnSet(for: "transactions", db: db).contains("date") {
             let columns = try columnSet(for: "transactions", db: db)
+            // Envelope keeps deleted rows' months: upstream sizes the month range from the
+            // earliest row of the raw `transactions` table (`createAllBudgets`, budget/base.ts),
+            // tombstones included. Tracking filters them here, which upstream does not do.
             let live = table == BudgetTable.tracking.rawValue ? predicateForLiveRows(columns: columns) : "1 = 1"
             let normalizedMonth = normalizedMonthExpression("date")
             let rows = try Row.fetchAll(
