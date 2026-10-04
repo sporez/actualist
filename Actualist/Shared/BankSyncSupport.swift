@@ -116,6 +116,7 @@ enum BankSyncAmounts {
     static func dayID(fromUnixSeconds seconds: Int64) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
         formatter.timeZone = TimeZone(identifier: "UTC")
         formatter.dateFormat = "yyyyMMdd"
         return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(seconds)))
@@ -150,6 +151,7 @@ enum BankSyncAmounts {
         }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
         formatter.timeZone = TimeZone(identifier: "UTC")
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: earliest)
