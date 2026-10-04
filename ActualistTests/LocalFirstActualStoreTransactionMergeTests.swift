@@ -156,7 +156,6 @@ private final class MergeRefreshGate {
     private let released = TestLatch()
     private var requested = false
     private var didEnter = false
-    private var didTimeOut = false
 
     func requestPause() { requested = true }
 
@@ -168,16 +167,8 @@ private final class MergeRefreshGate {
     }
 
     func waitForEntry(timeout: Duration = .seconds(10)) async -> Bool {
-        let deadline = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: timeout) } catch { return }
-            guard let self, !self.didEnter else { return }
-            self.didTimeOut = true
-            self.released.trip()
-            self.entered.trip()
-        }
-        await entered.wait()
-        deadline.cancel()
-        return didEnter && !didTimeOut
+        let reached = await entered.wait(timeout: timeout) { [released] in released.trip() }
+        return didEnter && reached
     }
 
     func release() { released.trip() }

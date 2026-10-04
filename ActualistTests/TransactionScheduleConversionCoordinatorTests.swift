@@ -198,16 +198,11 @@ struct TransactionScheduleConversionCoordinatorTests {
 
         var outcome: TransactionScheduleConversionOutcome?
         let completed = TestLatch()
-        let deadline = Task { @MainActor in
-            do { try await Task.sleep(for: .seconds(10)) } catch { return }
-            completed.trip()
-        }
-        defer { deadline.cancel() }
         coordinator.confirm(repository: repository) {
             outcome = $0
             completed.trip()
         }
-        await completed.wait()
+        _ = await completed.wait(timeout: .seconds(10))
         _ = try #require(outcome, "Conversion completion callback did not arrive before the deadline")
         #expect(outcome?.context == repository.context)
         #expect(outcome?.receipt.scheduleID == review.identity.scheduleID)

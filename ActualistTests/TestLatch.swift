@@ -47,3 +47,30 @@ final class TestLatch: Sendable {
         waiters.forEach { $0.resume() }
     }
 }
+
+extension TestLatch {
+    /// Waits for the latch, but never longer than `timeout`. On timeout the
+    /// latch is tripped (so this wait returns) after `onTimeout` has released
+    /// any gated work, and the result is `false`. The caller still decides
+    /// whether the event actually happened; a timeout is a failed wait, not a
+    /// pass. One shared watchdog instead of per-fake copies of the same race.
+    @MainActor
+    func wait(timeout: Duration, onTimeout: @escaping @MainActor () -> Void = {}) async -> Bool {
+        let timedOut = TimeoutFlag()
+        let watchdog = Task { @MainActor [self] in
+            do { try await Task.sleep(for: timeout) } catch { return }
+            timedOut.set()
+            onTimeout()
+            trip()
+        }
+        await wait()
+        watchdog.cancel()
+        return !timedOut.value
+    }
+}
+
+@MainActor
+private final class TimeoutFlag {
+    private(set) var value = false
+    func set() { value = true }
+}

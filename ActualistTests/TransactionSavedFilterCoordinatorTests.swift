@@ -313,7 +313,6 @@ private final class SavedFilterTestGate {
     private let entered = TestLatch()
     private let released = TestLatch()
     private var didEnter = false
-    private var didTimeOut = false
 
     func pause() async {
         didEnter = true
@@ -322,16 +321,8 @@ private final class SavedFilterTestGate {
     }
 
     func waitForEntry(timeout: Duration = .seconds(10)) async -> Bool {
-        let deadline = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: timeout) } catch { return }
-            guard let self, !self.didEnter else { return }
-            self.didTimeOut = true
-            self.released.trip()
-            self.entered.trip()
-        }
-        await entered.wait()
-        deadline.cancel()
-        return didEnter && !didTimeOut
+        let reached = await entered.wait(timeout: timeout) { [released] in released.trip() }
+        return didEnter && reached
     }
 
     func release() { released.trip() }

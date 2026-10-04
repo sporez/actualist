@@ -168,17 +168,11 @@ struct LocalFirstActualStoreScheduleConversionTests {
         return try queue.readSync { db in try Int.fetchOne(db, sql: sql) ?? -1 }
     }
 
-    private static let today: String = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return ActualScheduleRecurrence.dayID(from: Date(), calendar: calendar)
-    }()
+    private static let today = TestLocalDay.today()
 
     private static let conversionFixtureSQL: String = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        let date = calendar.date(byAdding: .day, value: 1, to: Date())!
-        let dateID = ActualScheduleRecurrence.dayID(from: date, calendar: calendar)
+        let date = TestLocalDay.calendar.date(byAdding: .day, value: 1, to: Date())!
+        let dateID = TestLocalDay.dayID(date)
         let packedDate = Int(dateID.replacingOccurrences(of: "-", with: ""))!
         return """
             ALTER TABLE transactions ADD COLUMN schedule TEXT;
@@ -200,7 +194,6 @@ private final class ConversionCommitGate {
     private let entered = TestLatch()
     private let released = TestLatch()
     private var didEnter = false
-    private var didTimeOut = false
 
     func pause() async {
         didEnter = true
@@ -210,16 +203,8 @@ private final class ConversionCommitGate {
 
     func waitForEntry(timeout: Duration = .seconds(10)) async -> Bool {
         if didEnter { return true }
-        let deadline = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: timeout) } catch { return }
-            guard let self, !self.didEnter else { return }
-            self.didTimeOut = true
-            self.released.trip()
-            self.entered.trip()
-        }
-        await entered.wait()
-        deadline.cancel()
-        return didEnter && !didTimeOut
+        let reached = await entered.wait(timeout: timeout) { [released] in released.trip() }
+        return didEnter && reached
     }
 
     func release() {

@@ -300,7 +300,6 @@ struct TransactionDuplicateMutationTests {
         let review = try await review(bundle, selections: [identity("txn")])
         let guardHeld = TestLatch()
         let releaseGuard = DispatchSemaphore(value: 0)
-        let timedOut = Mutex(false)
         DispatchQueue.global().async {
             database.sessionWritesAllowed.withLock { allowed in
                 guardHeld.trip()
@@ -309,15 +308,8 @@ struct TransactionDuplicateMutationTests {
             }
         }
         defer { releaseGuard.signal() }
-        let deadline = Task { @MainActor in
-            do { try await Task.sleep(for: .seconds(10)) } catch { return }
-            timedOut.withLock { $0 = true }
-            guardHeld.trip()
-            releaseGuard.signal()
-        }
-        await guardHeld.wait()
-        deadline.cancel()
-        guard !timedOut.withLock({ $0 }) else {
+        let acquired = await guardHeld.wait(timeout: .seconds(10)) { releaseGuard.signal() }
+        guard acquired else {
             Issue.record("The test did not acquire the session guard before its deadline")
             return
         }

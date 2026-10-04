@@ -397,7 +397,6 @@ private final class ScheduleManagementRepositoryFake: ScheduleRepositoryProtocol
     let reviewEntered = TestLatch()
     let releaseReview = TestLatch()
     private var didEnterReview = false
-    private var reviewWaitTimedOut = false
     var createOutcome = ScheduleMutationOutcome(
         receipt: ScheduleMutationResult(scheduleID: "new-schedule", kind: .created, appliedMessageCount: 4),
         refreshPending: true
@@ -413,16 +412,8 @@ private final class ScheduleManagementRepositoryFake: ScheduleRepositoryProtocol
     }
 
     func waitForReviewEntry(timeout: Duration = .seconds(10)) async -> Bool {
-        let deadline = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: timeout) } catch { return }
-            guard let self, !self.didEnterReview else { return }
-            self.reviewWaitTimedOut = true
-            self.releaseReview.trip()
-            self.reviewEntered.trip()
-        }
-        await reviewEntered.wait()
-        deadline.cancel()
-        return didEnterReview && !reviewWaitTimedOut
+        let reached = await reviewEntered.wait(timeout: timeout) { [releaseReview] in releaseReview.trip() }
+        return didEnterReview && reached
     }
 
     func scheduleMutationSessionContext(budgetID: String) throws -> ScheduleMutationSessionContext {

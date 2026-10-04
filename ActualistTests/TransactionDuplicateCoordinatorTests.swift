@@ -160,23 +160,16 @@ private final class DeferredDuplicateRepository: TransactionDuplicateRepositoryP
     private let firstRequestEntered = TestLatch()
     private let releaseFirstRequestLatch = TestLatch()
     private var requestCount = 0
-    private var didTimeOut = false
 
     init(firstRequestFails: Bool) {
         self.firstRequestFails = firstRequestFails
     }
 
     func waitForFirstRequest(timeout: Duration = .seconds(10)) async -> Bool {
-        let deadline = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: timeout) } catch { return }
-            guard let self, self.requestCount == 0 else { return }
-            self.didTimeOut = true
-            self.releaseFirstRequestLatch.trip()
-            self.firstRequestEntered.trip()
+        let reached = await firstRequestEntered.wait(timeout: timeout) { [releaseFirstRequestLatch] in
+            releaseFirstRequestLatch.trip()
         }
-        await firstRequestEntered.wait()
-        deadline.cancel()
-        return requestCount > 0 && !didTimeOut
+        return requestCount > 0 && reached
     }
 
     func releaseFirstRequest() {
