@@ -543,7 +543,9 @@ final class ReportExplorerUITests: XCTestCase {
         dynamicType: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
+        // The demo's data ends 2026-08-31; pin Reports' "today" so the preset
+        // ranges stay over that data after the run date moves on.
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", screen, "-actualist-report-today", "2026-08-31"]
         if replaceDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")
         }

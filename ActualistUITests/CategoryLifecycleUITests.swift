@@ -368,6 +368,10 @@ final class CategoryLifecycleUITests: XCTestCase {
 
     private func openUnfundedTemplatePreview(in app: XCUIApplication) {
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        // The demo opens on the real current month; the flow below needs August 2026,
+        // the last month with demo data, whatever the run date.
+        selectCompactBudgetMonth(year: 2026, abbreviation: "Aug", in: app)
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 5))
         app.buttons["Budget Actions"].tap()
         app.buttons["Templates"].tap()
         app.buttons["Apply Template Overwrite"].tap()

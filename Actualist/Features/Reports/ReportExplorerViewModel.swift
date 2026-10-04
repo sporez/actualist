@@ -25,7 +25,7 @@ final class ReportExplorerViewModel {
     private var requestGeneration = 0
     private var activeSessionIdentity: ReportExplorerSessionIdentity?
 
-    init(reportCard: ReportCardKind, now: Date = Date()) {
+    init(reportCard: ReportCardKind, now: Date = ReportClock.now) {
         self.reportCard = reportCard
         selectedPreset = reportCard.explorerDefaultPreset
         let range = reportCard.explorerDefaultPreset.range(through: now)
@@ -48,7 +48,7 @@ final class ReportExplorerViewModel {
             : selectedPreset.title
     }
     var canSelectNextComparisonMonth: Bool {
-        canAdvanceComparisonMonth(through: Date())
+        canAdvanceComparisonMonth(through: ReportClock.now)
     }
     var isLoading: Bool { loadState == .loading }
     var isRefreshing: Bool { loadState == .refreshing }
@@ -85,7 +85,7 @@ final class ReportExplorerViewModel {
         return count
     }
 
-    func selectPreset(_ preset: ReportExplorerRangePreset, now: Date = Date()) {
+    func selectPreset(_ preset: ReportExplorerRangePreset, now: Date = ReportClock.now) {
         guard !usesComparisonMonthSelection else { return }
         guard let range = preset.range(through: now) else { return }
         selectedPreset = preset
@@ -106,7 +106,7 @@ final class ReportExplorerViewModel {
         updateQuery(startDay: query.startDay, endDay: query.endDay, interval: interval)
     }
 
-    func selectPreviousComparisonMonth(now: Date = Date()) {
+    func selectPreviousComparisonMonth(now: Date = ReportClock.now) {
         guard usesComparisonMonthSelection else { return }
         selectComparisonMonth(
             ReportCalendar.shiftedMonth(String(query.startDay.prefix(7)), by: -1),
@@ -114,7 +114,7 @@ final class ReportExplorerViewModel {
         )
     }
 
-    func selectNextComparisonMonth(now: Date = Date()) {
+    func selectNextComparisonMonth(now: Date = ReportClock.now) {
         guard canAdvanceComparisonMonth(through: now) else { return }
         selectComparisonMonth(
             ReportCalendar.shiftedMonth(String(query.startDay.prefix(7)), by: 1),

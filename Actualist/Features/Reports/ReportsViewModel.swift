@@ -20,7 +20,7 @@ final class ReportsViewModel {
     private(set) var isPrivacyModeEnabled = false
     private(set) var currency: BudgetCurrency = .usd
 
-    func load(using appState: AppState, now: Date = Date()) async {
+    func load(using appState: AppState, now: Date = ReportClock.now) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
             errorMessage = "Open a budget before loading reports."
             return
@@ -36,7 +36,7 @@ final class ReportsViewModel {
         )
     }
 
-    func refresh(using appState: AppState, now: Date = Date()) async {
+    func refresh(using appState: AppState, now: Date = ReportClock.now) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
             return
         }
