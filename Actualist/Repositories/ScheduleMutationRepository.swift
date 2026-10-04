@@ -17,6 +17,14 @@ struct ScheduleCreateIdentity: Hashable, Sendable {
     let scheduleID: String
     let ruleID: String
     let nextDateID: String
+
+    static func make() -> ScheduleCreateIdentity {
+        ScheduleCreateIdentity(
+            scheduleID: UUID().uuidString,
+            ruleID: UUID().uuidString,
+            nextDateID: UUID().uuidString
+        )
+    }
 }
 
 struct ScheduleCreateCommand: Hashable, Sendable {

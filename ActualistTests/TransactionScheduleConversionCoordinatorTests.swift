@@ -23,7 +23,7 @@ struct TransactionScheduleConversionCoordinatorTests {
             context: repository.context,
             sourceTransactionID: "future",
             asOfDayID: "2026-09-28",
-            identity: ScheduleConversionIdentity(scheduleID: "schedule", ruleID: "rule", nextDateID: "next"),
+            identity: ScheduleCreateIdentity(scheduleID: "schedule", ruleID: "rule", nextDateID: "next"),
             family: [ScheduleConversionTransactionFact(
                 transaction: transaction,
                 rawPayeeID: nil,
@@ -75,7 +75,7 @@ struct TransactionScheduleConversionCoordinatorTests {
             context: repository.context,
             sourceTransactionID: "future",
             asOfDayID: "2026-09-28",
-            identity: ScheduleConversionIdentity(scheduleID: "schedule", ruleID: "rule", nextDateID: "next"),
+            identity: ScheduleCreateIdentity(scheduleID: "schedule", ruleID: "rule", nextDateID: "next"),
             family: [ScheduleConversionTransactionFact(
                 transaction: transaction, rawPayeeID: nil, transferID: nil, isTransferPayee: false
             )]
@@ -153,7 +153,7 @@ struct TransactionScheduleConversionCoordinatorTests {
         await repository.convertEntered?.wait()
         #expect(coordinator.cancel() == nil)
         #expect(coordinator.state.isSubmitting)
-        repository.context = ScheduleConversionSessionContext(budgetID: "replacement", generation: 8)
+        repository.context = ScheduleMutationSessionContext(budgetID: "replacement", generation: 8)
         repository.releaseConvert?.trip()
         await ObservedTestState { if case .committed = coordinator.state { true } else { false } }.wait()
 
@@ -286,13 +286,13 @@ struct TransactionScheduleConversionCoordinatorTests {
 
     private static func review(
         transactionID: String,
-        context: ScheduleConversionSessionContext
+        context: ScheduleMutationSessionContext
     ) -> ScheduleConversionReview {
         ScheduleConversionReview(
             context: context,
             sourceTransactionID: transactionID,
             asOfDayID: "2026-09-28",
-            identity: ScheduleConversionIdentity(
+            identity: ScheduleCreateIdentity(
                 scheduleID: "schedule-\(transactionID)",
                 ruleID: "rule-\(transactionID)",
                 nextDateID: "next-\(transactionID)"
@@ -313,7 +313,7 @@ struct TransactionScheduleConversionCoordinatorTests {
 
 @MainActor
 private final class FakeConversionRepository: TransactionScheduleConversionRepositoryProtocol {
-    var context = ScheduleConversionSessionContext(budgetID: "budget", generation: 7)
+    var context = ScheduleMutationSessionContext(budgetID: "budget", generation: 7)
     var reviewResult: ScheduleConversionReview?
     var reviewEntered: TestLatch?
     var releaseReview: TestLatch?
@@ -324,7 +324,7 @@ private final class FakeConversionRepository: TransactionScheduleConversionRepos
     var releaseConvert: TestLatch?
     var convertError: Error?
 
-    func scheduleConversionSessionContext(budgetID: String) throws -> ScheduleConversionSessionContext {
+    func scheduleConversionSessionContext(budgetID: String) throws -> ScheduleMutationSessionContext {
         context
     }
 

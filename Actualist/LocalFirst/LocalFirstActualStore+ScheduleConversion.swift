@@ -1,9 +1,9 @@
 import Foundation
 
 extension LocalFirstActualStore {
-    func scheduleConversionSessionContext(budgetID: String) throws -> ScheduleConversionSessionContext {
+    func scheduleConversionSessionContext(budgetID: String) throws -> ScheduleMutationSessionContext {
         _ = try requireDatabase(for: budgetID)
-        return ScheduleConversionSessionContext(budgetID: budgetID, generation: budgetSessionGeneration)
+        return ScheduleMutationSessionContext(budgetID: budgetID, generation: budgetSessionGeneration)
     }
 
     func scheduleConversionReview(
@@ -47,7 +47,7 @@ extension LocalFirstActualStore {
     }
 
     private func requireScheduleConversionSession(
-        _ context: ScheduleConversionSessionContext,
+        _ context: ScheduleMutationSessionContext,
         database: BudgetDatabase
     ) throws {
         guard context.generation == budgetSessionGeneration else {
@@ -59,7 +59,7 @@ extension LocalFirstActualStore {
     private func finishScheduleConversion(
         _ committed: ScheduleConversionWriteReceipt,
         database: BudgetDatabase,
-        context: ScheduleConversionSessionContext
+        context: ScheduleMutationSessionContext
     ) async -> ScheduleConversionReceipt {
         let refreshPending = await Task { @MainActor [self] in
             do {

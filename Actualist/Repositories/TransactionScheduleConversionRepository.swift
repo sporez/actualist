@@ -7,30 +7,11 @@ struct ScheduleConversionTransactionFact: Hashable, Sendable {
     let isTransferPayee: Bool
 }
 
-struct ScheduleConversionSessionContext: Hashable, Sendable {
-    let budgetID: String
-    let generation: Int
-}
-
-struct ScheduleConversionIdentity: Hashable, Sendable {
-    let scheduleID: String
-    let ruleID: String
-    let nextDateID: String
-
-    static func make() -> ScheduleConversionIdentity {
-        ScheduleConversionIdentity(
-            scheduleID: UUID().uuidString,
-            ruleID: UUID().uuidString,
-            nextDateID: UUID().uuidString
-        )
-    }
-}
-
 struct ScheduleConversionReview: Hashable, Sendable {
-    let context: ScheduleConversionSessionContext
+    let context: ScheduleMutationSessionContext
     let sourceTransactionID: String
     let asOfDayID: String
-    let identity: ScheduleConversionIdentity
+    let identity: ScheduleCreateIdentity
     let family: [ScheduleConversionTransactionFact]
 
     var source: ActualTransaction? { family.first?.transaction }
@@ -69,7 +50,7 @@ extension ScheduleConversionError: LocalizedError {
 
 @MainActor
 protocol TransactionScheduleConversionRepositoryProtocol: AnyObject {
-    func scheduleConversionSessionContext(budgetID: String) throws -> ScheduleConversionSessionContext
+    func scheduleConversionSessionContext(budgetID: String) throws -> ScheduleMutationSessionContext
     func scheduleConversionReview(
         budgetID: String,
         transactionID: String,

@@ -297,10 +297,10 @@ struct BudgetDatabaseScheduleConversionTests {
         today: String
     ) async throws -> ScheduleConversionReview {
         try await fixture.database.scheduleConversionReview(
-            context: ScheduleConversionSessionContext(budgetID: "budget", generation: 1),
+            context: ScheduleMutationSessionContext(budgetID: "budget", generation: 1),
             transactionID: transactionID,
             asOfDayID: today,
-            identity: ScheduleConversionIdentity(
+            identity: ScheduleCreateIdentity(
                 scheduleID: "converted-schedule",
                 ruleID: "converted-rule",
                 nextDateID: "converted-next"

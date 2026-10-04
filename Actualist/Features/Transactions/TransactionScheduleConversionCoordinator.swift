@@ -12,7 +12,7 @@ struct TransactionScheduleConversionReviewContent: Hashable, Sendable {
 }
 
 struct TransactionScheduleConversionOutcome: Hashable, Sendable {
-    let context: ScheduleConversionSessionContext
+    let context: ScheduleMutationSessionContext
     let receipt: ScheduleConversionReceipt
 
     func belongsToSession(budgetID: String?, generation: Int) -> Bool {
@@ -63,7 +63,7 @@ final class TransactionScheduleConversionCoordinator {
     ) {
         guard !state.isBusy else { return }
         let request = beginRequest()
-        let context: ScheduleConversionSessionContext
+        let context: ScheduleMutationSessionContext
         do {
             context = try repository.scheduleConversionSessionContext(budgetID: budgetID)
             guard context.budgetID == budgetID, context.generation == expectedGeneration else {

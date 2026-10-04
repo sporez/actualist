@@ -18,10 +18,10 @@ private struct ScheduleConversionRow {
 
 extension BudgetDatabase {
     func scheduleConversionReview(
-        context: ScheduleConversionSessionContext,
+        context: ScheduleMutationSessionContext,
         transactionID: String,
         asOfDayID: String,
-        identity: ScheduleConversionIdentity
+        identity: ScheduleCreateIdentity
     ) throws -> ScheduleConversionReview {
         guard !transactionID.isEmpty,
               ActualScheduleRecurrence.date(from: asOfDayID) != nil else {
@@ -106,11 +106,7 @@ extension BudgetDatabase {
                     let scheduleName = "Auto-created future transaction (\(source.date)) · \(review.identity.scheduleID.prefix(8))"
                     var messages = try scheduleCreationMessages(
                         ScheduleCreationMessagePlanRequest(
-                            identity: ScheduleCreateIdentity(
-                                scheduleID: review.identity.scheduleID,
-                                ruleID: review.identity.ruleID,
-                                nextDateID: review.identity.nextDateID
-                            ),
+                            identity: review.identity,
                             name: scheduleName,
                             postsTransaction: plan.postsTransaction,
                             customUpcomingLength: nil,
