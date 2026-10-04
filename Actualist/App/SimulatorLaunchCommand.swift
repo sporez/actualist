@@ -58,11 +58,15 @@ struct SimulatorLaunchCommand: Equatable, Sendable {
             .filter { !$0.isEmpty }
     }
 
+    #if DEBUG
+    /// Debug and Dev only. Release builds never read test-only launch flags,
+    /// so a Release launch cannot be told to enter the demo or erase one.
     static func fromProcessInfo(
         _ processInfo: ProcessInfo = .processInfo
     ) -> SimulatorLaunchCommand? {
         parse(arguments: processInfo.arguments)
     }
+    #endif
 
     var route: AppRoute? {
         guard let first = screenPath.first else {

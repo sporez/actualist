@@ -97,6 +97,14 @@ struct SimulatorLaunchCommandTests {
         #expect(command?.route == .tab(.budget))
         #expect(unknownStack == [])
     }
+
+    @Test func launchFlagParsingIsPureAndNeverReadsProcessState() {
+        let arguments = ["/Actualist", "-actualist-demo", "-actualist-screen", "settings"]
+        let first = SimulatorLaunchCommand.parse(arguments: arguments)
+        #expect(first == SimulatorLaunchCommand.parse(arguments: arguments))
+        #expect(first?.enterDemo == true)
+        #expect(SimulatorLaunchCommand.parse(arguments: ["/Actualist"]) == nil)
+    }
 }
 
 @MainActor

@@ -35,7 +35,11 @@ struct ActualistApp: App {
         let appState = AppState()
         #endif
         PortableExportFiles().sweepStale()
+        #if DEBUG
         let simulatorLaunchCommand = SimulatorLaunchCommand.fromProcessInfo()
+        #else
+        let simulatorLaunchCommand: SimulatorLaunchCommand? = nil
+        #endif
         if let simulatorLaunchCommand {
             SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(
                 simulatorLaunchCommand,
