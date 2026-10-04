@@ -60,7 +60,10 @@ struct AdaptiveRootShell: View {
                 } detail: {
                     detailView
                         .toolbar {
-                            if selection?.isAccount != true && !(selection == .budget && viewport.selectedCategoryDetails != nil) {
+                            // Accounts and Spending (AccountTransactionsView) own their Add Transaction button;
+                            // the shell adds one only for the screens that do not.
+                            if selection?.isAccount != true && selection != .spending
+                                && !(selection == .budget && viewport.selectedCategoryDetails != nil) {
                                 ToolbarItem(placement: .primaryAction) {
                                     Button {
                                         transactionPresenter.present(using: appState)

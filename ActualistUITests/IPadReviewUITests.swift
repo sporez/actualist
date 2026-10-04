@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 
 @MainActor
 final class IPadReviewUITests: XCTestCase {
@@ -33,6 +34,22 @@ final class IPadReviewUITests: XCTestCase {
         XCTAssertTrue(confirm.isEnabled)
         confirm.tap()
         XCTAssertTrue(confirm.waitForNonExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testWideSpendingHasOneAddTransactionButtonThatOpensTheEditor() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launch(screen: "spending")
+        try requireWide(app)
+        let add = app.buttons.matching(NSPredicate(format: "label == 'Add Transaction'"))
+        XCTAssertTrue(add.firstMatch.waitForExistence(timeout: 15))
+        XCTAssertEqual(add.count, 1, "Wide Spending must have a single toolbar owner for Add Transaction")
+        add.firstMatch.tap()
+        let editor = app.navigationBars["Add Transaction"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        screenshot("review-wide-spending-add-transaction")
+        editor.buttons.firstMatch.tap()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
     }
 
     @MainActor
@@ -268,6 +285,12 @@ final class IPadReviewUITests: XCTestCase {
     }
 
     private func requireWide(_ app: XCUIApplication) throws {
+        // The window is still rotating right after launch on iPad, so wait for
+        // the landscape width before concluding the window is compact.
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            let wide = NSPredicate { _, _ in app.frame.width >= 792 }
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: wide, object: nil)], timeout: 5)
+        }
         guard app.frame.width >= 792 else { throw XCTSkip("Requires a wide iPad window") }
     }
 
@@ -281,6 +304,10 @@ final class IPadReviewUITests: XCTestCase {
         }
         XCTAssertLessThan(window.frame.width, 792)
         if expectsTabs { XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 8)) }
+    }
+
+    private func restoreWindowOnTeardown(_ window: XCUIElement, width: CGFloat) {
+        addTeardownBlock { @MainActor [self] in restore(window, width: width) }
     }
 
     private func restore(_ window: XCUIElement, width: CGFloat) {
