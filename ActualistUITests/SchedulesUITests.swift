@@ -699,15 +699,16 @@ final class SchedulesUITests: XCTestCase {
     }
 
     private func requireCompact(_ app: XCUIApplication) throws {
-        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact window") }
+        guard !isWide(app) else { throw XCTSkip("Requires the compact layout (tab bar); wide Schedules runs in the testWide* tests") }
     }
 
+    /// Every launch helper waits for "Budget Actions" before this is called.
     private func isWide(_ app: XCUIApplication) -> Bool {
-        app.frame.width >= 792
+        !app.usesCompactLayout
     }
 
     private func requireWide(_ app: XCUIApplication) throws {
-        guard app.frame.width >= 792 else { throw XCTSkip("Requires a wide iPad window") }
+        guard isWide(app) else { throw XCTSkip("Requires the wide sidebar layout; compact Schedules runs in the testCompact* tests") }
     }
 
     private func attachScreenshot(named name: String, app: XCUIApplication) {
