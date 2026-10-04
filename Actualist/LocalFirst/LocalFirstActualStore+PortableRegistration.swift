@@ -109,11 +109,18 @@ extension LocalFirstActualStore {
         // Persist the unlocked key only after the server confirmed both the
         // upload and the key registration.
         if let keySet {
-            try keychain.saveLocalFirstEncryptionKey(
-                keySet.keyData,
-                fileID: knownFileID,
-                keyID: keySet.keyID
-            )
+            do {
+                try keychain.saveLocalFirstEncryptionKey(
+                    keySet.keyData,
+                    fileID: knownFileID,
+                    keyID: keySet.keyID
+                )
+            } catch {
+                // Without the saved key the registered file cannot be opened
+                // here; withdraw it, best effort.
+                await flow.abandonLandedFile(knownFileID, token: token)
+                throw error
+            }
         }
         return receipt
     }

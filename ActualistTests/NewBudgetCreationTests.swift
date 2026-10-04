@@ -274,7 +274,153 @@ struct NewBudgetCreationTests {
         }
 
         #expect(try fileManager.importedBudgetFileIDs().isEmpty)
-        #expect(await transport.events == ["upload", "createKey"])
+        // The landed-but-undecryptable file is withdrawn, best effort.
+        #expect(await transport.events == ["upload", "createKey", "delete"])
+        #expect(await transport.deleteCalls == ["seed-1"])
+    }
+
+    @MainActor
+    @Test func failedDeleteDoesNotReplaceTheKeyRegistrationError() async throws {
+        let (store, _) = makeStore()
+        let transport = NewBudgetFakeRegistrationTransport(
+            uploadResults: [.success(ActualUploadUserFileResponse(groupID: "group-new"))],
+            createKeyError: ActualFileRegistrationError.keyRegistrationNotConfirmed,
+            deleteError: ActualAPIError.httpStatus(500)
+        )
+
+        await #expect(throws: ActualFileRegistrationError.keyRegistrationNotConfirmed) {
+            try await store.createNewBudget(
+                named: "Fresh Budget",
+                serverURLString: "https://newbudget.example",
+                encryptionPassword: "secret-passphrase",
+                token: "session-token",
+                registrationTransport: transport,
+                identityGenerator: self.makeIdentitySequence(prefix: "seed")
+            )
+        }
+        #expect(await transport.deleteCalls == ["seed-1"])
+    }
+
+    // MARK: - Upload error classification
+
+    @MainActor
+    @Test(arguments: [400, 401, 403, 413])
+    func terminalUploadStatusIsNeverRetriedOrListed(status: Int) async throws {
+        let (store, fileManager) = makeStore()
+        let transport = NewBudgetFakeRegistrationTransport(
+            uploadResults: [.failure(ActualAPIError.httpStatus(status))]
+        )
+        let recovery = NewBudgetRegistrationRecoveryStub()
+
+        await #expect(throws: ActualAPIError.self) {
+            try await store.createNewBudget(
+                named: "Fresh Budget",
+                serverURLString: "https://newbudget.example",
+                token: "session-token",
+                registrationTransport: transport,
+                listUserFiles: recovery.listUserFiles,
+                userInfo: recovery.userInfo,
+                identityGenerator: self.makeIdentitySequence(prefix: "seed")
+            )
+        }
+        #expect(await transport.uploads.count == 1)
+        #expect(recovery.listCallCount == 0)
+        #expect(await transport.deleteCalls.isEmpty)
+        #expect(try fileManager.importedBudgetFileIDs().isEmpty)
+    }
+
+    @MainActor
+    @Test func serverErrorUploadIsReconciledThroughTheList() async throws {
+        let (store, _) = makeStore()
+        let transport = NewBudgetFakeRegistrationTransport(
+            uploadResults: [.failure(ActualAPIError.httpStatus(503))]
+        )
+        let recovery = NewBudgetRegistrationRecoveryStub(listResults: [.success([])])
+
+        await #expect(throws: ActualFileRegistrationError.uploadUnconfirmed) {
+            try await store.createNewBudget(
+                named: "Fresh Budget",
+                serverURLString: "https://newbudget.example",
+                token: "session-token",
+                registrationTransport: transport,
+                listUserFiles: recovery.listUserFiles,
+                userInfo: recovery.userInfo,
+                identityGenerator: self.makeIdentitySequence(prefix: "seed")
+            )
+        }
+        #expect(await transport.uploads.count == 2)
+        #expect(recovery.listCallCount == 2)
+    }
+
+    // MARK: - Failure cleanup of the saved key
+
+    @MainActor
+    @Test func metadataFailureAfterConfirmationRemovesTheSavedKey() async throws {
+        let (store, fileManager) = makeStore()
+        // After the upload lands, make the final metadata write fail: an
+        // atomic write cannot replace a non-empty directory.
+        let metadataURL = try fileManager.metadataURL(fileID: "seed-1")
+        let transport = NewBudgetFakeRegistrationTransport(
+            uploadResults: [.success(ActualUploadUserFileResponse(groupID: "group-new"))],
+            onUpload: { _ in
+                try? FileManager.default.removeItem(at: metadataURL)
+                try? FileManager.default.createDirectory(
+                    at: metadataURL.appending(path: "blocker", directoryHint: .isDirectory),
+                    withIntermediateDirectories: true
+                )
+            }
+        )
+
+        await #expect(throws: Error.self) {
+            try await store.createNewBudget(
+                named: "Fresh Budget",
+                serverURLString: "https://newbudget.example",
+                encryptionPassword: "secret-passphrase",
+                token: "session-token",
+                registrationTransport: transport,
+                identityGenerator: self.makeIdentitySequence(prefix: "seed")
+            )
+        }
+
+        let keyID = try #require(await transport.createKeyCalls.first?.keyID)
+        #expect(try store.keychain.readLocalFirstEncryptionKey(fileID: "seed-1", keyID: keyID) == nil)
+        #expect(try fileManager.importedBudgetFileIDs().isEmpty)
+    }
+
+    // MARK: - Name caps
+
+    @MainActor
+    @Test func overlongNameIsRefusedBeforeAnyDirectoryOrUpload() async throws {
+        let (store, fileManager) = makeStore()
+        let transport = NewBudgetFakeRegistrationTransport()
+
+        for name in [
+            String(repeating: "a", count: 300),
+            // 100 characters, but about 7.5 KB once percent-encoded.
+            String(repeating: "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}", count: 100)
+        ] {
+            await #expect(throws: ActualFileRegistrationError.budgetNameTooLong) {
+                try await store.createNewBudget(
+                    named: name,
+                    serverURLString: "https://newbudget.example",
+                    token: "session-token",
+                    registrationTransport: transport
+                )
+            }
+        }
+        #expect(await transport.uploads.isEmpty)
+        #expect(try fileManager.importedBudgetFileIDs().isEmpty)
+
+        let boundary = String(repeating: "a", count: 255)
+        let creation = try await store.createNewBudget(
+            named: boundary,
+            serverURLString: "https://newbudget.example",
+            token: "session-token",
+            registrationTransport: NewBudgetFakeRegistrationTransport(
+                uploadResults: [.success(ActualUploadUserFileResponse(groupID: "group-new"))]
+            )
+        )
+        #expect(creation.budgetName == boundary)
     }
 
     @MainActor
@@ -368,16 +514,23 @@ private actor NewBudgetFakeRegistrationTransport: ActualFileRegistrationTranspor
 
     private var uploadResults: [Result<ActualUploadUserFileResponse, Error>]
     private let createKeyError: Error?
+    private let deleteError: Error?
+    private let onUpload: (@Sendable (String) -> Void)?
     private(set) var uploads: [UploadCall] = []
     private(set) var createKeyCalls: [CreateKeyCall] = []
     private(set) var events: [String] = []
+    private(set) var deleteCalls: [String] = []
 
     init(
         uploadResults: [Result<ActualUploadUserFileResponse, Error>] = [],
-        createKeyError: Error? = nil
+        createKeyError: Error? = nil,
+        deleteError: Error? = nil,
+        onUpload: (@Sendable (String) -> Void)? = nil
     ) {
         self.uploadResults = uploadResults
         self.createKeyError = createKeyError
+        self.deleteError = deleteError
+        self.onUpload = onUpload
     }
 
     func uploadUserFile(
@@ -393,6 +546,7 @@ private actor NewBudgetFakeRegistrationTransport: ActualFileRegistrationTranspor
             byteCount: bytes.count, bytes: bytes, token: token
         ))
         events.append("upload")
+        onUpload?(fileID)
         let result: Result<ActualUploadUserFileResponse, Error>
         if uploadResults.isEmpty {
             result = .success(ActualUploadUserFileResponse(groupID: nil))
@@ -415,6 +569,12 @@ private actor NewBudgetFakeRegistrationTransport: ActualFileRegistrationTranspor
         events.append("createKey")
         if let createKeyError { throw createKeyError }
     }
+
+    func deleteUserFile(fileID: String, token: String) async throws {
+        deleteCalls.append(fileID)
+        events.append("delete")
+        if let deleteError { throw deleteError }
+    }
 }
 
 /// Lock-protected fake for the existing list-user-files / get-user-file-info
@@ -422,6 +582,9 @@ private actor NewBudgetFakeRegistrationTransport: ActualFileRegistrationTranspor
 private final class NewBudgetRegistrationRecoveryStub: @unchecked Sendable {
     private let lock = NSLock()
     private var listResults: [Result<[ActualSyncRemoteFile], Error>]
+    private var listCalls = 0
+
+    var listCallCount: Int { lock.withLock { listCalls } }
 
     init(listResults: [Result<[ActualSyncRemoteFile], Error>] = []) {
         self.listResults = listResults
@@ -430,6 +593,7 @@ private final class NewBudgetRegistrationRecoveryStub: @unchecked Sendable {
     var listUserFiles: @Sendable (String) async throws -> [ActualSyncRemoteFile] {
         { [self] _ in
             try lock.withLock {
+                listCalls += 1
                 let result: Result<[ActualSyncRemoteFile], Error>
                 if listResults.isEmpty {
                     result = .success([])

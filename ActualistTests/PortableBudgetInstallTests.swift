@@ -305,6 +305,8 @@ private actor PortableImportFakeRegistrationTransport: ActualFileRegistrationTra
     ) async throws {
         Issue.record("Plaintext portable imports never register an encryption key")
     }
+
+    func deleteUserFile(fileID: String, token: String) async throws {}
 }
 
 extension PortableBudgetInstallTests {

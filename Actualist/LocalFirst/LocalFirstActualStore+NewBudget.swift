@@ -81,6 +81,7 @@ extension LocalFirstActualStore {
         guard !trimmedName.isEmpty, !trimmedName.contains("\0") else {
             throw NewBudgetError.invalidBudgetName
         }
+        try ActualBudgetFileRegistrationInput.validateName(trimmedName)
         let generateIdentity = identityGenerator ?? { UUID().uuidString }
         // The file ID is minted exactly once and is the only identity this
         // budget ever has, locally and on the server.
@@ -91,6 +92,7 @@ extension LocalFirstActualStore {
             throw NewBudgetError.budgetDirectoryAlreadyExists
         }
 
+        var savedKeyID: String?
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let database = try BudgetDatabase.makeNewBudgetStarterDatabase(
@@ -126,6 +128,7 @@ extension LocalFirstActualStore {
                 listUserFiles: listUserFiles,
                 userInfo: userInfo
             )
+            savedKeyID = receipt.encryptionKeyID
             try writeNewBudgetMetadata(
                 fileID: fileID,
                 budgetName: trimmedName,
@@ -144,8 +147,16 @@ extension LocalFirstActualStore {
             // No selectable budget may survive a failed or unconfirmed
             // creation.
             try? fileManager.deleteImportedBudget(fileID: fileID)
+            discardSavedEncryptionKey(fileID: fileID, keyID: savedKeyID)
             throw error
         }
+    }
+
+    /// Shared by the New Budget create and portable import flows: a failed
+    /// creation or import must not leave the unlocked key it just saved.
+    func discardSavedEncryptionKey(fileID: String, keyID: String?) {
+        guard let keyID else { return }
+        try? keychain.removeLocalFirstEncryptionKey(fileID: fileID, keyID: keyID)
     }
 
     /// Shared by the New Budget create and portable import flows: the local

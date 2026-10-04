@@ -82,6 +82,7 @@ extension LocalFirstActualStore {
         }
 
         let nodeID = HybridLogicalClock.makeClientID()
+        var savedKeyID: String?
         do {
             try fileManager.installValidatedPortableBudget(
                 databaseAt: validated.databaseURL,
@@ -113,6 +114,7 @@ extension LocalFirstActualStore {
                 listUserFiles: listUserFiles,
                 userInfo: userInfo
             )
+            savedKeyID = receipt.encryptionKeyID
             try writeNewBudgetMetadata(
                 fileID: fileID,
                 budgetName: validated.metadata.budgetName,
@@ -130,6 +132,7 @@ extension LocalFirstActualStore {
         } catch {
             // No selectable budget may survive a failed or unconfirmed import.
             try? fileManager.deleteImportedBudget(fileID: fileID)
+            discardSavedEncryptionKey(fileID: fileID, keyID: savedKeyID)
             throw error
         }
     }

@@ -132,7 +132,8 @@ struct PortableBudgetRegistrationTests {
             try await makeFlow(transport: transport, recovery: recovery)
                 .register(encryptedInput(), token: "tok")
         }
-        #expect(await transport.events == ["upload", "createKey"])
+        #expect(await transport.events == ["upload", "createKey", "delete"])
+        #expect(await transport.deleteCalls == [fileID])
     }
 
     // MARK: - Flow: lost-response reconciliation
@@ -429,6 +430,17 @@ struct PortableBudgetRegistrationTests {
         ))
     }
 
+    @Test func deleteUserFileSendsFileIDBodyWithTokenHeader() async throws {
+        let client = makeWireClient(statusCode: 200, body: #"{"status":"ok"}"#)
+        try await client.deleteUserFile(fileID: fileID, token: "tok")
+        let request = try #require(RegistrationStubURLProtocol.lastRequest)
+        #expect(request.url?.absoluteString == "https://registration.example/sync/delete-user-file")
+        #expect(request.httpMethod == "POST")
+        #expect(request.value(forHTTPHeaderField: "X-ACTUAL-TOKEN") == "tok")
+        let body = try #require(RegistrationStubURLProtocol.lastRequestBody)
+        #expect(try JSONDecoder().decode(ActualDeleteUserFilePayload.self, from: body).fileId == fileID)
+    }
+
     @Test func createKeyRefusesNonOKStatus() async throws {
         let client = makeWireClient(statusCode: 200, body: #"{"status":"error"}"#)
 
@@ -632,6 +644,7 @@ private actor FakeRegistrationTransport: ActualFileRegistrationTransport {
     private(set) var uploads: [UploadCall] = []
     private(set) var createKeyCalls: [CreateKeyCall] = []
     private(set) var events: [String] = []
+    private(set) var deleteCalls: [String] = []
 
     init(
         uploadResults: [Result<ActualUploadUserFileResponse, Error>] = [],
@@ -678,6 +691,11 @@ private actor FakeRegistrationTransport: ActualFileRegistrationTransport {
         ))
         events.append("createKey")
         if let createKeyError { throw createKeyError }
+    }
+
+    func deleteUserFile(fileID: String, token: String) async throws {
+        deleteCalls.append(fileID)
+        events.append("delete")
     }
 }
 

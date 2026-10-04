@@ -26,6 +26,11 @@ protocol ActualFileRegistrationTransport: Sendable {
         testContent: String,
         token: String
     ) async throws
+
+    /// `POST /sync/delete-user-file` with `{ fileId }` (Actual's sync server
+    /// soft-deletes the owner's file). Used only to withdraw a registration
+    /// the app abandoned after the upload landed.
+    func deleteUserFile(fileID: String, token: String) async throws
 }
 
 /// Actual's upload handler answers `{ status: 'ok', groupId }` for a new file
@@ -65,6 +70,10 @@ struct ActualUserCreateKeyPayload: Equatable, Codable, Sendable {
     let testContent: String
 }
 
+struct ActualDeleteUserFilePayload: Equatable, Codable, Sendable {
+    let fileId: String
+}
+
 struct ActualUserCreateKeyStatusResponse: Decodable, Sendable {
     let status: String?
 }
@@ -81,6 +90,10 @@ enum ActualFileRegistrationError: LocalizedError, Equatable {
     /// The file stored on the server was encrypted with a different key than
     /// this registration uses; registering the new key would corrupt it.
     case encryptionKeyMismatch
+    /// The name is over `ActualBudgetFileRegistrationInput.maxNameLength`
+    /// characters or its encoded `X-ACTUAL-NAME` header is over
+    /// `maxEncodedNameBytes`. Refused before any request.
+    case budgetNameTooLong
 
     var errorDescription: String? {
         switch self {
@@ -94,6 +107,8 @@ enum ActualFileRegistrationError: LocalizedError, Equatable {
             "The Actual server returned conflicting records for the new budget ID, so registration was refused."
         case .encryptionKeyMismatch:
             "The Actual server already stores this budget under a different encryption key, so registration was refused."
+        case .budgetNameTooLong:
+            "Budget names can be at most 255 characters. Shorten the name and try again."
         }
     }
 }
@@ -187,6 +202,17 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
         }
     }
 
+    func deleteUserFile(fileID: String, token: String) async throws {
+        var request = try URLRequest(url: endpointURL(path: "/sync/delete-user-file"))
+        customHeaders.apply(to: &request)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
+        request.httpBody = try JSONEncoder.actual.encode(ActualDeleteUserFilePayload(fileId: fileID))
+        _ = try await execute(request)
+    }
+
     /// Matches JavaScript `encodeURIComponent`, whose inverse Actual applies
     /// to `X-ACTUAL-NAME` server-side with `decodeURIComponent`: only
     /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )` stay literal; everything else is
@@ -241,6 +267,18 @@ struct ActualBudgetFileRegistrationInput: Sendable {
     let bytes: Data
     let encryption: Encryption?
 
+    /// Actual's budget-name limit and the ceiling for the percent-encoded
+    /// `X-ACTUAL-NAME` header (reverse proxies commonly cap headers near 8 KB).
+    static let maxNameLength = 255
+    static let maxEncodedNameBytes = 4096
+
+    static func validateName(_ name: String) throws {
+        guard name.count <= maxNameLength,
+              ActualServerFileRegistrationClient.encodedHeaderName(name).utf8.count <= maxEncodedNameBytes else {
+            throw ActualFileRegistrationError.budgetNameTooLong
+        }
+    }
+
     struct Encryption: Sendable {
         let keyID: String
         let keySalt: String
@@ -279,22 +317,53 @@ struct ActualBudgetFileRegistrationFlow: Sendable {
         guard !input.fileID.isEmpty, !input.name.isEmpty, !input.bytes.isEmpty else {
             throw ActualFileRegistrationError.emptyRegistrationInput
         }
+        try ActualBudgetFileRegistrationInput.validateName(input.name)
 
         let groupID = try await confirmedGroupID(for: input, token: token)
         if let encryption = input.encryption {
-            try await transport.createUserKey(
-                fileID: input.fileID,
-                keyID: encryption.keyID,
-                keySalt: encryption.keySalt,
-                testContent: encryption.testContent,
-                token: token
-            )
+            do {
+                try await transport.createUserKey(
+                    fileID: input.fileID,
+                    keyID: encryption.keyID,
+                    keySalt: encryption.keySalt,
+                    testContent: encryption.testContent,
+                    token: token
+                )
+            } catch {
+                // The file landed but its key did not: it would stay on the
+                // server undecryptable. Withdraw it, best effort.
+                await abandonLandedFile(input.fileID, token: token)
+                throw error
+            }
         }
         return ActualBudgetFileRegistrationReceipt(
             fileID: input.fileID,
             groupID: groupID,
             encryptionKeyID: input.encryption?.keyID
         )
+    }
+
+    /// Best-effort `delete-user-file` for a file this flow uploaded and then
+    /// abandoned. An unstructured task keeps a cancelled caller's request alive,
+    /// and a failed delete never replaces the error that caused the abandon.
+    func abandonLandedFile(_ fileID: String, token: String) async {
+        let transport = transport
+        await Task { try? await transport.deleteUserFile(fileID: fileID, token: token) }.value
+    }
+
+    /// Only a lost response is worth reconciling: transport failures, 5xx
+    /// answers and undecodable responses may mean the upload landed. A
+    /// 400/401/403/413 (or any other definite refusal) is terminal; retrying
+    /// would re-upload the whole archive to be refused again.
+    static func isRetryableUploadError(_ error: Error) -> Bool {
+        switch error as? ActualAPIError {
+        case .transport, .decoding, .invalidResponse:
+            true
+        case .httpStatus(let status), .serverRejected(let status?, _), .syncRejected(let status, _):
+            status >= 500
+        default:
+            false
+        }
     }
 
     private func confirmedGroupID(
@@ -306,10 +375,11 @@ struct ActualBudgetFileRegistrationFlow: Sendable {
             if let groupID = response.groupID { return groupID }
         } catch is CancellationError {
             throw CancellationError()
+        } catch where !Self.isRetryableUploadError(error) {
+            throw error
         } catch {
-            // Lost or refused response. The known file ID stays the only
-            // identity; reconcile through the list path instead of minting
-            // a second one.
+            // Lost response. The known file ID stays the only identity;
+            // reconcile through the list path instead of minting a second one.
         }
         return try await recoverGroupID(for: input, token: token)
     }
