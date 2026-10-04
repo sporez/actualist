@@ -236,38 +236,33 @@ final class BudgetAssignmentWorkflow {
         draft.submissionState = .submitting
         self.draft = draft
 
-        do {
-            let loadedMonth = try await repository.assignCategoryBudgetAndRefresh(expectedMode: context.modeIdentity,
+        let outcome = await BudgetDraftSubmission.run(
+            context: context,
+            modeIdentity: context.modeIdentity,
+            currentContext: { self.context },
+            onCommitted: { completionRevision += 1 },
+            markRefetching: { [weak self] in self?.markRefetching(for: context) }
+        ) { didAssign in
+            try await repository.assignCategoryBudgetAndRefresh(
+                expectedMode: context.modeIdentity,
                 categoryID: draft.categoryID,
                 budgeted: finalBudgeted,
                 budgetID: context.budgetID,
-                month: context.month
-            ) { [weak self] in
-                await MainActor.run {
-                    guard var currentDraft = self?.draft,
-                          self?.context == context else {
-                        return
-                    }
-
-                    currentDraft.submissionState = .refetching
-                    self?.draft = currentDraft
-                }
-            }
-            completionRevision += 1
-            guard self.context == context else { return nil }
-            guard loadedMonth.modeIdentity == context.modeIdentity else {
-                invalidate()
-                return nil
-            }
+                month: context.month,
+                didAssign: didAssign
+            )
+        }
+        switch outcome {
+        case .superseded:
+            return nil
+        case .invalidated:
+            invalidate()
+            return nil
+        case .loaded(let loadedMonth):
             self.draft = nil
             return loadedMonth
-        } catch {
-            guard self.context == context else { return nil }
-            if case BudgetModeWriteError.budgetChanged = error {
-                invalidate()
-                return nil
-            }
-            draft.submissionState = error.userFacingMessage.map(BudgetAssignmentSubmissionState.failed) ?? .draft
+        case .failed(let state):
+            draft.submissionState = state
             self.draft = draft
             return nil
         }
@@ -289,55 +284,51 @@ final class BudgetAssignmentWorkflow {
         draft.submissionState = .submitting
         self.draft = draft
 
-        do {
-            let didApply: @MainActor @Sendable () async -> Void = { [weak self] in
-                await MainActor.run {
-                    guard var currentDraft = self?.draft,
-                          self?.context == context else {
-                        return
-                    }
-
-                    currentDraft.submissionState = .refetching
-                    self?.draft = currentDraft
-                }
-            }
-            let command = BudgetTemplateCommand.category(draft.categoryID)
-            let loadedMonth: LoadedBudgetMonth
+        let command = BudgetTemplateCommand.category(draft.categoryID)
+        let outcome = await BudgetDraftSubmission.run(
+            context: context,
+            modeIdentity: context.modeIdentity,
+            currentContext: { self.context },
+            onCommitted: { completionRevision += 1 },
+            markRefetching: { [weak self] in self?.markRefetching(for: context) }
+        ) { didApply in
             if let reviewRevision {
-                loadedMonth = try await repository.applyReviewedBudgetTemplateAndRefresh(
+                return try await repository.applyReviewedBudgetTemplateAndRefresh(
                     reviewRevision: reviewRevision,
                     command: command,
                     budgetID: context.budgetID,
                     month: context.month,
                     didApply: didApply
                 )
-            } else {
-                loadedMonth = try await repository.applyBudgetTemplateAndRefresh(
-                    expectedMode: expectedMode ?? context.modeIdentity,
-                    command: command,
-                    budgetID: context.budgetID,
-                    month: context.month,
-                    didApply: didApply
-                )
             }
-            completionRevision += 1
-            guard self.context == context else { return nil }
-            guard loadedMonth.modeIdentity == context.modeIdentity else {
-                invalidate()
-                return nil
-            }
+            return try await repository.applyBudgetTemplateAndRefresh(
+                expectedMode: expectedMode ?? context.modeIdentity,
+                command: command,
+                budgetID: context.budgetID,
+                month: context.month,
+                didApply: didApply
+            )
+        }
+        switch outcome {
+        case .superseded:
+            return nil
+        case .invalidated:
+            invalidate()
+            return nil
+        case .loaded(let loadedMonth):
             self.draft = nil
             return loadedMonth
-        } catch {
-            guard self.context == context else { return nil }
-            if case BudgetModeWriteError.budgetChanged = error {
-                invalidate()
-                return nil
-            }
-            draft.submissionState = error.userFacingMessage.map(BudgetAssignmentSubmissionState.failed) ?? .draft
+        case .failed(let state):
+            draft.submissionState = state
             self.draft = draft
             return nil
         }
+    }
+
+    private func markRefetching(for context: Context) {
+        guard var currentDraft = draft, self.context == context else { return }
+        currentDraft.submissionState = .refetching
+        draft = currentDraft
     }
 
     private var editableDraft: BudgetAssignmentDraft? {

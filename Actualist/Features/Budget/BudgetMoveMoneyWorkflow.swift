@@ -433,12 +433,12 @@ final class BudgetMoveMoneyWorkflow {
         budgetMonth: BudgetMonth?,
         visibleGroups: [BudgetMonthCategoryGroup]
     ) -> Int {
-        guard draft != nil else {
+        guard let draft else {
             return 0
         }
 
         return BudgetMoveMoneySliderMetrics.maximumAmount(
-            baselineAmount: scaleBaseline(
+            baselineAmount: draft.scaleBaseline(
                 for: allocationID,
                 budgetMonth: budgetMonth,
                 visibleGroups: visibleGroups
@@ -458,9 +458,8 @@ final class BudgetMoveMoneyWorkflow {
 
         return max(
             0,
-            payingAvailable(
+            draft.payingAvailable(
                 for: allocationID,
-                draft: draft,
                 budgetMonth: budgetMonth,
                 visibleGroups: visibleGroups
             )
@@ -474,9 +473,9 @@ final class BudgetMoveMoneyWorkflow {
 
         switch draft.direction {
         case .outOfFocusedCategory:
-            return subtractClamped(draft.focusedAvailable, displayAmount)
+            return draft.focusedAvailable.subtractingClamped(displayAmount)
         case .intoFocusedCategory:
-            return addClamped(draft.focusedAvailable, displayAmount)
+            return draft.focusedAvailable.addingClamped(displayAmount)
         }
     }
 
@@ -489,16 +488,16 @@ final class BudgetMoveMoneyWorkflow {
             return 0
         }
 
-        let destinationAvailable = availableAmount(
+        let destinationAvailable = BudgetMoveMoneyDraft.availableAmount(
             for: destination,
             budgetMonth: budgetMonth,
             visibleGroups: visibleGroups
         )
         switch draft.direction {
         case .outOfFocusedCategory:
-            return addClamped(destinationAvailable, draft.amount)
+            return destinationAvailable.addingClamped(draft.amount)
         case .intoFocusedCategory:
-            return subtractClamped(destinationAvailable, draft.amount)
+            return destinationAvailable.subtractingClamped(draft.amount)
         }
     }
 
@@ -559,7 +558,7 @@ final class BudgetMoveMoneyWorkflow {
             return nil
         }
 
-        let commands = commands(for: draft)
+        let commands = draft.commands
         guard !commands.isEmpty else {
             return nil
         }
@@ -567,39 +566,40 @@ final class BudgetMoveMoneyWorkflow {
         draft.submissionState = .submitting
         self.draft = draft
 
-        do {
-            let loadedMonth = try await repository.moveMoneyAndRefresh(expectedMode: context.modeIdentity,
+        let outcome = await BudgetDraftSubmission.run(
+            context: context,
+            modeIdentity: context.modeIdentity,
+            currentContext: { self.context },
+            markRefetching: { [weak self] in self?.markRefetching(for: context) }
+        ) { didMove in
+            try await repository.moveMoneyAndRefresh(
+                expectedMode: context.modeIdentity,
                 commands: commands,
                 budgetID: budgetID,
-                month: selectedMonth
-            ) { [weak self] in
-                await MainActor.run {
-                    guard var currentDraft = self?.draft,
-                          self?.context == context else {
-                        return
-                    }
-
-                    currentDraft.submissionState = .refetching
-                    self?.draft = currentDraft
-                }
-            }
-            guard self.context == context else { return nil }
-            guard loadedMonth.modeIdentity == context.modeIdentity else {
-                invalidate()
-                return nil
-            }
+                month: selectedMonth,
+                didMove: didMove
+            )
+        }
+        switch outcome {
+        case .superseded:
+            return nil
+        case .invalidated:
+            invalidate()
+            return nil
+        case .loaded(let loadedMonth):
             self.draft = nil
             return loadedMonth
-        } catch {
-            guard self.context == context else { return nil }
-            if case BudgetModeWriteError.budgetChanged = error {
-                invalidate()
-                return nil
-            }
-            draft.submissionState = error.userFacingMessage.map(BudgetAssignmentSubmissionState.failed) ?? .draft
+        case .failed(let state):
+            draft.submissionState = state
             self.draft = draft
             return nil
         }
+    }
+
+    private func markRefetching(for context: Context) {
+        guard var currentDraft = draft, self.context == context else { return }
+        currentDraft.submissionState = .refetching
+        draft = currentDraft
     }
 
     private var editableDraft: BudgetMoveMoneyDraft? {
@@ -660,147 +660,5 @@ final class BudgetMoveMoneyWorkflow {
         }
 
         return focusedAmount(in: draft)
-    }
-
-    private func scaleBaseline(
-        for allocationID: String?,
-        budgetMonth: BudgetMonth?,
-        visibleGroups: [BudgetMonthCategoryGroup]
-    ) -> Int {
-        guard let draft else {
-            return 0
-        }
-
-        switch draft.direction {
-        case .outOfFocusedCategory:
-            return max(
-                0,
-                payingAvailable(
-                    for: allocationID,
-                    draft: draft,
-                    budgetMonth: budgetMonth,
-                    visibleGroups: visibleGroups
-                )
-            )
-        case .intoFocusedCategory:
-            let paying = payingAvailable(
-                for: allocationID,
-                draft: draft,
-                budgetMonth: budgetMonth,
-                visibleGroups: visibleGroups
-            )
-            if paying == 0,
-               draft.destination == nil,
-               draft.allocations.isEmpty {
-                return Int(clamping: min(0, draft.focusedAvailable).magnitude)
-            }
-            return max(0, paying)
-        }
-    }
-
-    private func payingAvailable(
-        for allocationID: String?,
-        draft: BudgetMoveMoneyDraft,
-        budgetMonth: BudgetMonth?,
-        visibleGroups: [BudgetMonthCategoryGroup]
-    ) -> Int {
-        switch draft.direction {
-        case .outOfFocusedCategory:
-            let others: Int
-            if let allocationID, !draft.allocations.isEmpty {
-                others = draft.allocations
-                    .filter { $0.id != allocationID }
-                    .reduce(0) { addClamped($0, $1.amount) }
-            } else {
-                others = 0
-            }
-            return subtractClamped(draft.focusedAvailable, others)
-        case .intoFocusedCategory:
-            let destination: BudgetMoveMoneyDestination?
-            if let allocationID {
-                destination = draft.allocations.first(where: { $0.id == allocationID })?.destination
-            } else {
-                destination = draft.destination
-            }
-            guard let destination else {
-                return 0
-            }
-            return availableAmount(
-                for: destination,
-                budgetMonth: budgetMonth,
-                visibleGroups: visibleGroups
-            )
-        }
-    }
-
-    private func commands(for draft: BudgetMoveMoneyDraft) -> [BudgetMoveMoneyCommand] {
-        if !draft.allocations.isEmpty {
-            return draft.allocations
-                .filter { $0.amount > 0 }
-                .map { allocation in
-                    command(
-                        for: draft,
-                        destination: allocation.destination,
-                        amount: allocation.amount
-                    )
-                }
-        }
-
-        guard let destination = draft.destination, draft.amount > 0 else {
-            return []
-        }
-
-        return [command(for: draft, destination: destination, amount: draft.amount)]
-    }
-
-    private func command(
-        for draft: BudgetMoveMoneyDraft,
-        destination: BudgetMoveMoneyDestination,
-        amount: Int
-    ) -> BudgetMoveMoneyCommand {
-        switch draft.direction {
-        case .outOfFocusedCategory:
-            BudgetMoveMoneyCommand(
-                fromCategoryID: draft.focusedCategoryID,
-                toCategoryID: destination.categoryID,
-                amount: amount
-            )
-        case .intoFocusedCategory:
-            BudgetMoveMoneyCommand(
-                fromCategoryID: destination.categoryID,
-                toCategoryID: draft.focusedCategoryID,
-                amount: amount
-            )
-        }
-    }
-
-    private func availableAmount(
-        for destination: BudgetMoveMoneyDestination?,
-        budgetMonth: BudgetMonth?,
-        visibleGroups: [BudgetMonthCategoryGroup]
-    ) -> Int {
-        switch destination {
-        case .toBudget:
-            budgetMonth?.toBudget ?? 0
-        case .category(let id, _):
-            visibleGroups
-                .flatMap(\.visibleCategories)
-                .first { $0.id == id }?
-                .balance ?? 0
-        case nil:
-            0
-        }
-    }
-
-    private func addClamped(_ lhs: Int, _ rhs: Int) -> Int {
-        let result = lhs.addingReportingOverflow(rhs)
-        guard result.overflow else { return result.partialValue }
-        return rhs >= 0 ? Int.max : Int.min
-    }
-
-    private func subtractClamped(_ lhs: Int, _ rhs: Int) -> Int {
-        let result = lhs.subtractingReportingOverflow(rhs)
-        guard result.overflow else { return result.partialValue }
-        return rhs >= 0 ? Int.min : Int.max
     }
 }
