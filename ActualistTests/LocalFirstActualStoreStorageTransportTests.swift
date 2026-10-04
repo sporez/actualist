@@ -410,7 +410,7 @@ extension LocalFirstActualStoreTests {
         }
     }
 
-    @Test func syncClientRejectsOversizedTransportResponsesBeforeDecoding() async throws {
+    @Test func syncClientMapsAnOversizedTransportReplyToTheTypedCatchUpError() async throws {
         let database = try BudgetDatabase(databaseURL: makeSQLiteFixture())
         let client = SyncClient(
             resourceLimits: testResourceLimits(maximumSyncResponseBytes: 4)
@@ -425,12 +425,20 @@ extension LocalFirstActualStoreTests {
             )
         )
 
-        await #expect(throws: LocalFirstError.remoteDataLimitExceeded) {
+        do {
             _ = try await client.pullAndApply(
                 database: database,
                 client: FixedResponseSyncTransport(responseData: Data(repeating: 0, count: 5)),
                 token: "token"
             )
+            Issue.record("expected pullAndApply to throw")
+        } catch let error as ActualAPIError {
+            guard case .syncCatchUpTooLarge = error else {
+                Issue.record("expected syncCatchUpTooLarge, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("expected syncCatchUpTooLarge, got \(error)")
         }
     }
 

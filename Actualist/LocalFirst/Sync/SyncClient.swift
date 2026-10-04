@@ -288,9 +288,12 @@ actor SyncClient {
         }
     }
 
+    /// Backstop for transports that do not enforce the cap while reading. It
+    /// throws the same typed error as the HTTP client's chunked reader, so a
+    /// catch-up that is too large reads the same however it was detected.
     private func validateResponseSize(_ data: Data) throws {
         guard data.count <= resourceLimits.maximumSyncResponseBytes else {
-            throw LocalFirstError.remoteDataLimitExceeded
+            throw ActualAPIError.syncCatchUpTooLarge
         }
     }
 
