@@ -65,12 +65,11 @@ scripts/*
 !scripts/lint-testflight-notes.sh
 !scripts/run-ios-simulator.sh
 !scripts/test.sh
-!scripts/template-parity/
-!scripts/template-parity/*.mjs
-!scripts/split-parity/
-!scripts/split-parity/*.mjs
-!scripts/transaction-command-parity/
-!scripts/transaction-command-parity/*
+# Every oracle/parity harness folder is tracked in full. Excluded: generated
+# output that is ignored by the generic rules below (__pycache__, node_modules).
+!scripts/*-parity/
+!scripts/*-parity/**
+scripts/*-parity/**/node_modules/
 !scripts/parity/
 !scripts/parity/**
 **/__pycache__/

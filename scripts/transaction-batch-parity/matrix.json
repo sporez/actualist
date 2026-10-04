@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "oracle": {
+    "tag": "v26.9.0",
+    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a"
+  },
+  "syntheticOnly": true,
+  "outcomes": "unasserted-inputs-only",
+  "cases": [
+    {
+      "id": "clear-all-uncleared-selected",
+      "selectedIDs": ["a", "b"],
+      "loadedRows": [
+        { "id": "a", "cleared": false, "reconciled": false, "role": "root" },
+        { "id": "b", "cleared": false, "reconciled": false, "role": "root" }
+      ]
+    },
+    {
+      "id": "clear-all-cleared-selected",
+      "selectedIDs": ["a", "b"],
+      "loadedRows": [
+        { "id": "a", "cleared": true, "reconciled": false, "role": "root" },
+        { "id": "b", "cleared": true, "reconciled": false, "role": "root" }
+      ]
+    },
+    {
+      "id": "clear-mixed-selected",
+      "selectedIDs": ["a", "b"],
+      "loadedRows": [
+        { "id": "a", "cleared": true, "reconciled": false, "role": "root" },
+        { "id": "b", "cleared": false, "reconciled": false, "role": "root" }
+      ]
+    },
+    {
+      "id": "clear-selected-reconciled-and-uncleared",
+      "selectedIDs": ["reconciled", "ordinary"],
+      "loadedRows": [
+        { "id": "reconciled", "cleared": true, "reconciled": true, "role": "root" },
+        { "id": "ordinary", "cleared": false, "reconciled": false, "role": "root" }
+      ]
+    },
+    {
+      "id": "clear-loaded-unselected-uncleared-split-child",
+      "selectedIDs": ["root"],
+      "loadedRows": [
+        { "id": "root", "cleared": true, "reconciled": false, "role": "root" },
+        { "id": "child-a", "cleared": false, "reconciled": false, "role": "child", "parentID": "root" },
+        { "id": "child-b", "cleared": true, "reconciled": false, "role": "child", "parentID": "root" }
+      ]
+    },
+    {
+      "id": "clear-loaded-unselected-reconciled-sibling",
+      "selectedIDs": ["child-a"],
+      "loadedRows": [
+        { "id": "root", "cleared": true, "reconciled": false, "role": "root" },
+        { "id": "child-a", "cleared": true, "reconciled": false, "role": "child", "parentID": "root" },
+        { "id": "child-b", "cleared": false, "reconciled": true, "role": "child", "parentID": "root" }
+      ]
+    },
+    {
+      "id": "clear-missing-cleared-state",
+      "selectedIDs": ["a"],
+      "loadedRows": [
+        { "id": "a", "reconciled": false, "role": "root" }
+      ]
+    }
+  ]
+}
