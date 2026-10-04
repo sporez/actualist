@@ -233,8 +233,7 @@ extension LocalFirstActualStore {
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         bankSyncGenerationByAccount[localAccountID] = nil
-        try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
     }
 
     /// loot-core `unlinkAccount`: clear a SimpleFIN link's columns and leave
@@ -255,8 +254,7 @@ extension LocalFirstActualStore {
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         bankSyncGenerationByAccount[localAccountID] = nil
-        try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
     }
 
     // MARK: - Apply
@@ -437,19 +435,30 @@ extension LocalFirstActualStore {
             openingBalanceInserted: plan.openingBalance != nil,
             insertedTransactionIDsByAccount: insertedIDsByAccount
         )
+        // A committed write cannot be reported as though it rolled back.
+        var reloadError: Error?
+        let refreshPending: Bool
         do {
-            try requireSyncSession(database: database, budgetID: budgetID, generation: sessionGeneration)
-            try await reloadAfterTransactionMutation(
-                database: database,
-                budgetID: budgetID,
-                accountIDs: Array(affectedAccountIDs),
-                monthIDs: Array(monthIDs)
-            )
+            refreshPending = try await finishCommittedWrite(database: database, budgetID: budgetID) {
+                do {
+                    try requireSyncSession(database: database, budgetID: budgetID, generation: sessionGeneration)
+                    try await reloadAfterTransactionMutation(
+                        database: database,
+                        budgetID: budgetID,
+                        accountIDs: Array(affectedAccountIDs),
+                        monthIDs: Array(monthIDs)
+                    )
+                } catch {
+                    reloadError = error
+                    throw error
+                }
+            }
         } catch {
-            // A committed write cannot be reported as though it rolled back.
             throw BankSyncCommittedRefreshError(result: result, underlyingError: error)
         }
-        await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+        if refreshPending, let reloadError {
+            throw BankSyncCommittedRefreshError(result: result, underlyingError: reloadError)
+        }
         return result
     }
 

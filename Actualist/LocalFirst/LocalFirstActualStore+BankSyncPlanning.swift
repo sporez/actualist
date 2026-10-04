@@ -241,8 +241,7 @@ extension LocalFirstActualStore {
                 guard self.database === database, bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
                 bankSyncGenerationByAccount[link.accountID] = nil
                 _ = try await database.commitBankSyncMessages(messages, expectedLink: link)
-                try await reloadAfterAccountMutation(database: database, budgetID: budgetID)
-                await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
+                try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
             } catch {
                 // Stale links and rolled-back status writes have no durable effects.
                 // The caller still reports the original provider failure.
