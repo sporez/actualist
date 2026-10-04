@@ -6,6 +6,22 @@ final class TrackingBudgetUITests: XCTestCase {
 
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    /// Sample Values masks names for every later suite on the same simulator,
+    /// so a failure between turning it on and the in-test restore must still
+    /// turn it off. `addTeardownBlock` runs after an assertion failure, where
+    /// `defer` does not unwind through the XCTest failure exception.
+    @MainActor
+    private func restoreSampleValuesOnTeardown() {
+        addTeardownBlock { @MainActor [self] in
+            let app = launch(screen: "settings/privacy")
+            let sample = app.switches["Use Sample Values"]
+            if sample.waitForExistence(timeout: 10), sample.value as? String == "1" {
+                sample.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            }
+            app.terminate()
+        }
+    }
+
     @MainActor
     func testIncomeAssignmentAndDetails() throws {
         let app = launch()
@@ -113,6 +129,7 @@ final class TrackingBudgetUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add Transaction"].waitForExistence(timeout: 10))
         capture("tracking-light", app)
         app.terminate()
+        restoreSampleValuesOnTeardown()
         app = launch(screen: "settings/privacy")
         let sample = app.switches["Use Sample Values"]
         XCTAssertTrue(sample.waitForExistence(timeout: 5))
@@ -139,6 +156,7 @@ final class TrackingBudgetUITests: XCTestCase {
 
     @MainActor
     func testSampleDeficitReviewOpensActivityWithoutCover() throws {
+        restoreSampleValuesOnTeardown()
         var app = launch(screen: "settings/privacy")
         let sample = app.switches["Use Sample Values"]
         XCTAssertTrue(sample.waitForExistence(timeout: 5))
@@ -157,11 +175,6 @@ final class TrackingBudgetUITests: XCTestCase {
         category.tap()
         XCTAssertTrue(app.staticTexts["Spent"].waitForExistence(timeout: 5))
         capture("tracking-private-deficit-details", app)
-        app.terminate()
-        app = launch(screen: "settings/privacy")
-        let restore = app.switches["Use Sample Values"]
-        XCTAssertTrue(restore.waitForExistence(timeout: 5))
-        if restore.value as? String == "1" { restore.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap() }
     }
 
     @MainActor
