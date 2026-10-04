@@ -367,20 +367,12 @@ final class ScheduleManagementCoordinator {
     }
     func removePattern(at index: Int) { updateDraft { $0.removePattern(at: index) } }
     func setEndingMode(_ mode: ScheduleEditorEndingMode) {
-        updateDraft {
-            switch mode {
-            case .never: $0.ending = .never
-            case .afterOccurrences: $0.ending = .afterOccurrences(Int($0.endingCountText) ?? 12)
-            case .onDate: $0.ending = .onDate($0.endingDayID)
-            }
-            $0.dateWasChanged = true
-        }
+        updateDraft { $0.selectEndingMode(mode) }
     }
     func setSkipWeekend(_ value: Bool) { updateDraft { $0.skipWeekend = value; $0.dateWasChanged = true } }
     func setWeekendAdjustment(_ value: ActualScheduleWeekendAdjustment) { updateDraft { $0.weekendAdjustment = value; $0.dateWasChanged = true } }
-    func setEnding(_ value: ActualScheduleEnding) { updateDraft { $0.ending = value; $0.dateWasChanged = true } }
-    func setEndingCount(_ value: String) { updateDraft { $0.ending = .afterOccurrences(Int(value) ?? 0); $0.endingCountText = value; $0.dateWasChanged = true } }
-    func setEndingDay(_ value: Date) { updateDraft { $0.endingDayID = ScheduleEditorDraft.dayID(from: value); $0.ending = .onDate($0.endingDayID); $0.dateWasChanged = true } }
+    func setEndingCount(_ value: String) { updateDraft { $0.endingCountText = value; $0.dateWasChanged = true } }
+    func setEndingDay(_ value: Date) { updateDraft { $0.endingDayID = ScheduleEditorDraft.dayID(from: value); $0.dateWasChanged = true } }
     func setPostsTransaction(_ value: Bool) { updateDraft { $0.postsTransaction = value; $0.postingWasChanged = true } }
     func setUpcomingLength(_ value: String?) { updateDraft { $0.upcomingLength = value; $0.upcomingWasChanged = true } }
 

@@ -124,8 +124,10 @@ struct ScheduleEditorDraft: Hashable, Sendable {
     var patterns: [ActualSchedulePattern] = []
     var skipWeekend = false
     var weekendAdjustment: ActualScheduleWeekendAdjustment = .after
-    var ending: ActualScheduleEnding = .never
-    var endingCountText = "12"
+    /// The single source of ending state. The count and day below are only the
+    /// inputs of their own mode and are reset whenever the mode is left.
+    private(set) var endingMode: ScheduleEditorEndingMode = .never
+    var endingCountText = Self.defaultEndingCountText
     var endingDayID: String
     var postsTransaction = false
     var upcomingLength: String?
@@ -201,14 +203,16 @@ struct ScheduleEditorDraft: Hashable, Sendable {
             }
             skipWeekend = recurrence.skipWeekend
             weekendAdjustment = recurrence.weekendAdjustment
-            ending = recurrence.ending
-            if case .afterOccurrences(let count) = recurrence.ending {
-                endingCountText = String(count)
-            }
-            if case .onDate(let dayID) = recurrence.ending {
-                endingDayID = dayID
-            } else {
+            switch recurrence.ending {
+            case .never:
                 endingDayID = recurrence.startDayID
+            case .afterOccurrences(let count):
+                endingMode = .afterOccurrences
+                endingCountText = String(count)
+                endingDayID = recurrence.startDayID
+            case .onDate(let dayID):
+                endingMode = .onDate
+                endingDayID = dayID
             }
         case .unavailable:
             dateRuleWasUnsupported = true
@@ -249,6 +253,7 @@ struct ScheduleEditorDraft: Hashable, Sendable {
             return .oneTime(dayID: oneTimeDayID, operation: operation)
         case .recurring:
             guard let interval = Int(intervalText), interval > 0,
+                  let ending = resolvedEnding(),
                   let recurrence = try? ActualScheduleRecurrence(
                     startDayID: recurrenceStartDayID,
                     frequency: frequency,
@@ -256,26 +261,41 @@ struct ScheduleEditorDraft: Hashable, Sendable {
                     patterns: patterns,
                     skipWeekend: skipWeekend,
                     weekendAdjustment: weekendAdjustment,
-                    ending: resolvedEnding()
+                    ending: ending
                   ) else { return nil }
             return .recurring(recurrence, operation: operation)
         }
     }
 
-    func resolvedEnding() -> ActualScheduleEnding {
-        switch ending {
-        case .never: .never
-        case .afterOccurrences: .afterOccurrences(Int(endingCountText) ?? 0)
-        case .onDate: .onDate(endingDayID)
+    static let defaultEndingCountText = "12"
+    static let endingCountValidationMessage = "Enter a number of occurrences greater than zero."
+
+    /// Nil when the selected ending's input is invalid (a non-positive or
+    /// non-numeric count).
+    func resolvedEnding() -> ActualScheduleEnding? {
+        switch endingMode {
+        case .never: return .never
+        case .afterOccurrences:
+            guard let count = Int(endingCountText.trimmingCharacters(in: .whitespaces)), count > 0 else {
+                return nil
+            }
+            return .afterOccurrences(count)
+        case .onDate: return .onDate(endingDayID)
         }
     }
 
-    var endingMode: ScheduleEditorEndingMode {
-        switch ending {
-        case .never: .never
-        case .afterOccurrences: .afterOccurrences
-        case .onDate: .onDate
-        }
+    var hasInvalidEndingCount: Bool {
+        dateMode == .recurring && endingMode == .afterOccurrences && resolvedEnding() == nil
+    }
+
+    /// Leaving a mode discards its input so a later return starts from the
+    /// defaults instead of resurrecting a stale count or date.
+    mutating func selectEndingMode(_ mode: ScheduleEditorEndingMode) {
+        guard mode != endingMode else { return }
+        endingCountText = Self.defaultEndingCountText
+        endingDayID = recurrenceStartDayID
+        endingMode = mode
+        dateWasChanged = true
     }
 
     var hasUnsupportedDatePatterns: Bool {
@@ -402,12 +422,17 @@ struct ScheduleEditorDraft: Hashable, Sendable {
             guard amountDraft(currency: currency, locale: locale) != nil else {
                 return amountMode == .range ? "Enter a valid amount range." : "Enter a valid amount."
             }
+            if hasInvalidEndingCount { return Self.endingCountValidationMessage }
             guard dateRule() != nil else { return "Choose a valid schedule date and recurrence." }
             return "Review the schedule details before saving."
         }
         guard let fields = editFields(currency: currency, locale: locale) else {
             if amountWasChanged { return amountMode == .range ? "Enter a valid amount range." : "Enter a valid amount." }
-            if dateWasChanged { return "Choose a valid schedule date and recurrence." }
+            if dateWasChanged {
+                return hasInvalidEndingCount
+                    ? Self.endingCountValidationMessage
+                    : "Choose a valid schedule date and recurrence."
+            }
             return "Make a supported change before reviewing."
         }
         if fields.accountID != .unchanged && !capabilities.canEditAccount { return "The account option cannot be changed safely." }

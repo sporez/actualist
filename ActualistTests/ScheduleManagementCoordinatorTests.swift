@@ -175,6 +175,66 @@ struct ScheduleManagementCoordinatorTests {
         #expect(message.contains("budget changed"))
     }
 
+    @Test func afterCountMustBePositiveAndSwitchingModesDoesNotResurrectInput() async {
+        let store = ScheduleManagementRepositoryFake()
+        let coordinator = ScheduleManagementCoordinator()
+        coordinator.beginCreate(
+            expectedBudgetID: "budget",
+            expectedGeneration: 1,
+            today: "2026-09-28",
+            currency: .usd,
+            isPrivacyModeEnabled: false,
+            mutationRepository: store,
+            transactionRepository: RecordingTransactionRepository(
+                editorOptionsResult: TransactionEditorOptions(
+                    accounts: [ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false)],
+                    categories: [], categoryGroups: [], payees: []
+                )
+            )
+        )
+        await ObservedTestState {
+            if case .editing = coordinator.state { true } else { false }
+        }.wait()
+        coordinator.setAccount("checking")
+        coordinator.setAmount("12.34")
+        coordinator.setDateMode(.recurring)
+        coordinator.setEndingMode(.afterOccurrences)
+        let locale = Locale(identifier: "en_US")
+
+        for invalid in ["", "0", "-2", "abc"] {
+            coordinator.setEndingCount(invalid)
+            coordinator.reviewSave(locale: locale)
+            guard case .editing(let session) = coordinator.state else {
+                Issue.record("A non-positive count \(invalid) must not reach review")
+                return
+            }
+            #expect(session.draft.dateRule() == nil)
+            #expect(session.notice == "Enter a number of occurrences greater than zero.")
+        }
+        coordinator.setEndingCount("3")
+        coordinator.reviewSave(locale: locale)
+        guard case .reviewingSave(let valid) = coordinator.state else {
+            Issue.record("A positive count must be reviewable")
+            return
+        }
+        #expect(valid.draft.dateRule()?.recurrence?.ending == .afterOccurrences(3))
+        coordinator.backToEditor()
+
+        coordinator.setEndingCount("5")
+        coordinator.setEndingMode(.never)
+        coordinator.setEndingMode(.afterOccurrences)
+        coordinator.setEndingDay(Date(timeIntervalSince1970: 1_900_000_000))
+        coordinator.setEndingMode(.never)
+        coordinator.setEndingMode(.onDate)
+        guard case .editing(let toggled) = coordinator.state else {
+            Issue.record("Expected the editor")
+            return
+        }
+        #expect(toggled.draft.endingCountText == "12")
+        #expect(toggled.draft.endingDayID == toggled.draft.recurrenceStartDayID)
+        #expect(toggled.draft.dateRule()?.recurrence?.ending == .onDate(toggled.draft.recurrenceStartDayID))
+    }
+
     @Test func cancelWhileLoadingInvalidatesTheEditorPresentation() {
         let store = ScheduleManagementRepositoryFake()
         let coordinator = ScheduleManagementCoordinator()
