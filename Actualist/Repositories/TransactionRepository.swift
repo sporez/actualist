@@ -360,6 +360,9 @@ struct TransactionEditorCategoryOption: Identifiable, Hashable, Sendable {
     let title: String
     let amount: Int?
     let valueText: String?
+    /// True only for the synthetic To Budget option, so a real category that
+    /// happens to be named "To Budget" is never mistaken for it.
+    var isToBudget: Bool = false
 }
 
 struct LoadedAccountTransactions: Hashable, Sendable {

@@ -307,6 +307,19 @@ struct OverspentCoverSelectionViewModelTests {
         #expect(model.coverSource(for: expenseOption) == .category(id: expenseOption.id, name: expenseOption.title))
     }
 
+    @Test func coverSourceUsesSyntheticFlagNotTitle() {
+        // A real category named "To Budget" must stay a category source.
+        let model = BudgetViewModel(initialBudgetID: "budget")
+        let lookalike = TransactionEditorCategoryOption(
+            id: "real-cat", title: "To Budget", amount: 100, valueText: "$1.00"
+        )
+        #expect(model.coverSource(for: lookalike) == .category(id: "real-cat", name: "To Budget"))
+        let synthetic = TransactionEditorCategoryOption(
+            id: "income-cat", title: "To Budget", amount: 100, valueText: "$1.00", isToBudget: true
+        )
+        #expect(model.coverSource(for: synthetic) == .toBudget)
+    }
+
     @Test func overspentCoverOptionsIncludeHiddenOverspentInEnvelopeAndDropInTracking() throws {
         // Actual web keeps hidden overspent categories in envelope budgets and
         // drops them in tracking budgets. The Cover sheet must follow that rule.

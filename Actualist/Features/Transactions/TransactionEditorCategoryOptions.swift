@@ -29,7 +29,8 @@ enum TransactionEditorCategoryOptions {
                         id: incomeID,
                         title: "To Budget",
                         amount: nil,
-                        valueText: nil
+                        valueText: nil,
+                        isToBudget: true
                     )
                 ]
             ))
