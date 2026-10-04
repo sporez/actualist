@@ -1,15 +1,38 @@
 import Foundation
 
+/// Runs after a Wallet import has built its messages and before they commit; `attempt` is 1 or 2.
+typealias WalletImportBeforeCommitHook = @MainActor @Sendable (_ attempt: Int) async -> Void
+
 extension LocalFirstActualStore {
     func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String> {
         let database = try requireDatabase(for: budgetID)
         return try await database.existingImportedIDs(accountID: accountID)
     }
 
+    /// A concurrent writer can import the same `imported_id` between the read
+    /// and the commit. Retry once with a fresh read (which then counts the new
+    /// row as a duplicate); a second conflict is reported to the caller.
     func importWalletTransactions(
         _ candidates: [WalletTransactionCandidate],
         intoAccountID accountID: String,
         budgetID: String
+    ) async throws -> WalletTransactionImportResult {
+        do {
+            return try await importWalletTransactionsOnce(
+                candidates, intoAccountID: accountID, budgetID: budgetID, attempt: 1
+            )
+        } catch LocalFirstError.importedTransactionConflict {
+            return try await importWalletTransactionsOnce(
+                candidates, intoAccountID: accountID, budgetID: budgetID, attempt: 2
+            )
+        }
+    }
+
+    private func importWalletTransactionsOnce(
+        _ candidates: [WalletTransactionCandidate],
+        intoAccountID accountID: String,
+        budgetID: String,
+        attempt: Int
     ) async throws -> WalletTransactionImportResult {
         guard !accountID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing account")
@@ -22,6 +45,7 @@ extension LocalFirstActualStore {
         var builder = LocalFirstSyncMessageBuilder()
         var messages: [ActualSyncDecodedMessage] = []
         var categorizedIDs = Set<String>()
+        var importedFinancialIDs: [String] = []
         var monthIDs = Set<String>()
         var resolvedPayeeIDs: [String: String] = [:]
         var affectedAccountIDs = Set([accountID])
@@ -105,6 +129,7 @@ extension LocalFirstActualStore {
             messages.append(contentsOf: payeeResolution.messages)
             messages.append(contentsOf: transactionMessages)
             seenIDs.insert(candidate.financialID)
+            importedFinancialIDs.append(candidate.financialID)
             importedCount += 1
             monthIDs.insert(draft.month.rawValue)
             if draft.categoryID != nil, transferDestinationID == nil, !draft.isSplit {
@@ -119,7 +144,14 @@ extension LocalFirstActualStore {
             )
         }
 
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        await walletImportBeforeCommitHook?(attempt)
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(
+            messages,
+            expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence(
+                accountID: accountID,
+                importedIDs: importedFinancialIDs
+            )
+        )
         let learningMessages = try await database.categoryLearningRuleMessages(
             changedTransactionIDs: categorizedIDs,
             builder: &builder

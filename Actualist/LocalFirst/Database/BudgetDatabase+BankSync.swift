@@ -5,7 +5,8 @@ extension BudgetDatabase {
     func commitBankSyncMessages(
         _ messages: [ActualSyncDecodedMessage],
         expectedLink: BankSyncLinkIdentity,
-        pendingNewTransactions: PendingNewTransactionCommit? = nil
+        pendingNewTransactions: PendingNewTransactionCommit? = nil,
+        expectedAbsentImportedIDs: ImportedIDAbsence? = nil
     ) throws -> Int {
         try sessionWritesAllowed.withLock { allowed in
             guard allowed else { throw LocalFirstError.budgetNotOpened }
@@ -13,7 +14,8 @@ extension BudgetDatabase {
             return try commitLocalSyncMessagesAndEnqueue(
                 messages,
                 expectedBankLink: expectedLink,
-                pendingNewTransactions: pendingNewTransactions
+                pendingNewTransactions: pendingNewTransactions,
+                expectedAbsentImportedIDs: expectedAbsentImportedIDs
             )
         }
     }

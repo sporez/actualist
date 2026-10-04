@@ -20,14 +20,16 @@ extension BudgetDatabase {
         reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil,
         expectedTemplateReviewRevision: BudgetTemplateReviewRevision? = nil,
         expectedHoldReview: BudgetHoldReview? = nil,
-        pendingNewTransactions: PendingNewTransactionCommit? = nil
+        pendingNewTransactions: PendingNewTransactionCommit? = nil,
+        expectedAbsentImportedIDs: ImportedIDAbsence? = nil
     ) throws -> Int {
         let review = LocalCommitReview(
             mode: expectedMode,
             bankLink: expectedBankLink,
             reconciledMutation: reconciledMutationPrecondition,
             templateRevision: expectedTemplateReviewRevision,
-            hold: expectedHoldReview
+            hold: expectedHoldReview,
+            absentImportedIDs: expectedAbsentImportedIDs
         )
         guard !drafts.isEmpty else {
             try queue.read { db in
@@ -137,6 +139,7 @@ extension BudgetDatabase {
         let reconciledMutation: ReconciledTransactionMutationPrecondition?
         let templateRevision: BudgetTemplateReviewRevision?
         let hold: BudgetHoldReview?
+        let absentImportedIDs: ImportedIDAbsence?
     }
 
     private func validateLocalCommit(
@@ -152,6 +155,7 @@ extension BudgetDatabase {
             drafts, expectedMode: review.mode, descriptor: action?.descriptor, db: db
         )
         try validateReconciledMutationPrecondition(review.reconciledMutation, db: db)
+        try validateImportedIDsAbsent(review.absentImportedIDs, db: db)
     }
 
     struct CommittedDraftsResult: Sendable {
