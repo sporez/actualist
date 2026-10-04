@@ -8,6 +8,18 @@ extension BudgetDatabase {
         let lastUploadedMessageCount: Int
     }
 
+    /// Identifies a row within this apply pass. Concatenating dataset and row
+    /// would conflate ("ab", "c") with ("a", "bc").
+    struct RowKey: Hashable {
+        let dataset: String
+        let row: String
+
+        init(_ message: ActualSyncDecodedMessage) {
+            dataset = message.dataset
+            row = message.row
+        }
+    }
+
     func latestSyncTimestamp() throws -> String {
         try queue.read { db in
             guard try tableExists("messages_crdt", db: db) else {
@@ -36,7 +48,7 @@ extension BudgetDatabase {
 
             var appliedCount = 0
             let sortedMessages = messages.sorted { $0.timestamp < $1.timestamp }
-            var insertedRows = Set<String>()
+            var insertedRows = Set<RowKey>()
             var didAdvanceLaunchRevision = false
             var insertedTransactionIDs = Set<String>()
 
@@ -61,7 +73,7 @@ extension BudgetDatabase {
                     continue
                 }
 
-                let rowWasInserted = insertedRows.contains(message.dataset + message.row)
+                let rowWasInserted = insertedRows.contains(RowKey(message))
                 let hasRow: Bool
                 if rowWasInserted {
                     hasRow = true
@@ -71,7 +83,7 @@ extension BudgetDatabase {
                 let value = try deserializeSyncValue(message.serializedValue)
                 if message.dataset != "prefs" {
                     try apply(message: message, value: value, rowExists: hasRow, db: db)
-                    insertedRows.insert(message.dataset + message.row)
+                    insertedRows.insert(RowKey(message))
                     if message.dataset == "transactions", !hasRow {
                         insertedTransactionIDs.insert(message.row)
                     }
@@ -181,7 +193,7 @@ extension BudgetDatabase {
 
             var appliedCount = 0
             let sortedMessages = messages.sorted { $0.timestamp < $1.timestamp }
-            var insertedRows = Set<String>()
+            var insertedRows = Set<RowKey>()
 
             for message in sortedMessages {
                 try validateLocalMessage(message, db: db)
@@ -190,7 +202,7 @@ extension BudgetDatabase {
                     throw LocalFirstError.localWriteSuperseded
                 }
 
-                let rowWasInserted = insertedRows.contains(message.dataset + message.row)
+                let rowWasInserted = insertedRows.contains(RowKey(message))
                 let hasRow: Bool
                 if rowWasInserted {
                     hasRow = true
@@ -200,7 +212,7 @@ extension BudgetDatabase {
 
                 let value = try deserializeSyncValue(message.serializedValue)
                 try apply(message: message, value: value, rowExists: hasRow, db: db)
-                insertedRows.insert(message.dataset + message.row)
+                insertedRows.insert(RowKey(message))
                 try insertCRDTMessage(message, db: db)
                 if let outboxBaseTimestamp {
                     try insertLocalSyncOutboxMessage(message, baseTimestamp: outboxBaseTimestamp, db: db)

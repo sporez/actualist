@@ -455,17 +455,19 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     /// before the first successful connection; once any request succeeds the
     /// permission is granted permanently, so established servers fail fast.
     ///
-    /// Safety invariant: the retry engages on *any* `.transport` failure while
-    /// `hasConnected` is false. A transport-level failure means no bytes were
-    /// transmitted to the server, so retrying is safe for every method, including
-    /// POST login and sync — the server never saw the first attempt and there is
-    /// no risk of duplicate side effects. This deliberately covers error codes
+    /// Retry policy: the retry engages on *any* `.transport` failure while
+    /// `hasConnected` is false. Not every transport failure proves the server saw
+    /// nothing (a response can be lost after the request was delivered), so this
+    /// relies on the retried operations being safe to repeat: sync uploads are
+    /// keyed by message timestamp and the server ignores a repeat (`INSERT OR IGNORE` in
+    /// upstream `sync-simple.js` `addMessages`), and login
+    /// has no side effect beyond issuing a token. This deliberately covers error codes
     /// (and non-`URLError` failures that surface as `.transport(nil)`) beyond the
     /// `.cannotConnectToHost`/`.cannotFindHost` pair iOS historically produced
     /// while the Local Network sheet is pending. On iOS 26 a *denied* Local
     /// Network grant kills the TLS handshake and surfaces as
     /// `.secureConnectionFailed` (-1200) while a raw TCP connect still succeeds
-    /// — verified on-device. The safety invariant does not depend on which code
+    /// — verified on-device. The retry rule does not depend on which code
     /// was returned, only on the fact that `hasConnected` is still false.
     /// `LocalFirstError` (resource limits, app errors) and non-transport
     /// `ActualAPIError` (HTTP statuses, decoding) are not retried: they either

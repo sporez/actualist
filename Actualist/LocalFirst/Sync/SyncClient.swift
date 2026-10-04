@@ -79,7 +79,7 @@ actor SyncClient {
         sessionIsCurrent: (@Sendable () async -> Bool)? = nil
     ) async throws -> BudgetDatabase.RemoteSyncApplyResult {
         guard let configuration else {
-            return .empty
+            throw LocalFirstError.budgetNotOpened
         }
         let generation = sessionGeneration
 

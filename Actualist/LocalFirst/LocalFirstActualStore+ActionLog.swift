@@ -23,7 +23,12 @@ extension LocalFirstActualStore {
             actionLogDiagnosticSnapshot = .empty
             return
         }
-        actionLogDiagnosticSnapshot = (try? await database.actionLogDiagnosticSnapshot()) ?? .empty
+        let generation = budgetSessionGeneration
+        let snapshot = (try? await database.actionLogDiagnosticSnapshot()) ?? .empty
+        // A budget switch or teardown during the read must not publish the old
+        // budget's counts over the new session's snapshot.
+        guard generation == budgetSessionGeneration, self.database === database else { return }
+        actionLogDiagnosticSnapshot = snapshot
     }
 
     func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] {
@@ -59,18 +64,8 @@ extension LocalFirstActualStore {
             throw LocalFirstError.invalidLocalWrite("this action is no longer in history")
         }
         _ = try await database.commitActionUndo(record: record)
+        // One reload covers budget, account and every loaded transaction feed.
         try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
-        let accountIDs = transactionFeedPagesByKey.keys.compactMap { key -> String? in
-            guard key.budgetID == budgetID,
-                  case .account(let accountID) = key.scope else { return nil }
-            return accountID
-        }.sorted()
-        try await reloadAfterTransactionMutation(
-            database: database,
-            budgetID: budgetID,
-            accountIDs: accountIDs,
-            monthIDs: []
-        )
         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 }

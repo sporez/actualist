@@ -173,7 +173,7 @@ extension BudgetDatabase {
         db: Database
     ) throws -> CommittedDraftsResult {
         var appliedCount = 0
-        var insertedRows = Set<String>()
+        var insertedRows = Set<RowKey>()
         var firstTimestamp: String?
         var lastTimestamp: String?
         for draft in drafts.sorted(by: { $0.timestamp < $1.timestamp }) {
@@ -190,7 +190,7 @@ extension BudgetDatabase {
                 throw LocalFirstError.localWriteSuperseded
             }
 
-            let rowKey = message.dataset + message.row
+            let rowKey = RowKey(message)
             let hasRow: Bool
             if insertedRows.contains(rowKey) {
                 hasRow = true
