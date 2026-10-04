@@ -53,6 +53,16 @@ final class IPadReviewUITests: XCTestCase {
     }
 
     @MainActor
+    func testBudgetGridIdentifierIsOnlyOnTheGridNotItsHeaderPills() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = launch()
+        try requireWide(app)
+        XCTAssertTrue(app.scrollViews["budget-grid"].waitForExistence(timeout: 10))
+        let carriers = app.descendants(matching: .any).matching(identifier: "budget-grid")
+        XCTAssertEqual(carriers.count, 1, "budget-grid leaked onto: \(carriers.allElementsBoundByIndex.map(\.debugDescription))")
+    }
+
+    @MainActor
     func testSidebarAccountsOverviewClearsPreviousAccount() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = launch()

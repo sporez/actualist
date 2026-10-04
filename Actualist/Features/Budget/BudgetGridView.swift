@@ -28,6 +28,7 @@ struct BudgetGridView: View {
             .padding(.horizontal, BudgetLayoutMetrics.defaultHorizontalMargins / 2)
             .padding(.bottom, 24)
         }
+        .accessibilityIdentifier("budget-grid")
         .safeAreaBar(edge: .top, spacing: 0) {
             BudgetGridMonthHeaders(
                 presentation: presentation,
@@ -38,7 +39,6 @@ struct BudgetGridView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(ActualistTheme.background)
-        .accessibilityIdentifier("budget-grid")
         .animation(reduceMotion ? nil : BudgetLayout.monthResizeAnimation, value: presentation.months.count)
     }
 
