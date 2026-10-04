@@ -14,7 +14,8 @@ enum SafeSyncDiagnostic {
             switch error {
             case .budgetEncryptionChanged, .missingSyncToken, .remoteDataLimitExceeded,
                  .invalidEncryptedPayload, .unauthenticatedPlaintextEnvelope,
-                 .syncUploadNotConfirmed, .clockDrift, .invalidSyncTimestamp, .undecryptableMessage:
+                 .syncUploadNotConfirmed, .clockDrift, .invalidSyncTimestamp, .undecryptableMessage,
+                 .syncOutOfSync:
                 return error.localizedDescription
             default: break
             }
@@ -75,6 +76,7 @@ enum SafeSyncDiagnostic {
             LocalFirstError.clockDrift.localizedDescription,
             LocalFirstError.invalidSyncTimestamp.localizedDescription,
             LocalFirstError.undecryptableMessage.localizedDescription,
+            LocalFirstError.syncOutOfSync.localizedDescription,
             KeychainReadError.unreadable.localizedDescription,
             KeychainReadError.unavailable(errSecInteractionNotAllowed).localizedDescription,
             genericFailure,

@@ -54,6 +54,8 @@ enum LocalFirstError: LocalizedError, Equatable {
     case undecryptableMessage
     /// A decrypted message carries a value Actualist cannot read. Quarantined, never fatal.
     case invalidSyncValue
+    /// The merkle re-pull loop could not bring this file and the server into agreement.
+    case syncOutOfSync
 
     var errorDescription: String? {
         switch self {
@@ -131,6 +133,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "Actualist could not decrypt a change from the Actual server. Check the budget's encryption password."
         case .invalidSyncValue:
             "Actualist found a synced value it could not read."
+        case .syncOutOfSync:
+            "Sync could not finish because this device and the Actual server disagree about which changes exist. Your changes are still on this device. Try again later, or download the budget again if this keeps happening."
         }
     }
 }

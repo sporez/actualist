@@ -94,15 +94,26 @@ actor SyncClient {
         request.since = try await database.latestSyncTimestamp()
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
 
+        let clockBefore = await database.localClockTimestamp
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
         try validateResponseSize(responseData)
         let response = try ActualSync_SyncResponse(serializedBytes: responseData)
         let messages = try decodedMessages(from: response, configuration: configuration)
+        let localTimeChanged = await database.localClockTimestamp != clockBefore
         let applied = try await database.applyRemoteSyncMessagesTrackingInserts(messages)
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
-        try await noteMerkleDivergence(database: database, serverMerkle: response.merkle)
-        return applied
+        return try await repullUntilMerkleMatches(
+            applied,
+            serverMerkle: response.merkle,
+            localTimeChanged: localTimeChanged,
+            database: database,
+            client: client,
+            token: token,
+            configuration: configuration,
+            generation: generation,
+            sessionIsCurrent: sessionIsCurrent
+        )
     }
 
     func pushAndPull(
@@ -133,6 +144,7 @@ actor SyncClient {
         }
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
 
+        let clockBefore = await database.localClockTimestamp
         let responseData = try await client.sync(data: try request.serializedData(), token: token)
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
         try validateResponseSize(responseData)
@@ -186,9 +198,20 @@ actor SyncClient {
             uniquingKeysWith: { _, newest in newest }
         ).values.sorted { $0.timestamp < $1.timestamp }
         let remoteMessages = try decodedMessages(from: combinedResponse, configuration: configuration)
-        let applyResult = try await database.applyRemoteSyncMessagesTrackingInserts(remoteMessages)
+        let localTimeChanged = await database.localClockTimestamp != clockBefore
+        let firstApply = try await database.applyRemoteSyncMessagesTrackingInserts(remoteMessages)
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
-        try await noteMerkleDivergence(database: database, serverMerkle: confirmationMerkle ?? response.merkle)
+        let applyResult = try await repullUntilMerkleMatches(
+            firstApply,
+            serverMerkle: confirmationMerkle ?? response.merkle,
+            localTimeChanged: localTimeChanged,
+            database: database,
+            client: client,
+            token: token,
+            configuration: configuration,
+            generation: generation,
+            sessionIsCurrent: sessionIsCurrent
+        )
 
         return LocalFirstSyncResult(
             pushedMessageCount: messages.count,
@@ -198,14 +221,71 @@ actor SyncClient {
         )
     }
 
-    /// Detection only: logs whether this file and the server disagree after a pull.
-    /// An empty or unreadable server merkle (older servers) skips the comparison.
-    private func noteMerkleDivergence(database: BudgetDatabase, serverMerkle: String) async throws {
-        guard let server = MerkleTrie(jsonString: serverMerkle),
-              let divergence = try await database.merkleDivergence(from: server) else {
-            return
+    /// Upstream `_fullSync`'s loop: after applying a pull, compare the server's
+    /// merkle with this file's and pull again from the first differing minute
+    /// until they match. Late or older messages from other devices arrive this
+    /// way instead of being skipped forever by `since = MAX(timestamp)`.
+    private func repullUntilMerkleMatches(
+        _ initial: BudgetDatabase.RemoteSyncApplyResult,
+        serverMerkle initialMerkle: String,
+        localTimeChanged initialLocalChange: Bool,
+        database: BudgetDatabase,
+        client: any ActualSyncTransport,
+        token: String,
+        configuration: LocalFirstSyncConfiguration,
+        generation: Int,
+        sessionIsCurrent: (@Sendable () async -> Bool)?
+    ) async throws -> BudgetDatabase.RemoteSyncApplyResult {
+        var total = initial
+        var server = MerkleTrie(jsonString: initialMerkle)
+        var count = initialLocalChange ? 0 : 1
+        var previousDivergence: Int64?
+        var rebuilt = false
+        while true {
+            try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
+            // An empty or unreadable server merkle (older servers) skips the comparison.
+            guard let serverTrie = server,
+                  let divergence = try await database.merkleDivergence(from: serverTrie) else {
+                return total
+            }
+            if (count >= 10 && divergence == previousDivergence) || count >= 100 {
+                // Upstream rebuilds the trie before giving up: a stale stored trie is
+                // a cheaper explanation than a diverged history.
+                guard !rebuilt else { throw LocalFirstError.syncOutOfSync }
+                rebuilt = true
+                try await database.rebuildMerkleTrie()
+                count = 0
+                previousDivergence = nil
+                continue
+            }
+
+            var request = ActualSync_SyncRequest()
+            request.fileID = configuration.fileID
+            request.groupID = configuration.groupID ?? ""
+            request.keyID = configuration.encryptionKeyID ?? ""
+            request.since = SyncTimestamp.wallTimeString(
+                for: Date(timeIntervalSince1970: Double(divergence) / 1_000)
+            ) + "-0000-0000000000000000"
+            let clockBefore = await database.localClockTimestamp
+            let responseData = try await client.sync(data: try request.serializedData(), token: token)
+            try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
+            try validateResponseSize(responseData)
+            let response = try ActualSync_SyncResponse(serializedBytes: responseData)
+            let messages = try decodedMessages(from: response, configuration: configuration)
+            if messages.isEmpty {
+                // Diverged yet nothing to receive: the server most likely lacks messages this
+                // file holds. Reported only; resending is a separate decision (audit D7d).
+                Self.securityLogger.info("Sync merkle differs but the server returned no messages")
+            }
+            // Like upstream, a local commit during the request is not a failed attempt.
+            let localTimeChanged = await database.localClockTimestamp != clockBefore
+            total = total.merging(try await database.applyRemoteSyncMessagesTrackingInserts(messages))
+            try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
+
+            server = MerkleTrie(jsonString: response.merkle)
+            count = localTimeChanged ? 0 : count + 1
+            previousDivergence = divergence
         }
-        Self.securityLogger.info("Sync merkle differs from the server at \(divergence, privacy: .public) ms")
     }
 
     private func validateResponseSize(_ data: Data) throws {
