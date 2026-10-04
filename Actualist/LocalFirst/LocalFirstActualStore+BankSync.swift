@@ -304,10 +304,12 @@ extension LocalFirstActualStore {
             ))
         }
 
-        let existingByID = Dictionary(
+        // Only matched updates read existing rows, and only those rows.
+        let existingByID = plan.updates.isEmpty ? [:] : Dictionary(
             uniqueKeysWithValues: try await database.bankSyncExistingRows(
                 accountID: plan.link.accountID,
-                window: 0...99_999_999
+                window: 0...99_999_999,
+                ids: Array(Set(plan.updates.map(\.existingID)))
             ).map { ($0.id, $0) }
         )
         for update in plan.updates {
