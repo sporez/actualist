@@ -201,7 +201,7 @@ actor BudgetDatabase {
         var hasStartingBalance: Bool { all.contains("starting_balance_flag") }
     }
 
-    struct TransactionWriteResult {
+    struct TransactionWriteResult: Sendable {
         let messages: [ActualSyncDecodedMessage]
         let affectedAccountIDs: [String]
         let affectedTransactionIDs: [String]

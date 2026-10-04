@@ -133,7 +133,7 @@ extension BudgetDatabase {
         return result
     }
 
-    private struct LocalCommitReview {
+    struct LocalCommitReview {
         let mode: BudgetModeIdentity?
         let bankLink: BankSyncLinkIdentity?
         let reconciledMutation: ReconciledTransactionMutationPrecondition?
@@ -142,7 +142,7 @@ extension BudgetDatabase {
         let absentImportedIDs: ImportedIDAbsence?
     }
 
-    private func validateLocalCommit(
+    func validateLocalCommit(
         _ review: LocalCommitReview,
         drafts: [ActualSyncDecodedMessage],
         action: ActionLogCommit?,
