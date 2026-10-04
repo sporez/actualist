@@ -62,7 +62,9 @@ extension BudgetDatabase {
                     didAdvanceLaunchRevision = true
                 }
 
-                guard try tableExists(message.dataset, db: db) else {
+                // Reserved datasets are stored for bookkeeping and never applied.
+                guard !ActualSyncDatasetPolicy.isReserved(message.dataset),
+                      try tableExists(message.dataset, db: db) else {
                     try insertCRDTMessage(message, db: db)
                     appliedCount += 1
                     continue
@@ -388,7 +390,8 @@ extension BudgetDatabase {
     }
 
     func validateLocalMessage(_ message: ActualSyncDecodedMessage, db: Database) throws {
-        guard try tableExists(message.dataset, db: db) else {
+        guard !ActualSyncDatasetPolicy.isReserved(message.dataset),
+              try tableExists(message.dataset, db: db) else {
             throw LocalFirstError.invalidLocalWrite("unknown dataset \(message.dataset)")
         }
         let columns = try columnSet(for: message.dataset, db: db)
