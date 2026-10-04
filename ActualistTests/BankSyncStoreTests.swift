@@ -20,6 +20,9 @@ extension LocalFirstActualStoreTests {
         private(set) var transactionsRequests: [(accountIDs: [String], startDates: [String])] = []
         private(set) var statusRequests = 0
         private(set) var accountsRequests = 0
+        /// When set, `simpleFINAccounts` suspends on it after announcing entry.
+        private var accountsGate: TestLatch?
+        nonisolated let accountsEntered = TestLatch()
 
         init(
             support: SimpleFINServerSupport = .configured,
@@ -43,6 +46,10 @@ extension LocalFirstActualStoreTests {
             failure = error
         }
 
+        func setAccountsGate(_ gate: TestLatch?) {
+            accountsGate = gate
+        }
+
         func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport {
             statusRequests += 1
             if let failure {
@@ -53,6 +60,10 @@ extension LocalFirstActualStoreTests {
 
         func simpleFINAccounts(token: String) async throws -> [SimpleFINRemoteAccount]? {
             accountsRequests += 1
+            if let gate = accountsGate {
+                accountsEntered.trip()
+                await gate.wait()
+            }
             if let failure = accountsFailure ?? failure {
                 throw failure
             }
