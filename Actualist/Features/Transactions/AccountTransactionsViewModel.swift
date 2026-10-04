@@ -180,15 +180,16 @@ final class AccountTransactionsViewModel {
         }
     }
 
+    @discardableResult
     func delete(
         _ transaction: ActualTransaction,
         budgetID: String?,
         repository: any TransactionRepositoryProtocol,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         onChanged: @MainActor () -> Void
-    ) async {
+    ) async -> Bool {
         guard let budgetID, deletingTransactionID == nil else {
-            return
+            return false
         }
 
         deletingTransactionID = transaction.rowID
@@ -209,10 +210,11 @@ final class AccountTransactionsViewModel {
                     categoryID: details.category.id,
                     month: details.month
                 )
-                onChanged()
             }
+            onChanged()
             deleteSuccessFeedback += 1
             deletePresentation = nil
+            return true
         } catch {
             if case .confirmationRequired(let review) = error as? ReconciledTransactionMutationError {
                 deletePresentation = projection(
@@ -223,6 +225,7 @@ final class AccountTransactionsViewModel {
             } else {
                 errorMessage = error.userFacingMessage
             }
+            return false
         }
     }
 

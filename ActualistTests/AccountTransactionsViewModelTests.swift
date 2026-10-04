@@ -407,6 +407,48 @@ struct AccountTransactionsViewModelTests {
         #expect(successfulRepository.deletedTransactionIDs == ["delete-me"])
     }
 
+    @Test func successfulDeleteReportsOneLocalChangeForEveryScope() async {
+        let transaction = Self.transaction(id: "delete-me", payee: "market")
+        let scopes: [TransactionFeedScope] = [
+            .account(Self.account),
+            .spending,
+            .category(Self.categoryDetails),
+        ]
+        for scope in scopes {
+            let repository = AccountTransactionsRecordingRepository(
+                accountSnapshot: Self.loaded([transaction])
+            )
+            let model = AccountTransactionsViewModel(scope: scope)
+            var changes = 0
+            await model.delete(
+                transaction,
+                budgetID: "budget",
+                repository: repository,
+                onChanged: { changes += 1 }
+            )
+            #expect(changes == 1)
+        }
+    }
+
+    @Test func failedDeleteDoesNotReportALocalChange() async {
+        let transaction = Self.transaction(id: "delete-me", payee: "market")
+        for scope in [TransactionFeedScope.account(Self.account), .spending] {
+            let repository = AccountTransactionsRecordingRepository(
+                accountSnapshot: Self.loaded([transaction]),
+                deleteError: FeedTestError("delete failed")
+            )
+            let model = AccountTransactionsViewModel(scope: scope)
+            var changes = 0
+            await model.delete(
+                transaction,
+                budgetID: "budget",
+                repository: repository,
+                onChanged: { changes += 1 }
+            )
+            #expect(changes == 0)
+        }
+    }
+
     @Test func reconciledDeleteUsesPreparedWarningAndExactAuthorization() async {
         let transaction = Self.transaction(id: "locked", payee: "market")
         let review = ReconciledTransactionMutationReview(

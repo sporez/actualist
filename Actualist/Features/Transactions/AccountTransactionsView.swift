@@ -239,7 +239,7 @@ struct AccountTransactionsView: View {
                             budgetID: budgetID,
                             repository: transactionRepository,
                             reconciliationAuthorization: authorization,
-                            onChanged: onChanged
+                            onChanged: localDataDidMutate
                         )
                     }
                 }
@@ -565,19 +565,19 @@ struct AccountTransactionsView: View {
             onCreateAdjustment: {
                 reconciliationCoordinator.createAdjustment(
                     repository: accountRepository,
-                    didMutate: reconciliationDidMutate
+                    didMutate: localDataDidMutate
                 )
             },
             onLockTransactions: {
                 reconciliationCoordinator.lockTransactions(
                     repository: accountRepository,
-                    didMutate: reconciliationDidMutate
+                    didMutate: localDataDidMutate
                 )
             },
             onExit: {
                 reconciliationCoordinator.exit(
                     repository: accountRepository,
-                    didMutate: reconciliationDidMutate
+                    didMutate: localDataDidMutate
                 )
             },
             onRetryRefresh: {
@@ -789,7 +789,7 @@ struct AccountTransactionsView: View {
         startReconciliation()
     }
 
-    private func reconciliationDidMutate() {
+    private func localDataDidMutate() {
         appState.recordLocalDataMutation()
         onChanged()
     }
