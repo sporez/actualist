@@ -166,6 +166,51 @@ struct ScheduleAdvancementTests {
         #expect(vendorExtension["keep"] as? Bool == true)
     }
 
+    /// A schedule whose posting graph hits a schema gap (a transfer payee in a
+    /// budget without `transactions.transferred_id`) fails the same way on every
+    /// sync, so it must skip only that schedule instead of stopping the run.
+    @Test func schemaGapInPostingGraphSkipsOnlyThatScheduleAndStillMarksTheDay() async throws {
+        let schema = Self.schemaSQL.replacingOccurrences(
+            of: "ALTER TABLE transactions ADD COLUMN transferred_id TEXT;", with: ""
+        )
+        let transferConditions = """
+        [{"op":"is","field":"account","value":"checking"},{"op":"is","field":"payee","value":"transfer-savings"},{"op":"is","field":"amount","value":-10000},{"op":"is","field":"date","value":"\(Self.today)"}]
+        """
+        let plainConditions = """
+        [{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-2000},{"op":"is","field":"date","value":"\(Self.today)"}]
+        """
+        let fixture = try makeDatabase(
+            extraSQL: schema + """
+            INSERT INTO payees VALUES ('transfer-savings', 'Transfer: Savings', 'savings', 0);
+            INSERT INTO payees VALUES ('transfer-checking', 'Transfer: Checking', 'checking', 0);
+            CREATE TABLE payee_mapping (id TEXT PRIMARY KEY, targetId TEXT);
+            INSERT INTO payee_mapping VALUES ('transfer-savings', 'transfer-savings');
+            """ + scheduleInsertSQL(
+                scheduleID: "rent",
+                conditions: transferConditions,
+                actions: "[{\"op\":\"link-schedule\",\"value\":\"rent\"}]",
+                nextDayID: Self.today
+            ) + scheduleInsertSQL(
+                scheduleID: "utilities",
+                conditions: plainConditions,
+                actions: "[{\"op\":\"link-schedule\",\"value\":\"utilities\"}]",
+                nextDayID: Self.today
+            ),
+            metadata: ["note": "retain-me"]
+        )
+
+        let result = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+
+        #expect(try scheduleTransactionCount("rent", fixture.url) == 0)
+        #expect(try scheduleTransactionCount("utilities", fixture.url) == 1)
+        #expect(result.receipts.map(\.scheduleID) == ["utilities"])
+        #expect(result.refusals == [ScheduleAutoPostRefusal(
+            scheduleID: "rent", scheduleName: "rent", occurrenceDayID: Self.today,
+            refusal: .unsupportedBudgetSchema
+        )])
+        #expect(try metadataObject(beside: fixture.url)["lastScheduleRun"] as? String == Self.today)
+    }
+
     @Test func nonRefusalErrorStopsTheRunAndLeavesTheMarkerUnset() async throws {
         let fixture = try makeDatabase(
             extraSQL: oneTimeScheduleSQL(scheduleID: "rent", dayID: Self.today, amount: -10_000)

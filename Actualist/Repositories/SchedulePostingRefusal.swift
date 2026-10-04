@@ -12,6 +12,8 @@ enum SchedulePostingRefusal: Error, Hashable, Sendable {
     case draftMismatch
     case ruleDeletesTransaction
     case ruleChangedScheduleLink
+    /// The budget's tables lack something this occurrence's transaction graph needs.
+    case unsupportedBudgetSchema
     case beforeMatchWindow(earliestDayID: String)
 }
 
@@ -24,6 +26,8 @@ extension SchedulePostingRefusal: LocalizedError {
             "This schedule occurrence is no longer available to post."
         case .occurrenceDateMismatch, .draftMismatch:
             "This schedule changed during sync. Review its latest details and try again."
+        case .unsupportedBudgetSchema:
+            "This budget's file layout does not support posting this schedule."
         case .ruleDeletesTransaction:
             "A matching rule removes this scheduled transaction, so it cannot be posted."
         case .ruleChangedScheduleLink:
