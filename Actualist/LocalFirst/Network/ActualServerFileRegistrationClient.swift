@@ -123,6 +123,11 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
     private let session: URLSession
     private let redirectDelegate: CustomHTTPHeaderRedirectDelegate
 
+    /// Registration replies are `{status, data: {groupId}}` or a short error
+    /// object, a few hundred bytes. 64 KiB leaves ample room for a verbose
+    /// proxy error page while refusing a hostile or broken server's stream.
+    static let maximumResponseBytes = 64 * 1_024
+
     init(
         baseURL: URL,
         customHeaders: HTTPHeaderFields = .empty,
@@ -239,9 +244,18 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request, delegate: redirectDelegate)
+            (data, response) = try await LimitedResponseReader.data(
+                for: request,
+                session: session,
+                redirects: redirectDelegate,
+                maximumBytes: Self.maximumResponseBytes
+            )
+        } catch LimitedResponseReader.ReadError.limitExceeded {
+            throw LocalFirstError.remoteDataLimitExceeded
         } catch where error.isCancellation {
             throw CancellationError()
+        } catch let error as ActualAPIError {
+            throw error
         } catch let error as URLError {
             throw ActualAPIError.transport(error.code)
         } catch {
