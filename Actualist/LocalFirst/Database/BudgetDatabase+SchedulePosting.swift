@@ -47,8 +47,12 @@ extension BudgetDatabase {
                     throw SchedulePostingRefusal.accountUnavailable
                 }
 
-                let latest = try fetchSchedules(budgetID: review.budgetID, today: today, db: db)
-                guard let schedule = latest.detail(id: review.scheduleID),
+                guard let schedule = try fetchScheduleDetail(
+                    budgetID: review.budgetID,
+                    scheduleID: review.scheduleID,
+                    today: today,
+                    db: db
+                ),
                       schedule.capabilities.canPost,
                       [.due, .upcoming, .missed].contains(schedule.status),
                       schedule.account.availability == .available,

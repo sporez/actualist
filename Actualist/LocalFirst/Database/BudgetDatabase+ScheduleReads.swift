@@ -13,6 +13,41 @@ extension BudgetDatabase {
         today: String,
         db: Database
     ) throws -> LoadedSchedules {
+        try loadSchedules(budgetID: budgetID, today: today, onlyScheduleID: nil, db: db)
+    }
+
+    /// One schedule's detail, read without scanning every schedule, rule and
+    /// next-date row. Identical to `fetchSchedules(...).detail(id:)`.
+    func fetchScheduleDetail(
+        budgetID: String,
+        scheduleID: String,
+        today: String
+    ) throws -> ScheduleDetail? {
+        try queue.read { db in
+            try fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today, db: db)
+        }
+    }
+
+    func fetchScheduleDetail(
+        budgetID: String,
+        scheduleID: String,
+        today: String,
+        db: Database
+    ) throws -> ScheduleDetail? {
+        try loadSchedules(
+            budgetID: budgetID,
+            today: today,
+            onlyScheduleID: scheduleID,
+            db: db
+        ).detail(id: scheduleID)
+    }
+
+    private func loadSchedules(
+        budgetID: String,
+        today: String,
+        onlyScheduleID: String?,
+        db: Database
+    ) throws -> LoadedSchedules {
         guard try tableExists("schedules", db: db) else {
             return .empty(budgetID: budgetID)
         }
@@ -22,8 +57,7 @@ extension BudgetDatabase {
         }
 
         let defaultUpcomingLength = try scheduleUpcomingLength(db: db)
-        let rules = try scheduleRuleRows(db: db)
-        let nextDates = try scheduleNextDateRows(db: db)
+        let nextDates = try scheduleNextDateRows(scheduleID: onlyScheduleID, db: db)
         let nextDateColumns: Set<String>
         if try tableExists("schedules_next_date", db: db) {
             nextDateColumns = try columnSet(for: "schedules_next_date", db: db)
@@ -73,7 +107,13 @@ extension BudgetDatabase {
                        \(sortOrder) AS sort_order
                 FROM schedules
                 WHERE \(predicateForLiveRows(columns: scheduleColumns))
-                """
+                \(onlyScheduleID == nil ? "" : "AND id = ?")
+                """,
+            arguments: StatementArguments(onlyScheduleID.map { [$0] } ?? [])
+        )
+        let rules = try scheduleRuleRows(
+            ruleIDs: onlyScheduleID == nil ? nil : rows.compactMap { $0["rule"] as String? },
+            db: db
         )
 
         var projectionsByScheduleID: [String: ScheduleRuleProjection] = [:]
@@ -254,18 +294,28 @@ extension BudgetDatabase {
         let isClosed: Bool
     }
 
-    private func scheduleRuleRows(db: Database) throws -> [String: ScheduleRuleRow] {
+    /// `ruleIDs == nil` reads every live rule; otherwise only those rules.
+    private func scheduleRuleRows(
+        ruleIDs: [String]?,
+        db: Database
+    ) throws -> [String: ScheduleRuleRow] {
         guard try tableExists("rules", db: db) else { return [:] }
         let columns = try columnSet(for: "rules", db: db)
         guard columns.contains("id") else { return [:] }
+        if let ruleIDs, ruleIDs.isEmpty { return [:] }
+        let idFilter = ruleIDs.map { ids in
+            let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
+            return "AND id IN (\(placeholders))"
+        } ?? ""
         let conditions = column("conditions", fallback: "NULL", columns: columns)
         let actions = column("actions", fallback: "NULL", columns: columns)
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT id, \(conditions) AS conditions, \(actions) AS actions
-                FROM rules WHERE \(predicateForLiveRows(columns: columns))
-                """
+                FROM rules WHERE \(predicateForLiveRows(columns: columns)) \(idFilter)
+                """,
+            arguments: StatementArguments(ruleIDs ?? [])
         )
         return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
             guard let id = row["id"] as String? else { return nil }
@@ -290,7 +340,10 @@ extension BudgetDatabase {
         ) != nil
     }
 
-    private func scheduleNextDateRows(db: Database) throws -> [String: [ScheduleNextDateRow]] {
+    private func scheduleNextDateRows(
+        scheduleID: String?,
+        db: Database
+    ) throws -> [String: [ScheduleNextDateRow]] {
         guard try tableExists("schedules_next_date", db: db) else { return [:] }
         let columns = try columnSet(for: "schedules_next_date", db: db)
         guard columns.contains("schedule_id") else { return [:] }
@@ -309,7 +362,9 @@ extension BudgetDatabase {
                        \(baseTimestamp) AS base_next_date_ts
                 FROM schedules_next_date
                 WHERE \(predicateForLiveRows(columns: columns))
-                """
+                \(scheduleID == nil ? "" : "AND schedule_id = ?")
+                """,
+            arguments: StatementArguments(scheduleID.map { [$0] } ?? [])
         )
         var result: [String: [ScheduleNextDateRow]] = [:]
         for row in rows {

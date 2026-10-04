@@ -307,7 +307,7 @@ struct ScheduleAdvancementTests {
         return ActualScheduleRecurrence.dayID(from: Date(), calendar: calendar)
     }
 
-    private func oneTimeScheduleSQL(
+    func oneTimeScheduleSQL(
         scheduleID: String,
         dayID: String,
         amount: Int,
@@ -326,7 +326,7 @@ struct ScheduleAdvancementTests {
         )
     }
 
-    private func recurringScheduleSQL(
+    func recurringScheduleSQL(
         scheduleID: String,
         startDayID: String,
         frequency: String,
@@ -345,7 +345,7 @@ struct ScheduleAdvancementTests {
         )
     }
 
-    private func scheduleInsertSQL(
+    func scheduleInsertSQL(
         scheduleID: String,
         conditions: String,
         actions: String,
@@ -365,7 +365,7 @@ struct ScheduleAdvancementTests {
         """
     }
 
-    private static var schemaSQL: String {
+    static var schemaSQL: String {
         """
         ALTER TABLE transactions ADD COLUMN schedule TEXT;
         ALTER TABLE transactions ADD COLUMN description TEXT;

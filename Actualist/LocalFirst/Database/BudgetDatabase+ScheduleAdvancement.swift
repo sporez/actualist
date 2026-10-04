@@ -96,7 +96,7 @@ extension BudgetDatabase {
     ) throws -> ScheduleAdvancementStep {
         for _ in 0..<Self.maximumOccurrencesPerSchedule {
             try Task.checkCancellation()
-            guard let detail = try fetchSchedules(budgetID: budgetID, today: today).detail(id: scheduleID) else {
+            guard let detail = try fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today) else {
                 return .nextSchedule
             }
             let action = ScheduleOccurrencePlanner.action(
@@ -233,7 +233,7 @@ extension BudgetDatabase {
         scheduleMutated: inout Bool
     ) throws -> RecurringAdvanceStep {
         try Task.checkCancellation()
-        guard let detail = try fetchSchedules(budgetID: budgetID, today: today).detail(id: scheduleID),
+        guard let detail = try fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today),
               let currentDayID = detail.effectiveNextDate,
               detail.dateRule.recurrence != nil else {
             return .dateUnchanged
@@ -275,7 +275,7 @@ extension BudgetDatabase {
             scheduleMutated = true
         }
         guard committed.outcome,
-              let updated = try fetchSchedules(budgetID: budgetID, today: today).detail(id: scheduleID)?.effectiveNextDate,
+              let updated = try fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today)?.effectiveNextDate,
               updated != currentDayID else {
             return .dateUnchanged
         }
