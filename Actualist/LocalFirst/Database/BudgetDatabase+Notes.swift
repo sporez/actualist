@@ -39,10 +39,20 @@ extension BudgetDatabase {
         )
     }
 
-    func allUserNoteIDs(db: Database) throws -> Set<String> {
-        try userNoteIDs(
-            sql: "SELECT id, note FROM notes",
-            arguments: StatementArguments(),
+    /// User-note ids a month fetch can look up: that month's note and the
+    /// notes of category groups and categories. Account, payee and other
+    /// months' notes are never read. The scope is a superset of the live rows
+    /// (tombstoned categories included), so every lookup resolves as it would
+    /// against the whole table.
+    func userNoteIDs(inMonth month: String, db: Database) throws -> Set<String> {
+        var scopes = ["id = ?"]
+        for table in ["categories", "category_groups"] where try tableExists(table, db: db) {
+            guard try columnSet(for: table, db: db).contains("id") else { continue }
+            scopes.append("id IN (SELECT id FROM \(table))")
+        }
+        return try userNoteIDs(
+            sql: "SELECT id, note FROM notes WHERE \(scopes.joined(separator: " OR "))",
+            arguments: ["budget-\(month)"],
             db: db
         )
     }

@@ -32,7 +32,7 @@ extension BudgetDatabase {
     private func fetchBudgetMonth(month: String, db: Database) throws -> BudgetMonth {
         let table = try budgetTable(db: db)
         let (categoryValues, previousValues) = try categoryValuesWithPrevious(through: month, db: db)
-        let userNoteIDs = try allUserNoteIDs(db: db)
+        let userNoteIDs = try userNoteIDs(inMonth: month, db: db)
         let groups = try fetchCategoryGroups(
             categoryValues: categoryValues,
             userNoteIDs: userNoteIDs,
