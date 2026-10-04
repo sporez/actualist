@@ -4,23 +4,24 @@ import Testing
 
 /// Phase 1 tests for the SimpleFIN server transport: route support
 /// classification, response decoding, and error-code → durable status
-/// mapping. The URLProtocol stub shares mutable statics, so the suite runs
-/// serialized.
+/// mapping. The suite stays serialized; each test owns its own StubHTTPEndpoint.
 @Suite(.serialized)
 struct SimpleFINClientTests {
+    private let endpoint = StubHTTPEndpoint()
+
     private func makeClient(
         statusCode: Int,
         body: String,
         failConnect: Bool = false,
         customHeaders: HTTPHeaderFields = .empty
     ) -> ActualServerSimpleFINClient {
-        let configuration = URLSessionConfiguration.ephemeral
+        let configuration: URLSessionConfiguration
         if failConnect {
+            configuration = URLSessionConfiguration.ephemeral
             configuration.protocolClasses = [UnreachableSimpleFINURLProtocol.self]
         } else {
-            configuration.protocolClasses = [SimpleFINStubURLProtocol.self]
-            SimpleFINStubURLProtocol.statusCode = statusCode
-            SimpleFINStubURLProtocol.body = body
+            endpoint.respond(statusCode: statusCode, body: body)
+            configuration = endpoint.makeConfiguration()
         }
         return ActualServerSimpleFINClient(
             baseURL: URL(string: "https://sync.example")!,
@@ -223,7 +224,7 @@ struct SimpleFINClientTests {
             accountIDs: ["acct_1"],
             startDates: ["2026-06-01"]
         )
-        let payload = try #require(SimpleFINStubURLProtocol.lastRequestBody)
+        let payload = try #require(endpoint.lastRequestBody)
         let json = try #require(JSONSerialization.jsonObject(with: payload) as? [String: Any])
         #expect(json["accountId"] as? [String] == ["acct_1"])
         #expect(json["startDate"] as? [String] == ["2026-06-01"])
@@ -386,50 +387,7 @@ struct SimpleFINClientTests {
     }
 }
 
-// MARK: - Stub URLProtocol
-
-private final class SimpleFINStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var statusCode = 200
-    nonisolated(unsafe) static var body = ""
-    nonisolated(unsafe) static var lastRequestBody: Data?
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        if let stream = request.httpBodyStream {
-            SimpleFINStubURLProtocol.lastRequestBody = Self.read(stream: stream)
-        } else {
-            SimpleFINStubURLProtocol.lastRequestBody = request.httpBody
-        }
-        let response = HTTPURLResponse(
-            url: request.url!,
-            statusCode: Self.statusCode,
-            httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": "application/json"]
-        )!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(Self.body.utf8))
-        client?.urlProtocolDidFinishLoading(self)
-    }
-
-    override func stopLoading() {}
-
-    private static func read(stream: InputStream) -> Data? {
-        stream.open()
-        defer { stream.close() }
-        var data = Data()
-        let bufferSize = 4_096
-        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
-        defer { buffer.deallocate() }
-        while stream.hasBytesAvailable {
-            let read = stream.read(buffer, maxLength: bufferSize)
-            if read <= 0 { break }
-            data.append(buffer, count: read)
-        }
-        return data
-    }
-}
+// MARK: - Unreachable URLProtocol
 
 private final class UnreachableSimpleFINURLProtocol: URLProtocol {
     override class func canInit(with request: URLRequest) -> Bool { true }

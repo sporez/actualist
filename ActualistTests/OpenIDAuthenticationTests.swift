@@ -225,13 +225,12 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func openIDTransportSendsActualManagedLoginPayload() async throws {
-        OpenIDRequestURLProtocol.capturedRequest = nil
-        OpenIDRequestURLProtocol.capturedBody = nil
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [OpenIDRequestURLProtocol.self]
+        let endpoint = StubHTTPEndpoint(
+            body: #"{"status":"ok","data":{"returnUrl":"https://identity.example/authorize"}}"#
+        )
         let client = ActualServerSyncClient(
             baseURL: try #require(URL(string: "https://sync.example")),
-            session: URLSession(configuration: configuration)
+            session: endpoint.makeSession()
         )
         let returnURL = try #require(URL(string: "com.sporez.actualist://localhost/openid/nonce"))
 
@@ -240,8 +239,8 @@ extension LocalFirstActualStoreTests {
             firstTimeLoginPassword: nil
         )
 
-        let request = try #require(OpenIDRequestURLProtocol.capturedRequest)
-        let body = try #require(OpenIDRequestURLProtocol.capturedBody)
+        let request = try #require(endpoint.lastRequest)
+        let body = try #require(endpoint.lastRequestBody)
         let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
         #expect(request.url?.path == "/account/login")
         #expect(payload["loginMethod"] == "openid")
@@ -270,44 +269,5 @@ extension LocalFirstActualStoreTests {
         let viewModel = OnboardingViewModel()
         viewModel.serverURLString = "https://sync.example"
         return (viewModel, appState, transport)
-    }
-}
-
-final class OpenIDRequestURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var capturedRequest: URLRequest?
-    nonisolated(unsafe) static var capturedBody: Data?
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        Self.capturedRequest = request
-        Self.capturedBody = request.httpBody ?? Self.readBodyStream(request.httpBodyStream)
-        let body = Data(#"{"status":"ok","data":{"returnUrl":"https://identity.example/authorize"}}"#.utf8)
-        let response = HTTPURLResponse(
-            url: request.url!,
-            statusCode: 200,
-            httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": "application/json"]
-        )!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: body)
-        client?.urlProtocolDidFinishLoading(self)
-    }
-
-    override func stopLoading() {}
-
-    private static func readBodyStream(_ stream: InputStream?) -> Data? {
-        guard let stream else { return nil }
-        stream.open()
-        defer { stream.close() }
-        var data = Data()
-        var buffer = [UInt8](repeating: 0, count: 1_024)
-        while stream.hasBytesAvailable {
-            let count = stream.read(&buffer, maxLength: buffer.count)
-            guard count > 0 else { break }
-            data.append(buffer, count: count)
-        }
-        return data
     }
 }

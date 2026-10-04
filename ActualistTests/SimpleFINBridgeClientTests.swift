@@ -5,10 +5,11 @@ import Testing
 
 /// Phase 5 tests (device-claim fallback): pure setup-token / access-key
 /// parsing, the claim HTTP behavior, bridge response decoding, and the
-/// `makeBankSyncProvider` resolution order. The URLProtocol stubs share
-/// mutable statics, so the suite runs serialized.
+/// `makeBankSyncProvider` resolution order. The suite stays serialized;
+/// each test owns its own StubHTTPEndpoint.
 @Suite(.serialized)
 struct SimpleFINBridgeClientTests {
+    private let endpoint = StubHTTPEndpoint()
     private static let accessURLBody = "https://user:secret@bridge.example/user"
 
     private func httpsURLString(_ value: String) -> String {
@@ -98,11 +99,8 @@ struct SimpleFINBridgeClientTests {
     // MARK: - Claim (network)
 
     private func makeClaimClient(statusCode: Int, body: String) -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [BridgeStubURLProtocol.self]
-        BridgeStubURLProtocol.statusCode = statusCode
-        BridgeStubURLProtocol.body = body
-        return URLSession(configuration: configuration)
+        endpoint.respond(statusCode: statusCode, body: body)
+        return endpoint.makeSession()
     }
 
     @Test func claimReturnsParsedCredentialsAndBaseURL() async throws {
@@ -149,15 +147,12 @@ struct SimpleFINBridgeClientTests {
     // MARK: - Bridge response decoding (network)
 
     private func makeBridgeClient(body: String) -> SimpleFINBridgeClient {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [BridgeStubURLProtocol.self]
-        BridgeStubURLProtocol.statusCode = 200
-        BridgeStubURLProtocol.body = body
+        endpoint.respond(statusCode: 200, body: body)
         return SimpleFINBridgeClient(
             baseURL: URL(string: "https://bridge.example/user")!,
             username: "user",
             password: "secret",
-            session: URLSession(configuration: configuration)
+            session: endpoint.makeSession()
         )
     }
 
@@ -179,7 +174,7 @@ struct SimpleFINBridgeClientTests {
         #expect(accounts.first?.orgName == "First Bank")
         #expect(accounts.first?.orgDomain == "firstbank.example")
         #expect(accounts.first?.orgID == "org_9")
-        let query = try #require(BridgeStubURLProtocol.lastRequest?.url?.query)
+        let query = try #require(endpoint.lastRequest?.url?.query)
         #expect(query.contains("balances-only=1"))
         #expect(!query.contains("pending=1"))
     }
@@ -249,14 +244,14 @@ struct SimpleFINBridgeClientTests {
 
         #expect(response.downloads["older-window"]?.transactions.map(\.id) == ["old-jan"])
         #expect(response.downloads["newer-window"]?.transactions.map(\.id) == ["new-mar"])
-        let query = try #require(BridgeStubURLProtocol.lastRequest?.url?.query)
+        let query = try #require(endpoint.lastRequest?.url?.query)
         #expect(query.contains("start-date=\(SimpleFINBridgeClient.unixSeconds(fromDay: "2024-01-01"))"))
     }
 
     @Test func transactionsRequestSendsBasicAuthAndDateQuery() async throws {
         let client = makeBridgeClient(body: #"{"accounts": []}"#)
         _ = try await client.transactions(accountIDs: ["acct_1"], startDates: ["2024-02-01"])
-        let request = try #require(BridgeStubURLProtocol.lastRequest)
+        let request = try #require(endpoint.lastRequest)
         #expect(request.url?.path.hasSuffix("/accounts") == true)
         let query = request.url?.query ?? ""
         #expect(query.contains("start-date="))
@@ -275,7 +270,7 @@ struct SimpleFINBridgeClientTests {
     @Test func http402And403MapToPaymentAndRevoked() async throws {
         do {
             let client = makeBridgeClient(body: "{}")
-            BridgeStubURLProtocol.statusCode = 402
+            endpoint.respond(statusCode: 402, body: "{}")
             _ = try await client.remoteAccounts()
             Issue.record("expected paymentRequired")
         } catch let error as SimpleFINBridgeError {
@@ -283,7 +278,7 @@ struct SimpleFINBridgeClientTests {
         }
         do {
             let client = makeBridgeClient(body: "{}")
-            BridgeStubURLProtocol.statusCode = 403
+            endpoint.respond(statusCode: 403, body: "{}")
             _ = try await client.remoteAccounts()
             Issue.record("expected accessRevoked")
         } catch let error as SimpleFINBridgeError {
@@ -321,32 +316,6 @@ struct SimpleFINBridgeClientTests {
                 == "SimpleFIN returned more data than Actualist can safely read, so nothing was imported."
         )
     }
-}
-
-// MARK: - Stub URLProtocol
-
-private final class BridgeStubURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var statusCode = 200
-    nonisolated(unsafe) static var body = ""
-    nonisolated(unsafe) static var lastRequest: URLRequest?
-
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-
-    override func startLoading() {
-        Self.lastRequest = request
-        let response = HTTPURLResponse(
-            url: request.url!,
-            statusCode: Self.statusCode,
-            httpVersion: "HTTP/1.1",
-            headerFields: nil
-        )!
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(Self.body.utf8))
-        client?.urlProtocolDidFinishLoading(self)
-    }
-
-    override func stopLoading() {}
 }
 
 // MARK: - Provider resolution (store-level)
