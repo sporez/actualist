@@ -37,17 +37,3 @@ func transaction(id: String) -> ActualTransaction {
         cleared: .bool(false)
     )
 }
-
-/// The selections a failed command retains, read from the coordinator's
-/// observable state. Nil unless the coordinator is in `.failed`.
-@MainActor
-func failedSelections(_ coordinator: TransactionDuplicateCoordinator) -> [TransactionSelectionIdentity]? {
-    if case .failed(_, let selections, _) = coordinator.state { return selections.identities }
-    return nil
-}
-
-@MainActor
-func failedSelections(_ coordinator: TransactionMergeCoordinator) -> [TransactionSelectionIdentity]? {
-    if case .failed(_, let selections, _) = coordinator.state { return selections.identities }
-    return nil
-}

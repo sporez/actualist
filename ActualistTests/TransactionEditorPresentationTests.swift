@@ -46,6 +46,23 @@ extension TransactionEditorViewModelTests {
             account: "checking",
             payee: "transfer-savings"
         )
+        func categoryText(
+            for transaction: ActualTransaction,
+            categoryNames: [String: String],
+            transferPayeeIDs: Set<String>,
+            transferAccountIDsByPayeeID: [String: String],
+            offBudgetAccountIDs: Set<String>
+        ) -> String {
+            TransactionRowSemantics.project(
+                transaction,
+                lookup: TransactionRowLookup(
+                    categoryNames: categoryNames,
+                    transferPayeeIDs: transferPayeeIDs,
+                    transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+                    offBudgetAccountIDs: offBudgetAccountIDs
+                )
+            ).categoryText
+        }
         let categoryNames = ["investments": "Investments"]
         let transferPayeeIDs: Set<String> = [
             "transfer-checking",
@@ -58,34 +75,34 @@ extension TransactionEditorViewModelTests {
             "transfer-savings": "savings"
         ]
 
-        #expect(TransactionCategoryPresentation.names(
+        #expect(categoryText(
             for: offBudgetTransaction,
             categoryNames: categoryNames,
             transferPayeeIDs: transferPayeeIDs,
             transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
             offBudgetAccountIDs: ["tracking"]
-        ) == ["Off budget"])
-        #expect(TransactionCategoryPresentation.names(
+        ) == "Off budget")
+        #expect(categoryText(
             for: crossBudgetTransfer,
             categoryNames: categoryNames,
             transferPayeeIDs: transferPayeeIDs,
             transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
             offBudgetAccountIDs: ["tracking"]
-        ) == ["Uncategorized"])
-        #expect(TransactionCategoryPresentation.names(
+        ) == "Uncategorized")
+        #expect(categoryText(
             for: categorizedCrossBudgetTransfer,
             categoryNames: categoryNames,
             transferPayeeIDs: transferPayeeIDs,
             transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
             offBudgetAccountIDs: ["tracking"]
-        ) == ["Investments"])
-        #expect(TransactionCategoryPresentation.names(
+        ) == "Investments")
+        #expect(categoryText(
             for: sameBudgetTransfer,
             categoryNames: categoryNames,
             transferPayeeIDs: transferPayeeIDs,
             transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
             offBudgetAccountIDs: ["tracking"]
-        ) == ["Account Transfer"])
+        ) == "Account Transfer")
     }
 
     @Test func formatsTypedDigitsAsCents() {

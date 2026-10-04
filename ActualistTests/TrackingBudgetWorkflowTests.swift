@@ -62,7 +62,6 @@ struct TrackingBudgetWorkflowTests {
 
         model.beginMoveMoney(for: category.id)
         #expect(!model.isMoveMoneyPresented)
-        #expect(!model.canOpenOverspentCover)
         #expect(!model.canBeginOverspentCoverSelection)
     }
 

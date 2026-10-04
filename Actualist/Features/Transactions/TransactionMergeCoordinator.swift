@@ -29,7 +29,6 @@ final class TransactionMergeCoordinator {
         case committed(TransactionMergeOutcome)
         case failed(
             context: TransactionSelectionContext,
-            selections: TransactionOrderedSelection,
             message: String
         )
     }
@@ -55,7 +54,7 @@ final class TransactionMergeCoordinator {
     }
 
     var failureMessage: String? {
-        if case .failed(_, _, let message) = state { return message }
+        if case .failed(_, let message) = state { return message }
         return nil
     }
 
@@ -125,7 +124,6 @@ final class TransactionMergeCoordinator {
         guard isCurrent(preparation) else { return }
         state = .failed(
             context: preparation.context,
-            selections: TransactionOrderedSelection(preparation.selections),
             message: message
         )
     }
@@ -164,7 +162,6 @@ final class TransactionMergeCoordinator {
         guard case .submitting(let reviewed) = state, reviewed.review.id == reviewID else { return }
         state = .failed(
             context: reviewed.review.context,
-            selections: TransactionOrderedSelection(reviewed.selections),
             message: message
         )
     }

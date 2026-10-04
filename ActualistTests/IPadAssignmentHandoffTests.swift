@@ -11,7 +11,7 @@ struct IPadAssignmentHandoffTests {
         model.beginAssignmentEditing(for: try #require(model.visibleGroups.first?.categories.first))
         model.appendAssignmentDigit(9)
         await model.selectMonth("2026-08", budgetID: "budget", repository: repository)
-        #expect(model.assignmentDraft == nil)
+        #expect(model.assignmentWorkflow.draft == nil)
         #expect(await model.submitAssignment(budgetID: "budget", repository: repository) == false)
         #expect(try await repository.budgetMonth(budgetID: "budget", selectedMonth: "2026-08").month.totalBudgeted == 100)
     }
@@ -45,21 +45,21 @@ extension IPadAssignmentHandoffTests {
         await session.update(mode: .sidebar, budgetID: "group-1", appState: state).value
         session.viewport.setResolvedMonthCount(2)
         await session.viewport.refreshVisibleMonths()
-        let julyBefore = try await bundle.store.fetchBudgetMonthUncached(budgetID: "group-1", month: "2026-07")
+        let julyBefore = try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-07")
         session.viewport.beginAssignmentEditing(categoryID: "groceries", month: "2026-08")
         session.viewport.setAssignmentInputMode(mode)
         session.viewport.assignmentWorkflow.replaceInputDigits("50")
         let draft = try #require(session.viewport.assignmentWorkflow.draft)
         await session.update(mode: .compact, budgetID: "group-1", appState: state).value
         #expect(session.compactModel.selectedMonth == "2026-08")
-        #expect(session.compactModel.assignmentDraft == draft)
+        #expect(session.compactModel.assignmentWorkflow.draft == draft)
         await session.update(mode: .sidebar, budgetID: "group-1", appState: state).value
         #expect(session.viewport.anchorMonth == "2026-07")
         #expect(session.viewport.assignmentWorkflow.draft == draft)
         await session.update(mode: .compact, budgetID: "group-1", appState: state).value
         #expect(await session.compactModel.submitAssignment(budgetID: "group-1", repository: bundle.store))
-        let july = try await bundle.store.fetchBudgetMonthUncached(budgetID: "group-1", month: "2026-07")
-        let august = try await bundle.store.fetchBudgetMonthUncached(budgetID: "group-1", month: "2026-08")
+        let july = try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-07")
+        let august = try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-08")
         #expect(july.month == julyBefore.month)
         #expect(august.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }?.budgeted == draft.finalBudgeted)
         #expect(await session.compactModel.submitAssignment(budgetID: "group-1", repository: bundle.store) == false)
@@ -72,7 +72,7 @@ extension IPadAssignmentHandoffTests {
         let session = AdaptiveBudgetSession(repository: bundle.store)
         await session.update(mode: .compact, budgetID: "group-1", appState: state).value
         await session.compactModel.selectMonth("2026-07", budgetID: "group-1", repository: bundle.store)
-        let before = try await bundle.store.fetchBudgetMonthUncached(budgetID: "group-1", month: "2026-07")
+        let before = try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-07")
         let category = try #require(before.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
         session.compactModel.beginAssignmentEditing(for: category)
         session.compactModel.appendAssignmentDigit(9)
@@ -80,10 +80,10 @@ extension IPadAssignmentHandoffTests {
         #expect(session.viewport.assignmentWorkflow.draft?.inputDigits == "9")
         await session.viewport.moveAnchor(by: 1)
         await session.update(mode: .compact, budgetID: "group-1", appState: state).value
-        #expect(session.compactModel.assignmentDraft == nil)
+        #expect(session.compactModel.assignmentWorkflow.draft == nil)
         #expect(await session.compactModel.submitAssignment(budgetID: "group-1", repository: bundle.store) == false)
-        #expect(try await bundle.store.fetchBudgetMonthUncached(budgetID: "group-1", month: "2026-07").month == before.month)
-        #expect(try await bundle.store.fetchBudgetMonthUncached(budgetID: "group-1", month: "2026-08").month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }?.budgeted == 900)
+        #expect(try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-07").month == before.month)
+        #expect(try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-08").month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }?.budgeted == 900)
     }
 
     @Test func carryoverPolicyRefreshesOnEveryActivation() async throws {

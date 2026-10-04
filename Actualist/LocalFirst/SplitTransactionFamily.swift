@@ -173,8 +173,6 @@ struct SplitTransactionRecord: Equatable, Sendable, Codable {
         return copy
     }
 
-    var isEffectiveParent: Bool { isParent }
-    var isEffectiveChild: Bool { isChild }
     var effectiveParentID: String? { isChild ? parentID : nil }
 }
 

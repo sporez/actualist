@@ -24,9 +24,7 @@ struct SplitTransactionFamilyTests {
         )
         #expect(inherited.selected() == expected[0])
         #expect(overridden.selected() == expected[1])
-        #expect(inherited.isEffectiveChild)
         #expect(inherited.effectiveParentID == parent.id)
-        #expect(!inherited.isEffectiveParent)
     }
 
     @Test func recalculateExactMismatchAndMixedSignMatchOracle() throws {

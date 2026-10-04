@@ -295,7 +295,6 @@ struct ReportsTests {
     @Test func reportPresentationHandlesMinimumIntegerAmounts() {
         let viewModel = ReportsViewModel()
 
-        #expect(!viewModel.axisLabel(Int.min).isEmpty)
         #expect(viewModel.calendarIntensity(Int.min) == 0)
     }
 

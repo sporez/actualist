@@ -192,7 +192,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
         model.appendAssignmentDigit(0)
         model.appendAssignmentDigit(0)
 
-        #expect(model.assignmentDraft?.finalBudgeted == 500)
+        #expect(model.assignmentWorkflow.draft?.finalBudgeted == 500)
         #expect(model.assignedAmountDisplay(for: try BudgetViewModelFixtures.decodeCategory(budgeted: 5_283)).primaryText.contains("5.00"))
     }
 
@@ -203,8 +203,8 @@ struct BudgetViewModelAssignmentWorkflowTests {
         model.beginAssignmentEditing(for: category)
         model.appendAssignmentDigit(0)
 
-        #expect(model.assignmentDraft?.inputDigits == "0")
-        #expect(model.assignmentDraft?.finalBudgeted == 0)
+        #expect(model.assignmentWorkflow.draft?.inputDigits == "0")
+        #expect(model.assignmentWorkflow.draft?.finalBudgeted == 0)
         #expect(model.canSubmitAssignment)
         #expect(model.assignedAmountDisplay(for: category).primaryText.contains("0.00"))
     }
@@ -215,7 +215,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
 
         model.beginAssignmentEditing(for: category)
         model.setAssignmentInputMode(.subtraction)
-        #expect(model.assignmentDraft?.inputMode == .subtraction)
+        #expect(model.assignmentWorkflow.draft?.inputMode == .subtraction)
         #expect(model.assignedAmountDisplay(for: category).secondaryText?.hasPrefix("-") == true)
 
         model.setAssignmentInputMode(.addition)
@@ -223,15 +223,15 @@ struct BudgetViewModelAssignmentWorkflowTests {
         model.appendAssignmentDigit(0)
         model.appendAssignmentDigit(0)
 
-        #expect(model.assignmentDraft?.finalBudgeted == 5_783)
-        #expect(model.assignmentDraft?.signedDelta == 500)
+        #expect(model.assignmentWorkflow.draft?.finalBudgeted == 5_783)
+        #expect(model.assignmentWorkflow.draft?.signedDelta == 500)
         #expect(model.assignedAmountDisplay(for: category).secondaryText?.contains("5.00") == true)
 
         model.setAssignmentInputMode(.subtraction)
 
         #expect(model.assignedAmountDisplay(for: category).secondaryText?.hasPrefix("-") == true)
-        #expect(model.assignmentDraft?.finalBudgeted == 4_783)
-        #expect(model.assignmentDraft?.signedDelta == -500)
+        #expect(model.assignmentWorkflow.draft?.finalBudgeted == 4_783)
+        #expect(model.assignmentWorkflow.draft?.signedDelta == -500)
         #expect(model.assignedAmountDisplay(for: category).secondaryText?.contains("-") == true)
     }
 
@@ -243,7 +243,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
             model.appendAssignmentDigit(9)
         }
 
-        let digits = try #require(model.assignmentDraft?.inputDigits)
+        let digits = try #require(model.assignmentWorkflow.draft?.inputDigits)
         #expect(digits.count == BudgetViewModel.maxAssignmentDigits)
         #expect(Int(digits) != nil)
     }
@@ -288,19 +288,19 @@ struct BudgetViewModelAssignmentWorkflowTests {
         model.appendAssignmentDigit(0)
         model.deleteAssignmentDigit()
 
-        #expect(model.assignmentDraft?.inputDigits == "50")
-        #expect(model.assignmentDraft?.finalBudgeted == 150)
+        #expect(model.assignmentWorkflow.draft?.inputDigits == "50")
+        #expect(model.assignmentWorkflow.draft?.finalBudgeted == 150)
 
         model.appendAssignmentDigit(0)
         model.appendAssignmentDigit(0)
 
-        #expect(model.assignmentDraft?.finalBudgeted == -4_800)
+        #expect(model.assignmentWorkflow.draft?.finalBudgeted == -4_800)
 
         model.clearOrCancelAssignmentInput()
-        #expect(model.assignmentDraft?.inputDigits == "")
+        #expect(model.assignmentWorkflow.draft?.inputDigits == "")
 
         model.clearOrCancelAssignmentInput()
-        #expect(model.assignmentDraft == nil)
+        #expect(model.assignmentWorkflow.draft == nil)
     }
 
     @Test func successfulAssignmentSubmitsFinalAmountAndPreservesExpandedGroupsAfterRefetch() async throws {
@@ -331,7 +331,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
         let saved = await model.submitAssignment(budgetID: "budget", repository: repository)
 
         #expect(saved)
-        #expect(model.assignmentDraft == nil)
+        #expect(model.assignmentWorkflow.draft == nil)
         #expect(model.expandedGroupIDs == ["bills"])
 
         let assignment = try await repository.onlyAssignment()
@@ -355,7 +355,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
         let saved = await model.submitAssignment(budgetID: "budget", repository: repository)
 
         #expect(saved == false)
-        #expect(model.assignmentDraft?.categoryID == "gas")
+        #expect(model.assignmentWorkflow.draft?.categoryID == "gas")
         #expect(model.activeAssignmentErrorMessage == "refetch failed")
         #expect(model.canSubmitAssignment)
     }
@@ -385,7 +385,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
         let applied = await model.applyMonthTemplate(.overwrite, budgetID: "budget", repository: repository)
 
         #expect(applied)
-        #expect(model.monthTemplateSubmissionState == .draft)
+        #expect(model.templateWorkflow.submissionState == .draft)
         #expect(model.expandedGroupIDs == ["bills"])
 
         let template = try await repository.onlyTemplate()
@@ -416,7 +416,7 @@ struct BudgetViewModelAssignmentWorkflowTests {
         let applied = await model.applyCategoryTemplate(budgetID: "budget", repository: repository)
 
         #expect(applied)
-        #expect(model.assignmentDraft == nil)
+        #expect(model.assignmentWorkflow.draft == nil)
 
         let template = try await repository.onlyTemplate()
         #expect(template.command == .category("gas"))
