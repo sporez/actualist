@@ -67,29 +67,18 @@ struct BudgetTemplateConfirmationSheet: View {
         }
         .safeAreaBar(edge: .bottom, spacing: 0) {
             ReviewSheetActions {
-                Button(role: .cancel) {
-                    cancel()
-                } label: {
-                    Text("Cancel")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                }
-                .buttonStyle(.glass)
+                ReviewSheetSecondaryButton(action: cancel)
 
-                Button(role: selectedConfirmation.buttonRole) {
+                ReviewSheetPrimaryButton(
+                    role: selectedConfirmation.buttonRole,
+                    tint: selectedConfirmation.buttonTint
+                ) {
                     guard let reviewRevision = viewModel.reviewRevision else { return }
                     apply(selectedConfirmation, reviewRevision)
                 } label: {
                     Text(selectedConfirmation.actionTitle)
-                        .font(.subheadline.weight(.semibold))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: 32)
                 }
                 .accessibilityIdentifier("template-apply-confirm")
-                .buttonStyle(.glassProminent)
-                .tint(selectedConfirmation.buttonTint)
                 .disabled(!viewModel.canApply)
             }
         }

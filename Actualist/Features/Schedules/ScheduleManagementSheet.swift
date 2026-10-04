@@ -72,27 +72,13 @@ struct ScheduleManagementSheet: View {
         }
         .accessibilityIdentifier("schedule-save-review")
         .reviewSheetBottomBar {
-            Button {
-                coordinator.backToEditor()
-            } label: {
-                Text("Back")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
-            .disabled(coordinator.isSubmitting)
-            Button {
+            ReviewSheetSecondaryButton(title: "Back", role: nil, action: { coordinator.backToEditor() })
+                .disabled(coordinator.isSubmitting)
+            ReviewSheetPrimaryButton {
                 coordinator.confirmSave(locale: locale, mutationRepository: mutationRepository)
             } label: {
                 Text("Save Schedule")
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 32)
             }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
             .accessibilityIdentifier("schedule-save-confirm")
         }
     }
@@ -128,27 +114,16 @@ struct ScheduleManagementSheet: View {
         }
         .accessibilityIdentifier("schedule-action-review")
         .reviewSheetBottomBar {
-            Button(role: .cancel) {
-                coordinator.cancel()
-            } label: {
-                Text("Cancel")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
-            .accessibilityIdentifier("schedule-action-cancel")
-            Button(role: review.action == .delete ? .destructive : nil) {
+            ReviewSheetSecondaryButton { coordinator.cancel() }
+                .accessibilityIdentifier("schedule-action-cancel")
+            ReviewSheetPrimaryButton(
+                role: review.action == .delete ? .destructive : nil,
+                tint: review.action == .delete ? ActualistTheme.danger : ActualistTheme.accent
+            ) {
                 coordinator.confirmAction(mutationRepository: mutationRepository)
             } label: {
                 Text(review.action.title)
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 32)
             }
-            .buttonStyle(.glassProminent)
-            .tint(review.action == .delete ? ActualistTheme.danger : ActualistTheme.accent)
             .accessibilityIdentifier("schedule-action-confirm")
         }
     }
@@ -304,27 +279,13 @@ struct ScheduleEditorView: View {
         .accessibilityIdentifier("schedule-editor")
         .scrollDismissesKeyboard(.interactively)
         .reviewSheetBottomBar {
-            Button(role: .cancel) {
-                coordinator.cancel()
-            } label: {
-                Text("Cancel")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
-            .accessibilityIdentifier("schedule-editor-cancel")
-            Button {
+            ReviewSheetSecondaryButton { coordinator.cancel() }
+                .accessibilityIdentifier("schedule-editor-cancel")
+            ReviewSheetPrimaryButton {
                 coordinator.reviewSave(locale: locale)
             } label: {
                 Text("Review")
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 32)
             }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
             .disabled(coordinator.isSubmitting)
             .accessibilityIdentifier("schedule-save-review-button")
         }

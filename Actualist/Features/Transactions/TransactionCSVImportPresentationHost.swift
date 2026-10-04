@@ -35,8 +35,7 @@ struct TransactionCSVImportPresentationHost: ViewModifier {
             .sheet(isPresented: reviewBinding) {
                 reviewSheet
             }
-            .onChange(of: appState.settings.selectedBudgetID) { coordinator.reset() }
-            .onChange(of: appState.localFirstStore.budgetSessionGeneration) { coordinator.reset() }
+            .onBudgetSessionChange { coordinator.reset() }
     }
 
     private var reviewBinding: Binding<Bool> {
@@ -63,8 +62,7 @@ struct TransactionCSVImportPresentationHost: ViewModifier {
             )
             .appSwitcherPrivacyProtected(using: appState)
         } else {
-            ContentUnavailableView("Choose a Budget", systemImage: "tray")
-                .presentationBackground(ActualistTheme.background)
+            ChooseBudgetUnavailableView()
         }
     }
 }

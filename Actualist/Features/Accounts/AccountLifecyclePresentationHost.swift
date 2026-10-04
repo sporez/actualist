@@ -74,8 +74,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     .interactiveDismissDisabled(coordinator.isSubmitting)
                     .presentationBackground(ActualistTheme.background)
             }
-            .onChange(of: appState.settings.selectedBudgetID) { coordinator.cancel() }
-            .onChange(of: appState.localFirstStore.budgetSessionGeneration) { coordinator.cancel() }
+            .onBudgetSessionChange { coordinator.cancel() }
             .onChange(of: appState.settings.randomizedDisplayValuesEnabled, initial: true) {
                 coordinator.updatePrivacyMode(appState.settings.randomizedDisplayValuesEnabled)
             }

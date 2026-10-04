@@ -16,11 +16,9 @@ struct TransactionCSVExportPresentationHost: ViewModifier {
                     )
                     .appSwitcherPrivacyProtected(using: appState)
                 } else {
-                    ContentUnavailableView("Choose a Budget", systemImage: "tray")
-                        .presentationBackground(ActualistTheme.background)
+                    ChooseBudgetUnavailableView()
                 }
             }
-            .onChange(of: appState.settings.selectedBudgetID) { isPresented = false }
-            .onChange(of: appState.localFirstStore.budgetSessionGeneration) { isPresented = false }
+            .onBudgetSessionChange { isPresented = false }
     }
 }

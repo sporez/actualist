@@ -61,12 +61,7 @@ struct TransactionScheduleConversionPresentationHost: ViewModifier {
                 )
                 .appSwitcherPrivacyProtected(using: appState)
             }
-            .onChange(of: appState.settings.selectedBudgetID) {
-                _ = coordinator.cancel()
-            }
-            .onChange(of: appState.localFirstStore.budgetSessionGeneration) {
-                _ = coordinator.cancel()
-            }
+            .onBudgetSessionChange { _ = coordinator.cancel() }
     }
 
     private func conversionCommitted(_ outcome: TransactionScheduleConversionOutcome) {
