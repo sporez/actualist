@@ -110,21 +110,7 @@ extension BudgetDatabase {
                 committedClock = clock
                 return (plan.outcome, appliedCount)
             }
-        } catch let error as BudgetModeWriteError {
-            throw error
-        } catch let error as ReconciledTransactionMutationError {
-            throw error
-        } catch let error as AccountLifecycleCommandError {
-            throw error
-        } catch let error as ScheduleMutationCommandError {
-            throw error
-        } catch let error as ScheduleConversionError {
-            throw error
-        } catch let error as SchedulePostingRefusal {
-            throw error
-        } catch let error as TransactionCSVImportError {
-            throw error
-        } catch let error as LocalFirstError {
+        } catch let error as any LocalCommitPassthroughError {
             throw error
         } catch {
             throw LocalFirstError.invalidLocalWrite("the database transaction was rolled back")
