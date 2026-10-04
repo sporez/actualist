@@ -8,22 +8,7 @@ enum TransactionGrouping {
         }
     }
 
-    static func displayTitle(_ value: String) -> String {
-        guard let date = inputFormatter.date(from: value) else {
-            return value
-        }
-        return outputFormatter.string(from: date)
+    static func displayTitle(_ value: String, locale: Locale = .current) -> String {
+        ActualDateDisplay.longDay(value, locale: locale) ?? value
     }
-
-    private static let inputFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
-
-    private static let outputFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .long
-        return formatter
-    }()
 }

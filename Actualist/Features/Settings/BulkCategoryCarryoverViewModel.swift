@@ -42,18 +42,7 @@ struct BulkCategoryCarryoverStatus: Equatable, Sendable {
         return "On for \(enabledCount) of \(categoryCount) categories"
     }
 
-    var monthTitle: String {
-        let parts = month.split(separator: "-")
-        guard parts.count == 2,
-              let year = Int(parts[0]),
-              let monthNumber = Int(parts[1]),
-              let date = Calendar(identifier: .gregorian).date(
-                from: DateComponents(year: year, month: monthNumber, day: 1)
-              ) else {
-            return month
-        }
-        return date.formatted(.dateTime.month(.wide).year())
-    }
+    var monthTitle: String { ActualDateDisplay.monthYear(month, width: .wide) ?? month }
 }
 
 @MainActor

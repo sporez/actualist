@@ -1,29 +1,23 @@
 import Foundation
 
 enum BudgetMonthNavigationPresentation {
-    static func title(for month: String?, now: Date = Date()) -> String {
+    static func title(
+        for month: String?,
+        now: Date = Date(),
+        timeZone: TimeZone = .current,
+        locale: Locale = .current
+    ) -> String {
         guard let month else {
-            return title(for: now)
+            let dayID = ActualDateOnly.dayID(from: now, timeZone: timeZone)
+            return ActualDateDisplay.monthYear(String(dayID.prefix(7)), locale: locale) ?? dayID
         }
-
-        let input = DateFormatter()
-        input.dateFormat = "yyyy-MM"
-        guard let date = input.date(from: month) else {
-            return month
-        }
-        return title(for: date)
+        return ActualDateDisplay.monthYear(month, locale: locale) ?? month
     }
 
     static func pickerMonths(for loadedMonth: LoadedBudgetMonth) -> [String] {
         let loadedIDs = loadedMonth.availableMonths.compactMap(canonicalMonthID)
         let selectedIDs = [loadedMonth.selectedMonth, loadedMonth.month.month].compactMap(canonicalMonthID)
         return Array(Set(loadedIDs + selectedIDs)).sorted()
-    }
-
-    private static func title(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM yyyy"
-        return formatter.string(from: date)
     }
 
     private static func canonicalMonthID(_ value: String) -> String? {

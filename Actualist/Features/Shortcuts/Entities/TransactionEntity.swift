@@ -31,6 +31,10 @@ struct TransactionEntity: AppEntity {
     @Property(title: "Transfer")
     var isTransfer: Bool
 
+    /// The transaction's Actual day id. `date` is a local-midnight instant for
+    /// Shortcuts, so display text comes from this id instead.
+    private var dayID: String?
+
     var displayRepresentation: DisplayRepresentation {
         let amountText = amount.map {
             ShortcutMoney.spoken($0, currency: BudgetCurrency.catalog(code: $0.currencyCode))
@@ -43,6 +47,7 @@ struct TransactionEntity: AppEntity {
         id: String,
         amount: IntentCurrencyAmount?,
         date: Date?,
+        dayID: String? = nil,
         payee: String,
         account: String,
         category: String?,
@@ -53,6 +58,7 @@ struct TransactionEntity: AppEntity {
         self.id = id
         self.amount = amount
         self.date = date
+        self.dayID = dayID ?? date.map { ActualDateOnly.dayID(from: $0, timeZone: .current) }
         self.payee = payee
         self.account = account
         self.category = category
@@ -76,6 +82,7 @@ struct TransactionEntity: AppEntity {
             id: id,
             amount: transaction.amount.map { ShortcutMoney.intentAmount(minorUnits: $0, currency: currency) },
             date: transaction.date.actualDate,
+            dayID: transaction.date,
             payee: payeeName,
             account: maps.accountNames[transaction.account] ?? transaction.account,
             category: transaction.category.flatMap { maps.categoryNames[$0] },
@@ -86,10 +93,10 @@ struct TransactionEntity: AppEntity {
     }
 
     private var dateText: String {
-        guard let date else {
+        guard let dayID else {
             return "Unknown date"
         }
-        return ReportCalendar.longDayTitle(ReportCalendar.dayID(for: date))
+        return ActualDateDisplay.weekdayLongDay(dayID) ?? dayID
     }
 }
 
