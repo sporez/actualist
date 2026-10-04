@@ -427,6 +427,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
                 rows: try preparedRows(bundle.store, data: withImportedID, accountID: "checking")
             )
         )
@@ -438,6 +439,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
                 rows: try preparedRows(bundle.store, data: withImportedID, accountID: "checking")
             )
         )
@@ -461,6 +463,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
                 rows: try preparedRows(bundle.store, data: data, accountID: "checking")
             )
         )
@@ -471,6 +474,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
                 rows: try preparedRows(bundle.store, data: data, accountID: "checking")
             )
         )
@@ -489,6 +493,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
                 rows: try preparedRows(bundle.store, data: firstFile, accountID: "checking")
             )
         )
@@ -496,6 +501,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
                 rows: try preparedRows(bundle.store, data: secondFile, accountID: "checking")
             )
         )
@@ -516,6 +522,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
                 rows: try preparedRows(bundle.store, data: data, accountID: "checking")
             )
         )
@@ -532,6 +539,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
                 rows: try preparedRows(bundle.store, data: data, accountID: "checking")
             )
         )
@@ -620,6 +628,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
                 rows: review.rows
             )
         )

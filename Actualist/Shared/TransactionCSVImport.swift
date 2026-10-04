@@ -49,6 +49,8 @@ enum TransactionCSVImportError: Error, Equatable {
     case invalidEncoding
     case invalidDelimiter
     case invalidRow(line: Int, reason: TransactionCSVImportRowError)
+    /// A matched row changed after review, so nothing was written.
+    case matchChanged(line: Int)
 
     var message: String {
         switch self {
@@ -58,6 +60,8 @@ enum TransactionCSVImportError: Error, Equatable {
             return "The file could not be split into columns."
         case .invalidRow(let line, let reason):
             return "Row \(line) could not be read because \(reason.message)."
+        case .matchChanged(let line):
+            return "Row \(line) matches a transaction that changed after review. Nothing was imported. Open the import again to review it."
         }
     }
 }

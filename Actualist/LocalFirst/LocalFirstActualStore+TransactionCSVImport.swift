@@ -14,6 +14,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         try Task.checkCancellation()
         let database = try requireDatabase(for: request.budgetID)
         let sessionID = transactionFeedRequestIdentity.sessionID
+        let generation = budgetSessionGeneration
 
         let table = try TransactionCSVParser(
             options: TransactionCSVParser.Options(
@@ -28,6 +29,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         let candidates = try await database.fetchTransactionCSVImportCandidates(accountID: request.accountID)
 
         guard transactionFeedRequestIdentity.sessionID == sessionID,
+              generation == budgetSessionGeneration,
               self.database === database,
               openedBudgetID == request.budgetID else {
             throw CancellationError()
@@ -45,7 +47,8 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         return TransactionCSVImportReview(
             rows: zip(rows, dispositions).map {
                 TransactionCSVImportReviewRow(row: $0, disposition: $1)
-            }
+            },
+            sessionGeneration: generation
         )
     }
 
@@ -54,14 +57,25 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
     ) async throws -> TransactionCSVImportApplyResult {
         try Task.checkCancellation()
         let database = try requireDatabase(for: request.budgetID)
+        try requireSyncSession(
+            database: database,
+            budgetID: request.budgetID,
+            generation: request.sessionGeneration
+        )
         let payees = try await database.fetchPayees(orderedForPicker: false)
         let categories = try await database.fetchCategories()
+        try requireSyncSession(
+            database: database,
+            budgetID: request.budgetID,
+            generation: request.sessionGeneration
+        )
         let payeeIDByName = Self.payeeIDByName(payees)
         let transferPayeeIDs = Self.transferPayeeIDs(payees)
         let categoryIDByName = Self.categoryIDByName(categories)
 
         var builder = LocalFirstSyncMessageBuilder()
         var messages: [ActualSyncDecodedMessage] = []
+        var updates: [BudgetDatabase.TransactionCSVImportUpdate] = []
         var affectedAccountIDs: Set<String> = [request.accountID]
         var monthIDs = Set<String>()
         var resolvedPayeeIDs: [String: String] = [:]
@@ -71,22 +85,16 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         // Date.now() so file order survives on display.
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
 
-        // Messages are only accumulated here; the single commit below is the
-        // write phase, so any throw before it leaves zero rows applied.
+        // Insert messages are only accumulated here; update messages are built
+        // and validated against live rows inside the single commit below, so
+        // any throw before or during it leaves zero rows applied.
         for (index, reviewRow) in request.rows.enumerated() {
             let row = reviewRow.row
             switch reviewRow.disposition {
             case .ignored, .skippedReconciled:
                 continue
             case .update(let plan):
-                let updateMessages = try await database.transactionCSVImportUpdateMessages(
-                    plan: plan,
-                    builder: &builder
-                )
-                guard !updateMessages.isEmpty else {
-                    throw LocalFirstError.invalidLocalWrite("missing transaction")
-                }
-                messages += updateMessages
+                updates.append(BudgetDatabase.TransactionCSVImportUpdate(line: row.sourceLine, plan: plan))
                 updatedCount += 1
                 monthIDs.insert(String(row.dateText.prefix(7)))
             case .insert:
@@ -161,10 +169,22 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             }
         }
 
-        guard !messages.isEmpty else {
+        guard !messages.isEmpty || !updates.isEmpty else {
             return TransactionCSVImportApplyResult(insertedCount: 0, updatedCount: 0)
         }
-        _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
+        // Known duplication: the commit tail below (reload, flush) is copied
+        // from the other store write methods until the shared tail exists.
+        try requireSyncSession(
+            database: database,
+            budgetID: request.budgetID,
+            generation: request.sessionGeneration
+        )
+        try await database.commitTransactionCSVImport(
+            accountID: request.accountID,
+            updates: updates,
+            insertMessages: messages,
+            builder: &builder
+        )
         try await reloadAfterTransactionMutation(
             database: database,
             budgetID: request.budgetID,

@@ -149,6 +149,7 @@ final class TransactionCSVImportCoordinator {
                 TransactionCSVImportApplyRequest(
                     budgetID: budgetID,
                     accountID: accountID,
+                    sessionGeneration: review.sessionGeneration,
                     rows: selections
                 )
             )

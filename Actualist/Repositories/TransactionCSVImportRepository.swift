@@ -29,6 +29,9 @@ struct TransactionCSVImportReviewRow: Identifiable, Equatable, Sendable {
 
 struct TransactionCSVImportReview: Equatable, Sendable {
     let rows: [TransactionCSVImportReviewRow]
+    /// Store session the review was matched against. Apply rejects a review
+    /// from an earlier session.
+    let sessionGeneration: Int
 }
 
 /// Already-decided rows for the apply step. Rows the reviewer excluded are
@@ -36,6 +39,7 @@ struct TransactionCSVImportReview: Equatable, Sendable {
 struct TransactionCSVImportApplyRequest: Sendable {
     let budgetID: String
     let accountID: String
+    let sessionGeneration: Int
     let rows: [TransactionCSVImportReviewRow]
 }
 

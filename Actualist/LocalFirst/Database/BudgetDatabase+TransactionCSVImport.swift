@@ -66,64 +66,122 @@ extension BudgetDatabase {
         }
     }
 
-    /// Field-level set messages for a matched-row update. The matcher has
-    /// already decided the changing fields (fill semantics); this only emits
-    /// messages for the columns the row carries. The caller commits them
-    /// through the shared `commitLocalSyncMessagesAndEnqueue` plan — this is
-    /// not a second write engine.
-    func transactionCSVImportUpdateMessages(
-        plan: TransactionCSVImportUpdatePlan,
+    /// One matched-row update decided at review time, with its CSV line for
+    /// error reporting.
+    struct TransactionCSVImportUpdate: Sendable {
+        let line: Int
+        let plan: TransactionCSVImportUpdatePlan
+    }
+
+    /// Single atomic commit for a CSV import. Every update is validated and
+    /// its messages are built against the live row inside the same write
+    /// transaction, so a match that changed after review rejects the whole
+    /// import and writes nothing. Insert messages were built earlier; they
+    /// do not depend on existing rows.
+    func commitTransactionCSVImport(
+        accountID: String,
+        updates: [TransactionCSVImportUpdate],
+        insertMessages: [ActualSyncDecodedMessage],
+        builder: inout LocalFirstSyncMessageBuilder,
+        now: Date = Date()
+    ) throws {
+        try Task.checkCancellation()
+        try sessionWritesAllowed.withLock { allowed in
+            guard allowed else { throw LocalFirstError.budgetNotOpened }
+            try Task.checkCancellation()
+            _ = try commitLocalPlan(now: now) { db in
+                try Task.checkCancellation()
+                var messages = insertMessages
+                let columns = try columnSet(for: "transactions", db: db)
+                for update in updates {
+                    let updateMessages = try transactionCSVImportUpdateMessages(
+                        update,
+                        accountID: accountID,
+                        columns: columns,
+                        db: db,
+                        builder: &builder
+                    )
+                    guard !updateMessages.isEmpty else {
+                        throw LocalFirstError.invalidLocalWrite("missing transaction")
+                    }
+                    messages += updateMessages
+                }
+                return LocalCommitPlan(drafts: messages, action: nil, outcome: ())
+            }
+        }
+    }
+
+    /// Validates a matched row against its live state, then emits field-level
+    /// set messages for the columns the plan fills. The row must still be
+    /// live, in the importing account, not reconciled, and every field the
+    /// plan fills must still be empty (the fill semantics the review showed).
+    private func transactionCSVImportUpdateMessages(
+        _ update: TransactionCSVImportUpdate,
+        accountID: String,
+        columns: Set<String>,
+        db: Database,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            guard try tableExists("transactions", db: db) else {
-                return []
-            }
-            let columns = try columnSet(for: "transactions", db: db)
-            if columns.contains("reconciled") {
-                let reconciled = try Int.fetchOne(
-                    db,
-                    sql: "SELECT reconciled FROM transactions WHERE id = ?",
-                    arguments: [plan.existingTransactionID]
-                )
-                // A matched row can become reconciled between review and
-                // submit; the review already skips reconciled rows, so a
-                // stale plan must not write into one.
-                if (reconciled ?? 0) != 0 {
-                    throw LocalFirstError.invalidLocalWrite("transaction is reconciled")
-                }
-            }
-            var messages: [ActualSyncDecodedMessage] = []
-            func append(_ column: String, _ value: LocalFirstSyncValue) throws {
-                messages.append(try builder.makeMessage(
-                    dataset: "transactions",
-                    row: plan.existingTransactionID,
-                    column: column,
-                    value: value
-                ))
-            }
-            if let payeeID = plan.payeeID,
-               let payeeColumn = ["description", "payee"].first(where: columns.contains) {
-                try append(payeeColumn, .string(payeeID))
-            }
-            if let categoryID = plan.categoryID, columns.contains("category") {
-                try append("category", .string(categoryID))
-            }
-            if let notes = plan.notes, columns.contains("notes") {
-                try append("notes", .string(notes))
-            }
-            if let cleared = plan.cleared, columns.contains("cleared") {
-                try append("cleared", .bool(cleared))
-            }
-            if let importedPayee = plan.importedPayee,
-               let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {
-                try append(importedPayeeColumn, .string(importedPayee))
-            }
-            if let importedID = plan.importedID, !importedID.isEmpty,
-               let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains) {
-                try append(importedIDColumn, .string(importedID))
-            }
-            return messages
+        let plan = update.plan
+        let changed = TransactionCSVImportError.matchChanged(line: update.line)
+        let accountColumn = ["acct", "account"].first(where: columns.contains)
+        let payeeColumn = ["description", "payee"].first(where: columns.contains)
+        guard let accountColumn,
+              let live = try Row.fetchOne(
+                  db,
+                  sql: """
+                      SELECT \(accountColumn) AS account,
+                             \(payeeColumn ?? "NULL") AS payee,
+                             \(columns.contains("category") ? "category" : "NULL") AS category,
+                             \(columns.contains("notes") ? "notes" : "NULL") AS notes,
+                             \(columns.contains("cleared") ? "cleared" : "NULL") AS cleared,
+                             \(columns.contains("reconciled") ? "reconciled" : "NULL") AS reconciled
+                      FROM transactions
+                      WHERE id = ? AND \(predicateForLiveRows(columns: columns))
+                      """,
+                  arguments: [plan.existingTransactionID]
+              ),
+              (live["account"] as String?) == accountID,
+              !flexibleBool(live["reconciled"]) else {
+            throw changed
         }
+        func isEmpty(_ column: String) -> Bool {
+            ((live[column] as String?) ?? "").isEmpty
+        }
+        if plan.payeeID != nil, !isEmpty("payee") { throw changed }
+        if plan.categoryID != nil, !isEmpty("category") { throw changed }
+        if plan.notes != nil, !isEmpty("notes") { throw changed }
+        if let cleared = plan.cleared, flexibleBool(live["cleared"]) == cleared { throw changed }
+
+        var messages: [ActualSyncDecodedMessage] = []
+        func append(_ column: String, _ value: LocalFirstSyncValue) throws {
+            messages.append(try builder.makeMessage(
+                dataset: "transactions",
+                row: plan.existingTransactionID,
+                column: column,
+                value: value
+            ))
+        }
+        if let payeeID = plan.payeeID, let payeeColumn {
+            try append(payeeColumn, .string(payeeID))
+        }
+        if let categoryID = plan.categoryID, columns.contains("category") {
+            try append("category", .string(categoryID))
+        }
+        if let notes = plan.notes, columns.contains("notes") {
+            try append("notes", .string(notes))
+        }
+        if let cleared = plan.cleared, columns.contains("cleared") {
+            try append("cleared", .bool(cleared))
+        }
+        if let importedPayee = plan.importedPayee,
+           let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {
+            try append(importedPayeeColumn, .string(importedPayee))
+        }
+        if let importedID = plan.importedID, !importedID.isEmpty,
+           let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains) {
+            try append(importedIDColumn, .string(importedID))
+        }
+        return messages
     }
 }
