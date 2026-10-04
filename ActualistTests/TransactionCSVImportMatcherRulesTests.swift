@@ -115,4 +115,54 @@ struct TransactionCSVImportMatcherRulesTests {
         }
         #expect(plan.payeeID == nil)
     }
+
+    // MARK: - Tier-1 imported_id is an exact match (upstream sync.ts 845-857)
+
+    @Test func importedIDMatchingIsCaseSensitive() {
+        let existing = TransactionCSVImportCandidate(
+            id: "existing-1",
+            importedID: "a1",
+            payeeID: "payee-a",
+            categoryID: nil,
+            notes: nil,
+            cleared: false,
+            importedPayee: "Sample Market",
+            amountMinorUnits: -1_234,
+            dateText: "2026-09-27",
+            reconciled: false,
+            isParent: false,
+            transferID: nil,
+            accountOffBudget: false
+        )
+        let upper = TransactionCSVImportRow(
+            id: "csv-row-1",
+            sourceLine: 1,
+            dateText: "2026-09-27",
+            date: TransactionCSVImportMapper.dayDate(fromISO: "2026-09-27")!,
+            amountMinorUnits: -1_234,
+            payeeName: "Sample Market",
+            notes: nil,
+            categoryName: nil,
+            cleared: nil,
+            importedID: "A1"
+        )
+        // Both rows carry an imported_id, so strict id checking also blocks
+        // the fuzzy tiers: "A1" does not match "a1" at all.
+        #expect(TransactionCSVImportMatcher.match(rows: [upper], candidates: [existing], context: context)
+            == [.insert(isTransfer: false)])
+        let exact = TransactionCSVImportRow(
+            id: "csv-row-2",
+            sourceLine: 2,
+            dateText: "2026-09-27",
+            date: upper.date,
+            amountMinorUnits: -1_234,
+            payeeName: "Sample Market",
+            notes: nil,
+            categoryName: nil,
+            cleared: nil,
+            importedID: "a1"
+        )
+        #expect(TransactionCSVImportMatcher.match(rows: [exact], candidates: [existing], context: context)
+            == [.ignored])
+    }
 }

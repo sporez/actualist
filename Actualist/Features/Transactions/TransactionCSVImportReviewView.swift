@@ -9,6 +9,7 @@ struct TransactionCSVImportReviewView: View {
     let currency: BudgetCurrency
     let isPrivacyModeEnabled: Bool
     let onCancel: () -> Void
+    let onImported: () -> Void
 
     var body: some View {
         switch coordinator.state {
@@ -79,7 +80,7 @@ struct TransactionCSVImportReviewView: View {
             .buttonStyle(.glass)
             .accessibilityIdentifier("transaction-csv-import-cancel")
             Button {
-                Task { await coordinator.submit(repository: repository) }
+                Task { await coordinator.submit(repository: repository, onImported: onImported) }
             } label: {
                 Text(coordinator.submitTitle)
                     .font(.subheadline.weight(.semibold))

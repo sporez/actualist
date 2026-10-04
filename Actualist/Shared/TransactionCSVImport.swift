@@ -330,9 +330,10 @@ enum TransactionCSVImportMatcher {
                 : context.payeeIDByName[row.payeeName.lowercased()]
 
             // Tier 1: exact imported_id (candidates are already account-scoped).
-            if let importedID = row.importedID?.lowercased(), !importedID.isEmpty,
+            // Upstream compares with SQL `imported_id = ?`, which is exact.
+            if let importedID = row.importedID, !importedID.isEmpty,
                let candidate = candidates.first(where: {
-                   !claimed.contains($0.id) && $0.importedID?.lowercased() == importedID
+                   !claimed.contains($0.id) && $0.importedID == importedID
                }) {
                 claimed.insert(candidate.id)
                 dispositions.append(disposition(row: row, candidate: candidate, resolvedPayeeID: resolvedPayeeID, context: context))

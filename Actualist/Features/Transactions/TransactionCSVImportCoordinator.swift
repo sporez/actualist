@@ -135,7 +135,12 @@ final class TransactionCSVImportCoordinator {
         return "Import \(count) Row\(count == 1 ? "" : "s")"
     }
 
-    func submit(repository: any TransactionCSVImportRepositoryProtocol) async {
+    /// `onImported` runs once after a committed import, so the app can record
+    /// the local data mutation for widgets, Accounts, Budget and Reports.
+    func submit(
+        repository: any TransactionCSVImportRepositoryProtocol,
+        onImported: () -> Void = {}
+    ) async {
         guard case .reviewing(let review) = state, canSubmit,
               let accountID = loadedAccountID, let budgetID = loadedBudgetID else {
             return
@@ -153,6 +158,9 @@ final class TransactionCSVImportCoordinator {
                     rows: selections
                 )
             )
+            // The commit already happened, so record it even when the sheet
+            // was dismissed while the apply was in flight.
+            onImported()
             guard submitGeneration == generation, !Task.isCancelled else { return }
             state = .completed(result)
         } catch {

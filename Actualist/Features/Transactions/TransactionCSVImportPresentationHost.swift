@@ -58,7 +58,8 @@ struct TransactionCSVImportPresentationHost: ViewModifier {
                 repository: appState.localFirstStore,
                 currency: appState.localFirstStore.budgetCurrency(budgetID: budgetID),
                 isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                onCancel: { coordinator.reset() }
+                onCancel: { coordinator.reset() },
+                onImported: { appState.recordLocalDataMutation() }
             )
             .appSwitcherPrivacyProtected(using: appState)
         } else {
