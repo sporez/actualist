@@ -369,6 +369,7 @@ struct AccountTransactionsView: View {
                             Image(systemName: "plus")
                         }
                         .actualistToolbarGlassButton()
+                        .keyboardShortcut("n", modifiers: [.command])
                         .accessibilityLabel("Add Transaction")
                     }
                 }
