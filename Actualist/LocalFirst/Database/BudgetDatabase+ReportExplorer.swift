@@ -219,7 +219,7 @@ extension BudgetDatabase {
                             expenses = try ReportArithmetic.subtract(expenses, row.amount)
                         }
                     case .spending, .budgetOverview:
-                        if !row.isIncome {
+                        if row.isSpending {
                             hasContributingData = hasContributingData || row.amount != 0
                             expenses = try ReportArithmetic.subtract(expenses, row.amount)
                         }
@@ -286,7 +286,7 @@ extension BudgetDatabase {
             throw ReportExplorerError.invalidRange
         }
 
-        let spendingByDay = try reportExplorerSpendingByDay(rows)
+        let spendingByDay = try RawReportActivityDay.spendingByDay(rows)
         let prefix = try ReportExplorerSpendingPrefix(
             spendingByDay: spendingByDay,
             from: firstHistory.startDay,
@@ -354,20 +354,6 @@ extension BudgetDatabase {
         read.current.contributingTransactions.isEmpty
             ? .unavailable(.noContributingTransactions)
             : .transactions(read.currentRequest)
-    }
-
-    private func reportExplorerSpendingByDay(
-        _ rows: [RawReportActivityDay]
-    ) throws -> [String: Int] {
-        var spendingByDay: [String: Int] = [:]
-        for row in rows where !row.isIncome {
-            let spending = try ReportArithmetic.subtract(0, row.amount)
-            spendingByDay[row.dayID] = try ReportArithmetic.add(
-                spendingByDay[row.dayID] ?? 0,
-                spending
-            )
-        }
-        return spendingByDay
     }
 
     /// Actual's cumulative spending graphs use one bucket per calendar day

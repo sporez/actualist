@@ -193,10 +193,6 @@ extension BudgetDatabase {
         var activityByDay: [String: ReportDailyActivity] = [:]
         for row in activityDays {
             var activity = activityByDay[row.dayID] ?? ReportDailyActivity()
-            if !row.isIncome {
-                // Actual includes uncategorized rows and both sides of on-budget transfers.
-                activity.spending = try ReportArithmetic.subtract(activity.spending, row.amount)
-            }
             if row.categoryID == nil {
                 if !row.isTransfer {
                     activity.uncategorized = try ReportArithmetic.add(activity.uncategorized, row.amount)
@@ -208,6 +204,9 @@ extension BudgetDatabase {
                 activity.expenses = try ReportArithmetic.subtract(activity.expenses, row.amount)
             }
             activityByDay[row.dayID] = activity
+        }
+        for (dayID, spending) in try RawReportActivityDay.spendingByDay(activityDays) {
+            activityByDay[dayID, default: ReportDailyActivity()].spending = spending
         }
 
         let netWorth = try buildNetWorth(range: range, rows: netWorthDays)

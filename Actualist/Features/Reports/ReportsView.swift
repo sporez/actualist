@@ -308,36 +308,15 @@ private struct MonthComparisonReportCard: View {
         ) {
             Chart(snapshot.monthComparison.points) { point in
                 if let current = point.current {
-                    AreaMark(
-                        x: .value("Day", point.day),
-                        y: .value("Current", current),
-                        series: .value("Series", "Current"),
-                        stacking: .unstacked
-                    )
-                        .foregroundStyle(ActualistTheme.positive.opacity(0.20))
-                    LineMark(
-                        x: .value("Day", point.day),
-                        y: .value("Current", current),
-                        series: .value("Series", "Current")
-                    )
-                        .foregroundStyle(ActualistTheme.positive)
-                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+                    ReportAreaLineSeries(xLabel: "Day", x: point.day, name: "Current", y: current, style: .current)
                 }
-
-                AreaMark(
-                    x: .value("Day", point.day),
-                    y: .value("Previous", point.comparison),
-                    series: .value("Series", "Previous"),
-                    stacking: .unstacked
+                ReportAreaLineSeries(
+                    xLabel: "Day",
+                    x: point.day,
+                    name: "Previous",
+                    y: point.comparison,
+                    style: .reference(lineOpacity: 0.62)
                 )
-                    .foregroundStyle(ActualistTheme.secondaryText.opacity(0.20))
-                LineMark(
-                    x: .value("Day", point.day),
-                    y: .value("Previous", point.comparison),
-                    series: .value("Series", "Previous")
-                )
-                    .foregroundStyle(ActualistTheme.secondaryText.opacity(0.62))
-                    .lineStyle(StrokeStyle(lineWidth: 3, dash: [10, 10]))
             }
             .actualCompactReportChartStyle()
             .frame(height: 190)
@@ -360,36 +339,16 @@ private struct BudgetOverviewReportCard: View {
         ) {
             Chart {
                 ForEach(snapshot.budgetOverview.actualPoints) { point in
-                    AreaMark(
-                        x: .value("Date", point.date),
-                        y: .value("Actual", point.value),
-                        series: .value("Series", "Actual"),
-                        stacking: .unstacked
-                    )
-                        .foregroundStyle(ActualistTheme.positive.opacity(0.20))
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("Actual", point.value),
-                        series: .value("Series", "Actual")
-                    )
-                        .foregroundStyle(ActualistTheme.positive)
-                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+                    ReportAreaLineSeries(xLabel: "Date", x: point.date, name: "Actual", y: point.value, style: .current)
                 }
                 ForEach(snapshot.budgetOverview.budgetPoints) { point in
-                    AreaMark(
-                        x: .value("Date", point.date),
-                        y: .value("Budgeted", point.value),
-                        series: .value("Series", "Budgeted"),
-                        stacking: .unstacked
+                    ReportAreaLineSeries(
+                        xLabel: "Date",
+                        x: point.date,
+                        name: "Budgeted",
+                        y: point.value,
+                        style: .reference(lineOpacity: 0.58)
                     )
-                        .foregroundStyle(ActualistTheme.secondaryText.opacity(0.20))
-                    LineMark(
-                        x: .value("Date", point.date),
-                        y: .value("Budgeted", point.value),
-                        series: .value("Series", "Budgeted")
-                    )
-                        .foregroundStyle(ActualistTheme.secondaryText.opacity(0.58))
-                        .lineStyle(StrokeStyle(lineWidth: 3, dash: [10, 10]))
                 }
             }
             .actualCompactReportChartStyle()
@@ -413,35 +372,15 @@ private struct ThreeMonthAverageReportCard: View {
         ) {
             Chart(snapshot.threeMonthAverage.points) { point in
                 if let current = point.current {
-                    AreaMark(
-                        x: .value("Day", point.day),
-                        y: .value("Current", current),
-                        series: .value("Series", "Current"),
-                        stacking: .unstacked
-                    )
-                        .foregroundStyle(ActualistTheme.positive.opacity(0.20))
-                    LineMark(
-                        x: .value("Day", point.day),
-                        y: .value("Current", current),
-                        series: .value("Series", "Current")
-                    )
-                        .foregroundStyle(ActualistTheme.positive)
-                        .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+                    ReportAreaLineSeries(xLabel: "Day", x: point.day, name: "Current", y: current, style: .current)
                 }
-                AreaMark(
-                    x: .value("Day", point.day),
-                    y: .value("Average", point.comparison),
-                    series: .value("Series", "Average"),
-                    stacking: .unstacked
+                ReportAreaLineSeries(
+                    xLabel: "Day",
+                    x: point.day,
+                    name: "Average",
+                    y: point.comparison,
+                    style: .reference(lineOpacity: 0.58)
                 )
-                    .foregroundStyle(ActualistTheme.secondaryText.opacity(0.20))
-                LineMark(
-                    x: .value("Day", point.day),
-                    y: .value("Average", point.comparison),
-                    series: .value("Series", "Average")
-                )
-                    .foregroundStyle(ActualistTheme.secondaryText.opacity(0.58))
-                    .lineStyle(StrokeStyle(lineWidth: 3, dash: [10, 10]))
             }
             .actualCompactReportChartStyle()
             .frame(height: 190)
@@ -543,6 +482,59 @@ extension ReportValueTone {
         case .warning: ActualistTheme.warning
         case .danger: ActualistTheme.danger
         }
+    }
+}
+
+/// One filled line series: the solid green "current" series or the dashed
+/// gray reference series shared by the three comparison cards.
+private struct ReportAreaLineSeries<X: Plottable>: ChartContent {
+    enum Style {
+        case current
+        case reference(lineOpacity: Double)
+    }
+
+    let xLabel: String
+    let x: X
+    let name: String
+    let y: Int
+    let style: Style
+
+    private var areaColor: Color {
+        switch style {
+        case .current: ActualistTheme.positive.opacity(0.20)
+        case .reference: ActualistTheme.secondaryText.opacity(0.20)
+        }
+    }
+
+    private var lineColor: Color {
+        switch style {
+        case .current: ActualistTheme.positive
+        case .reference(let opacity): ActualistTheme.secondaryText.opacity(opacity)
+        }
+    }
+
+    private var lineStyle: StrokeStyle {
+        switch style {
+        case .current: StrokeStyle(lineWidth: 3, lineCap: .round)
+        case .reference: StrokeStyle(lineWidth: 3, dash: [10, 10])
+        }
+    }
+
+    var body: some ChartContent {
+        AreaMark(
+            x: .value(xLabel, x),
+            y: .value(name, y),
+            series: .value("Series", name),
+            stacking: .unstacked
+        )
+        .foregroundStyle(areaColor)
+        LineMark(
+            x: .value(xLabel, x),
+            y: .value(name, y),
+            series: .value("Series", name)
+        )
+        .foregroundStyle(lineColor)
+        .lineStyle(lineStyle)
     }
 }
 

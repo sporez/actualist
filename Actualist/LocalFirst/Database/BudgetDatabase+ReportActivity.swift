@@ -8,6 +8,19 @@ struct RawReportActivityDay: Sendable {
     let isTransfer: Bool
     let isInflow: Bool
     let amount: Int
+
+    /// Actual's spending rule, shared by the dashboard and the explorer: every
+    /// non-income row counts, including uncategorized rows and both sides of
+    /// on-budget transfers.
+    var isSpending: Bool { !isIncome }
+
+    static func spendingByDay(_ rows: [RawReportActivityDay]) throws -> [String: Int] {
+        var spendingByDay: [String: Int] = [:]
+        for row in rows where row.isSpending {
+            spendingByDay[row.dayID] = try ReportArithmetic.subtract(spendingByDay[row.dayID] ?? 0, row.amount)
+        }
+        return spendingByDay
+    }
 }
 
 extension BudgetDatabase {

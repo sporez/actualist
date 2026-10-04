@@ -180,8 +180,20 @@ extension BudgetDatabase {
         query: ReportExplorerQuery,
         catalog: ReportExplorerFilterCatalog
     ) -> Set<String> {
+        reportExplorerSelectedCategoryIDs(query: query, catalog: catalog, includesIncome: false)
+    }
+
+    /// One category-selection rule for both the budgeted-amount ids and the
+    /// transaction condition: hidden categories follow the filter, income
+    /// categories only count when `includesIncome`, and an explicit selection
+    /// is intersected with what is eligible.
+    private func reportExplorerSelectedCategoryIDs(
+        query: ReportExplorerQuery,
+        catalog: ReportExplorerFilterCatalog,
+        includesIncome: Bool
+    ) -> Set<String> {
         let eligible = Set(catalog.categories.lazy.filter {
-            !$0.isIncome && (query.filters.includesHiddenCategories || !$0.isHidden)
+            (includesIncome || !$0.isIncome) && (query.filters.includesHiddenCategories || !$0.isHidden)
         }.map(\.id))
         switch query.filters.categories {
         case .all:
@@ -195,19 +207,11 @@ extension BudgetDatabase {
         query: ReportExplorerQuery,
         catalog: ReportExplorerFilterCatalog
     ) -> TransactionQueryIDCondition? {
-        let options = catalog.categories.filter {
-            query.metric == .cashFlow || !$0.isIncome
-        }.filter {
-            query.filters.includesHiddenCategories || !$0.isHidden
-        }
-        let eligibleIDs = Set(options.map(\.id))
-        let selectedIDs: Set<String>
-        switch query.filters.categories {
-        case .all:
-            selectedIDs = eligibleIDs
-        case .only(let selected):
-            selectedIDs = selected.intersection(eligibleIDs)
-        }
+        let selectedIDs = reportExplorerSelectedCategoryIDs(
+            query: query,
+            catalog: catalog,
+            includesIncome: query.metric == .cashFlow
+        )
 
         if case .all = query.filters.categories,
            query.filters.includesHiddenCategories,
