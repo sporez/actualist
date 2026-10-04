@@ -156,7 +156,8 @@ struct ScheduleAdvancementTests {
         #expect(try scheduleTransactionCount("utilities", fixture.url) == 1)
         #expect(result.receipts.map(\.scheduleID) == ["utilities"])
         #expect(result.refusals == [ScheduleAutoPostRefusal(
-            scheduleID: "rent", scheduleName: "rent", refusal: .ruleDeletesTransaction
+            scheduleID: "rent", scheduleName: "rent", occurrenceDayID: Self.today,
+            refusal: .ruleDeletesTransaction
         )])
         let object = try metadataObject(beside: fixture.url)
         #expect(object["lastScheduleRun"] as? String == Self.today)

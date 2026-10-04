@@ -404,6 +404,7 @@ private final class ScheduleManagementRepositoryFake: ScheduleRepositoryProtocol
     )
     var createError: Error?
 
+    var scheduleAutoPostRefusals: [ScheduleAutoPostRefusal] { [] }
     func cachedSchedules(budgetID: String) -> LoadedSchedules? { nil }
 
     func refreshSchedules(budgetID: String, asOf today: String) async throws -> LoadedSchedules {

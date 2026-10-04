@@ -4,6 +4,8 @@ import Foundation
 struct ScheduleAutoPostRefusal: Hashable, Sendable {
     let scheduleID: String
     let scheduleName: String?
+    /// The occurrence day that was refused; a later run or edit moves past it.
+    let occurrenceDayID: String
     let refusal: SchedulePostingRefusal
 }
 
@@ -120,14 +122,16 @@ extension BudgetDatabase {
                     ))
                 } catch let refusal as SchedulePostingRefusal {
                     refusals.append(ScheduleAutoPostRefusal(
-                        scheduleID: scheduleID, scheduleName: detail.name, refusal: refusal
+                        scheduleID: scheduleID, scheduleName: detail.name,
+                        occurrenceDayID: detail.effectiveNextDate ?? "", refusal: refusal
                     ))
                     return .nextSchedule
                 } catch is ScheduleMutationCommandError {
                     // Review preconditions (shared rule, missing schema, changed
                     // review) are typed and deterministic per schedule.
                     refusals.append(ScheduleAutoPostRefusal(
-                        scheduleID: scheduleID, scheduleName: detail.name, refusal: .unsupportedOccurrence
+                        scheduleID: scheduleID, scheduleName: detail.name,
+                        occurrenceDayID: detail.effectiveNextDate ?? "", refusal: .unsupportedOccurrence
                     ))
                     return .nextSchedule
                 } catch {

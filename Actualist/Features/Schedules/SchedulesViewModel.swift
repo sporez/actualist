@@ -10,6 +10,7 @@ final class SchedulesViewModel {
     private(set) var isLoading = true
     private(set) var isRefreshing = false
     private(set) var errorMessage: String?
+    private(set) var autoPostRefusals: [ScheduleAutoPostRefusal] = []
     var searchText = ""
     var showsCompleted = false
 
@@ -27,6 +28,20 @@ final class SchedulesViewModel {
             if kind == .completed && !showsCompleted { return nil }
             let matching = rows.filter { SchedulePresentation.section(for: $0.status) == kind }
             return matching.isEmpty ? nil : ScheduleListSection(kind: kind, rows: matching)
+        }
+    }
+
+    /// Refused automatic posts that still apply: the schedule exists and its
+    /// next date is still the refused occurrence.
+    var autoPostRefusalRows: [ScheduleAutoPostRefusalRow] {
+        guard let schedules = snapshot?.schedules else { return [] }
+        return autoPostRefusals.compactMap { refusal in
+            guard let schedule = schedules.first(where: { $0.id == refusal.scheduleID }),
+                  schedule.effectiveNextDate == refusal.occurrenceDayID else { return nil }
+            return SchedulePresentation.autoPostRefusalRow(
+                refusal,
+                title: SchedulePresentation.row(schedule, context: context).title
+            )
         }
     }
 
@@ -95,6 +110,7 @@ final class SchedulesViewModel {
         if identityChanged {
             loadedIdentity = context.identity
             snapshot = nil
+            autoPostRefusals = []
             searchText = ""
             showsCompleted = false
         } else if displayChanged {
@@ -122,6 +138,7 @@ final class SchedulesViewModel {
                   loadedIdentity == context.identity,
                   refreshed.budgetID == budgetID else { return }
             snapshot = refreshed
+            autoPostRefusals = repository.scheduleAutoPostRefusals
             isLoading = false
             isRefreshing = false
         } catch is CancellationError {

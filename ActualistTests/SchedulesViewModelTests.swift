@@ -336,6 +336,59 @@ struct SchedulesViewModelTests {
         #expect(!loadingModel.showsAuthoringUnavailableNotice)
     }
 
+    @Test func autoPostRefusalAppearsWithItsCopy() async {
+        let repository = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(budgetID: "budget", schedules: [summary(id: "rent", name: "Rent", status: .due)])
+        ])
+        repository.scheduleAutoPostRefusals = [refusal("rent", day: "2026-09-28", .ruleDeletesTransaction)]
+        let context = context()
+        let model = SchedulesViewModel(context: context)
+        await model.load(context: context, repository: repository)
+
+        #expect(model.autoPostRefusalRows == [ScheduleAutoPostRefusalRow(
+            id: "rent",
+            title: "Rent",
+            message: SchedulePostingRefusal.ruleDeletesTransaction.errorDescription ?? ""
+        )])
+    }
+
+    @Test func staleAutoPostRefusalIsHiddenAfterTheScheduleMovesOrIsDeleted() async {
+        let repository = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(budgetID: "budget", schedules: [
+                summary(id: "moved", name: "Moved", status: .upcoming, nextDate: "2026-10-28"),
+                summary(id: "same", name: "Same", status: .due)
+            ])
+        ])
+        repository.scheduleAutoPostRefusals = [
+            refusal("moved", day: "2026-09-28", .draftMismatch),
+            refusal("gone", day: "2026-09-28", .draftMismatch),
+            refusal("same", day: "2026-09-28", .accountUnavailable)
+        ]
+        let context = context()
+        let model = SchedulesViewModel(context: context)
+        await model.load(context: context, repository: repository)
+
+        #expect(model.autoPostRefusalRows.map(\.id) == ["same"])
+    }
+
+    @Test func noAutoPostRefusalsShowNothing() async {
+        let repository = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(budgetID: "budget", ids: ["rent"])
+        ])
+        let context = context()
+        let model = SchedulesViewModel(context: context)
+        await model.load(context: context, repository: repository)
+        #expect(model.autoPostRefusalRows.isEmpty)
+    }
+
+    private func refusal(
+        _ id: String,
+        day: String,
+        _ refusal: SchedulePostingRefusal
+    ) -> ScheduleAutoPostRefusal {
+        ScheduleAutoPostRefusal(scheduleID: id, scheduleName: id, occurrenceDayID: day, refusal: refusal)
+    }
+
     private func snapshot(
         budgetID: String,
         ids: [String],
@@ -366,7 +419,8 @@ struct SchedulesViewModelTests {
         id: String,
         name: String,
         amount: ScheduleAmount = .exact(-100),
-        status: ScheduleStatus
+        status: ScheduleStatus,
+        nextDate: String = "2026-09-28"
     ) -> ScheduleSummary {
         ScheduleSummary(
             id: id,
@@ -374,7 +428,7 @@ struct SchedulesViewModelTests {
             amount: amount,
             account: ScheduleAccountReference(id: "account", name: "Checking", availability: .available),
             payee: SchedulePayeeReference(id: nil, name: nil, isMissing: false),
-            effectiveNextDate: "2026-09-28",
+            effectiveNextDate: nextDate,
             status: status,
             postsTransaction: false,
             sortOrder: nil,
@@ -406,6 +460,7 @@ private final class ScheduleRepositoryFake: ScheduleRepositoryProtocol {
     private let results: [String: Result<LoadedSchedules, Error>]
     private let entered: [String: TestLatch]
     private let release: [String: TestLatch]
+    var scheduleAutoPostRefusals: [ScheduleAutoPostRefusal] = []
 
     init(
         cached: [String: LoadedSchedules] = [:],

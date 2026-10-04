@@ -93,6 +93,10 @@ struct SchedulesView: View {
                     showsRetry: true
                 )
             } else {
+                if !viewModel.autoPostRefusalRows.isEmpty {
+                    autoPostRefusalsSection
+                }
+
                 emptyState(viewModel.emptyState)
 
                 ForEach(viewModel.sections) { section in
@@ -223,6 +227,37 @@ struct SchedulesView: View {
         }
         .font(ActualistTypography.rowLabel(for: density))
         .actualistReviewCard()
+    }
+
+    private var autoPostRefusalsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Not Posted Automatically")
+                .font(.headline.weight(.bold))
+            ForEach(viewModel.autoPostRefusalRows) { row in
+                NavigationLink(value: ScheduleDetailRoute(scheduleID: row.id)) {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(row.title, systemImage: "exclamationmark.triangle.fill")
+                                .font(ActualistTypography.rowTitle(for: density))
+                                .foregroundStyle(ActualistTheme.warning)
+                            Text(row.message)
+                                .font(ActualistTypography.rowLabel(for: density))
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 6)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(ActualistTheme.secondaryText)
+                            .accessibilityHidden(true)
+                    }
+                    .actualistReviewCard()
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("schedules-auto-post-refusals")
     }
 
     private var authoringUnavailableNotice: some View {

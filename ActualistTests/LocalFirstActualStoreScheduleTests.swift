@@ -15,8 +15,13 @@ extension LocalFirstActualStoreTests {
         #expect(bundle.store.cachedSchedules(budgetID: "group-1") == loaded)
         #expect(bundle.store.cachedSchedules(budgetID: "another-budget") == nil)
 
+        bundle.store.scheduleAutoPostRefusals = [ScheduleAutoPostRefusal(
+            scheduleID: "rent", scheduleName: "Rent", occurrenceDayID: "2026-09-27",
+            refusal: .draftMismatch
+        )]
         bundle.store.reset()
         #expect(bundle.store.cachedSchedules(budgetID: "group-1") == nil)
+        #expect(bundle.store.scheduleAutoPostRefusals.isEmpty)
     }
 
     @Test func newerScheduleRefreshRejectsOlderCompletionAndKeepsLatestAsOf() async throws {

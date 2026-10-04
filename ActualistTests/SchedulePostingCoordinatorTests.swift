@@ -204,6 +204,7 @@ private final class SchedulePostingCoordinatorRepositoryFake: ScheduleRepository
     let commitEntered = TestLatch()
     let commitRelease = TestLatch()
 
+    var scheduleAutoPostRefusals: [ScheduleAutoPostRefusal] { [] }
     func cachedSchedules(budgetID: String) -> LoadedSchedules? { nil }
 
     func refreshSchedules(budgetID: String, asOf today: String) async throws -> LoadedSchedules {

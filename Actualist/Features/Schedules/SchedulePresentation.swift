@@ -47,6 +47,12 @@ struct ScheduleListSection: Identifiable, Hashable, Sendable {
     var id: String { kind.id }
 }
 
+struct ScheduleAutoPostRefusalRow: Identifiable, Hashable, Sendable {
+    let id: String
+    let title: String
+    let message: String
+}
+
 enum SchedulePresentationTone: Hashable, Sendable {
     case accent
     case positive
@@ -130,6 +136,17 @@ enum SchedulePresentation {
         case .upcoming: .accent
         case .missed: .danger
         }
+    }
+
+    static func autoPostRefusalRow(
+        _ refusal: ScheduleAutoPostRefusal,
+        title: String
+    ) -> ScheduleAutoPostRefusalRow {
+        ScheduleAutoPostRefusalRow(
+            id: refusal.scheduleID,
+            title: title,
+            message: refusal.refusal.errorDescription ?? "This schedule could not be posted."
+        )
     }
 
     static func row(
