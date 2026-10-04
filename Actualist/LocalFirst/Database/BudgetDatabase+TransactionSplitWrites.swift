@@ -300,7 +300,7 @@ extension BudgetDatabase {
         guard try tableExists("categories", db: db) else { return }
         for split in splits {
             if let categoryID = split.categoryID,
-               try !rowExists(table: "categories", rowID: categoryID, db: db) {
+               try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
         }

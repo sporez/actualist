@@ -23,7 +23,7 @@ extension BudgetDatabase {
                 required: ["category"],
                 db: db
             )
-            guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
+            guard try liveRowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing transaction")
             }
 
@@ -35,7 +35,7 @@ extension BudgetDatabase {
                 db: db
             )
             if try tableExists("categories", db: db),
-               try !rowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
+               try !liveRowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
 

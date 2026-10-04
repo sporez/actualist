@@ -125,6 +125,19 @@ extension BudgetDatabase {
         ) != nil
     }
 
+    /// Existence check for write validation: a tombstoned or deleted row does not
+    /// count. Upserts, sync apply and uniqueness checks keep `rowExists`.
+    func liveRowExists(table: String, rowID: String, db: Database) throws -> Bool {
+        guard try rowExists(table: table, rowID: rowID, db: db) else { return false }
+        guard table != "zero_budgets" else { return true }
+        let predicate = predicateForLiveRows(columns: try columnSet(for: table, db: db))
+        return try Row.fetchOne(
+            db,
+            sql: "SELECT id FROM \(quotedIdentifier(table)) WHERE id = ? AND \(predicate) LIMIT 1",
+            arguments: [rowID]
+        ) != nil
+    }
+
     func quotedIdentifier(_ identifier: String) -> String {
         "\"\(identifier.replacingOccurrences(of: "\"", with: "\"\""))\""
     }

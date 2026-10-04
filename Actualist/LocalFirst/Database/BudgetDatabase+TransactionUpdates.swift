@@ -30,7 +30,7 @@ extension BudgetDatabase {
                 db: db
             )
             if try tableExists("accounts", db: db),
-               try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
+               try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing account")
             }
 
@@ -74,7 +74,7 @@ extension BudgetDatabase {
             }
             if let mainCategory,
                try tableExists("categories", db: db),
-               try !rowExists(table: "categories", rowID: mainCategory, db: db) {
+               try !liveRowExists(table: "categories", rowID: mainCategory, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
 

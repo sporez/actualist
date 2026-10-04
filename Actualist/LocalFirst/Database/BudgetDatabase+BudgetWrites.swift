@@ -106,7 +106,7 @@ extension BudgetDatabase {
                 db: db
             )
             if try tableExists("categories", db: db),
-               try !rowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
+               try !liveRowExists(table: "categories", rowID: trimmedCategoryID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
 
@@ -595,7 +595,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing category")
         }
         if try tableExists("categories", db: db),
-           try !rowExists(table: "categories", rowID: trimmed, db: db) {
+           try !liveRowExists(table: "categories", rowID: trimmed, db: db) {
             throw LocalFirstError.invalidLocalWrite("missing category")
         }
     }

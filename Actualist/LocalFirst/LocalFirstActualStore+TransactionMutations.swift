@@ -535,6 +535,9 @@ extension LocalFirstActualStore {
         if draft.payeeID == nil && trimmedName.isEmpty && (draft.isSplit || draft.isParent) {
             return (nil, [])
         }
+        if let selectedPayeeID = draft.payeeID, !selectedPayeeID.isEmpty {
+            try await database.requireLivePayee(selectedPayeeID)
+        }
         let resolved = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: draft.payeeID,
             payeeName: draft.payeeName,

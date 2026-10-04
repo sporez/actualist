@@ -150,7 +150,7 @@ extension BudgetDatabase {
                 required: ["account_group_id"],
                 db: db
             )
-            guard try rowExists(table: "accounts", rowID: accountID, db: db) else {
+            guard try liveRowExists(table: "accounts", rowID: accountID, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing account")
             }
             if let groupID {

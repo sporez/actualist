@@ -3,6 +3,17 @@ import GRDB
 
 extension BudgetDatabase {
 
+    /// Create and update require an explicitly selected payee to be live. Payees
+    /// created in the same plan are never selected ids, so they are not checked.
+    func requireLivePayee(_ payeeID: String) throws {
+        try queue.read { db in
+            if try tableExists("payees", db: db),
+               try !liveRowExists(table: "payees", rowID: payeeID, db: db) {
+                throw LocalFirstError.invalidLocalWrite("missing payee")
+            }
+        }
+    }
+
     func resolveOrCreatePayeeMessages(
         selectedPayeeID: String?,
         payeeName: String,
@@ -91,6 +102,15 @@ extension BudgetDatabase {
     ) throws -> [ActualSyncDecodedMessage] {
         try validateSimpleTransactionDraft(draft)
         var messages: [ActualSyncDecodedMessage] = []
+        if try tableExists("accounts", db: db),
+           try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
+            throw LocalFirstError.invalidLocalWrite("missing account")
+        }
+        if let categoryID = draft.categoryID,
+           try tableExists("categories", db: db),
+           try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
             let columns = try requiredColumns(
                 table: "transactions",
                 required: ["date", "amount"],
@@ -371,7 +391,7 @@ extension BudgetDatabase {
                 throw LocalFirstError.invalidLocalWrite("missing column transactions.transferred_id")
             }
             if try tableExists("accounts", db: db),
-               try !rowExists(table: "accounts", rowID: draft.accountID, db: db) {
+               try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing account")
             }
             let destinationAccountID = try transferDestinationAccountID(payeeID: payeeID, db: db)
@@ -522,7 +542,7 @@ extension BudgetDatabase {
             return (nil, nil)
         }
         if try tableExists("categories", db: db),
-           try !rowExists(table: "categories", rowID: categoryID, db: db) {
+           try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
             throw LocalFirstError.invalidLocalWrite("missing category")
         }
         return sourceOffBudget ? (nil, categoryID) : (categoryID, nil)
