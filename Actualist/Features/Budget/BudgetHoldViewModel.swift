@@ -219,53 +219,74 @@ final class BudgetHoldViewModel {
         }
     }
 
+    /// How a submit ended. `committedButInvalidated` means the repository
+    /// committed the write but the sheet was invalidated while it ran, so the
+    /// caller must still publish the data mutation.
+    enum SubmitOutcome: Equatable {
+        case completed
+        case failed
+        case committedButInvalidated
+    }
+
     func submitHold(using appState: AppState) async -> Bool {
         guard contextIsCurrent(appState) else { invalidate(); return false }
-        let succeeded = await submitHold(repository: appState.budgetRepository)
-        guard contextIsCurrent(appState) else { invalidate(); return false }
-        if succeeded { appState.recordLocalDataMutation() }
-        return succeeded
+        let outcome = await holdOutcome(repository: appState.budgetRepository)
+        return finish(outcome, using: appState)
     }
 
     func submitRelease(using appState: AppState) async -> Bool {
         guard contextIsCurrent(appState) else { invalidate(); return false }
-        let succeeded = await submitRelease(repository: appState.budgetRepository)
+        let outcome = await releaseOutcome(repository: appState.budgetRepository)
+        return finish(outcome, using: appState)
+    }
+
+    private func finish(_ outcome: SubmitOutcome, using appState: AppState) -> Bool {
+        if outcome != .failed { appState.recordLocalDataMutation() }
         guard contextIsCurrent(appState) else { invalidate(); return false }
-        if succeeded { appState.recordLocalDataMutation() }
-        return succeeded
+        return outcome == .completed
     }
 
     func submitHold(repository: any BudgetRepositoryProtocol) async -> Bool {
-        guard canHold, let amount else { return false }
-        return await submit(.hold(amount: amount), repository: repository)
+        await holdOutcome(repository: repository) == .completed
     }
 
     func submitRelease(repository: any BudgetRepositoryProtocol) async -> Bool {
+        await releaseOutcome(repository: repository) == .completed
+    }
+
+    func holdOutcome(repository: any BudgetRepositoryProtocol) async -> SubmitOutcome {
+        guard canHold, let amount else { return .failed }
+        return await submit(.hold(amount: amount), repository: repository)
+    }
+
+    func releaseOutcome(repository: any BudgetRepositoryProtocol) async -> SubmitOutcome {
         // SwiftUI may dismiss the alert binding before its action's Task starts.
-        guard isReviewingRelease || canRelease else { return false }
+        guard isReviewingRelease || canRelease else { return .failed }
         return await submit(.reset, repository: repository)
     }
 
-    private func submit(_ command: BudgetHoldCommand, repository: any BudgetRepositoryProtocol) async -> Bool {
-        guard var draft else { return false }
+    private func submit(_ command: BudgetHoldCommand, repository: any BudgetRepositoryProtocol) async -> SubmitOutcome {
+        guard var draft else { return .failed }
         let request = generation
         state = .saving(draft)
         do {
             let loaded = try await repository.applyBudgetHoldAndRefresh(
                 command: command, review: draft.review, budgetID: target.budgetID
             )
-            guard request == generation else { return false }
+            // The repository already committed. Invalidation only means the sheet
+            // no longer owns the result, so callers must still publish it.
+            guard request == generation else { return .committedButInvalidated }
             guard loaded.selectedMonth == target.month, loaded.modeIdentity == target.modeIdentity else {
                 invalidate()
-                return false
+                return .committedButInvalidated
             }
             state = .completed
-            return true
+            return .completed
         } catch {
-            guard request == generation else { return false }
+            guard request == generation else { return .failed }
             draft.error = error.userFacingMessage
             state = .editing(draft)
-            return false
+            return .failed
         }
     }
 
