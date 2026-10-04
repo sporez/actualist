@@ -25,6 +25,12 @@ struct PortableBudgetExportTests {
 
     @Test func exportProducesArchiveThePortableValidatorAccepts() async throws {
         let bundle = try await support.makeOpenedWritableStoreBundle()
+        // A scratch export directory keeps a concurrent sign-out test from
+        // sweeping this test's archive out of the shared tmp directory.
+        bundle.store.portableExportFiles = PortableExportFiles(
+            temporaryDirectory: FileManager.default.temporaryDirectory
+                .appending(path: "PortableExport-files-\(UUID().uuidString)", directoryHint: .isDirectory)
+        )
 
         // The store's open-budget identity is the budget's sync ID
         // (group ID, with the cloud file ID as fallback), matching

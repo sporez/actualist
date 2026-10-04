@@ -28,6 +28,8 @@ final class LocalFirstActualStore:
     @ObservationIgnored let transactionFeedPageReadHook: TransactionFeedPageReadHook?
     @ObservationIgnored let transactionFeedCacheRefreshGate: TransactionFeedCacheRefreshGate
     let syncClient = SyncClient()
+    /// Plaintext budget ZIPs awaiting a share. Tests point it at a scratch directory.
+    @ObservationIgnored var portableExportFiles = PortableExportFiles()
 
     var openedBudgetID: String?
     var openedGroupID: String?
@@ -40,6 +42,7 @@ final class LocalFirstActualStore:
         didSet { refreshEndpointHealthDisplay() }
     }
     var openedEncryptionContext: ActualBudgetEncryptionContext?
+    var isOpenBudgetEncrypted: Bool { openedEncryptionContext != nil }
     var cachedBudgets: [ActualBudget] = []
     var remoteFilesByFileID: [String: ActualSyncRemoteFile] = [:]
     var accountsByBudget: [String: [AccountDisplay]] = [:]
@@ -288,6 +291,7 @@ final class LocalFirstActualStore:
 
     func eraseLocalData() throws {
         reset()
+        portableExportFiles.removeAll()
         endpointHealth.clear()
         refreshEndpointHealthDisplay()
         try keychain.removeActualSyncToken()

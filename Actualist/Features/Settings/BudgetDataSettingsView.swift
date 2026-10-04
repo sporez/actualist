@@ -294,7 +294,9 @@ struct BudgetDataSettingsView: View {
         } header: {
             Text("Export")
         } footer: {
-            Text("Saves the open budget as a portable ZIP file you can share or import elsewhere. Your server data is not changed.")
+            Text(PortableBudgetExportWorkflow.footerText(
+                isBudgetEncrypted: appState.localFirstStore.isOpenBudgetEncrypted
+            ))
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }

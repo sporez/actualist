@@ -4,7 +4,8 @@ extension LocalFirstActualStore {
     /// Exports the currently open budget as a portable ZIP through the
     /// existing `PortableBudgetArchive` export: a consistent snapshot of the
     /// open database (never a live `db.sqlite` copy) plus allowlisted
-    /// metadata, written to a fresh temporary file the caller shares. Nothing
+    /// metadata, written to a fresh file in `PortableExportFiles` that the caller shares
+    /// and later discards. Nothing
     /// is uploaded, the server is never contacted, and the open budget's
     /// local files are unchanged.
     ///
@@ -28,16 +29,23 @@ extension LocalFirstActualStore {
         let budgetName = metadata?.budgetName
             ?? cachedBudgets.first(where: { $0.syncID == budgetID })?.name
             ?? ""
-        let archiveURL = FileManager.default.temporaryDirectory
-            .appending(path: "budget-export-\(UUID().uuidString).zip")
-        _ = try await PortableBudgetArchive().export(
-            database: database,
-            budgetName: budgetName,
-            sourceIdentity: budgetID,
-            to: archiveURL
-        )
+        let exportFiles = portableExportFiles
+        exportFiles.sweepStale()
+        let archiveURL = try exportFiles.makeArchiveURL()
+        do {
+            _ = try await PortableBudgetArchive().export(
+                database: database,
+                budgetName: budgetName,
+                sourceIdentity: budgetID,
+                to: archiveURL
+            )
+            try exportFiles.protect(archiveURL)
+        } catch {
+            exportFiles.discard(archiveURL)
+            throw error
+        }
         guard self.database === database, openedBudgetID == budgetID else {
-            try? FileManager.default.removeItem(at: archiveURL)
+            exportFiles.discard(archiveURL)
             throw CancellationError()
         }
         return archiveURL
