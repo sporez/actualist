@@ -64,6 +64,8 @@ final class LocalFirstActualStore:
     @ObservationIgnored var scheduleMutationAfterCommitHook: ScheduleMutationHook?
     @ObservationIgnored var scheduleMutationBeforeRefreshHook: ScheduleMutationRefreshHook?
     var budgetReadGeneration = 0
+    @ObservationIgnored var syncStatusSequence = 0
+    @ObservationIgnored var appliedPendingCountSequence = 0
     var budgetSessionGeneration = 0
     @ObservationIgnored var activeReimportID: UUID?
     var budgetDiscoveryGeneration = 0

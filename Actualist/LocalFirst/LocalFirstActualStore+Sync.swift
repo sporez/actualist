@@ -493,6 +493,9 @@ extension LocalFirstActualStore {
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
     }
 
+    /// Awaits first, then re-reads and replaces `syncStatus` in one synchronous
+    /// step so concurrent calls cannot overwrite each other's fields. A pending
+    /// count read that started before an already-landed newer read is dropped.
     func recordSyncStatus(
         budgetID: String,
         uploadedCount: Int?,
@@ -502,27 +505,34 @@ extension LocalFirstActualStore {
         guard let database else { return }
         let generation = budgetSessionGeneration
         guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
-        var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
-        status.fileID = budgetID
-        status.groupID = openedGroupID
-        status.encryptionKeyID = openedEncryptionContext?.keyID
-        status.pendingLocalMessageCount = (try? await database.pendingLocalSyncMessageCount()) ?? status.pendingLocalMessageCount
+        syncStatusSequence &+= 1
+        let sequence = syncStatusSequence
+        let pendingCount = try? await database.pendingLocalSyncMessageCount()
         guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
+        var success: LocalFirstSyncStatusUpdate.Success?
+        var errorDescription: String?
         if let appliedCount, let uploadedCount {
             let lastSyncedAt = Date()
-            status.lastSyncedAt = lastSyncedAt
-            status.lastAppliedMessageCount = appliedCount
-            if uploadedCount > 0 {
-                status.lastUploadedMessageCount = uploadedCount
-            }
-            status.lastError = nil
-            status.lastSyncUsedFallback = (lastSyncEndpoint == .fallback)
+            let usedFallback = lastSyncEndpoint == .fallback
+            success = LocalFirstSyncStatusUpdate.Success(
+                lastSyncedAt: lastSyncedAt,
+                appliedCount: appliedCount,
+                uploadedCount: uploadedCount,
+                usedFallback: usedFallback
+            )
+            // The persisted checkpoint mirrors the merged counts, so compute them
+            // from the current status without assigning it before the await.
+            let counts = (syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID))
+                .merging(LocalFirstSyncStatusUpdate(
+                    fileID: budgetID, groupID: openedGroupID, encryptionKeyID: nil,
+                    pendingLocalMessageCount: nil, success: success, errorDescription: nil
+                ))
             do {
                 try await database.saveLocalSyncCheckpoint(
                     BudgetDatabase.LocalSyncCheckpoint(
                         lastSyncedAt: lastSyncedAt,
-                        lastAppliedMessageCount: status.lastAppliedMessageCount,
-                        lastUploadedMessageCount: status.lastUploadedMessageCount
+                        lastAppliedMessageCount: counts.lastAppliedMessageCount,
+                        lastUploadedMessageCount: counts.lastUploadedMessageCount
                     )
                 )
             } catch {
@@ -531,10 +541,20 @@ extension LocalFirstActualStore {
                 #endif
             }
         } else if let error, !error.isCancellation {
-            status.lastError = SafeSyncDiagnostic.description(for: error)
+            errorDescription = SafeSyncDiagnostic.description(for: error)
         }
         guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
-        syncStatus = status
+        let acceptsPendingCount = pendingCount != nil && sequence > appliedPendingCountSequence
+        if acceptsPendingCount { appliedPendingCountSequence = sequence }
+        syncStatus = (syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID))
+            .merging(LocalFirstSyncStatusUpdate(
+                fileID: budgetID,
+                groupID: openedGroupID,
+                encryptionKeyID: openedEncryptionContext?.keyID,
+                pendingLocalMessageCount: acceptsPendingCount ? pendingCount : nil,
+                success: success,
+                errorDescription: errorDescription
+            ))
     }
 
     func recordSyncDebugEvent(
