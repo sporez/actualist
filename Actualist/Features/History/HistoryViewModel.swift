@@ -156,7 +156,14 @@ final class HistoryViewModel {
             guard generation == preparationGeneration, undoState == .preparing(actionID: row.id) else {
                 return
             }
-            undoState = .reviewing(reviewPresentation(from: preview, row: row))
+            undoState = .reviewing(HistoryRowPresentation.undoReview(
+                from: preview,
+                records: records,
+                fallbackSummary: row.title,
+                categoryNames: categoryNames,
+                currency: currency,
+                privacyEnabled: privacyEnabled
+            ))
         } catch {
             guard generation == preparationGeneration else {
                 return
@@ -215,151 +222,6 @@ final class HistoryViewModel {
     func dismissUndoFailure() {
         if case .failed = undoState {
             undoState = .idle
-        }
-    }
-
-    private func reviewPresentation(
-        from preview: BudgetActionUndoPreview,
-        row: HistoryRowModel
-    ) -> HistoryUndoReviewPresentation {
-        var entries = preview.entries.map { entry in
-            HistoryUndoReviewPresentation.Entry(
-                categoryID: entry.categoryID,
-                name: HistoryRowPresentation.displayName(
-                    for: entry.categoryID,
-                    categoryNames: categoryNames,
-                    privacyEnabled: privacyEnabled
-                ),
-                currentText: HistoryRowPresentation.moneyText(
-                    entry.current,
-                    seed: "\(preview.actionID)-current-\(entry.categoryID)",
-                    currency: currency,
-                    privacyEnabled: privacyEnabled
-                ),
-                proposedText: HistoryRowPresentation.moneyText(
-                    entry.proposed,
-                    seed: "\(preview.actionID)-proposed-\(entry.categoryID)",
-                    currency: currency,
-                    privacyEnabled: privacyEnabled
-                )
-            )
-        }
-        if entries.isEmpty {
-            entries = preview.transactionLines.map { line in
-                let name = HistoryRowPresentation.displayPayee(
-                    line.payeeName,
-                    seed: line.id,
-                    privacyEnabled: privacyEnabled
-                ) ?? defaultTransactionLineName(for: line)
-                let current: String
-                let proposed: String
-                switch line.effect {
-                case .delete:
-                    current = line.amount.map {
-                        HistoryRowPresentation.moneyText(
-                            $0,
-                            seed: "\(preview.actionID)-txn-\(line.id)",
-                            currency: currency,
-                            privacyEnabled: privacyEnabled
-                        )
-                    } ?? "Transaction"
-                    proposed = "Deleted"
-                case .restore:
-                    current = "Deleted"
-                    proposed = line.amount.map {
-                        HistoryRowPresentation.moneyText(
-                            $0,
-                            seed: "\(preview.actionID)-txn-\(line.id)",
-                            currency: currency,
-                            privacyEnabled: privacyEnabled
-                        )
-                    } ?? "Restored"
-                case .recategorize:
-                    current = HistoryRowPresentation.displayName(
-                        for: line.currentCategoryID,
-                        categoryNames: categoryNames,
-                        privacyEnabled: privacyEnabled
-                    )
-                    proposed = HistoryRowPresentation.displayName(
-                        for: line.proposedCategoryID,
-                        categoryNames: categoryNames,
-                        privacyEnabled: privacyEnabled
-                    )
-                case .edit:
-                    current = line.amount.map {
-                        HistoryRowPresentation.moneyText(
-                            $0,
-                            seed: "\(preview.actionID)-txn-\(line.id)",
-                            currency: currency,
-                            privacyEnabled: privacyEnabled
-                        )
-                    } ?? "Current"
-                    proposed = "Previous"
-                case .cleared:
-                    current = line.currentCleared == true ? "Cleared" : "Uncleared"
-                    proposed = line.proposedCleared == true ? "Cleared" : "Uncleared"
-                case .duplicateRemoval:
-                    current = line.amount.map {
-                        HistoryRowPresentation.moneyText(
-                            $0,
-                            seed: "\(preview.actionID)-txn-\(line.id)",
-                            currency: currency,
-                            privacyEnabled: privacyEnabled
-                        )
-                    } ?? "Duplicate"
-                    proposed = "Remove duplicate"
-                case .mergeRestoration:
-                    current = line.amount.map {
-                        HistoryRowPresentation.moneyText(
-                            $0,
-                            seed: "\(preview.actionID)-txn-after-\(line.id)",
-                            currency: currency,
-                            privacyEnabled: privacyEnabled
-                        )
-                    } ?? "After merge"
-                    proposed = line.proposedAmount.map {
-                        HistoryRowPresentation.moneyText(
-                            $0,
-                            seed: "\(preview.actionID)-txn-before-\(line.id)",
-                            currency: currency,
-                            privacyEnabled: privacyEnabled
-                        )
-                    } ?? "Before merge"
-                }
-                return HistoryUndoReviewPresentation.Entry(
-                    categoryID: line.id,
-                    name: name,
-                    currentText: current,
-                    proposedText: proposed
-                )
-            }
-        }
-        let summary = records.first { $0.id == preview.actionID }.map {
-            HistoryRowPresentation.gestureSummary(
-                for: $0,
-                categoryNames: categoryNames,
-                currency: currency,
-                privacyEnabled: privacyEnabled
-            )
-        } ?? row.title
-        return HistoryUndoReviewPresentation(
-            actionID: preview.actionID,
-            gestureSummary: summary,
-            entries: entries,
-            blockReason: preview.block?.userFacingReason
-        )
-    }
-
-    private func defaultTransactionLineName(
-        for line: BudgetActionUndoPreview.TransactionLine
-    ) -> String {
-        switch line.effect {
-        case .duplicateRemoval:
-            line.isLinkedEntry ? "Linked duplicate" : "Duplicate"
-        case .mergeRestoration:
-            line.isLinkedEntry ? "Linked transaction" : "Selected transaction"
-        case .delete, .restore, .recategorize, .edit, .cleared:
-            "Transaction"
         }
     }
 

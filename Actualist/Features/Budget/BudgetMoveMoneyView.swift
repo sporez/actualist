@@ -11,6 +11,13 @@ struct BudgetMoveMoneyView: View {
     @State private var didAutoPresentDestinationPicker = false
     @State private var isNumberPadVisible = false
 
+    private var display: BudgetMoveMoneyDisplay {
+        BudgetMoveMoneyDisplay(
+            isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+            currency: viewModel.currency
+        )
+    }
+
     var body: some View {
         ZStack {
             ActualistTheme.background.ignoresSafeArea()
@@ -129,13 +136,13 @@ struct BudgetMoveMoneyView: View {
                     .foregroundStyle(ActualistTheme.primaryText)
 
                 VStack(spacing: 10) {
-                    Text(moveFocusedCategoryName(draft))
+                    Text(display.focusedCategoryName(draft))
                         .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.primaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
 
-                    Text(moveHeaderAmountText(draft))
+                    Text(display.headerAmountText(draft, amount: viewModel.moveMoneyAvailableDisplayAmount))
                         .font(ActualistTypography.workScreenAmount(for: density))
                         .foregroundStyle(moveHeaderAmountForeground)
                         .lineLimit(1)
@@ -205,7 +212,7 @@ struct BudgetMoveMoneyView: View {
     private func destinationCard(_ draft: BudgetMoveMoneyDraft) -> some View {
         VStack(spacing: 18) {
             HStack(spacing: 10) {
-                Text(moveDestinationTitle(for: draft))
+                Text(display.destinationTitle(for: draft))
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(draft.destination == nil && draft.allocations.isEmpty ? ActualistTheme.accent : ActualistTheme.primaryText)
                     .lineLimit(1)
@@ -216,7 +223,7 @@ struct BudgetMoveMoneyView: View {
                 Button {
                     isNumberPadVisible = true
                 } label: {
-                    Text(moveDisplayAmountText(draft))
+                    Text(display.amountText(draft, amount: viewModel.moveMoneyDisplayAmount))
                         .font(ActualistTypography.rowValue(for: density))
                         .foregroundStyle(ActualistTheme.accent)
                         .lineLimit(1)
@@ -226,7 +233,7 @@ struct BudgetMoveMoneyView: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Opens the amount keypad")
 
-                Text(moveCounterpartyAvailableText(draft))
+                Text(display.counterpartyAvailableText(draft, amount: viewModel.moveMoneyCounterpartyAvailableDisplayAmount))
                     .font(ActualistTypography.rowBadge(for: density))
                     .foregroundStyle(moveCounterpartyAvailableForeground)
                     .lineLimit(1)
@@ -278,106 +285,13 @@ struct BudgetMoveMoneyView: View {
         .modifier(BudgetMoveMoneyDetentHaptic(trigger: viewModel.moveMoneySliderDetentFeedback))
     }
 
-    private func moveDestinationTitle(for draft: BudgetMoveMoneyDraft) -> String {
-        if !draft.allocations.isEmpty {
-            return draft.allocations.count == 1 ? moveAllocationTitle(draft.allocations[0]) : "Selected Categories"
-        }
-
-        guard let destination = draft.destination else {
-            return "Select Category"
-        }
-
-        return moveDestinationTitle(destination)
-    }
-
-    private func moveFocusedCategoryName(_ draft: BudgetMoveMoneyDraft) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return draft.focusedCategoryName.actualistCategoryNameParts.name
-        }
-
-        return PrivacyDisplay.name(for: .category, seed: draft.focusedCategoryID)
-    }
-
-    private func moveHeaderAmountText(_ draft: BudgetMoveMoneyDraft) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return viewModel.currency.formatted(viewModel.moveMoneyAvailableDisplayAmount)
-        }
-
-        return PrivacyDisplay.money(
-            viewModel.moveMoneyAvailableDisplayAmount,
-            seed: "move-header-\(draft.focusedCategoryID)",
-            currency: viewModel.currency,
-            maximumDollars: 900
-        )
-    }
-
-    private func moveDisplayAmountText(_ draft: BudgetMoveMoneyDraft) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return viewModel.currency.formatted(viewModel.moveMoneyDisplayAmount)
-        }
-
-        return PrivacyDisplay.money(
-            viewModel.moveMoneyDisplayAmount,
-            seed: "move-display-\(draft.focusedCategoryID)-\(viewModel.moveMoneyDisplayAmount)",
-            currency: viewModel.currency,
-            maximumDollars: 900
-        )
-    }
-
-    private func moveCounterpartyAvailableText(_ draft: BudgetMoveMoneyDraft) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return viewModel.currency.formatted(viewModel.moveMoneyCounterpartyAvailableDisplayAmount)
-        }
-
-        return PrivacyDisplay.money(
-            viewModel.moveMoneyCounterpartyAvailableDisplayAmount,
-            seed: "move-counterparty-\(draft.focusedCategoryID)",
-            currency: viewModel.currency,
-            maximumDollars: 900
-        )
-    }
-
-    private func moveAllocationTitle(_ allocation: BudgetMoveMoneyAllocation) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return allocation.destination.title
-        }
-
-        return moveDestinationTitle(allocation.destination)
-    }
-
-    private func moveAllocationAmountText(_ allocation: BudgetMoveMoneyAllocation) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return viewModel.currency.formatted(allocation.amount)
-        }
-
-        return PrivacyDisplay.money(
-            allocation.amount,
-            seed: "move-allocation-\(allocation.id)-\(allocation.amount)",
-            currency: viewModel.currency,
-            maximumDollars: 900
-        )
-    }
-
-    private func moveDestinationTitle(_ destination: BudgetMoveMoneyDestination) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return destination.title
-        }
-
-        switch destination {
-        case .toBudget:
-            return "To Budget"
-        case .category(let id, _):
-            return PrivacyDisplay.name(for: .category, seed: id)
-        }
-    }
-
     private func moveAllocationRow(
         _ allocation: BudgetMoveMoneyAllocation,
         draft: BudgetMoveMoneyDraft
     ) -> some View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
-                Text(moveAllocationTitle(allocation))
+                Text(display.allocationTitle(allocation))
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(1)
@@ -389,7 +303,7 @@ struct BudgetMoveMoneyView: View {
                     viewModel.setFocusedMoveMoneyAllocation(allocation.id)
                     isNumberPadVisible = true
                 } label: {
-                    Text(moveAllocationAmountText(allocation))
+                    Text(display.allocationAmountText(allocation))
                         .font(ActualistTypography.rowValue(for: density))
                         .foregroundStyle(ActualistTheme.accent)
                         .lineLimit(1)
@@ -556,6 +470,13 @@ private struct BudgetMoveMoneyDestinationPicker: View {
     @State private var searchText = ""
     @State private var isSplitMode = false
 
+    private var display: BudgetMoveMoneyDisplay {
+        BudgetMoveMoneyDisplay(
+            isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
+            currency: viewModel.currency
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -644,7 +565,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
         VStack(alignment: .leading, spacing: 18) {
             ForEach(viewModel.moveMoneyDestinationGroups(matching: searchText)) { group in
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(groupName(group))
+                    Text(display.groupName(group))
                         .font(ActualistTypography.rowLabel(for: density).weight(.bold))
                         .foregroundStyle(ActualistTheme.primaryText)
                         .padding(.horizontal, 22)
@@ -676,7 +597,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
             }
         } label: {
             HStack(spacing: 12) {
-                Text(optionTitle(option))
+                Text(display.optionTitle(option))
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(1)
@@ -684,7 +605,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
 
                 Spacer()
 
-                Text(optionValueText(option))
+                Text(display.optionValueText(option))
                     .font(ActualistTypography.rowBadge(for: density))
                     .foregroundStyle(destinationValueForeground(option))
                     .lineLimit(1)
@@ -734,39 +655,5 @@ private struct BudgetMoveMoneyDestinationPicker: View {
                 ActualistTheme.positiveForeground
             }
         }
-    }
-
-    private func groupName(_ group: BudgetMoveMoneyDestinationGroup) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return group.name
-        }
-
-        return PrivacyDisplay.name(for: .categoryGroup, seed: group.id)
-    }
-
-    private func optionTitle(_ option: BudgetMoveMoneyDestinationOption) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return option.title
-        }
-
-        switch option.destination {
-        case .toBudget:
-            return "To Budget"
-        case .category(let id, _):
-            return PrivacyDisplay.name(for: .category, seed: id)
-        }
-    }
-
-    private func optionValueText(_ option: BudgetMoveMoneyDestinationOption) -> String {
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return option.valueText
-        }
-
-        return PrivacyDisplay.money(
-            option.amount,
-            seed: "move-option-\(option.id)",
-            currency: viewModel.currency,
-            maximumDollars: 900
-        )
     }
 }

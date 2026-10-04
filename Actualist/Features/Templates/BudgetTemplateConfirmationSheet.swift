@@ -12,6 +12,29 @@ struct BudgetTemplateConfirmationSheet: View {
 
     @State private var viewModel = BudgetTemplateApplyPreviewViewModel()
 
+    /// Reloads the preview whenever any input that shapes it changes.
+    private struct LoadKey: Hashable {
+        let confirmationID: String
+        let categoryID: String?
+        let month: String
+        let modeIdentity: BudgetModeIdentity?
+        let budgetID: String?
+        let localDataRevision: UInt64
+        let randomized: Bool
+    }
+
+    private var loadKey: LoadKey {
+        LoadKey(
+            confirmationID: confirmation.id,
+            categoryID: categoryID,
+            month: month,
+            modeIdentity: modeIdentity,
+            budgetID: appState.settings.selectedBudgetID,
+            localDataRevision: localDataRevision,
+            randomized: appState.settings.randomizedDisplayValuesEnabled
+        )
+    }
+
     private var isMonthConfirmation: Bool {
         confirmation != .category
     }
@@ -71,7 +94,7 @@ struct BudgetTemplateConfirmationSheet: View {
             }
         }
         .background(ActualistTheme.background)
-        .task(id: "\(confirmation.id)|\(categoryID ?? "")|\(month)|\(String(describing: modeIdentity))|\(appState.settings.selectedBudgetID ?? "")|\(localDataRevision)|\(appState.settings.randomizedDisplayValuesEnabled)") {
+        .task(id: loadKey) {
             await load()
         }
     }

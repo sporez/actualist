@@ -67,6 +67,48 @@ struct OverspentCoverSelectionViewModelTests {
         #expect(!model.isOverspentCoverSelecting)
     }
 
+    @Test func tappingAnOverspentRowSelectsWhileSelectingAndOtherwiseOpensMoveMoney() throws {
+        let model = BudgetViewModel(initialBudgetID: "budget")
+        model.budgetMonth = try Self.decodeBudgetMonth(
+            firstOverspentBalance: -2_500,
+            secondOverspentBalance: -1_000,
+            lastMonthOverspent: 0
+        )
+        let option = try #require(model.overspentCategoryOptions.first)
+
+        model.beginOverspentCoverSelection()
+        #expect(model.handleOverspentCategoryTap(option) == .handled)
+        #expect(model.selectedOverspentCategoryIDs == [option.id])
+        #expect(model.moveMoneyDraft == nil)
+        #expect(model.handleOverspentCategoryTap(option) == .handled)
+        #expect(model.selectedOverspentCategoryIDs.isEmpty)
+
+        model.endOverspentCoverSelection()
+        #expect(model.handleOverspentCategoryTap(option) == .handled)
+        #expect(model.moveMoneyDraft?.focusedCategoryID == option.id)
+    }
+
+    @Test func tappingAnOverspentRowOnATrackingBudgetInspectsWithoutWriting() throws {
+        let month = try Self.decodeBudgetMonth(
+            firstOverspentBalance: -2_500,
+            secondOverspentBalance: -1_000,
+            lastMonthOverspent: 0
+        )
+        let loaded = LoadedBudgetMonth(
+            availableMonths: [month.month], selectedMonth: month.month,
+            month: month, alerts: [], isTrackingBudget: true
+        )
+        let model = BudgetViewModel(initialMonth: loaded, initialBudgetID: "budget")
+        let category = try #require(month.categoryGroups.flatMap(\.categories).first)
+        let option = BudgetOverspentCategoryOption(id: category.id, groupName: "Group", category: category)
+
+        let outcome = model.handleOverspentCategoryTap(option)
+
+        #expect(outcome == .inspect(model.categoryDetails(for: option.id)))
+        #expect(model.moveMoneyDraft == nil)
+        #expect(model.selectedOverspentCategoryIDs.isEmpty)
+    }
+
     @Test func coverCommandsUseSharedSourceForEverySelectedOverspentCategory() throws {
         let model = BudgetViewModel(initialBudgetID: "budget")
         model.budgetMonth = try Self.decodeBudgetMonth(

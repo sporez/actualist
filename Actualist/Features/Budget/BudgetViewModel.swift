@@ -326,6 +326,28 @@ final class BudgetViewModel {
         overspentCoverSelection.toggleSelection(option.id, isEligible: true)
     }
 
+    enum OverspentCategoryTapOutcome: Equatable {
+        /// Tracking budgets only inspect; the view presents these details.
+        case inspect(CategoryMonthDetails?)
+        case handled
+    }
+
+    /// Tracking budgets inspect the category. Envelope budgets toggle the
+    /// cover selection (ignored while a cover is submitting) or open Move Money.
+    func handleOverspentCategoryTap(_ option: BudgetOverspentCategoryOption) -> OverspentCategoryTapOutcome {
+        if isTrackingBudget {
+            return .inspect(categoryDetails(for: option.id))
+        }
+        if isOverspentCoverSelecting {
+            if !isCoveringOverspentSelection {
+                toggleOverspentCoverSelection(option)
+            }
+        } else {
+            beginMoveMoney(for: option.id)
+        }
+        return .handled
+    }
+
     // Selected categories are excluded from single-cover eligible sources, so
     // the shared source can never double as a cover destination.
     func overspentCoverCommands(

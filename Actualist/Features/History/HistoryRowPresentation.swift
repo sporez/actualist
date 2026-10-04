@@ -270,6 +270,102 @@ enum HistoryRowPresentation {
         return "\(verb) \(amountText)"
     }
 
+    /// The undo review: category amounts, or per-transaction lines for gestures
+    /// that touched transactions. Privacy seeds are stable per action and line.
+    static func undoReview(
+        from preview: BudgetActionUndoPreview,
+        records: [BudgetActionRecord],
+        fallbackSummary: String,
+        categoryNames: [String: String],
+        currency: BudgetCurrency,
+        privacyEnabled: Bool
+    ) -> HistoryUndoReviewPresentation {
+        func money(_ amount: Int, seed: String) -> String {
+            moneyText(amount, seed: seed, currency: currency, privacyEnabled: privacyEnabled)
+        }
+        func category(_ id: String?) -> String {
+            displayName(for: id, categoryNames: categoryNames, privacyEnabled: privacyEnabled)
+        }
+
+        var entries = preview.entries.map { entry in
+            HistoryUndoReviewPresentation.Entry(
+                categoryID: entry.categoryID,
+                name: category(entry.categoryID),
+                currentText: money(entry.current, seed: "\(preview.actionID)-current-\(entry.categoryID)"),
+                proposedText: money(entry.proposed, seed: "\(preview.actionID)-proposed-\(entry.categoryID)")
+            )
+        }
+        if entries.isEmpty {
+            entries = preview.transactionLines.map { line in
+                let name = displayPayee(line.payeeName, seed: line.id, privacyEnabled: privacyEnabled)
+                    ?? defaultTransactionLineName(for: line)
+                let amountSeed = "\(preview.actionID)-txn-\(line.id)"
+                let current: String
+                let proposed: String
+                switch line.effect {
+                case .delete:
+                    current = line.amount.map { money($0, seed: amountSeed) } ?? "Transaction"
+                    proposed = "Deleted"
+                case .restore:
+                    current = "Deleted"
+                    proposed = line.amount.map { money($0, seed: amountSeed) } ?? "Restored"
+                case .recategorize:
+                    current = category(line.currentCategoryID)
+                    proposed = category(line.proposedCategoryID)
+                case .edit:
+                    current = line.amount.map { money($0, seed: amountSeed) } ?? "Current"
+                    proposed = "Previous"
+                case .cleared:
+                    current = line.currentCleared == true ? "Cleared" : "Uncleared"
+                    proposed = line.proposedCleared == true ? "Cleared" : "Uncleared"
+                case .duplicateRemoval:
+                    current = line.amount.map { money($0, seed: amountSeed) } ?? "Duplicate"
+                    proposed = "Remove duplicate"
+                case .mergeRestoration:
+                    current = line.amount.map {
+                        money($0, seed: "\(preview.actionID)-txn-after-\(line.id)")
+                    } ?? "After merge"
+                    proposed = line.proposedAmount.map {
+                        money($0, seed: "\(preview.actionID)-txn-before-\(line.id)")
+                    } ?? "Before merge"
+                }
+                return HistoryUndoReviewPresentation.Entry(
+                    categoryID: line.id,
+                    name: name,
+                    currentText: current,
+                    proposedText: proposed
+                )
+            }
+        }
+        let summary = records.first { $0.id == preview.actionID }.map {
+            gestureSummary(
+                for: $0,
+                categoryNames: categoryNames,
+                currency: currency,
+                privacyEnabled: privacyEnabled
+            )
+        } ?? fallbackSummary
+        return HistoryUndoReviewPresentation(
+            actionID: preview.actionID,
+            gestureSummary: summary,
+            entries: entries,
+            blockReason: preview.block?.userFacingReason
+        )
+    }
+
+    private static func defaultTransactionLineName(
+        for line: BudgetActionUndoPreview.TransactionLine
+    ) -> String {
+        switch line.effect {
+        case .duplicateRemoval:
+            line.isLinkedEntry ? "Linked duplicate" : "Duplicate"
+        case .mergeRestoration:
+            line.isLinkedEntry ? "Linked transaction" : "Selected transaction"
+        case .delete, .restore, .recategorize, .edit, .cleared:
+            "Transaction"
+        }
+    }
+
     static func displayPayee(
         _ name: String?,
         seed: String,
