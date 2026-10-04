@@ -70,26 +70,73 @@ struct UntrustedZipExtractor {
 
         try requireAvailableDiskSpace(forExpandedBytes: totalExpandedBytes)
 
-        var extractedBytes: UInt64 = 0
+        var remainingBytes = limits.maximumExpandedBudgetBytes
         for entry in entries {
             let destination = try resolvingDestination(
                 extractionURL.appending(path: entry.path)
             )
-            let checksum = try archive.extract(entry, to: destination)
+            switch entry.type {
+            case .directory:
+                try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+            case .file:
+                remainingBytes -= try extractFile(
+                    entry,
+                    from: archive,
+                    to: destination,
+                    remainingBudgetBytes: remainingBytes
+                )
+            case .symlink:
+                throw UntrustedZipFailure.symbolicLink
+            }
+        }
+    }
+
+    /// Streams one file entry into a handle this type opened. ZIPFoundation's
+    /// `extract(_:to:)` trusts the declared sizes and writes everything before
+    /// any size check, so a small archive can fill the disk. Here the running
+    /// count stops the write at the declared entry size and at the remaining
+    /// archive budget. A failed entry leaves no partial file behind.
+    private func extractFile(
+        _ entry: Entry,
+        from archive: Archive,
+        to destination: URL,
+        remainingBudgetBytes: UInt64
+    ) throws -> UInt64 {
+        guard !fileManager.fileExists(atPath: destination.path) else {
+            throw CocoaError(.fileWriteFileExists, userInfo: [NSFilePathErrorKey: destination.path])
+        }
+        try fileManager.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        guard fileManager.createFile(atPath: destination.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: destination.path])
+        }
+        var written: UInt64 = 0
+        do {
+            let handle = try FileHandle(forWritingTo: destination)
+            defer { try? handle.close() }
+            let checksum = try archive.extract(entry, skipCRC32: false, progress: nil) { chunk in
+                let (next, overflow) = written.addingReportingOverflow(UInt64(chunk.count))
+                guard !overflow, next <= entry.uncompressedSize else {
+                    throw UntrustedZipFailure.sizeMismatch
+                }
+                guard next <= remainingBudgetBytes else {
+                    throw UntrustedZipFailure.resourceLimit
+                }
+                try handle.write(contentsOf: chunk)
+                written = next
+            }
             guard checksum == entry.checksum else {
                 throw UntrustedZipFailure.checksumMismatch
             }
-            if entry.type == .file {
-                let actualSize = try Self.fileSize(at: destination, fileManager: fileManager)
-                guard actualSize == entry.uncompressedSize else {
-                    throw UntrustedZipFailure.sizeMismatch
-                }
-                let (nextExtracted, overflow) = extractedBytes.addingReportingOverflow(actualSize)
-                guard !overflow, nextExtracted <= limits.maximumExpandedBudgetBytes else {
-                    throw UntrustedZipFailure.resourceLimit
-                }
-                extractedBytes = nextExtracted
+            guard written == entry.uncompressedSize else {
+                throw UntrustedZipFailure.sizeMismatch
             }
+            return written
+        } catch {
+            try? fileManager.removeItem(at: destination)
+            throw error
         }
     }
 
