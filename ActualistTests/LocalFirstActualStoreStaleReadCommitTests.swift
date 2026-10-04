@@ -69,4 +69,30 @@ extension LocalFirstActualStoreTests {
         }
         #expect(category == "groceries")
     }
+
+    @Test func deleteTombstonesAChildThatLandedRemotelyBeforeCommit() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: """
+            ALTER TABLE transactions ADD COLUMN reconciled INTEGER;
+            \(TransactionBatchDeleteTests.family(children: 2))
+            """)
+        let parent = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "p"))
+        landRemote([
+            remoteMessage("transactions", "c3", "acct", "S:checking"),
+            remoteMessage("transactions", "c3", "date", "N:20260705"),
+            remoteMessage("transactions", "c3", "amount", "N:-300"),
+            remoteMessage("transactions", "c3", "parent_id", "S:p"),
+            remoteMessage("transactions", "c3", "isChild", "N:1"),
+            remoteMessage("transactions", "c3", "tombstone", "N:0"),
+        ], on: bundle.store)
+
+        _ = try await bundle.store.deleteTransactionAndRefresh(parent, budgetID: "group-1") {}
+
+        let url = try bundle.fileManager.databaseURL(fileID: "file-1")
+        let live = try await DatabaseQueue(path: url.path).read { db in
+            try Int.fetchOne(
+                db, sql: "SELECT COUNT(*) FROM transactions WHERE id IN ('p','c1','c2','c3') AND COALESCE(tombstone, 0) = 0"
+            ) ?? -1
+        }
+        #expect(live == 0)
+    }
 }

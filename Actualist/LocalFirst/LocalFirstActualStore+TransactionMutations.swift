@@ -482,38 +482,51 @@ extension LocalFirstActualStore {
         }
 
         let database = try requireDatabase(for: budgetID)
-        let existingState = try await database.existingTransactionState(id: transactionID)
-        var builder = LocalFirstSyncMessageBuilder()
-        let delete = try await database.deleteTransactionMessages(
-            transactionID: transactionID,
-            reconciliationAuthorization: reconciliationAuthorization,
-            builder: &builder
-        )
-
-        let graph: BudgetTransactionGraph
-        if existingState.isParent {
-            graph = .split(childIDs: existingState.childIDs)
-        } else if let pairedID = existingState.transferID {
-            graph = .transfer(pairedID: pairedID)
-        } else {
-            graph = .simple
-        }
-        _ = try await database.commitUserAction(
-            delete.messages,
-            descriptor: .deleteTransaction(DeleteTransactionDescriptor(
-                month: monthID,
-                amount: transaction.amount ?? 0,
-                payeeName: transaction.payeeName,
-                categoryID: transaction.category,
-                transactionIDs: delete.affectedTransactionIDs,
-                graph: graph
-            )),
+        let amount = transaction.amount ?? 0
+        let payeeName = transaction.payeeName
+        let categoryID = transaction.category
+        await userActionBeforeCommitHook?()
+        let committed = try await database.commitUserActionPlan(
             source: actionSource,
             reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition(
                 transactionID: transactionID,
                 authorization: reconciliationAuthorization
             )
-        )
+        ) { database, db in
+            var builder = LocalFirstSyncMessageBuilder()
+            let delete = try database.deleteTransactionMessages(
+                transactionID: transactionID,
+                reconciliationAuthorization: reconciliationAuthorization,
+                db: db,
+                builder: &builder
+            )
+            let existingState = try database.existingTransactionState(
+                id: transactionID,
+                columns: try database.resolveTransactionRowColumns(db: db),
+                db: db
+            )
+            let graph: BudgetTransactionGraph
+            if existingState.isParent {
+                graph = .split(childIDs: existingState.childIDs)
+            } else if let pairedID = existingState.transferID {
+                graph = .transfer(pairedID: pairedID)
+            } else {
+                graph = .simple
+            }
+            return UserActionPlan(
+                drafts: delete.messages,
+                descriptor: .deleteTransaction(DeleteTransactionDescriptor(
+                    month: monthID,
+                    amount: amount,
+                    payeeName: payeeName,
+                    categoryID: categoryID,
+                    transactionIDs: delete.affectedTransactionIDs,
+                    graph: graph
+                )),
+                outcome: delete
+            )
+        }
+        let delete = committed.outcome
         await didDelete()
 
         let changedAccounts = Array(Set(delete.affectedAccountIDs + [transaction.account]))

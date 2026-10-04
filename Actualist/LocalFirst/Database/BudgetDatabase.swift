@@ -223,7 +223,7 @@ actor BudgetDatabase {
         )
     }
 
-    struct ExistingTransactionState {
+    struct ExistingTransactionState: Sendable {
         let account: String
         let isParent: Bool
         let isChild: Bool
