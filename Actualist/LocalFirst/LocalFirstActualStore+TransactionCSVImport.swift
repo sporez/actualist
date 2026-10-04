@@ -73,6 +73,8 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         let transferPayeeIDs = Self.transferPayeeIDs(payees)
         let categoryIDByName = Self.categoryIDByName(categories)
 
+        let accountIsOffBudget = try await database.accountIsOffBudget(request.accountID)
+
         var builder = LocalFirstSyncMessageBuilder()
         var messages: [ActualSyncDecodedMessage] = []
         var updates: [BudgetDatabase.TransactionCSVImportUpdate] = []
@@ -132,7 +134,10 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
                     amountMinorUnits: row.amountMinorUnits,
                     payeeID: payeeID,
                     payeeName: trimmedPayee,
-                    categoryID: row.categoryName.flatMap { categoryIDByName[$0.lowercased()] },
+                    // Actual strips the category from every off-budget insert.
+                    categoryID: accountIsOffBudget
+                        ? nil
+                        : row.categoryName.flatMap { categoryIDByName[$0.lowercased()] },
                     notes: row.notes,
                     // The import handler's traced default when the row lacks
                     // a cleared value.

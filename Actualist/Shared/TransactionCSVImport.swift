@@ -265,6 +265,13 @@ struct TransactionCSVImportCandidate: Hashable, Sendable {
     /// Normalized `yyyy-MM-dd`.
     let dateText: String
     let reconciled: Bool
+    /// A split parent: its effective category stays null.
+    let isParent: Bool
+    /// Non-empty for a transfer leg, whose payee and category belong to the
+    /// transfer graph.
+    let transferID: String?
+    /// The importing account is off budget, so rows carry no budget category.
+    let accountOffBudget: Bool
 }
 
 struct TransactionCSVImportMatchContext: Sendable {
@@ -399,8 +406,18 @@ enum TransactionCSVImportMatcher {
         let resolvedCategoryID = row.categoryName.flatMap { context.categoryIDByName[$0.lowercased()] }
         let incomingImportedPayee = row.payeeName.isEmpty ? candidate.importedPayee : row.payeeName
 
-        let mergedPayeeID = isTruthy(candidate.payeeID) ? candidate.payeeID : normalized(resolvedPayeeID)
-        let mergedCategoryID = isTruthy(candidate.categoryID) ? candidate.categoryID : normalized(resolvedCategoryID)
+        let mergedPayeeID = mergedPayeeID(
+            candidate: candidate,
+            resolvedPayeeID: resolvedPayeeID,
+            transferPayeeIDs: context.transferPayeeIDs
+        )
+        // Transfer legs, split parents and off-budget rows never take a
+        // budget category from the file (the Bank Sync rules, mistakes.md
+        // 2026-09-16); every other row follows upstream `existing || trans`.
+        let canFillCategory = candidate.transferID == nil && !candidate.isParent && !candidate.accountOffBudget
+        let mergedCategoryID = isTruthy(candidate.categoryID) || !canFillCategory
+            ? candidate.categoryID
+            : normalized(resolvedCategoryID)
         let mergedNotes = isTruthy(candidate.notes) ? candidate.notes : normalized(row.notes)
         // A nil existing cleared (column absent) never changes.
         let mergedCleared: Bool? = candidate.cleared == nil
@@ -443,6 +460,23 @@ enum TransactionCSVImportMatcher {
             changed = true
         }
         return changed ? .update(plan) : .ignored
+    }
+
+    /// Upstream fills a blank payee from the file. A transfer leg keeps its
+    /// payee, and a transfer payee never lands on a non-transfer row because
+    /// that would leave a half-transfer with no paired leg.
+    private static func mergedPayeeID(
+        candidate: TransactionCSVImportCandidate,
+        resolvedPayeeID: String?,
+        transferPayeeIDs: Set<String>
+    ) -> String? {
+        if isTruthy(candidate.payeeID) || candidate.transferID != nil {
+            return candidate.payeeID
+        }
+        guard let resolved = normalized(resolvedPayeeID), !transferPayeeIDs.contains(resolved) else {
+            return candidate.payeeID
+        }
+        return resolved
     }
 
     /// JS-truthiness for the fill semantics: empty strings and null do not

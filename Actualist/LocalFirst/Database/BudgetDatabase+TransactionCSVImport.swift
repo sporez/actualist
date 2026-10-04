@@ -21,6 +21,9 @@ extension BudgetDatabase {
             let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains)
             let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains)
             let isChildColumn = ["is_child", "isChild"].first(where: columns.contains)
+            let isParentColumn = ["is_parent", "isParent"].first(where: columns.contains)
+            let transferColumn = ["transferred_id", "transfer_id"].first(where: columns.contains)
+            let accountOffBudget = try accountOffBudget(accountID, db: db)
             let isChildFilter = isChildColumn.map { "AND (\($0) IS NULL OR \($0) = 0)" } ?? ""
             let clearedSelect = columns.contains("cleared")
                 ? "cleared, (cleared IS NULL) AS cleared_is_null"
@@ -35,7 +38,9 @@ extension BudgetDatabase {
                        \(clearedSelect),
                        \(columns.contains("reconciled") ? "reconciled" : "NULL") AS reconciled,
                        \(importedIDColumn ?? "NULL") AS imported_id,
-                       \(importedPayeeColumn ?? "NULL") AS imported_payee
+                       \(importedPayeeColumn ?? "NULL") AS imported_payee,
+                       \(isParentColumn ?? "0") AS is_parent,
+                       \(transferColumn ?? "NULL") AS transfer_id
                 FROM transactions
                 WHERE \(accountColumn) = ?
                   \(isChildFilter)
@@ -60,7 +65,10 @@ extension BudgetDatabase {
                     importedPayee: row["imported_payee"],
                     amountMinorUnits: amount,
                     dateText: row["date_text"] ?? "",
-                    reconciled: flexibleBool(row["reconciled"])
+                    reconciled: flexibleBool(row["reconciled"]),
+                    isParent: flexibleBool(row["is_parent"]),
+                    transferID: (row["transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 },
+                    accountOffBudget: accountOffBudget
                 )
             }
         }
@@ -125,6 +133,8 @@ extension BudgetDatabase {
         let plan = update.plan
         let changed = TransactionCSVImportError.matchChanged(line: update.line)
         let accountColumn = ["acct", "account"].first(where: columns.contains)
+        let split = transactionSplitQueryExpressions(columns: columns, tableAlias: "transactions")
+        let transferColumn = ["transferred_id", "transfer_id"].first(where: columns.contains)
         let payeeColumn = ["description", "payee"].first(where: columns.contains)
         guard let accountColumn,
               let live = try Row.fetchOne(
@@ -135,7 +145,9 @@ extension BudgetDatabase {
                              \(columns.contains("category") ? "category" : "NULL") AS category,
                              \(columns.contains("notes") ? "notes" : "NULL") AS notes,
                              \(columns.contains("cleared") ? "cleared" : "NULL") AS cleared,
-                             \(columns.contains("reconciled") ? "reconciled" : "NULL") AS reconciled
+                             \(columns.contains("reconciled") ? "reconciled" : "NULL") AS reconciled,
+                             \(split.qualifiedIsParent) AS is_parent,
+                             \(transferColumn ?? "NULL") AS transfer_id
                       FROM transactions
                       WHERE id = ? AND \(predicateForLiveRows(columns: columns))
                       """,
@@ -149,7 +161,11 @@ extension BudgetDatabase {
             ((live[column] as String?) ?? "").isEmpty
         }
         if plan.payeeID != nil, !isEmpty("payee") { throw changed }
-        if plan.categoryID != nil, !isEmpty("category") { throw changed }
+        if plan.categoryID != nil {
+            let offBudget = try accountOffBudget(accountID, db: db)
+            let forbidden = flexibleBool(live["is_parent"]) || !isEmpty("transfer_id") || offBudget
+            if forbidden || !isEmpty("category") { throw changed }
+        }
         if plan.notes != nil, !isEmpty("notes") { throw changed }
         if let cleared = plan.cleared, flexibleBool(live["cleared"]) == cleared { throw changed }
 
@@ -173,6 +189,27 @@ extension BudgetDatabase {
         }
         if let cleared = plan.cleared, columns.contains("cleared") {
             try append("cleared", .bool(cleared))
+            // Upstream copies a matched parent's cleared onto its live
+            // children (`reconcileTransactions`, sync.ts 721-735).
+            if flexibleBool(live["is_parent"]) {
+                let childIDs = try String.fetchAll(
+                    db,
+                    sql: """
+                        SELECT id FROM transactions
+                        WHERE \(split.parentID) = ? AND (\(split.isChild)) = 1
+                          AND \(predicateForLiveRows(columns: columns))
+                        """,
+                    arguments: [plan.existingTransactionID]
+                )
+                for childID in childIDs {
+                    messages.append(try builder.makeMessage(
+                        dataset: "transactions",
+                        row: childID,
+                        column: "cleared",
+                        value: .bool(cleared)
+                    ))
+                }
+            }
         }
         if let importedPayee = plan.importedPayee,
            let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {

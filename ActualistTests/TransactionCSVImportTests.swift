@@ -184,7 +184,10 @@ struct TransactionCSVImportTests {
         importedPayee: String? = nil,
         amountMinorUnits: Int,
         dateText: String,
-        reconciled: Bool = false
+        reconciled: Bool = false,
+        isParent: Bool = false,
+        transferID: String? = nil,
+        accountOffBudget: Bool = false
     ) -> TransactionCSVImportCandidate {
         TransactionCSVImportCandidate(
             id: id,
@@ -196,7 +199,10 @@ struct TransactionCSVImportTests {
             importedPayee: importedPayee,
             amountMinorUnits: amountMinorUnits,
             dateText: dateText,
-            reconciled: reconciled
+            reconciled: reconciled,
+            isParent: isParent,
+            transferID: transferID,
+            accountOffBudget: accountOffBudget
         )
     }
 
