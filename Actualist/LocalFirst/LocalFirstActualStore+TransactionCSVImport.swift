@@ -187,8 +187,6 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         guard !messages.isEmpty || !updates.isEmpty else {
             return TransactionCSVImportApplyResult(insertedCount: 0, updatedCount: 0)
         }
-        // Known duplication: the commit tail below (reload, flush) is copied
-        // from the other store write methods until the shared tail exists.
         try requireSyncSession(
             database: database,
             budgetID: request.budgetID,
@@ -200,13 +198,12 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             insertMessages: messages,
             builder: &builder
         )
-        try await reloadAfterTransactionMutation(
+        try await finishCommittedTransactionWrite(
             database: database,
             budgetID: request.budgetID,
             accountIDs: Array(affectedAccountIDs),
             monthIDs: Array(monthIDs)
         )
-        await schedulePendingLocalMessageFlush(database: database, budgetID: request.budgetID)
         return TransactionCSVImportApplyResult(
             insertedCount: insertedCount,
             updatedCount: updatedCount
