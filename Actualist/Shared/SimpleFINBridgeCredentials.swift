@@ -11,6 +11,7 @@ enum SimpleFINBridgeError: LocalizedError, Equatable {
     case unexpectedStatus(Int)
     case paymentRequired
     case accessRevoked
+    case responseTooLarge
 
     var errorDescription: String? {
         switch self {
@@ -30,6 +31,8 @@ enum SimpleFINBridgeError: LocalizedError, Equatable {
             return "SimpleFIN says this connection requires payment."
         case .accessRevoked:
             return "SimpleFIN access was denied. The connection may have been revoked."
+        case .responseTooLarge:
+            return "SimpleFIN returned more data than Actualist can safely read, so nothing was imported."
         }
     }
 }

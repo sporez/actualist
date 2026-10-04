@@ -440,7 +440,14 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request, delegate: redirectDelegate)
+            (data, response) = try await LimitedResponseReader.data(
+                for: request,
+                session: session,
+                redirects: redirectDelegate,
+                maximumBytes: SimpleFINBridgeClient.maximumResponseBytes
+            )
+        } catch LimitedResponseReader.ReadError.limitExceeded {
+            throw SimpleFINBridgeError.responseTooLarge
         } catch where error.isCancellation {
             throw CancellationError()
         } catch let error as ActualAPIError {

@@ -290,6 +290,37 @@ struct SimpleFINBridgeClientTests {
             #expect(error == .accessRevoked)
         }
     }
+
+    private static func makeChunkedSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ChunkedStubURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+
+    @Test func oversizedSimpleFINBridgeReplyThrowsBankSyncCopy() async throws {
+        let host = "bridge-\(UUID().uuidString.lowercased()).example"
+        let cap = SimpleFINBridgeClient.maximumResponseBytes
+        ChunkedStubURLProtocol.register(
+            host: host,
+            script: .init(chunkSize: 1_024 * 1_024, chunkCount: cap / (1_024 * 1_024) + 1, declaresLength: false)
+        )
+        let session = Self.makeChunkedSession()
+        defer { session.invalidateAndCancel() }
+        let client = SimpleFINBridgeClient(
+            baseURL: URL(string: "https://\(host)/user")!,
+            username: "user",
+            password: "secret",
+            session: session
+        )
+
+        await #expect(throws: SimpleFINBridgeError.responseTooLarge) {
+            _ = try await client.remoteAccounts()
+        }
+        #expect(
+            SimpleFINBridgeError.responseTooLarge.errorDescription
+                == "SimpleFIN returned more data than Actualist can safely read, so nothing was imported."
+        )
+    }
 }
 
 // MARK: - Stub URLProtocol

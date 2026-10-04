@@ -16,6 +16,11 @@ actor SimpleFINBridgeClient {
     private let session: URLSession
     private let now: @Sendable () -> Date
 
+    /// Largest `/accounts` reply read. A heavy user's 90-day history for a few
+    /// hundred accounts is a few MiB of JSON; 16 MiB leaves ample headroom while
+    /// still bounding a hostile or broken bridge.
+    static let maximumResponseBytes = 16 * 1_024 * 1_024
+
     init(
         baseURL: URL,
         username: String,
@@ -31,6 +36,9 @@ actor SimpleFINBridgeClient {
         )
         self.now = now
     }
+
+    /// A claim reply is one access URL; 64 KiB is far above any real one.
+    private static let maximumClaimResponseBytes = 64 * 1_024
 
     /// One-time claim of a setup token. HTTP 403 and a 200 body starting
     /// `Forbidden` both mean the token was already claimed.
@@ -50,7 +58,13 @@ actor SimpleFINBridgeClient {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await usedSession.data(for: request)
+            (data, response) = try await LimitedResponseReader.data(
+                for: request,
+                session: usedSession,
+                maximumBytes: maximumClaimResponseBytes
+            )
+        } catch LimitedResponseReader.ReadError.limitExceeded {
+            throw SimpleFINBridgeError.responseTooLarge
         } catch where error.isCancellation {
             throw CancellationError()
         } catch let error as URLError {
@@ -191,7 +205,13 @@ actor SimpleFINBridgeClient {
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (data, response) = try await LimitedResponseReader.data(
+                for: request,
+                session: session,
+                maximumBytes: Self.maximumResponseBytes
+            )
+        } catch LimitedResponseReader.ReadError.limitExceeded {
+            throw SimpleFINBridgeError.responseTooLarge
         } catch where error.isCancellation {
             throw CancellationError()
         } catch let error as URLError {
