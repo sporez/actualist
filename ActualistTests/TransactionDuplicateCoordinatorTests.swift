@@ -12,7 +12,7 @@ struct TransactionDuplicateCoordinatorTests {
         let selections = [first, second]
 
         let preparation = try #require(coordinator.beginPreparation(context: context, selections: selections))
-        #expect(coordinator.orderedSelections == selections)
+        #expect(preparation.selections == selections)
         coordinator.cancelPreparation(preparation)
         #expect(coordinator.state == .idle)
 
@@ -28,7 +28,7 @@ struct TransactionDuplicateCoordinatorTests {
         #expect(accepted.selections == selections)
         coordinator.failSubmission(reviewID: accepted.id, message: "The copy could not be saved.")
         #expect(coordinator.failureMessage == "The copy could not be saved.")
-        #expect(coordinator.orderedSelections == selections)
+        #expect(failedSelections(coordinator) == selections)
         #expect(coordinator.hidesSelectionChrome == false)
     }
 
@@ -72,7 +72,7 @@ struct TransactionDuplicateCoordinatorTests {
         #expect(coordinator.isCurrent(preparation))
         #expect(coordinator.accept(partial, for: preparation) == false)
         coordinator.failPreparation(preparation, message: "This selection changed. Review it again before continuing.")
-        #expect(coordinator.orderedSelections == [first, second])
+        #expect(failedSelections(coordinator) == [first, second])
     }
 
     @Test func familyCollapsedReviewIsAcceptedWhenEverySelectionIsAccountedFor() throws {
@@ -150,7 +150,7 @@ struct TransactionDuplicateCoordinatorTests {
         #expect(presentation.isSelectionMode)
         #expect(presentation.selectionFailureMessage == "The duplicate review failed.")
         #expect(presentation.selection.orderedSelectedIdentities.map(\.transactionID) == ["first", "second"])
-        #expect(presentation.duplicate.orderedSelections.map(\.transactionID) == ["first", "second"])
+        #expect(failedSelections(presentation.duplicate)?.map(\.transactionID) == ["first", "second"])
     }
 }
 

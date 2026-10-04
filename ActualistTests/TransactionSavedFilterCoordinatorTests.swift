@@ -51,14 +51,10 @@ struct TransactionSavedFilterCoordinatorTests {
             return
         }
         #expect(filters.isEmpty)
-        if case nil = bundle.store.cachedSavedTransactionFilters(budgetID: "group-1") {
-            Issue.record("Expected the session read to populate the store cache")
-        }
+        #expect(bundle.store.savedTransactionFiltersByBudget["group-1"] != nil)
 
         bundle.store.closeOpenBudget()
-        if case .some = bundle.store.cachedSavedTransactionFilters(budgetID: "group-1") {
-            Issue.record("Closing a budget must clear its saved-filter cache")
-        }
+        #expect(bundle.store.savedTransactionFiltersByBudget["group-1"] == nil)
     }
 
     @Test func closingBeforeQueuedSavedFilterWritePreventsOldDatabaseCommit() async throws {
@@ -161,9 +157,7 @@ struct TransactionSavedFilterCoordinatorTests {
         #expect(result.refreshPending)
         #expect(!result.sessionCurrent)
         #expect(result.filters == nil)
-        if case .some = bundle.store.cachedSavedTransactionFilters(budgetID: "group-1") {
-            Issue.record("A retired session must not republish its saved-filter cache")
-        }
+        #expect(bundle.store.savedTransactionFiltersByBudget["group-1"] == nil)
         #expect(try storeTests.storedCRDTMessages(at: databaseURL).count == messagesBefore + 4)
         #expect(try await database.pendingLocalSyncMessageCount() == outboxBefore + 4)
     }
@@ -292,8 +286,6 @@ private final class SavedFilterRepositoryFake: SavedTransactionFilterRepositoryP
         self.result = result
         self.gate = gate
     }
-
-    func cachedSavedTransactionFilters(budgetID: String) -> SavedTransactionFilterReadResult? { result }
 
     func refreshSavedTransactionFilters(budgetID: String) async throws -> SavedTransactionFilterReadResult {
         await gate.pause()

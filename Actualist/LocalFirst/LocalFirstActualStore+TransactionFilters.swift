@@ -3,10 +3,6 @@ import Foundation
 typealias SavedFilterMutationHook = @MainActor @Sendable () async -> Void
 
 extension LocalFirstActualStore {
-    func cachedSavedTransactionFilters(budgetID: String) -> SavedTransactionFilterReadResult? {
-        savedTransactionFiltersByBudget[budgetID]
-    }
-
     func refreshSavedTransactionFilters(budgetID: String) async throws -> SavedTransactionFilterReadResult {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
@@ -20,10 +16,6 @@ extension LocalFirstActualStore {
         }
         savedTransactionFiltersByBudget[budgetID] = result
         return result
-    }
-
-    func savedTransactionFilters(budgetID: String) async throws -> SavedTransactionFilterReadResult {
-        return try await refreshSavedTransactionFilters(budgetID: budgetID)
     }
 
     func createSavedTransactionFilter(
@@ -131,8 +123,8 @@ extension LocalFirstActualStore {
     }
 
     private func awaitSavedFilterAfterCommitHook() async {
-        let hook = savedFilterAfterCommitHook
-        await Task { @MainActor in await hook?() }.value
+        guard let hook = savedFilterAfterCommitHook else { return }
+        await Task { @MainActor in await hook() }.value
     }
 
     private func requireSavedFilterSession(

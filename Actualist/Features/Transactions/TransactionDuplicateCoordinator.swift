@@ -52,15 +52,6 @@ final class TransactionDuplicateCoordinator {
         return nil
     }
 
-    var orderedSelections: [TransactionSelectionIdentity] {
-        switch state {
-        case .preparing(let preparation): preparation.selections
-        case .reviewing(let review), .submitting(let review): review.selections
-        case .failed(_, let selections, _): selections.identities
-        case .idle, .committed: []
-        }
-    }
-
     @discardableResult
     func beginPreparation(
         context: TransactionSelectionContext,

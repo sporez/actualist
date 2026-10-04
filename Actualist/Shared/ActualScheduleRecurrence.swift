@@ -69,7 +69,6 @@ struct ActualScheduleRecurrence: Hashable, Sendable {
     let ending: ActualScheduleEnding
 
     var frequency: String { frequencyValue.rawValue }
-    var weekendSolveMode: String { weekendAdjustment.rawValue }
 
     init(
         startDayID: String,
@@ -110,30 +109,6 @@ struct ActualScheduleRecurrence: Hashable, Sendable {
         self.skipWeekend = skipWeekend
         self.weekendAdjustment = weekendAdjustment
         self.ending = ending
-    }
-
-    init(
-        start: Date,
-        frequency: String,
-        interval: Int,
-        skipWeekend: Bool,
-        weekendSolveMode: String,
-        calendar: Calendar = .actualScheduleGregorian
-    ) throws {
-        guard let frequency = ActualScheduleFrequency(rawValue: frequency.lowercased()) else {
-            throw ActualScheduleRecurrenceError.invalidFrequency
-        }
-        guard let adjustment = ActualScheduleWeekendAdjustment(rawValue: weekendSolveMode.lowercased()) else {
-            throw ActualScheduleRecurrenceError.invalidWeekendAdjustment
-        }
-        try self.init(
-            startDayID: Self.dayID(from: start, calendar: calendar),
-            frequency: frequency,
-            interval: interval,
-            skipWeekend: skipWeekend,
-            weekendAdjustment: adjustment,
-            calendar: calendar
-        )
     }
 
     func nextDateString(

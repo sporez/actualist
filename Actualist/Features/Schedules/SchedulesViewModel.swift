@@ -45,10 +45,6 @@ final class SchedulesViewModel {
         }
     }
 
-    var activeScheduleCount: Int {
-        snapshot?.schedules.count { $0.status != .completed } ?? 0
-    }
-
     var completedScheduleCount: Int {
         snapshot?.schedules.count { $0.status == .completed } ?? 0
     }

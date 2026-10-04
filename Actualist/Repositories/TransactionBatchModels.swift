@@ -72,8 +72,6 @@ struct TransactionBatchEffectSummary: Hashable, Sendable {
     let selection: TransactionSelectionIdentity
     let affectedTransactionIDs: [String]
     let description: String
-
-    var affectedTransactionCount: Int { Set(affectedTransactionIDs).count }
 }
 
 struct TransactionBatchDispositionReason: Hashable, Sendable {
@@ -87,8 +85,6 @@ struct TransactionBatchAuthorizationRequirement: Hashable, Sendable {
     let pairedReconciledTransactionIDs: [String]
 
     var selection: TransactionSelectionIdentity { effect.selection }
-    var reconciledTargetCount: Int { Set(reconciledTransactionIDs).count }
-    var reconciledPairCount: Int { Set(pairedReconciledTransactionIDs).count }
 }
 
 struct TransactionBatchAuthorization: Hashable, Sendable {

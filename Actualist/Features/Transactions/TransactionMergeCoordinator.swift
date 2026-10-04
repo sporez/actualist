@@ -66,15 +66,6 @@ final class TransactionMergeCoordinator {
         }
     }
 
-    var orderedSelections: [TransactionSelectionIdentity] {
-        switch state {
-        case .preparing(let preparation): preparation.selections
-        case .reviewing(let reviewed), .submitting(let reviewed): reviewed.selections
-        case .failed(_, let selections, _): selections.identities
-        case .idle, .committed: []
-        }
-    }
-
     /// The authorization object the merge commit compares exactly. Empty
     /// reconciled IDs stay unauthorized; a non-empty list is passed through
     /// unchanged, including order.

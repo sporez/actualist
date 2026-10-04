@@ -8,10 +8,10 @@ struct TransactionBatchPresentationHost: ViewModifier {
     let feedSnapshot: @MainActor () -> TransactionBatchFeedSnapshot?
     let batchRepository: any TransactionBatchRepositoryProtocol
     let onCommitted: @MainActor (TransactionBatchOutcome) -> Void
-    var duplicateRepository: (any TransactionDuplicateRepositoryProtocol)? = nil
-    var mergeRepository: (any TransactionMergeRepositoryProtocol)? = nil
-    var onDuplicateCommitted: (@MainActor (TransactionDuplicateOutcome) -> Void)? = nil
-    var onMergeCommitted: (@MainActor (TransactionMergeOutcome) -> Void)? = nil
+    let duplicateRepository: any TransactionDuplicateRepositoryProtocol
+    let mergeRepository: any TransactionMergeRepositoryProtocol
+    let onDuplicateCommitted: @MainActor (TransactionDuplicateOutcome) -> Void
+    let onMergeCommitted: @MainActor (TransactionMergeOutcome) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -72,29 +72,17 @@ struct TransactionBatchPresentationHost: ViewModifier {
 
     private func confirmDuplicate() {
         presentation.confirmDuplicate(
-            repository: duplicateRepository ?? appState.localFirstStore,
+            repository: duplicateRepository,
             currentFeedSnapshot: feedSnapshot,
-            onCommitted: { outcome in
-                if let onDuplicateCommitted {
-                    onDuplicateCommitted(outcome)
-                } else if outcome.sessionCurrent {
-                    appState.recordLocalDataMutation()
-                }
-            }
+            onCommitted: onDuplicateCommitted
         )
     }
 
     private func confirmMerge() {
         presentation.confirmMerge(
-            repository: mergeRepository ?? appState.localFirstStore,
+            repository: mergeRepository,
             currentFeedSnapshot: feedSnapshot,
-            onCommitted: { outcome in
-                if let onMergeCommitted {
-                    onMergeCommitted(outcome)
-                } else if outcome.sessionCurrent {
-                    appState.recordLocalDataMutation()
-                }
-            }
+            onCommitted: onMergeCommitted
         )
     }
 }
