@@ -11,8 +11,8 @@ enum TestLocalDay {
     }
 
     static func dayID(_ date: Date = Date()) -> String {
-        ActualScheduleRecurrence.dayID(from: date, calendar: calendar)
+        ActualDateOnly.dayID(from: date, timeZone: calendar.timeZone)
     }
 
-    static func today() -> String { dayID() }
+    static func today() -> String { ActualDateOnly.today(now: Date()) }
 }
