@@ -93,7 +93,7 @@ extension BudgetDatabase {
                       let serializedValue = row["value"] as String?,
                       !rowID.isEmpty,
                       !column.isEmpty,
-                      let value = decodeCompatibilitySyncValue(serializedValue) else {
+                      let value = try? ActualSyncSQLiteValue(serialized: serializedValue) else {
                     continue
                 }
 
@@ -139,30 +139,6 @@ extension BudgetDatabase {
             }
 
             try recordLocalMigration(accountGroupCompatibilityMigration, in: db)
-        }
-    }
-
-    // Matches `deserializeSyncValue` so replay uses the same 0: / N: / S: rules as sync.
-    private static func decodeCompatibilitySyncValue(_ value: String) -> ActualSyncSQLiteValue? {
-        guard let type = value.first else {
-            return nil
-        }
-        let payload = String(value.dropFirst(2))
-        switch type {
-        case "0":
-            return .null
-        case "N":
-            guard let number = Double(payload), number.isFinite else {
-                return nil
-            }
-            if number.rounded() == number, let int = Int64(exactly: number) {
-                return .int(int)
-            }
-            return .double(number)
-        case "S":
-            return .string(payload)
-        default:
-            return nil
         }
     }
 

@@ -663,26 +663,32 @@ extension BudgetDatabase {
     }()
 
     func deserializeSyncValue(_ value: String) throws -> ActualSyncSQLiteValue {
+        try ActualSyncSQLiteValue(serialized: value)
+    }
+}
+
+extension ActualSyncSQLiteValue {
+    /// Actual's `0:` / `N:` / `S:` serialized sync values; a non-finite number
+    /// or an unknown tag is invalid.
+    init(serialized value: String) throws {
         guard let type = value.first else {
             throw LocalFirstError.invalidSyncValue
         }
         let payload = String(value.dropFirst(2))
         switch type {
         case "0":
-            return .null
+            self = .null
         case "N":
-            guard let number = Double(payload) else {
-                throw LocalFirstError.invalidSyncValue
-            }
-            guard number.isFinite else {
+            guard let number = Double(payload), number.isFinite else {
                 throw LocalFirstError.invalidSyncValue
             }
             if number.rounded() == number, let int = Int64(exactly: number) {
-                return .int(int)
+                self = .int(int)
+            } else {
+                self = .double(number)
             }
-            return .double(number)
         case "S":
-            return .string(payload)
+            self = .string(payload)
         default:
             throw LocalFirstError.invalidSyncValue
         }
