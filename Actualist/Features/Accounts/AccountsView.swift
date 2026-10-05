@@ -32,13 +32,6 @@ struct AccountsView: View {
         return appState.accountRepository.accountGroups(budgetID: budgetID)
     }
 
-    private var canManageGroups: Bool {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return false
-        }
-        return appState.accountRepository.accountGroupManagementEnabled(budgetID: budgetID)
-    }
-
     var body: some View {
         NavigationStack(path: accountNavigationPath) {
             ScrollView {
@@ -70,17 +63,15 @@ struct AccountsView: View {
             .background(ActualistTheme.background)
             .navigationTitle("Accounts")
             .toolbar {
-                if canManageGroups {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            viewModel.presentCreateGroup()
-                        } label: {
-                            Image(systemName: "folder.badge.plus")
-                        }
-                        .font(.body.weight(.semibold))
-                        .controlSize(.small)
-                        .accessibilityLabel("New Group")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        viewModel.presentCreateGroup()
+                    } label: {
+                        Image(systemName: "folder.badge.plus")
                     }
+                    .font(.body.weight(.semibold))
+                    .controlSize(.small)
+                    .accessibilityLabel("New Group")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -270,7 +261,7 @@ struct AccountsView: View {
                 groupHeader(group)
             }
             if bucket.accounts.isEmpty {
-                if canManageGroups, let group = bucket.group {
+                if let group = bucket.group {
                     Menu {
                         ForEach(accounts.filter { $0.account.accountGroupId != group.id }) { row in
                             Button(row.account.name) {
@@ -300,25 +291,21 @@ struct AccountsView: View {
                 .font(ActualistTypography.rowLabel(for: density))
                 .foregroundStyle(ActualistTheme.secondaryText)
             Spacer()
-            if canManageGroups {
-                Menu {
-                    groupManagementMenu(group)
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Group actions")
+            Menu {
+                groupManagementMenu(group)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Group actions")
         }
         .padding(.horizontal, 4)
         .contextMenu {
-            if canManageGroups {
-                groupManagementMenu(group)
-            }
+            groupManagementMenu(group)
         }
         .confirmationDialog(
             deleteDialogTitle,
@@ -427,7 +414,7 @@ struct AccountsView: View {
             Label("Notes", systemImage: "note.text")
         }
 
-        if canManageGroups, hasGroupActions(for: row) {
+        if hasGroupActions(for: row) {
             accountGroupMenu(row)
         }
     }

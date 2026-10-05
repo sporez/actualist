@@ -307,7 +307,6 @@ private final class ReconciliationCoordinatorRepository: AccountRepositoryProtoc
 
     func accountDisplays(budgetID: String) -> [AccountDisplay] { [] }
     func accountGroups(budgetID: String) -> [ActualAccountGroup] { [] }
-    func accountGroupManagementEnabled(budgetID: String) -> Bool { false }
     func refreshAccountsWithBalances(budgetID: String) async throws {}
 
     func accountReconciliationSnapshot(

@@ -1,10 +1,6 @@
 import Foundation
 
 extension LocalFirstActualStore {
-    func accountGroupManagementEnabled(budgetID: String) -> Bool {
-        accountGroupManagementEnabledByBudget[budgetID] ?? false
-    }
-
     func createAccountGroupAndRefresh(budgetID: String, name: String) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()

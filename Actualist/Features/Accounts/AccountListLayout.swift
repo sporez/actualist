@@ -92,7 +92,25 @@ enum AccountListLayout {
                 )
             }
 
+            // Ungrouped accounts lead the section, as in Actual's grouped
+            // sidebar (`useSidebarAccountTree`), so a headerless bucket never
+            // reads as part of the group above it.
             var buckets: [Bucket] = []
+            let ungrouped = members.filter { display in
+                !groupedAccountIDs.contains(display.account.id)
+            }
+            if !ungrouped.isEmpty {
+                buckets.append(
+                    Bucket(
+                        group: nil,
+                        accounts: AccountOrderPreference.ordered(
+                            ungrouped,
+                            preferredIDs: preferredIDs
+                        )
+                    )
+                )
+            }
+
             for group in liveGroups {
                 let groupMembers = members.filter { $0.account.accountGroupId == group.id }
                 if groupMembers.isEmpty {
@@ -112,22 +130,46 @@ enum AccountListLayout {
                 )
             }
 
-            let ungrouped = members.filter { display in
-                !groupedAccountIDs.contains(display.account.id)
-            }
-            if !ungrouped.isEmpty {
-                buckets.append(
-                    Bucket(
-                        group: nil,
-                        accounts: AccountOrderPreference.ordered(
-                            ungrouped,
-                            preferredIDs: preferredIDs
-                        )
-                    )
-                )
-            }
-
             return Section(kind: kind, buckets: buckets)
+        }
+    }
+
+    /// The persisted account order after moving rows within one bucket, or
+    /// nil when the move does not fit that bucket. Every account is listed in
+    /// displayed order so flat consumers of the preference match this layout.
+    static func preferredIDs(
+        in sections: [Section],
+        kind: Kind,
+        bucketID: Bucket.ID,
+        fromOffsets source: IndexSet,
+        toOffset destination: Int
+    ) -> [String]? {
+        guard let bucket = sections.first(where: { $0.kind == kind })?
+            .buckets.first(where: { $0.id == bucketID }) else {
+            return nil
+        }
+        let ids = bucket.accounts.map(\.id)
+        guard !source.isEmpty,
+              source.allSatisfy({ ids.indices.contains($0) }),
+              (0...ids.count).contains(destination) else {
+            return nil
+        }
+
+        let moving = source.map { ids[$0] }
+        var remaining = ids.enumerated()
+            .filter { !source.contains($0.offset) }
+            .map(\.element)
+        remaining.insert(
+            contentsOf: moving,
+            at: destination - source.count(in: 0..<destination)
+        )
+
+        return sections.flatMap { section in
+            section.buckets.flatMap { candidate in
+                section.kind == kind && candidate.id == bucketID
+                    ? remaining
+                    : candidate.accounts.map(\.id)
+            }
         }
     }
 

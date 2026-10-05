@@ -4,12 +4,6 @@ import GRDB
 extension BudgetDatabase {
     static let accountGroupsMigrationID: Int64 = 1_787_013_118_115
 
-    func accountGroupManagementEnabled() throws -> Bool {
-        try queue.read { db in
-            try Self.accountGroupManagementEnabled(db: db)
-        }
-    }
-
     func createAccountGroupMessages(
         groupID: String,
         name: String,
@@ -22,7 +16,6 @@ extension BudgetDatabase {
         }
 
         return try queue.read { db in
-            try requireAccountGroupManagementEnabled(db: db)
             let columns = try requiredColumns(
                 table: "account_groups",
                 required: ["name"],
@@ -73,7 +66,6 @@ extension BudgetDatabase {
         let groupID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedName = try Self.validatedName(name, label: "account group")
         return try queue.read { db in
-            try requireAccountGroupManagementEnabled(db: db)
             let group = try requiredLiveAccountGroup(groupID, db: db)
             guard group.name != trimmedName else {
                 return []
@@ -96,7 +88,6 @@ extension BudgetDatabase {
     ) throws -> [ActualSyncDecodedMessage] {
         let groupID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
         return try queue.read { db in
-            try requireAccountGroupManagementEnabled(db: db)
             _ = try requiredLiveAccountGroup(groupID, db: db)
             let accountColumns = try columnSet(for: "accounts", db: db)
             guard accountColumns.contains("account_group_id") else {
@@ -146,7 +137,6 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try queue.read { db in
-            try requireAccountGroupManagementEnabled(db: db)
             let accountColumns = try requiredColumns(
                 table: "accounts",
                 required: ["account_group_id"],
@@ -190,7 +180,6 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try queue.read { db in
-            try requireAccountGroupManagementEnabled(db: db)
             _ = try requiredLiveAccountGroup(groupID, db: db)
             if let beforeGroupID {
                 _ = try requiredLiveAccountGroup(beforeGroupID, db: db)
@@ -220,45 +209,6 @@ extension BudgetDatabase {
             }
             return messages
         }
-    }
-
-    private func requireAccountGroupManagementEnabled(db: Database) throws {
-        guard try Self.accountGroupManagementEnabled(db: db) else {
-            throw LocalFirstError.invalidLocalWrite("account groups are not available on this budget")
-        }
-    }
-
-    private static func accountGroupManagementEnabled(db: Database) throws -> Bool {
-        // Management chrome is gated on Actual's account-groups migration
-        // watermark (`accountGroupsMigrationID`), never on the local
-        // `account_groups` table. Phase 1 backfill creates that table on every
-        // opened budget so stored CRDT can replay, so its presence does not
-        // mean the peer supports groups; a budget synced from a non-nightly
-        // server has no such migration row and must stay chrome-free.
-        //
-        // The stored `__migrations__` table is the last uploaded snapshot, not
-        // the nightly process's migrated copy, so it lags the server software.
-        // A nightly peer whose snapshot still lacks the row hides management
-        // chrome until re-import; groups still display from CRDT. Hiding
-        // management is the safer failure mode — it never authors group rows a
-        // production server would drop.
-        let migrationsExists = try Bool.fetchOne(
-            db,
-            sql: """
-                SELECT EXISTS(
-                    SELECT 1 FROM sqlite_master
-                    WHERE type = 'table' AND name = '__migrations__'
-                )
-                """
-        ) ?? false
-        guard migrationsExists else {
-            return false
-        }
-        return try Bool.fetchOne(
-            db,
-            sql: "SELECT EXISTS(SELECT 1 FROM __migrations__ WHERE id = ?)",
-            arguments: [Self.accountGroupsMigrationID]
-        ) ?? false
     }
 
     private func rejectDuplicateAccountGroupName(

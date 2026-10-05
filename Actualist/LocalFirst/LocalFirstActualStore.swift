@@ -47,7 +47,6 @@ final class LocalFirstActualStore:
     var remoteFilesByFileID: [String: ActualSyncRemoteFile] = [:]
     var accountsByBudget: [String: [AccountDisplay]] = [:]
     var accountGroupsByBudget: [String: [ActualAccountGroup]] = [:]
-    var accountGroupManagementEnabledByBudget: [String: Bool] = [:]
     var payeesByBudget: [String: PayeeManagementSnapshot] = [:]
     var lastPayeeUndoMessagesByBudget: [String: [ActualSyncDecodedMessage]] = [:]
     var actionLogDiagnosticSnapshot = ActionLogDiagnosticSnapshot.empty
@@ -265,7 +264,6 @@ final class LocalFirstActualStore:
         accountsByBudget = [:]
         launchSnapshotWrittenRevision = nil
         accountGroupsByBudget = [:]
-        accountGroupManagementEnabledByBudget = [:]
         payeesByBudget = [:]
         lastPayeeUndoMessagesByBudget = [:]
         actionLogDiagnosticSnapshot = .empty

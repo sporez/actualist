@@ -16,8 +16,8 @@ struct AccountListLayoutTests {
 
         #expect(sections.map(\.kind) == [.budget])
         #expect(sections[0].showsGroupHeaders)
-        #expect(sections[0].buckets.map(\.id) == ["cash", "ungrouped"])
-        #expect(sections[0].buckets[0].accounts.isEmpty)
+        #expect(sections[0].buckets.map(\.id) == ["ungrouped", "cash"])
+        #expect(sections[0].buckets[1].accounts.isEmpty)
         #expect(sections[0].accounts.map(\.id) == ["checking", "savings"])
     }
 
@@ -39,11 +39,11 @@ struct AccountListLayoutTests {
 
         #expect(sections.map(\.kind) == [.budget, .offBudget, .closed])
         #expect(sections[0].showsGroupHeaders)
-        #expect(sections[0].buckets.map(\.id) == ["empty", "credit", "cash", "ungrouped"])
-        #expect(sections[0].buckets[0].accounts.isEmpty)
-        #expect(sections[0].buckets[1].accounts.map(\.id) == ["visa"])
-        #expect(sections[0].buckets[2].accounts.map(\.id) == ["checking"])
-        #expect(sections[0].buckets[3].accounts.map(\.id) == ["wallet"])
+        #expect(sections[0].buckets.map(\.id) == ["ungrouped", "empty", "credit", "cash"])
+        #expect(sections[0].buckets[0].accounts.map(\.id) == ["wallet"])
+        #expect(sections[0].buckets[1].accounts.isEmpty)
+        #expect(sections[0].buckets[2].accounts.map(\.id) == ["visa"])
+        #expect(sections[0].buckets[3].accounts.map(\.id) == ["checking"])
         #expect(sections[1].buckets.map(\.id) == ["cash"])
         #expect(sections[1].accounts.map(\.id) == ["brokerage"])
         #expect(sections[2].buckets.map(\.id) == ["credit"])
@@ -61,9 +61,9 @@ struct AccountListLayoutTests {
         )
 
         #expect(sections[0].showsGroupHeaders)
-        #expect(sections[0].buckets.map(\.id) == ["cash", "ungrouped"])
-        #expect(sections[0].buckets[0].accounts.map(\.id) == ["savings"])
-        #expect(sections[0].buckets[1].accounts.map(\.id) == ["checking"])
+        #expect(sections[0].buckets.map(\.id) == ["ungrouped", "cash"])
+        #expect(sections[0].buckets[0].accounts.map(\.id) == ["checking"])
+        #expect(sections[0].buckets[1].accounts.map(\.id) == ["savings"])
     }
 
     @Test func customOrderAppliesInsideAGroupAndLeavesGroupOrderAlone() {
@@ -110,6 +110,62 @@ struct AccountListLayoutTests {
 
         #expect(sections[0].showsGroupHeaders == false)
         #expect(sections[0].accounts.map(\.id) == ["savings", "checking"])
+    }
+
+    @Test func movingInsideAGroupPersistsTheWholeDisplayedOrder() {
+        let wallet = display("wallet", name: "Wallet")
+        let alpha = display("alpha", name: "Alpha", groupID: "cash")
+        let beta = display("beta", name: "Beta", groupID: "cash")
+        let gamma = display("gamma", name: "Gamma", groupID: "cash")
+        let brokerage = display("brokerage", name: "Brokerage", offbudget: true, groupID: "cash")
+        let cash = ActualAccountGroup(id: "cash", name: "Cash", sortOrder: 16_384)
+        // A stale preference that disagrees with the displayed buckets.
+        let sections = AccountListLayout.sections(
+            displays: [wallet, alpha, beta, gamma, brokerage],
+            groups: [cash],
+            preferredIDs: ["brokerage", "gamma", "wallet"]
+        )
+        #expect(sections[0].accounts.map(\.id) == ["wallet", "gamma", "alpha", "beta"])
+
+        let moved = AccountListLayout.preferredIDs(
+            in: sections,
+            kind: .budget,
+            bucketID: "cash",
+            fromOffsets: [0],
+            toOffset: 3
+        )
+
+        #expect(moved == ["wallet", "alpha", "beta", "gamma", "brokerage"])
+        let reloaded = AccountListLayout.sections(
+            displays: [wallet, alpha, beta, gamma, brokerage],
+            groups: [cash],
+            preferredIDs: moved ?? []
+        )
+        #expect(reloaded.flatMap(\.accounts).map(\.id) == moved)
+    }
+
+    @Test func movesOutsideTheBucketAreRejected() {
+        let alpha = display("alpha", name: "Alpha", groupID: "cash")
+        let beta = display("beta", name: "Beta", groupID: "cash")
+        let cash = ActualAccountGroup(id: "cash", name: "Cash", sortOrder: 16_384)
+        let sections = AccountListLayout.sections(
+            displays: [alpha, beta],
+            groups: [cash],
+            preferredIDs: []
+        )
+
+        #expect(AccountListLayout.preferredIDs(
+            in: sections, kind: .offBudget, bucketID: "cash", fromOffsets: [0], toOffset: 1
+        ) == nil)
+        #expect(AccountListLayout.preferredIDs(
+            in: sections, kind: .budget, bucketID: "ungrouped", fromOffsets: [0], toOffset: 1
+        ) == nil)
+        #expect(AccountListLayout.preferredIDs(
+            in: sections, kind: .budget, bucketID: "cash", fromOffsets: [2], toOffset: 0
+        ) == nil)
+        #expect(AccountListLayout.preferredIDs(
+            in: sections, kind: .budget, bucketID: "cash", fromOffsets: [0], toOffset: 3
+        ) == nil)
     }
 
     private func display(

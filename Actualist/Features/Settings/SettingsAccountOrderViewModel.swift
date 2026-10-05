@@ -4,16 +4,42 @@ import Observation
 @MainActor
 @Observable
 final class SettingsAccountOrderViewModel {
+    /// One reorderable run of rows: an Accounts-screen bucket that has
+    /// accounts. Rows only move within their bucket; changing an account's
+    /// group is a synced write that stays on the Accounts screen.
+    struct OrderBucket: Identifiable, Equatable {
+        var kind: AccountListLayout.Kind
+        var bucketID: AccountListLayout.Bucket.ID
+        var sectionTitle: String?
+        var groupName: String?
+        var accounts: [ActualAccount]
+
+        var id: String { "\(kind.rawValue)-\(bucketID)" }
+    }
+
     private(set) var isLoading = false
     private(set) var errorMessage: String?
     private var generation = 0
 
-    func accounts(using appState: AppState) -> [ActualAccount] {
-        guard let budgetID = appState.settings.selectedBudgetID else { return [] }
-        return appState.orderedAccounts(
-            appState.accountRepository.accountDisplays(budgetID: budgetID).map(\.account),
-            budgetID: budgetID
-        )
+    func buckets(using appState: AppState) -> [OrderBucket] {
+        Self.buckets(from: sections(using: appState))
+    }
+
+    static func buckets(from sections: [AccountListLayout.Section]) -> [OrderBucket] {
+        sections.flatMap { section in
+            section.buckets
+                .filter { !$0.accounts.isEmpty }
+                .enumerated()
+                .map { index, bucket in
+                    OrderBucket(
+                        kind: section.kind,
+                        bucketID: bucket.id,
+                        sectionTitle: index == 0 ? section.kind.title : nil,
+                        groupName: bucket.group?.name,
+                        accounts: bucket.accounts.map(\.account)
+                    )
+                }
+        }
     }
 
     func hasCustomOrder(using appState: AppState) -> Bool {
@@ -46,15 +72,34 @@ final class SettingsAccountOrderViewModel {
         await load(using: appState)
     }
 
-    func move(from source: IndexSet, to destination: Int, using appState: AppState) {
-        guard let budgetID = appState.settings.selectedBudgetID else { return }
-        var ordered = accounts(using: appState)
-        ordered.move(fromOffsets: source, toOffset: destination)
-        appState.updateAccountOrder(ordered.map(\.id), budgetID: budgetID)
+    func move(
+        in bucket: OrderBucket,
+        from source: IndexSet,
+        to destination: Int,
+        using appState: AppState
+    ) {
+        guard let budgetID = appState.settings.selectedBudgetID,
+              let ordered = AccountListLayout.preferredIDs(
+                  in: sections(using: appState),
+                  kind: bucket.kind,
+                  bucketID: bucket.bucketID,
+                  fromOffsets: source,
+                  toOffset: destination
+              ) else { return }
+        appState.updateAccountOrder(ordered, budgetID: budgetID)
     }
 
     func reset(using appState: AppState) {
         guard let budgetID = appState.settings.selectedBudgetID else { return }
         appState.resetAccountOrder(budgetID: budgetID)
+    }
+
+    private func sections(using appState: AppState) -> [AccountListLayout.Section] {
+        guard let budgetID = appState.settings.selectedBudgetID else { return [] }
+        return AccountListLayout.sections(
+            displays: appState.accountRepository.accountDisplays(budgetID: budgetID),
+            groups: appState.accountRepository.accountGroups(budgetID: budgetID),
+            preferredIDs: appState.settings.accountOrderByBudgetID[budgetID] ?? []
+        )
     }
 }

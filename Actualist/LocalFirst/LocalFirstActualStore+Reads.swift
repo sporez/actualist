@@ -106,11 +106,6 @@ extension LocalFirstActualStore {
         else { groups = try await database.fetchAccountGroups() }
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         if let groups { accountGroupsByBudget[budgetID] = groups }
-        let managementEnabled: Bool?
-        if bestEffort { managementEnabled = try? await database.accountGroupManagementEnabled() }
-        else { managementEnabled = try await database.accountGroupManagementEnabled() }
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-        if let managementEnabled { accountGroupManagementEnabledByBudget[budgetID] = managementEnabled }
     }
 
     func cachedPayeeManagementSnapshot(budgetID: String) -> PayeeManagementSnapshot? {

@@ -3,22 +3,23 @@ import Testing
 @testable import Actualist
 
 extension LocalFirstActualStoreTests {
-    @Test func oldBudgetBackfillCreatesSchemaButLeavesManagementOff() async throws {
+    @Test func budgetWithoutGroupsMigrationRowCanStillCreateGroups() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
+        var builder = LocalFirstSyncMessageBuilder()
 
-        // Phase 1 backfill creates `account_groups` on every budget so stored
-        // CRDT can replay, but management chrome must stay off until the
-        // `__migrations__` watermark is present. A non-nightly budget has no
-        // such row.
-        #expect(try await database.accountGroupManagementEnabled() == false)
+        // The stored `__migrations__` table is the snapshot from the last
+        // upload, so a budget downloaded before that snapshot gained the
+        // account-groups migration lacks the row even when every peer
+        // supports groups. Writes rely on the backfilled schema instead.
         #expect(try sqliteTables(at: fixtureURL).contains("account_groups"))
-    }
-
-    @Test func accountGroupManagementIsOnOnlyWhenMigrationWatermarkIsPresent() async throws {
-        let database = try makeWritableAccountGroupDatabase()
-
-        #expect(try await database.accountGroupManagementEnabled())
+        let created = try await database.createAccountGroupMessages(
+            groupID: "cash",
+            name: "Cash",
+            builder: &builder
+        )
+        #expect(try await database.commitLocalSyncMessagesAndEnqueue(created) == created.count)
+        #expect(try await database.fetchAccountGroups().map(\.id) == ["cash"])
     }
 
     @Test func createAccountGroupAppendsSortOrderAndRejectsDuplicates() async throws {
@@ -161,10 +162,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: Self.accountGroupMigrationSQL
         )
-        // Management enablement is read by the warmup, not by the first Budget
-        // frame, so it is not cached straight from the open.
         await bundle.store.warmLaunchCaches(budgetID: "group-1")
-        #expect(bundle.store.accountGroupManagementEnabled(budgetID: "group-1"))
 
         try await bundle.store.createAccountGroupAndRefresh(budgetID: "group-1", name: "Cash")
         let groups = bundle.store.accountGroups(budgetID: "group-1")

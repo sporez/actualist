@@ -28,6 +28,33 @@ struct AccountsViewModelTests {
         #expect(order.errorMessage == repository.loadError?.localizedDescription)
     }
 
+    @Test func accountOrderBucketsMirrorTheAccountsScreenAndSkipEmptyGroups() {
+        func display(_ id: String, offbudget: Bool = false, groupID: String? = nil) -> AccountDisplay {
+            AccountDisplay(
+                account: ActualAccount(id: id, name: id, offbudget: offbudget, closed: false, accountGroupId: groupID),
+                balance: 0
+            )
+        }
+        let savings = ActualAccountGroup(id: "savings", name: "Savings", sortOrder: 16_384)
+        let empty = ActualAccountGroup(id: "empty", name: "Empty", sortOrder: 32_768)
+        let sections = AccountListLayout.sections(
+            displays: [
+                display("ally", groupID: "savings"),
+                display("roth", offbudget: true, groupID: "savings"),
+                display("house", offbudget: true)
+            ],
+            groups: [savings, empty],
+            preferredIDs: []
+        )
+
+        let buckets = SettingsAccountOrderViewModel.buckets(from: sections)
+
+        #expect(buckets.map(\.id) == ["budget-savings", "offBudget-ungrouped", "offBudget-savings"])
+        #expect(buckets.map(\.sectionTitle) == ["Budget Accounts", "Off Budget", nil])
+        #expect(buckets.map(\.groupName) == ["Savings", nil, "Savings"])
+        #expect(buckets.map { $0.accounts.map(\.id) } == [["ally"], ["house"], ["roth"]])
+    }
+
     @Test func submitCreateGroupClearsEditorAndRecordsTheName() async throws {
         let repository = FakeAccountRepository()
         let viewModel = AccountsViewModel()
@@ -116,7 +143,6 @@ struct AccountsViewModelTests {
 private final class FakeAccountRepository: AccountRepositoryProtocol {
     var displays: [AccountDisplay] = []
     var groups: [ActualAccountGroup] = []
-    var managementEnabled = true
     var createdNames: [String] = []
     var deletedIDs: [String] = []
     var loadError: Error?
@@ -124,7 +150,6 @@ private final class FakeAccountRepository: AccountRepositoryProtocol {
 
     func accountDisplays(budgetID: String) -> [AccountDisplay] { displays }
     func accountGroups(budgetID: String) -> [ActualAccountGroup] { groups }
-    func accountGroupManagementEnabled(budgetID: String) -> Bool { managementEnabled }
     func refreshAccountsWithBalances(budgetID: String) async throws { if let loadError { throw loadError } }
     func accountReconciliationSnapshot(
         budgetID: String,

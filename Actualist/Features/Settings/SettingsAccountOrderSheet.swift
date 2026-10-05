@@ -7,7 +7,7 @@ struct SettingsAccountOrderSheet: View {
 
     @State private var model = SettingsAccountOrderViewModel()
 
-    private var accounts: [ActualAccount] { model.accounts(using: appState) }
+    private var buckets: [SettingsAccountOrderViewModel.OrderBucket] { model.buckets(using: appState) }
 
     var body: some View {
         NavigationStack {
@@ -24,23 +24,33 @@ struct SettingsAccountOrderSheet: View {
                         .settingsRowChrome()
                 }
 
-                Section("Accounts") {
-                    if appState.settings.selectedBudgetID == nil {
+                if appState.settings.selectedBudgetID == nil {
+                    Section("Accounts") {
                         Text("Select a budget before setting account order.")
                             .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
-                    } else if accounts.isEmpty && !model.isLoading {
+                    }
+                    .settingsSectionChrome()
+                } else if buckets.isEmpty && !model.isLoading {
+                    Section("Accounts") {
                         Text("No accounts loaded.")
                             .font(ActualistTypography.rowTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
-                    } else {
-                        ForEach(accounts) { account in
-                            SettingsAccountOrderRow(account: account)
+                    }
+                    .settingsSectionChrome()
+                } else {
+                    ForEach(buckets) { bucket in
+                        Section {
+                            ForEach(bucket.accounts) { account in
+                                SettingsAccountOrderRow(account: account)
+                            }
+                            .onMove { model.move(in: bucket, from: $0, to: $1, using: appState) }
+                        } header: {
+                            SettingsAccountOrderBucketHeader(bucket: bucket)
                         }
-                        .onMove { model.move(from: $0, to: $1, using: appState) }
+                        .settingsSectionChrome()
                     }
                 }
-                .settingsSectionChrome()
             }
             .environment(\.editMode, .constant(.active))
             .scrollContentBackground(.hidden)
@@ -75,6 +85,22 @@ struct SettingsAccountOrderSheet: View {
 
 }
 
+private struct SettingsAccountOrderBucketHeader: View {
+    let bucket: SettingsAccountOrderViewModel.OrderBucket
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let sectionTitle = bucket.sectionTitle {
+                Text(sectionTitle)
+            }
+            if let groupName = bucket.groupName {
+                Label(groupName, systemImage: "folder")
+                    .textCase(nil)
+            }
+        }
+    }
+}
+
 private struct SettingsAccountOrderRow: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
@@ -88,17 +114,9 @@ private struct SettingsAccountOrderRow: View {
                 .foregroundStyle(ActualistTheme.accent)
                 .frame(width: density.iconSize, height: density.iconSize)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(displayName)
-                    .font(ActualistTypography.rowTitle(for: density))
-                    .foregroundStyle(ActualistTheme.primaryText)
-
-                if let detail {
-                    Text(detail)
-                        .font(ActualistTypography.rowLabel(for: density))
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                }
-            }
+            Text(displayName)
+                .font(ActualistTypography.rowTitle(for: density))
+                .foregroundStyle(ActualistTheme.primaryText)
         }
         .padding(.vertical, 2)
     }
@@ -109,15 +127,5 @@ private struct SettingsAccountOrderRow: View {
         }
 
         return PrivacyDisplay.name(for: .account, seed: account.id)
-    }
-
-    private var detail: String? {
-        if account.closed {
-            return "Closed"
-        }
-        if account.offbudget {
-            return "Off Budget"
-        }
-        return nil
     }
 }

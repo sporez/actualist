@@ -8,9 +8,6 @@ protocol AccountRepositoryProtocol: Sendable {
     func accountGroups(budgetID: String) -> [ActualAccountGroup]
 
     @MainActor
-    func accountGroupManagementEnabled(budgetID: String) -> Bool
-
-    @MainActor
     func refreshAccountsWithBalances(budgetID: String) async throws
 
     @MainActor
