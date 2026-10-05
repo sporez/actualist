@@ -62,14 +62,10 @@ final class AccountLifecycleUITests: XCTestCase {
         attachScreenshot(named: "account-lifecycle-detail-renamed-twice-light-\(layoutName(for: app))", app: app)
     }
 
-    func testAccountsRowShowsVisibleActionsButtonThatOpensTheActions() throws {
+    func testAccountsRowHasNoActionsButtonAndLongPressOpensTheActions() throws {
         let app = launchMutableAccounts()
         _ = accountOverviewButton(accountID: "checking", expectedName: "Everyday Checking", in: app)
-
-        let actions = app.buttons["account-actions-checking"]
-        XCTAssertTrue(actions.waitForExistence(timeout: 5), "Expected the visible account actions button")
-        XCTAssertEqual(actions.label, "Account actions")
-        actions.tap()
+        openOverviewActions(accountID: "checking", in: app)
 
         let rename = app.buttons["account-lifecycle-rename-action"]
         XCTAssertTrue(rename.waitForExistence(timeout: 5))
@@ -450,6 +446,8 @@ final class AccountLifecycleUITests: XCTestCase {
     }
 
     private func openOverviewActions(accountID: String, in app: XCUIApplication) {
+        // Account row actions open only by long press (user decision, 2026-10-05).
+        XCTAssertFalse(app.buttons["account-actions-\(accountID)"].exists)
         let account = accountOverviewButton(accountID: accountID, in: app)
         XCTAssertTrue(account.isHittable)
         account.press(forDuration: 1)
