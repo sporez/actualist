@@ -72,9 +72,9 @@ Prepare a distinct dependency-ready clone first, then run:
 
 ```sh
 scripts/transaction-query-parity/run-oracle.sh \
-  --source-checkout /Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual \
+  --source-checkout "$ACTUALIST_PARITY_ORACLE_ROOT" \
   --actual-checkout /absolute/path/to/isolated-dependency-ready-actual \
-  --evidence /Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/transaction-query-parity \
+  --evidence "$ACTUALIST_ROOT/.artifacts/parity-sprint-20260927/transaction-query-parity" \
   --run-label investigation
 ```
 

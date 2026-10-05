@@ -3,8 +3,11 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST="$HERE/source-freeze.json"
+: "${ACTUALIST_PARITY_ORACLE_ROOT:?set to the pinned Actual v26.9.0 checkout}"
+# This checkout, derived from the harness location (scripts/parity/schedule-interop).
+ACTUALIST_ROOT="$(cd "$HERE/../../.." && pwd -P)"
 
-python3 - "$MANIFEST" <<'PY'
+python3 - "$MANIFEST" "$ACTUALIST_PARITY_ORACLE_ROOT" "$ACTUALIST_ROOT" <<'PY'
 import hashlib
 import json
 import pathlib
@@ -14,8 +17,8 @@ import sys
 manifest_path = pathlib.Path(sys.argv[1])
 manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 roots = {
-    "actual": pathlib.Path(manifest["actualRoot"]),
-    "actualist": pathlib.Path(manifest["actualistRoot"]),
+    "actual": pathlib.Path(sys.argv[2]),
+    "actualist": pathlib.Path(sys.argv[3]),
 }
 
 actual_head = subprocess.run(

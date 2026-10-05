@@ -13,6 +13,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import * as api from './actual-api-overlay';
 import {
@@ -23,7 +24,7 @@ import {
 import {
   afterEach,
   test,
-} from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/node_modules/vitest/dist/index.js';
+} from '@actual-oracle/node_modules/vitest/dist/index.js';
 
 const actualRevision = '59fe126f637d858c061e1eeedbef5436c8f2225a';
 const freezeID = 'schedule-interop-manual-v1';
@@ -72,7 +73,10 @@ afterEach(async () => {
 test('real Swift manual post imports through the production Node peer', async () => {
   const runID = safeIdentifier(requiredEnvironment('SCHEDULE_INTEROP_RUN_ID'));
   const actualistRoot = path.resolve(requiredEnvironment('SCHEDULE_INTEROP_ACTUALIST_ROOT'));
-  assert.equal(actualistRoot, '/Users/neil/CC/actualist-dev');
+  assert.equal(
+    actualistRoot,
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..'),
+  );
   const runRoot = path.resolve(requiredEnvironment('SCHEDULE_INTEROP_RUN_ROOT'));
   const cacheRoot = path.resolve(requiredEnvironment('SCHEDULE_INTEROP_CACHE_ROOT'));
   const admittedParent = path.join(

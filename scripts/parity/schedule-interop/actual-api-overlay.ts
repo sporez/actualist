@@ -1,8 +1,8 @@
-import { init as initLootCore } from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/loot-core/src/server/main.ts';
-import type { InitConfig, lib } from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/loot-core/src/server/main.ts';
-import { validateNodeVersion } from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/api/validateNodeVersion.ts';
+import { init as initLootCore } from '@actual-oracle/packages/loot-core/src/server/main.ts';
+import type { InitConfig, lib } from '@actual-oracle/packages/loot-core/src/server/main.ts';
+import { validateNodeVersion } from '@actual-oracle/packages/api/validateNodeVersion.ts';
 
-export * from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/api/methods.ts';
+export * from '@actual-oracle/packages/api/methods.ts';
 
 export let internal: typeof lib | null = null;
 

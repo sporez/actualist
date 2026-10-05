@@ -53,9 +53,9 @@ this label even if its evidence directory is moved):
 
 ```text
 scripts/transaction-command-parity/run-oracle.sh \
-  --source-checkout /Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual \
-  --actual-checkout /Users/neil/CC/actualist-dev/.artifacts/transaction-command-oracle/actual \
-  --evidence /Users/neil/CC/actualist-dev/.artifacts/transaction-command-oracle/evidence \
+  --source-checkout "$ACTUALIST_PARITY_ORACLE_ROOT" \
+  --actual-checkout "$ACTUALIST_ROOT/.artifacts/transaction-command-oracle/actual" \
+  --evidence "$ACTUALIST_ROOT/.artifacts/transaction-command-oracle/evidence" \
   --run-label post-correction
 ```
 

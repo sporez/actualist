@@ -1,10 +1,12 @@
 // Vitest runs the pinned API directly from source. Match the API package's own
 // source-test resolution for assets normally copied beside the built module.
-export * from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/loot-core/src/platform/server/fs/index.api.ts';
+export * from '@actual-oracle/packages/loot-core/src/platform/server/fs/index.api.ts';
+
+const upstream = process.env.ACTUALIST_PARITY_ORACLE_ROOT;
 
 export const bundledDatabasePath =
-  '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/loot-core/default-db.sqlite';
+  `${upstream}/packages/loot-core/default-db.sqlite`;
 export const migrationsPath =
-  '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/loot-core/migrations';
+  `${upstream}/packages/loot-core/migrations`;
 export const demoBudgetPath =
-  '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/loot-core/demo-budget';
+  `${upstream}/packages/loot-core/demo-budget`;

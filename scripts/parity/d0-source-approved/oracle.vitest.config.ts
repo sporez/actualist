@@ -1,10 +1,19 @@
-import { defineConfig } from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/node_modules/vitest/dist/config.js';
-import { peggyLoader } from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/vite-plugin-peggy/index.js';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const upstream =
-  '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual';
-const research =
-  '/Users/neil/CC/actualist-dev/scripts/parity/d0-source-approved';
+// Machine-local paths come from the environment; nothing here names a user or
+// host. Harness sources import the pinned checkout through `@actual-oracle/`.
+const upstream = process.env.ACTUALIST_PARITY_ORACLE_ROOT;
+if (!upstream || !path.isAbsolute(upstream)) {
+  throw new Error('set ACTUALIST_PARITY_ORACLE_ROOT to the pinned Actual checkout');
+}
+const research = path.dirname(fileURLToPath(import.meta.url));
+const { defineConfig } = await import(
+  pathToFileURL(`${upstream}/node_modules/vitest/dist/config.js`).href
+);
+const { peggyLoader } = await import(
+  pathToFileURL(`${upstream}/packages/vite-plugin-peggy/index.js`).href
+);
 const evidence =
   process.env.ACTUAL_ORACLE_EVIDENCE_DIR ?? `${research}/evidence`;
 
@@ -15,6 +24,7 @@ export default defineConfig({
   resolve: {
     conditions: ['api'],
     alias: [
+      { find: /^@actual-oracle\//, replacement: `${upstream}/` },
       {
         find: /^#platform\/server\/fs$/,
         replacement: `${research}/oracle-fs-shim.ts`,

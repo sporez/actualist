@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { test } from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/node_modules/vitest/dist/index.js';
+import { test } from '@actual-oracle/node_modules/vitest/dist/index.js';
 
-import * as api from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/api/index.ts';
+import * as api from '@actual-oracle/packages/api/index.ts';
 
 declare global {
   // These globals are part of the pinned source test harness contract.
@@ -66,8 +67,10 @@ type OwnershipReceipt = {
 };
 
 const upstreamRevision = '59fe126f637d858c061e1eeedbef5436c8f2225a';
-const evidenceRoot =
-  '/Users/neil/CC/actualist-dev/.artifacts/parity-sprint-20260927/d0-source-approved';
+const evidenceRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../.artifacts/parity-sprint-20260927/d0-source-approved',
+);
 const evidenceParent = path.resolve(
   process.env.ACTUAL_ORACLE_EVIDENCE_DIR ?? evidenceRoot,
 );

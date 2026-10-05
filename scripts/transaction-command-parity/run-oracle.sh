@@ -18,7 +18,7 @@ usage() {
 Usage: scripts/transaction-command-parity/run-oracle.sh \
   --source-checkout <read-only-pinned-actual-v26.9.0> \
   --actual-checkout <owned-writable-copy-under-this-lane-artifact-root> \
-  --evidence /Users/neil/CC/actualist-dev/.artifacts/transaction-command-oracle/evidence \
+  --evidence <this-checkout>/.artifacts/transaction-command-oracle/evidence \
   --run-label policy-admission-20260929
 EOF
   exit 64

@@ -2,7 +2,7 @@
 
 Date: 2026-09-27 (accepted upstream packet); copied to DEV for local review  
 Mode: source inspection and artifact-only static authoring  
-Pinned upstream: `/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual`  
+Pinned upstream: `$ACTUALIST_PARITY_ORACLE_ROOT`\
 Revision: `59fe126f637d858c061e1eeedbef5436c8f2225a`
 
 No runtime, build, typecheck, test, Node process, server request, network access,
@@ -184,8 +184,9 @@ export ACTUAL_ORACLE_SERVER_PASSWORD
 export ACTUAL_ORACLE_ENCRYPTION_PASSWORD
 export ACTUAL_ORACLE_RUN_ID="d0-$(date -u +%Y%m%dT%H%M%SZ)"
 export ACTUAL_ORACLE_CLEANUP=1
+export ACTUALIST_PARITY_ORACLE_ROOT  # pinned Actual v26.9.0 checkout
 
-/Users/neil/CC/actualist-dev/scripts/parity/d0-source-approved/run-oracle-proposal.sh
+scripts/parity/d0-source-approved/run-oracle-proposal.sh
 ```
 
 Expected success is one serial passing test, four passing cases, three singular
@@ -208,10 +209,12 @@ inputs when cleanup is shortened or preempted.
   and constrained cleanup.
 
 The source-approved packet was copied from
-`/Users/neil/CC/actualist-sprint-integration/.artifacts/parity-sprint-20260927/zip-registration-research/`.
-In this DEV copy, the runner/config point at `actualist-dev/scripts/parity`,
-and evidence/cache output is confined to
-`actualist-dev/.artifacts/parity-sprint-20260927/d0-source-approved/`. These
+the sprint-integration checkout's
+`.artifacts/parity-sprint-20260927/zip-registration-research/`.
+In this DEV copy, the runner/config resolve this checkout's `scripts/parity`
+from their own location, read the pinned upstream from
+`ACTUALIST_PARITY_ORACLE_ROOT`, and confine evidence/cache output to this
+checkout's `.artifacts/parity-sprint-20260927/d0-source-approved/`. These
 path adaptations change packet hashes; compare `source-approved-hashes.json`
 with coordinator-approved hashes and review the DEV-only changes before any
 execution. Original evidence/worktrees remain read-only. This DEV packet itself

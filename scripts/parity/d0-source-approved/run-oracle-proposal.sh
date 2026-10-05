@@ -1,9 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-UPSTREAM='/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual'
-RESEARCH='/Users/neil/CC/actualist-dev/scripts/parity/d0-source-approved'
-EVIDENCE='/Users/neil/CC/actualist-dev/.artifacts/parity-sprint-20260927/d0-source-approved'
+: "${ACTUALIST_PARITY_ORACLE_ROOT:?set to the pinned Actual v26.9.0 checkout}"
+UPSTREAM="$ACTUALIST_PARITY_ORACLE_ROOT"
+# This checkout, derived from the harness location (scripts/parity/d0-source-approved).
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd -P)"
+RESEARCH="$ROOT/scripts/parity/d0-source-approved"
+EVIDENCE="$ROOT/.artifacts/parity-sprint-20260927/d0-source-approved"
 EXPECTED_SHA='59fe126f637d858c061e1eeedbef5436c8f2225a'
 
 : "${ACTUAL_ORACLE_SERVER_URL:?set in the environment; never put it in this script}"
@@ -13,6 +16,7 @@ EXPECTED_SHA='59fe126f637d858c061e1eeedbef5436c8f2225a'
 : "${ACTUAL_ORACLE_PYTHON:?set the reviewed supervisor interpreter path}"
 : "${ACTUAL_ORACLE_CLEANUP:=1}"
 export ACTUAL_ORACLE_CLEANUP
+export ACTUALIST_PARITY_ORACLE_ROOT
 export ACTUAL_ORACLE_EVIDENCE_DIR="$EVIDENCE"
 
 if [[ ! "$ACTUAL_ORACLE_SERVER_URL" =~ ^https?://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?$ ]]; then

@@ -1,10 +1,19 @@
-import { defineConfig } from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/node_modules/vitest/dist/config.js';
-import { peggyLoader } from '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/packages/vite-plugin-peggy/index.js';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const upstream =
-  '/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual';
-const bridge =
-  '/Users/neil/CC/actualist-dev/scripts/parity/schedule-interop';
+// Machine-local paths come from the environment; nothing here names a user or
+// host. Harness sources import the pinned checkout through `@actual-oracle/`.
+const upstream = process.env.ACTUALIST_PARITY_ORACLE_ROOT;
+if (!upstream || !path.isAbsolute(upstream)) {
+  throw new Error('set ACTUALIST_PARITY_ORACLE_ROOT to the pinned Actual checkout');
+}
+const bridge = path.dirname(fileURLToPath(import.meta.url));
+const { defineConfig } = await import(
+  pathToFileURL(`${upstream}/node_modules/vitest/dist/config.js`).href
+);
+const { peggyLoader } = await import(
+  pathToFileURL(`${upstream}/packages/vite-plugin-peggy/index.js`).href
+);
 const cacheRoot = process.env.SCHEDULE_INTEROP_CACHE_ROOT;
 if (!cacheRoot) throw new Error('SCHEDULE_INTEROP_CACHE_ROOT is required');
 
@@ -15,6 +24,7 @@ export default defineConfig({
   resolve: {
     conditions: ['api'],
     alias: [
+      { find: /^@actual-oracle\//, replacement: `${upstream}/` },
       {
         find: /^#platform\/server\/fs$/,
         replacement: `${bridge}/node-peer-fs-shim.ts`,

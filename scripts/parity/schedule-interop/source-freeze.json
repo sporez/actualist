@@ -1,8 +1,6 @@
 {
   "schemaVersion": 1,
   "actualRevision": "59fe126f637d858c061e1eeedbef5436c8f2225a",
-  "actualRoot": "/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual",
-  "actualistRoot": "/Users/neil/CC/actualist-dev",
   "sha256": {
     "actual": {
       ".yarn/releases/yarn-4.17.1.cjs": "471ffb15e0523663865bbf46a69e7d157ecf532412eb436c48dfab6e3f2abe88",
@@ -45,15 +43,15 @@
       "ActualistTests/LocalFirstActualStoreSchedulePostingTests.swift": "b554585d099cc3656ce081a7c0509b2701cefc66486a988481d469bb4564ba93",
       "ActualistTests/LocalFirstActualStoreTestSupport.swift": "7f7baa093b88c2b88b3ea52bc1f0c9aa3b0854135ae6ba523ff5efc9d413683d",
       "ActualistTests/ScheduleInteropTestControl.swift": "aa63905b42bfdbe17596c54390ff9898d0310f568351e821ea0bd4d4d0629000",
-      "scripts/parity/schedule-interop/README.md": "07f25039dd017add81a40c967f7c7a73762b6d9dd895668586086aff85123b27",
-      "scripts/parity/schedule-interop/actual-api-overlay.ts": "90b0578287528ff1e60c0b5f96ed4016f826d02112a302e0928d9e3f497d5bdd",
-      "scripts/parity/schedule-interop/actual-crdt-overlay.ts": "264dd3b33e3504ccadfc3956a12aae652f2ee64e333d6203087517851923289b",
+      "scripts/parity/schedule-interop/README.md": "76bcf34b733e7347003ce4cc393e80e4c8b90cab78037dafd9244b3c506ce869",
+      "scripts/parity/schedule-interop/actual-api-overlay.ts": "8535ebb95d61e643770de282eaca0582c85012feec59ee686b2faeba0a1f2190",
+      "scripts/parity/schedule-interop/actual-crdt-overlay.ts": "00383c084d773c048fc33b482b67aea4977ab10b76b31df0bc63dc81b66a9087",
       "scripts/parity/schedule-interop/cases.json": "a4eeb61591f890ddba30a18cf0a1f60d345bb7094759bbda11838b8c01746067",
-      "scripts/parity/schedule-interop/node-peer-fs-shim.ts": "ff7df31329a9fdd8ed488af160337ea828b398b941158b477aafcc6f58878b8c",
+      "scripts/parity/schedule-interop/node-peer-fs-shim.ts": "c71dca3d9e1dec77144a115e1407e027ed47219196f3dca342e61bd453fdbdd7",
       "scripts/parity/schedule-interop/node-peer-proxy.ts": "dd01decd259de4a4639382a0110189dc7cad1d65a4b171d2df7a4a028986b465",
-      "scripts/parity/schedule-interop/node-peer.test.ts": "f713302649c166641aba6f1cc72fb28a4f1a669386c5c0be63567474071dc6c9",
-      "scripts/parity/schedule-interop/node-peer.vitest.config.ts": "69a7caf33542a13498de268cb59d6c5f677f4ae15a1c1e379c60de5b80b84047",
-      "scripts/parity/schedule-interop/verify-source-freeze.sh": "aaefd844ce0733370a5d2a2be569d9d1169e561a864e4f92161f406e3be77afb",
+      "scripts/parity/schedule-interop/node-peer.test.ts": "64ccc84ece47c0ea7f8f2f29458fb309f10f6f25927cb8444e9d05406dcadb7e",
+      "scripts/parity/schedule-interop/node-peer.vitest.config.ts": "d3fa06e03d3a4fd752d5f84abc41d04fb8ef0d87c905d2cf7b51ab02c3718a30",
+      "scripts/parity/schedule-interop/verify-source-freeze.sh": "723a9ee3926af2e9247efda7f433db03ff18f0f1492bde2027632acf11802d57",
       "scripts/test.sh": "b6ab8808193fdd96d003291cedfba2856ad387a8ee314f0d4e8bff979d6da98b"
     }
   }

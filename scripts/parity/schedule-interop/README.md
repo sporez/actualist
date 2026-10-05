@@ -13,7 +13,7 @@ handoff. Nothing here starts, initializes, seeds, or stops an Actual server.
 ## Production entrypoints traced
 
 Pinned Actual source is the clean checkout at
-`/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual`,
+`$ACTUALIST_PARITY_ORACLE_ROOT`,
 revision `59fe126f637d858c061e1eeedbef5436c8f2225a`.
 
 The real Node automatic-advancement entrypoint is
@@ -184,19 +184,22 @@ The schedule live lease, not the D0 driver, would launch the pinned source
 test with this environment shape after it has created the reviewed handoff and
 credentials files. `SCHEDULE_INTEROP_D0_HANDOFF_FILE` is a historical name; the
 producer is the schedule lease. Values shown here are paths/labels, never
-credential contents. This command is not granted:
+credential contents. `ACTUALIST_PARITY_ORACLE_ROOT` is the pinned Actual
+checkout (read by the Vitest config, fs shim and `verify-source-freeze.sh`);
+`ACTUALIST_ROOT` is this checkout. This command is not granted:
 
 ```sh
 SCHEDULE_INTEROP_RUN_ID="$RUN_ID" \
-SCHEDULE_INTEROP_ACTUALIST_ROOT=/Users/neil/CC/actualist-dev \
-SCHEDULE_INTEROP_RUN_ROOT="/Users/neil/CC/actualist-dev/.artifacts/parity-sprint-20260927/schedule-interop/$RUN_ID" \
-SCHEDULE_INTEROP_CACHE_ROOT="/Users/neil/CC/actualist-dev/.artifacts/parity-sprint-20260927/schedule-interop/cache-$RUN_ID" \
+ACTUALIST_PARITY_ORACLE_ROOT="$ACTUALIST_PARITY_ORACLE_ROOT" \
+SCHEDULE_INTEROP_ACTUALIST_ROOT="$ACTUALIST_ROOT" \
+SCHEDULE_INTEROP_RUN_ROOT="$ACTUALIST_ROOT/.artifacts/parity-sprint-20260927/schedule-interop/$RUN_ID" \
+SCHEDULE_INTEROP_CACHE_ROOT="$ACTUALIST_ROOT/.artifacts/parity-sprint-20260927/schedule-interop/cache-$RUN_ID" \
 SCHEDULE_INTEROP_D0_HANDOFF_FILE="$D0_HANDOFF_0600" \
 SCHEDULE_INTEROP_CREDENTIAL_FILE="$D0_CREDENTIALS_0600" \
-node /Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual/.yarn/releases/yarn-4.17.1.cjs \
+node "$ACTUALIST_PARITY_ORACLE_ROOT/.yarn/releases/yarn-4.17.1.cjs" \
   vitest run \
-  --config /Users/neil/CC/actualist-dev/scripts/parity/schedule-interop/node-peer.vitest.config.ts \
-  /Users/neil/CC/actualist-dev/scripts/parity/schedule-interop/node-peer.test.ts
+  --config "$ACTUALIST_ROOT/scripts/parity/schedule-interop/node-peer.vitest.config.ts" \
+  "$ACTUALIST_ROOT/scripts/parity/schedule-interop/node-peer.test.ts"
 ```
 
 The schedule live lease remains responsible for the approved exact-process
