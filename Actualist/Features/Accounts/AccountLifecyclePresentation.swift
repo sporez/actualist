@@ -79,19 +79,6 @@ enum AccountLifecyclePresentation {
                 id: "destination", label: "Transfer to", value: name
             ))
         }
-        if case .closeWithTransfer(let transfer) = review.resolvedAction {
-            let transferText = privacyModeEnabled
-                ? PrivacyDisplay.money(
-                    transfer.destinationAmount,
-                    seed: "account-lifecycle-transfer-\(review.account.id)",
-                    currency: currency,
-                    maximumDollars: 15_000
-                )
-                : currency.formatted(transfer.destinationAmount)
-            rows.append(AccountLifecycleConsequenceRow(
-                id: "transfer-amount", label: "Destination change", value: transferText
-            ))
-        }
         if let category = review.identity.categoryFacts?.category {
             let name = privacyModeEnabled
                 ? PrivacyDisplay.name(for: .category, seed: category.id)

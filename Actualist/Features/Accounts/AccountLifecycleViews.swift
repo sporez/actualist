@@ -356,7 +356,7 @@ struct AccountLifecycleReviewSheet: View {
 
     private func symbol(for rowID: String) -> String {
         switch rowID {
-        case "balance", "transfer-amount": "dollarsign"
+        case "balance": "dollarsign"
         case "transactions": "list.bullet.rectangle"
         case "destination": "arrow.left.arrow.right"
         case "category": "tag"
