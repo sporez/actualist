@@ -194,7 +194,7 @@ struct AccountTransactionsView: View {
             }
 
             AccountTransactionFeedRows(
-                groups: displayState.groups,
+                groups: AccountTransactionFeedGroups(displayState.groups),
                 scope: scope,
                 isSelectionMode: transactionBatchPresentation.isSelectionMode,
                 selectedIdentities: transactionBatchPresentation.selection.selectedIdentities,

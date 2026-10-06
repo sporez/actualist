@@ -3,7 +3,7 @@ import SwiftUI
 struct AccountTransactionFeedRows: View {
     @Environment(\.actualistDensity) private var density
 
-    let groups: [AccountTransactionDateGroupPresentation]
+    let groups: AccountTransactionFeedGroups
     let scope: TransactionFeedScope
     let isSelectionMode: Bool
     let selectedIdentities: Set<TransactionSelectionIdentity>
@@ -29,7 +29,7 @@ struct AccountTransactionFeedRows: View {
                 .listRowBackground(Color.clear)
         }
 
-        ForEach(groups) { group in
+        ForEach(groups.values) { group in
             Text(group.title)
                 .font(ActualistTypography.sectionTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
@@ -168,5 +168,17 @@ struct AccountTransactionFeedRows: View {
     private func selectionColor(identity: TransactionSelectionIdentity?, isSelected: Bool) -> Color {
         guard identity != nil else { return ActualistTheme.warning }
         return isSelected ? ActualistTheme.positive : ActualistTheme.secondaryText
+    }
+}
+
+/// SwiftUI compares a view's stored properties on every parent update. Passed
+/// as a plain array, the feed was deep-compared row by row before the always
+/// unequal closures forced a re-render anyway, which stalled tab switches and
+/// pull-to-refresh. A reference compares by identity instead.
+final class AccountTransactionFeedGroups {
+    let values: [AccountTransactionDateGroupPresentation]
+
+    init(_ values: [AccountTransactionDateGroupPresentation]) {
+        self.values = values
     }
 }
