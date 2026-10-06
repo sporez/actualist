@@ -103,6 +103,15 @@ extension AppState {
         settingsStore.save(settings)
     }
 
+    func groupExpansion(budgetID: String) -> BudgetGroupExpansion {
+        settings.categoryGroupExpansionByBudgetID[budgetID] ?? BudgetGroupExpansion()
+    }
+
+    func setGroupExpansion(_ expansion: BudgetGroupExpansion, budgetID: String) {
+        settings.categoryGroupExpansionByBudgetID[budgetID] = expansion
+        settingsStore.save(settings)
+    }
+
     func updateReportCardOrder(_ reportCardOrder: [ReportCardKind]) {
         settings.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
         settingsStore.save(settings)
@@ -113,3 +122,5 @@ extension AppState {
         settingsStore.save(settings)
     }
 }
+
+extension AppState: BudgetGroupExpansionStore {}

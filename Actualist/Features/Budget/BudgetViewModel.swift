@@ -10,6 +10,7 @@ final class BudgetViewModel {
     private(set) var loadedBudgetID: String?
     private var loadedBudgetAlerts: [BudgetAlert] = []
     var expandedGroupIDs: Set<String> = []
+    private let expansionStore: (any BudgetGroupExpansionStore)?
     private var loadGeneration = 0
     let refreshCoalescer = BudgetRefreshCoalescer()
     var isLoading = true
@@ -28,8 +29,12 @@ final class BudgetViewModel {
         overspentCoverSelection.isSubmitting
     }
 
-    init(initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil, assignmentWorkflow: BudgetAssignmentWorkflow? = nil) {
+    init(
+        initialMonth: LoadedBudgetMonth? = nil, initialBudgetID: String? = nil,
+        assignmentWorkflow: BudgetAssignmentWorkflow? = nil, expansionStore: (any BudgetGroupExpansionStore)? = nil
+    ) {
         self.assignmentWorkflow = assignmentWorkflow ?? BudgetAssignmentWorkflow()
+        self.expansionStore = expansionStore
         loadedBudgetID = initialBudgetID
         guard let initialMonth else {
             return
@@ -309,11 +314,10 @@ final class BudgetViewModel {
     }
 
     func toggle(_ group: BudgetMonthCategoryGroup) {
-        if expandedGroupIDs.contains(group.id) {
-            expandedGroupIDs.remove(group.id)
-        } else {
-            expandedGroupIDs.insert(group.id)
-        }
+        let isExpanded = !expandedGroupIDs.contains(group.id)
+        if isExpanded { expandedGroupIDs.insert(group.id) } else { expandedGroupIDs.remove(group.id) }
+        guard let loadedBudgetID, let groups = budgetMonth?.categoryGroups else { return }
+        expansionStore?.recordGroupExpansion(isExpanded, groupID: group.id, budgetID: loadedBudgetID, groups: groups)
     }
 
     func beginOverspentCoverSelection() {
@@ -756,11 +760,8 @@ final class BudgetViewModel {
             let loadedGroupIDs = Set(loadedMonth.month.categoryGroups.map(\.id))
             expandedGroupIDs = expandedGroupIDs.intersection(loadedGroupIDs)
         } else {
-            expandedGroupIDs = Set(
-                loadedMonth.month.categoryGroups
-                    .filter { (!$0.isIncome || isTrackingBudget) && $0.hidden != true }
-                    .map(\.id)
-            )
+            let expansion = loadedBudgetID.flatMap { expansionStore?.groupExpansion(budgetID: $0) } ?? BudgetGroupExpansion()
+            expandedGroupIDs = expansion.expandedIDs(in: loadedMonth.month.categoryGroups, isTrackingBudget: isTrackingBudget)
         }
         overspentCoverSelection.intersectSelection(with: Set(overspentCategoryOptions.map(\.id)))
     }

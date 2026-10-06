@@ -49,6 +49,7 @@ struct AppSettings: Codable, Equatable {
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
     var defaultAccountIDByBudgetID: [String: String] = [:]
+    var categoryGroupExpansionByBudgetID: [String: BudgetGroupExpansion] = [:]
     var reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder
     var backgroundTransactionRefreshEnabled: Bool = false
     /// Optional SimpleFIN background bank sync. Default off; the toggle is
@@ -82,6 +83,7 @@ struct AppSettings: Codable, Equatable {
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
         defaultAccountIDByBudgetID: [String: String] = [:],
+        categoryGroupExpansionByBudgetID: [String: BudgetGroupExpansion] = [:],
         reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder,
         backgroundTransactionRefreshEnabled: Bool = false,
         simplefinBackgroundSyncEnabled: Bool = false,
@@ -110,6 +112,7 @@ struct AppSettings: Codable, Equatable {
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
         self.defaultAccountIDByBudgetID = defaultAccountIDByBudgetID
+        self.categoryGroupExpansionByBudgetID = categoryGroupExpansionByBudgetID
         self.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
         self.simplefinBackgroundSyncEnabled = simplefinBackgroundSyncEnabled
@@ -175,6 +178,10 @@ struct AppSettings: Codable, Equatable {
         defaultAccountIDByBudgetID = container.lenient(
             [String: String].self,
             forKey: .defaultAccountIDByBudgetID
+        ) ?? [:]
+        categoryGroupExpansionByBudgetID = container.lenient(
+            [String: BudgetGroupExpansion].self,
+            forKey: .categoryGroupExpansionByBudgetID
         ) ?? [:]
         let persistedReportCardOrder = container.lenient(
             [String].self,

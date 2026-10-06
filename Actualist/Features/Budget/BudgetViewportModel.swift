@@ -16,6 +16,7 @@ final class BudgetViewportModel {
 
     let repository: any BudgetRepositoryProtocol
     let assignmentWorkflow: BudgetAssignmentWorkflow
+    private let expansionStore: (any BudgetGroupExpansionStore)?
 
     private(set) var budgetID: String?
     private(set) var anchorMonth: String?
@@ -77,9 +78,13 @@ final class BudgetViewportModel {
         )
     }
 
-    init(repository: any BudgetRepositoryProtocol, assignmentWorkflow: BudgetAssignmentWorkflow? = nil) {
+    init(
+        repository: any BudgetRepositoryProtocol, assignmentWorkflow: BudgetAssignmentWorkflow? = nil,
+        expansionStore: (any BudgetGroupExpansionStore)? = nil
+    ) {
         self.repository = repository
         self.assignmentWorkflow = assignmentWorkflow ?? BudgetAssignmentWorkflow()
+        self.expansionStore = expansionStore
     }
 
     var visibleMonths: [String] {
@@ -203,8 +208,10 @@ final class BudgetViewportModel {
     }
 
     func toggleGroup(id: String) {
-        if expandedGroupIDs.contains(id) { expandedGroupIDs.remove(id) }
-        else { expandedGroupIDs.insert(id) }
+        let isExpanded = !expandedGroupIDs.contains(id)
+        if isExpanded { expandedGroupIDs.insert(id) } else { expandedGroupIDs.remove(id) }
+        guard let budgetID, let groups = visibleSnapshots.first?.month.categoryGroups else { return }
+        expansionStore?.recordGroupExpansion(isExpanded, groupID: id, budgetID: budgetID, groups: groups)
     }
 
     func closeInspector() {
@@ -519,7 +526,8 @@ final class BudgetViewportModel {
         if expansionInitializedBudgetID == budgetID {
             expandedGroupIDs.formIntersection(groups)
         } else {
-            expandedGroupIDs = Set(month.categoryGroups.filter { (!$0.isIncome || isTrackingBudget) && $0.hidden != true }.map(\.id))
+            let expansion = budgetID.flatMap { expansionStore?.groupExpansion(budgetID: $0) } ?? BudgetGroupExpansion()
+            expandedGroupIDs = expansion.expandedIDs(in: month.categoryGroups, isTrackingBudget: isTrackingBudget)
             expansionInitializedBudgetID = budgetID
         }
         if let selectedCell, category(at: selectedCell) == nil {

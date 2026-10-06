@@ -16,11 +16,13 @@ final class AdaptiveBudgetSession {
     private var requestedContext: Context?
     private var lastPresentedContext: Context?
     private var transitionTask: Task<Void, Never>?
+    private let expansionStore: (any BudgetGroupExpansionStore)?
 
-    init(repository: any BudgetRepositoryProtocol) {
+    init(repository: any BudgetRepositoryProtocol, expansionStore: (any BudgetGroupExpansionStore)? = nil) {
         let assignment = BudgetAssignmentWorkflow()
-        compactModel = BudgetViewModel(assignmentWorkflow: assignment)
-        viewport = BudgetViewportModel(repository: repository, assignmentWorkflow: assignment)
+        self.expansionStore = expansionStore
+        compactModel = BudgetViewModel(assignmentWorkflow: assignment, expansionStore: expansionStore)
+        viewport = BudgetViewportModel(repository: repository, assignmentWorkflow: assignment, expansionStore: expansionStore)
     }
 
     @discardableResult
@@ -72,7 +74,8 @@ final class AdaptiveBudgetSession {
             compactModel = BudgetViewModel(
                 initialMonth: restoredMonth,
                 initialBudgetID: restoredMonth == nil ? nil : budgetID,
-                assignmentWorkflow: viewport.assignmentWorkflow
+                assignmentWorkflow: viewport.assignmentWorkflow,
+                expansionStore: expansionStore
             )
             compactModel.includeCarryoverCategoriesInOverspentAlerts =
                 appState.settings.includeCarryoverCategoriesInOverspentAlerts
