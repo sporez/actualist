@@ -60,13 +60,6 @@ extension TransactionFeedCacheKey {
     }
 }
 
-typealias TransactionFeedPageReadHook = @MainActor @Sendable (
-    TransactionFeedCacheKey,
-    String?,
-    Int?,
-    Int
-) async throws -> Void
-
 struct TransactionFeedRequestIdentity: Sendable {
     struct Ticket: Hashable, Sendable {
         let sessionID: UUID

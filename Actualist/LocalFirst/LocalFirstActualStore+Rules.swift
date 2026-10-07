@@ -1,7 +1,5 @@
 import Foundation
 
-typealias RulesReadHook = @MainActor @Sendable (_ budgetID: String) async throws -> Void
-
 extension LocalFirstActualStore {
     func cachedRules(budgetID: String) -> [ManagedRule]? {
         rulesByBudget[budgetID]
@@ -95,7 +93,9 @@ extension LocalFirstActualStore {
         let revision = nextRulesCacheRevision
         rulesCacheRevisionByBudget[budgetID] = revision
         let loaded = try await database.fetchRules()
-        try await rulesReadHook?(budgetID)
+        #if DEBUG
+        try await testSeams?.rulesReadHook?(budgetID)
+        #endif
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         guard rulesCacheRevisionByBudget[budgetID] == revision else {
             throw CancellationError()

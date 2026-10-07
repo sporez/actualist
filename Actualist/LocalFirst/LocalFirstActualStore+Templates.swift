@@ -70,7 +70,7 @@ extension LocalFirstActualStore {
         let revision = cachePublicationRevision
         var snapshot = try await database.categoryTemplateBrowserSnapshot()
         #if DEBUG
-        await readPublicationHook?(.templateBrowser)
+        await testSeams?.readPublicationHook?(.templateBrowser)
         #endif
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         if let month {

@@ -53,7 +53,7 @@ extension LocalFirstActualStore {
 
         let modeIdentity = try? await database.fetchBudgetModeIdentity()
         #if DEBUG
-        await readPublicationHook?(.launchSeed)
+        await testSeams?.readPublicationHook?(.launchSeed)
         #endif
         guard !Task.isCancelled, self.database === database, openedBudgetID == budgetID else { return }
         // A write that advanced the persistent revision while the snapshot was

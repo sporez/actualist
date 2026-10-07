@@ -24,12 +24,12 @@ struct LocalFirstActualStoreCommitTailTests {
         let store = LocalFirstActualStore(
             keychain: bundle.keychain,
             fileManager: bundle.fileManager,
-            syncDebugRecorder: { event in fixture.events.append(event) },
-            transactionFeedPageReadHook: { _, _, _, _ in
-                if fixture.failFeedReads { throw ReloadFailure() }
-                try fixture.onFeedRead?()
-            }
+            syncDebugRecorder: { event in fixture.events.append(event) }
         )
+        store.seams.transactionFeedPageReadHook = { _, _, _, _ in
+            if fixture.failFeedReads { throw ReloadFailure() }
+            try fixture.onFeedRead?()
+        }
         _ = try await store.openCachedBudget(bundle.budget)
         try await store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
         return (store, fixture)

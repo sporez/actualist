@@ -126,7 +126,9 @@ extension LocalFirstActualStore {
         let finalGraph = graph
         let finalAffectedIDs = affectedTransactionIDs
         let absence = callerTransactionID.map { BudgetDatabase.TransactionIDAbsence(transactionID: $0) }
-        await userActionBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.userActionBeforeCommitHook?()
+        #endif
         let alreadyCommitted = try await database.commitUserActionPlan(source: actionSource) { database, db in
             if let absence, try absence.isViolated(in: database, db: db) {
                 return UserActionPlan(drafts: [], descriptor: nil, outcome: true)
@@ -257,7 +259,9 @@ extension LocalFirstActualStore {
         let typedPayeeName = trimmedPayeeName(draft.payeeName)
         let learningIDs: Set<String> = draft.categoryID == nil ? [] : [transactionID]
         let payeeBuilder = builder
-        await userActionBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.userActionBeforeCommitHook?()
+        #endif
         // The existing row, its family and the History decision are read inside
         // the write transaction so a remote edit that landed since the editor
         // opened is not judged against stale state.
@@ -449,7 +453,9 @@ extension LocalFirstActualStore {
             items: items
         ))
         let orderedIDs = items.map(\.transactionID)
-        await userActionBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.userActionBeforeCommitHook?()
+        #endif
         _ = try await database.commitUserActionPlan(source: actionSource) { database, db in
             var builder = LocalFirstSyncMessageBuilder()
             var messages: [ActualSyncDecodedMessage] = []
@@ -554,7 +560,9 @@ extension LocalFirstActualStore {
         let amount = transaction.amount ?? 0
         let payeeName = transaction.payeeName
         let categoryID = transaction.category
-        await userActionBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.userActionBeforeCommitHook?()
+        #endif
         let committed = try await database.commitUserActionPlan(
             source: actionSource,
             reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition(

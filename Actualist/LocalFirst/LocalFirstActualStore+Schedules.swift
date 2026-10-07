@@ -1,7 +1,5 @@
 import Foundation
 
-typealias ScheduleReadHook = @MainActor @Sendable (_ budgetID: String, _ today: String) async -> Void
-
 struct ScheduleRequestIdentity: Sendable {
     struct Ticket: Hashable, Sendable {
         let sessionID: UUID
@@ -50,7 +48,9 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         let ticket = scheduleRequestIdentity.begin(budgetID: budgetID)
         let loaded = try await database.fetchSchedules(budgetID: budgetID, today: today)
-        await scheduleReadHook?(budgetID, today)
+        #if DEBUG
+        await testSeams?.scheduleReadHook?(budgetID, today)
+        #endif
         try Task.checkCancellation()
         try requireSyncSession(
             database: database,

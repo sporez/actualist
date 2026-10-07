@@ -24,8 +24,8 @@ extension LocalFirstActualStoreTests {
         let second = try draft(amount: -200)
         var secondID: String?
         // The second gesture resolves the same unknown name and commits first.
-        store.userActionBeforeCommitHook = { [store] in
-            store.userActionBeforeCommitHook = nil
+        store.seams.userActionBeforeCommitHook = { [store] in
+            store.seams.userActionBeforeCommitHook = nil
             do {
                 let result = try await store.createTransactionAndRefresh(second, budgetID: "group-1") {}
                 secondID = result.changed.transactions.first

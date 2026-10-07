@@ -78,7 +78,7 @@ extension LocalFirstActualStoreTests {
         let url = try bundle.fileManager.databaseURL(fileID: #require(bundle.budget.budgetID))
         let uuid = "11111111-2222-3333-4444-555555555555"
         let candidate = try walletCandidate(uuid, merchant: "Retry Cafe")
-        bundle.store.walletImportBeforeCommitHook = { attempt in
+        bundle.store.seams.walletImportBeforeCommitHook = { attempt in
             guard attempt == 1 else { return }
             do {
                 try self.insertRemoteImportedRow(
@@ -106,7 +106,7 @@ extension LocalFirstActualStoreTests {
             try walletCandidate(firstUUID, merchant: "First Cafe"),
             try walletCandidate(secondUUID, merchant: "Second Cafe"),
         ]
-        bundle.store.walletImportBeforeCommitHook = { attempt in
+        bundle.store.seams.walletImportBeforeCommitHook = { attempt in
             do {
                 try self.insertRemoteImportedRow(
                     at: url,

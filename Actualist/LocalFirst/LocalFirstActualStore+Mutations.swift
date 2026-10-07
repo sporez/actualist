@@ -59,7 +59,9 @@ extension LocalFirstActualStore {
         targetPayeeID: String
     ) async throws {
         let database = try requireDatabase(for: budgetID)
-        await userActionBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.userActionBeforeCommitHook?()
+        #endif
         // Built inside the write so mapping rows a sync pull added since the
         // review are retargeted too, instead of left pointing at a tombstone.
         let undo = try await database.commitUserActionPlan(source: .ui) { database, db in
@@ -94,7 +96,9 @@ extension LocalFirstActualStore {
     func deletePayeesAndRefresh(budgetID: String, payeeIDs: Set<String>) async throws {
         guard !payeeIDs.isEmpty else { return }
         let database = try requireDatabase(for: budgetID)
-        await userActionBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.userActionBeforeCommitHook?()
+        #endif
         // The "unused payee" check runs inside the write, so a transaction a
         // sync pull attached to the payee since the review blocks the delete.
         let undo = try await database.commitUserActionPlan(source: .ui) { database, db in
@@ -369,7 +373,9 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         let mode = try await database.requireBudgetMode(expectedMode)
-        await userActionBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.userActionBeforeCommitHook?()
+        #endif
         _ = try await database.commitUserActionPlan(
             source: actionSource,
             expectedMode: reviewRevision?.modeIdentity ?? mode,

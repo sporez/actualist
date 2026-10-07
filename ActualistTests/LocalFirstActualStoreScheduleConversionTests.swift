@@ -37,12 +37,12 @@ struct LocalFirstActualStoreScheduleConversionTests {
             budgetID: "group-1", transactionID: "future", asOfDayID: Self.today
         )
         let gate = ConversionCommitGate()
-        store.scheduleMutationBeforeCommitHook = {
+        store.seams.scheduleMutationBeforeCommitHook = {
             await gate.pause()
         }
         defer {
             gate.release()
-            store.scheduleMutationBeforeCommitHook = nil
+            store.seams.scheduleMutationBeforeCommitHook = nil
         }
 
         let submission = Task { @MainActor in
@@ -73,7 +73,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
             budgetID: "group-1", transactionID: "future", asOfDayID: Self.today
         )
         let holder = ConversionTaskHolder()
-        store.scheduleMutationAfterCommitHook = { [weak store] in
+        store.seams.scheduleMutationAfterCommitHook = { [weak store] in
             holder.task?.cancel()
             guard let store else { return }
             store.closeOpenBudget()

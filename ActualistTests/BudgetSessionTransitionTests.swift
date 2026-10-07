@@ -201,7 +201,7 @@ private final class OpenProbe {
     @ObservationIgnored private var continuation: CheckedContinuation<Void, Never>?
 
     init(store: LocalFirstActualStore) {
-        store.budgetOpenSuspension = { [weak self] in
+        store.seams.budgetOpenSuspension = { [weak self] in
             guard let self else { return }
             openCount += 1
             guard openCount == 1 else { return }

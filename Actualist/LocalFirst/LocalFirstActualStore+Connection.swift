@@ -556,7 +556,7 @@ extension LocalFirstActualStore {
         try Task.checkCancellation()
         guard generation == budgetSessionGeneration, self.database === database else { throw CancellationError() }
         #if DEBUG
-        await budgetOpenSuspension?()
+        await testSeams?.budgetOpenSuspension?()
         #endif
         try Task.checkCancellation()
         guard generation == budgetSessionGeneration, self.database === database else { throw CancellationError() }

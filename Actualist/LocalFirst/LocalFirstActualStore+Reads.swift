@@ -1,8 +1,5 @@
 import Foundation
 
-/// Runs after the payee snapshot has been read and before it is published.
-typealias PayeeSnapshotReadHook = @MainActor @Sendable (_ budgetID: String) async -> Void
-
 extension LocalFirstActualStore {
     func budgets() async throws -> [ActualBudget] {
         cachedBudgets
@@ -100,7 +97,9 @@ extension LocalFirstActualStore {
         if bestEffort { accounts = try? await database.fetchAccountDisplays() }
         else { accounts = try await database.fetchAccountDisplays() }
         #if DEBUG
-        if bestEffort { await launchWarmupSuspension?() }
+        #if DEBUG
+        if bestEffort { await testSeams?.launchWarmupSuspension?() }
+        #endif
         #endif
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         if let accounts { accountsByBudget[budgetID] = accounts }
@@ -128,7 +127,9 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         let snapshot = try await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
-        await payeeSnapshotReadHook?(budgetID)
+        #if DEBUG
+        await testSeams?.payeeSnapshotReadHook?(budgetID)
+        #endif
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         payeesByBudget[budgetID] = snapshot
     }
@@ -164,7 +165,7 @@ extension LocalFirstActualStore {
         let maps = try await nameMaps(database)
         let transactions = try await database.fetchTransactions()
         #if DEBUG
-        await readPublicationHook?(.categoryFeed)
+        await testSeams?.readPublicationHook?(.categoryFeed)
         #endif
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         // A write reload since this read began already published fresher rows.
@@ -237,7 +238,7 @@ extension LocalFirstActualStore {
         let maps = try await nameMaps(database)
         let rows = try await database.fetchUncategorizedTransactions()
         #if DEBUG
-        await readPublicationHook?(.uncategorizedFeed)
+        await testSeams?.readPublicationHook?(.uncategorizedFeed)
         #endif
         return try await publishUncategorizedTransactions(
             database: database, budgetID: budgetID, month: month,
@@ -433,7 +434,7 @@ extension LocalFirstActualStore {
             try await database.fetchAvailableMonths()
         }
         #if DEBUG
-        await readPublicationHook?(.availableMonths)
+        await testSeams?.readPublicationHook?(.availableMonths)
         #endif
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         if revision == cachePublicationRevision {

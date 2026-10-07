@@ -1,8 +1,5 @@
 import Foundation
 
-/// Runs after a Wallet import has built its messages and before they commit; `attempt` is 1 or 2.
-typealias WalletImportBeforeCommitHook = @MainActor @Sendable (_ attempt: Int) async -> Void
-
 extension LocalFirstActualStore {
     func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String> {
         let database = try requireDatabase(for: budgetID)
@@ -143,7 +140,9 @@ extension LocalFirstActualStore {
             )
         }
 
-        await walletImportBeforeCommitHook?(attempt)
+        #if DEBUG
+        await testSeams?.walletImportBeforeCommitHook?(attempt)
+        #endif
         _ = try await database.commitLocalSyncMessagesAndEnqueue(
             messages,
             expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence(

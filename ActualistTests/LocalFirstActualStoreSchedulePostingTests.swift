@@ -16,10 +16,10 @@ struct LocalFirstActualStoreSchedulePostingTests {
         let database = try #require(store.database)
         let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         let outboxObservation = SchedulePostingOutboxObservation()
-        store.scheduleMutationAfterCommitHook = {
+        store.seams.scheduleMutationAfterCommitHook = {
             await outboxObservation.capturePendingCount(database: database)
         }
-        defer { store.scheduleMutationAfterCommitHook = nil }
+        defer { store.seams.scheduleMutationAfterCommitHook = nil }
 
         let receipt = try await store.postSchedule(review: review, date: .scheduled)
 
@@ -89,12 +89,12 @@ struct LocalFirstActualStoreSchedulePostingTests {
         let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         let gate = SchedulePostingCommitGate()
         let outboxObservation = SchedulePostingOutboxObservation()
-        store.scheduleMutationAfterCommitHook = {
+        store.seams.scheduleMutationAfterCommitHook = {
             await outboxObservation.capturePendingCount(database: database)
             await gate.pause()
         }
         defer {
-            store.scheduleMutationAfterCommitHook = nil
+            store.seams.scheduleMutationAfterCommitHook = nil
             gate.release()
         }
 
@@ -178,8 +178,8 @@ struct LocalFirstActualStoreSchedulePostingTests {
         let store = bundle.store
         let database = try #require(store.database)
         let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
-        store.scheduleReadHook = { _, _ in store.closeOpenBudget() }
-        defer { store.scheduleReadHook = nil }
+        store.seams.scheduleReadHook = { _, _ in store.closeOpenBudget() }
+        defer { store.seams.scheduleReadHook = nil }
 
         let receipt = try await store.postSchedule(review: review, date: .scheduled)
 
@@ -196,8 +196,8 @@ struct LocalFirstActualStoreSchedulePostingTests {
         let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         // A newer schedules read (here its invalidation) supersedes the finisher's
         // own refresh. The data is fine, so the receipt must not claim a pending refresh.
-        store.scheduleReadHook = { budgetID, _ in store.invalidateScheduleCache(budgetID: budgetID) }
-        defer { store.scheduleReadHook = nil }
+        store.seams.scheduleReadHook = { budgetID, _ in store.invalidateScheduleCache(budgetID: budgetID) }
+        defer { store.seams.scheduleReadHook = nil }
 
         let receipt = try await store.postSchedule(review: review, date: .scheduled)
 
@@ -221,11 +221,11 @@ struct LocalFirstActualStoreSchedulePostingTests {
         #expect(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking") != nil)
         let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         let outboxObservation = SchedulePostingOutboxObservation()
-        store.scheduleMutationAfterCommitHook = {
+        store.seams.scheduleMutationAfterCommitHook = {
             await outboxObservation.capturePendingCount(database: database)
             failure.enabled = true
         }
-        defer { store.scheduleMutationAfterCommitHook = nil }
+        defer { store.seams.scheduleMutationAfterCommitHook = nil }
 
         let receipt = try await store.postSchedule(review: review, date: .scheduled)
 

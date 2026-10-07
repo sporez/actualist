@@ -17,8 +17,8 @@ extension LocalFirstActualStoreTests {
     }
 
     private func landPayeeRemote(_ messages: [ActualSyncDecodedMessage], on store: LocalFirstActualStore) {
-        store.userActionBeforeCommitHook = { [store] in
-            store.userActionBeforeCommitHook = nil
+        store.seams.userActionBeforeCommitHook = { [store] in
+            store.seams.userActionBeforeCommitHook = nil
             do {
                 _ = try await store.requireDatabase(for: "group-1").applyRemoteSyncMessages(messages)
             } catch {

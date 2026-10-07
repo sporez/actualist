@@ -115,7 +115,7 @@ extension LocalFirstActualStoreTests {
         state.setupPhase = .ready
         var resumeOpen: CheckedContinuation<Void, Never>?
         let openPaused = TestLatch()
-        bundle.store.budgetOpenSuspension = {
+        bundle.store.seams.budgetOpenSuspension = {
             await withCheckedContinuation { continuation in
                 resumeOpen = continuation
                 openPaused.trip()
@@ -315,7 +315,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle()
         var resumeWarmup: CheckedContinuation<Void, Never>?
         let warmupPaused = TestLatch()
-        bundle.store.launchWarmupSuspension = {
+        bundle.store.seams.launchWarmupSuspension = {
             await withCheckedContinuation { continuation in
                 resumeWarmup = continuation
                 warmupPaused.trip()
@@ -339,7 +339,7 @@ extension LocalFirstActualStoreTests {
         let state = try makeAppState(for: bundle)
         var resumeOpen: CheckedContinuation<Void, Never>?
         let openPaused = TestLatch()
-        bundle.store.budgetOpenSuspension = {
+        bundle.store.seams.budgetOpenSuspension = {
             await withCheckedContinuation { continuation in
                 resumeOpen = continuation
                 openPaused.trip()
@@ -364,7 +364,7 @@ extension LocalFirstActualStoreTests {
         let budget = ActualBudget(budgetID: "file-1", cloudFileId: "file-1", groupId: "group-1", name: "Budget", state: nil)
         var resumeOpen: CheckedContinuation<Void, Never>?
         let openPaused = TestLatch()
-        bundle.store.budgetOpenSuspension = {
+        bundle.store.seams.budgetOpenSuspension = {
             await withCheckedContinuation { continuation in
                 resumeOpen = continuation
                 openPaused.trip()
@@ -374,7 +374,7 @@ extension LocalFirstActualStoreTests {
         await openPaused.wait()
         let resume = try #require(resumeOpen)
         bundle.store.closeOpenBudget()
-        bundle.store.budgetOpenSuspension = nil
+        bundle.store.seams.budgetOpenSuspension = nil
         #expect(try await bundle.store.openCachedBudget(budget))
         resume.resume()
         await #expect(throws: CancellationError.self) { _ = try await pending.value }

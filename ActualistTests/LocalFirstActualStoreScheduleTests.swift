@@ -28,12 +28,12 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeScheduleStoreBundle()
         let gate = ScheduleStoreReadGate()
         gate.hold(today: "2026-09-27")
-        bundle.store.scheduleReadHook = { _, today in
+        bundle.store.seams.scheduleReadHook = { _, today in
             await gate.pauseIfRequested(today: today)
         }
         defer {
             gate.release()
-            bundle.store.scheduleReadHook = nil
+            bundle.store.seams.scheduleReadHook = nil
         }
 
         let stale = scheduleRefreshTask(
@@ -68,14 +68,14 @@ extension LocalFirstActualStoreTests {
         let obsoleteGate = ScheduleStoreReadGate()
         let validGate = ScheduleStoreReadGate()
         validGate.hold(today: "2026-09-28")
-        bundle.store.scheduleReadHook = { _, today in
+        bundle.store.seams.scheduleReadHook = { _, today in
             await validGate.pauseIfRequested(today: today)
         }
         defer {
             obsoleteMayEnter.trip()
             obsoleteGate.cancel()
             validGate.cancel()
-            bundle.store.scheduleReadHook = nil
+            bundle.store.seams.scheduleReadHook = nil
         }
 
         let obsolete = scheduleRefreshTask(
@@ -116,12 +116,12 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeScheduleStoreBundle()
         let gate = ScheduleStoreReadGate()
         gate.hold(today: "2026-09-27")
-        bundle.store.scheduleReadHook = { _, today in
+        bundle.store.seams.scheduleReadHook = { _, today in
             await gate.pauseIfRequested(today: today)
         }
         defer {
             gate.release()
-            bundle.store.scheduleReadHook = nil
+            bundle.store.seams.scheduleReadHook = nil
         }
 
         let pending = scheduleRefreshTask(
@@ -149,12 +149,12 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeScheduleStoreBundle()
         let gate = ScheduleStoreReadGate()
         gate.hold(today: "2026-09-27")
-        bundle.store.scheduleReadHook = { _, today in
+        bundle.store.seams.scheduleReadHook = { _, today in
             await gate.pauseIfRequested(today: today)
         }
         defer {
             gate.cancel()
-            bundle.store.scheduleReadHook = nil
+            bundle.store.seams.scheduleReadHook = nil
         }
         let failed = scheduleRefreshTask(
             store: bundle.store,
@@ -175,12 +175,12 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeScheduleStoreBundle()
         let gate = ScheduleStoreReadGate()
         gate.hold(today: "2026-09-27")
-        bundle.store.scheduleReadHook = { _, today in
+        bundle.store.seams.scheduleReadHook = { _, today in
             await gate.pauseIfRequested(today: today)
         }
         defer {
             gate.release()
-            bundle.store.scheduleReadHook = nil
+            bundle.store.seams.scheduleReadHook = nil
         }
 
         let retired = scheduleRefreshTask(
@@ -213,12 +213,12 @@ extension LocalFirstActualStoreTests {
         )
         let gate = ScheduleStoreReadGate()
         gate.hold(today: "2026-09-27")
-        bundle.store.scheduleReadHook = { _, today in
+        bundle.store.seams.scheduleReadHook = { _, today in
             await gate.pauseIfRequested(today: today)
         }
         defer {
             gate.release()
-            bundle.store.scheduleReadHook = nil
+            bundle.store.seams.scheduleReadHook = nil
         }
         let stale = scheduleRefreshTask(
             store: bundle.store,

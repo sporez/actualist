@@ -117,7 +117,9 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let mode = try await database.requireBudgetMode(expectedMode)
-        await userActionBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.userActionBeforeCommitHook?()
+        #endif
         let descriptor = BudgetActionDescriptor.move(
             month: month,
             legs: commands.map {

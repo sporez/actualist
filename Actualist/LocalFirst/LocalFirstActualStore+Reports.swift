@@ -24,7 +24,7 @@ extension LocalFirstActualStore {
         let revision = cachePublicationRevision
         let snapshot = try await database.fetchReportsDashboard(range: range)
         #if DEBUG
-        await readPublicationHook?(.reportsDashboard)
+        await testSeams?.readPublicationHook?(.reportsDashboard)
         #endif
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         if revision == cachePublicationRevision {

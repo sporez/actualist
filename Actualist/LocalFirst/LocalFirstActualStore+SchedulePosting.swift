@@ -185,7 +185,9 @@ extension LocalFirstActualStore {
         } catch ScheduleMutationCommandError.unsupportedSchema {
             throw SchedulePostingError.unsupportedSchedule
         }
-        await scheduleMutationAfterCommitHook?()
+        #if DEBUG
+        await testSeams?.scheduleMutationAfterCommitHook?()
+        #endif
         return await finishSchedulePosting(
             writeReceipt,
             database: database,

@@ -211,9 +211,9 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let hook = FeedHook()
         let store = LocalFirstActualStore(
             keychain: bundle.keychain,
-            fileManager: bundle.fileManager,
-            transactionFeedPageReadHook: { _, _, _, _ in try hook.action?() }
+            fileManager: bundle.fileManager
         )
+        store.seams.transactionFeedPageReadHook = { _, _, _, _ in try hook.action?() }
         _ = try await store.openCachedBudget(bundle.budget)
         try await store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
         return (store, hook)

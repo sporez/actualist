@@ -211,7 +211,9 @@ extension LocalFirstActualStore {
         limit: Int?,
         offset: Int
     ) async throws -> LoadedAccountTransactions {
-        try await transactionFeedPageReadHook?(key, key.query.text, limit, offset)
+        #if DEBUG
+        try await testSeams?.transactionFeedPageReadHook?(key, key.query.text, limit, offset)
+        #endif
         switch key.scope {
         case .account(let accountID):
             return try await loadedAccountTransactions(

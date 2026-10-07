@@ -1,8 +1,5 @@
 import Foundation
 
-typealias ScheduleMutationHook = @MainActor @Sendable () async -> Void
-typealias ScheduleMutationRefreshHook = @MainActor @Sendable () async throws -> Void
-
 extension LocalFirstActualStore {
     func scheduleMutationSessionContext(
         budgetID: String
@@ -32,7 +29,9 @@ extension LocalFirstActualStore {
         }
         let database = try requireDatabase(for: command.budgetID)
         try requireScheduleMutationSession(context, database: database)
-        await scheduleMutationBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.scheduleMutationBeforeCommitHook?()
+        #endif
         try Task.checkCancellation()
         try requireScheduleMutationSession(context, database: database)
         let receipt: ScheduleMutationResult
@@ -41,7 +40,9 @@ extension LocalFirstActualStore {
         } catch LocalFirstError.budgetNotOpened {
             throw ScheduleMutationCommandError.reviewChanged
         }
-        await scheduleMutationAfterCommitHook?()
+        #if DEBUG
+        await testSeams?.scheduleMutationAfterCommitHook?()
+        #endif
         return await finishScheduleMutation(receipt, database: database, context: context)
     }
 
@@ -93,7 +94,9 @@ extension LocalFirstActualStore {
         guard review.revision.budgetID == context.budgetID else {
             throw ScheduleMutationCommandError.reviewChanged
         }
-        await scheduleMutationBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.scheduleMutationBeforeCommitHook?()
+        #endif
         try Task.checkCancellation()
         try requireScheduleMutationSession(context, database: database)
         let receipt: ScheduleMutationResult
@@ -102,7 +105,9 @@ extension LocalFirstActualStore {
         } catch LocalFirstError.budgetNotOpened {
             throw ScheduleMutationCommandError.reviewChanged
         }
-        await scheduleMutationAfterCommitHook?()
+        #if DEBUG
+        await testSeams?.scheduleMutationAfterCommitHook?()
+        #endif
         return await finishScheduleMutation(receipt, database: database, context: context)
     }
 
@@ -139,7 +144,9 @@ extension LocalFirstActualStore {
             reload: { [self] in
                 invalidateScheduleCache(budgetID: context.budgetID)
                 invalidateRulesCache(budgetID: context.budgetID)
-                try await scheduleMutationBeforeRefreshHook?()
+                #if DEBUG
+                try await testSeams?.scheduleMutationBeforeRefreshHook?()
+                #endif
                 try requireScheduleMutationSession(context, database: database)
                 try await refreshSchedulesAfterWrite(budgetID: context.budgetID, asOf: ActualDateOnly.today())
                 try requireScheduleMutationSession(context, database: database)

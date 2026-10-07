@@ -30,7 +30,9 @@ extension LocalFirstActualStore {
         let context = review.context
         let database = try requireDatabase(for: context.budgetID)
         try requireScheduleConversionSession(context, database: database)
-        await scheduleMutationBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.scheduleMutationBeforeCommitHook?()
+        #endif
         try Task.checkCancellation()
         try requireScheduleConversionSession(context, database: database)
 
@@ -42,7 +44,9 @@ extension LocalFirstActualStore {
         } catch ScheduleMutationCommandError.identityConflict {
             throw ScheduleConversionError.identityConflict
         }
-        await scheduleMutationAfterCommitHook?()
+        #if DEBUG
+        await testSeams?.scheduleMutationAfterCommitHook?()
+        #endif
         return await finishScheduleConversion(committed, database: database, context: context)
     }
 
@@ -74,7 +78,9 @@ extension LocalFirstActualStore {
                     accountIDs: [committed.sourceAccountID]
                 )
                 try requireScheduleConversionSession(context, database: database)
-                try await scheduleMutationBeforeRefreshHook?()
+                #if DEBUG
+                try await testSeams?.scheduleMutationBeforeRefreshHook?()
+                #endif
                 try requireScheduleConversionSession(context, database: database)
                 try await refreshSchedulesAfterWrite(
                     budgetID: context.budgetID,

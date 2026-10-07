@@ -36,10 +36,10 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let database = try #require(store.database)
         let reviewed = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         let gate = ScheduleMutationTestGate()
-        store.scheduleMutationBeforeCommitHook = { await gate.pause() }
+        store.seams.scheduleMutationBeforeCommitHook = { await gate.pause() }
         defer {
             gate.release()
-            store.scheduleMutationBeforeCommitHook = nil
+            store.seams.scheduleMutationBeforeCommitHook = nil
         }
 
         let submission = Task { @MainActor in
@@ -79,10 +79,10 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let database = try #require(store.database)
         let reviewed = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         let gate = ScheduleMutationTestGate()
-        store.scheduleMutationBeforeCommitHook = { await gate.pause() }
+        store.seams.scheduleMutationBeforeCommitHook = { await gate.pause() }
         defer {
             gate.release()
-            store.scheduleMutationBeforeCommitHook = nil
+            store.seams.scheduleMutationBeforeCommitHook = nil
         }
 
         let submission = Task { @MainActor in
@@ -122,7 +122,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let review = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         let pendingBefore = try await database.pendingLocalSyncMessageCount()
         let refreshCounter = ScheduleMutationFlag()
-        store.scheduleMutationBeforeRefreshHook = { refreshCounter.value = true }
+        store.seams.scheduleMutationBeforeRefreshHook = { refreshCounter.value = true }
 
         let outcome = try await store.updateSchedule(
             review: review,
@@ -208,7 +208,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let database = try #require(store.database)
         let review = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         let holder = ScheduleMutationTaskHolder()
-        store.scheduleMutationAfterCommitHook = { holder.task?.cancel() }
+        store.seams.scheduleMutationAfterCommitHook = { holder.task?.cancel() }
         holder.task = Task { @MainActor in
             try await store.updateSchedule(
                 review: review,
@@ -227,7 +227,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         #expect(try await database.pendingLocalSyncMessageCount() > 0)
 
         let nextReview = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
-        store.scheduleMutationBeforeRefreshHook = { throw ScheduleMutationTestError.refreshFailed }
+        store.seams.scheduleMutationBeforeRefreshHook = { throw ScheduleMutationTestError.refreshFailed }
         let failedRefresh = try await store.updateSchedule(
             review: nextReview,
             fields: ScheduleEditFields(name: .set("Rent Updated")),
@@ -246,7 +246,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let store = bundle.store
         let database = try #require(store.database)
         let review = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
-        store.scheduleMutationAfterCommitHook = { [weak store] in
+        store.seams.scheduleMutationAfterCommitHook = { [weak store] in
             guard let store else { return }
             store.closeOpenBudget()
             _ = try? await store.openCachedBudget(bundle.budget)
@@ -270,10 +270,10 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let bundle = try await makeBundle()
         let store = bundle.store
         let gate = ScheduleMutationTestGate()
-        store.rulesReadHook = { _ in await gate.pause() }
+        store.seams.rulesReadHook = { _ in await gate.pause() }
         defer {
             gate.release()
-            store.rulesReadHook = nil
+            store.seams.rulesReadHook = nil
         }
         let obsoleteRead = Task { @MainActor in
             defer { gate.finish() }
@@ -286,7 +286,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
                 return
             }
 
-            store.rulesReadHook = nil
+            store.seams.rulesReadHook = nil
             let review = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
             _ = try await store.updateSchedule(
                 review: review,

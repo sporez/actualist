@@ -22,7 +22,7 @@ extension LocalFirstActualStoreTests {
         _ messages: [ActualSyncDecodedMessage],
         on store: LocalFirstActualStore
     ) {
-        store.userActionBeforeCommitHook = { [store] in
+        store.seams.userActionBeforeCommitHook = { [store] in
             do {
                 _ = try await store.requireDatabase(for: "group-1").applyRemoteSyncMessages(messages)
             } catch {

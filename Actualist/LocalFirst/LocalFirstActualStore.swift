@@ -26,7 +26,6 @@ final class LocalFirstActualStore:
     let syncDebugRecorder: @MainActor (LocalFirstSyncDebugEvent) -> Void
     let pendingLocalMessageFlushRetryDelays: [Duration]
     let backgroundExecution: any BackgroundExecutionAssertion
-    @ObservationIgnored let transactionFeedPageReadHook: TransactionFeedPageReadHook?
     @ObservationIgnored let transactionFeedCacheRefreshGate: TransactionFeedCacheRefreshGate
     let syncClient = SyncClient()
     /// Plaintext budget ZIPs awaiting a share. Tests point it at a scratch directory.
@@ -57,17 +56,8 @@ final class LocalFirstActualStore:
     var savedTransactionFiltersByBudget: [String: SavedTransactionFilterReadResult] = [:]
     @ObservationIgnored var savedTransactionFilterReadRevisionByBudget: [String: UInt64] = [:]
     @ObservationIgnored var nextSavedTransactionFilterReadRevision: UInt64 = 0
-    @ObservationIgnored var savedFilterBeforeCommitHook: SavedFilterMutationHook?
-    @ObservationIgnored var savedFilterAfterCommitHook: SavedFilterMutationHook?
     @ObservationIgnored var rulesCacheRevisionByBudget: [String: UInt64] = [:]
     @ObservationIgnored var nextRulesCacheRevision: UInt64 = 0
-    @ObservationIgnored var rulesReadHook: RulesReadHook?
-    @ObservationIgnored var payeeSnapshotReadHook: PayeeSnapshotReadHook?
-    @ObservationIgnored var scheduleMutationBeforeCommitHook: ScheduleMutationHook?
-    @ObservationIgnored var scheduleMutationAfterCommitHook: ScheduleMutationHook?
-    @ObservationIgnored var scheduleMutationBeforeRefreshHook: ScheduleMutationRefreshHook?
-    @ObservationIgnored var walletImportBeforeCommitHook: WalletImportBeforeCommitHook?
-    @ObservationIgnored var userActionBeforeCommitHook: UserActionBeforeCommitHook?
     var budgetReadGeneration = 0
     @ObservationIgnored var syncStatusSequence = 0
     @ObservationIgnored var appliedPendingCountSequence = 0
@@ -78,11 +68,8 @@ final class LocalFirstActualStore:
     /// already in flight; a read that finishes under an older value is not cached.
     @ObservationIgnored var cachePublicationRevision = 0
     #if DEBUG
-    /// Test seam (concurrency 5.4): runs after a read's database fetch and
-    /// before its session check and publication.
-    @ObservationIgnored var readPublicationHook: (@MainActor (ReadPublicationSite) async -> Void)?
-    @ObservationIgnored var budgetOpenSuspension: (@MainActor () async -> Void)?
-    @ObservationIgnored var launchWarmupSuspension: (@MainActor () async -> Void)?
+    /// Every optional test hook, in one place that Release builds do not compile.
+    @ObservationIgnored var testSeams: StoreTestSeams?
     #endif
     var monthsByBudget: [String: [String]] = [:]
     var loadedBudgetMonthsByBudget: [String: LoadedBudgetMonth] = [:]
@@ -91,7 +78,6 @@ final class LocalFirstActualStore:
     /// Automatic posts refused by the latest schedule run, in user-facing form.
     var scheduleAutoPostRefusals: [ScheduleAutoPostRefusal] = []
     @ObservationIgnored var scheduleRequestIdentity = ScheduleRequestIdentity()
-    @ObservationIgnored var scheduleReadHook: ScheduleReadHook?
     @ObservationIgnored let schedulePostingGate = SchedulePostingGate()
     var transactionFeedPagesByKey: [TransactionFeedCacheKey: TransactionFeedPage] = [:]
     @ObservationIgnored var transactionFeedRequestIdentity = TransactionFeedRequestIdentity()
@@ -207,7 +193,6 @@ final class LocalFirstActualStore:
         syncDebugRecorder: @escaping @MainActor (LocalFirstSyncDebugEvent) -> Void = { _ in },
         pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
         endpointHealth: ServerEndpointHealth? = nil,
-        transactionFeedPageReadHook: TransactionFeedPageReadHook? = nil,
         backgroundExecution: (any BackgroundExecutionAssertion)? = nil
     ) {
         self.keychain = keychain
@@ -219,7 +204,6 @@ final class LocalFirstActualStore:
         self.syncDebugRecorder = syncDebugRecorder
         self.pendingLocalMessageFlushRetryDelays = pendingLocalMessageFlushRetryDelays
         self.backgroundExecution = backgroundExecution ?? UIKitBackgroundExecutionAssertion()
-        self.transactionFeedPageReadHook = transactionFeedPageReadHook
         self.transactionFeedCacheRefreshGate = TransactionFeedCacheRefreshGate()
         // Constructed in the main-actor init body (not a default argument) so
         // the @MainActor struct is built in an isolated context.
@@ -286,8 +270,10 @@ final class LocalFirstActualStore:
         rulesCacheRevisionByBudget = [:]
         savedTransactionFiltersByBudget = [:]
         savedTransactionFilterReadRevisionByBudget = [:]
-        savedFilterBeforeCommitHook = nil
-        savedFilterAfterCommitHook = nil
+        #if DEBUG
+        testSeams?.savedFilterBeforeCommitHook = nil
+        testSeams?.savedFilterAfterCommitHook = nil
+        #endif
         monthsByBudget = [:]
         loadedBudgetMonthsByBudget = [:]
         templateBrowserByBudget = [:]
@@ -515,10 +501,3 @@ enum ActualServerConnectionSecurity {
             || (octets[0] == 100 && (64...127).contains(octets[1]))
     }
 }
-
-#if DEBUG
-enum ReadPublicationSite: Sendable {
-    case reportsDashboard, availableMonths, templateBrowser
-    case categoryFeed, uncategorizedFeed, launchSeed, launchWarmupSyncStatus
-}
-#endif

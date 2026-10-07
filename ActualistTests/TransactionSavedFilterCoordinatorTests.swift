@@ -68,7 +68,7 @@ struct TransactionSavedFilterCoordinatorTests {
         let outboxBefore = try await database.pendingLocalSyncMessageCount()
         let messagesBefore = try storeTests.storedCRDTMessages(at: databaseURL).count
         let gate = SavedFilterTestGate()
-        bundle.store.savedFilterBeforeCommitHook = { await gate.pause() }
+        bundle.store.seams.savedFilterBeforeCommitHook = { await gate.pause() }
         let pending = Task {
             try await bundle.store.createSavedTransactionFilter(
                 context: context,
@@ -98,7 +98,7 @@ struct TransactionSavedFilterCoordinatorTests {
             budgetID: "group-1", generation: bundle.store.budgetSessionGeneration
         )
         let gate = SavedFilterTestGate()
-        bundle.store.savedFilterAfterCommitHook = { await gate.pause() }
+        bundle.store.seams.savedFilterAfterCommitHook = { await gate.pause() }
         let pending = Task {
             try await bundle.store.createSavedTransactionFilter(
                 context: context,
@@ -134,7 +134,7 @@ struct TransactionSavedFilterCoordinatorTests {
         let outboxBefore = try await database.pendingLocalSyncMessageCount()
         let messagesBefore = try storeTests.storedCRDTMessages(at: databaseURL).count
         let gate = SavedFilterTestGate()
-        bundle.store.savedFilterAfterCommitHook = { await gate.pause() }
+        bundle.store.seams.savedFilterAfterCommitHook = { await gate.pause() }
         let pending = Task {
             try await bundle.store.createSavedTransactionFilter(
                 context: context,

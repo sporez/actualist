@@ -1,7 +1,5 @@
 import Foundation
 
-typealias SavedFilterMutationHook = @MainActor @Sendable () async -> Void
-
 extension LocalFirstActualStore {
     func refreshSavedTransactionFilters(budgetID: String) async throws -> SavedTransactionFilterReadResult {
         let database = try requireDatabase(for: budgetID)
@@ -24,14 +22,18 @@ extension LocalFirstActualStore {
     ) async throws -> SavedTransactionFilterMutationResult {
         let database = try requireSavedFilterMutationSession(context)
         var builder = LocalFirstSyncMessageBuilder()
-        await savedFilterBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.savedFilterBeforeCommitHook?()
+        #endif
         try requireSavedFilterSession(database: database, context: context)
         let receipt = try await database.createSavedTransactionFilter(
             id: UUID().uuidString,
             draft: draft,
             builder: &builder
         )
+        #if DEBUG
         await awaitSavedFilterAfterCommitHook()
+        #endif
         return await finishSavedTransactionFilterMutation(
             receipt: receipt, database: database, context: context
         )
@@ -43,10 +45,14 @@ extension LocalFirstActualStore {
     ) async throws -> SavedTransactionFilterMutationResult {
         let database = try requireSavedFilterMutationSession(context)
         var builder = LocalFirstSyncMessageBuilder()
-        await savedFilterBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.savedFilterBeforeCommitHook?()
+        #endif
         try requireSavedFilterSession(database: database, context: context)
         let receipt = try await database.updateSavedTransactionFilter(update, builder: &builder)
+        #if DEBUG
         await awaitSavedFilterAfterCommitHook()
+        #endif
         return await finishSavedTransactionFilterMutation(
             receipt: receipt, database: database, context: context
         )
@@ -58,10 +64,14 @@ extension LocalFirstActualStore {
     ) async throws -> SavedTransactionFilterMutationResult {
         let database = try requireSavedFilterMutationSession(context)
         var builder = LocalFirstSyncMessageBuilder()
-        await savedFilterBeforeCommitHook?()
+        #if DEBUG
+        await testSeams?.savedFilterBeforeCommitHook?()
+        #endif
         try requireSavedFilterSession(database: database, context: context)
         let receipt = try await database.deleteSavedTransactionFilter(id: filterID, builder: &builder)
+        #if DEBUG
         await awaitSavedFilterAfterCommitHook()
+        #endif
         return await finishSavedTransactionFilterMutation(
             receipt: receipt, database: database, context: context
         )
@@ -96,10 +106,12 @@ extension LocalFirstActualStore {
         )
     }
 
+    #if DEBUG
     private func awaitSavedFilterAfterCommitHook() async {
-        guard let hook = savedFilterAfterCommitHook else { return }
+        guard let hook = testSeams?.savedFilterAfterCommitHook else { return }
         await Task { @MainActor in await hook() }.value
     }
+    #endif
 
     private func requireSavedFilterSession(
         database: BudgetDatabase,

@@ -35,7 +35,7 @@ extension LocalFirstActualStore {
                 let checkpoint = try? await database.localSyncCheckpoint()
                 let pending = try? await database.pendingLocalSyncMessageCount()
                 #if DEBUG
-                await readPublicationHook?(.launchWarmupSyncStatus)
+                await testSeams?.readPublicationHook?(.launchWarmupSyncStatus)
                 #endif
                 guard owns(database, budgetID: budgetID) else { return }
                 if let checkpoint {

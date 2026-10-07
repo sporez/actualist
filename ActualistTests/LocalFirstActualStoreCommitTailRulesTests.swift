@@ -55,7 +55,7 @@ struct LocalFirstActualStoreCommitTailRulesTests {
         let entered = TestLatch()
         let release = TestLatch()
         let counter = ReadCounter()
-        store.rulesReadHook = { _ in
+        store.seams.rulesReadHook = { _ in
             counter.reads += 1
             guard counter.reads == 1 else { return }
             entered.trip()
@@ -83,7 +83,7 @@ struct LocalFirstActualStoreCommitTailRulesTests {
     @Test func failedRulesReadAfterCreateReportsCommittedWithRefreshPending() async throws {
         let (store, recorded) = try await makeStore()
         let queuedBefore = recorded.queuedCount
-        store.rulesReadHook = { _ in throw RulesReadFailure() }
+        store.seams.rulesReadHook = { _ in throw RulesReadFailure() }
 
         let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
 

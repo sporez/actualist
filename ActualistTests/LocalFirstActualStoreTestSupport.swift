@@ -366,9 +366,9 @@ extension LocalFirstActualStoreTests {
             connectionTransportFactory: connectionTransportFactory,
             simpleFINTransportFactory: simpleFINTransportFactory,
             pendingLocalMessageFlushRetryDelays: pendingLocalMessageFlushRetryDelays,
-            transactionFeedPageReadHook: transactionFeedPageReadHook,
             backgroundExecution: backgroundExecution
         )
+        store.seams.transactionFeedPageReadHook = transactionFeedPageReadHook
         let budget = ActualBudget(
             budgetID: fileID,
             cloudFileId: fileID,

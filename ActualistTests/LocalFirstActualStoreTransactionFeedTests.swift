@@ -117,9 +117,10 @@ extension LocalFirstActualStoreTests {
     @Test func newerRefreshRejectsOlderPageAndLeavesNextPageAvailable() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
         let gate = TransactionFeedReadGate()
-        let store = LocalFirstActualStore(transactionFeedPageReadHook: { key, query, limit, offset in
+        let store = LocalFirstActualStore()
+        store.seams.transactionFeedPageReadHook = { key, query, limit, offset in
             await gate.pauseIfRequested(key: key, query: query, limit: limit, offset: offset)
-        })
+        }
         store.openedBudgetID = "status-budget"
         store.database = database
         store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
@@ -154,9 +155,10 @@ extension LocalFirstActualStoreTests {
             to: database
         )
         let gate = TransactionFeedReadGate()
-        let store = LocalFirstActualStore(transactionFeedPageReadHook: { key, query, limit, offset in
+        let store = LocalFirstActualStore()
+        store.seams.transactionFeedPageReadHook = { key, query, limit, offset in
             await gate.pauseIfRequested(key: key, query: query, limit: limit, offset: offset)
-        })
+        }
         store.openedBudgetID = "status-budget"
         store.database = database
         store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
@@ -193,9 +195,10 @@ extension LocalFirstActualStoreTests {
         let database = try TransactionStatusFilterTestSupport.database()
         let fixtureURL = await database.databaseURL
         let gate = TransactionFeedReadGate()
-        let store = LocalFirstActualStore(transactionFeedPageReadHook: { key, query, limit, offset in
+        let store = LocalFirstActualStore()
+        store.seams.transactionFeedPageReadHook = { key, query, limit, offset in
             await gate.pauseIfRequested(key: key, query: query, limit: limit, offset: offset)
-        })
+        }
         store.openedBudgetID = "status-budget"
         store.database = database
         store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
@@ -239,9 +242,10 @@ extension LocalFirstActualStoreTests {
     @Test func searchResultFromClosedBudgetIsRejectedAfterReadCompletes() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
         let gate = TransactionFeedReadGate()
-        let store = LocalFirstActualStore(transactionFeedPageReadHook: { key, query, limit, offset in
+        let store = LocalFirstActualStore()
+        store.seams.transactionFeedPageReadHook = { key, query, limit, offset in
             await gate.pauseIfRequested(key: key, query: query, limit: limit, offset: offset)
-        })
+        }
         store.openedBudgetID = "status-budget"
         store.database = database
         store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()

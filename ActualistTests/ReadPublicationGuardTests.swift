@@ -14,7 +14,7 @@ extension LocalFirstActualStoreTests {
         var armed = true
 
         func install(on store: LocalFirstActualStore, site: ReadPublicationSite) {
-            store.readPublicationHook = { [self] reached in
+            store.seams.readPublicationHook = { [self] reached in
                 guard reached == site, armed else { return }
                 armed = false
                 entered.trip()
