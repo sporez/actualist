@@ -5,8 +5,9 @@ import Foundation
 /// + the update stage of `reconcileTransactions`), for SimpleFIN downloads.
 ///
 /// No I/O: callers hand in the normalized, rule-projected download
-/// candidates and the account's live local rows. v1 runs with
-/// `strictIdChecking: false` and does not rewrite dates (no date cascade).
+/// candidates and the account's live local rows. Bank Sync runs with
+/// `ImportReconcileOptions.bankSync` (not strict) and does not rewrite dates
+/// (no date cascade); CSV import runs the same reconcile with its own options.
 ///
 /// Match-window contract: `existing` carries the account's live rows in the
 /// ±7-day window (`v_transactions` semantics — valid split children
@@ -36,6 +37,11 @@ enum BankSyncReconciliation {
         var importedPayee: String?
         var splits: [Split] = []
         var scheduleID: String? = nil
+        /// False when the source never said whether the row is cleared (a CSV
+        /// without a Cleared column). Matching treats it as not cleared, and an
+        /// insert takes `ImportReconcileOptions.defaultCleared` instead
+        /// (`trans.cleared ?? defaultCleared`, sync.ts).
+        var clearedIsExplicit = true
 
         struct Split: Equatable, Sendable {
             var categoryID: String?
@@ -108,6 +114,11 @@ enum BankSyncReconciliation {
 
     struct Plan: Equatable, Sendable {
         let entries: [Entry]
+        /// For each entry, the index in the `candidates` array it came from.
+        /// Callers that must show one outcome per source row (CSV review) map
+        /// entries back through it; entries are not in candidate order because
+        /// deleted-id skips come first.
+        let sources: [Int]
 
         var inserts: [Candidate] {
             entries.compactMap { if case .insert(let candidate) = $0 { return candidate }; return nil }
@@ -127,7 +138,8 @@ enum BankSyncReconciliation {
         existing: [Existing],
         suppressedFinancialIDs: Set<String> = [],
         accountIsOffBudget: Bool = false,
-        transferPayeeIDs: Set<String> = []
+        transferPayeeIDs: Set<String> = [],
+        options: ImportReconcileOptions = .bankSync
     ) -> Plan {
         let epochDays = existing.map { epochDay(compact: $0.dayID) }
         var claimed = Set<String>()
@@ -135,13 +147,15 @@ enum BankSyncReconciliation {
 
         // Pass 1 + fuzzy dataset construction (loot-core transactionsStep1).
         struct StepOne {
+            let source: Int
             let candidate: Candidate
             var matchedID: String?
             var fuzzy: [Existing]?
         }
         var stepOne: [StepOne] = []
         var entries: [Entry] = []
-        for candidate in candidates {
+        var sources: [Int] = []
+        for (source, candidate) in candidates.enumerated() {
             var idMatch: Existing?
             if let financialID = candidate.financialID, !financialID.isEmpty {
                 idMatch = existing.first {
@@ -152,13 +166,19 @@ enum BankSyncReconciliation {
                     if idMatch.isParent { exactMatchedParentIDs.insert(idMatch.id) }
                 } else if suppressedFinancialIDs.contains(financialID) {
                     entries.append(.skippedDeleted(financialID: financialID))
+                    sources.append(source)
                     continue
                 }
             }
             let fuzzy: [Existing]? = idMatch == nil
-                ? fuzzyDataset(for: candidate, in: existing, epochDays: epochDays)
+                ? fuzzyDataset(
+                    for: candidate,
+                    in: existing,
+                    epochDays: epochDays,
+                    strictIdChecking: options.strictIdChecking
+                )
                 : nil
-            stepOne.append(StepOne(candidate: candidate, matchedID: idMatch?.id, fuzzy: fuzzy))
+            stepOne.append(StepOne(source: source, candidate: candidate, matchedID: idMatch?.id, fuzzy: fuzzy))
         }
 
         func isReserved(_ row: Existing) -> Bool {
@@ -194,19 +214,24 @@ enum BankSyncReconciliation {
                 entries.append(.insert(
                     accountIsOffBudget ? withoutBudgetCategory(candidate) : candidate
                 ))
+                sources.append(step.source)
                 continue
             }
 
             // Reconciled rows are locked: matched but never written.
             guard !row.reconciled else {
                 entries.append(.unchanged(existingID: row.id))
+                sources.append(step.source)
                 continue
             }
 
             let existingNotes = row.notes?.isEmpty == false ? row.notes : nil
+            // A row that never had a bank id or payee text (CSV) keeps what the
+            // matched row already stores; see `isBankSyncAccount`.
+            let keepsStoredIdentity = !options.isBankSyncAccount
             let update = MatchedUpdate(
                 existingID: row.id,
-                financialID: candidate.financialID,
+                financialID: candidate.financialID ?? (keepsStoredIdentity ? row.financialID : nil),
                 payeeID: mergedPayeeID(
                     existing: row,
                     candidate: candidate,
@@ -217,7 +242,7 @@ enum BankSyncReconciliation {
                     candidate: candidate,
                     accountIsOffBudget: accountIsOffBudget
                 ),
-                importedPayee: candidate.importedPayee,
+                importedPayee: candidate.importedPayee ?? (keepsStoredIdentity ? row.importedPayee : nil),
                 notes: existingNotes ?? candidate.notes,
                 cleared: row.cleared || candidate.cleared,
                 childIDs: childIDsForClearCascade(of: row, in: existing, cleared: row.cleared || candidate.cleared)
@@ -234,16 +259,21 @@ enum BankSyncReconciliation {
             } else {
                 entries.append(.update(update))
             }
+            sources.append(step.source)
         }
-        return Plan(entries: entries)
+        return Plan(entries: entries, sources: sources)
     }
 
     /// loot-core fuzzy query: same amount, date within ±7 calendar days
-    /// inclusive, sorted by day distance (stable). `strictIdChecking` is
-    /// false here, so rows with a different or absent `financial_id` are
-    /// still eligible.
+    /// inclusive, sorted by day distance (stable). Without
+    /// `strictIdChecking`, rows with a different or absent `financial_id` are
+    /// still eligible; with it, a row that already has an id is skipped when
+    /// the candidate has one too (`(imported_id IS NULL OR ? IS NULL)`).
     static func fuzzyDataset(
-        for candidate: Candidate, in existing: [Existing], epochDays: [Int?]
+        for candidate: Candidate,
+        in existing: [Existing],
+        epochDays: [Int?],
+        strictIdChecking: Bool = false
     ) -> [Existing] {
         // A malformed day never falls inside the window (`dayDistance` is .max).
         guard let candidateDay = epochDay(compact: candidate.dayID) else { return [] }
@@ -251,6 +281,7 @@ enum BankSyncReconciliation {
         for (offset, row) in existing.enumerated() {
             guard row.isValidCandidate, row.amountMinorUnits == candidate.amountMinorUnits,
                   let day = epochDays[offset] else { continue }
+            if strictIdChecking, candidate.financialID?.isEmpty == false, row.financialID != nil { continue }
             let distance = abs(day - candidateDay)
             if distance <= 7 { matches.append((distance, offset)) }
         }
@@ -355,7 +386,10 @@ enum BankSyncReconciliation {
         // matching rule removes downloaded notes. Nil is not "no change".
         projected.notes = preview.notes
         projected.categoryID = preview.splits.isEmpty ? (preview.categoryID ?? projected.categoryID) : nil
-        projected.cleared = preview.cleared ?? projected.cleared
+        if let cleared = preview.cleared {
+            projected.cleared = cleared
+            projected.clearedIsExplicit = true
+        }
         projected.scheduleID = preview.scheduleID ?? projected.scheduleID
         projected.splits = preview.splits.isEmpty
             ? projected.splits
