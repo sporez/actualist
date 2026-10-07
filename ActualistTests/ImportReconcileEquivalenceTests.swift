@@ -2,17 +2,18 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Main-to-dev Phase 3.1: every case of the CSV-only matcher
-/// (`TransactionCSVImportMatcherRulesTests`, `...MatcherEquivalenceTests` and
-/// the matcher cases of `TransactionCSVImportTests`) replayed through the
-/// shared reconciler (`BankSyncReconciliation.plan`) that Bank Sync uses.
+/// CSV matching cases on the shared reconciler (`BankSyncReconciliation.plan`),
+/// the one reconcile CSV import and Bank Sync share (main-to-dev D4).
 ///
-/// Both sides run in-process. A case either produces the same outcome on both,
-/// or it is one of the named divergences below, each with the upstream source
-/// that makes the shared reconciler right (pinned Actual v26.9.0,
-/// `packages/loot-core/src/server/accounts/sync.ts`).
+/// Phase 3.1 replayed every case of the CSV-only matcher through the shared
+/// reconciler and found it agreed row for row, apart from the divergences below
+/// (each right by upstream: pinned Actual v26.9.0,
+/// `packages/loot-core/src/server/accounts/sync.ts`). Phase 3.5 deleted that
+/// matcher; the cases it was replayed with stay here with their expected
+/// outcomes.
 ///
-/// Divergences (shared = upstream; the CSV-only matcher had no upstream source):
+/// Divergences from the deleted matcher (shared reconciler = upstream; the
+/// matcher had no upstream source for its behavior):
 /// - multi-pass: `matchTransactions` runs every exact-id match, then every
 ///   same-payee match, then every nearest match (sync.ts ~845-990). The CSV
 ///   matcher decided one row at a time, so an earlier row's lowest-fidelity
@@ -21,10 +22,13 @@ import Testing
 ///   claim check (sync.ts ~850), so it is not blocked by an earlier row's
 ///   fuzzy claim, and two rows sharing an id both match the stored row.
 /// - a stored NULL `cleared` is `false` (`match.cleared === 1`, sync.ts ~700);
-///   the CSV matcher treated NULL as "never changes".
+///   the matcher treated NULL as "never changes" (store-level test in
+///   `TransactionCSVImportSharedStepTests`).
 /// - an empty stored `notes` is falsy and equal to null in the change check
-///   (`existing.notes || trans.notes || null`); the CSV matcher reported a
-///   no-op update.
+///   (`existing.notes || trans.notes || null`); the matcher reported a no-op
+///   update.
+/// - split children are matchable like any `v_transactions` row; the matcher
+///   excluded them (`TransactionCSVImportStoreRulesTests`).
 /// Option-gated divergences (ImportReconcileOptions): `strictIdChecking`
 /// (sync.ts ~866 `(imported_id IS NULL OR ? IS NULL)`), `isBankSyncAccount`,
 /// `reimportDeleted`, `defaultCleared` and `payeeNameNormalization`
@@ -47,14 +51,6 @@ struct ImportReconcileEquivalenceTests {
         var options = ImportReconcileOptions.csv
         options.payeeNameNormalization = .original
         return options
-    }
-
-    private static var legacyContext: TransactionCSVImportMatchContext {
-        TransactionCSVImportMatchContext(
-            payeeIDByName: lookup.payeeIDByName,
-            transferPayeeIDs: lookup.transferPayeeIDs,
-            categoryIDByName: lookup.categoryIDByName
-        )
     }
 
     /// Fields a matched row would change; nil leaves the stored value.
@@ -80,19 +76,30 @@ struct ImportReconcileEquivalenceTests {
         payeeID: String? = "payee-a",
         categoryID: String? = nil,
         notes: String? = nil,
-        cleared: Bool? = false,
+        cleared: Bool = false,
         importedPayee: String? = nil,
         amount: Int = 1_234,
         date: String = "2026-09-27",
         reconciled: Bool = false,
         isParent: Bool = false,
-        transferID: String? = nil,
-        offBudget: Bool = false
-    ) -> TransactionCSVImportCandidate {
-        TransactionCSVImportCandidate(
-            id: id, importedID: importedID, payeeID: payeeID, categoryID: categoryID, notes: notes,
-            cleared: cleared, importedPayee: importedPayee, amountMinorUnits: amount, dateText: date,
-            reconciled: reconciled, isParent: isParent, transferID: transferID, accountOffBudget: offBudget
+        transferID: String? = nil
+    ) -> BankSyncReconciliation.Existing {
+        BankSyncReconciliation.Existing(
+            id: id,
+            financialID: importedID,
+            dayID: date.replacingOccurrences(of: "-", with: ""),
+            amountMinorUnits: amount,
+            payeeID: payeeID,
+            // `bankSyncExistingRows` reads a split parent's category as nil.
+            categoryID: isParent ? nil : categoryID,
+            notes: notes,
+            cleared: cleared,
+            reconciled: reconciled,
+            importedPayee: importedPayee,
+            isParent: isParent,
+            isChild: false,
+            parentID: nil,
+            transferID: transferID
         )
     }
 
@@ -114,53 +121,14 @@ struct ImportReconcileEquivalenceTests {
         )
     }
 
-    // MARK: - The two sides
-
-    private static func legacy(
-        _ rows: [TransactionCSVImportRow],
-        _ candidates: [TransactionCSVImportCandidate]
-    ) -> [Outcome] {
-        TransactionCSVImportMatcher.match(rows: rows, candidates: candidates, context: legacyContext).map {
-            switch $0 {
-            case .insert(let isTransfer): .insert(isTransfer: isTransfer)
-            case .update(let plan):
-                .update(id: plan.existingTransactionID, Fill(
-                    payeeID: plan.payeeID, categoryID: plan.categoryID, notes: plan.notes,
-                    cleared: plan.cleared, importedPayee: plan.importedPayee, importedID: plan.importedID
-                ))
-            case .ignored: .unchanged
-            case .skippedReconciled: .reconciled
-            }
-        }
-    }
-
-    private static func sharedExisting(_ candidate: TransactionCSVImportCandidate) -> BankSyncReconciliation.Existing {
-        BankSyncReconciliation.Existing(
-            id: candidate.id,
-            financialID: candidate.importedID,
-            dayID: candidate.dateText.replacingOccurrences(of: "-", with: ""),
-            amountMinorUnits: candidate.amountMinorUnits,
-            payeeID: candidate.payeeID,
-            // `bankSyncExistingRows` reads a split parent's category as nil.
-            categoryID: candidate.isParent ? nil : candidate.categoryID,
-            notes: candidate.notes,
-            cleared: candidate.cleared ?? false,
-            reconciled: candidate.reconciled,
-            importedPayee: candidate.importedPayee,
-            isParent: candidate.isParent,
-            isChild: false,
-            parentID: nil,
-            transferID: candidate.transferID
-        )
-    }
+    // MARK: - The shared reconciler
 
     static func shared(
         _ rows: [TransactionCSVImportRow],
-        _ candidates: [TransactionCSVImportCandidate],
+        _ existing: [BankSyncReconciliation.Existing],
         offBudget: Bool = false,
         options: ImportReconcileOptions = parity
     ) -> [Outcome] {
-        let existing = candidates.map(sharedExisting)
         let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
         let plan = BankSyncReconciliation.plan(
             candidates: TransactionCSVImportCandidates.candidates(rows: rows, lookup: lookup, options: options),
@@ -193,18 +161,14 @@ struct ImportReconcileEquivalenceTests {
         return outcomes.compactMap { $0 }
     }
 
-    /// Asserts the CSV-only matcher and the shared reconciler agree on `expected`.
-    private func expectSame(
+    private func expectOutcomes(
         _ rows: [TransactionCSVImportRow],
-        _ candidates: [TransactionCSVImportCandidate],
+        _ stored: [BankSyncReconciliation.Existing],
         offBudget: Bool = false,
         _ expected: [Outcome],
         sourceLocation: SourceLocation = #_sourceLocation
     ) {
-        let old = Self.legacy(rows, candidates.map { $0.withOffBudget(offBudget) })
-        let new = Self.shared(rows, candidates, offBudget: offBudget)
-        #expect(old == expected, "legacy matcher", sourceLocation: sourceLocation)
-        #expect(new == expected, "shared reconciler", sourceLocation: sourceLocation)
+        #expect(Self.shared(rows, stored, offBudget: offBudget) == expected, sourceLocation: sourceLocation)
     }
 
     private func fill(
@@ -218,7 +182,7 @@ struct ImportReconcileEquivalenceTests {
     // MARK: - TransactionCSVImportTests matcher cases
 
     @Test func exactImportedIDMatchesBeforeFuzzyTiers() {
-        expectSame(
+        expectOutcomes(
             [row("r1", importedID: "bank-1")],
             [existing(id: "e1", importedID: "bank-1", importedPayee: "Sample Market")],
             [.unchanged]
@@ -226,7 +190,7 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func fuzzySamePayeeMatchesInsideSevenDayWindow() {
-        expectSame(
+        expectOutcomes(
             [row("r1", date: "2026-09-27")],
             [existing(id: "e1", importedPayee: "Sample Market", date: "2026-09-20")],
             [.unchanged]
@@ -234,7 +198,7 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func fuzzyWindowRejectsEightDays() {
-        expectSame(
+        expectOutcomes(
             [row("r1", date: "2026-09-27")],
             [existing(id: "e1", date: "2026-09-19")],
             [.insert(isTransfer: false)]
@@ -242,7 +206,7 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func lowestFidelityTierMatchesAmountAndDateDespiteDifferentPayee() {
-        expectSame(
+        expectOutcomes(
             [row("r1", payee: "Different Payee", amount: -1_999, date: "2026-09-05")],
             [existing(id: "e1", importedPayee: "Fuzzy Market", amount: -1_999, date: "2026-09-02")],
             [.update(id: "e1", fill(importedPayee: "Different Payee"))]
@@ -250,7 +214,7 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func strictIDCheckingSkipsFuzzyAgainstCandidatesWithImportedID() {
-        expectSame(
+        expectOutcomes(
             [row("r1", payee: "Other Market", importedID: "bank-2")],
             [
                 existing(id: "e1", importedID: "bank-1"),
@@ -261,7 +225,7 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func oneExistingRowIsClaimedAtMostOncePerBatch() {
-        expectSame(
+        expectOutcomes(
             [row("r1"), row("r2")],
             [existing(id: "e1", importedPayee: "Sample Market")],
             [.unchanged, .insert(isTransfer: false)]
@@ -269,15 +233,15 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func identicalRowsWithNoCandidateBothInsert() {
-        expectSame([row("r1"), row("r2")], [], [.insert(isTransfer: false), .insert(isTransfer: false)])
+        expectOutcomes([row("r1"), row("r2")], [], [.insert(isTransfer: false), .insert(isTransfer: false)])
     }
 
     @Test func reconciledMatchIsSkippedEntirely() {
-        expectSame([row("r1")], [existing(id: "e1", reconciled: true)], [.reconciled])
+        expectOutcomes([row("r1")], [existing(id: "e1", reconciled: true)], [.reconciled])
     }
 
     @Test func transferPayeeRowsInsertAsTransfers() {
-        expectSame(
+        expectOutcomes(
             [row("r1", payee: "To Savings", amount: -5_000, date: "2026-09-10")],
             [],
             [.insert(isTransfer: true)]
@@ -287,7 +251,7 @@ struct ImportReconcileEquivalenceTests {
     // MARK: - TransactionCSVImportMatcherRulesTests
 
     @Test func ordinaryUncategorizedMatchStillTakesTheFileCategory() {
-        expectSame(
+        expectOutcomes(
             [row("r1", amount: -1_234, category: "Groceries")],
             [existing(id: "e1", importedPayee: "Sample Market", amount: -1_234)],
             [.update(id: "e1", fill(category: "cat-groceries"))]
@@ -295,7 +259,7 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func transferLegGetsNoCategoryWrite() {
-        expectSame(
+        expectOutcomes(
             [row("r1", amount: -1_234, category: "Groceries")],
             [existing(id: "e1", importedPayee: "Sample Market", amount: -1_234, transferID: "other-leg")],
             [.unchanged]
@@ -303,7 +267,7 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func splitParentGetsNoCategoryWrite() {
-        expectSame(
+        expectOutcomes(
             [row("r1", amount: -1_234, category: "Groceries")],
             [existing(id: "e1", importedPayee: "Sample Market", amount: -1_234, isParent: true)],
             [.unchanged]
@@ -311,16 +275,16 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func offBudgetMatchGetsNoCategoryWrite() {
-        expectSame(
+        expectOutcomes(
             [row("r1", amount: -1_234, category: "Groceries")],
-            [existing(id: "e1", importedPayee: "Sample Market", amount: -1_234, offBudget: true)],
+            [existing(id: "e1", importedPayee: "Sample Market", amount: -1_234)],
             offBudget: true,
             [.unchanged]
         )
     }
 
     @Test func nilPayeeIsNotFilledWithATransferPayee() {
-        expectSame(
+        expectOutcomes(
             [row("r1", payee: "To Savings", amount: -1_234)],
             [existing(id: "e1", payeeID: nil, importedPayee: "Sample Market", amount: -1_234)],
             [.update(id: "e1", fill(importedPayee: "To Savings"))]
@@ -328,7 +292,7 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func nilPayeeStillTakesAnOrdinaryPayee() {
-        expectSame(
+        expectOutcomes(
             [row("r1", amount: -1_234)],
             [existing(id: "e1", payeeID: nil, importedPayee: "Sample Market", amount: -1_234)],
             [.update(id: "e1", fill(payee: "payee-a"))]
@@ -336,7 +300,7 @@ struct ImportReconcileEquivalenceTests {
     }
 
     @Test func transferLegWithNoPayeeKeepsItNil() {
-        expectSame(
+        expectOutcomes(
             [row("r1", amount: -1_234)],
             [existing(id: "e1", payeeID: nil, importedPayee: nil, amount: -1_234, transferID: "other-leg")],
             [.update(id: "e1", fill(importedPayee: "Sample Market"))]
@@ -347,8 +311,8 @@ struct ImportReconcileEquivalenceTests {
         let stored = existing(id: "e1", importedID: "a1", importedPayee: "Sample Market", amount: -1_234)
         // Both rows carry an id, so strict checking also blocks the fuzzy
         // tiers: "A1" does not match "a1" at all (sync.ts `imported_id = ?`).
-        expectSame([row("r1", amount: -1_234, importedID: "A1")], [stored], [.insert(isTransfer: false)])
-        expectSame([row("r2", amount: -1_234, importedID: "a1")], [stored], [.unchanged])
+        expectOutcomes([row("r1", amount: -1_234, importedID: "A1")], [stored], [.insert(isTransfer: false)])
+        expectOutcomes([row("r2", amount: -1_234, importedID: "a1")], [stored], [.unchanged])
     }
 
     // MARK: - Named divergences (shared reconciler = upstream)
@@ -366,9 +330,8 @@ struct ImportReconcileEquivalenceTests {
             row("r1", payee: "Unknown Payee", notes: "n1"),
             row("r2", payee: "Sample Market", notes: "n2"),
         ]
-        // Legacy, one row at a time: r1 takes e1 by amount and date, so r2
-        // loses its same-payee match and takes e2.
-        #expect(ids(Self.legacy(rows, stored)) == ["e1", "e2"])
+        // The deleted matcher decided one row at a time: r1 took e1 by amount
+        // and date, so r2 lost its same-payee match and took e2.
         // Upstream: all same-payee matches run before any nearest match.
         let new = Self.shared(rows, stored)
         #expect(ids(new) == ["e2", "e1"])
@@ -378,11 +341,7 @@ struct ImportReconcileEquivalenceTests {
     @Test func divergenceExactIDMatchRunsBeforeAnyFuzzyClaim() {
         let stored = [existing(id: "e1", importedID: "bank-1", importedPayee: "Sample Market")]
         let rows = [row("r1", notes: "n1"), row("r2", importedID: "bank-1", notes: "n2")]
-        // Legacy: r1 claims e1 first, so r2's exact id finds nothing.
-        #expect(Self.legacy(rows, stored) == [
-            .update(id: "e1", fill(notes: "n1")),
-            .insert(isTransfer: false),
-        ])
+        // The deleted matcher let r1 claim e1 first, so r2's exact id found nothing.
         // Upstream: step 1 matches r2 to e1 before r1's fuzzy pass.
         #expect(Self.shared(rows, stored) == [
             .insert(isTransfer: false),
@@ -393,27 +352,17 @@ struct ImportReconcileEquivalenceTests {
     @Test func divergenceTwoRowsWithTheSameImportedIDBothMatchTheStoredRow() {
         let stored = [existing(id: "e1", importedID: "bank-1", importedPayee: "Sample Market")]
         let rows = [row("r1", importedID: "bank-1", notes: "n1"), row("r2", importedID: "bank-1", notes: "n2")]
-        #expect(Self.legacy(rows, stored) == [
-            .update(id: "e1", fill(notes: "n1")),
-            .insert(isTransfer: false),
-        ])
+        // The deleted matcher inserted the second row.
         #expect(Self.shared(rows, stored) == [
             .update(id: "e1", fill(notes: "n1")),
             .update(id: "e1", fill(notes: "n2")),
         ])
     }
 
-    @Test func divergenceStoredNullClearedIsNotCleared() {
-        let stored = [existing(id: "e1", cleared: nil, importedPayee: "Sample Market")]
-        let rows = [row("r1", cleared: true)]
-        #expect(Self.legacy(rows, stored) == [.unchanged])
-        #expect(Self.shared(rows, stored) == [.update(id: "e1", fill(cleared: true))])
-    }
-
     @Test func divergenceEmptyStoredNotesAreNoChange() {
         let stored = [existing(id: "e1", notes: "", importedPayee: "Sample Market")]
         let rows = [row("r1")]
-        #expect(Self.legacy(rows, stored) == [.update(id: "e1", fill())])
+        // The deleted matcher reported a no-op update here.
         #expect(Self.shared(rows, stored) == [.unchanged])
     }
 
@@ -422,7 +371,6 @@ struct ImportReconcileEquivalenceTests {
     @Test func strictIdCheckingIsAnOption() {
         let stored = [existing(id: "e1", importedID: "bank-1", importedPayee: "Sample Market")]
         let rows = [row("r1", importedID: "bank-2")]
-        #expect(Self.legacy(rows, stored) == [.insert(isTransfer: false)])
         #expect(Self.shared(rows, stored, options: Self.parity) == [.insert(isTransfer: false)])
         // Bank Sync's shipped profile is not strict: the fuzzy tier matches and
         // the stored id is replaced by the incoming one.
@@ -434,7 +382,6 @@ struct ImportReconcileEquivalenceTests {
     @Test func aRowWithoutAnIdKeepsTheStoredIdentityUnlessItIsABankSyncAccount() {
         let stored = [existing(id: "e1", importedID: "bank-1", importedPayee: "Bank Text")]
         let rows = [row("r1", payee: "")]
-        #expect(Self.legacy(rows, stored) == [.unchanged])
         #expect(Self.shared(rows, stored, options: Self.parity) == [.unchanged])
         // Upstream would write null over both; `isBankSyncAccount` keeps that
         // reading for the one caller whose rows always carry both.
@@ -479,7 +426,7 @@ struct ImportReconcileEquivalenceTests {
         let rows = [row("r1", amount: 999), row("r2"), row("r3", amount: 55)]
         let plan = BankSyncReconciliation.plan(
             candidates: TransactionCSVImportCandidates.candidates(rows: rows, lookup: Self.lookup, options: options),
-            existing: [Self.sharedExisting(existing(id: "e1", importedPayee: "Sample Market"))],
+            existing: [existing(id: "e1", importedPayee: "Sample Market")],
             suppressedFinancialIDs: [],
             transferPayeeIDs: Self.lookup.transferPayeeIDs,
             options: options
@@ -493,38 +440,41 @@ struct ImportReconcileEquivalenceTests {
         #expect(matched?.1 == 1)
     }
 
-    // MARK: - Single-row replay of the legacy equivalence fixtures
+    // MARK: - Randomized invariants
 
     private static func dayText(_ offset: Int) -> String {
         ActualScheduleRecurrence.dayID(from: Date(timeIntervalSince1970: Double(19_900 + offset) * 86_400))
     }
 
-    /// The randomized fixture of `TransactionCSVImportMatcherEquivalenceTests`,
-    /// narrowed to what a stored row can hold (no empty-string ids, a non-null
-    /// cleared). The account is on or off budget as a whole, as in the app.
-    private static func fixture(seed: UInt64, rowCount: Int, candidateCount: Int, offBudget: Bool)
-        -> (rows: [TransactionCSVImportRow], candidates: [TransactionCSVImportCandidate]) {
+    /// The randomized fixture of the deleted matcher's equivalence suite,
+    /// narrowed to what a stored row can hold (no empty-string ids). The account
+    /// is on or off budget as a whole, as in the app.
+    private static func fixture(seed: UInt64, rowCount: Int, existingCount: Int)
+        -> (rows: [TransactionCSVImportRow], existing: [BankSyncReconciliation.Existing]) {
         var rng = SplitMix64(seed: seed)
         func pick<T>(_ values: [T]) -> T { values[Int.random(in: 0..<values.count, using: &rng)] }
         let amounts = [-1_234, -500, -500, 999, 0, 12_000]
         let payees = ["p-alpha", "p-beta", "p-gamma", "p-transfer", nil]
-        let candidates = (0..<candidateCount).map { index in
+        let existing = (0..<existingCount).map { index -> BankSyncReconciliation.Existing in
             let day = Int.random(in: 0..<60, using: &rng)
             let broken = Int.random(in: 0..<25, using: &rng) == 0
-            return TransactionCSVImportCandidate(
+            let isParent = Int.random(in: 0..<10, using: &rng) == 0
+            return BankSyncReconciliation.Existing(
                 id: "c-\(index)",
-                importedID: Int.random(in: 0..<4, using: &rng) == 0 ? "imp-\(Int.random(in: 0..<6, using: &rng))" : nil,
+                financialID: Int.random(in: 0..<4, using: &rng) == 0 ? "imp-\(Int.random(in: 0..<6, using: &rng))" : nil,
+                dayID: (broken ? pick(["20260230", "garbage", "", "2026105"]) : dayText(day))
+                    .replacingOccurrences(of: "-", with: ""),
+                amountMinorUnits: pick(amounts),
                 payeeID: pick(payees),
-                categoryID: pick([nil, "cat-groceries"]),
+                categoryID: isParent ? nil : pick([nil, "cat-groceries"]),
                 notes: pick([nil, "note"]),
                 cleared: pick([true, false]),
-                importedPayee: pick([nil, "Alpha", "Beta"]),
-                amountMinorUnits: pick(amounts),
-                dateText: broken ? pick(["2026-02-30", "garbage", "", "2026-1-05"]) : dayText(day),
                 reconciled: Int.random(in: 0..<8, using: &rng) == 0,
-                isParent: Int.random(in: 0..<10, using: &rng) == 0,
-                transferID: Int.random(in: 0..<10, using: &rng) == 0 ? "xfer" : nil,
-                accountOffBudget: offBudget
+                importedPayee: pick([nil, "Alpha", "Beta"]),
+                isParent: isParent,
+                isChild: false,
+                parentID: nil,
+                transferID: Int.random(in: 0..<10, using: &rng) == 0 ? "xfer" : nil
             )
         }
         let rows = (0..<rowCount).map { index in
@@ -542,40 +492,57 @@ struct ImportReconcileEquivalenceTests {
                 importedID: Int.random(in: 0..<5, using: &rng) == 0 ? "imp-\(Int.random(in: 0..<7, using: &rng))" : nil
             )
         }
-        return (rows, candidates)
+        return (rows, existing)
     }
 
-    /// One row at a time there is nothing to claim, so tier order, the
-    /// seven-day window, fill rules, transfer, split and off-budget handling
-    /// must agree exactly; contention is the named multi-pass divergence.
+    /// One row at a time there is nothing to claim, so each outcome must
+    /// follow the tier order, the seven-day window, strict id checking and the
+    /// fill rules (transfer, split and off-budget guards, reconciled lock).
     @Test(arguments: [UInt64(1), 2, 3, 4, 5, 6, 7, 8])
-    func everyLegacyFixtureRowAgreesOnItsOwn(seed: UInt64) {
-        let data = Self.fixture(seed: seed, rowCount: 120, candidateCount: 300, offBudget: seed.isMultiple(of: 2))
+    func everyRandomRowHonorsTheMatchingInvariants(seed: UInt64) {
         let offBudget = seed.isMultiple(of: 2)
+        let data = Self.fixture(seed: seed, rowCount: 120, existingCount: 300)
+        let byID = Dictionary(uniqueKeysWithValues: data.existing.map { ($0.id, $0) })
         var kinds: Set<String> = []
         for row in data.rows {
-            let old = Self.legacy([row], data.candidates)
-            let new = Self.shared([row], data.candidates, offBudget: offBudget)
-            #expect(old == new, "seed \(seed) row \(row.id)")
-            switch new.first {
-            case .insert: kinds.insert("insert")
-            case .update: kinds.insert("update")
-            case .unchanged: kinds.insert("unchanged")
-            case .reconciled: kinds.insert("reconciled")
-            case nil: break
+            let outcome = Self.shared([row], data.existing, offBudget: offBudget)[0]
+            let rowDay = row.dateText.replacingOccurrences(of: "-", with: "")
+            let exact = row.importedID.flatMap { id in data.existing.first { $0.financialID == id } }
+            let eligible = data.existing.contains { stored in
+                stored.amountMinorUnits == row.amountMinorUnits
+                    && BankSyncReconciliation.dayDistance(stored.dayID, rowDay) <= 7
+                    && !(row.importedID != nil && stored.financialID != nil)
+            }
+            switch outcome {
+            case .insert:
+                kinds.insert("insert")
+                // An insert means no exact id and no eligible same-amount row in the window.
+                #expect(exact == nil && !eligible, "seed \(seed) row \(row.id)")
+            case .update(let id, let fill):
+                kinds.insert("update")
+                let stored = id.flatMap { byID[$0] }
+                #expect(stored != nil && stored?.reconciled == false, "seed \(seed) row \(row.id)")
+                if let stored {
+                    // Guards: a transfer leg, split parent or off-budget row never takes a category;
+                    // a transfer payee never lands on a non-transfer row; a stored payee is kept.
+                    if stored.isTransfer || stored.isParent || offBudget {
+                        #expect(fill.categoryID == nil, "seed \(seed) row \(row.id)")
+                    }
+                    if let payee = fill.payeeID {
+                        #expect(stored.payeeID == nil && !stored.isTransfer
+                            && !Self.lookup.transferPayeeIDs.contains(payee), "seed \(seed) row \(row.id)")
+                    }
+                    #expect(fill.categoryID == nil || stored.categoryID == nil, "seed \(seed) row \(row.id)")
+                    #expect(fill.notes == nil || stored.notes == nil, "seed \(seed) row \(row.id)")
+                }
+            case .unchanged:
+                kinds.insert("unchanged")
+                #expect(exact != nil || eligible, "seed \(seed) row \(row.id)")
+            case .reconciled:
+                kinds.insert("reconciled")
+                #expect(exact != nil || eligible, "seed \(seed) row \(row.id)")
             }
         }
         #expect(kinds.isSuperset(of: ["update", "unchanged", "reconciled"]), "seed \(seed) \(kinds)")
-    }
-}
-
-private extension TransactionCSVImportCandidate {
-    func withOffBudget(_ value: Bool) -> TransactionCSVImportCandidate {
-        TransactionCSVImportCandidate(
-            id: id, importedID: importedID, payeeID: payeeID, categoryID: categoryID, notes: notes,
-            cleared: cleared, importedPayee: importedPayee, amountMinorUnits: amountMinorUnits,
-            dateText: dateText, reconciled: reconciled, isParent: isParent, transferID: transferID,
-            accountOffBudget: value
-        )
     }
 }

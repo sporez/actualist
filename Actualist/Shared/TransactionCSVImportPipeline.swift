@@ -7,7 +7,7 @@ enum TransactionCSVImportLimits {
     static let maxRows = 50_000
 }
 
-/// File read, parse, map and match stages that do not touch the store. Each is
+/// File read, parse and map stages that do not touch the store. Each is
 /// `@concurrent` so a large file never runs on the main actor: this target's
 /// approachable-concurrency setting would otherwise run a plain `nonisolated
 /// async` function on its caller's actor.
@@ -58,14 +58,5 @@ enum TransactionCSVImportPipeline {
             throw TransactionCSVImportError.tooManyRows
         }
         return try TransactionCSVImportMapper.map(table)
-    }
-
-    @concurrent
-    static func match(
-        rows: [TransactionCSVImportRow],
-        candidates: [TransactionCSVImportCandidate],
-        context: TransactionCSVImportMatchContext
-    ) async -> [TransactionCSVImportDisposition] {
-        TransactionCSVImportMatcher.match(rows: rows, candidates: candidates, context: context)
     }
 }

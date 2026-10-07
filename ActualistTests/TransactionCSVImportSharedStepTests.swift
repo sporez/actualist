@@ -224,4 +224,28 @@ struct TransactionCSVImportSharedStepTests {
         #expect(try count(bundle, "SELECT COUNT(*) FROM transactions WHERE imported_id = 'bank-77'") == 1)
         #expect(try await bundle.store.database?.pendingLocalSyncMessageCount() == before)
     }
+
+    // MARK: - Stored values read the way upstream reads them
+
+    /// A stored NULL `cleared` is `false` (`match.cleared === 1`, sync.ts ~700),
+    /// so a file that says Cleared clears the matched row. The deleted CSV-only
+    /// matcher treated NULL as "never changes".
+    @Test func aStoredNullClearedIsNotCleared() async throws {
+        let bundle = try await makeBundle()
+        #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE id = 'txn'") == nil)
+        try await importAll(bundle, "Date,Payee,Notes,Amount,Cleared\n2026-07-03,Coffee Shop,,-123.45,Cleared\n")
+
+        #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE id = 'txn'") == "1")
+    }
+
+    /// An empty stored notes value is falsy, like null, in upstream's change
+    /// check (`existing.notes || trans.notes || null`), so re-importing the same
+    /// row changes nothing.
+    @Test func anEmptyStoredNotesValueIsNoChange() async throws {
+        let bundle = try await makeBundle()
+        try exec(bundle, "UPDATE transactions SET notes = '', description = 'coffee', imported_description = 'Coffee Shop' WHERE id = 'txn'")
+        let review = try await prepare(bundle, "Date,Payee,Notes,Amount\n2026-07-03,Coffee Shop,,-123.45\n")
+
+        #expect(review.rows.map(\.outcome.kind) == [.unchanged])
+    }
 }
