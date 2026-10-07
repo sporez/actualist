@@ -112,29 +112,50 @@ extension LocalFirstActualStore {
             )
         }
 
-        let messages = payeeResolution.messages + transactionMessages
         let learningIDs: Set<String> = !draft.isTransfer && !draft.isSplit && draft.categoryID != nil
             ? [transactionID]
             : []
-        let createdPayeeID = payeeResolution.messages.isEmpty ? nil : payeeResolution.payeeID
-        let descriptor = BudgetActionDescriptor.createTransaction(CreateTransactionDescriptor(
-            month: draft.month.rawValue,
-            amount: draft.amountMinorUnits,
-            payeeName: trimmedPayeeName(draft.payeeName),
-            categoryID: draft.categoryID,
-            primaryTransactionID: transactionID,
-            transactionIDs: affectedTransactionIDs,
-            graph: graph,
-            createdPayeeID: createdPayeeID
-        ))
+        let typedPayeeName = trimmedPayeeName(draft.payeeName)
+        let creation: PendingPayeeCreation? = if !payeeResolution.messages.isEmpty,
+            let createdID = payeeResolution.payeeID,
+            let name = typedPayeeName {
+            PendingPayeeCreation(payeeID: createdID, name: name, messages: payeeResolution.messages)
+        } else {
+            nil
+        }
+        let finalGraph = graph
+        let finalAffectedIDs = affectedTransactionIDs
         let absence = callerTransactionID.map { BudgetDatabase.TransactionIDAbsence(transactionID: $0) }
+        await userActionBeforeCommitHook?()
         let alreadyCommitted = try await database.commitUserActionPlan(source: actionSource) { database, db in
             if let absence, try absence.isViolated(in: database, db: db) {
                 return UserActionPlan(drafts: [], descriptor: nil, outcome: true)
             }
+            // A payee another writer created with this name since resolution
+            // is reused instead of creating a duplicate (5.2b).
+            let settled = try database.settlePayeeCreation(
+                resolvedPayeeID: payeeResolution.payeeID, creation: creation, db: db
+            )
+            let settledTransactionMessages: [ActualSyncDecodedMessage]
+            if let built = payeeResolution.payeeID, let final = settled.payeeID {
+                settledTransactionMessages = BudgetDatabase.retargetingPayee(
+                    transactionMessages, from: built, to: final
+                )
+            } else {
+                settledTransactionMessages = transactionMessages
+            }
             return UserActionPlan(
-                drafts: messages,
-                descriptor: descriptor,
+                drafts: settled.creationMessages + settledTransactionMessages,
+                descriptor: .createTransaction(CreateTransactionDescriptor(
+                    month: draft.month.rawValue,
+                    amount: draft.amountMinorUnits,
+                    payeeName: typedPayeeName,
+                    categoryID: draft.categoryID,
+                    primaryTransactionID: transactionID,
+                    transactionIDs: finalAffectedIDs,
+                    graph: finalGraph,
+                    createdPayeeID: settled.createdPayeeID
+                )),
                 learningTransactionIDs: learningIDs,
                 outcome: false
             )
@@ -226,9 +247,13 @@ extension LocalFirstActualStore {
             database: database,
             builder: &builder
         )
-        let payeeMessages = payeeResolution.messages
-        let resolvedPayeeID = payeeResolution.payeeID
-        let createdPayeeID = payeeMessages.isEmpty ? nil : resolvedPayeeID
+        let creation: PendingPayeeCreation? = if !payeeResolution.messages.isEmpty,
+            let createdID = payeeResolution.payeeID,
+            let name = trimmedPayeeName(draft.payeeName) {
+            PendingPayeeCreation(payeeID: createdID, name: name, messages: payeeResolution.messages)
+        } else {
+            nil
+        }
         let typedPayeeName = trimmedPayeeName(draft.payeeName)
         let learningIDs: Set<String> = draft.categoryID == nil ? [] : [transactionID]
         let payeeBuilder = builder
@@ -244,6 +269,11 @@ extension LocalFirstActualStore {
             )
         ) { database, db in
             var builder = payeeBuilder
+            let settled = try database.settlePayeeCreation(
+                resolvedPayeeID: payeeResolution.payeeID, creation: creation, db: db
+            )
+            let resolvedPayeeID = settled.payeeID
+            let createdPayeeID = settled.createdPayeeID
             let existing = try database.fetchTransaction(id: transactionID, db: db)
             let existingState = try database.existingTransactionState(
                 id: transactionID,
@@ -295,7 +325,7 @@ extension LocalFirstActualStore {
                 descriptor = nil
             }
             return UserActionPlan(
-                drafts: payeeMessages + update.messages,
+                drafts: settled.creationMessages + update.messages,
                 descriptor: descriptor,
                 learningTransactionIDs: learningIDs,
                 outcome: update
