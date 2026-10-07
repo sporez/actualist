@@ -30,10 +30,15 @@ final class TransactionCSVExportWorkflow {
                     query: TransactionFeedQuery()
                 )
             )
-            guard requestGeneration == generation, !Task.isCancelled else { return }
-            state = .ready(result)
+            guard requestGeneration == generation else { return }
+            // A cancelled task must not strand `.exporting`.
+            state = Task.isCancelled ? .idle : .ready(result)
         } catch {
-            guard requestGeneration == generation, !Task.isCancelled, !error.isCancellation else { return }
+            guard requestGeneration == generation else { return }
+            guard !Task.isCancelled, !error.isCancellation else {
+                state = .idle
+                return
+            }
             state = .failed("The CSV could not be prepared. Your budget has not been changed.")
         }
     }
