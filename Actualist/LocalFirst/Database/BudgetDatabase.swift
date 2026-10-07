@@ -36,6 +36,7 @@ actor BudgetDatabase {
         try Self.prepareBankSyncSchemaCompatibility(in: queue)
         try Self.preparePendingNewTransactionSchema(in: queue)
         try Self.prepareAccountGroupCompatibility(in: queue)
+        try Self.prepareCompatibilityMigrationIDs(in: queue)
         try Self.prepareBudgetIdentity(in: queue)
         try Self.prepareMessagesTimestampIndex(in: queue)
         try Self.prepareMerkleTrie(in: queue, localNodeID: localNodeID)
@@ -91,6 +92,7 @@ actor BudgetDatabase {
             )
             if !accountColumns.contains("bank_sync_status") {
                 try db.execute(sql: "ALTER TABLE accounts ADD COLUMN bank_sync_status TEXT")
+                try recordBankSyncStatusMigrationID(in: db)
             }
 
             guard !(try localMigrationApplied(bankSyncStatusCompatibilityMigration, in: db)) else {

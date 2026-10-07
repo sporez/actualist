@@ -32,6 +32,10 @@ extension BudgetDatabase {
                 return
             }
 
+            let groupsTableExisted = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'account_groups')"
+            ) ?? false
             try db.execute(
                 sql: """
                     CREATE TABLE IF NOT EXISTS account_groups (
@@ -47,10 +51,14 @@ extension BudgetDatabase {
                 Row.fetchAll(db, sql: "PRAGMA table_info(accounts)")
                     .compactMap { $0["name"] as String? }
             )
-            if !accountColumns.contains("account_group_id") {
+            let addedGroupColumn = !accountColumns.contains("account_group_id")
+            if addedGroupColumn {
                 try db.execute(
                     sql: "ALTER TABLE accounts ADD COLUMN account_group_id TEXT DEFAULT NULL"
                 )
+            }
+            if addedGroupColumn || !groupsTableExisted {
+                try recordAccountGroupsMigrationID(in: db)
             }
 
             guard !(try localMigrationApplied(accountGroupCompatibilityMigration, in: db)) else {
