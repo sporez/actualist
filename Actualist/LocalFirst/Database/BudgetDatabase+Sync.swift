@@ -32,10 +32,6 @@ extension BudgetDatabase {
         }
     }
 
-    func applyRemoteSyncMessages(_ messages: [ActualSyncDecodedMessage], now: Date = Date()) throws -> Int {
-        try applyRemoteSyncMessagesTrackingInserts(messages, now: now).appliedMessageCount
-    }
-
     func applyRemoteSyncMessagesTrackingInserts(
         _ messages: [ActualSyncDecodedMessage],
         now: Date = Date()

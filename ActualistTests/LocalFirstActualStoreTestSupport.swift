@@ -559,3 +559,28 @@ extension BudgetTemplateEngine.Category {
         )
     }
 }
+
+extension BudgetDatabase {
+    /// Applies remote messages and reports how many changed local data.
+    func applyRemoteSyncMessages(_ messages: [ActualSyncDecodedMessage], now: Date = Date()) throws -> Int {
+        try applyRemoteSyncMessagesTrackingInserts(messages, now: now).appliedMessageCount
+    }
+}
+
+extension LocalFirstActualStore {
+    /// One account's download plan through the batched planner.
+    func downloadBankSyncPlan(
+        accountID: String,
+        budgetID: String,
+        deviceFallback: Bool = true
+    ) async throws -> BankSyncReview.AccountPlan {
+        guard let plan = try await downloadBankSyncPlans(
+            accountIDs: [accountID],
+            budgetID: budgetID,
+            deviceFallback: deviceFallback
+        ).first else {
+            throw LocalFirstError.invalidLocalWrite("missing bank sync plan")
+        }
+        return plan
+    }
+}

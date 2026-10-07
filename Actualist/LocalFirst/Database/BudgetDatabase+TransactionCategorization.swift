@@ -3,23 +3,6 @@ import GRDB
 
 extension BudgetDatabase {
 
-    func categorizeTransactionMessages(
-        transactionID: String,
-        categoryID: String,
-        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            try categorizeTransactionMessages(
-                transactionID: transactionID,
-                categoryID: categoryID,
-                reconciliationAuthorization: reconciliationAuthorization,
-                db: db,
-                builder: &builder
-            )
-        }
-    }
-
     /// Validates and builds from the live row read through `db`, so a categorize
     /// built inside its write transaction sees a remote split or transfer change.
     func categorizeTransactionMessages(
@@ -74,21 +57,6 @@ extension BudgetDatabase {
                 value: .string(trimmedCategoryID)
             )
         ]
-    }
-
-    func deleteTransactionMessages(
-        transactionID: String,
-        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
-        try queue.read { db in
-            try deleteTransactionMessages(
-                transactionID: transactionID,
-                reconciliationAuthorization: reconciliationAuthorization,
-                db: db,
-                builder: &builder
-            )
-        }
     }
 
     /// Loads the family and transfer pair through `db`, so a delete built in its

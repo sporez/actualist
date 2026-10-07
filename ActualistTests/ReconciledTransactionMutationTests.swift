@@ -49,14 +49,14 @@ struct ReconciledTransactionMutationTests {
 
         var updateBuilder = LocalFirstSyncMessageBuilder()
         await #expect(throws: ReconciledTransactionMutationError.self) {
-            try await bundle.database.updateTransactionMessages(
+            try await bundle.database.staleBuiltUpdateMessages(
                 transactionID: "txn",
                 draft: draft,
                 payeeID: "coffee",
                 builder: &updateBuilder
             )
         }
-        let update = try await bundle.database.updateTransactionMessages(
+        let update = try await bundle.database.staleBuiltUpdateMessages(
             transactionID: "txn",
             draft: draft,
             payeeID: "coffee",
@@ -67,12 +67,12 @@ struct ReconciledTransactionMutationTests {
 
         var deleteBuilder = LocalFirstSyncMessageBuilder()
         await #expect(throws: ReconciledTransactionMutationError.self) {
-            try await bundle.database.deleteTransactionMessages(
+            try await bundle.database.staleBuiltDeleteMessages(
                 transactionID: "txn",
                 builder: &deleteBuilder
             )
         }
-        let delete = try await bundle.database.deleteTransactionMessages(
+        let delete = try await bundle.database.staleBuiltDeleteMessages(
             transactionID: "txn",
             reconciliationAuthorization: review.authorization,
             builder: &deleteBuilder
@@ -96,7 +96,7 @@ struct ReconciledTransactionMutationTests {
         }
         var builder = LocalFirstSyncMessageBuilder()
         do {
-            _ = try await bundle.database.deleteTransactionMessages(
+            _ = try await bundle.database.staleBuiltDeleteMessages(
                 transactionID: "split-a",
                 reconciliationAuthorization: firstReview.authorization,
                 builder: &builder
@@ -121,7 +121,7 @@ struct ReconciledTransactionMutationTests {
         )
         let firstReview = try #require(loadedReview)
         var builder = LocalFirstSyncMessageBuilder()
-        let delete = try await bundle.database.deleteTransactionMessages(
+        let delete = try await bundle.database.staleBuiltDeleteMessages(
             transactionID: "split-a",
             reconciliationAuthorization: firstReview.authorization,
             builder: &builder
@@ -264,5 +264,45 @@ struct ReconciledTransactionMutationTests {
                 ('paired', 'savings', 20260901, -1000, NULL, 0, NULL, 0,
                  NULL, NULL, 1, 0, ?, 'split-a')
             """, arguments: [pairReconciled])
+    }
+}
+
+/// Builds a write's messages from a read that closes before any write
+/// transaction opens, as the retired production overloads did. The commit
+/// boundary tests use it to land a remote change between build and commit,
+/// which the live build-inside-write path cannot express.
+private extension BudgetDatabase {
+    func staleBuiltUpdateMessages(
+        transactionID: String,
+        draft: TransactionDraft,
+        payeeID: String?,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> TransactionWriteResult {
+        try queue.read { db in
+            try updateTransactionMessages(
+                transactionID: transactionID,
+                draft: draft,
+                payeeID: payeeID,
+                reconciliationAuthorization: reconciliationAuthorization,
+                db: db,
+                builder: &builder
+            )
+        }
+    }
+
+    func staleBuiltDeleteMessages(
+        transactionID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> TransactionWriteResult {
+        try queue.read { db in
+            try deleteTransactionMessages(
+                transactionID: transactionID,
+                reconciliationAuthorization: reconciliationAuthorization,
+                db: db,
+                builder: &builder
+            )
+        }
     }
 }

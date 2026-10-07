@@ -5,21 +5,6 @@ import Foundation
 /// every linked account in the run. Produces immutable review/apply plans and
 /// never writes transaction data.
 extension LocalFirstActualStore {
-    func downloadBankSyncPlan(
-        accountID: String,
-        budgetID: String,
-        deviceFallback: Bool = true
-    ) async throws -> BankSyncReview.AccountPlan {
-        guard let plan = try await downloadBankSyncPlans(
-            accountIDs: [accountID],
-            budgetID: budgetID,
-            deviceFallback: deviceFallback
-        ).first else {
-            throw LocalFirstError.invalidLocalWrite("missing bank sync plan")
-        }
-        return plan
-    }
-
     func downloadBankSyncPlans(
         accountIDs: [String],
         budgetID: String,

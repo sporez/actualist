@@ -85,7 +85,9 @@ extension LocalFirstActualStoreTests {
         #expect(firstPage.transactions.count == 100)
         #expect(!firstPage.reachedEnd)
 
-        try await store.loadOlderTransactions(budgetID: "group-1", accountID: "checking")
+        try await store.loadOlderTransactions(
+            budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
+        )
         let fullWindow = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
 
         #expect(fullWindow.transactions.count == 106)

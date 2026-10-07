@@ -42,26 +42,6 @@ extension AccountTransactionsRecordingRepository {
         }
     }
 
-    func loadOlderTransactions(
-        budgetID: String,
-        scope: TransactionQueryScope,
-        query: TransactionFeedQuery
-    ) async throws {
-        guard query.text == nil, !query.hasStructuredConditions else {
-            throw LocalFirstError.unsupportedWrite
-        }
-        switch scope {
-        case .account(let accountID):
-            try await loadOlderTransactions(
-                budgetID: budgetID,
-                accountID: accountID,
-                statusFilter: query.status
-            )
-        case .spending:
-            try await loadOlderSpendingTransactions(budgetID: budgetID, statusFilter: query.status)
-        }
-    }
-
     func transactionPage(
         budgetID: String,
         scope: TransactionQueryScope,

@@ -561,16 +561,24 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         if let refreshError { throw refreshError }
     }
 
-    func loadOlderTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) async throws {
-        olderLoadCalls.append("account:\(accountID)")
-        olderLoadStarted.trip()
-        if suspendsOlderLoads {
-            try await withCheckedThrowingContinuation { olderLoadContinuation = $0 }
+    func loadOlderTransactions(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws {
+        guard query.text == nil, !query.hasStructuredConditions else {
+            throw LocalFirstError.unsupportedWrite
         }
-    }
-
-    func loadOlderSpendingTransactions(budgetID: String, statusFilter: TransactionStatusFilter) async throws {
-        olderLoadCalls.append("spending")
+        switch scope {
+        case .account(let accountID):
+            olderLoadCalls.append("account:\(accountID)")
+            olderLoadStarted.trip()
+            if suspendsOlderLoads {
+                try await withCheckedThrowingContinuation { olderLoadContinuation = $0 }
+            }
+        case .spending:
+            olderLoadCalls.append("spending")
+        }
     }
 
     func finishOlderLoad() async {

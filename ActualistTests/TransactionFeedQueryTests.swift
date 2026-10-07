@@ -244,11 +244,5 @@ struct TransactionRepositoryTypedQueryCompatibilityTests {
                 offset: 0
             )
         }
-        await #expect(throws: TransactionQueryCapabilityError.unavailable) {
-            _ = try await repository.transactionDrilldown(
-                budgetID: "budget",
-                request: TransactionDrilldownRequest(scope: .spending, query: query)
-            )
-        }
     }
 }

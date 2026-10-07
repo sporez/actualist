@@ -429,45 +429,6 @@ enum SplitTransactionFamilyOps {
         }
     }
 
-    static func makeAsNonChildTransactions(
-        childTransactionsToUpdate: [SplitTransactionRecord],
-        transactions: [SplitTransactionRecord]
-    ) -> (updated: [SplitTransactionRecord], deleted: [SplitTransactionRecord]) {
-        guard let parentTransaction = transactions.first else {
-            return (updated: [], deleted: [])
-        }
-        let childTransactions = Array(transactions.dropFirst())
-        let newNonChildTransactions = childTransactionsToUpdate.map {
-            makeNonChild(parent: parentTransaction, data: $0)
-        }
-        let remainingChildTransactions = childTransactions.filter { child in
-            !newNonChildTransactions.contains { $0.id == child.id }
-        }
-        if childTransactions.count == 1,
-           childTransactionsToUpdate.count == 1,
-           childTransactionsToUpdate.first?.id == childTransactions.first?.id {
-            return (
-                updated: [makeTransactionWithChildCategory(parent: parentTransaction, data: childTransactionsToUpdate[0])],
-                deleted: childTransactionsToUpdate
-            )
-        }
-
-        let nonChildTransactionsToUpdate = remainingChildTransactions.count == 1
-            ? newNonChildTransactions + remainingChildTransactions.map {
-                makeNonChild(parent: parentTransaction, data: $0)
-            }
-            : newNonChildTransactions
-        let deleteParentTransaction = remainingChildTransactions.count <= 1
-        var updatedParentTransaction = parentTransaction
-        if !deleteParentTransaction {
-            updatedParentTransaction.amount = remainingChildTransactions.reduce(0) { $0 + $1.amount }
-        }
-        return (
-            updated: (deleteParentTransaction ? [] : [updatedParentTransaction]) + nonChildTransactionsToUpdate,
-            deleted: deleteParentTransaction ? [updatedParentTransaction] : []
-        )
-    }
-
     static func family(
         from rows: [SplitTransactionRecord],
         parentID: String = "parent-1"
@@ -508,30 +469,6 @@ enum SplitTransactionFamilyOps {
 }
 
 private extension SplitTransactionFamilyOps {
-    static func makeNonChild(
-        parent: SplitTransactionRecord,
-        data: SplitTransactionRecord
-    ) -> SplitTransactionRecord {
-        var result = data
-        result.cleared = parent.cleared
-        result.reconciled = parent.reconciled
-        result.sortOrder = parent.sortOrder
-        result.startingBalance = nil
-        result.isChild = false
-        result.parentID = nil
-        return result
-    }
-
-    static func makeTransactionWithChildCategory(
-        parent: SplitTransactionRecord,
-        data: SplitTransactionRecord
-    ) -> SplitTransactionRecord {
-        var result = parent
-        result.isParent = false
-        result.category = data.category
-        return result
-    }
-
     static func merged(_ base: SplitTransactionRecord, _ overlay: SplitTransactionRecord) -> SplitTransactionRecord {
         var result = overlay
         if result.subtransactions.isEmpty {

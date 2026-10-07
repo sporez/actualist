@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// Reserved, versioned identity for the bundled demo budget.
@@ -83,17 +82,5 @@ enum DemoBudget {
             throw LocalFirstError.missingImportedDatabase
         }
         return try Data(contentsOf: url, options: .mappedIfSafe)
-    }
-
-    /// Integrity-checks the bundled archive against the committed constants.
-    /// Used by diagnostics and tests; never fatal in production (a mismatch is
-    /// logged, not thrown, by callers that want best-effort behavior).
-    static func bundledArchiveMatchesCommittedDigest() -> Bool {
-        guard let data = try? bundledArchiveData() else {
-            return false
-        }
-        let digest = SHA256.hash(data: data)
-        let hex = digest.map { String(format: "%02x", $0) }.joined()
-        return hex == artifactSHA256 && data.count == artifactByteCount
     }
 }

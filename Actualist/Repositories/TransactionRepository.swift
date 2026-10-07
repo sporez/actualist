@@ -34,10 +34,6 @@ protocol TransactionRepositoryProtocol: AnyObject {
         limit: Int,
         offset: Int
     ) async throws -> LoadedAccountTransactions
-    func transactionDrilldown(
-        budgetID: String,
-        request: TransactionDrilldownRequest
-    ) async throws -> TransactionDrilldownResult
     func cachedAccountTransactions(
         budgetID: String,
         accountID: String,
@@ -69,15 +65,6 @@ protocol TransactionRepositoryProtocol: AnyObject {
         budgetID: String,
         categoryID: String,
         month: String
-    ) async throws
-    func loadOlderTransactions(
-        budgetID: String,
-        accountID: String,
-        statusFilter: TransactionStatusFilter
-    ) async throws
-    func loadOlderSpendingTransactions(
-        budgetID: String,
-        statusFilter: TransactionStatusFilter
     ) async throws
     func searchAccountTransactions(
         budgetID: String,
@@ -205,13 +192,6 @@ extension TransactionRepositoryProtocol {
         throw TransactionQueryCapabilityError.unavailable
     }
 
-    func transactionDrilldown(
-        budgetID: String,
-        request: TransactionDrilldownRequest
-    ) async throws -> TransactionDrilldownResult {
-        throw TransactionQueryCapabilityError.unavailable
-    }
-
     func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
         cachedAccountTransactions(budgetID: budgetID, accountID: accountID, statusFilter: .all)
     }
@@ -226,14 +206,6 @@ extension TransactionRepositoryProtocol {
 
     func refreshSpendingTransactions(budgetID: String) async throws {
         try await refreshSpendingTransactions(budgetID: budgetID, statusFilter: .all)
-    }
-
-    func loadOlderTransactions(budgetID: String, accountID: String) async throws {
-        try await loadOlderTransactions(budgetID: budgetID, accountID: accountID, statusFilter: .all)
-    }
-
-    func loadOlderSpendingTransactions(budgetID: String) async throws {
-        try await loadOlderSpendingTransactions(budgetID: budgetID, statusFilter: .all)
     }
 
     func searchAccountTransactions(

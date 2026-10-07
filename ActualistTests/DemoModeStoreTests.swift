@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import GRDB
 import Security
@@ -85,7 +86,9 @@ struct DemoModeStoreTests {
                 .first { $0.id == "groceries" }?.hasUserNote == true
         )
         // The bundled artifact's digest matches the committed constants.
-        #expect(DemoBudget.bundledArchiveMatchesCommittedDigest())
+        let archive = try DemoBudget.bundledArchiveData()
+        let archiveDigest = SHA256.hash(data: archive).map { String(format: "%02x", $0) }.joined()
+        #expect(archiveDigest == DemoBudget.artifactSHA256 && archive.count == DemoBudget.artifactByteCount)
         // Opening the demo budget never touches a sync transport.
         #expect(await transport.messageCounts().isEmpty)
     }

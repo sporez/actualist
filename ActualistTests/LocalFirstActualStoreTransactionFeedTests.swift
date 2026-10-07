@@ -131,7 +131,9 @@ extension LocalFirstActualStoreTests {
                 && query == nil && offset == store.transactionPageSize
         }
         let olderLoad = Task {
-            try await store.loadOlderTransactions(budgetID: "status-budget", accountID: "checking")
+            try await store.loadOlderTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
+        )
         }
         await gate.waitUntilSuspended()
 
@@ -139,7 +141,9 @@ extension LocalFirstActualStoreTests {
         gate.release()
         await #expect(throws: CancellationError.self) { try await olderLoad.value }
 
-        try await store.loadOlderTransactions(budgetID: "status-budget", accountID: "checking")
+        try await store.loadOlderTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
+        )
         let completed = try #require(store.cachedAccountTransactions(
             budgetID: "status-budget", accountID: "checking"
         ))
@@ -169,11 +173,15 @@ extension LocalFirstActualStoreTests {
                 && query == nil && offset == store.transactionPageSize
         }
         let supersededLoad = Task {
-            try await store.loadOlderTransactions(budgetID: "status-budget", accountID: "checking")
+            try await store.loadOlderTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
+        )
         }
         await gate.waitUntilSuspended()
 
-        try await store.loadOlderTransactions(budgetID: "status-budget", accountID: "checking")
+        try await store.loadOlderTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
+        )
         let committedPage = try #require(store.cachedAccountTransactions(
             budgetID: "status-budget", accountID: "checking"
         ))
@@ -183,7 +191,9 @@ extension LocalFirstActualStoreTests {
             budgetID: "status-budget", accountID: "checking"
         ) == committedPage)
 
-        try await store.loadOlderTransactions(budgetID: "status-budget", accountID: "checking")
+        try await store.loadOlderTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
+        )
         let completed = try #require(store.cachedAccountTransactions(
             budgetID: "status-budget", accountID: "checking"
         ))

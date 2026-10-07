@@ -8,10 +8,6 @@ extension BudgetDatabase {
         }
     }
 
-    func accountEligibilitySnapshot() throws -> AccountEligibilitySnapshot {
-        AccountEligibilitySnapshot(accounts: try accountLifecycleAccounts())
-    }
-
     func accountLifecycleReview(
         request: AccountLifecycleReviewRequest,
         localDay: AccountLifecycleDay = .localGregorian()

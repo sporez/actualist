@@ -3,27 +3,6 @@ import GRDB
 
 extension BudgetDatabase {
 
-    func updateTransactionMessages(
-        transactionID: String,
-        draft: TransactionDraft,
-        payeeID: String?,
-        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
-        baseline: ActualTransaction? = nil,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
-        try queue.read { db in
-            try updateTransactionMessages(
-                transactionID: transactionID,
-                draft: draft,
-                payeeID: payeeID,
-                reconciliationAuthorization: reconciliationAuthorization,
-                baseline: baseline,
-                db: db,
-                builder: &builder
-            )
-        }
-    }
-
     /// Reads the existing row and its pair through `db`, so an update built in its
     /// own write transaction sees the family and transfer state at commit time.
     /// A simple row writes only the cells that differ between `baseline` (what the
@@ -154,13 +133,6 @@ extension BudgetDatabase {
             affectedAccountIDs: Array(affectedAccounts),
             affectedTransactionIDs: Array(affectedTransactions)
         )
-    }
-
-    func existingTransactionState(id: String) throws -> ExistingTransactionState {
-        try queue.read { db in
-            let columns = try resolveTransactionRowColumns(db: db)
-            return try existingTransactionState(id: id, columns: columns, db: db)
-        }
     }
 
     func existingTransactionState(

@@ -394,53 +394,6 @@ struct SplitTransactionFamilyTests {
         #expect(observed.family?.children.first { $0.id == "child-2" }?.payee == "market")
     }
 
-    @Test func detachChildPreservesNonChildFields() throws {
-        let fixture = try familyFixture()
-        let expected = try JSONSerialization.jsonObject(with: fixture.caseData("detach-child-preserves-nonchild-fields")) as? [String: Any]
-        let exactParent = SplitTransactionFamilyOps.recalculateSplit(
-            parent(isParent: true, payee: nil, children: [
-                child("child-1", amount: -6_000, sortOrder: -1),
-                child("child-2", amount: -4_000, sortOrder: -2),
-            ])
-        )
-        let source = [
-            exactParent,
-            SplitTransactionFamilyOps.makeChild(
-                parent: exactParent,
-                data: SplitTransactionPatch(
-                    id: "child-1",
-                    amount: -6_000,
-                    payee: .value("coffee"),
-                    notes: .value("inherited payee"),
-                    sortOrder: .value(-1)
-                )
-            ),
-            SplitTransactionFamilyOps.makeChild(
-                parent: exactParent,
-                data: SplitTransactionPatch(
-                    id: "child-2",
-                    amount: -4_000,
-                    payee: .value("market"),
-                    notes: .value("override payee"),
-                    sortOrder: .value(-2)
-                )
-            ),
-        ]
-        let result = SplitTransactionFamilyOps.makeAsNonChildTransactions(
-            childTransactionsToUpdate: [source[1]],
-            transactions: source
-        )
-        let updated = expected?["updated"] as? [[String: Any]]
-        let deleted = expected?["deleted"] as? [[String: Any]]
-        #expect(result.updated.map(\.id) == updated?.compactMap { $0["id"] as? String })
-        #expect(result.deleted.map(\.id) == deleted?.compactMap { $0["id"] as? String })
-        #expect(result.updated.map(\.isChild) == [false, false])
-        #expect(result.updated.map(\.parentID) == [nil, nil])
-        #expect(result.updated.map(\.payee) == ["coffee", "market"])
-        #expect(result.updated.map(\.startingBalance) == [nil, nil])
-        #expect(result.deleted.first?.isParent == true)
-    }
-
     @Test func parentZeroSplitHasNoErrorAndMismatchedZeroChildIsRepresentable() {
         let zeroParent = SplitTransactionFamilyOps.splitTransaction(
             [SplitTransactionRecord(id: "zero", amount: 0, account: "checking", date: "2026-08-15")],

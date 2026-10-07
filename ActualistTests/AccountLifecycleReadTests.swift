@@ -93,7 +93,7 @@ struct AccountLifecycleReadTests {
             INSERT INTO accounts VALUES ('deleted', 'Deleted', 0, 0, 1, 3);
             """))
 
-        let snapshot = try await database.accountEligibilitySnapshot()
+        let snapshot = AccountEligibilitySnapshot(accounts: try await database.accountLifecycleAccounts())
 
         #expect(snapshot.eligiblePostingAccounts.map(\.id) == ["checking"])
         if case .closed(let account) = snapshot.postingEligibility(accountID: "closed") {

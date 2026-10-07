@@ -2,12 +2,6 @@ import Foundation
 import GRDB
 
 extension BudgetDatabase {
-    func fetchRuleScheduleIndex() throws -> RuleScheduleIndex {
-        try queue.read { db in
-            try fetchRuleScheduleIndex(db: db)
-        }
-    }
-
     func fetchRuleScheduleIndex(db: Database) throws -> RuleScheduleIndex {
         guard try tableExists("schedules", db: db) else { return .empty }
         let columns = try columnSet(for: "schedules", db: db)

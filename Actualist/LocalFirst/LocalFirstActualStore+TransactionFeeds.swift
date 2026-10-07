@@ -94,29 +94,6 @@ extension LocalFirstActualStore {
         try await loadOlderTransactionFeed(key: key, database: database)
     }
 
-    func loadOlderTransactions(
-        budgetID: String,
-        accountID: String,
-        statusFilter: TransactionStatusFilter = .all
-    ) async throws {
-        try await loadOlderTransactions(
-            budgetID: budgetID,
-            scope: .account(accountID),
-            query: TransactionFeedQuery(status: statusFilter)
-        )
-    }
-
-    func loadOlderSpendingTransactions(
-        budgetID: String,
-        statusFilter: TransactionStatusFilter = .all
-    ) async throws {
-        try await loadOlderTransactions(
-            budgetID: budgetID,
-            scope: .spending,
-            query: TransactionFeedQuery(status: statusFilter)
-        )
-    }
-
     func loadOlderTransactionFeed(
         key: TransactionFeedCacheKey,
         database: BudgetDatabase
@@ -319,20 +296,4 @@ extension LocalFirstActualStore {
             )
         )
     }
-
-    func transactionDrilldown(
-        budgetID: String,
-        request: TransactionDrilldownRequest
-    ) async throws -> TransactionDrilldownResult {
-        let database = try requireDatabase(for: budgetID)
-        let sessionID = transactionFeedRequestIdentity.sessionID
-        let result = try await database.fetchTransactionDrilldown(request)
-        guard transactionFeedRequestIdentity.sessionID == sessionID,
-              self.database === database,
-              openedBudgetID == budgetID else {
-            throw CancellationError()
-        }
-        return result
-    }
-
 }
