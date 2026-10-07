@@ -22,7 +22,13 @@ enum DeveloperUnlockToast {
         }
 
         return Task { @MainActor in
-            try? await Task.sleep(for: .seconds(toastDurationSeconds))
+            // A replaced toast cancels this task; it must not clear the
+            // message that its replacement is now showing.
+            do {
+                try await Task.sleep(for: .seconds(toastDurationSeconds))
+            } catch {
+                return
+            }
             withAnimation(.snappy(duration: 0.2)) {
                 if appState.developerUnlockToastMessage == message {
                     appState.developerUnlockToastMessage = nil
