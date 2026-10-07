@@ -11,14 +11,14 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore()
         var didAssign = false
 
-        let loaded = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+        let loaded = try #require(await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",
             month: "2026-07"
         ) {
             didAssign = true
-        }
+        })
 
         let groceries = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
         let reloaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
@@ -181,7 +181,7 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore()
         var didMove = false
 
-        let loaded = try await store.moveMoneyAndRefresh(expectedMode: nil,
+        let loaded = try #require(await store.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: "utilities",
@@ -191,7 +191,7 @@ extension LocalFirstActualStoreTests {
             month: "2026-07"
         ) {
             didMove = true
-        }
+        })
 
         let categories = Dictionary(uniqueKeysWithValues: loaded.month.categoryGroups.flatMap(\.categories).map { ($0.id, $0) })
         let groceries = try #require(categories["groceries"])
@@ -209,7 +209,7 @@ extension LocalFirstActualStoreTests {
     @Test func moveMoneyLocallyMovesBudgetBackToToBudget() async throws {
         let store = try await makeOpenedWritableStore()
 
-        let loaded = try await store.moveMoneyAndRefresh(expectedMode: nil,
+        let loaded = try #require(await store.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: nil,
@@ -217,7 +217,7 @@ extension LocalFirstActualStoreTests {
             ),
             budgetID: "group-1",
             month: "2026-07"
-        ) {}
+        ) {})
 
         let groceries = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
 
@@ -244,7 +244,7 @@ extension LocalFirstActualStoreTests {
         let before = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let beforeUtilities = try #require(before.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
 
-        let loaded = try await store.moveMoneyAndRefresh(expectedMode: nil,
+        let loaded = try #require(await store.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: "utilities",
@@ -252,7 +252,7 @@ extension LocalFirstActualStoreTests {
             ),
             budgetID: "group-1",
             month: "2026-07"
-        ) {}
+        ) {})
 
         let utilities = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
 

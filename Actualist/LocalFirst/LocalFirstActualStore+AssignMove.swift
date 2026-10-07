@@ -14,7 +14,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         month: String,
         didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         try await assignCategoryBudgetAndRefresh(expectedMode: expectedMode,
             categoryID: categoryID,
             budgeted: budgeted,
@@ -32,8 +32,9 @@ extension LocalFirstActualStore {
         month: String,
         actionSource: BudgetActionSource,
         didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let mode = try await database.requireBudgetMode(expectedMode)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database.assignCategoryBudgetMessages(
@@ -50,8 +51,12 @@ extension LocalFirstActualStore {
             expectedMode: mode
         )
         await didAssign()
-        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
-        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
+        return await finishDurableBudgetWrite(
+            database: database,
+            budgetID: budgetID,
+            generation: generation,
+            month: month
+        )
     }
 
     // BudgetRepositoryProtocol witness; records the gesture with a UI source.
@@ -60,7 +65,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         try await moveMoneyAndRefresh(expectedMode: expectedMode,
             commands: [command],
             budgetID: budgetID,
@@ -76,7 +81,7 @@ extension LocalFirstActualStore {
         month: String,
         actionSource: BudgetActionSource,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         try await moveMoneyAndRefresh(expectedMode: expectedMode,
             commands: [command],
             budgetID: budgetID,
@@ -92,7 +97,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         try await moveMoneyAndRefresh(expectedMode: expectedMode,
             commands: commands,
             budgetID: budgetID,
@@ -108,8 +113,9 @@ extension LocalFirstActualStore {
         month: String,
         actionSource: BudgetActionSource,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let mode = try await database.requireBudgetMode(expectedMode)
         await userActionBeforeCommitHook?()
         let descriptor = BudgetActionDescriptor.move(
@@ -139,7 +145,11 @@ extension LocalFirstActualStore {
             )
         }
         await didMove()
-        try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
-        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
+        return await finishDurableBudgetWrite(
+            database: database,
+            budgetID: budgetID,
+            generation: generation,
+            month: month
+        )
     }
 }

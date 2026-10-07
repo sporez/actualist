@@ -35,14 +35,14 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore()
         landRemote([remoteMessage("zero_budgets", "202607-groceries", "amount", "N:70000")], on: store)
 
-        let loaded = try await store.moveMoneyAndRefresh(
+        let loaded = try #require(await store.moveMoneyAndRefresh(
             expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries", toCategoryID: "utilities", amount: 10_000
             ),
             budgetID: "group-1",
             month: "2026-07"
-        ) {}
+        ) {})
 
         let categories = Dictionary(
             uniqueKeysWithValues: loaded.month.categoryGroups.flatMap(\.categories).map { ($0.id, $0) }

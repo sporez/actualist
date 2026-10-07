@@ -113,6 +113,8 @@ struct TransactionSplitDraft: Hashable, Sendable, Identifiable {
 struct TransactionMutationResult: Hashable, Sendable {
     let ok: Bool
     let changed: ChangedResources
+    /// The write is durable but its local caches were not fully reloaded.
+    var refreshPending = false
 }
 
 struct ChangedResources: Hashable, Sendable {

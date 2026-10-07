@@ -219,7 +219,7 @@ final class BudgetAssignmentWorkflow {
         selectedMonth: String,
         budgetID: String,
         repository: any BudgetRepositoryProtocol
-    ) async -> LoadedBudgetMonth? {
+    ) async -> BudgetDraftSubmission.Completion? {
         guard let context, context.budgetID == budgetID, context.month == selectedMonth,
               var draft,
               !draft.inputDigits.isEmpty,
@@ -260,7 +260,10 @@ final class BudgetAssignmentWorkflow {
             return nil
         case .loaded(let loadedMonth):
             self.draft = nil
-            return loadedMonth
+            return .loaded(loadedMonth)
+        case .committedRefreshPending:
+            self.draft = nil
+            return .refreshPending
         case .failed(let state):
             draft.submissionState = state
             self.draft = draft
@@ -318,6 +321,11 @@ final class BudgetAssignmentWorkflow {
         case .loaded(let loadedMonth):
             self.draft = nil
             return loadedMonth
+        case .committedRefreshPending:
+            // Template writes finish through the attached tail and always read
+            // their month back; a spent draft is all that can be reported.
+            self.draft = nil
+            return nil
         case .failed(let state):
             draft.submissionState = state
             self.draft = draft

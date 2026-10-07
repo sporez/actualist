@@ -404,12 +404,19 @@ final class BudgetViewModel {
         errorMessage = nil
 
         do {
-            let loadedMonth = try await repository.moveMoneyAndRefresh(expectedMode: modeIdentity,
+            let committedMonth = try await repository.moveMoneyAndRefresh(expectedMode: modeIdentity,
                 commands: commands,
                 budgetID: budgetID,
                 month: selectedMonth
             ) {}
             guard coverGeneration == overspentCoverSelection.currentSubmissionGeneration else { return false }
+            guard let loadedMonth = committedMonth else {
+                // Committed, but the month could not be read back: reload it
+                // rather than reporting a failed cover.
+                _ = overspentCoverSelection.finishSubmission(success: true, expectedGeneration: coverGeneration)
+                await load(budgetID: budgetID, repository: repository)
+                return true
+            }
             guard loadedBudgetID == budgetID,
                   self.selectedMonth == loadedMonth.month.month,
                   loadedMonth.modeIdentity == modeIdentity else {
@@ -587,12 +594,16 @@ final class BudgetViewModel {
         repository: any BudgetRepositoryProtocol
     ) async -> Bool {
         guard let selectedMonth,
-              let loadedMonth = await assignmentWorkflow.submit(
+              let completion = await assignmentWorkflow.submit(
                 selectedMonth: selectedMonth,
                 budgetID: budgetID,
                 repository: repository
               ) else {
             return false
+        }
+        guard case .loaded(let loadedMonth) = completion else {
+            await load(budgetID: budgetID, repository: repository)
+            return true
         }
 
         guard loadedBudgetID == budgetID,
@@ -700,9 +711,17 @@ final class BudgetViewModel {
         repository: any BudgetRepositoryProtocol
     ) async -> Bool {
         guard let selectedMonth,
-              let loadedMonth = await moveMoneyWorkflow.submit(
+              let completion = await moveMoneyWorkflow.submit(
                 selectedMonth: selectedMonth, budgetID: budgetID, repository: repository
-              ), loadedBudgetID == budgetID,
+              ) else {
+            return false
+        }
+        guard case .loaded(let loadedMonth) = completion else {
+            await load(budgetID: budgetID, repository: repository)
+            assignmentWorkflow.resetAfterRelatedWorkflow()
+            return true
+        }
+        guard loadedBudgetID == budgetID,
               loadedMonth.month.month == self.selectedMonth,
               loadedMonth.modeIdentity == modeIdentity else {
             return false

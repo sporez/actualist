@@ -17,14 +17,14 @@ protocol BudgetRepositoryProtocol: Sendable {
         command: BudgetHoldCommand,
         review: BudgetHoldReview,
         budgetID: String
-    ) async throws -> LoadedBudgetMonth
+    ) async throws -> LoadedBudgetMonth?
     func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity?,
         categoryID: String,
         budgeted: Int,
         budgetID: String,
         month: String,
         didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth
+    ) async throws -> LoadedBudgetMonth?
     func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?,
         categoryID: String,
         carryover: Bool,
@@ -138,13 +138,13 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth
+    ) async throws -> LoadedBudgetMonth?
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth
+    ) async throws -> LoadedBudgetMonth?
     // History: local money-flow gesture log and LIFO undo.
     func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity?
     func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord]
@@ -162,7 +162,7 @@ extension BudgetRepositoryProtocol {
         command: BudgetHoldCommand,
         review: BudgetHoldReview,
         budgetID: String
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         throw LocalFirstError.unsupportedWrite
     }
 

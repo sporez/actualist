@@ -84,7 +84,7 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
         return response
     }
 
-    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil, categoryID: String, budgeted: Int, budgetID: String, month: String, didAssign: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth {
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil, categoryID: String, budgeted: Int, budgetID: String, month: String, didAssign: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? {
         if assignmentBlocked {
             assignmentSignals.forEach { $0.resume() }
             assignmentSignals.removeAll()
@@ -102,8 +102,8 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
     func setCategoryHiddenAndRefresh(categoryID: String, hidden: Bool, budgetID: String, month: String, didUpdate: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
     func setCategoryGroupHiddenAndRefresh(groupID: String, hidden: Bool, budgetID: String, month: String, didUpdate: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
     func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil, command: BudgetTemplateCommand, budgetID: String, month: String, didApply: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil, command: BudgetMoveMoneyCommand, budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil, command: BudgetMoveMoneyCommand, budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? { throw ViewportTestError.unsupported }
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? { throw ViewportTestError.unsupported }
     func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] {
         recentActionsReads += 1
         guard let recentActionsHandler else { return [] }

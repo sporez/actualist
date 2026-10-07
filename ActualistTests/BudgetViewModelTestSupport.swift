@@ -219,7 +219,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
 
     func applyBudgetHoldAndRefresh(
         command: BudgetHoldCommand, review: BudgetHoldReview, budgetID: String
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         guard let holdApply else { throw LocalFirstError.unsupportedWrite }
         return try await holdApply(command, review)
     }
@@ -248,7 +248,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         assignments.append(
             RecordedBudgetAssignment(
                 categoryID: categoryID,
@@ -330,7 +330,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         try await moveMoneyAndRefresh(expectedMode: nil,
             commands: [command],
             budgetID: budgetID,
@@ -344,7 +344,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         for command in commands {
             moves.append(
                 RecordedBudgetMove(

@@ -25,6 +25,7 @@ extension LocalFirstActualStore {
         didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let draft = try await database.draftByResolvingSchedule(draft)
         let transactionID = UUID().uuidString
         var builder = LocalFirstSyncMessageBuilder()
@@ -100,9 +101,10 @@ extension LocalFirstActualStore {
         await didCreate()
 
         let uniqueAccounts = Array(Set(changedAccounts))
-        try await finishCommittedTransactionWrite(
+        let tail = await finishDurableTransactionWrite(
             database: database,
             budgetID: budgetID,
+            generation: generation,
             accountIDs: uniqueAccounts
         )
         return TransactionMutationResult(
@@ -111,7 +113,8 @@ extension LocalFirstActualStore {
                 accounts: uniqueAccounts,
                 months: [draft.month.rawValue],
                 transactions: [transactionID]
-            )
+            ),
+            refreshPending: tail.refreshPending
         )
     }
 
@@ -170,6 +173,7 @@ extension LocalFirstActualStore {
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let draft = try await database.draftByResolvingSchedule(
             draft,
             existingTransactionID: transactionID
@@ -260,9 +264,10 @@ extension LocalFirstActualStore {
 
         let changedAccounts = Array(Set(update.affectedAccountIDs + [originalAccountID, draft.accountID]))
         let changedMonths = Array(Set([originalMonth, draft.month.rawValue]))
-        try await finishCommittedTransactionWrite(
+        let tail = await finishDurableTransactionWrite(
             database: database,
             budgetID: budgetID,
+            generation: generation,
             accountIDs: changedAccounts
         )
         return TransactionMutationResult(
@@ -271,7 +276,8 @@ extension LocalFirstActualStore {
                 accounts: changedAccounts,
                 months: changedMonths,
                 transactions: update.affectedTransactionIDs
-            )
+            ),
+            refreshPending: tail.refreshPending
         )
     }
 
@@ -340,6 +346,7 @@ extension LocalFirstActualStore {
         }
 
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         var transactionIDs = Set<String>()
         var accountIDs = Set<String>()
         var monthIDs = Set<String>()
@@ -395,9 +402,10 @@ extension LocalFirstActualStore {
         let changedAccounts = accountIDs.sorted()
         let changedMonths = monthIDs.sorted()
         let changedTransactions = transactionIDs.sorted()
-        try await finishCommittedTransactionWrite(
+        let tail = await finishDurableTransactionWrite(
             database: database,
             budgetID: budgetID,
+            generation: generation,
             accountIDs: changedAccounts
         )
         return TransactionMutationResult(
@@ -406,7 +414,8 @@ extension LocalFirstActualStore {
                 accounts: changedAccounts,
                 months: changedMonths,
                 transactions: changedTransactions
-            )
+            ),
+            refreshPending: tail.refreshPending
         )
     }
 
@@ -469,6 +478,7 @@ extension LocalFirstActualStore {
         }
 
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         let amount = transaction.amount ?? 0
         let payeeName = transaction.payeeName
         let categoryID = transaction.category
@@ -517,9 +527,10 @@ extension LocalFirstActualStore {
         await didDelete()
 
         let changedAccounts = Array(Set(delete.affectedAccountIDs + [transaction.account]))
-        try await finishCommittedTransactionWrite(
+        let tail = await finishDurableTransactionWrite(
             database: database,
             budgetID: budgetID,
+            generation: generation,
             accountIDs: changedAccounts
         )
         return TransactionMutationResult(
@@ -528,7 +539,8 @@ extension LocalFirstActualStore {
                 accounts: changedAccounts,
                 months: [monthID],
                 transactions: delete.affectedTransactionIDs
-            )
+            ),
+            refreshPending: tail.refreshPending
         )
     }
 

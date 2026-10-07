@@ -45,8 +45,8 @@ struct DemoModeStoreTests {
         let loaded = try await store.budgetMonth(budgetID: DemoBudget.groupID, selectedMonth: "2026-08")
         #expect(loaded.isTrackingBudget)
         #expect(loaded.month.trackingSummary != nil)
-        let assigned = try await store.assignCategoryBudgetAndRefresh(expectedMode: loaded.modeIdentity,
-            categoryID: "paycheck", budgeted: 12345, budgetID: DemoBudget.groupID, month: "2026-08") {}
+        let assigned = try #require(await store.assignCategoryBudgetAndRefresh(expectedMode: loaded.modeIdentity,
+            categoryID: "paycheck", budgeted: 12345, budgetID: DemoBudget.groupID, month: "2026-08") {})
         #expect(assigned.month.categoryGroups.flatMap(\.categories).first { $0.id == "paycheck" }?.budgeted == 12345)
         store.closeOpenBudget()
         try await store.openDemoBudget()
@@ -177,18 +177,18 @@ struct DemoModeStoreTests {
         let (store, _) = makeDemoStore(transport: transport)
         try await store.openDemoBudget()
         let review = try await store.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
-        let held = try await store.applyBudgetHoldAndRefresh(
+        let held = try #require(await store.applyBudgetHoldAndRefresh(
             command: .hold(amount: 100), review: review, budgetID: DemoBudget.groupID
-        )
+        ))
         #expect(held.month.forNextMonth == 100)
         #expect(held.month.toBudget == review.toBudget - 100)
         store.closeOpenBudget()
         try await store.openDemoBudget()
         let reopened = try await store.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
         #expect(reopened.heldAmount == 100)
-        let released = try await store.applyBudgetHoldAndRefresh(
+        let released = try #require(await store.applyBudgetHoldAndRefresh(
             command: .reset, review: reopened, budgetID: DemoBudget.groupID
-        )
+        ))
         #expect(released.month.toBudget == review.toBudget)
         #expect(released.month.forNextMonth == 0)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: DemoBudget.groupID) == 0)

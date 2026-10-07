@@ -12,7 +12,16 @@ enum BudgetDraftSubmission {
         /// The budget changed under the draft; the caller invalidates its workflow.
         case invalidated
         case loaded(LoadedBudgetMonth)
+        /// The write committed but its month could not be read back. The draft
+        /// is spent (resubmitting would repeat the write); the caller reloads.
+        case committedRefreshPending
         case failed(BudgetAssignmentSubmissionState)
+    }
+
+    /// What a workflow hands its view model once the write has committed.
+    enum Completion {
+        case loaded(LoadedBudgetMonth)
+        case refreshPending
     }
 
     static func run<Context: Equatable>(
@@ -21,7 +30,7 @@ enum BudgetDraftSubmission {
         currentContext: () -> Context?,
         onCommitted: () -> Void = {},
         markRefetching: @escaping @MainActor @Sendable () -> Void,
-        write: (@escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth
+        write: (@escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth?
     ) async -> Outcome {
         do {
             let loadedMonth = try await write {
@@ -29,6 +38,7 @@ enum BudgetDraftSubmission {
             }
             onCommitted()
             guard currentContext() == context else { return .superseded }
+            guard let loadedMonth else { return .committedRefreshPending }
             guard loadedMonth.modeIdentity == modeIdentity else { return .invalidated }
             return .loaded(loadedMonth)
         } catch {

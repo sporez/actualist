@@ -552,7 +552,7 @@ final class BudgetMoveMoneyWorkflow {
         selectedMonth: String,
         budgetID: String,
         repository: any BudgetRepositoryProtocol
-    ) async -> LoadedBudgetMonth? {
+    ) async -> BudgetDraftSubmission.Completion? {
         guard let context,
               context.budgetID == budgetID,
               context.month == selectedMonth,
@@ -591,7 +591,10 @@ final class BudgetMoveMoneyWorkflow {
             return nil
         case .loaded(let loadedMonth):
             self.draft = nil
-            return loadedMonth
+            return .loaded(loadedMonth)
+        case .committedRefreshPending:
+            self.draft = nil
+            return .refreshPending
         case .failed(let state):
             draft.submissionState = state
             self.draft = draft

@@ -271,7 +271,9 @@ final class BudgetHoldViewModel {
             // The repository already committed. Invalidation only means the sheet
             // no longer owns the result, so callers must still publish it.
             guard request == generation else { return .committedButInvalidated }
-            guard loaded.selectedMonth == target.month, loaded.modeIdentity == target.modeIdentity else {
+            // Committed with the month not yet read back: the caller's
+            // local-data mutation publish refreshes the screen.
+            if let loaded, loaded.selectedMonth != target.month || loaded.modeIdentity != target.modeIdentity {
                 invalidate()
                 return .committedButInvalidated
             }

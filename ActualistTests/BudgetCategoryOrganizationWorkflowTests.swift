@@ -280,14 +280,14 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
     func budgets() async throws -> [ActualBudget] { [] }
     func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
     func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity?, categoryID: String, budgeted: Int, budgetID: String, month: String, didAssign: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity?, categoryID: String, budgeted: Int, budgetID: String, month: String, didAssign: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? { emptyCategoryLifecycleMonth }
     func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?, categoryID: String, carryover: Bool, budgetID: String, startMonth: String, didSetCarryover: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
     func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?, carryover: Bool, budgetID: String, startMonth: String) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
     func setCategoryHiddenAndRefresh(categoryID: String, hidden: Bool, budgetID: String, month: String, didUpdate: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
     func setCategoryGroupHiddenAndRefresh(groupID: String, hidden: Bool, budgetID: String, month: String, didUpdate: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
     func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity?, command: BudgetTemplateCommand, budgetID: String, month: String, didApply: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?, command: BudgetMoveMoneyCommand, budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?, command: BudgetMoveMoneyCommand, budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? { emptyCategoryLifecycleMonth }
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? { emptyCategoryLifecycleMonth }
     func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
     func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
     func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview { .init(actionID: actionID, month: "", entries: [], block: nil) }

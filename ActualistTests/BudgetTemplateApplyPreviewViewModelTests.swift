@@ -643,7 +643,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth
     }
 
@@ -699,7 +699,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth
     }
 
@@ -708,7 +708,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth
     }
 

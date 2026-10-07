@@ -276,9 +276,9 @@ extension LocalFirstActualStoreTests {
                         NULL, NULL, 0, NULL, 0);
             """)
         let review = try await store.budgetHoldReview(budgetID: "group-1", month: "2026-07")
-        let loaded = try await store.applyBudgetHoldAndRefresh(
+        let loaded = try #require(await store.applyBudgetHoldAndRefresh(
             command: .hold(amount: 25_000), review: review, budgetID: "group-1"
-        )
+        ))
         #expect(loaded.month.forNextMonth == 25_000)
         #expect(loaded.month.toBudget == review.toBudget - 25_000)
         await #expect(throws: LocalFirstError.budgetNotOpened) {
@@ -322,7 +322,7 @@ extension LocalFirstActualStoreTests {
         cancelOperation.withLock { cancel in
             cancel = { operation.cancel() }
         }
-        let loaded = try await operation.value
+        let loaded = try #require(await operation.value)
 
         #expect(didCancel.withLock { $0 })
         #expect(loaded.month.forNextMonth == 25_000)

@@ -313,7 +313,7 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth { loaded }
+    ) async throws -> LoadedBudgetMonth? { loaded }
 
     func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
@@ -351,14 +351,14 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth { loaded }
+    ) async throws -> LoadedBudgetMonth? { loaded }
 
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth { loaded }
+    ) async throws -> LoadedBudgetMonth? { loaded }
 
     func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
 

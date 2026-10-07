@@ -13,14 +13,29 @@ struct DurableCommitTailOutcome<Value: Sendable>: Sendable {
 /// The post-commit tail every local write shares: reload the affected caches,
 /// then schedule an outbox flush. The flush is scheduled even when the reload
 /// fails, because the committed messages are already enqueued and must still
-/// reach the server. A failed reload is reported as `refreshPending` (D9a)
-/// instead of turning a durable write into a failed one.
+/// reach the server. A failed or cancelled reload is reported as
+/// `refreshPending` (D9a) instead of turning a durable write into a failed one.
+///
+/// The tail rule (main-to-dev D9): a write that has committed is never reported
+/// as cancelled or failed, whichever tail it uses.
+/// - User-repeatable writes (create, update, delete, categorize, assign, Move
+///   Money, Holds, Wallet import) finish through `finishDurableCommit`, whose
+///   unstructured MainActor task keeps caller cancellation out of the reload
+///   and the post-commit read, so the caller always gets the committed result
+///   (or `refreshPending`) and its draft is spent. Repeating one of these
+///   writes would duplicate it.
+/// - Idempotent last-write-wins writes (notes, hide, rename, payee and rule
+///   edits, carryover, templates) keep the attached tail below. Repeating one
+///   re-sends the same final value, so a cancelled reload only costs a stale
+///   cache, reported as `refreshPending`.
+/// - `ScheduleAdvancement` keeps its own tail: it runs in the background and
+///   has no caller to attach to.
 extension LocalFirstActualStore {
-    /// Tail for writes that return to a still-attached caller.
+    /// Tail for last-write-wins writes that return to a still-attached caller.
     ///
-    /// Reload failures other than cancellation return `true` after invalidating
-    /// the feed caches so the next read repopulates them. Cancellation still
-    /// flushes, then propagates as cancellation.
+    /// Any reload failure, including cancellation, invalidates the feed caches
+    /// so the next read repopulates them, flushes, and returns `true`.
+    /// Cancellation is not rethrown: the write is durable.
     ///
     /// - Returns: `true` when the write committed but the refresh is pending.
     @discardableResult
@@ -31,9 +46,6 @@ extension LocalFirstActualStore {
     ) async throws -> Bool {
         do {
             try await reload()
-        } catch is CancellationError {
-            await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
-            throw CancellationError()
         } catch {
             invalidateTransactionFeedCaches(budgetID: budgetID)
             await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -116,5 +128,56 @@ extension LocalFirstActualStore {
                 return DurableCommitTailOutcome(value: nil, refreshPending: true, sessionCurrent: sessionCurrent)
             }
         }.value
+    }
+
+    /// `finishDurableCommit` for the transaction reload scope, bound to the
+    /// session generation captured when the write began.
+    func finishDurableTransactionWrite(
+        database: BudgetDatabase,
+        budgetID: String,
+        generation: Int,
+        accountIDs: [String]
+    ) async -> DurableCommitTailOutcome<Void> {
+        await finishDurableCommit(
+            database: database,
+            budgetID: budgetID,
+            requireSession: { [self] in
+                try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            },
+            reload: { [self] in
+                try await reloadAfterTransactionMutation(
+                    database: database,
+                    budgetID: budgetID,
+                    accountIDs: accountIDs
+                )
+            }
+        )
+    }
+
+    /// `finishDurableCommit` for the budget reload scope. The reloaded month is
+    /// read inside the durable task so a cancelled caller cannot lose it.
+    ///
+    /// - Returns: The month, or nil when the write committed but the refresh is
+    ///   pending (a failed read or a retired session).
+    func finishDurableBudgetWrite(
+        database: BudgetDatabase,
+        budgetID: String,
+        generation: Int,
+        month: String
+    ) async -> LoadedBudgetMonth? {
+        let requireSession: @MainActor () throws -> Void = { [self] in
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        }
+        let tail: DurableCommitTailOutcome<LoadedBudgetMonth> = await finishDurableCommit(
+            database: database,
+            budgetID: budgetID,
+            requireSession: requireSession,
+            reload: { [self] in
+                try await reloadAfterBudgetMutation(database: database, budgetID: budgetID)
+                try requireSession()
+                return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
+            }
+        )
+        return tail.value
     }
 }

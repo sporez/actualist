@@ -13,7 +13,7 @@ extension LocalFirstActualStore {
         command: BudgetHoldCommand,
         review: BudgetHoldReview,
         budgetID: String
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         guard review.month == review.revision?.month,
@@ -35,14 +35,11 @@ extension LocalFirstActualStore {
             expectedHoldReview: review
         )
 
-        // The write is durable once commit returns. Finish reconciling an
-        // unchanged session even if the submitting UI task was cancelled, so
-        // callers never receive cancellation for a hold that already landed.
-        return try await Task { @MainActor [self] in
-            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
-            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            return try await budgetMonth(budgetID: budgetID, selectedMonth: review.month)
-        }.value
+        return await finishDurableBudgetWrite(
+            database: database,
+            budgetID: budgetID,
+            generation: generation,
+            month: review.month
+        )
     }
 }

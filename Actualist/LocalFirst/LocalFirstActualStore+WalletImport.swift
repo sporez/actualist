@@ -39,6 +39,7 @@ extension LocalFirstActualStore {
         }
 
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
         var seenIDs = try await database.existingImportedIDs(accountID: accountID)
         var importedCount = 0
         var duplicateCount = 0
@@ -161,9 +162,12 @@ extension LocalFirstActualStore {
                 .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         }
 
-        try await finishCommittedTransactionWrite(
+        // A pending refresh invalidates the feed caches; the import itself
+        // is complete and not repeatable, so its summary never reports it.
+        _ = await finishDurableTransactionWrite(
             database: database,
             budgetID: budgetID,
+            generation: generation,
             accountIDs: Array(affectedAccountIDs)
         )
         return WalletTransactionImportResult(

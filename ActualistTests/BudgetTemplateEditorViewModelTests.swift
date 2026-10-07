@@ -624,7 +624,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth
     }
 
@@ -680,7 +680,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth
     }
 
@@ -689,7 +689,7 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth
     }
 

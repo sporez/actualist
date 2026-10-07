@@ -334,7 +334,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         throw TestError("not used")
     }
 
@@ -381,7 +381,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         throw TestError("not used")
     }
 
@@ -390,7 +390,7 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         budgetID: String,
         month: String,
         didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
+    ) async throws -> LoadedBudgetMonth? {
         throw TestError("not used")
     }
 
