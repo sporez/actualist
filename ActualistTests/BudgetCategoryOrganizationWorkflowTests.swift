@@ -37,7 +37,7 @@ struct BudgetCategoryOrganizationWorkflowTests {
         #expect(await repository.createdCategories.isEmpty)
     }
 
-    @Test func inFlightSubmitIsIgnoredAndCancelledGenerationDropsResult() async {
+    @Test func cancelDuringAnInFlightCreateIsRefusedAndTheResultIsPublished() async throws {
         let repository = CategoryLifecycleRecordingRepository(suspendCreates: true)
         let workflow = BudgetCategoryOrganizationWorkflow()
         let first = Task {
@@ -47,10 +47,38 @@ struct BudgetCategoryOrganizationWorkflowTests {
         let second = await workflow.createGroup(name: "Other", selectedMonth: "2026-07", budgetID: "budget", repository: repository)
         #expect(second == nil)
         workflow.cancel()
+        try #require(workflow.isSubmitting)
+        let third = await workflow.createGroup(name: "Third", selectedMonth: "2026-07", budgetID: "budget", repository: repository)
+        #expect(third == nil)
         await repository.finishCreate()
-        #expect(await first.value == nil)
+        #expect(await first.value != nil)
         #expect(!workflow.isSubmitting)
         #expect(await repository.createdGroups == ["Bills"])
+    }
+
+    @Test func cancelDuringAnInFlightRenameIsRefusedAndTheResultIsPublished() async throws {
+        let repository = CategoryLifecycleRecordingRepository(suspendWrites: true)
+        let workflow = BudgetCategoryOrganizationWorkflow()
+        let existing = category("food", "Food", false, "everyday")
+        defer { repository.writeRelease.trip() }
+        let first = Task {
+            await workflow.renameCategory(
+                existing, name: "Groceries", isTrackingBudget: false,
+                selectedMonth: "2026-07", budgetID: "budget", repository: repository
+            )
+        }
+        await repository.writeEntered.wait()
+        workflow.cancel()
+        try #require(workflow.isSubmitting)
+        let second = await workflow.renameCategory(
+            existing, name: "Other", isTrackingBudget: false,
+            selectedMonth: "2026-07", budgetID: "budget", repository: repository
+        )
+        #expect(second == nil)
+        repository.writeRelease.trip()
+        #expect(await first.value != nil)
+        #expect(!workflow.isSubmitting)
+        #expect(await repository.renamedCategories == [.init(id: "food", name: "Groceries")])
     }
 
     @Test func lifecycleControllerUsesHiddenGroupsAndTreatsUnchangedRenameAsSaved() async {
@@ -128,6 +156,9 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
     private let suspendCreates: Bool
     private let suspendTransferChecks: Bool
     private let suspendDeletes: Bool
+    private let suspendWrites: Bool
+    nonisolated let writeEntered = TestLatch()
+    nonisolated let writeRelease = TestLatch()
     private let transferRequiredIDs: Set<String>
     private var createStarted = false
     private var createStartedWaiters: [CheckedContinuation<Void, Never>] = []
@@ -141,11 +172,13 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
         suspendCreates: Bool = false,
         suspendTransferChecks: Bool = false,
         suspendDeletes: Bool = false,
+        suspendWrites: Bool = false,
         transferRequiredIDs: Set<String> = []
     ) {
         self.suspendCreates = suspendCreates
         self.suspendTransferChecks = suspendTransferChecks
         self.suspendDeletes = suspendDeletes
+        self.suspendWrites = suspendWrites
         self.transferRequiredIDs = transferRequiredIDs
     }
 
@@ -197,6 +230,10 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
 
     func renameCategoryAndRefresh(categoryID: String, name: String, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
         renamedCategories.append(.init(id: categoryID, name: name))
+        if suspendWrites {
+            writeEntered.trip()
+            await writeRelease.wait()
+        }
         return emptyCategoryLifecycleMonth
     }
 
@@ -207,6 +244,10 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
 
     func applyCategoryOutlineAndRefresh(draft: BudgetCategoryOutlineCommand, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
         outlines.append(draft)
+        if suspendWrites {
+            writeEntered.trip()
+            await writeRelease.wait()
+        }
         return emptyCategoryLifecycleMonth
     }
 

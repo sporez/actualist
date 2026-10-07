@@ -6,11 +6,11 @@ import Observation
 final class BudgetCategoryOrganizationWorkflow {
     private(set) var isSubmitting = false
     private(set) var errorMessage: String?
-    private var generation = 0
 
+    /// A committed write cannot be cancelled; teardown while submitting is refused
+    /// so the result still reaches the caller and a second write is rejected.
     func cancel() {
-        generation += 1
-        isSubmitting = false
+        guard !isSubmitting else { return }
         errorMessage = nil
     }
 
@@ -105,17 +105,13 @@ final class BudgetCategoryOrganizationWorkflow {
             errorMessage = "No budget is open."
             return nil
         }
-        generation += 1
-        let token = generation
         isSubmitting = true
         errorMessage = nil
         do {
             let loaded = try await work(selectedMonth, budgetID)
-            guard token == generation else { return nil }
             isSubmitting = false
             return loaded
         } catch {
-            guard token == generation else { return nil }
             isSubmitting = false
             errorMessage = error.userFacingMessage
             return nil
