@@ -65,42 +65,10 @@ extension BudgetDatabase {
     }
 
     private static func validatePortableDatabaseContents(_ db: Database) throws {
-        let integrity = try String.fetchAll(db, sql: "PRAGMA integrity_check")
-        guard integrity == ["ok"] else {
+        guard try hasRequiredBudgetSchema(in: db) else {
             throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
         }
-
-        let requiredTables = ["accounts", "transactions", "categories", "category_groups"]
-        for table in requiredTables {
-            guard try Row.fetchOne(
-                db,
-                sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-                arguments: [table]
-            ) != nil else {
-                throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
-            }
-        }
-
-        let accounts = try columnNames(for: "accounts", db: db)
-        let transactions = try columnNames(for: "transactions", db: db)
-        let categories = try columnNames(for: "categories", db: db)
-        let categoryGroups = try columnNames(for: "category_groups", db: db)
-        guard accounts.isSuperset(of: ["id", "name"]),
-              transactions.isSuperset(of: ["id", "date", "amount"]),
-              transactions.contains("acct") || transactions.contains("account"),
-              categories.isSuperset(of: ["id", "name"]),
-              categoryGroups.isSuperset(of: ["id", "name"]) else {
-            throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
-        }
-
         try PortableBudgetSchema.rejectUnknownMigrations(in: db)
-    }
-
-    private static func columnNames(for table: String, db: Database) throws -> Set<String> {
-        Set(
-            try Row.fetchAll(db, sql: "PRAGMA table_info(\(table))")
-                .compactMap { $0["name"] as String? }
-        )
     }
 
     private func removeSnapshotSidecars(of databaseURL: URL, fileManager: FileManager) {
