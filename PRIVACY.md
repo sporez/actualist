@@ -21,6 +21,15 @@ a service you configure, or an Apple-provided system picker. The developer does
 not receive that data. App extensions use limited on-device data without server
 credentials, and notifications are generated locally.
 
+## Exports
+
+CSV and budget ZIP exports leave the app only through the iOS share sheet, to
+the destination you pick. A budget ZIP is not encrypted, even for an encrypted
+budget: anyone who has the file can read your budget, so share it only with
+places you trust. Before you share it, the ZIP is kept in the app's temporary
+storage and removed when you replace it, switch budgets, or leave the export.
+Importing a ZIP reads only the file you choose.
+
 ## Services You Choose
 
 Your server and any identity, financial-data, hosting, or other service you

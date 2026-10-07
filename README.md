@@ -41,14 +41,26 @@ and iOS Liquid Glass controls.
   Hold / Release for Next Month are available for envelope budgets.
 - Searchable transaction feeds with All, Uncategorized, Uncleared, Cleared,
   and Reconciled status filters, plus create, edit, delete, categorize,
-  split, transfer, and eligible undo actions.
-- Accounts with on-budget, off-budget, and closed balances, plus notes. Add
-  and reconcile accounts. Manage groups when your Actual server supports them.
+  split, transfer, and eligible undo actions. Select several transactions to
+  clear, categorize, or delete them together, duplicate them, or merge
+  them. Save a filter and reuse it later.
+- CSV import into an account with a review before anything is saved, and CSV
+  export of the transactions you are viewing.
+- Schedules under Settings: create, edit, and post them, and turn a
+  transaction into a schedule.
+- Accounts with on-budget, off-budget, and closed balances, plus notes. Add,
+  rename, close, reopen, and reconcile accounts, and delete empty ones. Manage
+  groups when your Actual server supports them.
 - iPad sidebar, category details, and up to five budget months side by side.
   Compact layouts can use Swipe Between Months for full-width transitions.
-- History in the Budget ⋯ menu shows the last 25 changes on this device, with
-  review and undo for the most recent eligible budget or transaction change.
-- Reports for net worth, cash flow, spending, and budget comparisons.
+- History in the Budget ⋯ menu shows up to the last 25 money-flow changes on
+  this device (assignments, moves, templates, and transaction changes), with
+  review and undo for the most recent eligible one. Note and cleared-flag edits
+  appear alongside them without using up a slot.
+- Reports for net worth, cash flow, spending, and budget comparisons, plus a
+  Report Explorer with filters and transaction drilldown.
+- When your server has no budgets, create a new one or import a budget ZIP as a
+  new budget. Export the open budget as a ZIP under Settings → Budget & Data.
 - One-tap SimpleFIN Bank Sync, plus selected Apple Wallet imports with review before save.
 - Payee and rule management under Settings → Budget & Data.
 - Widgets for balances, budget overview, recent activity, net worth, and quick
@@ -132,8 +144,9 @@ results, and any skipped or blocked accounts shown on the Bank Sync page.
 - Bank Sync can download SimpleFIN transactions from your Actual server or a
   device token. Other bank providers still arrive only after another Actual
   client or the server imports them.
-- You can add and reconcile accounts. Renaming, closing, reopening, and
-  deleting accounts are not yet supported.
+- You can delete an account only while it has no transactions. Actual's
+  forced delete, which removes an account together with its transactions,
+  is not supported.
 - Imported split rules run but cannot be edited here. Formula actions, some date
   and recurrence options, and rules managed by schedules also remain read-only.
 - Template definitions written in a category note stay view-only. Unsupported
