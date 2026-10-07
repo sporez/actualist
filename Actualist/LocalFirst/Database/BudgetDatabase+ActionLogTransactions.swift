@@ -260,6 +260,31 @@ extension BudgetDatabase {
         return live
     }
 
+    /// The subset of `required` accounts and categories that exist and are not
+    /// tombstoned. A closed account is still live: upstream keeps transactions in it.
+    func liveRestoredReferences(
+        _ required: BudgetActionUndo.RestoredReferences,
+        db: Database
+    ) throws -> BudgetActionUndo.RestoredReferences {
+        var live = BudgetActionUndo.RestoredReferences()
+        // A budget without the table cannot name a deleted row, so nothing is missing.
+        if try tableExists("accounts", db: db) {
+            for id in required.accountIDs {
+                if try liveRowExists(table: "accounts", rowID: id, db: db) { live.accountIDs.insert(id) }
+            }
+        } else {
+            live.accountIDs = required.accountIDs
+        }
+        if try tableExists("categories", db: db) {
+            for id in required.categoryIDs {
+                if try liveRowExists(table: "categories", rowID: id, db: db) { live.categoryIDs.insert(id) }
+            }
+        } else {
+            live.categoryIDs = required.categoryIDs
+        }
+        return live
+    }
+
     func liveRuleActionsForUndo(
         learning: BudgetActionLearningSideEffect,
         db: Database

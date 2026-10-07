@@ -544,7 +544,11 @@ extension BudgetDatabase {
             currentModeIdentity: try budgetModeIdentity(db: db),
             liveTransactions: liveTransactions,
             liveTransactionBatchSnapshots: liveBatchSnapshots,
-            liveRuleActions: liveRules
+            liveRuleActions: liveRules,
+            liveReferences: try liveRestoredReferences(
+                BudgetActionUndo.restoredReferences(inverse: record.inverse, liveTransactions: liveTransactions),
+                db: db
+            )
         )
     }
 

@@ -34,6 +34,9 @@ enum BudgetActionUndoBlock: Equatable, Sendable {
     case budgetModeChanged
     /// Phase 4 metadata is visible in History but v1 LIFO undo is money-flow only.
     case notOfferedFromHistory
+    /// Restoring would put a transaction into an account or category that was
+    /// deleted since. A closed account that still exists is allowed.
+    case referencedRowMissing
 
     /// Shared copy for undo refusals surfaced through `LocalFirstError`
     /// (store-thrown) and the History review sheet.
@@ -67,6 +70,8 @@ enum BudgetActionUndoBlock: Equatable, Sendable {
             "This budget changed after the action. Budget Undo is unavailable for this older action."
         case .notOfferedFromHistory:
             "This change isn't undone from History."
+        case .referencedRowMissing:
+            "An account or category from this action was deleted. Undo would restore transactions into it, so it was refused."
         }
     }
 }
@@ -161,7 +166,8 @@ enum BudgetActionUndo {
         currentModeIdentity: BudgetModeIdentity? = nil,
         liveTransactions: [String: TransactionUndoSnapshot?] = [:],
         liveTransactionBatchSnapshots: [String: TransactionBatchTransactionSnapshot?] = [:],
-        liveRuleActions: [String: String?] = [:]
+        liveRuleActions: [String: String?] = [:],
+        liveReferences: RestoredReferences? = nil
     ) -> BudgetActionUndoEvaluation {
         guard record.status == .applied else {
             return .blocked(.alreadyUndone)
@@ -247,6 +253,9 @@ enum BudgetActionUndo {
             if let block = deleteGraphBlock(delete, live: liveTransactions) {
                 return .blocked(block)
             }
+            if referencesMissing(record.inverse, liveTransactions: liveTransactions, live: liveReferences) {
+                return .blocked(.referencedRowMissing)
+            }
             return .clean(.unTombstoneTransactions(transactionIDs: delete.transactionIDs))
 
         case .editTransaction(let edit):
@@ -313,6 +322,9 @@ enum BudgetActionUndo {
                     return .blocked(.batchChanged)
                 }
             }
+            if referencesMissing(record.inverse, liveTransactions: liveTransactions, live: liveReferences) {
+                return .blocked(.referencedRowMissing)
+            }
             return .clean(.restoreBatchTransactions(
                 snapshots: batch.beforeSnapshots,
                 learning: batch.learning
@@ -346,11 +358,61 @@ enum BudgetActionUndo {
                     return .blocked(.transactionCommandChanged)
                 }
             }
+            if referencesMissing(record.inverse, liveTransactions: liveTransactions, live: liveReferences) {
+                return .blocked(.referencedRowMissing)
+            }
             return .clean(.restoreMergedTransactions(snapshots: merge.beforeSnapshots))
 
         case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             return .blocked(.notOfferedFromHistory)
         }
+    }
+
+    /// Accounts and non-null categories that a delete, batch or merge undo would
+    /// restore rows into. Delete reads the current (tombstoned) rows, so both
+    /// transfer legs and split children are included. Other inverses restore none.
+    struct RestoredReferences: Equatable, Sendable {
+        var accountIDs: Set<String> = []
+        var categoryIDs: Set<String> = []
+    }
+
+    static func restoredReferences(
+        inverse: BudgetActionInverse,
+        liveTransactions: [String: TransactionUndoSnapshot?]
+    ) -> RestoredReferences {
+        var references = RestoredReferences()
+        func add(accountID: String?, categoryID: String?) {
+            if let accountID { references.accountIDs.insert(accountID) }
+            if let categoryID { references.categoryIDs.insert(categoryID) }
+        }
+        switch inverse {
+        case .deleteTransaction:
+            for snapshot in liveTransactions.values.compactMap({ $0 }) {
+                add(accountID: snapshot.accountID, categoryID: snapshot.categoryID)
+            }
+        case .transactionBatch(let batch):
+            for snapshot in batch.beforeSnapshots { add(accountID: snapshot.accountID, categoryID: snapshot.categoryID) }
+        case .transactionMerge(let merge):
+            for snapshot in merge.beforeSnapshots { add(accountID: snapshot.accountID, categoryID: snapshot.categoryID) }
+        case .assign, .move, .template, .createTransaction, .editTransaction, .categorize,
+                .transactionDuplicate, .payee, .rule, .account, .carryover, .learningPref,
+                .transactionMetadata:
+            break
+        }
+        return references
+    }
+
+    /// `live` is the subset of `restoredReferences` that still exists; nil means
+    /// the caller did not check.
+    private static func referencesMissing(
+        _ inverse: BudgetActionInverse,
+        liveTransactions: [String: TransactionUndoSnapshot?],
+        live: RestoredReferences?
+    ) -> Bool {
+        guard let live else { return false }
+        let required = restoredReferences(inverse: inverse, liveTransactions: liveTransactions)
+        return !required.accountIDs.isSubset(of: live.accountIDs)
+            || !required.categoryIDs.isSubset(of: live.categoryIDs)
     }
 
     private static func learningBlock(
