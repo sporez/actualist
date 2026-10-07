@@ -94,6 +94,10 @@ enum BankSyncReview {
         /// Unique token captured before this download starts. A stale
         /// plan (a newer download happened since) is refused at apply time.
         let generation: UUID
+
+        /// The matched rows (and cascade children) as the review saw them.
+        /// Apply refuses the plan when any of them changed since (5.2c).
+        var reviewedRows: [BankSyncReconciliation.Existing] = []
     }
 
     struct ApplyResult: Equatable, Sendable {

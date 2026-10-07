@@ -55,3 +55,34 @@ extension BudgetDatabase {
         }
     }
 }
+
+extension BudgetDatabase {
+    /// Concurrency 5.2c (audit CA-12): the matched rows an import will update,
+    /// exactly as the review saw them. The commit transaction re-reads them, so
+    /// an edit (local or synced) made after the review is not overwritten.
+    struct MatchedRowsUnchanged: Sendable {
+        let accountID: String
+        let reviewed: [BankSyncReconciliation.Existing]
+    }
+
+    func validateMatchedRowsUnchanged(_ expected: MatchedRowsUnchanged?, db: Database) throws {
+        guard let expected, !expected.reviewed.isEmpty else { return }
+        let ids = expected.reviewed.map(\.id)
+        var current: [String: BankSyncReconciliation.Existing] = [:]
+        for start in stride(from: 0, to: ids.count, by: 500) {
+            let chunk = Array(ids[start..<min(start + 500, ids.count)])
+            for row in try bankSyncExistingRows(
+                in: db,
+                accountID: expected.accountID,
+                window: 0...99_999_999,
+                idChunk: chunk,
+                importedIDChunk: []
+            ) {
+                current[row.id] = row
+            }
+        }
+        for reviewed in expected.reviewed where current[reviewed.id] != reviewed {
+            throw LocalFirstError.importedTransactionConflict
+        }
+    }
+}

@@ -413,6 +413,7 @@ extension LocalFirstActualStore {
             if case .update(let update) = entry { return update }
             return nil
         }
+        let reviewedIDs = Set(updates.flatMap { [$0.existingID] + $0.childIDs })
         let matchDetails = BankSyncMatchReview.details(
             updates: updates,
             existing: existing,
@@ -441,7 +442,8 @@ extension LocalFirstActualStore {
             problems: prepared.problems,
             openingBalance: openingBalance,
             balanceDisposition: balanceDisposition,
-            generation: generation
+            generation: generation,
+            reviewedRows: existing.filter { reviewedIDs.contains($0.id) }
         )
     }
 

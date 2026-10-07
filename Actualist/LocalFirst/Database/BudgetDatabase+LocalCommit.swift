@@ -29,7 +29,8 @@ extension BudgetDatabase {
         expectedTemplateReviewRevision: BudgetTemplateReviewRevision? = nil,
         expectedHoldReview: BudgetHoldReview? = nil,
         pendingNewTransactions: PendingNewTransactionCommit? = nil,
-        expectedAbsentImportedIDs: ImportedIDAbsence? = nil
+        expectedAbsentImportedIDs: ImportedIDAbsence? = nil,
+        expectedMatchedRows: MatchedRowsUnchanged? = nil
     ) throws -> Int {
         let review = LocalCommitReview(
             mode: expectedMode,
@@ -37,7 +38,8 @@ extension BudgetDatabase {
             reconciledMutation: reconciledMutationPrecondition,
             templateRevision: expectedTemplateReviewRevision,
             hold: expectedHoldReview,
-            absentImportedIDs: expectedAbsentImportedIDs
+            absentImportedIDs: expectedAbsentImportedIDs,
+            matchedRows: expectedMatchedRows
         )
         guard !drafts.isEmpty else {
             try queue.read { db in
@@ -142,6 +144,7 @@ extension BudgetDatabase {
         let templateRevision: BudgetTemplateReviewRevision?
         let hold: BudgetHoldReview?
         let absentImportedIDs: ImportedIDAbsence?
+        var matchedRows: MatchedRowsUnchanged?
     }
 
     func validateLocalCommit(
@@ -158,6 +161,7 @@ extension BudgetDatabase {
         )
         try validateReconciledMutationPrecondition(review.reconciledMutation, db: db)
         try validateImportedIDsAbsent(review.absentImportedIDs, db: db)
+        try validateMatchedRowsUnchanged(review.matchedRows, db: db)
     }
 
     struct CommittedDraftsResult: Sendable {

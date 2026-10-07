@@ -90,7 +90,9 @@ struct BankSyncApplyReadTests {
         try await updateDatabase.startStatementTraceForTesting(updateLog)
         _ = try await withUpdate.store.applyBankSyncPlan(updatePlan, budgetID: "group-1")
         try await updateDatabase.stopStatementTraceForTesting()
-        #expect(updateLog.count(containing: Self.existingRowsMarker, "t.id IN (") == 1)
-        #expect(updateLog.count(containing: Self.existingRowsMarker) == 1)
+        // One filtered read to build the writes, plus the in-transaction
+        // precondition re-reading the same matched rows (concurrency 5.2c).
+        #expect(updateLog.count(containing: Self.existingRowsMarker, "t.id IN (") == 2)
+        #expect(updateLog.count(containing: Self.existingRowsMarker) == 2)
     }
 }

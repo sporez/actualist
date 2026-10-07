@@ -6,14 +6,16 @@ extension BudgetDatabase {
         _ messages: [ActualSyncDecodedMessage],
         expectedLink: BankSyncLinkIdentity,
         pendingNewTransactions: PendingNewTransactionCommit? = nil,
-        expectedAbsentImportedIDs: ImportedIDAbsence? = nil
+        expectedAbsentImportedIDs: ImportedIDAbsence? = nil,
+        expectedMatchedRows: MatchedRowsUnchanged? = nil
     ) throws -> Int {
         try Task.checkCancellation()
         return try commitLocalSyncMessagesAndEnqueue(
             messages,
             expectedBankLink: expectedLink,
             pendingNewTransactions: pendingNewTransactions,
-            expectedAbsentImportedIDs: expectedAbsentImportedIDs
+            expectedAbsentImportedIDs: expectedAbsentImportedIDs,
+            expectedMatchedRows: expectedMatchedRows
         )
     }
 
@@ -264,76 +266,89 @@ extension BudgetDatabase {
         importedIDChunk: [String]
     ) throws -> [BankSyncReconciliation.Existing] {
         try queue.read { db in
-            guard try tableExists("transactions", db: db) else { return [] }
-            let columns = try columnSet(for: "transactions", db: db)
-            let split = transactionSplitQueryExpressions(columns: columns)
-            let financialIDColumn = ["financial_id", "imported_id"].first { columns.contains($0) }
-            let importedPayeeColumn = ["imported_description", "imported_payee"].first { columns.contains($0) }
-            let transferIDColumn = ["transferred_id", "transfer_id"].first { columns.contains($0) }
-            let financialIDSelect = financialIDColumn.map { "t.\($0)" } ?? "NULL"
-            let importedPayeeSelect = importedPayeeColumn.map { "t.\($0)" } ?? "NULL"
-            let transferIDSelect = transferIDColumn.map { "t.\($0)" } ?? "NULL"
+            try bankSyncExistingRows(
+                in: db, accountID: accountID, window: window,
+                idChunk: idChunk, importedIDChunk: importedIDChunk
+            )
+        }
+    }
 
-            let importedIDScope = financialIDColumn.flatMap { column -> String? in
-                importedIDChunk.isEmpty
-                    ? nil
-                    : "t.\(column) IN (\(Array(repeating: "?", count: importedIDChunk.count).joined(separator: ",")))"
+    func bankSyncExistingRows(
+        in db: Database,
+        accountID: String,
+        window: ClosedRange<Int>,
+        idChunk: [String]?,
+        importedIDChunk: [String]
+    ) throws -> [BankSyncReconciliation.Existing] {
+        guard try tableExists("transactions", db: db) else { return [] }
+        let columns = try columnSet(for: "transactions", db: db)
+        let split = transactionSplitQueryExpressions(columns: columns)
+        let financialIDColumn = ["financial_id", "imported_id"].first { columns.contains($0) }
+        let importedPayeeColumn = ["imported_description", "imported_payee"].first { columns.contains($0) }
+        let transferIDColumn = ["transferred_id", "transfer_id"].first { columns.contains($0) }
+        let financialIDSelect = financialIDColumn.map { "t.\($0)" } ?? "NULL"
+        let importedPayeeSelect = importedPayeeColumn.map { "t.\($0)" } ?? "NULL"
+        let transferIDSelect = transferIDColumn.map { "t.\($0)" } ?? "NULL"
+
+        let importedIDScope = financialIDColumn.flatMap { column -> String? in
+            importedIDChunk.isEmpty
+                ? nil
+                : "t.\(column) IN (\(Array(repeating: "?", count: importedIDChunk.count).joined(separator: ",")))"
+        }
+        let dateScope = importedIDScope.map {
+            "(\(split.qualifiedDate) BETWEEN ? AND ? OR \($0))"
+        } ?? "\(split.qualifiedDate) BETWEEN ? AND ?"
+        let sql = """
+            SELECT t.id AS id,
+                   \(financialIDSelect) AS financial_id,
+                   \(split.qualifiedDate) AS date,
+                   \(split.qualifiedAmount) AS amount,
+                   \(split.qualifiedPayee) AS payee,
+                   \(split.qualifiedCategory) AS category,
+                   \(split.qualifiedNotes) AS notes,
+                   \(split.qualifiedCleared) AS cleared,
+                   \(split.qualifiedReconciled) AS reconciled,
+                   \(importedPayeeSelect) AS imported_payee,
+                   \(split.qualifiedIsParent) AS is_parent,
+                   \(split.qualifiedIsChild) AS is_child,
+                   \(split.effectiveParentID) AS parent_id,
+                   \(transferIDSelect) AS transfer_id
+            FROM transactions t
+            \(split.parentJoin())
+            WHERE \(split.qualifiedAccount) = ?
+              AND \(dateScope)
+              AND \(split.liveEffectivePredicate())
+              \(idChunk.map { "AND t.id IN (\(Array(repeating: "?", count: $0.count).joined(separator: ",")))" } ?? "")
+            """
+        return try Row.fetchAll(
+            db,
+            sql: sql,
+            arguments: StatementArguments([accountID, window.lowerBound, window.upperBound] as [any DatabaseValueConvertible])
+                + StatementArguments(importedIDScope == nil ? [] : importedIDChunk)
+                + StatementArguments(idChunk ?? [])
+        ).compactMap { row in
+            guard let id: String = row["id"],
+                  let day: Int = row["date"] else {
+                return nil
             }
-            let dateScope = importedIDScope.map {
-                "(\(split.qualifiedDate) BETWEEN ? AND ? OR \($0))"
-            } ?? "\(split.qualifiedDate) BETWEEN ? AND ?"
-            let sql = """
-                SELECT t.id AS id,
-                       \(financialIDSelect) AS financial_id,
-                       \(split.qualifiedDate) AS date,
-                       \(split.qualifiedAmount) AS amount,
-                       \(split.qualifiedPayee) AS payee,
-                       \(split.qualifiedCategory) AS category,
-                       \(split.qualifiedNotes) AS notes,
-                       \(split.qualifiedCleared) AS cleared,
-                       \(split.qualifiedReconciled) AS reconciled,
-                       \(importedPayeeSelect) AS imported_payee,
-                       \(split.qualifiedIsParent) AS is_parent,
-                       \(split.qualifiedIsChild) AS is_child,
-                       \(split.effectiveParentID) AS parent_id,
-                       \(transferIDSelect) AS transfer_id
-                FROM transactions t
-                \(split.parentJoin())
-                WHERE \(split.qualifiedAccount) = ?
-                  AND \(dateScope)
-                  AND \(split.liveEffectivePredicate())
-                  \(idChunk.map { "AND t.id IN (\(Array(repeating: "?", count: $0.count).joined(separator: ",")))" } ?? "")
-                """
-            return try Row.fetchAll(
-                db,
-                sql: sql,
-                arguments: StatementArguments([accountID, window.lowerBound, window.upperBound] as [any DatabaseValueConvertible])
-                    + StatementArguments(importedIDScope == nil ? [] : importedIDChunk)
-                    + StatementArguments(idChunk ?? [])
-            ).compactMap { row in
-                guard let id: String = row["id"],
-                      let day: Int = row["date"] else {
-                    return nil
-                }
-                let isParent = (row["is_parent"] as Int? ?? 0) != 0
-                let isChild = (row["is_child"] as Int? ?? 0) != 0
-                return BankSyncReconciliation.Existing(
-                    id: id,
-                    financialID: row["financial_id"],
-                    dayID: String(day),
-                    amountMinorUnits: row["amount"] as Int? ?? 0,
-                    payeeID: row["payee"],
-                    categoryID: isParent ? nil : row["category"],
-                    notes: row["notes"],
-                    cleared: (row["cleared"] as Int? ?? 0) != 0,
-                    reconciled: (row["reconciled"] as Int? ?? 0) != 0,
-                    importedPayee: row["imported_payee"],
-                    isParent: isParent,
-                    isChild: isChild,
-                    parentID: isChild ? row["parent_id"] : nil,
-                    transferID: (row["transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
-                )
-            }
+            let isParent = (row["is_parent"] as Int? ?? 0) != 0
+            let isChild = (row["is_child"] as Int? ?? 0) != 0
+            return BankSyncReconciliation.Existing(
+                id: id,
+                financialID: row["financial_id"],
+                dayID: String(day),
+                amountMinorUnits: row["amount"] as Int? ?? 0,
+                payeeID: row["payee"],
+                categoryID: isParent ? nil : row["category"],
+                notes: row["notes"],
+                cleared: (row["cleared"] as Int? ?? 0) != 0,
+                reconciled: (row["reconciled"] as Int? ?? 0) != 0,
+                importedPayee: row["imported_payee"],
+                isParent: isParent,
+                isChild: isChild,
+                parentID: isChild ? row["parent_id"] : nil,
+                transferID: (row["transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
+            )
         }
     }
 

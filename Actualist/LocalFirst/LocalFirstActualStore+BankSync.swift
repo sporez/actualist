@@ -364,6 +364,10 @@ extension LocalFirstActualStore {
                 expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence(
                     accountID: plan.link.accountID,
                     importedIDs: plan.inserts.compactMap(\.financialID)
+                ),
+                expectedMatchedRows: BudgetDatabase.MatchedRowsUnchanged(
+                    accountID: plan.link.accountID,
+                    reviewed: plan.reviewedRows
                 )
             )
         } catch LocalFirstError.importedTransactionConflict {
