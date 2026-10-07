@@ -27,18 +27,30 @@ struct UpgradeOpenTimingTests {
         let clock = ContinuousClock()
         let nodeID = "0123456789abcdef"
 
-        var firstDatabase: BudgetDatabase?
-        let first = try clock.measure {
-            firstDatabase = try BudgetDatabase(databaseURL: copy, localNodeID: nodeID)
+        // The open runs off the main actor (4.2). A main-actor heartbeat records the
+        // longest time the main thread was unavailable while it ran.
+        let heartbeat = Task { @MainActor () -> Duration in
+            var longest = Duration.zero
+            while !Task.isCancelled {
+                let tick = clock.now
+                try? await Task.sleep(for: .milliseconds(5))
+                longest = max(longest, clock.now - tick - .milliseconds(5))
+            }
+            return longest
         }
+        let openStart = clock.now
+        let firstDatabase = try await BudgetDatabase.open(databaseURL: copy, localNodeID: nodeID)
+        let first = clock.now - openStart
+        heartbeat.cancel()
+        let mainBlocked = await heartbeat.value
         // The merkle rebuild now runs on the database actor at first use, not at open.
         let rebuildStart = clock.now
-        try await #require(firstDatabase).ensureMerkleTrieTrusted()
+        try await firstDatabase.ensureMerkleTrieTrusted()
         let firstUseRebuild = clock.now - rebuildStart
         let second = try clock.measure {
             _ = try BudgetDatabase(databaseURL: copy, localNodeID: nodeID)
         }
-        let line = "UPGRADE-TIMING messages_crdt=\(rowCount) firstOpen=\(first) firstUseRebuild=\(firstUseRebuild) secondOpen=\(second)"
+        let line = "UPGRADE-TIMING messages_crdt=\(rowCount) firstOpen(offMain)=\(first) longestMainGap=\(mainBlocked) firstUseRebuild=\(firstUseRebuild) secondOpen=\(second)"
         print(line)
         // The runner's stdout is not surfaced by the wrapper's log; leave the result beside the source.
         let report = URL(fileURLWithPath: source).deletingLastPathComponent().appendingPathComponent("timing.txt")
