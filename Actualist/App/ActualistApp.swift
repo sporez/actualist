@@ -185,6 +185,11 @@ private struct AppSwitcherPrivacyCover: View {
 /// Completes a `BGAppRefreshTask` from an unstructured task. The system owns
 /// the task object and delivers it on the registration queue; we only call
 /// `setTaskCompleted` once after the main-actor refresh finishes.
+///
+/// Invariant: the wrapped task is touched only by `complete(success:)`, which
+/// the single unstructured task in `handle(_:)` calls exactly once, after
+/// `refresh` has finished or been cancelled by the expiration handler. The
+/// struct is never stored or shared, so there is no concurrent access.
 private struct BackgroundRefreshTaskCompletion: @unchecked Sendable {
     let task: BGAppRefreshTask
 
@@ -345,7 +350,8 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let budgetID = response.notification.request.content.userInfo["budgetID"] as? String
-        // The system block is invoked exactly once, from the main actor; the
+        // Invariant: the system block is invoked exactly once, from the main
+        // actor, after routing finishes, and is not used anywhere else; the
         // unsafe binding only suspends the Sendable check across that hop.
         nonisolated(unsafe) let completion = completionHandler
         Task { @MainActor in

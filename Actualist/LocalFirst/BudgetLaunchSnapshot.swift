@@ -127,6 +127,11 @@ struct BudgetLaunchRevisionRecord: Codable, Equatable, Sendable {
 
 /// One immutable per-budget handle. All revision and snapshot operations share
 /// the manager-owned lock, making compare-and-write atomic with revision bumps.
+///
+/// Invariant: every stored property is an immutable `let` (strings, URLs, and
+/// the lock-protected `access` object), and all file operations go through
+/// `access`, which serializes them. Plan item 7.3 is expected to drop the
+/// `@unchecked` here.
 struct BudgetLaunchSnapshotFiles: @unchecked Sendable {
     let localFileID: String
     let revisionURL: URL
@@ -173,6 +178,11 @@ struct BudgetLaunchSnapshotFiles: @unchecked Sendable {
 /// Filesystem implementation shared by every handle created by one
 /// `BudgetFileManager`. The synchronous API is deliberate: `BudgetDatabase`
 /// calls `advanceRevision` immediately before a SQLite mutation may commit.
+///
+/// Invariant: the only stored properties are the immutable `lock` and
+/// `fileManager`; every public operation runs inside `withLock`, and the
+/// private helpers that touch `fileManager` are reachable only from those
+/// locked closures, so file access is serialized by `lock`.
 final class BudgetLaunchSnapshotFileAccess: @unchecked Sendable {
     private let lock = NSLock()
     private let fileManager: FileManager

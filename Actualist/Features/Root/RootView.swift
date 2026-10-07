@@ -203,6 +203,9 @@ struct RootView: View {
         }
         guard launchPlaceholderRevealTask == nil else { return }
         launchPlaceholderRevealTask = Task {
+            // Invariant: a cancelled sleep returns early, and the
+            // `Task.isCancelled` guard below then skips the reveal, so the
+            // swallowed cancellation cannot show a stale placeholder.
             try? await Task.sleep(for: launchPlaceholderRevealDelay)
             guard !Task.isCancelled else { return }
             isLaunchPlaceholderRevealed = true

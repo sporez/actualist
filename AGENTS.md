@@ -17,7 +17,9 @@ Glass-aware, and optimized for repeated budget review.
 - Development pipeline: `docs/DEVELOPMENT.md`.
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change, or
   reuse an applicable result when its relevant inputs are unchanged. It covers
-  whitespace, Liquid Glass, TestFlight notes, synchronized-group integrity,
+  whitespace, Liquid Glass, concurrency escape hatches (`@unchecked Sendable`,
+  `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
+  `// Invariant:` comment), TestFlight notes, synchronized-group integrity,
   file-size signals, and available `reference/` document links. It does not
   replace tests.
 - Architecture guidance: `.agents/skills/actualist-architecture/SKILL.md`.

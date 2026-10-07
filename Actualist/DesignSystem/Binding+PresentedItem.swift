@@ -27,6 +27,10 @@ extension Binding {
 /// SwiftUI `Binding` get/set run on the view that created them. This handle
 /// exists only so those closures can be stored in `Binding.init(get:set:)`,
 /// which is `@Sendable`. The handle is not shared across isolation domains.
+///
+/// Invariant: the handle is created by a view-body call on the main actor and
+/// its closures are only invoked by SwiftUI's `confirmationDialog` machinery
+/// on the main actor, so the captured `Binding` is never touched concurrently.
 private struct BindingHandle<Value>: @unchecked Sendable {
     let get: () -> Value
     let set: (Value) -> Void

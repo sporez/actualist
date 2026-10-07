@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Mechanical pre-handoff gate. Cheap on purpose: whitespace, Liquid Glass,
-# TestFlight notes, pbxproj membership, file-size signals, and reference-doc
+# concurrency escape hatches, TestFlight notes, pbxproj membership, file-size signals, and reference-doc
 # link integrity. Does not build, test, or archive.
 set -euo pipefail
 
@@ -32,6 +32,9 @@ fi
 
 section "Liquid Glass"
 "$ROOT/scripts/lint-liquid-glass.sh" || status=1
+
+section "Concurrency escape hatches"
+"$ROOT/scripts/lint-concurrency-escape-hatches.sh" || status=1
 
 section "TestFlight notes"
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then

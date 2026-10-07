@@ -60,6 +60,7 @@ Local.xcconfig
 .release/
 scripts/*
 !scripts/check.sh
+!scripts/lint-concurrency-escape-hatches.sh
 !scripts/lint-liquid-glass.sh
 !scripts/lint-reference-links.sh
 !scripts/lint-testflight-notes.sh
