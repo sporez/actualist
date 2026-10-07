@@ -208,6 +208,9 @@ final class AppSessionRecovery {
     @ObservationIgnored let transitions = BudgetSessionTransitionCoordinator()
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var discoveryTask: Task<BudgetDiscovery, Error>?
+    /// Callers currently awaiting `discoveryTask`. The shared task is cancelled
+    /// when the last one is cancelled, not when only one of several joiners is.
+    @ObservationIgnored private var discoveryCallers: Set<UUID> = []
 
     var identity: Int { generation }
     func isCurrent(_ identity: Int) -> Bool { identity == generation }
@@ -329,13 +332,65 @@ final class AppSessionRecovery {
             return .opened(credentialError)
         } catch {
             guard identity == generation, !Task.isCancelled, !error.isCancellation else { return .superseded }
-            if canRestorePreviousBudget, let previousBudget {
-                store.closeOpenBudget()
-                let restored = (try? await store.openCachedBudget(
-                    previousBudget, expectedGeneration: store.budgetSessionGeneration
-                )) == true
-                guard identity == generation, !Task.isCancelled else { return .superseded }
-                if restored { return .restored(error) }
+            let isOpen = store.isOpen(budgetID: budget.syncID)
+            noteFailure(error, hasOpenBudget: isOpen)
+            let status: ServerConnectionStatus = (error as? LocalFirstError) == .budgetEncryptionChanged
+                ? .syncBlocked : (isOpen ? .online : .offline)
+            return .failed(error, status)
+        }
+    }
+
+    private(set) var state: State = .idle
+    @ObservationIgnored let transitions = BudgetSessionTransitionCoordinator()
+    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var discoveryTask: Task<BudgetDiscovery, Error>?
+
+    var identity: Int { generation }
+    func isCurrent(_ identity: Int) -> Bool { identity == generation }
+
+    func invalidate() {
+        generation &+= 1
+        discoveryTask?.cancel()
+        discoveryTask = nil
+        state = .idle
+    }
+
+    func noteFailure(_ error: KeychainReadError, hasOpenBudget: Bool) {
+        state = hasOpenBudget ? .localOnly(error) : .blocked(error)
+    }
+
+    func noteFailure(_ error: Error, hasOpenBudget: Bool) {
+        if let accessError = error as? KeychainReadError {
+            noteFailure(accessError, hasOpenBudget: hasOpenBudget)
+        }
+    }
+
+    func clear() { state = .idle }
+
+    func restore(settings: AppSettings, store: LocalFirstActualStore) async -> Outcome {
+        let identity = generation
+        guard let selectedBudgetID = settings.selectedBudgetID,
+              let budget = ActualBudget.reconstructedFromSettings(settings) else { return .missingCache }
+        // Reopening would cancel a background pull or Shortcut on this budget.
+        if store.isOpen(budgetID: selectedBudgetID) { return .opened(budget) }
+        do {
+            let opened = try await store.openCachedBudget(budget, expectedGeneration: store.budgetSessionGeneration)
+            guard identity == generation, !Task.isCancelled else { return .superseded }
+            guard opened else { return .missingCache }
+            guard store.isOpen(budgetID: selectedBudgetID) else {
+                store.reset()
+                return .missingCache
+            }
+            return .opened(budget)
+        } catch {
+            guard identity == generation, !Task.isCancelled else { return .superseded }
+            // A store generation change with this identity unchanged means
+            // another session change won; it owns the outcome.
+            if error.isCancellation {
+                return store.isOpen(budgetID: selectedBudgetID) ? .opened(budget) : .superseded
+            }
+            if let keychainError = error as? KeychainReadError {
+                noteFailure(keychainError, hasOpenBudget: false)
             }
             return .failed(error)
         }
@@ -362,7 +417,7 @@ final class AppSessionRecovery {
     func discoverBudgets(settings: AppSettings, store: LocalFirstActualStore) async throws -> BudgetDiscovery {
         let identity = generation
         if let discoveryTask {
-            let result = try await discoveryTask.value
+            let result = try await awaitDiscovery(discoveryTask)
             try Task.checkCancellation()
             guard identity == generation else { throw CancellationError() }
             return result
@@ -373,10 +428,26 @@ final class AppSessionRecovery {
         }
         discoveryTask = task
         defer { if identity == generation { discoveryTask = nil } }
-        let result = try await task.value
+        let result = try await awaitDiscovery(task)
         try Task.checkCancellation()
         guard identity == generation else { throw CancellationError() }
         return result
+    }
+
+    private func awaitDiscovery(_ task: Task<BudgetDiscovery, Error>) async throws -> BudgetDiscovery {
+        let caller = UUID()
+        discoveryCallers.insert(caller)
+        defer { discoveryCallers.remove(caller) }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            Task { @MainActor in self.discoveryCallerCancelled(caller, task: task) }
+        }
+    }
+
+    private func discoveryCallerCancelled(_ caller: UUID, task: Task<BudgetDiscovery, Error>) {
+        guard discoveryCallers.remove(caller) != nil, discoveryCallers.isEmpty else { return }
+        task.cancel()
     }
 
     private func performDiscovery(settings: AppSettings, store: LocalFirstActualStore) async throws -> BudgetDiscovery {
