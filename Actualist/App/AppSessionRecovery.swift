@@ -248,6 +248,11 @@ final class AppSessionRecovery {
             return .opened(budget)
         } catch {
             guard identity == generation, !Task.isCancelled else { return .superseded }
+            // A store generation change with this identity unchanged means
+            // another session change won; it owns the outcome.
+            if error.isCancellation {
+                return store.isOpen(budgetID: selectedBudgetID) ? .opened(budget) : .superseded
+            }
             if let keychainError = error as? KeychainReadError {
                 noteFailure(keychainError, hasOpenBudget: false)
             }
@@ -276,9 +281,12 @@ final class AppSessionRecovery {
     ) async -> LaunchOutcome {
         let identity = generation
         let status = restoredStatus(isDemoMode: isDemoMode, keychain: keychain)
-        if case .opened(let budget) = await restore(settings: settings, store: store) {
+        switch await restore(settings: settings, store: store) {
+        case .opened(let budget):
             guard identity == generation, !Task.isCancelled else { return .superseded }
             return .opened(budget, status)
+        case .superseded: return .superseded
+        case .missingCache, .failed: break
         }
         guard identity == generation, !Task.isCancelled else { return .superseded }
         if let error = blockedError(keychain: keychain) { return .blocked(error) }
@@ -289,9 +297,12 @@ final class AppSessionRecovery {
             return .discovered(discovery)
         } catch {
             guard identity == generation, !Task.isCancelled, !error.isCancellation else { return .superseded }
-            if case .opened(let budget) = await restore(settings: settings, store: store) {
+            switch await restore(settings: settings, store: store) {
+            case .opened(let budget):
                 guard identity == generation else { return .superseded }
                 return .opened(budget, .offline)
+            case .superseded: return .superseded
+            case .missingCache, .failed: break
             }
             guard identity == generation else { return .superseded }
             if let blocked = blockedError(keychain: keychain) { return .blocked(blocked) }

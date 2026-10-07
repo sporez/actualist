@@ -59,4 +59,9 @@ struct ShortcutErrorTests {
         #expect(ShortcutsError.mapping(LocalFirstError.missingSyncToken, fallback: .budgetFileMissing) == .budgetFileMissing)
         #expect(ShortcutsError.mapping(NSError(domain: "test", code: 1)) == .writeFailed)
     }
+
+    @Test func cancellationMapsToBudgetBusyNotAMissingFile() {
+        #expect(ShortcutsError.mapping(CancellationError(), fallback: .budgetFileMissing) == .budgetBusy)
+        #expect(ShortcutsError.mapping(CancellationError()) == .budgetBusy)
+    }
 }

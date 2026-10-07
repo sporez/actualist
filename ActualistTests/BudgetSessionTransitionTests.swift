@@ -136,6 +136,29 @@ struct BudgetSessionTransitionTests {
 
     /// Selecting a cached budget pulls after the open, so it needs a token
     /// and a transport that answers.
+    @Test func storeCancellationDuringLaunchRestoreIsSupersededWithoutDiscovery() async throws {
+        let server = StubConnectionTransport(files: [fixtures.testRemoteFile()])
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle(
+            syncTransportFactory: { _ in RecordingSyncTransport() },
+            connectionTransportFactory: { _ in server }
+        )
+        try bundle.keychain.saveActualSyncToken("token")
+        let appState = try fixtures.makeAppState(for: bundle)
+        bundle.store.reset()
+        let probe = OpenProbe(store: bundle.store)
+
+        let restore = Task { await appState.beginForegroundSession() }
+        await probe.parked.wait()
+        // A teardown outside the recovery identity cancels the parked open.
+        bundle.store.closeOpenBudget()
+        probe.release()
+        await restore.value
+
+        #expect(await server.listUserFilesRequestCount == 0)
+        #expect(appState.setupPhase == .restoringBudget)
+        #expect(appState.lastErrorMessage == nil)
+    }
+
     private func syncingBundle() async throws -> LocalFirstActualStoreTests.OpenedWritableStoreBundle {
         let bundle = try await fixtures.makeOpenedWritableStoreBundle { _ in RecordingSyncTransport() }
         try bundle.keychain.saveActualSyncToken("token")

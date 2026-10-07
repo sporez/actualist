@@ -86,6 +86,10 @@ enum ShortcutsError: LocalizedError, Equatable {
         if let error = error as? ShortcutsError {
             return error
         }
+        // A session change cancelled the open or write; the budget is not missing.
+        if error.isCancellation {
+            return .budgetBusy
+        }
         if error is ReconciledTransactionMutationError {
             return .reconciledTransaction
         }
