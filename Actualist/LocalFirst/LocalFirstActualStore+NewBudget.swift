@@ -95,7 +95,7 @@ extension LocalFirstActualStore {
         var savedKeyID: String?
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            let database = try BudgetDatabase.makeNewBudgetStarterDatabase(
+            let database = try await BudgetDatabase.createNewBudgetStarterDatabase(
                 at: fileManager.databaseURL(fileID: fileID),
                 identityGenerator: generateIdentity
             )

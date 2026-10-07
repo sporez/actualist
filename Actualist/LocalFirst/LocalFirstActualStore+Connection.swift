@@ -396,7 +396,7 @@ extension LocalFirstActualStore {
             into: workspace,
             metadata: metadata
         )
-        let validationDatabase = try BudgetDatabase(
+        let validationDatabase = try await BudgetDatabase.open(
             databaseURL: workspace.databaseURL,
             localNodeID: metadata.nodeID
         )
@@ -490,9 +490,10 @@ extension LocalFirstActualStore {
         }
         let encryptionContext = try providedEncryptionContext ?? encryptionContext(metadata: metadata)
         let launchFiles = try fileManager.launchSnapshotFiles(fileID: fileID)
-        let database = try LaunchSignpost.measureSync(LaunchStage.budgetDatabaseInit) {
-            try BudgetDatabase(
-                databaseURL: fileManager.databaseURL(fileID: fileID),
+        let databaseURL = try fileManager.databaseURL(fileID: fileID)
+        let database = try await LaunchSignpost.measure(LaunchStage.budgetDatabaseInit) {
+            try await BudgetDatabase.open(
+                databaseURL: databaseURL,
                 localNodeID: metadata.nodeID,
                 beforeBudgetDataMutation: {
                     _ = try LaunchSignpost.measureSync(LaunchStage.launchSnapshotRevisionAdvance) {

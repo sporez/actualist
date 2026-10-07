@@ -546,7 +546,7 @@ private final class IdentitySequence: @unchecked Sendable {
 /// Queue-driven registration transport with sticky-last semantics: the final
 /// result repeats for any further calls, so single-entry queues cover retry
 /// paths. Captures full upload bytes so tests can validate the archive.
-private actor NewBudgetFakeRegistrationTransport: ActualFileRegistrationTransport {
+actor NewBudgetFakeRegistrationTransport: ActualFileRegistrationTransport {
     struct UploadCall: Equatable {
         let fileID: String
         let name: String

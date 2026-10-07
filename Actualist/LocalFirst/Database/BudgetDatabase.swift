@@ -21,11 +21,43 @@ actor BudgetDatabase {
     let beforeBudgetDataMutation: @Sendable () throws -> Void
 
     static let bankSyncStatusCompatibilityMigration = "bank-sync-status-compatibility-v1"
+
+    #if DEBUG
+    /// Paths whose `init` ran on the main thread. Production opens go through
+    /// `open(...)`, which runs off it; the many synchronous test fixtures keep
+    /// calling `init` directly, so a precondition in `init` is not possible.
+    static let debugMainThreadConstructionPaths = Mutex<Set<String>>([])
+    #endif
+
+    /// Builds and prepares the database off the main actor: SQLite open,
+    /// compatibility passes, index creation and one-time history replays are
+    /// blocking work. Every production open path uses this instead of `init`.
+    @concurrent
+    static func open(
+        databaseURL: URL,
+        localNodeID: String? = nil,
+        beforeBudgetDataMutation: @escaping @Sendable () throws -> Void = {}
+    ) async throws -> BudgetDatabase {
+        #if DEBUG
+        dispatchPrecondition(condition: .notOnQueue(.main))
+        #endif
+        return try BudgetDatabase(
+            databaseURL: databaseURL,
+            localNodeID: localNodeID,
+            beforeBudgetDataMutation: beforeBudgetDataMutation
+        )
+    }
+
     init(
         databaseURL: URL,
         localNodeID: String? = nil,
         beforeBudgetDataMutation: @escaping @Sendable () throws -> Void = {}
     ) throws {
+        #if DEBUG
+        if Thread.isMainThread {
+            Self.debugMainThreadConstructionPaths.withLock { _ = $0.insert(databaseURL.path) }
+        }
+        #endif
         self.databaseURL = databaseURL
         self.beforeBudgetDataMutation = beforeBudgetDataMutation
         queue = try DatabaseQueue(

@@ -39,6 +39,20 @@ extension BudgetDatabase {
         return try BudgetDatabase(databaseURL: databaseURL)
     }
 
+    /// Production entry point: the seed's SQL writes and the opening compatibility
+    /// passes run off the main actor. Synchronous callers (fixtures) use
+    /// `makeNewBudgetStarterDatabase`.
+    @concurrent
+    static func createNewBudgetStarterDatabase(
+        at databaseURL: URL,
+        identityGenerator: @escaping @Sendable () -> String = { UUID().uuidString }
+    ) async throws -> BudgetDatabase {
+        #if DEBUG
+        dispatchPrecondition(condition: .notOnQueue(.main))
+        #endif
+        return try makeNewBudgetStarterDatabase(at: databaseURL, identityGenerator: identityGenerator)
+    }
+
     // The frozen starter projection: group name, income flag, and the group's
     // categories in observed order. Deliberately not alphabetical, and the
     // category lists are not derived from the seed's shared sort_order values.
