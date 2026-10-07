@@ -316,11 +316,9 @@ extension LocalFirstActualStoreTests {
         }
 
         let directory = try fileManager.budgetDirectory(fileID: "file-1")
-        #expect(
-            !FileManager.default.fileExists(
-                atPath: directory.appending(path: "download.staging").path
-            )
-        )
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+            .filter { $0.hasPrefix("download.") && $0.hasSuffix(".staging") }
+        #expect(leftovers.isEmpty)
     }
 
     @Test func serverSessionDoesNotCacheResponsesOrStoreCookies() async throws {

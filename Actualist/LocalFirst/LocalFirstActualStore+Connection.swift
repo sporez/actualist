@@ -149,6 +149,7 @@ extension LocalFirstActualStore {
 
         if fileManager.importedDatabaseExists(fileID: fileID),
            let metadata = try fileManager.loadMetadata(fileID: fileID) {
+            fileManager.sweepStaleDownloadStaging(fileID: fileID)
             do {
                 try await openImportedBudget(
                     fileID: fileID, metadata: metadata, expectedGeneration: originalGeneration

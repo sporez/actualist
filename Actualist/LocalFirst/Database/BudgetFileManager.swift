@@ -165,10 +165,9 @@ struct BudgetFileManager {
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         try hardenBudgetArtifact(at: directory, excludeFromBackup: true)
 
-        let stagingURL = try containedURL(directory.appending(path: "download.staging"))
-        if fileManager.fileExists(atPath: stagingURL.path) {
-            try fileManager.removeItem(at: stagingURL)
-        }
+        let stagingURL = try containedURL(
+            directory.appending(path: "download.\(UUID().uuidString.lowercased()).staging")
+        )
         guard fileManager.createFile(atPath: stagingURL.path, contents: nil) else {
             throw LocalFirstError.invalidDownloadedBudget
         }
@@ -179,6 +178,21 @@ struct BudgetFileManager {
             throw error
         }
         return stagingURL
+    }
+
+    /// Removes staging files a crashed download left behind. Downloads only run
+    /// while no imported database exists, so callers sweep from the cached-open
+    /// path, where no download of this file is in flight.
+    func sweepStaleDownloadStaging(fileID: String) {
+        guard let directory = try? budgetDirectory(fileID: fileID),
+              let names = try? fileManager.contentsOfDirectory(atPath: directory.path) else {
+            return
+        }
+        for name in names where name.hasPrefix("download.") && name.hasSuffix(".staging") {
+            if let url = try? containedURL(directory.appending(path: name)) {
+                try? fileManager.removeItem(at: url)
+            }
+        }
     }
 
     func cleanupDownloadStaging(at stagingURL: URL) {
