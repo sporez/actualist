@@ -202,16 +202,22 @@ final class AccountTransactionsViewModel {
                 budgetID: budgetID,
                 reconciliationAuthorization: reconciliationAuthorization
             ) {}
-            if case .category(let details) = scope {
-                try await repository.refreshCategoryTransactions(
-                    budgetID: budgetID,
-                    categoryID: details.category.id,
-                    month: details.month
-                )
-            }
+            // The delete has committed: it is reported as done before the
+            // category follow-up, which is best-effort.
             onChanged()
             deleteSuccessFeedback += 1
             deletePresentation = nil
+            if case .category(let details) = scope {
+                do {
+                    try await repository.refreshCategoryTransactions(
+                        budgetID: budgetID,
+                        categoryID: details.category.id,
+                        month: details.month
+                    )
+                } catch {
+                    errorMessage = error.userFacingMessage
+                }
+            }
             return true
         } catch {
             if case .confirmationRequired(let review) = error as? ReconciledTransactionMutationError {

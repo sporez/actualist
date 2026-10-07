@@ -66,6 +66,34 @@ struct AccountTransactionsViewModelDeleteTests {
         }
     }
 
+    @Test func committedCategoryDeleteIsSuccessWhenItsFollowUpRefreshFails() async {
+        let transaction = AccountTransactionsViewModelTests.transaction(id: "delete-me", payee: "market")
+        let repository = AccountTransactionsRecordingRepository(
+            accountSnapshot: AccountTransactionsViewModelTests.loaded([transaction]),
+            refreshError: FeedTestError("refresh failed")
+        )
+        let model = AccountTransactionsViewModel(
+            scope: .category(AccountTransactionsViewModelTests.categoryDetails)
+        )
+        await model.requestDelete(transaction, budgetID: "budget", repository: repository)
+        #expect(model.deletePresentation != nil)
+        var changes = 0
+
+        let deleted = await model.delete(
+            transaction,
+            budgetID: "budget",
+            repository: repository,
+            onChanged: { changes += 1 }
+        )
+
+        #expect(deleted)
+        #expect(changes == 1)
+        #expect(model.deletePresentation == nil)
+        #expect(model.deleteSuccessFeedback == 1)
+        #expect(repository.deletedTransactionIDs == ["delete-me"])
+        #expect(model.errorMessage == "refresh failed")
+    }
+
     @Test func failedDeleteDoesNotReportALocalChange() async {
         let transaction = AccountTransactionsViewModelTests.transaction(id: "delete-me", payee: "market")
         for scope in [TransactionFeedScope.account(AccountTransactionsViewModelTests.account), .spending] {
