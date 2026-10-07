@@ -413,10 +413,19 @@ extension LocalFirstActualStore {
         if let months = monthsByBudget[budgetID] {
             return months
         }
+        let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
+        let revision = cachePublicationRevision
         let months = try await LaunchSignpost.measure(LaunchStage.budgetAvailableMonths) {
-            try await requireDatabase(for: budgetID).fetchAvailableMonths()
+            try await database.fetchAvailableMonths()
         }
-        monthsByBudget[budgetID] = months
+        #if DEBUG
+        await readPublicationHook?(.availableMonths)
+        #endif
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        if revision == cachePublicationRevision {
+            monthsByBudget[budgetID] = months
+        }
         return months
     }
 }

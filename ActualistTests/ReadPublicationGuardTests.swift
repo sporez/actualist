@@ -56,4 +56,18 @@ extension LocalFirstActualStoreTests {
         #expect(bundle.store.cachedReportsDashboard(budgetID: "group-1", range: range) == nil)
     }
 
+    @Test func availableMonthsReadFromAClosedSessionIsNotPublished() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        bundle.store.monthsByBudget["group-1"] = nil
+        let result = try await parkedRead(.availableMonths, on: bundle.store, read: {
+            try await bundle.store.availableMonths(budgetID: "group-1")
+        }, whileParked: {
+            try await reopenSameBudget(bundle)
+            bundle.store.monthsByBudget["group-1"] = nil
+        })
+
+        #expect(throws: CancellationError.self) { try result.get() }
+        #expect(bundle.store.monthsByBudget["group-1"] == nil)
+    }
+
 }
