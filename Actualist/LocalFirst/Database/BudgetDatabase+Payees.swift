@@ -80,93 +80,93 @@ extension BudgetDatabase {
         }
     }
 
+    /// Runs inside the caller's write transaction (`commitUserActionPlan`), so
+    /// the mapping rows it retargets are the ones that exist at commit.
     func mergePayeeMessages(
+        in db: Database,
         sourcePayeeIDs: Set<String>,
         targetPayeeID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            guard !sourcePayeeIDs.isEmpty, !sourcePayeeIDs.contains(targetPayeeID) else {
-                throw LocalFirstError.invalidLocalWrite("choose at least one different payee to merge")
-            }
-            _ = try requiredColumns(
-                table: "payees",
-                required: ["name", "tombstone"],
-                db: db
-            )
-            _ = try requiredRegularPayee(targetPayeeID, db: db)
-            for sourceID in sourcePayeeIDs {
-                _ = try requiredRegularPayee(sourceID, db: db)
-            }
-            guard let mapping = try usablePayeeMappingColumns(db: db) else {
-                throw LocalFirstError.invalidLocalWrite("this budget does not support payee merging")
-            }
-
-            let placeholders = Array(repeating: "?", count: sourcePayeeIDs.count).joined(separator: ",")
-            let mappedRows = try Row.fetchAll(
-                db,
-                sql: """
-                    SELECT \(quotedIdentifier(mapping.id)) AS id
-                    FROM payee_mapping
-                    WHERE \(quotedIdentifier(mapping.target)) IN (\(placeholders))
-                    """,
-                arguments: StatementArguments(Array(sourcePayeeIDs))
-            )
-            var mappingIDs = Set(mappedRows.compactMap { $0["id"] as String? })
-            mappingIDs.formUnion(sourcePayeeIDs)
-
-            var messages: [ActualSyncDecodedMessage] = []
-            for mappingID in mappingIDs.sorted() {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "payee_mapping",
-                        row: mappingID,
-                        column: mapping.target,
-                        value: .string(targetPayeeID)
-                    )
-                )
-            }
-            for sourceID in sourcePayeeIDs.sorted() {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "payees",
-                        row: sourceID,
-                        column: "tombstone",
-                        value: .bool(true)
-                    )
-                )
-            }
-            return messages
+        guard !sourcePayeeIDs.isEmpty, !sourcePayeeIDs.contains(targetPayeeID) else {
+            throw LocalFirstError.invalidLocalWrite("choose at least one different payee to merge")
         }
-    }
+        _ = try requiredColumns(
+            table: "payees",
+            required: ["name", "tombstone"],
+            db: db
+        )
+        _ = try requiredRegularPayee(targetPayeeID, db: db)
+        for sourceID in sourcePayeeIDs {
+            _ = try requiredRegularPayee(sourceID, db: db)
+        }
+        guard let mapping = try usablePayeeMappingColumns(db: db) else {
+            throw LocalFirstError.invalidLocalWrite("this budget does not support payee merging")
+        }
 
-    func deletePayeeMessages(
-        payeeID: String,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            _ = try requiredColumns(
-                table: "payees",
-                required: ["name", "tombstone"],
-                db: db
-            )
-            _ = try requiredRegularPayee(payeeID, db: db)
+        let placeholders = Array(repeating: "?", count: sourcePayeeIDs.count).joined(separator: ",")
+        let mappedRows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT \(quotedIdentifier(mapping.id)) AS id
+                FROM payee_mapping
+                WHERE \(quotedIdentifier(mapping.target)) IN (\(placeholders))
+                """,
+            arguments: StatementArguments(Array(sourcePayeeIDs))
+        )
+        var mappingIDs = Set(mappedRows.compactMap { $0["id"] as String? })
+        mappingIDs.formUnion(sourcePayeeIDs)
 
-            let snapshot = try fetchPayeeManagementSnapshot(in: db)
-            guard let payee = snapshot.payees.first(where: { $0.id == payeeID }), payee.canDelete else {
-                throw LocalFirstError.invalidLocalWrite(
-                    "only unused payees without rule references can be deleted"
+        var messages: [ActualSyncDecodedMessage] = []
+        for mappingID in mappingIDs.sorted() {
+            messages.append(
+                try builder.makeMessage(
+                    dataset: "payee_mapping",
+                    row: mappingID,
+                    column: mapping.target,
+                    value: .string(targetPayeeID)
                 )
-            }
-            return [
+            )
+        }
+        for sourceID in sourcePayeeIDs.sorted() {
+            messages.append(
                 try builder.makeMessage(
                     dataset: "payees",
-                    row: payeeID,
+                    row: sourceID,
                     column: "tombstone",
                     value: .bool(true)
                 )
-            ]
+            )
         }
+        return messages
+    }
+
+    func deletePayeeMessages(
+        in db: Database,
+        payeeID: String,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> [ActualSyncDecodedMessage] {
+        _ = try requiredColumns(
+            table: "payees",
+            required: ["name", "tombstone"],
+            db: db
+        )
+        _ = try requiredRegularPayee(payeeID, db: db)
+
+        let snapshot = try fetchPayeeManagementSnapshot(in: db)
+        guard let payee = snapshot.payees.first(where: { $0.id == payeeID }), payee.canDelete else {
+            throw LocalFirstError.invalidLocalWrite(
+                "only unused payees without rule references can be deleted"
+            )
+        }
+        return [
+            try builder.makeMessage(
+                dataset: "payees",
+                row: payeeID,
+                column: "tombstone",
+                value: .bool(true)
+            )
+        ]
     }
 
     func updatePayeeManagementMessages(
@@ -289,38 +289,37 @@ extension BudgetDatabase {
     }
 
     func payeeUndoMessagesForMerge(
+        in db: Database,
         sourcePayeeIDs: Set<String>,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            guard let mapping = try usablePayeeMappingColumns(db: db) else {
-                throw LocalFirstError.invalidLocalWrite("this budget does not support payee merging")
-            }
-            let placeholders = Array(repeating: "?", count: sourcePayeeIDs.count).joined(separator: ",")
-            let rows = try Row.fetchAll(
-                db,
-                sql: "SELECT \(quotedIdentifier(mapping.id)) AS id, \(quotedIdentifier(mapping.target)) AS target_id FROM payee_mapping WHERE \(quotedIdentifier(mapping.target)) IN (\(placeholders)) OR \(quotedIdentifier(mapping.id)) IN (\(placeholders))",
-                arguments: StatementArguments(Array(sourcePayeeIDs) + Array(sourcePayeeIDs))
-            )
-            var previousTargets = Dictionary(uniqueKeysWithValues: rows.compactMap { row -> (String, String)? in
-                guard let id = row["id"] as String?, let target = row["target_id"] as String? else { return nil }
-                return (id, target)
-            })
-            for sourceID in sourcePayeeIDs where previousTargets[sourceID] == nil {
-                previousTargets[sourceID] = sourceID
-            }
-            var messages = try previousTargets.sorted(by: { $0.key < $1.key }).map { id, target in
-                try builder.makeMessage(
-                    dataset: "payee_mapping", row: id, column: mapping.target, value: .string(target)
-                )
-            }
-            for sourceID in sourcePayeeIDs.sorted() {
-                messages.append(try builder.makeMessage(
-                    dataset: "payees", row: sourceID, column: "tombstone", value: .bool(false)
-                ))
-            }
-            return messages
+        guard let mapping = try usablePayeeMappingColumns(db: db) else {
+            throw LocalFirstError.invalidLocalWrite("this budget does not support payee merging")
         }
+        let placeholders = Array(repeating: "?", count: sourcePayeeIDs.count).joined(separator: ",")
+        let rows = try Row.fetchAll(
+            db,
+            sql: "SELECT \(quotedIdentifier(mapping.id)) AS id, \(quotedIdentifier(mapping.target)) AS target_id FROM payee_mapping WHERE \(quotedIdentifier(mapping.target)) IN (\(placeholders)) OR \(quotedIdentifier(mapping.id)) IN (\(placeholders))",
+            arguments: StatementArguments(Array(sourcePayeeIDs) + Array(sourcePayeeIDs))
+        )
+        var previousTargets = Dictionary(uniqueKeysWithValues: rows.compactMap { row -> (String, String)? in
+            guard let id = row["id"] as String?, let target = row["target_id"] as String? else { return nil }
+            return (id, target)
+        })
+        for sourceID in sourcePayeeIDs where previousTargets[sourceID] == nil {
+            previousTargets[sourceID] = sourceID
+        }
+        var messages = try previousTargets.sorted(by: { $0.key < $1.key }).map { id, target in
+            try builder.makeMessage(
+                dataset: "payee_mapping", row: id, column: mapping.target, value: .string(target)
+            )
+        }
+        for sourceID in sourcePayeeIDs.sorted() {
+            messages.append(try builder.makeMessage(
+                dataset: "payees", row: sourceID, column: "tombstone", value: .bool(false)
+            ))
+        }
+        return messages
     }
 
     private func fetchPayeeManagementSnapshot(in db: Database) throws -> PayeeManagementSnapshot {

@@ -59,22 +59,28 @@ extension LocalFirstActualStore {
         targetPayeeID: String
     ) async throws {
         let database = try requireDatabase(for: budgetID)
-        var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.mergePayeeMessages(
-            sourcePayeeIDs: sourcePayeeIDs,
-            targetPayeeID: targetPayeeID,
-            builder: &builder
-        )
-        let undo = try await database.payeeUndoMessagesForMerge(
-            sourcePayeeIDs: sourcePayeeIDs,
-            builder: &builder
-        )
-
-        _ = try await database.commitUserAction(
-            messages,
-            descriptor: .payee(PayeeActionDescriptor(operation: .merge, names: [])),
-            source: .ui
-        )
+        await userActionBeforeCommitHook?()
+        // Built inside the write so mapping rows a sync pull added since the
+        // review are retargeted too, instead of left pointing at a tombstone.
+        let undo = try await database.commitUserActionPlan(source: .ui) { database, db in
+            var builder = LocalFirstSyncMessageBuilder()
+            let messages = try database.mergePayeeMessages(
+                in: db,
+                sourcePayeeIDs: sourcePayeeIDs,
+                targetPayeeID: targetPayeeID,
+                builder: &builder
+            )
+            let undo = try database.payeeUndoMessagesForMerge(
+                in: db,
+                sourcePayeeIDs: sourcePayeeIDs,
+                builder: &builder
+            )
+            return UserActionPlan(
+                drafts: messages,
+                descriptor: .payee(PayeeActionDescriptor(operation: .merge, names: [])),
+                outcome: undo
+            )
+        }.outcome
         lastPayeeUndoMessagesByBudget[budgetID] = undo
         try await finishCommittedWrite(database: database, budgetID: budgetID) {
             try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
@@ -88,25 +94,30 @@ extension LocalFirstActualStore {
     func deletePayeesAndRefresh(budgetID: String, payeeIDs: Set<String>) async throws {
         guard !payeeIDs.isEmpty else { return }
         let database = try requireDatabase(for: budgetID)
-        var builder = LocalFirstSyncMessageBuilder()
-        var messages: [ActualSyncDecodedMessage] = []
-        var undo: [ActualSyncDecodedMessage] = []
-        for payeeID in payeeIDs.sorted() {
-            messages.append(contentsOf: try await database.deletePayeeMessages(
-                payeeID: payeeID,
-                builder: &builder
-            ))
-            undo.append(contentsOf: try await database.payeeUndoMessagesForDelete(
-                payeeID: payeeID,
-                builder: &builder
-            ))
-        }
-
-        _ = try await database.commitUserAction(
-            messages,
-            descriptor: .payee(PayeeActionDescriptor(operation: .delete, names: [])),
-            source: .ui
-        )
+        await userActionBeforeCommitHook?()
+        // The "unused payee" check runs inside the write, so a transaction a
+        // sync pull attached to the payee since the review blocks the delete.
+        let undo = try await database.commitUserActionPlan(source: .ui) { database, db in
+            var builder = LocalFirstSyncMessageBuilder()
+            var messages: [ActualSyncDecodedMessage] = []
+            var undo: [ActualSyncDecodedMessage] = []
+            for payeeID in payeeIDs.sorted() {
+                messages.append(contentsOf: try database.deletePayeeMessages(
+                    in: db,
+                    payeeID: payeeID,
+                    builder: &builder
+                ))
+                undo.append(contentsOf: try database.payeeUndoMessagesForDelete(
+                    payeeID: payeeID,
+                    builder: &builder
+                ))
+            }
+            return UserActionPlan(
+                drafts: messages,
+                descriptor: .payee(PayeeActionDescriptor(operation: .delete, names: [])),
+                outcome: undo
+            )
+        }.outcome
         lastPayeeUndoMessagesByBudget[budgetID] = undo
         try await finishCommittedWrite(database: database, budgetID: budgetID) {
             try await reloadAfterPayeeMutation(database: database, budgetID: budgetID)
