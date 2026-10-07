@@ -392,18 +392,39 @@ struct AppSettingsStore {
     /// later save cannot destroy the only copy.
     static let corruptBackupKey = "actualist.settings.v1.corrupt-backup"
 
+    /// Sync debug history lives under its own key so recording an event does
+    /// not re-encode and save every other setting.
+    static let syncDebugHistoryKey = "actualist.syncDebugHistory.v1"
+
     func load() -> AppSettings {
-        guard let data = defaults.data(forKey: key) else {
-            return AppSettings()
-        }
-        guard let settings = try? JSONDecoder().decode(AppSettings.self, from: data) else {
-            if defaults.data(forKey: Self.corruptBackupKey) == nil {
-                defaults.set(data, forKey: Self.corruptBackupKey)
+        var settings = AppSettings()
+        if let data = defaults.data(forKey: key) {
+            guard let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) else {
+                if defaults.data(forKey: Self.corruptBackupKey) == nil {
+                    defaults.set(data, forKey: Self.corruptBackupKey)
+                }
+                return AppSettings()
             }
-            return AppSettings()
+            settings = decoded
         }
 
+        if let history = loadSyncDebugHistory() {
+            settings.localFirstSyncDebug = history
+        } else if settings.localFirstSyncDebug != LocalFirstSyncDebugInfo() {
+            // One-time migration: history used to live inside the settings blob.
+            saveSyncDebugHistory(settings.localFirstSyncDebug)
+        }
         return settings
+    }
+
+    func loadSyncDebugHistory() -> LocalFirstSyncDebugInfo? {
+        defaults.data(forKey: Self.syncDebugHistoryKey)
+            .flatMap { try? JSONDecoder().decode(LocalFirstSyncDebugInfo.self, from: $0) }
+    }
+
+    func saveSyncDebugHistory(_ history: LocalFirstSyncDebugInfo) {
+        guard let data = try? JSONEncoder().encode(history) else { return }
+        defaults.set(data, forKey: Self.syncDebugHistoryKey)
     }
 
     func save(_ settings: AppSettings) {

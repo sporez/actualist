@@ -24,6 +24,7 @@ final class AppState {
     let keychain: KeychainStore
     private let credentialRetryPreparation: @MainActor () -> Void
     private let widgetSnapshotClearer: @MainActor () -> Void
+    @ObservationIgnored let syncDebugHistory: SyncDebugHistoryRecorder
     @ObservationIgnored private let sessionRecovery = AppSessionRecovery()
     @ObservationIgnored private let appSyncCoordinator = AppSyncCoordinator()
     @ObservationIgnored private let launchWarmupCoordinator = LaunchWarmupCoordinator()
@@ -72,6 +73,7 @@ final class AppState {
         self.keychain = keychain
         self.credentialRetryPreparation = credentialRetryPreparation
         self.widgetSnapshotClearer = widgetSnapshotClearer
+        self.syncDebugHistory = SyncDebugHistoryRecorder(settingsStore: settingsStore)
         self.backgroundTransactionWorkflow = BackgroundTransactionWorkflow(
             settingsStore: settingsStore,
             notificationAuthorizationRequester: notificationAuthorizationRequester,
@@ -395,6 +397,7 @@ final class AppState {
     }
 
     func endForegroundSession() {
+        syncDebugHistory.flush()
         launchWarmupCoordinator.endForeground()
         appSyncCoordinator.endForegroundSession()
     }
@@ -463,12 +466,7 @@ final class AppState {
     }
 
     private func recordLocalFirstSyncDebugEvent(_ event: LocalFirstSyncDebugEvent) {
-        settings.localFirstSyncDebug.totalEventCount += 1
-        settings.localFirstSyncDebug.recentEvents.insert(event, at: 0)
-        settings.localFirstSyncDebug.recentEvents = Array(
-            settings.localFirstSyncDebug.recentEvents.prefix(50)
-        )
-        settingsStore.save(settings)
+        syncDebugHistory.record(event, in: &settings.localFirstSyncDebug)
     }
 
     @discardableResult

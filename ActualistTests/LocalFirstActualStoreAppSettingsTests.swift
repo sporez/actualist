@@ -273,6 +273,7 @@ extension LocalFirstActualStoreTests {
             outcome: .failed, pendingBefore: 3, pendingAfter: 3,
             message: SafeSyncDiagnostic.description(for: error), endpoint: .primary
         )
+        state.syncDebugHistory.flush()
         let loaded = settingsStore.load().localFirstSyncDebug
         #expect(loaded.totalEventCount == 1)
         #expect(loaded.recentEvents.first?.pendingBefore == 3)
