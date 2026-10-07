@@ -563,7 +563,7 @@ final class BackgroundTransactionWorkflow {
         let applier = bankSyncApplier ?? store
         let startedAt = Date()
         do {
-            let result = try await withTimeLimit(
+            let result = try await withDeadline(
                 remainingTime,
                 timeoutError: BackgroundBankSyncStepError.timedOut,
                 sleep: bankSyncTimeoutSleep

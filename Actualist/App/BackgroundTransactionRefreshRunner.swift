@@ -108,7 +108,7 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
             return .skipped("Skipped: selected budget metadata unavailable")
         }
 
-        let result = try await withTimeLimit(timeLimit) {
+        let result = try await runWithinDeadline(timeLimit) {
             try await sync(
                 budget: budget,
                 budgetID: budgetID,
@@ -161,11 +161,11 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         )
     }
 
-    private func withTimeLimit<Result: Sendable>(
+    private func runWithinDeadline<Result: Sendable>(
         _ timeLimit: Duration,
         operation: @escaping @MainActor @Sendable () async throws -> Result
     ) async throws -> Result {
-        try await Actualist.withTimeLimit(timeLimit, timeoutError: BackgroundTransactionRefreshRunnerError.timeLimitExceeded, operation: operation)
+        try await withDeadline(timeLimit, timeoutError: BackgroundTransactionRefreshRunnerError.timeLimitExceeded, operation: operation)
     }
 
     private func skipReason(
