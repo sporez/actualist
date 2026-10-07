@@ -64,6 +64,7 @@ struct TransactionEditorView: View {
                         Image(systemName: "xmark")
                     }
                     .actualistToolbarGlassButton()
+                    .disabled(!viewModel.isDismissible)
                     .accessibilityIdentifier("transaction-editor-close")
                     .confirmationDialog(
                         "Discard Changes",
@@ -80,7 +81,7 @@ struct TransactionEditorView: View {
         }
         // With unsaved input a swipe-down bounces back; the close button asks
         // before discarding, as in Apple's editors.
-        .interactiveDismissDisabled(viewModel.hasUnsavedChanges)
+        .interactiveDismissDisabled(viewModel.hasUnsavedChanges || !viewModel.isDismissible)
         .onAppear {
             if session.consumePresentationFeedback() {
                 ActualistHaptics.editorOpened()

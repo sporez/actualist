@@ -97,6 +97,12 @@ final class TransactionEditorViewModel {
         mutationCoordinator.isSubmitting
     }
 
+    /// False while a save or reconciled-write step is in flight, so the sheet
+    /// cannot be closed before its outcome (including a failure) is visible.
+    var isDismissible: Bool {
+        !mutationCoordinator.isBusy
+    }
+
     var isPreviewingRules: Bool {
         rulePreviewCoordinator.isRunning
     }

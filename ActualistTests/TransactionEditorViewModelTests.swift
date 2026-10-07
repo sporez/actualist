@@ -481,6 +481,7 @@ struct TransactionEditorViewModelTests {
         await repository.waitForPauseBeforeDidCreate()
 
         #expect(model.submissionState == .submitting)
+        #expect(!model.isDismissible)
         #expect(await model.submit(budgetID: "budget", repository: repository) == false)
         #expect(await repository.draftCount() == 1)
 
@@ -488,6 +489,7 @@ struct TransactionEditorViewModelTests {
 
         #expect(await firstSubmit.value == true)
         #expect(model.submissionState == .clean)
+        #expect(model.isDismissible)
     }
 
     @Test func rulePreviewAppliesSuggestedCategoryAndNotes() async throws {
