@@ -56,6 +56,10 @@ extension AppState {
             budgets: budgets,
             hasSyncCredentials: hasSyncCredentials,
             store: localFirstStore,
+            openBudget: { [weak self] budget in
+                guard let self else { throw CancellationError() }
+                return try await self.openBudgetForBackgroundRefresh(budget, identity: identity)
+            },
             liveEligibility: { [weak self] in
                 guard let self else {
                     return .init(sessionIsCurrent: false, alertsEnabled: false, bankSyncEnabled: false)
@@ -78,6 +82,25 @@ extension AppState {
             lastErrorMessage = message
             return false
         }
+    }
+
+    /// The background open is a session transition: it joins a launch restore
+    /// of the same budget, and a switch or a newer selection refuses it
+    /// instead of being reset by it.
+    private func openBudgetForBackgroundRefresh(
+        _ budget: ActualBudget,
+        identity: BackgroundTransactionWorkflow.SessionIdentity
+    ) async throws -> Bool {
+        let opened = try await budgetSessionTransitions.runThrowing(.background, budgetID: budget.syncID) { [self] in
+            guard backgroundTransactionWorkflow.liveEligibility(
+                expected: identity, current: backgroundSessionIdentity
+            ).sessionIsCurrent else { throw CancellationError() }
+            return try await localFirstStore.openBudgetForBackgroundDiffIfNeeded(
+                budget, serverURLString: settings.localFirstServerURLString
+            )
+        }
+        guard let opened else { throw CancellationError() }
+        return opened
     }
 
     /// Scheduling runs on every appear and background transition. Repeating

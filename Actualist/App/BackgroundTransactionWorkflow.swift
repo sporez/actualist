@@ -296,6 +296,7 @@ final class BackgroundTransactionWorkflow {
         budgets: [ActualBudget],
         hasSyncCredentials: Bool,
         store: LocalFirstActualStore,
+        openBudget: BackgroundBudgetOpener? = nil,
         liveEligibility: @escaping @MainActor () -> LiveEligibility = { .enabled }
     ) async -> RefreshResult {
         let projectionGeneration = beginPendingProjectionOperation()
@@ -345,6 +346,7 @@ final class BackgroundTransactionWorkflow {
                 budgets: budgets,
                 hasSyncCredentials: hasSyncCredentials,
                 store: store,
+                openBudget: openBudget,
                 timeLimit: runnerTimeLimit
             )
             if let syncStartedAt {

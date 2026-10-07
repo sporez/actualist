@@ -205,6 +205,7 @@ final class AppSessionRecovery {
     }
 
     private(set) var state: State = .idle
+    @ObservationIgnored let transitions = BudgetSessionTransitionCoordinator()
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var discoveryTask: Task<BudgetDiscovery, Error>?
 
@@ -232,14 +233,15 @@ final class AppSessionRecovery {
 
     func restore(settings: AppSettings, store: LocalFirstActualStore) async -> Outcome {
         let identity = generation
-        guard settings.selectedBudgetID != nil,
+        guard let selectedBudgetID = settings.selectedBudgetID,
               let budget = ActualBudget.reconstructedFromSettings(settings) else { return .missingCache }
+        // Reopening would cancel a background pull or Shortcut on this budget.
+        if store.isOpen(budgetID: selectedBudgetID) { return .opened(budget) }
         do {
             let opened = try await store.openCachedBudget(budget, expectedGeneration: store.budgetSessionGeneration)
             guard identity == generation, !Task.isCancelled else { return .superseded }
             guard opened else { return .missingCache }
-            guard let selectedBudgetID = settings.selectedBudgetID,
-                  store.isOpen(budgetID: selectedBudgetID) else {
+            guard store.isOpen(budgetID: selectedBudgetID) else {
                 store.reset()
                 return .missingCache
             }
@@ -254,6 +256,19 @@ final class AppSessionRecovery {
     }
 
     func restoreForLaunch(
+        settings: AppSettings,
+        keychain: KeychainStore,
+        store: LocalFirstActualStore,
+        isDemoMode: Bool
+    ) async -> LaunchOutcome {
+        let restore: @MainActor () async -> LaunchOutcome = { [self] in
+            await performLaunchRestore(settings: settings, keychain: keychain, store: store, isDemoMode: isDemoMode)
+        }
+        guard let budgetID = settings.selectedBudgetID else { return await restore() }
+        return await transitions.run(.restore, budgetID: budgetID, operation: restore) ?? .superseded
+    }
+
+    private func performLaunchRestore(
         settings: AppSettings,
         keychain: KeychainStore,
         store: LocalFirstActualStore,
@@ -366,9 +381,11 @@ final class AppSessionRecovery {
         }
         var credentialError: KeychainReadError?
         if !store.isOpen(budgetID: selectedBudgetID) {
-            credentialError = try await store.openBudget(
-                selected, serverURLString: settings.localFirstServerURLString
-            )
+            // Refused while another transition is in flight: the picker then
+            // shows the selection as not open.
+            credentialError = try await transitions.runThrowing(.discovery, budgetID: selectedBudgetID) {
+                try await store.openBudget(selected, serverURLString: settings.localFirstServerURLString)
+            } ?? nil
         }
         try Task.checkCancellation()
         guard identity == generation else { throw CancellationError() }

@@ -15,19 +15,23 @@ extension LocalFirstActualStore {
         generation == budgetSessionGeneration && self.database === database && openedBudgetID == budgetID
     }
 
+    /// `openBudget` replaces the direct open so the app can run it as a
+    /// session transition; it returns whether a local baseline existed.
     func syncAndFindNewTransactions(
         budget: ActualBudget,
-        serverURLString: String
+        serverURLString: String,
+        openBudget: (@MainActor (ActualBudget) async throws -> Bool)? = nil
     ) async throws -> [BackgroundAccountRefreshResult] {
         if isDemoBudgetActive {
             // Demo mode never contacts a server and has no remote baseline to
             // diff against.
             return []
         }
-        let hasLocalBaseline = try await openBudgetForBackgroundDiffIfNeeded(
-            budget,
-            serverURLString: serverURLString
-        )
+        let hasLocalBaseline = if let openBudget {
+            try await openBudget(budget)
+        } else {
+            try await openBudgetForBackgroundDiffIfNeeded(budget, serverURLString: serverURLString)
+        }
         guard hasLocalBaseline else {
             return []
         }

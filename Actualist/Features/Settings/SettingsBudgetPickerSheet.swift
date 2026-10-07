@@ -59,6 +59,7 @@ struct SettingsBudgetPickerSheet: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .disabled(appState.budgetSessionTransitions.isTransitionInFlight)
                     }
                 }
                 .settingsSectionChrome()

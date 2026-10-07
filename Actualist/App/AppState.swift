@@ -18,7 +18,6 @@ final class AppState {
     var themeRevision = 0
     var developerUnlockToastMessage: String?
     private(set) var isAppSwitcherCoverSuppressedForSystemUI = false
-    private(set) var isBudgetSwitchInProgress = false
     let routeCoordinator = AppRouteCoordinator()
 
     let settingsStore: AppSettingsStore
@@ -103,6 +102,7 @@ final class AppState {
     }
 
     var credentialRecoveryMessage: String? { sessionRecovery.message }
+    var budgetSessionTransitions: BudgetSessionTransitionCoordinator { sessionRecovery.transitions }
 
     func retryCredentialAccess() async {
         credentialRetryPreparation()
@@ -141,33 +141,33 @@ final class AppState {
     /// main app shell. Only valid from `.needsConnection` (onboarding). Never
     /// writes a sync token or encryption key, never contacts a server.
     func enterDemoMode(tracking: Bool = false) async {
-        guard setupPhase == .needsConnection else {
-            return
-        }
-        do {
-            try await localFirstStore.openDemoBudget(tracking: tracking)
-            let budget = DemoBudget.budget
-            guard localFirstStore.isOpen(budgetID: budget.syncID) else {
-                throw LocalFirstError.budgetNotOpened
+        guard setupPhase == .needsConnection else { return }
+        _ = await budgetSessionTransitions.run(.demo, budgetID: DemoBudget.budget.syncID) { [self] in
+            do {
+                try await localFirstStore.openDemoBudget(tracking: tracking)
+                let budget = DemoBudget.budget
+                guard localFirstStore.isOpen(budgetID: budget.syncID) else {
+                    throw LocalFirstError.budgetNotOpened
+                }
+                settings.selectedBudgetID = budget.syncID
+                settings.selectedBudgetName = DemoBudget.name
+                settings.selectedLocalFirstFileID = DemoBudget.fileID
+                settings.selectedLocalFirstGroupID = DemoBudget.groupID
+                settings.backgroundTransactionRefreshEnabled = false
+                settings.simplefinBackgroundSyncEnabled = false
+                settings.pendingNewTransactionIDsByAccount = [:]
+                updateApplicationBadge()
+                budgets = [budget]
+                selectedBudget = budget
+                setupPhase = .ready
+                connectionStatus = .offline
+                lastErrorMessage = nil
+                localDataRevision &+= 1
+                settingsStore.save(settings)
+            } catch {
+                lastErrorMessage = error.userFacingMessage
+                connectionStatus = .offline
             }
-            settings.selectedBudgetID = budget.syncID
-            settings.selectedBudgetName = DemoBudget.name
-            settings.selectedLocalFirstFileID = DemoBudget.fileID
-            settings.selectedLocalFirstGroupID = DemoBudget.groupID
-            settings.backgroundTransactionRefreshEnabled = false
-            settings.simplefinBackgroundSyncEnabled = false
-            settings.pendingNewTransactionIDsByAccount = [:]
-            updateApplicationBadge()
-            budgets = [budget]
-            selectedBudget = budget
-            setupPhase = .ready
-            connectionStatus = .offline
-            lastErrorMessage = nil
-            localDataRevision &+= 1
-            settingsStore.save(settings)
-        } catch {
-            lastErrorMessage = error.userFacingMessage
-            connectionStatus = .offline
         }
     }
 
@@ -177,10 +177,8 @@ final class AppState {
               selectedBudget?.syncID == selectedBudgetID else {
             return false
         }
-        if isBudgetSwitchInProgress {
-            return true
-        }
-        return localFirstStore.isOpen(budgetID: selectedBudgetID)
+        // A switch keeps the current budget's tabs until the replacement opens.
+        return budgetSessionTransitions.keepsShell || localFirstStore.isOpen(budgetID: selectedBudgetID)
     }
 
     func loadLocalFirstLoginMethods(
@@ -328,6 +326,7 @@ final class AppState {
     func disconnectAndEraseLocalData() {
         do {
             sessionRecovery.invalidate()
+            budgetSessionTransitions.cancel()
             appSyncCoordinator.cancelRefresh()
             widgetSnapshotClearer()
             try localFirstStore.eraseLocalData()
@@ -357,13 +356,6 @@ final class AppState {
             lastErrorMessage = error.userFacingMessage
             connectionStatus = .offline
         }
-    }
-
-    @discardableResult
-    func selectBudgetForCurrentBackend(
-        _ budget: ActualBudget, encryptionPassword: String? = nil
-    ) async -> BudgetOpenOutcome {
-        await selectLocalFirstBudget(budget, encryptionPassword: encryptionPassword)
     }
 
     var localFirstSyncStatus: LocalFirstSyncStatus? {
@@ -485,12 +477,15 @@ final class AppState {
             return .superseded
         }
 
-        appSyncCoordinator.cancelRefresh()
-        connectionStatus = .connecting
-        switch await sessionRecovery.reimport(
-            budget, serverURLString: settings.localFirstServerURLString,
-            encryptionPassword: encryptionPassword, store: localFirstStore
-        ) {
+        switch await budgetSessionTransitions.run(.reimport, budgetID: budget.syncID, operation: { [self] in
+            appSyncCoordinator.cancelRefresh()
+            connectionStatus = .connecting
+            return await sessionRecovery.reimport(
+                budget, serverURLString: settings.localFirstServerURLString,
+                encryptionPassword: encryptionPassword, store: localFirstStore
+            )
+        }) {
+        case nil: return .busy
         case .succeeded:
             connectionStatus = .online
             lastErrorMessage = nil
@@ -515,7 +510,8 @@ final class AppState {
         return .failed(message: lastErrorMessage)
     }
 
-    private func selectLocalFirstBudget(
+    @discardableResult
+    func selectBudgetForCurrentBackend(
         _ budget: ActualBudget, encryptionPassword: String? = nil
     ) async -> BudgetOpenOutcome {
         do {
@@ -528,23 +524,27 @@ final class AppState {
             sessionRecovery.noteFailure(error, hasOpenBudget: isReadyForMainTabs)
             return recordOpenFailure(error)
         }
+        let keepsShell = settings.selectedBudgetID != budget.syncID && canRestoreSelectedBudget
+        return await budgetSessionTransitions.run(.select, budgetID: budget.syncID, keepsShell: keepsShell) { [self] in
+            await openSelection(budget, encryptionPassword: encryptionPassword)
+        } ?? .busy
+    }
 
+    private var canRestoreSelectedBudget: Bool {
+        setupPhase == .ready && selectedBudget?.syncID == settings.selectedBudgetID
+            && settings.selectedBudgetID.map { localFirstStore.isOpen(budgetID: $0) } == true
+    }
+
+    private func openSelection(_ budget: ActualBudget, encryptionPassword: String?) async -> BudgetOpenOutcome {
         sessionRecovery.invalidate()
         let previousBudget = selectedBudget
-        let previousBudgetID = settings.selectedBudgetID
-        let isChangingBudget = previousBudgetID != budget.syncID
-        let canRestorePreviousBudget = isChangingBudget
-            && setupPhase == .ready
-            && previousBudget?.syncID == previousBudgetID
-            && previousBudgetID.map { localFirstStore.isOpen(budgetID: $0) } == true
-
+        let isChangingBudget = settings.selectedBudgetID != budget.syncID
+        let canRestorePreviousBudget = isChangingBudget && canRestoreSelectedBudget
         if isChangingBudget {
-            isBudgetSwitchInProgress = canRestorePreviousBudget
             appSyncCoordinator.cancelRefresh()
             localFirstStore.closeOpenBudget()
             accountNavigationPath = []
         }
-        defer { isBudgetSwitchInProgress = false }
 
         connectionStatus = .connecting
         switch await sessionRecovery.openSelectedBudget(
@@ -708,7 +708,7 @@ final class AppState {
         guard !Task.isCancelled, sessionRecovery.isCurrent(identity) else { return }
         budgets = discovery.budgets
         if budgets.count == 1, let budget = budgets.first, settings.selectedBudgetID == nil {
-            _ = await selectLocalFirstBudget(budget)
+            _ = await selectBudgetForCurrentBackend(budget)
         } else if let budget = discovery.selectedBudget {
             selectedBudget = budget
             setupPhase = discovery.selectedIsOpen ? .ready : .selectingBudget

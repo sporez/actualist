@@ -14,9 +14,15 @@ protocol BackgroundTransactionRefreshing {
         budgets: [ActualBudget],
         hasSyncCredentials: Bool,
         store: LocalFirstActualStore,
+        openBudget: BackgroundBudgetOpener?,
         timeLimit: Duration
     ) async throws -> BackgroundTransactionRefreshOutcome
 }
+
+/// Opens the refresh's budget through the app's session-transition owner and
+/// reports whether a local baseline existed to diff against. `nil` lets the
+/// store open it directly.
+typealias BackgroundBudgetOpener = @MainActor (ActualBudget) async throws -> Bool
 
 enum BackgroundTransactionRefreshRunnerError: LocalizedError, Sendable {
     case timeLimitExceeded
@@ -78,6 +84,7 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         budgets: [ActualBudget],
         hasSyncCredentials: Bool,
         store: LocalFirstActualStore,
+        openBudget: BackgroundBudgetOpener?,
         timeLimit: Duration
     ) async throws -> BackgroundTransactionRefreshOutcome {
         // Background refresh may run before the foreground scene restores AppState.
@@ -106,7 +113,8 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
                 budget: budget,
                 budgetID: budgetID,
                 serverURLString: settings.localFirstServerURLString,
-                store: store
+                store: store,
+                openBudget: openBudget
             )
         }
         return .synced(result)
@@ -116,7 +124,8 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         budget: ActualBudget,
         budgetID: String,
         serverURLString: String,
-        store: LocalFirstActualStore
+        store: LocalFirstActualStore,
+        openBudget: BackgroundBudgetOpener?
     ) async throws -> BackgroundTransactionRefreshResult {
         if Task.isCancelled {
             throw CancellationError()
@@ -124,7 +133,8 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
 
         let results = try await store.syncAndFindNewTransactions(
             budget: budget,
-            serverURLString: serverURLString
+            serverURLString: serverURLString,
+            openBudget: openBudget
         )
 
         if Task.isCancelled {

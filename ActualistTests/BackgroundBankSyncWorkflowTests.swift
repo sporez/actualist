@@ -46,6 +46,7 @@ struct BackgroundBankSyncWorkflowTests {
             budgets: [ActualBudget],
             hasSyncCredentials: Bool,
             store: LocalFirstActualStore,
+            openBudget: BackgroundBudgetOpener?,
             timeLimit: Duration
         ) async throws -> BackgroundTransactionRefreshOutcome {
             receivedTimeLimit = timeLimit
@@ -549,6 +550,7 @@ private final class FakeBackgroundTransactionRefreshRunner: BackgroundTransactio
         budgets: [ActualBudget],
         hasSyncCredentials: Bool,
         store: LocalFirstActualStore,
+        openBudget: BackgroundBudgetOpener?,
         timeLimit: Duration
     ) async throws -> BackgroundTransactionRefreshOutcome {
         try result.get()

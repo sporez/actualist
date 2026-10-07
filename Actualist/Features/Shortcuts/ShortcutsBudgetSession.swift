@@ -58,9 +58,6 @@ final class ShortcutsBudgetSession {
     @discardableResult
     func prepare() async throws -> PreparedBudget {
         try requireEnabled()
-        if appState.isBudgetSwitchInProgress {
-            throw ShortcutsError.budgetBusy
-        }
         let settings = appState.settings
         guard appState.setupPhase != .needsConnection,
               let budgetID = settings.selectedBudgetID,
@@ -69,27 +66,30 @@ final class ShortcutsBudgetSession {
         }
 
         let store = appState.localFirstStore
-        if store.isOpen(budgetID: budgetID) {
+        let transitions = appState.budgetSessionTransitions
+        if store.isOpen(budgetID: budgetID), !transitions.isReplacingSession(of: budgetID) {
             return preparedBudget(budgetID: budgetID, store: store, settings: settings)
         }
-        if store.hasOpenBudget || appState.isBudgetSwitchInProgress {
-            throw ShortcutsError.budgetBusy
-        }
-
         guard let budget = reconstructedBudget(budgetID: budgetID, settings: settings) else {
             throw ShortcutsError.noBudgetSelected
         }
 
-        do {
-            let didOpen = try await store.openCachedBudget(budget)
-            guard didOpen, store.isOpen(budgetID: budgetID) else {
-                throw ShortcutsError.budgetFileMissing
+        // A launch restore or background open of this budget is joined; any
+        // other budget's transition refuses the request as busy.
+        let opened = await transitions.run(.intent, budgetID: budgetID) { [appState] () -> Result<Void, ShortcutsError> in
+            guard appState.settings.selectedBudgetID == budgetID else { return .failure(.budgetBusy) }
+            if store.isOpen(budgetID: budgetID) { return .success(()) }
+            if store.hasOpenBudget { return .failure(.budgetBusy) }
+            do {
+                let didOpen = try await store.openCachedBudget(budget)
+                return didOpen && store.isOpen(budgetID: budgetID) ? .success(()) : .failure(.budgetFileMissing)
+            } catch {
+                return .failure(ShortcutsError.mapping(error, fallback: .budgetFileMissing))
             }
-        } catch {
-            throw ShortcutsError.mapping(error, fallback: .budgetFileMissing)
         }
-
-        if appState.isBudgetSwitchInProgress {
+        guard let opened else { throw ShortcutsError.budgetBusy }
+        try opened.get()
+        guard store.isOpen(budgetID: budgetID), !transitions.isReplacingSession(of: budgetID) else {
             throw ShortcutsError.budgetBusy
         }
         return preparedBudget(budgetID: budgetID, store: store, settings: settings)
@@ -102,12 +102,9 @@ final class ShortcutsBudgetSession {
         defer { finishWrite() }
         // A task cancelled while queued may already have been handed the lock.
         try Task.checkCancellation()
-        if appState.isBudgetSwitchInProgress {
-            throw ShortcutsError.budgetBusy
-        }
         let prepared = try await prepare()
         guard prepared.store.isOpen(budgetID: prepared.budgetID),
-              !appState.isBudgetSwitchInProgress else {
+              !appState.budgetSessionTransitions.isReplacingSession(of: prepared.budgetID) else {
             throw ShortcutsError.budgetBusy
         }
         do {

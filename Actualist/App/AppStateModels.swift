@@ -25,6 +25,8 @@ enum BudgetOpenOutcome: Equatable {
     /// `message` is nil when the failure was a user/system cancellation.
     case failed(message: String?)
     case superseded
+    /// Refused: another budget's open, switch or reimport is in flight.
+    case busy
 }
 
 enum AppBudgetList {

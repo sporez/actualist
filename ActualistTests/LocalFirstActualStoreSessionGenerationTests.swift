@@ -133,7 +133,7 @@ extension LocalFirstActualStoreTests {
         #expect(!bundle.store.hasOpenBudget)
     }
 
-    @Test func switchingBudgetDuringReimportKeepsReplacementSelectionAndCache() async throws {
+    @Test func switchingBudgetDuringReimportIsRefusedAndReimportCompletes() async throws {
         let gate = StubConnectionWaitGate()
         let archive = try makeArchiveData(databaseURL: makeSQLiteFixture())
         let transport = StubConnectionTransport(files: [testRemoteFile()], downloadData: archive, downloadGate: gate)
@@ -164,14 +164,14 @@ extension LocalFirstActualStoreTests {
             budgetID: otherFileID, cloudFileId: otherFileID,
             groupId: "group-2", name: "Replacement", state: nil
         )
-        await state.selectBudgetForCurrentBackend(replacement)
+        // The session-transition owner refuses a switch while a reimport runs.
+        #expect(await state.selectBudgetForCurrentBackend(replacement) == .busy)
         #expect(state.setupPhase == .ready)
         await gate.release()
-        await pending.value
-        #expect(state.settings.selectedBudgetID == "group-2")
-        #expect(bundle.store.isOpen(budgetID: "group-2"))
+        #expect(await pending.value == .opened)
+        #expect(state.settings.selectedBudgetID == "group-1")
+        #expect(bundle.store.isOpen(budgetID: "group-1"))
         #expect(bundle.fileManager.importedDatabaseExists(fileID: otherFileID))
-        #expect(!(try bundle.fileManager.reimportBackupExists(fileID: "file-1")))
     }
 
     @Test func serverChangeDuringReimportDownloadPreservesNewConnection() async throws {

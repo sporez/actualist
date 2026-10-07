@@ -341,9 +341,9 @@ extension LocalFirstActualStoreTests {
         let selectionTask = Task {
             await appState.selectBudgetForCurrentBackend(targetBudget)
         }
-        await ObservedTestState { appState.isBudgetSwitchInProgress }.wait()
+        await ObservedTestState { appState.budgetSessionTransitions.keepsShell }.wait()
 
-        #expect(appState.isBudgetSwitchInProgress)
+        #expect(appState.budgetSessionTransitions.keepsShell)
         #expect(appState.setupPhase == .ready)
         #expect(appState.isReadyForMainTabs)
         await #expect(throws: ShortcutsError.budgetBusy) {
@@ -352,7 +352,7 @@ extension LocalFirstActualStoreTests {
 
         await selectionTask.value
 
-        #expect(!appState.isBudgetSwitchInProgress)
+        #expect(!appState.budgetSessionTransitions.keepsShell)
         #expect(appState.settings.selectedBudgetID == "group-2")
         #expect(bundle.store.isOpen(budgetID: "group-2"))
         #expect(appState.isReadyForMainTabs)

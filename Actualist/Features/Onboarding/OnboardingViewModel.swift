@@ -249,14 +249,16 @@ final class BudgetPickerViewModel {
         generation: Int
     ) async {
         // The open runs on AppState/store; race it against a timeout so a
-        // stalled network cannot pin the picker forever. Cancelling `work`
-        // propagates to the URLSession bytes iterator, aborting the download.
+        // stalled network cannot pin the picker forever. The open is owned by
+        // the session-transition coordinator, so the timeout cancels it there;
+        // that propagates to the URLSession bytes iterator, aborting the download.
         let work = Task { @MainActor in
             await appState.selectBudgetForCurrentBackend(budget, encryptionPassword: password)
         }
         let timer = Task { @MainActor in
-            try? await Task.sleep(for: openTimeout)
+            do { try await Task.sleep(for: openTimeout) } catch { return }
             work.cancel()
+            appState.budgetSessionTransitions.cancel()
         }
         let outcome = await work.value
         timer.cancel()
@@ -275,7 +277,7 @@ final class BudgetPickerViewModel {
                 openState = .needsEncryptionPassword(budget)
             case .failed(let message?):
                 openState = .failed(message: message)
-            case .opened, .failed(nil), .superseded:
+            case .opened, .failed(nil), .superseded, .busy:
                 // Success: AppState moves to .ready and RootView swaps in MainTabView.
                 openState = .idle
             }
