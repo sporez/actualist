@@ -22,6 +22,8 @@ Swift Testing methods may include argument labels, e.g. 'ExampleTests/check(_:)'
 Uses ACTUALIST_SIMULATOR_ID from the environment or local destinations.sh.
 DERIVED_DATA_PATH defaults to .derivedData in the repository.
 ACTUALIST_SCHEME may be Actualist (the default) or Actualist Dev.
+ACTUALIST_TEST_SANITIZER=thread adds -enableThreadSanitizer YES (diagnostic
+runs only; it rebuilds with instrumentation and runs much slower).
 
 ACTUALIST_TEST_PARALLEL:
   unset   unit runs with -parallel-testing-enabled YES; ui and all use NO.
@@ -116,10 +118,19 @@ fi
 [[ -n "${ACTUALIST_SIMULATOR_ID:-}" ]] \
   || fail "set ACTUALIST_SIMULATOR_ID or configure scripts/lib/destinations.sh"
 
+case "${ACTUALIST_TEST_SANITIZER:-}" in
+  "") sanitizer_flags=() ;;
+  thread) sanitizer_flags=(-enableThreadSanitizer YES) ;;
+  *) fail "ACTUALIST_TEST_SANITIZER must be unset or thread" ;;
+esac
+
 command=(xcodebuild -project Actualist.xcodeproj -scheme "$scheme"
   -destination "platform=iOS Simulator,id=$ACTUALIST_SIMULATOR_ID"
   -derivedDataPath "${DERIVED_DATA_PATH:-.derivedData}"
   -parallel-testing-enabled "$parallel")
+if [[ ${#sanitizer_flags[@]} -gt 0 ]]; then
+  command+=("${sanitizer_flags[@]}")
+fi
 if [[ ${#selection[@]} -gt 0 ]]; then
   command+=("${selection[@]}")
 fi
