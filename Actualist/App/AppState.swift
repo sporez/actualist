@@ -325,39 +325,63 @@ final class AppState {
         }
     }
 
-    func disconnectAndEraseLocalData() {
+    func disconnectAndEraseLocalData() async {
         do {
-            sessionRecovery.invalidate()
-            budgetSessionTransitions.cancel()
-            appSyncCoordinator.cancelRefresh()
-            widgetSnapshotClearer()
-            try localFirstStore.eraseLocalData()
-            refreshCredentialAvailability()
-            settings.localFirstServerURLString = ""
-            settings.fallbackServerURLString = ""
-            localFirstStore.fallbackServerURLString = nil
-            settings.selectedBudgetID = nil
-            settings.selectedBudgetName = nil
-            settings.selectedLocalFirstFileID = nil
-            settings.selectedLocalFirstGroupID = nil
-            settings.pendingNewTransactionIDsByAccount = [:]
-            updateApplicationBadge()
-            settings.backgroundTransactionRefreshEnabled = false
-            settings.simplefinBackgroundSyncEnabled = false
-            settingsStore.save(settings)
-            selectedBudget = nil
-            budgets = []
-            accountNavigationPath = []
-            routeCoordinator.reset()
-            setupPhase = .needsConnection
-            connectionStatus = .offline
-            lastErrorMessage = nil
-            localDataRevision &+= 1
-            BackgroundTransactionRefreshCoordinator.shared.cancel()
+            beginErase()
+            try await localFirstStore.eraseLocalData()
+            finishErase()
         } catch {
-            lastErrorMessage = error.userFacingMessage
-            connectionStatus = .offline
+            failErase(error)
         }
+    }
+
+    /// Launch-time variant used before any budget is open, so no commit can be
+    /// in flight and the erase can stay synchronous.
+    func disconnectAndEraseLocalDataBeforeFirstSession() {
+        do {
+            beginErase()
+            try localFirstStore.eraseLocalDataBeforeFirstSession()
+            finishErase()
+        } catch {
+            failErase(error)
+        }
+    }
+
+    private func beginErase() {
+        sessionRecovery.invalidate()
+        budgetSessionTransitions.cancel()
+        appSyncCoordinator.cancelRefresh()
+        widgetSnapshotClearer()
+    }
+
+    private func failErase(_ error: any Error) {
+        lastErrorMessage = error.userFacingMessage
+        connectionStatus = .offline
+    }
+
+    private func finishErase() {
+        refreshCredentialAvailability()
+        settings.localFirstServerURLString = ""
+        settings.fallbackServerURLString = ""
+        localFirstStore.fallbackServerURLString = nil
+        settings.selectedBudgetID = nil
+        settings.selectedBudgetName = nil
+        settings.selectedLocalFirstFileID = nil
+        settings.selectedLocalFirstGroupID = nil
+        settings.pendingNewTransactionIDsByAccount = [:]
+        updateApplicationBadge()
+        settings.backgroundTransactionRefreshEnabled = false
+        settings.simplefinBackgroundSyncEnabled = false
+        settingsStore.save(settings)
+        selectedBudget = nil
+        budgets = []
+        accountNavigationPath = []
+        routeCoordinator.reset()
+        setupPhase = .needsConnection
+        connectionStatus = .offline
+        lastErrorMessage = nil
+        localDataRevision &+= 1
+        BackgroundTransactionRefreshCoordinator.shared.cancel()
     }
 
     var localFirstSyncStatus: LocalFirstSyncStatus? {

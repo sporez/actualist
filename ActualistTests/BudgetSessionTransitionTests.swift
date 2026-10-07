@@ -125,7 +125,7 @@ struct BudgetSessionTransitionTests {
 
         let select = Task { await appState.selectBudgetForCurrentBackend(target) }
         await probe.parked.wait()
-        appState.disconnectAndEraseLocalData()
+        await appState.disconnectAndEraseLocalData()
         #expect(!appState.budgetSessionTransitions.isTransitionInFlight)
         probe.release()
 

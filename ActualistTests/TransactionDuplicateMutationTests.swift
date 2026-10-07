@@ -294,33 +294,14 @@ struct TransactionDuplicateMutationTests {
         #expect(try transactionState(review.allocations[0].duplicateTransactionID, bundle: bundle) == nil)
     }
 
-    @Test func queuedCommitObservesSessionCloseBeforeAcquiringTheGuard() async throws {
+    @Test func commitAfterSessionCloseIsRefusedWithoutWriting() async throws {
         let bundle = try await makeBundle()
         let database = try bundle.store.requireDatabase(for: "group-1")
         let review = try await review(bundle, selections: [identity("txn")])
-        let guardHeld = TestLatch()
-        let releaseGuard = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
-            database.sessionWritesAllowed.withLock { allowed in
-                guardHeld.trip()
-                releaseGuard.wait()
-                allowed = false
-            }
-        }
-        defer { releaseGuard.signal() }
-        let acquired = await guardHeld.wait(timeout: .seconds(10)) { releaseGuard.signal() }
-        guard acquired else {
-            Issue.record("The test did not acquire the session guard before its deadline")
-            return
-        }
-
-        let commitStarted = TestLatch()
+        database.invalidateSessionWrites()
         let pendingCommit = Task {
-            commitStarted.trip()
-            return try await database.commitTransactionDuplicate(review: review)
+            try await database.commitTransactionDuplicate(review: review)
         }
-        await commitStarted.wait()
-        releaseGuard.signal()
 
         await #expect(throws: LocalFirstError.budgetNotOpened) {
             try await pendingCommit.value

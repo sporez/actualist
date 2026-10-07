@@ -159,7 +159,7 @@ struct DemoModeSessionTests {
         await state.enterDemoMode()
         #expect(state.isDemoMode)
 
-        state.disconnectAndEraseLocalData()
+        await state.disconnectAndEraseLocalData()
 
         #expect(state.setupPhase == .needsConnection)
         #expect(!state.isDemoMode)

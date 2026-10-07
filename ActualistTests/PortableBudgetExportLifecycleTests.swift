@@ -119,7 +119,7 @@ struct PortableBudgetExportLifecycleTests {
         let url = try await bundle.store.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
         #expect(FileManager.default.fileExists(atPath: url.path))
 
-        try bundle.store.eraseLocalData()
+        try await bundle.store.eraseLocalData()
 
         #expect(!FileManager.default.fileExists(atPath: url.path))
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: files.directory.path)) ?? []).isEmpty)

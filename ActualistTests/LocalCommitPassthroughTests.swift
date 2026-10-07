@@ -126,4 +126,45 @@ struct LocalCommitPassthroughTests {
             _ = try await database.commitActionUndo(record: record)
         }
     }
+
+    // MARK: Non-blocking session fence (concurrency 5.3, CA-16)
+
+    @Test func invalidatingTheSessionDoesNotWaitForACommitInsideItsTransaction() async throws {
+        let inTransaction = TestLatch()
+        let releaseCommit = DispatchSemaphore(value: 0)
+        let database = try BudgetDatabase(
+            databaseURL: try fixtures.makeSQLiteFixture(),
+            localNodeID: "node1",
+            beforeBudgetDataMutation: {
+                inTransaction.trip()
+                releaseCommit.wait()
+            }
+        )
+        let draft = ActualSyncDecodedMessage(
+            timestamp: "1970-01-01T00:00:00.000Z-0000-0000000000000000",
+            dataset: "accounts",
+            row: "checking",
+            column: "name",
+            serializedValue: "S:Renamed"
+        )
+        let parked = Task { try await database.commitLocalSyncMessagesAndEnqueue([draft]) }
+        defer { releaseCommit.signal() }
+        let entered = await inTransaction.wait(timeout: .seconds(10)) { releaseCommit.signal() }
+        #expect(entered, "The commit never reached its transaction")
+
+        let invalidated = TestLatch()
+        DispatchQueue.global().async {
+            database.invalidateSessionWrites()
+            invalidated.trip()
+        }
+        let returned = await invalidated.wait(timeout: .seconds(5)) { releaseCommit.signal() }
+        #expect(returned, "invalidateSessionWrites() blocked while a commit was inside its transaction")
+
+        releaseCommit.signal()
+        _ = try await parked.value
+        await database.quiesce()
+        await #expect(throws: LocalFirstError.budgetNotOpened) {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue([draft])
+        }
+    }
 }

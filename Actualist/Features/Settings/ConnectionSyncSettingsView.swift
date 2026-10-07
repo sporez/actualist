@@ -127,10 +127,12 @@ struct ConnectionSyncSettingsView: View {
     }
 
     private func eraseLocalData() {
-        appState.disconnectAndEraseLocalData()
-        viewModel.actualPassword = ""
-        viewModel.serverURLString = appState.settings.localFirstServerURLString
-        viewModel.fallbackServerURLString = appState.settings.fallbackServerURLString
+        Task {
+            await appState.disconnectAndEraseLocalData()
+            viewModel.actualPassword = ""
+            viewModel.serverURLString = appState.settings.localFirstServerURLString
+            viewModel.fallbackServerURLString = appState.settings.fallbackServerURLString
+        }
     }
 
     // MARK: - Non-demo sections (extracted so the demo body can omit them)

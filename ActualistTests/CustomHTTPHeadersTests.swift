@@ -88,7 +88,7 @@ struct CustomHTTPHeadersTests {
         #expect(!policy.refuses(same))
     }
 
-    @Test @MainActor func keychainAtomicIsolationEraseAndBackgroundAccessibility() throws {
+    @Test @MainActor func keychainAtomicIsolationEraseAndBackgroundAccessibility() async throws {
         let backend = FakeKeychainBackend()
         let keychain = KeychainStore(service: UUID().uuidString, account: "token", backend: backend)
         let primary = try EndpointCustomHTTPHeaders(url: URL(string: "https://primary.example")!, headers: [.init(name: "X-Primary", value: "primary-secret")])
@@ -113,7 +113,7 @@ struct CustomHTTPHeadersTests {
         let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let store = LocalFirstActualStore(keychain: keychain, fileManager: BudgetFileManager(applicationSupportURL: root))
-        try store.eraseLocalData()
+        try await store.eraseLocalData()
         #expect(try keychain.readCustomHTTPHeaders() == .init())
         try keychain.saveCustomHTTPHeaders(configuration)
         try keychain.saveCustomHTTPHeaders(.init())

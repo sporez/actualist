@@ -349,7 +349,7 @@ extension LocalFirstActualStoreTests {
             withIntermediateDirectories: true
         )
 
-        try store.eraseLocalData()
+        try await store.eraseLocalData()
 
         #expect(try keychain.readActualSyncToken() == nil)
         #expect(try keychain.readLocalFirstEncryptionKey(fileID: "file-1", keyID: "key-1") == nil)

@@ -90,7 +90,7 @@ extension LocalFirstActualStoreTests {
         let pending = Task { await state.reimportLocalFirstBudget() }
         await gate.waitForEntry()
         #expect(await gate.didEnter)
-        state.disconnectAndEraseLocalData()
+        await state.disconnectAndEraseLocalData()
         await gate.release()
         await pending.value
         #expect(state.setupPhase == .needsConnection)
@@ -124,7 +124,7 @@ extension LocalFirstActualStoreTests {
         let pending = Task { await state.reimportLocalFirstBudget() }
         await openPaused.wait()
         let resume = try #require(resumeOpen)
-        state.disconnectAndEraseLocalData()
+        await state.disconnectAndEraseLocalData()
         resume.resume()
         await pending.value
         #expect(state.setupPhase == .needsConnection)
@@ -254,7 +254,7 @@ extension LocalFirstActualStoreTests {
         let pending = Task { try await state.loadBudgets() }
         await gate.waitForEntry()
         #expect(await gate.didEnter)
-        state.disconnectAndEraseLocalData()
+        await state.disconnectAndEraseLocalData()
         await gate.release()
         await #expect(throws: CancellationError.self) { try await pending.value }
         #expect(state.setupPhase == .needsConnection)
@@ -302,7 +302,7 @@ extension LocalFirstActualStoreTests {
         let pending = Task { await state.selectBudgetForCurrentBackend(budget, encryptionPassword: password) }
         await gate.waitForEntry()
         #expect(await gate.didEnter)
-        state.disconnectAndEraseLocalData()
+        await state.disconnectAndEraseLocalData()
         await gate.release()
         await pending.value
         #expect(state.setupPhase == .needsConnection)
@@ -348,7 +348,7 @@ extension LocalFirstActualStoreTests {
         let pending = Task { await state.beginForegroundSession() }
         await openPaused.wait()
         let resume = try #require(resumeOpen)
-        state.disconnectAndEraseLocalData()
+        await state.disconnectAndEraseLocalData()
         resume.resume()
         await pending.value
         #expect(state.setupPhase == .needsConnection)
@@ -390,7 +390,7 @@ extension LocalFirstActualStoreTests {
         let pending = Task { try await bundle.store.loadBudgets(serverURLString: "https://synthetic.invalid") }
         await transport.waitForListUserFilesRequest()
         #expect(await transport.listUserFilesRequestCount > 0)
-        try bundle.store.eraseLocalData()
+        try await bundle.store.eraseLocalData()
         await #expect(throws: CancellationError.self) { _ = try await pending.value }
         #expect(bundle.store.cachedBudgets.isEmpty)
         #expect(bundle.store.remoteFilesByFileID.isEmpty)

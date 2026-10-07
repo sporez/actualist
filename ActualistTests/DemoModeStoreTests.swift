@@ -203,7 +203,7 @@ struct DemoModeStoreTests {
         #expect(fileManager.importedDatabaseExists(fileID: DemoBudget.fileID))
 
         store.closeOpenBudget()
-        try store.eraseLocalData()
+        try await store.eraseLocalData()
 
         #expect(!fileManager.importedDatabaseExists(fileID: DemoBudget.fileID))
         #expect(!store.isDemoBudgetActive)

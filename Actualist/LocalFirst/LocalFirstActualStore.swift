@@ -301,7 +301,23 @@ final class LocalFirstActualStore:
         resumePendingLocalMessageFlushWaiters()
     }
 
-    func eraseLocalData() throws {
+    func eraseLocalData() async throws {
+        let closingDatabase = database
+        try eraseCredentialsAndCaches()
+        // Teardown order (D-5.3): fence flipped by reset(), then drain any
+        // commit already running, then delete the files.
+        await closingDatabase?.quiesce()
+        try fileManager.deleteAllImportedBudgets()
+    }
+
+    /// Launch-time erase, before any budget has been opened, so there is no
+    /// commit to drain.
+    func eraseLocalDataBeforeFirstSession() throws {
+        try eraseCredentialsAndCaches()
+        try fileManager.deleteAllImportedBudgets()
+    }
+
+    private func eraseCredentialsAndCaches() throws {
         reset()
         portableExportFiles.removeAll()
         endpointHealth.clear()
@@ -311,7 +327,6 @@ final class LocalFirstActualStore:
         try keychain.removeSimpleFINAccessURL()
         try keychain.removeCustomHTTPHeaders()
         customHeadersRevision &+= 1
-        try fileManager.deleteAllImportedBudgets()
     }
 
     func shouldSkipPrimary(primary: URL, fallback: URL) -> Bool {

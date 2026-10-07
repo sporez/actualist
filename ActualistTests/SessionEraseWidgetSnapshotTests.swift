@@ -33,7 +33,7 @@ struct SessionEraseWidgetSnapshotTests {
         #expect(store.load() == nil)
     }
 
-    @Test func disconnectAndEraseClearsTheWidgetSnapshotSynchronously() throws {
+    @Test func disconnectAndEraseClearsTheWidgetSnapshotSynchronously() async throws {
         let root = FileManager.default.temporaryDirectory
             .appending(path: "SessionEraseWidgetApp-\(UUID().uuidString)", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -50,7 +50,7 @@ struct SessionEraseWidgetSnapshotTests {
             widgetSnapshotClearer: { clearCount += 1 }
         )
 
-        state.disconnectAndEraseLocalData()
+        await state.disconnectAndEraseLocalData()
 
         #expect(clearCount == 1)
     }

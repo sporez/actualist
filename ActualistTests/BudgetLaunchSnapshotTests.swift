@@ -175,7 +175,7 @@ extension LocalFirstActualStoreTests {
         #expect(FileManager.default.fileExists(atPath: files.revisionURL.path))
         #expect(FileManager.default.fileExists(atPath: files.snapshotURL.path))
 
-        try bundle.store.eraseLocalData()
+        try await bundle.store.eraseLocalData()
 
         #expect(!FileManager.default.fileExists(atPath: files.revisionURL.path))
         #expect(!FileManager.default.fileExists(atPath: files.snapshotURL.path))

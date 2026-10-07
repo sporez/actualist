@@ -557,7 +557,7 @@ struct ServerFailoverTests {
         #expect(await primary.callCount() == 1)
         #expect(store.endpointHealthDisplay.willSkipPrimary)
 
-        try store.eraseLocalData()
+        try await store.eraseLocalData()
         store.fallbackServerURLString = "https://fallback.example.com"
         store.openedServerURLString = "https://primary.example.com"
         #expect(!store.endpointHealthDisplay.willSkipPrimary)

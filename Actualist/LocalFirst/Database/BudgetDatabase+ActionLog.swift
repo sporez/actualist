@@ -572,60 +572,60 @@ extension BudgetDatabase {
     }
 
     private func performActionUndoCommit(record: BudgetActionRecord, now: Date) throws -> Int {
-        return try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
-            guard var clock = localClock else {
-                throw LocalFirstError.invalidLocalWrite("local clock is not configured")
-            }
-            let appliedCount: Int
-            do {
-                appliedCount = try writeTrackingMerkle { db in
-                    try Task.checkCancellation()
-                    guard try tableExists("messages_crdt", db: db) else {
-                        throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
-                    }
-                    try ensureLocalSyncOutbox(db)
-                    guard try tableExists("actualist_action_log", db: db) else {
-                        throw LocalFirstError.invalidLocalWrite("there is nothing to undo")
-                    }
-                    try requireNewestAppliedUndo(record: record, db: db)
-
-                    let plan: BudgetActionUndoPlan
-                    switch try evaluateActionUndo(record: record, db: db) {
-                    case .clean(let cleanPlan):
-                        plan = cleanPlan
-                    case .blocked(let block):
-                        throw LocalFirstError.actionUndoBlocked(block.userFacingReason)
-                    }
-
-                    let baseTimestamp = try String.fetchOne(
-                        db,
-                        sql: "SELECT MAX(timestamp) FROM messages_crdt"
-                    ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
-                    var builder = LocalFirstSyncMessageBuilder()
-                    let drafts = try undoMessages(for: plan, record: record, db: db, builder: &builder)
-                    guard !drafts.isEmpty else {
-                        throw LocalFirstError.invalidLocalWrite("there is nothing to undo")
-                    }
-                    try beforeBudgetDataMutation()
-                    let applied = try applyCommittedDrafts(
-                        drafts,
-                        clock: &clock,
-                        now: now,
-                        baseTimestamp: baseTimestamp,
-                        db: db
-                    )
-                    try markActionLogUndone(id: record.id, now: now, db: db)
-                    return applied.appliedCount
-                }
-            } catch let error as LocalFirstError {
-                throw error
-            } catch {
-                throw LocalFirstError.invalidLocalWrite("the database transaction was rolled back")
-            }
-            localClock = clock
-            return appliedCount
+        guard sessionWritesAllowed.load(ordering: .acquiring) else {
+            throw LocalFirstError.budgetNotOpened
         }
+        guard var clock = localClock else {
+            throw LocalFirstError.invalidLocalWrite("local clock is not configured")
+        }
+        let appliedCount: Int
+        do {
+            appliedCount = try writeTrackingMerkle { db in
+                try Task.checkCancellation()
+                guard try tableExists("messages_crdt", db: db) else {
+                    throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
+                }
+                try ensureLocalSyncOutbox(db)
+                guard try tableExists("actualist_action_log", db: db) else {
+                    throw LocalFirstError.invalidLocalWrite("there is nothing to undo")
+                }
+                try requireNewestAppliedUndo(record: record, db: db)
+
+                let plan: BudgetActionUndoPlan
+                switch try evaluateActionUndo(record: record, db: db) {
+                case .clean(let cleanPlan):
+                    plan = cleanPlan
+                case .blocked(let block):
+                    throw LocalFirstError.actionUndoBlocked(block.userFacingReason)
+                }
+
+                let baseTimestamp = try String.fetchOne(
+                    db,
+                    sql: "SELECT MAX(timestamp) FROM messages_crdt"
+                ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+                var builder = LocalFirstSyncMessageBuilder()
+                let drafts = try undoMessages(for: plan, record: record, db: db, builder: &builder)
+                guard !drafts.isEmpty else {
+                    throw LocalFirstError.invalidLocalWrite("there is nothing to undo")
+                }
+                try beforeBudgetDataMutation()
+                let applied = try applyCommittedDrafts(
+                    drafts,
+                    clock: &clock,
+                    now: now,
+                    baseTimestamp: baseTimestamp,
+                    db: db
+                )
+                try markActionLogUndone(id: record.id, now: now, db: db)
+                return applied.appliedCount
+            }
+        } catch let error as LocalFirstError {
+            throw error
+        } catch {
+            throw LocalFirstError.invalidLocalWrite("the database transaction was rolled back")
+        }
+        localClock = clock
+        return appliedCount
     }
 
     func undoMessages(

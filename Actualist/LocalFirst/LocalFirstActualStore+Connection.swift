@@ -407,7 +407,9 @@ extension LocalFirstActualStore {
         try await validationDatabase.validateImportedBudget()
         try requireSyncSession(database: sourceDatabase, budgetID: budget.syncID, generation: sourceGeneration)
 
+        let closingDatabase = database
         reset()
+        await closingDatabase?.quiesce()
         let operationID = UUID()
         activeReimportID = operationID
         let commitGeneration = budgetSessionGeneration

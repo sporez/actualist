@@ -66,7 +66,7 @@ extension LocalFirstActualStoreTests {
         }
         await transport.waitForLoginMethodsRequest()
         #expect(await transport.loginMethodsRequestCount > 0)
-        state.disconnectAndEraseLocalData()
+        await state.disconnectAndEraseLocalData()
         #expect(!(await pending.value))
         #expect(state.setupPhase == .needsConnection)
         #expect(state.settings.selectedBudgetID == nil)
@@ -748,7 +748,7 @@ extension LocalFirstActualStoreTests {
 
         // Reproduce: Settings open in Connection & Sync when the user erases.
         appState.routeCoordinator.presentSettings(path: [.connection])
-        appState.disconnectAndEraseLocalData()
+        await appState.disconnectAndEraseLocalData()
 
         #expect(appState.setupPhase == .needsConnection)
         #expect(!appState.routeCoordinator.isSettingsPresented)

@@ -3,7 +3,9 @@ import GRDB
 import Synchronization
 
 actor BudgetDatabase {
-    nonisolated let sessionWritesAllowed = Mutex(true)
+    /// Session write fence flag. Commits read it once at their start; teardown
+    /// flips it without waiting (see `invalidateSessionWrites`).
+    nonisolated let sessionWritesAllowed = Atomic<Bool>(true)
     let databaseURL: URL
     let queue: DatabaseQueue
     var localClock: HybridLogicalClock?

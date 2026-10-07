@@ -95,7 +95,7 @@ enum SimulatorLaunchApplier {
         appState: AppState
     ) {
         if command.replaceDemoForUITesting, appState.isDemoMode {
-            appState.disconnectAndEraseLocalData()
+            appState.disconnectAndEraseLocalDataBeforeFirstSession()
         }
     }
 
