@@ -379,6 +379,50 @@ struct UncategorizedTransactionsViewModelTests {
         #expect(model.categoryNames(for: regular) == ["Uncategorized"])
     }
 
+    @Test func olderLoadFinishingLastDoesNotOverwriteNewerSnapshot() async throws {
+        func snapshot(_ id: String) -> LoadedUncategorizedTransactions {
+            LoadedUncategorizedTransactions(
+                transactions: [Self.transaction(id: id)],
+                accountNames: [:],
+                categoryNames: [:],
+                payeeNames: [:],
+                transferPayeeIDs: [],
+                categoryGroups: []
+            )
+        }
+        let repository = UncategorizedRecordingTransactionRepository(
+            loadedResponses: [snapshot("old"), snapshot("new")]
+        )
+        let oldEntered = TestLatch()
+        let newEntered = TestLatch()
+        let releaseOld = TestLatch()
+        repository.afterLoadSelected = { call in
+            if call == 1 {
+                oldEntered.trip()
+                await releaseOld.wait()
+            } else {
+                newEntered.trip()
+            }
+        }
+        let model = UncategorizedTransactionsViewModel()
+
+        let oldLoad = Task { await model.load(budgetID: "budget", month: "2026-06", repository: repository) }
+        let oldStarted = await oldEntered.wait(timeout: .seconds(5), onTimeout: { releaseOld.trip() })
+        #expect(oldStarted)
+        let newLoad = Task { await model.load(budgetID: "budget", month: "2026-06", repository: repository) }
+        let newStarted = await newEntered.wait(timeout: .seconds(5), onTimeout: { releaseOld.trip() })
+        #expect(newStarted)
+        await newLoad.value
+        #expect(model.transactions.map(\.rowID) == ["new"])
+        #expect(!model.isLoading)
+
+        releaseOld.trip()
+        await oldLoad.value
+
+        #expect(model.transactions.map(\.rowID) == ["new"])
+        #expect(!model.isLoading)
+    }
+
     static func transaction(
         id: String,
         account: String = "checking",
@@ -418,6 +462,14 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
     }
     func searchSpendingTransactions(budgetID: String, query: String, limit: Int, offset: Int, statusFilter: TransactionStatusFilter) async throws -> LoadedAccountTransactions {
         LoadedAccountTransactions(transactions: [], balance: nil, categoryNames: [:], payeeNames: [:], transferPayeeIDs: [], reachedEnd: true)
+    }
+
+    /// Replaces `existingImportedIDs` when set; receives the requested account id.
+    var existingImportedIDsHook: (@MainActor (String) async -> Set<String>)?
+
+    func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String> {
+        guard let existingImportedIDsHook else { return [] }
+        return await existingImportedIDsHook(accountID)
     }
 
     private var loadedResponses: [LoadedUncategorizedTransactions]
@@ -472,18 +524,27 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
         categorizedTransactionIDs
     }
 
+    /// Awaited after the response for call `n` (1-based) is chosen, so a test
+    /// can park individual loads and complete them out of order.
+    var afterLoadSelected: (@MainActor (Int) async -> Void)?
+    private var loadCallCount = 0
+
     func uncategorizedTransactions(
         budgetID: String,
         month: String
     ) async throws -> LoadedUncategorizedTransactions {
+        loadCallCount += 1
+        let call = loadCallCount
+        let response: LoadedUncategorizedTransactions
         if loadedResponses.count > 1 {
-            return loadedResponses.removeFirst()
-        }
-
-        guard let loaded = loadedResponses.first else {
+            response = loadedResponses.removeFirst()
+        } else if let loaded = loadedResponses.first {
+            response = loaded
+        } else {
             throw TestError("missing uncategorized fixture")
         }
-        return loaded
+        await afterLoadSelected?(call)
+        return response
     }
 
     func categorizeTransactionAndRefresh(

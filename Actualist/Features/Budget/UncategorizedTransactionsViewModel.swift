@@ -19,6 +19,8 @@ final class UncategorizedTransactionsViewModel {
     var isSelecting = false
     var isBulkCategorizing = false
     private(set) var hasLoadedSnapshot = false
+    /// Only the newest `load` may publish, so an older one finishing last cannot win.
+    private var loadGeneration = 0
     private(set) var reconciledCategorization: UncategorizedReconciledCategorization?
 
     init(cachedSnapshot: LoadedUncategorizedTransactions? = nil) {
@@ -140,13 +142,18 @@ final class UncategorizedTransactionsViewModel {
         month: String,
         repository: any TransactionRepositoryProtocol
     ) async {
+        loadGeneration += 1
+        let generation = loadGeneration
         isLoading = true
         errorMessage = nil
 
         do {
-            apply(try await repository.uncategorizedTransactions(budgetID: budgetID, month: month))
+            let loaded = try await repository.uncategorizedTransactions(budgetID: budgetID, month: month)
+            guard generation == loadGeneration else { return }
+            apply(loaded)
             hasLoadedSnapshot = true
         } catch {
+            guard generation == loadGeneration else { return }
             errorMessage = error.userFacingMessage
         }
 
