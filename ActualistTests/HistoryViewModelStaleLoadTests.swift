@@ -34,6 +34,7 @@ struct HistoryViewModelStaleLoadTests {
 
         // The older response has now completed; it must not replace newer rows.
         #expect(model.rows.map(\.id) == ["new"])
+        #expect(model.records.map(\.id) == ["new"])
         #expect(model.loadState == .loaded)
     }
 

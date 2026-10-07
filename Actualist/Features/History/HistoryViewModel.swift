@@ -30,7 +30,7 @@ final class HistoryViewModel {
     private(set) var rows: [HistoryRowModel] = []
     private(set) var undoState: UndoState = .idle
 
-    private var records: [BudgetActionRecord] = []
+    private(set) var records: [BudgetActionRecord] = []
     private var categoryNames: [String: String] = [:]
     private var currency: BudgetCurrency = .usd
     private var currentModeIdentity: BudgetModeIdentity?
@@ -96,11 +96,13 @@ final class HistoryViewModel {
             async let fetchedRecords = repository.recentBudgetActions(budgetID: budgetID)
             async let fetchedNames = repository.budgetActionCategoryNames(budgetID: budgetID)
             async let fetchedModeIdentity = repository.budgetModeIdentity(budgetID: budgetID)
-            records = try await fetchedRecords
-            categoryNames = try await fetchedNames
+            let loadedRecords = try await fetchedRecords
+            let loadedNames = try await fetchedNames
             let identity = try await fetchedModeIdentity
             // A newer load owns the screen; an older response must not replace it.
             guard request == loadGeneration else { return }
+            records = loadedRecords
+            categoryNames = loadedNames
             if let previousModeIdentity = currentModeIdentity,
                previousModeIdentity != identity {
                 // A conversion invalidates every open budget undo review. The
