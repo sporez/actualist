@@ -15,12 +15,15 @@ extension BudgetDatabase {
         }
     }
 
+    /// Ids compare exactly, as upstream's `imported_id = ?` does (sync.ts ~850):
+    /// whitespace is trimmed and nothing else changes, so `A1` and `a1` are
+    /// different ids for every importer.
     static func normalizedImportedID(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// Live imported ids on an account, trimmed and lowercased.
+    /// Live imported ids on an account, trimmed (see `normalizedImportedID`).
     func existingImportedIDs(accountID: String, db: Database) throws -> Set<String> {
         guard try tableExists("transactions", db: db) else {
             return []
