@@ -9,6 +9,7 @@ extension LocalFirstActualStore {
         invalidateScheduleCache(budgetID: budgetID)
         budgetReadGeneration &+= 1
         cachePublicationRevision &+= 1
+        let publicationRevision = cachePublicationRevision
         monthsByBudget[budgetID] = nil
         templateBrowserByBudget[budgetID] = nil
         let prefix = "\(budgetID)|"
@@ -38,7 +39,7 @@ extension LocalFirstActualStore {
                 for month in uncategorizedMonths {
                     _ = try await publishUncategorizedTransactions(
                         database: database, budgetID: budgetID, month: month,
-                        generation: generation, rows: rows, maps: maps
+                        generation: generation, revision: publicationRevision, rows: rows, maps: maps
                     )
                 }
             }

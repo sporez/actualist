@@ -160,9 +160,15 @@ extension LocalFirstActualStore {
     ) async throws {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
+        let revision = cachePublicationRevision
         let maps = try await nameMaps(database)
         let transactions = try await database.fetchTransactions()
+        #if DEBUG
+        await readPublicationHook?(.categoryFeed)
+        #endif
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        // A write reload since this read began already published fresher rows.
+        guard revision == cachePublicationRevision else { return }
         publishCategoryTransactions(
             budgetID: budgetID, categoryID: categoryID, month: month,
             allTransactions: transactions, maps: maps
@@ -227,11 +233,15 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedUncategorizedTransactions {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
+        let revision = cachePublicationRevision
         let maps = try await nameMaps(database)
         let rows = try await database.fetchUncategorizedTransactions()
+        #if DEBUG
+        await readPublicationHook?(.uncategorizedFeed)
+        #endif
         return try await publishUncategorizedTransactions(
             database: database, budgetID: budgetID, month: month,
-            generation: generation, rows: rows, maps: maps
+            generation: generation, revision: revision, rows: rows, maps: maps
         )
     }
 
@@ -241,6 +251,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         month: String,
         generation: Int,
+        revision: Int,
         rows: [ActualTransaction],
         maps: TransactionNameMaps
     ) async throws -> LoadedUncategorizedTransactions {
@@ -263,7 +274,9 @@ extension LocalFirstActualStore {
             offBudgetAccountIDs: maps.offBudgetAccountIDs,
             categoryGroups: categoryGroups
         )
-        uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, month)] = loaded
+        if revision == cachePublicationRevision {
+            uncategorizedTransactionsByKey[uncategorizedTransactionKey(budgetID, month)] = loaded
+        }
         return loaded
     }
 

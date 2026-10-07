@@ -80,4 +80,53 @@ extension LocalFirstActualStoreTests {
         #expect(bundle.store.templateBrowserByBudget["group-1"] == nil)
     }
 
+    @Test func olderCategoryFeedReadCannotOverwriteAWriteReload() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let store = bundle.store
+        try await store.refreshCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07")
+        let database = try #require(store.database)
+
+        let result = try await parkedRead(.categoryFeed, on: store, read: {
+            try await store.refreshCategoryTransactions(
+                budgetID: "group-1", categoryID: "groceries", month: "2026-07"
+            )
+        }, whileParked: {
+            _ = try await database.applyRemoteSyncMessages([ActualSyncDecodedMessage(
+                timestamp: "2026-07-04T12:00:00.000Z-0000-peernode0000001",
+                dataset: "transactions", row: "txn", column: "notes", serializedValue: "S:newer"
+            )])
+            try await store.reloadSelectedBudgetCache(budgetID: "group-1")
+        })
+
+        _ = try result.get()
+        let cached = try #require(store.cachedCategoryTransactions(
+            budgetID: "group-1", categoryID: "groceries", month: "2026-07"
+        ))
+        #expect(cached.transactions.first { $0.id == "txn" }?.notes == "newer")
+    }
+
+    @Test func olderUncategorizedFeedReadCannotOverwriteAWriteReload() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: """
+            INSERT INTO transactions (id, acct, date, amount, tombstone, notes)
+            VALUES ('loose', 'checking', 20260704, -100, 0, 'old');
+            """)
+        let store = bundle.store
+        _ = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        let database = try #require(store.database)
+
+        let result = try await parkedRead(.uncategorizedFeed, on: store, read: {
+            try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        }, whileParked: {
+            _ = try await database.applyRemoteSyncMessages([ActualSyncDecodedMessage(
+                timestamp: "2026-07-04T12:00:00.000Z-0000-peernode0000001",
+                dataset: "transactions", row: "loose", column: "notes", serializedValue: "S:newer"
+            )])
+            try await store.reloadSelectedBudgetCache(budgetID: "group-1")
+        })
+
+        _ = try result.get()
+        let cached = try #require(store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-07"))
+        #expect(cached.transactions.first { $0.id == "loose" }?.notes == "newer")
+    }
+
 }
