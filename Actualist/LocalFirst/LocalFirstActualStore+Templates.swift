@@ -66,11 +66,19 @@ extension LocalFirstActualStore {
             return cached
         }
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
+        let revision = cachePublicationRevision
         var snapshot = try await database.categoryTemplateBrowserSnapshot()
+        #if DEBUG
+        await readPublicationHook?(.templateBrowser)
+        #endif
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         if let month {
             snapshot.month = month
         }
-        templateBrowserByBudget[budgetID] = snapshot
+        if revision == cachePublicationRevision {
+            templateBrowserByBudget[budgetID] = snapshot
+        }
         return snapshot
     }
 

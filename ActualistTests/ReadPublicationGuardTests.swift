@@ -70,4 +70,14 @@ extension LocalFirstActualStoreTests {
         #expect(bundle.store.monthsByBudget["group-1"] == nil)
     }
 
+    @Test func templateBrowserReadFromAClosedSessionIsNotPublished() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let result = try await parkedRead(.templateBrowser, on: bundle.store, read: {
+            try await bundle.store.categoryTemplateBrowserSnapshot(budgetID: "group-1")
+        }, whileParked: { try await reopenSameBudget(bundle) })
+
+        #expect(throws: CancellationError.self) { try result.get() }
+        #expect(bundle.store.templateBrowserByBudget["group-1"] == nil)
+    }
+
 }
