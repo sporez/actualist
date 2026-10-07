@@ -51,20 +51,40 @@ final class WidgetSnapshotCoordinator {
     private var publishTask: Task<Void, Never>?
     private let themeStore: WidgetThemeStore
     private let reloadAllTimelines: () -> Void
+    /// A burst of revisions collapses into one read and write after this quiet period.
+    private let publishDelay: Duration
+    /// Returns nil when the budget is not ready to publish (setup incomplete or not open).
+    private let loadSource: @MainActor (AppState, String) async throws -> WidgetBudgetSource?
+    /// What this process last wrote (or found on disk once), so a revision does not
+    /// re-read and re-decode the file just to compare it. Nil means no saved snapshot.
+    private var lastWritten: WidgetSnapshot?
+    private var hasSeededLastWritten = false
+    /// Bumped by every clear, so a write that was in flight can remove what it just wrote.
+    private var clearEpoch = 0
 
     init(
         snapshotStore: WidgetSnapshotStore = .live,
         themeStore: WidgetThemeStore = .live,
-        reloadAllTimelines: @escaping () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
+        publishDelay: Duration = .milliseconds(300),
+        reloadAllTimelines: @escaping () -> Void = { WidgetCenter.shared.reloadAllTimelines() },
+        loadSource: @escaping @MainActor (AppState, String) async throws -> WidgetBudgetSource? = { appState, budgetID in
+            guard appState.setupPhase == .ready,
+                  appState.localFirstStore.isOpen(budgetID: budgetID) else { return nil }
+            return try await appState.localFirstStore.fetchWidgetSource(budgetID: budgetID)
+        }
     ) {
         self.snapshotStore = snapshotStore
         self.themeStore = themeStore
+        self.publishDelay = publishDelay
         self.reloadAllTimelines = reloadAllTimelines
+        self.loadSource = loadSource
     }
 
     func configure(appState: AppState, snapshotStore: WidgetSnapshotStore = .live) {
         self.appState = appState
         self.snapshotStore = snapshotStore
+        lastWritten = nil
+        hasSeededLastWritten = false
         guard !isArmed else {
             return
         }
@@ -127,15 +147,25 @@ final class WidgetSnapshotCoordinator {
         _ = publicationGeneration.begin()
         publishTask?.cancel()
         publishTask = nil
-        replaceSnapshot(nil)
+        removeSnapshot()
     }
 
     func refresh() {
         let generation = publicationGeneration.begin()
         publishTask?.cancel()
-        publishTask = Task { @MainActor [weak self] in
+        publishTask = Task { @MainActor [weak self, publishDelay] in
+            do {
+                try await Task.sleep(for: publishDelay)
+            } catch {
+                return // Superseded by a newer revision inside the quiet period.
+            }
             await self?.publish(generation: generation)
         }
+    }
+
+    /// Completes once the newest scheduled publication has finished or been superseded.
+    func waitForPendingPublication() async {
+        await publishTask?.value
     }
 
     private func publish(generation: Int) async {
@@ -145,20 +175,20 @@ final class WidgetSnapshotCoordinator {
 
         guard let budgetID = appState.settings.selectedBudgetID,
               !budgetID.isEmpty else {
-            replaceSnapshot(nil)
+            removeSnapshot()
             return
         }
         let budgetName = appState.settings.selectedBudgetName ?? ""
         let privacyEnabled = appState.settings.randomizedDisplayValuesEnabled
-        if let previous = snapshotStore.load(),
+        await seedLastWritten()
+        guard !Task.isCancelled, publicationGeneration.isCurrent(generation) else { return }
+        if let previous = lastWritten,
            previous.budgetID != budgetID || previous.privacyEnabled != privacyEnabled {
-            replaceSnapshot(nil)
+            removeSnapshot()
         }
-        guard financialPublicationGate.isActive,
-              appState.setupPhase == .ready,
-              appState.localFirstStore.isOpen(budgetID: budgetID) else { return }
+        guard financialPublicationGate.isActive else { return }
         do {
-            let source = try await appState.localFirstStore.fetchWidgetSource(budgetID: budgetID)
+            guard let source = try await loadSource(appState, budgetID) else { return }
             guard !Task.isCancelled, publicationGeneration.isCurrent(generation),
                   appState.settings.selectedBudgetID == budgetID,
                   appState.settings.randomizedDisplayValuesEnabled == privacyEnabled else { return }
@@ -166,27 +196,45 @@ final class WidgetSnapshotCoordinator {
                 source: source, budgetID: budgetID, budgetName: budgetName,
                 privacyEnabled: privacyEnabled
             )
-            replaceSnapshot(snapshot)
+            await write(snapshot)
         } catch {
             // Keep the last good snapshot on a transient read failure.
         }
     }
 
-    private func replaceSnapshot(_ snapshot: WidgetSnapshot?) {
-        if let snapshot {
-            if snapshotStore.load()?.hasSameDisplayContent(as: snapshot) == true {
-                return
-            }
-            do {
-                try snapshotStore.save(snapshot)
-            } catch {
-                return
-            }
-        } else {
-            snapshotStore.clear()
+    /// Reads the saved file once per store, off the main thread.
+    private func seedLastWritten() async {
+        guard !hasSeededLastWritten else { return }
+        let store = snapshotStore
+        let saved = await store.loadOffMain()
+        guard !hasSeededLastWritten else { return }
+        lastWritten = saved
+        hasSeededLastWritten = true
+    }
+
+    private func write(_ snapshot: WidgetSnapshot) async {
+        if lastWritten?.hasSameDisplayContent(as: snapshot) == true { return }
+        let epoch = clearEpoch
+        do {
+            try await snapshotStore.saveOffMain(snapshot)
+        } catch {
+            return
         }
-        for kind in WidgetKind.dataWidgets {
-            WidgetCenter.shared.reloadTimelines(ofKind: kind)
+        guard epoch == clearEpoch else {
+            // A sign-out or budget switch cleared while this write was in flight.
+            snapshotStore.clear()
+            return
+        }
+        lastWritten = snapshot
+        reloadAllTimelines()
+    }
+
+    private func removeSnapshot() {
+        clearEpoch &+= 1
+        lastWritten = nil
+        hasSeededLastWritten = true
+        if snapshotStore.clear() {
+            reloadAllTimelines()
         }
     }
 }

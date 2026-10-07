@@ -50,11 +50,25 @@ struct WidgetSnapshotStore: Sendable {
         #endif
     }
 
-    func clear() {
+    /// Reads and decodes off the main thread; the file is read and JSON-decoded in full.
+    @concurrent
+    func loadOffMain() async -> WidgetSnapshot? {
+        load()
+    }
+
+    /// Encodes and writes off the main thread.
+    @concurrent
+    func saveOffMain(_ snapshot: WidgetSnapshot) async throws {
+        try save(snapshot)
+    }
+
+    /// Returns whether a saved snapshot existed and was removed.
+    @discardableResult
+    func clear() -> Bool {
         guard let fileURL else {
-            return
+            return false
         }
-        try? FileManager.default.removeItem(at: fileURL)
+        return (try? FileManager.default.removeItem(at: fileURL)) != nil
     }
 
     private func makeEncoder() -> JSONEncoder {
