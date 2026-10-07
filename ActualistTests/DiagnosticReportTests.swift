@@ -98,6 +98,7 @@ struct DiagnosticReportTests {
         store.openedBudgetID = "private-budget-id"
         store.openedGroupID = "private-group-id"
         store.openedNodeID = "private-node-id"
+        store.openedLocalClockWallTime = "2027-10-07T12:00:00.000Z"
         store.openedServerURLString = "https://actual.private.example"
         store.cachedBudgets = state.budgets
         store.accountsByBudget = [
@@ -138,6 +139,7 @@ struct DiagnosticReportTests {
         #expect(report.text.contains("Background bank sync: yes"))
         #expect(!report.text.contains("Experimental features"))
         #expect(report.text.contains("Pending local messages: 3"))
+        #expect(report.text.contains("Newest stored change at open (UTC): 2027-10-07T12:00:00.000Z"))
         #expect(report.text.contains("Total recorded events: 12"))
         #expect(report.text.contains("Total schedule attempts: 5"))
         #expect(report.text.contains("Total wakes: 4"))

@@ -53,7 +53,9 @@ struct HybridLogicalClock: Equatable, Sendable {
     }
 
     /// Mirrors upstream `Timestamp.send`: the clock never moves backward, and it
-    /// refuses to mint a timestamp more than five minutes ahead of `now`.
+    /// refuses to mint a timestamp more than five minutes ahead of `now`. Stored
+    /// future-dated changes are never clamped: last-write-wins needs the new
+    /// change to sort after them, so the write is refused with a specific error.
     mutating func next(now: Date = Date()) throws -> String {
         let nowWallTime = SyncTimestamp.wallTimeString(for: now)
         let parsedLast = SyncTimestamp.parse(lastTimestamp)
@@ -62,7 +64,7 @@ struct HybridLogicalClock: Equatable, Sendable {
 
         if let parsedLast, parsedLast.wallTime >= nowWallTime {
             if parsedLast.exceedsDrift(now: now) {
-                throw LocalFirstError.clockDrift
+                throw LocalFirstError.storedChangeDatedInFuture(wallTime: parsedLast.wallTime)
             }
             nextWallTime = parsedLast.wallTime
             counter = parsedLast.counter + 1

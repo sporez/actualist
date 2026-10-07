@@ -39,6 +39,8 @@ final class LocalFirstActualStore:
     var launchSnapshotContext: BudgetLaunchSnapshotContext?
     var launchSnapshotWrittenRevision: UInt64?
     var openedNodeID: String?
+    /// UTC wall time of the newest stored change when the budget opened; diagnostics only.
+    var openedLocalClockWallTime: String?
     var openedServerURLString: String? {
         didSet { refreshEndpointHealthDisplay() }
     }
@@ -263,6 +265,7 @@ final class LocalFirstActualStore:
         openedBudgetID = nil
         openedGroupID = nil
         openedNodeID = nil
+        openedLocalClockWallTime = nil
         openedServerURLString = nil
         openedEncryptionContext = nil
         database = nil

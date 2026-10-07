@@ -506,6 +506,7 @@ extension LocalFirstActualStore {
         try LaunchSignpost.measureSync(LaunchStage.budgetFileHardening) {
             try fileManager.hardenCachedBudget(fileID: fileID)
         }
+        let localClockWallTime = await database.localClockTimestamp.flatMap { SyncTimestamp.parse($0)?.wallTime }
         try Task.checkCancellation()
         guard expectedGeneration == budgetSessionGeneration else { throw CancellationError() }
         if self.database != nil { closeOpenBudget() }
@@ -517,6 +518,7 @@ extension LocalFirstActualStore {
         openedBudgetID = metadata.groupID ?? metadata.cloudFileID
         openedGroupID = metadata.groupID
         openedNodeID = metadata.nodeID
+        openedLocalClockWallTime = localClockWallTime
         openedEncryptionContext = encryptionContext
         isDemoBudgetActive = (metadata.cloudFileID == DemoBudget.fileID)
         let budgetID = metadata.groupID ?? metadata.cloudFileID

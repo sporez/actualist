@@ -59,6 +59,10 @@ enum LocalFirstError: LocalizedError, Equatable {
     case unauthenticatedPlaintextEnvelope
     /// A remote or stored timestamp is more than five minutes ahead of this device.
     case clockDrift
+    /// A change already stored on this device is dated more than five minutes
+    /// ahead of this device's clock, so a new local change cannot be stamped
+    /// after it. Local writes only; remote batches still report `clockDrift`.
+    case storedChangeDatedInFuture(wallTime: String)
     /// A remote message carries a timestamp that is not a valid Actual timestamp.
     case invalidSyncTimestamp
     /// A server message could not be decrypted or parsed. Fatal, as upstream.
@@ -142,6 +146,8 @@ enum LocalFirstError: LocalizedError, Equatable {
             "The Actual server returned unauthenticated plaintext data for an encrypted budget."
         case .clockDrift:
             "Sync stopped because a change is dated more than 5 minutes in the future. The clock on this device or on the server is wrong. Check Date & Time on both, then try again."
+        case .storedChangeDatedInFuture(let wallTime):
+            "Actualist did not save the change because a change already stored on this device is dated \(wallTime), more than 5 minutes ahead of this device's clock. Check Date & Time on this device. If it is correct, download the budget again."
         case .invalidSyncTimestamp:
             "Sync stopped because the Actual server sent a change with an invalid timestamp. Nothing from that sync was applied."
         case .undecryptableMessage:

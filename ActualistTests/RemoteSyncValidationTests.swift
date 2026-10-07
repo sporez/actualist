@@ -102,11 +102,38 @@ struct RemoteSyncValidationTests {
     }
 
     @Test func clockNextThrowsWhenTheLastTimestampIsOverFiveMinutesAhead() throws {
-        var clock = HybridLogicalClock(nodeID: "node1", lastTimestamp: Self.timestamp(offset: 3_600, node: "node1"))
-
-        #expect(throws: LocalFirstError.clockDrift) {
+        let stored = Self.timestamp(offset: 3_600, node: "node1")
+        var clock = HybridLogicalClock(nodeID: "node1", lastTimestamp: stored)
+        #expect(throws: LocalFirstError.storedChangeDatedInFuture(wallTime: String(stored.prefix(24)))) {
             _ = try clock.next(now: Date())
         }
+    }
+
+    @Test func localWriteOverAStoredFutureChangeThrowsTheSpecificErrorAndWritesNothing() async throws {
+        let stored = Self.timestamp(offset: 365 * 86_400, node: "node1")
+        let url = try support.makeSQLiteFixture(extraSQL: """
+            INSERT INTO messages_crdt VALUES ('\(stored)', 'transactions', 'txn', 'category', 'S:future');
+            """)
+        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node")
+        let outboxBefore = try await database.pendingLocalSyncMessageCount()
+
+        await #expect(throws: LocalFirstError.storedChangeDatedInFuture(wallTime: String(stored.prefix(24)))) {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue([
+                message(t1, "txn", "category", "S:local")
+            ])
+        }
+        #expect(try await database.pendingLocalSyncMessageCount() == outboxBefore)
+        #expect(LocalFirstError.storedChangeDatedInFuture(wallTime: "2027-01-01T00:00:00.000Z")
+            .localizedDescription.contains("2027-01-01T00:00:00.000Z"))
+    }
+
+    @Test func openedStoreExposesTheStoredFutureWallTimeForDiagnostics() async throws {
+        let stored = Self.timestamp(offset: 365 * 86_400, node: "node1")
+        let bundle = try await support.makeOpenedWritableStoreBundle(additionalFixtureSQL: """
+            INSERT INTO messages_crdt VALUES ('\(stored)', 'transactions', 'txn', 'category', 'S:future');
+            """)
+
+        #expect(bundle.store.openedLocalClockWallTime == String(stored.prefix(24)))
     }
 
     @Test func clockNextAcceptsAFewMinutesOfDrift() throws {

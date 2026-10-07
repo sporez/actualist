@@ -114,6 +114,7 @@ enum ActualistDiagnosticReportBuilder {
             "Open budget matches selection: \(yesNo(store.openedBudgetID != nil && store.openedBudgetID == settings.selectedBudgetID))",
             "Database open: \(yesNo(store.database != nil))",
             "Node ID present: \(yesNo(store.openedNodeID != nil))",
+            "Newest stored change at open (UTC): \(store.openedLocalClockWallTime ?? "none")",
             "Open group ID present: \(yesNo(store.openedGroupID != nil))",
             "Open server matches setting: \(yesNo(store.openedServerURLString != nil && store.openedServerURLString == settings.localFirstServerURLString))",
             "Imported budget count: \(importedBudgetCount)",
