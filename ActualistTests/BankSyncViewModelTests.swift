@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import Testing
 @testable import Actualist
 
@@ -359,6 +360,66 @@ extension LocalFirstActualStoreTests {
         // The obsolete fetch has completed; a reload already owns this state.
         #expect(model.remoteAccountsStatus == .idle)
         #expect(model.remoteAccounts.isEmpty)
+    }
+
+    @MainActor
+    @Test(.timeLimit(.minutes(1))) func supersededRemoteAccountsLoadDoesNotStayLoading() async throws {
+        let transport = stubbedTransport(
+            transactions: [],
+            remoteAccounts: [SimpleFINRemoteAccount(
+                accountID: "sfin-2", name: "Brokerage", balance: "1.00", currency: "USD",
+                institution: nil, orgName: "Friendly Bank", orgDomain: "bank.example", orgID: nil
+            )]
+        )
+        let (model, _) = try await makeViewModel(transport: transport, linkSavings: true)
+        let gate = TestLatch()
+        await transport.setAccountsGate(gate)
+        let task = Task { await model.ensureRemoteAccounts() }
+        defer { task.cancel(); gate.trip() }
+        #expect(await transport.accountsEntered.wait(timeout: .seconds(10)) { gate.trip() })
+        #expect(model.remoteAccountsStatus == .loading)
+
+        // Sync All supersedes the load generation without touching the status.
+        // Sync All reads the remote accounts too, so the gate is released
+        // first; tripping only schedules the parked load, and `syncAll` bumps
+        // the generation synchronously before any suspension.
+        gate.trip()
+        await model.syncAll()
+        await task.value
+
+        #expect(model.remoteAccountsStatus == .idle)
+    }
+
+    @MainActor
+    @Test(.timeLimit(.minutes(1))) func doubleLinkIssuesOneWrite() async throws {
+        let remote = SimpleFINRemoteAccount(
+            accountID: "sfin-1", name: "Checking", balance: "100.00", currency: "USD",
+            institution: nil, orgName: "Chase", orgDomain: "chase.example", orgID: nil
+        )
+        let single = try await makeViewModel(transport: stubbedTransport(transactions: []), linkSavings: false)
+        single.0.selectAccount("savings")
+        let singleBefore = try await outboxCount(single.1)
+        await single.0.link(selectedRemote: remote)
+        let singleDelta = try await outboxCount(single.1) - singleBefore
+
+        let (model, bundle) = try await makeViewModel(transport: stubbedTransport(transactions: []), linkSavings: false)
+        model.selectAccount("savings")
+        let before = try await outboxCount(bundle)
+        async let first: Void = model.link(selectedRemote: remote)
+        async let second: Void = model.link(selectedRemote: remote)
+        _ = await (first, second)
+
+        #expect(singleDelta > 0)
+        #expect(try await outboxCount(bundle) - before == singleDelta)
+    }
+
+    private func outboxCount(_ bundle: OpenedWritableStoreBundle) async throws -> Int {
+        let url = try bundle.fileManager.databaseURL(fileID: "file-1")
+        let queue = try DatabaseQueue(path: url.path)
+        return try await queue.read { db in
+            guard try db.tableExists("actualist_outbox") else { return 0 }
+            return try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM actualist_outbox") ?? 0
+        }
     }
 
     @MainActor

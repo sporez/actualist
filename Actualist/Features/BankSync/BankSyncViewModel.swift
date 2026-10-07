@@ -133,6 +133,12 @@ final class BankSyncViewModel {
     private let isDemoMode: Bool
     private let sessionGeneration: Int
     private var loadGeneration = 0
+    /// Identifies the latest remote-accounts request so a superseded one only
+    /// resets `.loading` when no newer request owns it.
+    private var remoteAccountsRequest = 0
+    /// A link or unlink write (and its refresh) is running; a second tap must
+    /// not issue another write.
+    private var isLinkWriteInFlight = false
 
     private var sessionIsCurrent: Bool {
         store.budgetSessionGeneration == sessionGeneration && store.isOpen(budgetID: budgetID)
@@ -229,20 +235,34 @@ final class BankSyncViewModel {
             return
         }
         remoteAccountsStatus = .loading
+        remoteAccountsRequest += 1
+        let request = remoteAccountsRequest
         let generation = loadGeneration
+        // Superseded results are dropped. If this request still owns a
+        // `.loading` status, return it to idle so a later call can retry.
+        func isCurrent() -> Bool {
+            guard sessionIsCurrent else { return false }
+            if generation != loadGeneration {
+                if request == remoteAccountsRequest, case .loading = remoteAccountsStatus {
+                    remoteAccountsStatus = .idle
+                }
+                return false
+            }
+            return true
+        }
         do {
             let accounts = try await store.bankSyncRemoteAccounts(budgetID: budgetID)
-            guard sessionIsCurrent, generation == loadGeneration else { return }
+            guard isCurrent() else { return }
             try Task.checkCancellation()
             remoteAccounts = accounts
             remoteAccountsStatus = .ready
         } catch where error.isCancellation {
-            guard sessionIsCurrent, generation == loadGeneration else { return }
+            guard isCurrent() else { return }
             if case .loading = remoteAccountsStatus {
                 remoteAccountsStatus = .idle
             }
         } catch {
-            guard sessionIsCurrent, generation == loadGeneration else { return }
+            guard isCurrent() else { return }
             remoteAccountsStatus = error.userFacingMessage.map(RemoteAccountsStatus.failed) ?? .idle
         }
     }
@@ -426,9 +446,11 @@ final class BankSyncViewModel {
     }
 
     func link(selectedRemote remote: SimpleFINRemoteAccount) async {
-        guard let accountID = selectedAccountID else {
+        guard let accountID = selectedAccountID, !isLinkWriteInFlight else {
             return
         }
+        isLinkWriteInFlight = true
+        defer { isLinkWriteInFlight = false }
         do {
             try await store.linkBankAccount(accountID, to: remote, budgetID: budgetID)
             selectedAccountID = nil
@@ -439,7 +461,7 @@ final class BankSyncViewModel {
     }
 
     func unlinkSelected() async {
-        guard let line = selectedLine else {
+        guard let line = selectedLine, !isLinkWriteInFlight else {
             return
         }
         guard line.isSyncable else {
@@ -449,6 +471,8 @@ final class BankSyncViewModel {
             return
         }
         let accountID = line.id
+        isLinkWriteInFlight = true
+        defer { isLinkWriteInFlight = false }
         do {
             try await store.unlinkBankAccount(accountID, budgetID: budgetID)
             selectedAccountID = nil
