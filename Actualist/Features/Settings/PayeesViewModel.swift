@@ -242,6 +242,9 @@ final class PayeesViewModel {
             errorMessage = "Payee management is unavailable."
             return false
         }
+        // A second trigger while a write runs would issue a second write; the
+        // running write keeps ownership of `isSubmitting` until it ends.
+        guard !isSubmitting else { return false }
         isSubmitting = true
         errorMessage = nil
         do {
