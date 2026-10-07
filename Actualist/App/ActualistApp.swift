@@ -182,22 +182,6 @@ private struct AppSwitcherPrivacyCover: View {
     }
 }
 
-/// Completes a `BGAppRefreshTask` from an unstructured task. The system owns
-/// the task object and delivers it on the registration queue; we only call
-/// `setTaskCompleted` once after the main-actor refresh finishes.
-///
-/// Invariant: the wrapped task is touched only by `complete(success:)`, which
-/// the single unstructured task in `handle(_:)` calls exactly once, after
-/// `refresh` has finished or been cancelled by the expiration handler. The
-/// struct is never stored or shared, so there is no concurrent access.
-private struct BackgroundRefreshTaskCompletion: @unchecked Sendable {
-    let task: BGAppRefreshTask
-
-    func complete(success: Bool) {
-        task.setTaskCompleted(success: success)
-    }
-}
-
 @MainActor
 final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificationCenterDelegate {
     static let shared = BackgroundTransactionRefreshCoordinator()
@@ -309,16 +293,8 @@ final class BackgroundTransactionRefreshCoordinator: NSObject, UNUserNotificatio
     }
 
     nonisolated private func handle(_ task: BGAppRefreshTask) {
-        let completion = BackgroundRefreshTaskCompletion(task: task)
-        let refresh = Task { [weak self] in
+        BackgroundRefreshTaskDriver.drive(task: task) { [weak self] in
             await self?.runBackgroundRefresh() ?? false
-        }
-        task.expirationHandler = {
-            refresh.cancel()
-        }
-        Task {
-            let success = await refresh.value
-            completion.complete(success: success)
         }
     }
 
