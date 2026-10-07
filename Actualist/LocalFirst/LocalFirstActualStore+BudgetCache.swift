@@ -8,6 +8,7 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         invalidateScheduleCache(budgetID: budgetID)
         budgetReadGeneration &+= 1
+        cachePublicationRevision &+= 1
         monthsByBudget[budgetID] = nil
         templateBrowserByBudget[budgetID] = nil
         let prefix = "\(budgetID)|"

@@ -74,7 +74,13 @@ final class LocalFirstActualStore:
     var budgetSessionGeneration = 0
     @ObservationIgnored var activeReimportID: UUID?
     var budgetDiscoveryGeneration = 0
+    /// Bumped whenever a write reload or report invalidation supersedes reads
+    /// already in flight; a read that finishes under an older value is not cached.
+    @ObservationIgnored var cachePublicationRevision = 0
     #if DEBUG
+    /// Test seam (concurrency 5.4): runs after a read's database fetch and
+    /// before its session check and publication.
+    @ObservationIgnored var readPublicationHook: (@MainActor (ReadPublicationSite) async -> Void)?
     @ObservationIgnored var budgetOpenSuspension: (@MainActor () async -> Void)?
     @ObservationIgnored var launchWarmupSuspension: (@MainActor () async -> Void)?
     #endif
@@ -509,3 +515,10 @@ enum ActualServerConnectionSecurity {
             || (octets[0] == 100 && (64...127).contains(octets[1]))
     }
 }
+
+#if DEBUG
+enum ReadPublicationSite: Sendable {
+    case reportsDashboard, availableMonths, templateBrowser
+    case categoryFeed, uncategorizedFeed, launchSeed, launchWarmupSyncStatus
+}
+#endif

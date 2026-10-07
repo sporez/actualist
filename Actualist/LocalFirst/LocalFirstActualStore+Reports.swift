@@ -20,8 +20,16 @@ extension LocalFirstActualStore {
         range: ReportDateRange
     ) async throws -> ReportsDashboardSnapshot {
         let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
+        let revision = cachePublicationRevision
         let snapshot = try await database.fetchReportsDashboard(range: range)
-        reportsByKey[reportsKey(budgetID: budgetID, range: range)] = snapshot
+        #if DEBUG
+        await readPublicationHook?(.reportsDashboard)
+        #endif
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        if revision == cachePublicationRevision {
+            reportsByKey[reportsKey(budgetID: budgetID, range: range)] = snapshot
+        }
         return snapshot
     }
 
@@ -94,6 +102,7 @@ extension LocalFirstActualStore {
     }
 
     func invalidateReports(budgetID: String? = nil) {
+        cachePublicationRevision &+= 1
         guard let budgetID else {
             reportsByKey = [:]
             return
