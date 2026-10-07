@@ -85,7 +85,7 @@ actor SyncClient {
         database: BudgetDatabase,
         client: any ActualSyncTransport,
         token: String,
-        sessionIsCurrent: (@Sendable () async -> Bool)? = nil
+        sessionIsCurrent: @escaping @Sendable () async -> Bool
     ) async throws -> BudgetDatabase.RemoteSyncApplyResult {
         guard let configuration else {
             throw LocalFirstError.budgetNotOpened
@@ -127,7 +127,7 @@ actor SyncClient {
         token: String,
         messages: [ActualSyncDecodedMessage],
         since: String? = nil,
-        sessionIsCurrent: (@Sendable () async -> Bool)? = nil,
+        sessionIsCurrent: @escaping @Sendable () async -> Bool,
         onUploadConfirmed: (@Sendable () async throws -> Void)? = nil
     ) async throws -> LocalFirstSyncResult {
         guard let configuration else {
@@ -243,7 +243,7 @@ actor SyncClient {
         token: String,
         configuration: LocalFirstSyncConfiguration,
         generation: Int,
-        sessionIsCurrent: (@Sendable () async -> Bool)?
+        sessionIsCurrent: @escaping @Sendable () async -> Bool
     ) async throws -> BudgetDatabase.RemoteSyncApplyResult {
         var total = initial
         var server = MerkleTrie(jsonString: initialMerkle)
@@ -308,13 +308,11 @@ actor SyncClient {
 
     private func requireActiveSession(
         generation: Int,
-        sessionIsCurrent: (@Sendable () async -> Bool)?
+        sessionIsCurrent: @escaping @Sendable () async -> Bool
     ) async throws {
         try Task.checkCancellation()
         guard generation == sessionGeneration else { throw CancellationError() }
-        if let sessionIsCurrent {
-            guard await sessionIsCurrent(), generation == sessionGeneration else { throw CancellationError() }
-        }
+        guard await sessionIsCurrent(), generation == sessionGeneration else { throw CancellationError() }
         try Task.checkCancellation()
     }
 

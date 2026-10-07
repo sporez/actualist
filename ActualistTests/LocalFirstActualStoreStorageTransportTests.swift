@@ -427,7 +427,8 @@ extension LocalFirstActualStoreTests {
             _ = try await client.pullAndApply(
                 database: database,
                 client: FixedResponseSyncTransport(responseData: Data(repeating: 0, count: 5)),
-                token: "token"
+                token: "token",
+                sessionIsCurrent: { true }
             )
             Issue.record("expected pullAndApply to throw")
         } catch let error as ActualAPIError {

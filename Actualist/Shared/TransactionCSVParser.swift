@@ -94,9 +94,13 @@ struct TransactionCSVParser {
             fields = []
         }
 
-        var scalars = Array(text.unicodeScalars)
+        let scalars = Array(text.unicodeScalars)
         var index = 0
+        var iterations = 0
         while index < scalars.count {
+            // A large file must stop promptly when its import is cancelled.
+            iterations += 1
+            if iterations % 8_192 == 0 { try Task.checkCancellation() }
             let scalar = scalars[index]
             if inQuotes {
                 if scalar == "\"" {

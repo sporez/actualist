@@ -24,7 +24,8 @@ extension LocalFirstActualStoreTests {
             _ = try await client.pullAndApply(
                 database: database,
                 client: FixedResponseSyncTransport(responseData: Data()),
-                token: "token"
+                token: "token",
+                sessionIsCurrent: { true }
             )
         }
     }

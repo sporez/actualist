@@ -439,7 +439,8 @@ extension LocalFirstActualStoreTests {
         let result = try await client.pullAndApply(
             database: database,
             client: FixedResponseSyncTransport(responseData: try response.serializedData()),
-            token: "token"
+            token: "token",
+            sessionIsCurrent: { true }
         )
 
         let transaction = try #require(
@@ -508,7 +509,8 @@ extension LocalFirstActualStoreTests {
             _ = try await client.pullAndApply(
                 database: database,
                 client: FixedResponseSyncTransport(responseData: try response.serializedData()),
-                token: "token"
+                token: "token",
+                sessionIsCurrent: { true }
             )
         }
 

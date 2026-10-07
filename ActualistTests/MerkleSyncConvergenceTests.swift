@@ -172,7 +172,9 @@ extension LocalFirstActualStoreTests {
         await client.configure(merkleConfiguration)
 
         await #expect(throws: LocalFirstError.syncOutOfSync) {
-            _ = try await client.pullAndApply(database: database, client: transport, token: "token")
+            _ = try await client.pullAndApply(
+                database: database, client: transport, token: "token", sessionIsCurrent: { true }
+            )
         }
 
         // Without the reset the guard trips after 10 requests and again after 20.
