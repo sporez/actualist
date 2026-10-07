@@ -39,6 +39,8 @@ final class AccountTransactionsViewModel {
     private(set) var deleteSuccessFeedback = 0
 
     @ObservationIgnored private var deleteRequestGeneration = 0
+    @ObservationIgnored private var displayMemo = AccountTransactionDisplayMemo()
+    var displayProjectionCount: Int { displayMemo.projectionCount }
 
     init(
         scope: TransactionFeedScope,
@@ -105,14 +107,14 @@ final class AccountTransactionsViewModel {
         currency: BudgetCurrency = .usd,
         supportsScheduleAuthoring: Bool = true
     ) -> AccountTransactionsDisplayState {
-        projection(
+        displayMemo.displayState(for: projection(
             budgetID: budgetID,
             repository: repository,
             pendingNewTransactionIDs: pendingNewTransactionIDs,
             privacyModeEnabled: privacyModeEnabled,
             currency: currency,
             supportsScheduleAuthoring: supportsScheduleAuthoring
-        ).displayState
+        ))
     }
 
     func transactionBatchFeedContext(

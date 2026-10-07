@@ -199,4 +199,30 @@ struct AccountTransactionsViewModelReadStateTests {
         #expect(!model.isLoadingOlder)
         #expect(repository.olderLoadCalls.isEmpty)
     }
+
+    @Test func displayStateIsProjectedOncePerChangedInput() {
+        let cached = AccountTransactionsViewModelTests.loaded([
+            AccountTransactionsViewModelTests.transaction(id: "one"),
+            AccountTransactionsViewModelTests.transaction(id: "two"),
+        ])
+        let repository = AccountTransactionsRecordingRepository(accountSnapshot: cached)
+        let model = AccountTransactionsViewModel(scope: .account(AccountTransactionsViewModelTests.account))
+        func render(pending: Set<String> = [], privacy: Bool = false) -> AccountTransactionsDisplayState {
+            model.displayState(
+                budgetID: "budget", repository: repository,
+                pendingNewTransactionIDs: pending, privacyModeEnabled: privacy
+            )
+        }
+
+        let first = render()
+        for _ in 0..<4 { #expect(render() == first) }
+        #expect(model.displayProjectionCount == 1, "five identical renders projected more than once")
+
+        #expect(render(pending: ["one"]).groups.first?.rows.first?.isNew == true)
+        #expect(model.displayProjectionCount == 2)
+        _ = render(pending: ["one"], privacy: true)
+        #expect(model.displayProjectionCount == 3)
+        _ = render(pending: ["one"], privacy: true)
+        #expect(model.displayProjectionCount == 3)
+    }
 }
