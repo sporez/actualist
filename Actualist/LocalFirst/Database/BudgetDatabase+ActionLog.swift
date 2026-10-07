@@ -660,34 +660,6 @@ extension BudgetDatabase {
         }
     }
 
-    /// Storage-level LIFO: undo is only offered for the newest applied row,
-    /// and the commit re-checks it so a Shortcuts write that landed after the
-    /// review sheet opened cannot be silently skipped.
-    private func requireNewestAppliedUndo(record: BudgetActionRecord, db: Database) throws {
-        let createdAt = SyncTimestamp.wallTimeString(for: record.createdAt)
-        let moneyFlowKinds = BudgetActionKind.moneyFlowRawValues
-        let kindPlaceholders = moneyFlowKinds.map { _ in "?" }.joined(separator: ", ")
-        let newerApplied = try Int.fetchOne(
-            db,
-            sql: """
-                SELECT COUNT(*) FROM actualist_action_log
-                WHERE status = ?
-                   AND kind IN (\(kindPlaceholders))
-                  AND (created_at > ? OR (created_at = ? AND id > ?))
-                """,
-            arguments: StatementArguments(
-                [BudgetActionStatus.applied.rawValue] + moneyFlowKinds + [
-                    createdAt,
-                    createdAt,
-                    record.id
-                ]
-            )
-        ) ?? 0
-        guard newerApplied == 0 else {
-            throw LocalFirstError.actionUndoBlocked("Undo the newest action before this one.")
-        }
-    }
-
     private func markActionLogUndone(id: String, now: Date, db: Database) throws {
         try db.execute(
             sql: """

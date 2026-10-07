@@ -19,6 +19,7 @@ extension BudgetDatabase {
         transactionID: String,
         postedDayID: String,
         asOf today: String,
+        source: BudgetActionSource = .ui,
         now: Date = Date()
     ) throws -> SchedulePostingWriteReceipt {
         guard !transactionID.isEmpty,
@@ -37,7 +38,7 @@ extension BudgetDatabase {
             do {
                 return try schedulePostingPlan(
                     review: review, draft: draft, transactionID: transactionID,
-                    postedDayID: postedDayID, today: today, db: db
+                    postedDayID: postedDayID, today: today, source: source, db: db
                 )
             } catch LocalFirstError.schemaUnavailable {
                 throw SchedulePostingRefusal.unsupportedBudgetSchema
@@ -64,6 +65,7 @@ extension BudgetDatabase {
         transactionID: String,
         postedDayID: String,
         today: String,
+        source: BudgetActionSource,
         db: Database
     ) throws -> LocalCommitPlan<SchedulePostingWriteReceipt> {
         let current = try validateScheduleMutationReview(review, db: db)
@@ -179,9 +181,11 @@ extension BudgetDatabase {
             drafts: graph.write.messages,
             action: ActionLogCommit(
                 descriptor: .createTransaction(descriptor),
-                source: .ui,
+                source: source,
                 actionID: transactionID,
-                learningTransactionIDs: !finalDraft.isTransfer && !finalDraft.isSplit && finalDraft.categoryID != nil
+                // An automatic post is not a user categorization, so it teaches nothing.
+                learningTransactionIDs: source != .automatic
+                    && !finalDraft.isTransfer && !finalDraft.isSplit && finalDraft.categoryID != nil
                     ? [transactionID]
                     : []
             ),

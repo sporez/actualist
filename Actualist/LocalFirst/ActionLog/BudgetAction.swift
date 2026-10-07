@@ -33,6 +33,9 @@ enum BudgetActionStatus: String, Codable, Sendable {
 enum BudgetActionSource: String, Codable, Sendable {
     case ui
     case shortcuts
+    /// Written by background schedule advancement. Visible in History, but not a
+    /// user gesture: it is never undoable and takes no slot in the undo order.
+    case automatic
 }
 
 /// Nil category means To Budget.

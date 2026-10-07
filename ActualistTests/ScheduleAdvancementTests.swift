@@ -303,6 +303,56 @@ struct ScheduleAdvancementTests {
         #expect(store.openedServerURLString == nil)
     }
 
+    /// Main-to-dev audit F-5: a background post is not a user gesture. It is logged
+    /// as `.automatic`, stays visible, is not undoable, and does not take the
+    /// strict-LIFO undo slot from the user's earlier gesture.
+    @Test func automaticPostIsLoggedAutomaticAndDoesNotBlockEarlierUserUndo() async throws {
+        let bundle = try await support.makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: Self.storeScheduleSQL
+        )
+        let store = bundle.store
+        store.openedServerURLString = nil
+        let database = try #require(store.database)
+        _ = try await store.assignCategoryBudgetAndRefresh(
+            expectedMode: nil, categoryID: "groceries", budgeted: 61_000,
+            budgetID: "group-1", month: "2026-07"
+        ) {}
+        await store.advanceSchedulesAfterSuccessfulSync(
+            budgetID: "group-1", database: database, generation: store.budgetSessionGeneration
+        )
+
+        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        #expect(rows.count == 2)
+        let automatic = try #require(rows.first)
+        let assign = try #require(rows.last)
+        #expect(automatic.kind == .createTransaction)
+        #expect(automatic.source == .automatic)
+        #expect(assign.kind == .assign)
+
+        let appState = try support.makeAppState(for: bundle)
+        let history = HistoryViewModel()
+        await history.load(using: appState)
+        #expect(history.rows.count == 2)
+        #expect(history.rows[0].detail.contains("Posted automatically"))
+        #expect(!history.rows[0].canUndo)
+        #expect(history.rows[1].canUndo)
+
+        await #expect(throws: LocalFirstError.actionUndoBlocked("This was posted automatically and can't be undone.")) {
+            try await store.undoBudgetActionAndRefresh(actionID: automatic.id, budgetID: "group-1")
+        }
+        try await store.undoBudgetActionAndRefresh(actionID: assign.id, budgetID: "group-1")
+        let after = try await store.recentBudgetActions(budgetID: "group-1")
+        #expect(after.first { $0.id == assign.id }?.status == .undone)
+        #expect(after.first { $0.id == automatic.id }?.status == .applied)
+    }
+
+    @Test func undoOrderPredicateExcludesAutomaticAndMetadataRows() {
+        #expect(BudgetActionUndoOrder.participates(kind: .createTransaction, source: .ui))
+        #expect(BudgetActionUndoOrder.participates(kind: .assign, source: .shortcuts))
+        #expect(!BudgetActionUndoOrder.participates(kind: .createTransaction, source: .automatic))
+        #expect(!BudgetActionUndoOrder.participates(kind: .payee, source: .ui))
+    }
+
     private func makeDatabase(
         extraSQL: String = "",
         metadata: [String: Any]? = nil

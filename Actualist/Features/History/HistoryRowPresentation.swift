@@ -545,7 +545,11 @@ enum HistoryRowPresentation {
             visual = .metadata
         }
 
-        let detail = ([isUndone ? "Undone" : nil, actionDetail, occurrence, undoUnavailableReason].compactMap { $0 })
+        let detail = ([
+            isUndone ? "Undone" : nil,
+            record.source == .automatic ? "Posted automatically" : nil,
+            actionDetail, occurrence, undoUnavailableReason
+        ].compactMap { $0 })
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
 

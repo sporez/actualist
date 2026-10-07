@@ -219,6 +219,7 @@ extension BudgetDatabase {
             transactionID: UUID().uuidString,
             postedDayID: postedDayID,
             asOf: today,
+            source: .automatic,
             now: now
         )
     }

@@ -124,10 +124,13 @@ final class HistoryViewModel {
         }
     }
 
-    /// LIFO policy (Q2): the newest applied row is the only row offering Undo.
+    /// LIFO policy (Q2): the newest applied row that takes part in the undo order is
+    /// the only row offering Undo (automatic posts never do).
     /// After that row is undone, the previous applied row becomes undoable.
     private func rebuildRows() {
-        let undoableActionID = records.first { $0.status == .applied && $0.kind.isMoneyFlow }?.id
+        let undoableActionID = records.first {
+            $0.status == .applied && BudgetActionUndoOrder.participates($0)
+        }?.id
         rows = HistoryRowPresentation.rows(
             from: records,
             categoryNames: categoryNames,
