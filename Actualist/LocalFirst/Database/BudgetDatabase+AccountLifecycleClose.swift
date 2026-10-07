@@ -18,107 +18,104 @@ extension BudgetDatabase {
         localDay: @Sendable () -> AccountLifecycleDay = { .localGregorian() },
         transferIDs: AccountClosingTransferIDs = .random()
     ) throws -> AccountLifecycleCommitResult {
-        try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
-            try Task.checkCancellation()
-            return try commitLocalPlan(now: now) { db in
-                let request = AccountLifecycleReviewRequest(
-                    budgetID: reviewed.identity.budgetID,
-                    accountID: reviewed.identity.accountID,
-                    requestedAction: reviewed.identity.action
+        try Task.checkCancellation()
+        return try commitLocalPlan(now: now) { db in
+            let request = AccountLifecycleReviewRequest(
+                budgetID: reviewed.identity.budgetID,
+                accountID: reviewed.identity.accountID,
+                requestedAction: reviewed.identity.action
+            )
+            let fresh = try accountLifecycleReview(
+                request: request,
+                localDay: localDay(),
+                db: db
+            )
+            guard fresh.identity == reviewed.identity,
+                  fresh.resolvedAction == reviewed.resolvedAction,
+                  fresh.blockers.isEmpty,
+                  let action = fresh.resolvedAction else {
+                return LocalCommitPlan(
+                    drafts: [], action: nil,
+                    outcome: AccountLifecycleCommitResult.reviewChanged(fresh)
                 )
-                let fresh = try accountLifecycleReview(
-                    request: request,
-                    localDay: localDay(),
+            }
+
+            var builder = LocalFirstSyncMessageBuilder()
+            var drafts: [ActualSyncDecodedMessage] = []
+            if fresh.bankLink != nil {
+                drafts += try makeBankSyncUnlinkMessages(
+                    accountID: fresh.account.id,
+                    builder: &builder,
                     db: db
                 )
-                guard fresh.identity == reviewed.identity,
-                      fresh.resolvedAction == reviewed.resolvedAction,
-                      fresh.blockers.isEmpty,
-                      let action = fresh.resolvedAction else {
-                    return LocalCommitPlan(
-                        drafts: [], action: nil,
-                        outcome: AccountLifecycleCommitResult.reviewChanged(fresh)
-                    )
-                }
+            }
 
-                var builder = LocalFirstSyncMessageBuilder()
-                var drafts: [ActualSyncDecodedMessage] = []
-                if fresh.bankLink != nil {
-                    drafts += try makeBankSyncUnlinkMessages(
-                        accountID: fresh.account.id,
-                        builder: &builder,
-                        db: db
-                    )
-                }
-
-                let operation: AccountLifecycleOperation
-                var resultingAccount = fresh.account
-                switch action {
-                case .deleteEmptyAccount:
-                    operation = .delete
-                    drafts.append(try builder.makeMessage(
-                        dataset: "accounts",
-                        row: fresh.account.id,
-                        column: "tombstone",
-                        value: .bool(true)
-                    ))
-                case .closeAtZero:
-                    operation = .close
-                    resultingAccount = AccountLifecycleAccount(
-                        id: fresh.account.id,
-                        name: fresh.account.name,
-                        offBudget: fresh.account.offBudget,
-                        isClosed: true,
-                        accountGroupID: fresh.account.accountGroupID
-                    )
-                    drafts.append(try accountClosedMessage(
-                        accountID: fresh.account.id,
-                        builder: &builder
-                    ))
-                case .closeWithTransfer(let transfer):
-                    operation = .close
-                    resultingAccount = AccountLifecycleAccount(
-                        id: fresh.account.id,
-                        name: fresh.account.name,
-                        offBudget: fresh.account.offBudget,
-                        isClosed: true,
-                        accountGroupID: fresh.account.accountGroupID
-                    )
-                    drafts.append(try accountClosedMessage(
-                        accountID: fresh.account.id,
-                        builder: &builder
-                    ))
-                    drafts += try accountClosingTransferMessages(
-                        sourceAccountID: fresh.account.id,
-                        transfer: transfer,
-                        localDay: fresh.identity.localDay,
-                        ids: transferIDs,
-                        sortOrder: now.timeIntervalSince1970 * 1_000,
-                        builder: &builder,
-                        db: db
-                    )
-                }
-
-                let outcome = AccountLifecycleOutcome(
-                    operation: operation,
-                    account: resultingAccount
+            let operation: AccountLifecycleOperation
+            var resultingAccount = fresh.account
+            switch action {
+            case .deleteEmptyAccount:
+                operation = .delete
+                drafts.append(try builder.makeMessage(
+                    dataset: "accounts",
+                    row: fresh.account.id,
+                    column: "tombstone",
+                    value: .bool(true)
+                ))
+            case .closeAtZero:
+                operation = .close
+                resultingAccount = AccountLifecycleAccount(
+                    id: fresh.account.id,
+                    name: fresh.account.name,
+                    offBudget: fresh.account.offBudget,
+                    isClosed: true,
+                    accountGroupID: fresh.account.accountGroupID
                 )
-                return LocalCommitPlan(
-                    drafts: drafts,
-                    action: ActionLogCommit(
-                        descriptor: .account(AccountActionDescriptor(
-                            name: resultingAccount.name,
-                            offbudget: resultingAccount.offBudget,
-                            operation: operation
-                        )),
-                        source: .ui,
-                        actionID: actionID
-                    ),
-                    outcome: AccountLifecycleCommitResult.applied(outcome)
+                drafts.append(try accountClosedMessage(
+                    accountID: fresh.account.id,
+                    builder: &builder
+                ))
+            case .closeWithTransfer(let transfer):
+                operation = .close
+                resultingAccount = AccountLifecycleAccount(
+                    id: fresh.account.id,
+                    name: fresh.account.name,
+                    offBudget: fresh.account.offBudget,
+                    isClosed: true,
+                    accountGroupID: fresh.account.accountGroupID
                 )
-            }.outcome
-        }
+                drafts.append(try accountClosedMessage(
+                    accountID: fresh.account.id,
+                    builder: &builder
+                ))
+                drafts += try accountClosingTransferMessages(
+                    sourceAccountID: fresh.account.id,
+                    transfer: transfer,
+                    localDay: fresh.identity.localDay,
+                    ids: transferIDs,
+                    sortOrder: now.timeIntervalSince1970 * 1_000,
+                    builder: &builder,
+                    db: db
+                )
+            }
+
+            let outcome = AccountLifecycleOutcome(
+                operation: operation,
+                account: resultingAccount
+            )
+            return LocalCommitPlan(
+                drafts: drafts,
+                action: ActionLogCommit(
+                    descriptor: .account(AccountActionDescriptor(
+                        name: resultingAccount.name,
+                        offbudget: resultingAccount.offBudget,
+                        operation: operation
+                    )),
+                    source: .ui,
+                    actionID: actionID
+                ),
+                outcome: AccountLifecycleCommitResult.applied(outcome)
+            )
+        }.outcome
     }
 
     private func accountClosedMessage(

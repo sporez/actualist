@@ -44,23 +44,20 @@ extension BudgetDatabase {
         _ command: ScheduleWriteCommand,
         now: Date
     ) throws -> ScheduleMutationResult {
-        try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
-            try Task.checkCancellation()
-            let committed = try commitLocalPlan(now: now) { db in
-                let decision = try prepareScheduleWrite(command, now: now, db: db)
-                return LocalCommitPlan(
-                    drafts: decision.messages,
-                    action: nil,
-                    outcome: decision.result
-                )
-            }
-            return ScheduleMutationResult(
-                scheduleID: committed.outcome.scheduleID,
-                kind: committed.outcome.kind,
-                appliedMessageCount: committed.appliedCount
+        try Task.checkCancellation()
+        let committed = try commitLocalPlan(now: now) { db in
+            let decision = try prepareScheduleWrite(command, now: now, db: db)
+            return LocalCommitPlan(
+                drafts: decision.messages,
+                action: nil,
+                outcome: decision.result
             )
         }
+        return ScheduleMutationResult(
+            scheduleID: committed.outcome.scheduleID,
+            kind: committed.outcome.kind,
+            appliedMessageCount: committed.appliedCount
+        )
     }
 
     private func prepareScheduleWrite(

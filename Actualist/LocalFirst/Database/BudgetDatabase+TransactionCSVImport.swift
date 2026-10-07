@@ -122,28 +122,25 @@ extension BudgetDatabase {
         now: Date = Date()
     ) throws {
         try Task.checkCancellation()
-        try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
+        try Task.checkCancellation()
+        _ = try commitLocalPlan(now: now) { db in
             try Task.checkCancellation()
-            _ = try commitLocalPlan(now: now) { db in
-                try Task.checkCancellation()
-                var messages = insertMessages
-                let columns = try columnSet(for: "transactions", db: db)
-                for update in updates {
-                    let updateMessages = try transactionCSVImportUpdateMessages(
-                        update,
-                        accountID: accountID,
-                        columns: columns,
-                        db: db,
-                        builder: &builder
-                    )
-                    guard !updateMessages.isEmpty else {
-                        throw LocalFirstError.invalidLocalWrite("missing transaction")
-                    }
-                    messages += updateMessages
+            var messages = insertMessages
+            let columns = try columnSet(for: "transactions", db: db)
+            for update in updates {
+                let updateMessages = try transactionCSVImportUpdateMessages(
+                    update,
+                    accountID: accountID,
+                    columns: columns,
+                    db: db,
+                    builder: &builder
+                )
+                guard !updateMessages.isEmpty else {
+                    throw LocalFirstError.invalidLocalWrite("missing transaction")
                 }
-                return LocalCommitPlan(drafts: messages, action: nil, outcome: ())
+                messages += updateMessages
             }
+            return LocalCommitPlan(drafts: messages, action: nil, outcome: ())
         }
     }
 

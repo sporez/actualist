@@ -35,50 +35,47 @@ extension BudgetDatabase {
         authorization: TransactionBatchAuthorization?,
         now: Date = Date()
     ) throws -> TransactionBatchResult {
-        try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
+        try Task.checkCancellation()
+        let committed = try commitLocalPlan(now: now) { db in
             try Task.checkCancellation()
-            let committed = try commitLocalPlan(now: now) { db in
-                try Task.checkCancellation()
-                let plan = try transactionBatchPlan(
-                    id: review.id,
-                    context: review.context,
-                    intent: review.intent,
-                    selections: review.selections,
-                    db: db
-                )
-                guard plan.review.reviewFingerprint == review.reviewFingerprint,
-                      plan.review.selections == review.selections,
-                      plan.review.dispositions == review.dispositions,
-                      plan.review.rowChanges == review.rowChanges,
-                      plan.review.metadata == review.metadata,
-                      plan.review.clearTarget == review.clearTarget,
-                      plan.review.canSubmit,
-                      plan.review.blockedCount == 0 else {
-                    throw LocalFirstError.invalidLocalWrite("the selected transactions changed; review the batch again")
-                }
-                guard authorization == plan.review.authorization else {
-                    throw LocalFirstError.invalidLocalWrite("confirm the reconciled transaction warning again")
-                }
-                let action = ActionLogCommit(
-                    descriptor: .transactionBatch(plan.descriptor),
-                    source: .ui,
-                    actionID: review.id,
-                    learningTransactionIDs: plan.learningTransactionIDs
-                )
-                return LocalCommitPlan(
-                    drafts: plan.messages,
-                    action: action,
-                    outcome: TransactionBatchResult(
-                        changedAccountIDs: plan.affectedAccountIDs,
-                        changedMonthIDs: plan.affectedMonthIDs,
-                        changedTransactionIDs: plan.affectedTransactionIDs,
-                        actionID: review.id
-                    )
-                )
+            let plan = try transactionBatchPlan(
+                id: review.id,
+                context: review.context,
+                intent: review.intent,
+                selections: review.selections,
+                db: db
+            )
+            guard plan.review.reviewFingerprint == review.reviewFingerprint,
+                  plan.review.selections == review.selections,
+                  plan.review.dispositions == review.dispositions,
+                  plan.review.rowChanges == review.rowChanges,
+                  plan.review.metadata == review.metadata,
+                  plan.review.clearTarget == review.clearTarget,
+                  plan.review.canSubmit,
+                  plan.review.blockedCount == 0 else {
+                throw LocalFirstError.invalidLocalWrite("the selected transactions changed; review the batch again")
             }
-            return committed.outcome
+            guard authorization == plan.review.authorization else {
+                throw LocalFirstError.invalidLocalWrite("confirm the reconciled transaction warning again")
+            }
+            let action = ActionLogCommit(
+                descriptor: .transactionBatch(plan.descriptor),
+                source: .ui,
+                actionID: review.id,
+                learningTransactionIDs: plan.learningTransactionIDs
+            )
+            return LocalCommitPlan(
+                drafts: plan.messages,
+                action: action,
+                outcome: TransactionBatchResult(
+                    changedAccountIDs: plan.affectedAccountIDs,
+                    changedMonthIDs: plan.affectedMonthIDs,
+                    changedTransactionIDs: plan.affectedTransactionIDs,
+                    actionID: review.id
+                )
+            )
         }
+        return committed.outcome
     }
 
     private func transactionBatchPlan(

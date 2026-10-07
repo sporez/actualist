@@ -35,49 +35,46 @@ extension BudgetDatabase {
         now: Date = Date()
     ) throws -> TransactionDuplicateReceipt {
         try Task.checkCancellation()
-        return try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
+        try Task.checkCancellation()
+        let committed = try commitLocalPlan(now: now) { db in
             try Task.checkCancellation()
-            let committed = try commitLocalPlan(now: now) { db in
-                try Task.checkCancellation()
-                let plan = try transactionDuplicatePlan(
-                    id: review.id,
-                    context: review.context,
-                    selections: review.selections,
-                    allocations: review.allocations,
-                    cloneIDAtIndex: nil,
-                    now: now,
-                    db: db
+            let plan = try transactionDuplicatePlan(
+                id: review.id,
+                context: review.context,
+                selections: review.selections,
+                allocations: review.allocations,
+                cloneIDAtIndex: nil,
+                now: now,
+                db: db
+            )
+            guard review.canSubmit,
+                  Self.duplicateAllocationsExactlyMatch(plan.review.allocations, review.allocations),
+                  plan.review.reviewFingerprint == review.reviewFingerprint,
+                  plan.review.groups == review.groups,
+                  plan.review.affectedResources == review.affectedResources else {
+                throw LocalFirstError.invalidLocalWrite(
+                    "the selected transactions changed; review the duplicate again"
                 )
-                guard review.canSubmit,
-                      Self.duplicateAllocationsExactlyMatch(plan.review.allocations, review.allocations),
-                      plan.review.reviewFingerprint == review.reviewFingerprint,
-                      plan.review.groups == review.groups,
-                      plan.review.affectedResources == review.affectedResources else {
-                    throw LocalFirstError.invalidLocalWrite(
-                        "the selected transactions changed; review the duplicate again"
-                    )
-                }
-                let drafts = try transactionDuplicateDrafts(
-                    from: plan.sourcePlan,
-                    columns: plan.columns
-                )
-                guard !drafts.isEmpty else {
-                    throw LocalFirstError.invalidLocalWrite("the transaction duplicate has no writable rows")
-                }
-                let receipt = TransactionDuplicateReceipt(
-                    changed: plan.review.affectedResources,
-                    actionID: review.id
-                )
-                let action = ActionLogCommit(
-                    descriptor: .transactionDuplicate(plan.descriptor),
-                    source: .ui,
-                    actionID: review.id
-                )
-                return LocalCommitPlan(drafts: drafts, action: action, outcome: receipt)
             }
-            return committed.outcome
+            let drafts = try transactionDuplicateDrafts(
+                from: plan.sourcePlan,
+                columns: plan.columns
+            )
+            guard !drafts.isEmpty else {
+                throw LocalFirstError.invalidLocalWrite("the transaction duplicate has no writable rows")
+            }
+            let receipt = TransactionDuplicateReceipt(
+                changed: plan.review.affectedResources,
+                actionID: review.id
+            )
+            let action = ActionLogCommit(
+                descriptor: .transactionDuplicate(plan.descriptor),
+                source: .ui,
+                actionID: review.id
+            )
+            return LocalCommitPlan(drafts: drafts, action: action, outcome: receipt)
         }
+        return committed.outcome
     }
 
     private func transactionDuplicatePlan(

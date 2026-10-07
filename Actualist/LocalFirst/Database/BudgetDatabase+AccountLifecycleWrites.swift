@@ -14,50 +14,47 @@ extension BudgetDatabase {
         actionID: String = UUID().uuidString,
         now: Date = Date()
     ) throws -> AccountLifecycleMutationResult {
-        try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
-            try Task.checkCancellation()
-            return try commitLocalPlan(now: now) { db in
-                let decision = try validateAccountLifecycleMutation(precondition, db: db)
-                switch decision {
-                case .noChange(let outcome):
-                    return LocalCommitPlan(
-                        drafts: [], action: nil,
-                        outcome: AccountLifecycleMutationResult.noChange(outcome)
-                    )
-                case .apply(let outcome):
-                    var builder = LocalFirstSyncMessageBuilder()
-                    let column: String
-                    let value: LocalFirstSyncValue
-                    switch outcome.operation {
-                    case .rename:
-                        column = "name"
-                        value = .string(outcome.account.name)
-                    case .reopen:
-                        column = "closed"
-                        value = .bool(false)
-                    case .close, .delete:
-                        throw AccountLifecycleCommandError.invalidPreparedMutation
-                    }
-                    let draft = try builder.makeMessage(
-                        dataset: "accounts", row: outcome.account.id, column: column, value: value
-                    )
-                    return LocalCommitPlan(
-                        drafts: [draft],
-                        action: ActionLogCommit(
-                            descriptor: .account(AccountActionDescriptor(
-                                name: outcome.account.name,
-                                offbudget: outcome.account.offBudget,
-                                operation: outcome.operation
-                            )),
-                            source: .ui,
-                            actionID: actionID
-                        ),
-                        outcome: AccountLifecycleMutationResult.applied(outcome)
-                    )
+        try Task.checkCancellation()
+        return try commitLocalPlan(now: now) { db in
+            let decision = try validateAccountLifecycleMutation(precondition, db: db)
+            switch decision {
+            case .noChange(let outcome):
+                return LocalCommitPlan(
+                    drafts: [], action: nil,
+                    outcome: AccountLifecycleMutationResult.noChange(outcome)
+                )
+            case .apply(let outcome):
+                var builder = LocalFirstSyncMessageBuilder()
+                let column: String
+                let value: LocalFirstSyncValue
+                switch outcome.operation {
+                case .rename:
+                    column = "name"
+                    value = .string(outcome.account.name)
+                case .reopen:
+                    column = "closed"
+                    value = .bool(false)
+                case .close, .delete:
+                    throw AccountLifecycleCommandError.invalidPreparedMutation
                 }
-            }.outcome
-        }
+                let draft = try builder.makeMessage(
+                    dataset: "accounts", row: outcome.account.id, column: column, value: value
+                )
+                return LocalCommitPlan(
+                    drafts: [draft],
+                    action: ActionLogCommit(
+                        descriptor: .account(AccountActionDescriptor(
+                            name: outcome.account.name,
+                            offbudget: outcome.account.offBudget,
+                            operation: outcome.operation
+                        )),
+                        source: .ui,
+                        actionID: actionID
+                    ),
+                    outcome: AccountLifecycleMutationResult.applied(outcome)
+                )
+            }
+        }.outcome
     }
 
     private func validateAccountLifecycleMutation(

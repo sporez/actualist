@@ -8,16 +8,13 @@ extension BudgetDatabase {
         pendingNewTransactions: PendingNewTransactionCommit? = nil,
         expectedAbsentImportedIDs: ImportedIDAbsence? = nil
     ) throws -> Int {
-        try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
-            try Task.checkCancellation()
-            return try commitLocalSyncMessagesAndEnqueue(
-                messages,
-                expectedBankLink: expectedLink,
-                pendingNewTransactions: pendingNewTransactions,
-                expectedAbsentImportedIDs: expectedAbsentImportedIDs
-            )
-        }
+        try Task.checkCancellation()
+        return try commitLocalSyncMessagesAndEnqueue(
+            messages,
+            expectedBankLink: expectedLink,
+            pendingNewTransactions: pendingNewTransactions,
+            expectedAbsentImportedIDs: expectedAbsentImportedIDs
+        )
     }
 
     /// Called inside the same transaction as the import, status and outbox.

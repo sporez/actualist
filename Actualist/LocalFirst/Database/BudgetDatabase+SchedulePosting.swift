@@ -27,35 +27,32 @@ extension BudgetDatabase {
               ActualScheduleRecurrence.date(from: today) != nil else {
             throw SchedulePostingRefusal.invalidCommand
         }
-        return try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
-            try Task.checkCancellation()
-            let committed = try commitLocalPlan(now: now) { db in
-                // Schema gaps (a missing table or column) in the posting graph are
-                // deterministic per schedule, so they are refusals rather than
-                // errors that would stop automatic advancement on every sync.
-                // I/O and cancellation propagate unchanged.
-                do {
-                    return try schedulePostingPlan(
-                        review: review, draft: draft, transactionID: transactionID,
-                        postedDayID: postedDayID, today: today, db: db
-                    )
-                } catch LocalFirstError.invalidLocalWrite {
-                    throw SchedulePostingRefusal.unsupportedBudgetSchema
-                }
+        try Task.checkCancellation()
+        let committed = try commitLocalPlan(now: now) { db in
+            // Schema gaps (a missing table or column) in the posting graph are
+            // deterministic per schedule, so they are refusals rather than
+            // errors that would stop automatic advancement on every sync.
+            // I/O and cancellation propagate unchanged.
+            do {
+                return try schedulePostingPlan(
+                    review: review, draft: draft, transactionID: transactionID,
+                    postedDayID: postedDayID, today: today, db: db
+                )
+            } catch LocalFirstError.invalidLocalWrite {
+                throw SchedulePostingRefusal.unsupportedBudgetSchema
             }
-            let planned = committed.outcome
-            return SchedulePostingWriteReceipt(
-                scheduleID: planned.scheduleID,
-                transactionID: planned.transactionID,
-                occurrenceDayID: planned.occurrenceDayID,
-                postedDayID: planned.postedDayID,
-                appliedMessageCount: committed.appliedCount,
-                affectedAccountIDs: planned.affectedAccountIDs,
-                affectedTransactionIDs: planned.affectedTransactionIDs,
-                affectedMonthIDs: planned.affectedMonthIDs
-            )
         }
+        let planned = committed.outcome
+        return SchedulePostingWriteReceipt(
+            scheduleID: planned.scheduleID,
+            transactionID: planned.transactionID,
+            occurrenceDayID: planned.occurrenceDayID,
+            postedDayID: planned.postedDayID,
+            appliedMessageCount: committed.appliedCount,
+            affectedAccountIDs: planned.affectedAccountIDs,
+            affectedTransactionIDs: planned.affectedTransactionIDs,
+            affectedMonthIDs: planned.affectedMonthIDs
+        )
     }
 
     private func schedulePostingPlan(

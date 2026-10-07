@@ -46,61 +46,58 @@ extension BudgetDatabase {
         authorization: TransactionMergeAuthorization?,
         now: Date = Date()
     ) throws -> TransactionMergeReceipt {
-        try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
+        try Task.checkCancellation()
+        let committed = try commitLocalPlan(now: now) { db in
             try Task.checkCancellation()
-            let committed = try commitLocalPlan(now: now) { db in
-                try Task.checkCancellation()
-                let current = try transactionMergeDatabasePlan(
-                    id: review.id,
-                    context: review.context,
-                    orderedTransactionIDs: review.orderedTransactionIDs,
-                    db: db
-                )
-                guard current.review == review,
-                      review.canSubmit,
-                      let plan = current.plan else {
-                    throw LocalFirstError.invalidLocalWrite(
-                        "the selected transactions changed; review the merge again"
-                    )
-                }
-                guard authorization == transactionMergeAuthorization(for: current.review) else {
-                    throw LocalFirstError.invalidLocalWrite(
-                        "confirm the reconciled transaction warning again"
-                    )
-                }
-
-                var builder = LocalFirstSyncMessageBuilder()
-                let messages = try transactionMergeMessages(for: plan, db: db, builder: &builder)
-                guard !messages.isEmpty else {
-                    throw LocalFirstError.invalidLocalWrite("the merge has no transaction changes")
-                }
-                let affectedIDs = plan.beforeSnapshots.map(\.id)
-                let descriptor = TransactionMergeActionDescriptor(
-                    orderedInputTransactionIDs: plan.orderedTransactionIDs,
-                    keptTransactionID: plan.keptTransactionID,
-                    droppedTransactionID: plan.droppedTransactionID,
-                    affectedGraphTransactionIDs: affectedIDs
-                )
-                let receipt = TransactionMergeReceipt(
-                    changedAccountIDs: plan.affectedResources.changed.accounts,
-                    changedMonths: plan.affectedResources.changed.months,
-                    changedTransactionIDs: affectedIDs,
-                    actionID: review.id
-                )
-                return LocalCommitPlan(
-                    drafts: messages,
-                    action: ActionLogCommit(
-                        descriptor: .transactionMerge(descriptor),
-                        source: .ui,
-                        actionID: review.id,
-                        learningTransactionIDs: []
-                    ),
-                    outcome: receipt
+            let current = try transactionMergeDatabasePlan(
+                id: review.id,
+                context: review.context,
+                orderedTransactionIDs: review.orderedTransactionIDs,
+                db: db
+            )
+            guard current.review == review,
+                  review.canSubmit,
+                  let plan = current.plan else {
+                throw LocalFirstError.invalidLocalWrite(
+                    "the selected transactions changed; review the merge again"
                 )
             }
-            return committed.outcome
+            guard authorization == transactionMergeAuthorization(for: current.review) else {
+                throw LocalFirstError.invalidLocalWrite(
+                    "confirm the reconciled transaction warning again"
+                )
+            }
+
+            var builder = LocalFirstSyncMessageBuilder()
+            let messages = try transactionMergeMessages(for: plan, db: db, builder: &builder)
+            guard !messages.isEmpty else {
+                throw LocalFirstError.invalidLocalWrite("the merge has no transaction changes")
+            }
+            let affectedIDs = plan.beforeSnapshots.map(\.id)
+            let descriptor = TransactionMergeActionDescriptor(
+                orderedInputTransactionIDs: plan.orderedTransactionIDs,
+                keptTransactionID: plan.keptTransactionID,
+                droppedTransactionID: plan.droppedTransactionID,
+                affectedGraphTransactionIDs: affectedIDs
+            )
+            let receipt = TransactionMergeReceipt(
+                changedAccountIDs: plan.affectedResources.changed.accounts,
+                changedMonths: plan.affectedResources.changed.months,
+                changedTransactionIDs: affectedIDs,
+                actionID: review.id
+            )
+            return LocalCommitPlan(
+                drafts: messages,
+                action: ActionLogCommit(
+                    descriptor: .transactionMerge(descriptor),
+                    source: .ui,
+                    actionID: review.id,
+                    learningTransactionIDs: []
+                ),
+                outcome: receipt
+            )
         }
+        return committed.outcome
     }
 
     private func transactionMergeDatabasePlan(

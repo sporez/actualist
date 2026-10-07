@@ -57,66 +57,74 @@ extension BudgetDatabase {
 
     /// Preparation runs on the committing database handle. An empty plan is a
     /// successful no-op and must not touch the launch revision, clock or History.
+    ///
+    /// This and `performActionUndoCommit` are the session write fence: the lock
+    /// is held across the whole write, so teardown waits for an in-flight commit
+    /// and a retained handle cannot start another one afterwards. `Mutex` is not
+    /// reentrant; nothing inside a commit may take the fence again.
     func commitLocalPlan<Outcome: Sendable>(
         now: Date = Date(),
         prepare: (Database) throws -> LocalCommitPlan<Outcome>
     ) throws -> (outcome: Outcome, appliedCount: Int) {
-        var committedClock = localClock
-        let result: (outcome: Outcome, appliedCount: Int)
-        do {
-            result = try writeTrackingMerkle { db in
-                let plan = try prepare(db)
-                guard !plan.drafts.isEmpty else { return (plan.outcome, 0) }
-                guard var clock = committedClock else {
-                    throw LocalFirstError.invalidLocalWrite("local clock is not configured")
-                }
-                guard try tableExists("messages_crdt", db: db) else {
-                    throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
-                }
-                try beforeBudgetDataMutation()
-                try ensureLocalSyncOutbox(db)
-                let baseTimestamp = try String.fetchOne(
-                    db,
-                    sql: "SELECT MAX(timestamp) FROM messages_crdt"
-                ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+        return try sessionWritesAllowed.withLock { allowed in
+            guard allowed else { throw LocalFirstError.budgetNotOpened }
+            var committedClock = localClock
+            let result: (outcome: Outcome, appliedCount: Int)
+            do {
+                result = try writeTrackingMerkle { db in
+                    let plan = try prepare(db)
+                    guard !plan.drafts.isEmpty else { return (plan.outcome, 0) }
+                    guard var clock = committedClock else {
+                        throw LocalFirstError.invalidLocalWrite("local clock is not configured")
+                    }
+                    guard try tableExists("messages_crdt", db: db) else {
+                        throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
+                    }
+                    try beforeBudgetDataMutation()
+                    try ensureLocalSyncOutbox(db)
+                    let baseTimestamp = try String.fetchOne(
+                        db,
+                        sql: "SELECT MAX(timestamp) FROM messages_crdt"
+                    ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
 
-                let actionLogFacts = try plan.action.map {
-                    try captureActionLogFacts(descriptor: $0.descriptor, db: db)
-                }
-                let applied = try applyCommittedDrafts(
-                    plan.drafts,
-                    clock: &clock,
-                    now: now,
-                    baseTimestamp: baseTimestamp,
-                    db: db
-                )
-                if let pendingNewTransactions = plan.pendingNewTransactions {
-                    try recordPendingNewTransactions(pendingNewTransactions, db: db)
-                }
-                let appliedCount: Int
-                if let actionLogCommit = plan.action {
-                    appliedCount = try finishActionLogCommit(
-                        actionLogCommit,
-                        facts: actionLogFacts,
-                        applied: applied,
+                    let actionLogFacts = try plan.action.map {
+                        try captureActionLogFacts(descriptor: $0.descriptor, db: db)
+                    }
+                    let applied = try applyCommittedDrafts(
+                        plan.drafts,
                         clock: &clock,
                         now: now,
                         baseTimestamp: baseTimestamp,
                         db: db
                     )
-                } else {
-                    appliedCount = applied.appliedCount
+                    if let pendingNewTransactions = plan.pendingNewTransactions {
+                        try recordPendingNewTransactions(pendingNewTransactions, db: db)
+                    }
+                    let appliedCount: Int
+                    if let actionLogCommit = plan.action {
+                        appliedCount = try finishActionLogCommit(
+                            actionLogCommit,
+                            facts: actionLogFacts,
+                            applied: applied,
+                            clock: &clock,
+                            now: now,
+                            baseTimestamp: baseTimestamp,
+                            db: db
+                        )
+                    } else {
+                        appliedCount = applied.appliedCount
+                    }
+                    committedClock = clock
+                    return (plan.outcome, appliedCount)
                 }
-                committedClock = clock
-                return (plan.outcome, appliedCount)
+            } catch let error as any LocalCommitPassthroughError {
+                throw error
+            } catch {
+                throw LocalFirstError.invalidLocalWrite("the database transaction was rolled back")
             }
-        } catch let error as any LocalCommitPassthroughError {
-            throw error
-        } catch {
-            throw LocalFirstError.invalidLocalWrite("the database transaction was rolled back")
+            localClock = committedClock
+            return result
         }
-        localClock = committedClock
-        return result
     }
 
     struct LocalCommitReview {

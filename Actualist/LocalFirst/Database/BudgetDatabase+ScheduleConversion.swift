@@ -56,106 +56,103 @@ extension BudgetDatabase {
               review.family.first?.transaction.id == review.sourceTransactionID else {
             throw ScheduleConversionError.reviewChanged
         }
-        return try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
-            try Task.checkCancellation()
-            let committed: (outcome: ScheduleConversionWriteReceipt, appliedCount: Int)
-            do {
-                committed = try commitLocalPlan(now: now) { db in
-                    let currentDay = ActualDateOnly.today()
-                    guard review.asOfDayID == currentDay else {
-                        throw ScheduleConversionError.reviewChanged
-                    }
-                    let currentFacts: [ScheduleConversionRow]
-                    do {
-                        currentFacts = try scheduleConversionFacts(
-                            transactionID: review.sourceTransactionID,
-                            db: db
-                        )
-                    } catch ScheduleConversionError.unsupportedSource(_) {
-                        throw ScheduleConversionError.reviewChanged
-                    }
-                    try validateScheduleConversionSource(currentFacts, asOfDayID: currentDay, db: db)
-                    let currentReviewFacts = currentFacts.map {
-                        ScheduleConversionTransactionFact(
-                            transaction: $0.transaction,
-                            rawPayeeID: $0.rawPayeeID,
-                            transferID: $0.transferID,
-                            isTransferPayee: $0.isTransferPayee
-                        )
-                    }
-                    guard currentReviewFacts == review.family else {
-                        throw ScheduleConversionError.reviewChanged
-                    }
-                    guard let source = currentFacts.first?.transaction,
-                          !source.account.isEmpty,
-                          let monthID = source.date.actualYearMonth,
-                          !monthID.isEmpty else {
-                        throw ScheduleConversionError.unsupportedSource("The transaction account or date is unavailable.")
-                    }
-                    let accountID = source.account
-
-                    var builder = LocalFirstSyncMessageBuilder()
-                    let plan = ScheduleTransactionConversionPlanner.plan(from: source)
-                    let link = RuleJSONValue.object([
-                        "op": .string("link-schedule"),
-                        "value": .string(review.identity.scheduleID)
-                    ])
-                    let conditionsJSON = try scheduleConversionJSON(plan.conditions)
-                    let actionsJSON = try scheduleConversionJSON([link] + plan.actions)
-                    let scheduleName = "Auto-created future transaction (\(source.date)) · \(review.identity.scheduleID.prefix(8))"
-                    var messages = try scheduleCreationMessages(
-                        ScheduleCreationMessagePlanRequest(
-                            identity: review.identity,
-                            name: scheduleName,
-                            postsTransaction: plan.postsTransaction,
-                            customUpcomingLength: nil,
-                            conditionsJSON: conditionsJSON,
-                            actionsJSON: actionsJSON,
-                            nextDate: source.date,
-                            now: now
-                        ),
-                        db: db,
-                        builder: &builder
+        try Task.checkCancellation()
+        let committed: (outcome: ScheduleConversionWriteReceipt, appliedCount: Int)
+        do {
+            committed = try commitLocalPlan(now: now) { db in
+                let currentDay = ActualDateOnly.today()
+                guard review.asOfDayID == currentDay else {
+                    throw ScheduleConversionError.reviewChanged
+                }
+                let currentFacts: [ScheduleConversionRow]
+                do {
+                    currentFacts = try scheduleConversionFacts(
+                        transactionID: review.sourceTransactionID,
+                        db: db
                     )
-                    let transactionColumns = try resolveTransactionRowColumns(db: db)
-                    guard transactionColumns.hasTombstone else {
-                        throw ScheduleConversionError.unsupportedSource("This budget cannot safely remove the original transaction.")
-                    }
-                    for fact in currentFacts {
-                        guard let transactionID = fact.transaction.id else {
-                            throw ScheduleConversionError.reviewChanged
-                        }
-                        messages.append(try tombstoneMessage(rowID: transactionID, builder: &builder))
-                    }
-                    return LocalCommitPlan(
-                        drafts: messages,
-                        action: nil,
-                        outcome: ScheduleConversionWriteReceipt(
-                            scheduleID: review.identity.scheduleID,
-                            sourceTransactionIDs: currentFacts.compactMap { $0.transaction.id },
-                            sourceAccountID: accountID,
-                            sourceMonthID: monthID,
-                            appliedMessageCount: 0
-                        )
+                } catch ScheduleConversionError.unsupportedSource(_) {
+                    throw ScheduleConversionError.reviewChanged
+                }
+                try validateScheduleConversionSource(currentFacts, asOfDayID: currentDay, db: db)
+                let currentReviewFacts = currentFacts.map {
+                    ScheduleConversionTransactionFact(
+                        transaction: $0.transaction,
+                        rawPayeeID: $0.rawPayeeID,
+                        transferID: $0.transferID,
+                        isTransferPayee: $0.isTransferPayee
                     )
                 }
-            } catch ScheduleMutationCommandError.identityConflict {
-                throw ScheduleConversionError.identityConflict
-            } catch ScheduleMutationCommandError.unsupportedSchema {
-                throw ScheduleConversionError.unsupportedSchema
-            } catch ScheduleMutationCommandError.unsupportedCapability(let reason) {
-                throw ScheduleConversionError.unsupportedSource(reason)
+                guard currentReviewFacts == review.family else {
+                    throw ScheduleConversionError.reviewChanged
+                }
+                guard let source = currentFacts.first?.transaction,
+                      !source.account.isEmpty,
+                      let monthID = source.date.actualYearMonth,
+                      !monthID.isEmpty else {
+                    throw ScheduleConversionError.unsupportedSource("The transaction account or date is unavailable.")
+                }
+                let accountID = source.account
+
+                var builder = LocalFirstSyncMessageBuilder()
+                let plan = ScheduleTransactionConversionPlanner.plan(from: source)
+                let link = RuleJSONValue.object([
+                    "op": .string("link-schedule"),
+                    "value": .string(review.identity.scheduleID)
+                ])
+                let conditionsJSON = try scheduleConversionJSON(plan.conditions)
+                let actionsJSON = try scheduleConversionJSON([link] + plan.actions)
+                let scheduleName = "Auto-created future transaction (\(source.date)) · \(review.identity.scheduleID.prefix(8))"
+                var messages = try scheduleCreationMessages(
+                    ScheduleCreationMessagePlanRequest(
+                        identity: review.identity,
+                        name: scheduleName,
+                        postsTransaction: plan.postsTransaction,
+                        customUpcomingLength: nil,
+                        conditionsJSON: conditionsJSON,
+                        actionsJSON: actionsJSON,
+                        nextDate: source.date,
+                        now: now
+                    ),
+                    db: db,
+                    builder: &builder
+                )
+                let transactionColumns = try resolveTransactionRowColumns(db: db)
+                guard transactionColumns.hasTombstone else {
+                    throw ScheduleConversionError.unsupportedSource("This budget cannot safely remove the original transaction.")
+                }
+                for fact in currentFacts {
+                    guard let transactionID = fact.transaction.id else {
+                        throw ScheduleConversionError.reviewChanged
+                    }
+                    messages.append(try tombstoneMessage(rowID: transactionID, builder: &builder))
+                }
+                return LocalCommitPlan(
+                    drafts: messages,
+                    action: nil,
+                    outcome: ScheduleConversionWriteReceipt(
+                        scheduleID: review.identity.scheduleID,
+                        sourceTransactionIDs: currentFacts.compactMap { $0.transaction.id },
+                        sourceAccountID: accountID,
+                        sourceMonthID: monthID,
+                        appliedMessageCount: 0
+                    )
+                )
             }
-            let receipt = committed.outcome
-            return ScheduleConversionWriteReceipt(
-                scheduleID: receipt.scheduleID,
-                sourceTransactionIDs: receipt.sourceTransactionIDs,
-                sourceAccountID: receipt.sourceAccountID,
-                sourceMonthID: receipt.sourceMonthID,
-                appliedMessageCount: committed.appliedCount
-            )
+        } catch ScheduleMutationCommandError.identityConflict {
+            throw ScheduleConversionError.identityConflict
+        } catch ScheduleMutationCommandError.unsupportedSchema {
+            throw ScheduleConversionError.unsupportedSchema
+        } catch ScheduleMutationCommandError.unsupportedCapability(let reason) {
+            throw ScheduleConversionError.unsupportedSource(reason)
         }
+        let receipt = committed.outcome
+        return ScheduleConversionWriteReceipt(
+            scheduleID: receipt.scheduleID,
+            sourceTransactionIDs: receipt.sourceTransactionIDs,
+            sourceAccountID: receipt.sourceAccountID,
+            sourceMonthID: receipt.sourceMonthID,
+            appliedMessageCount: committed.appliedCount
+        )
     }
 
     private func scheduleConversionFacts(

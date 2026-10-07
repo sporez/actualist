@@ -184,13 +184,10 @@ extension BudgetDatabase {
     private func commitSavedFilterPlan<Outcome: Sendable>(
         prepare: (Database) throws -> LocalCommitPlan<Outcome>
     ) throws -> (outcome: Outcome, appliedCount: Int) {
-        try sessionWritesAllowed.withLock { allowed in
-            guard allowed else { throw LocalFirstError.budgetNotOpened }
+        try Task.checkCancellation()
+        return try commitLocalPlan { db in
             try Task.checkCancellation()
-            return try commitLocalPlan { db in
-                try Task.checkCancellation()
-                return try prepare(db)
-            }
+            return try prepare(db)
         }
     }
 
