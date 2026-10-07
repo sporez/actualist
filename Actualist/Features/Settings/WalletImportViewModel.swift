@@ -70,18 +70,28 @@ final class WalletImportViewModel {
     }
 
     func refreshExistingIDs(using appState: AppState) async {
-        guard let budgetID = appState.settings.selectedBudgetID,
+        await refreshExistingIDs(
+            budgetID: appState.settings.selectedBudgetID,
+            repository: appState.transactionRepository
+        )
+    }
+
+    func refreshExistingIDs(
+        budgetID: String?,
+        repository: any TransactionRepositoryProtocol
+    ) async {
+        guard let budgetID,
               let accountID = selectedAccountID else {
             existingImportedIDs = []
             return
         }
         do {
-            existingImportedIDs = try await appState.transactionRepository.existingImportedIDs(
-                budgetID: budgetID,
-                accountID: accountID
-            )
+            let ids = try await repository.existingImportedIDs(budgetID: budgetID, accountID: accountID)
+            // An account switch during the read leaves these ids to the other account.
+            guard accountID == selectedAccountID else { return }
+            existingImportedIDs = ids
         } catch {
-            guard !error.isCancellation else { return }
+            guard !error.isCancellation, accountID == selectedAccountID else { return }
             existingImportedIDs = []
             errorMessage = error.userFacingMessage
         }
