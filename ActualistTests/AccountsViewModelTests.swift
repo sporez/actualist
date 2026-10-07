@@ -231,6 +231,26 @@ struct AccountsViewModelTests {
         #expect(!viewModel.isSubmitting)
         #expect(viewModel.name.isEmpty)
     }
+
+    @Test func supersededLoadFinishingLastDoesNotPublishItsErrorOrLoadingState() async {
+        let repository = FakeAccountRepository()
+        let gate = repository.parkNextLoad(failingWith: LocalFirstError.invalidLocalWrite("old budget failed"))
+        let model = AccountsViewModel()
+
+        let older = Task {
+            await model.loadLocal(budgetID: "old", hasCachedAccounts: false, repository: repository)
+        }
+        let entered = await gate.entered.wait(timeout: .seconds(5), onTimeout: { gate.release.trip() })
+        #expect(entered)
+        await model.loadLocal(budgetID: "new", hasCachedAccounts: false, repository: repository)
+        #expect(!model.isLoading)
+
+        gate.release.trip()
+        await older.value
+
+        #expect(model.errorMessage == nil)
+        #expect(!model.isLoading)
+    }
 }
 
 @MainActor
@@ -259,9 +279,27 @@ private final class FakeAccountRepository: AccountRepositoryProtocol {
         await gate.release.wait()
     }
 
+    private var parkedLoad: (entered: TestLatch, release: TestLatch, error: Error?)?
+
+    /// The next refresh signals `entered`, waits for `release`, then throws `error`.
+    func parkNextLoad(failingWith error: Error? = nil) -> (entered: TestLatch, release: TestLatch) {
+        let gate = (entered: TestLatch(), release: TestLatch())
+        parkedLoad = (gate.entered, gate.release, error)
+        return gate
+    }
+
     func accountDisplays(budgetID: String) -> [AccountDisplay] { displays }
     func accountGroups(budgetID: String) -> [ActualAccountGroup] { groups }
-    func refreshAccountsWithBalances(budgetID: String) async throws { if let loadError { throw loadError } }
+    func refreshAccountsWithBalances(budgetID: String) async throws {
+        if let gate = parkedLoad {
+            parkedLoad = nil
+            gate.entered.trip()
+            await gate.release.wait()
+            if let error = gate.error { throw error }
+            return
+        }
+        if let loadError { throw loadError }
+    }
     func accountReconciliationSnapshot(
         budgetID: String,
         accountID: String

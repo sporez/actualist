@@ -34,6 +34,8 @@ final class AccountsViewModel {
 
     private var budgetID: String?
     private var submitGeneration = 0
+    /// Supersede token for `loadLocal`, separate from the write token above.
+    private var loadGeneration = 0
     /// The write that owns the busy state. Cleared by that write when it ends,
     /// or by a budget change, which detaches the write without erasing busy
     /// state for a later one.
@@ -91,6 +93,8 @@ final class AccountsViewModel {
         hasCachedAccounts: Bool,
         repository: any AccountRepositoryProtocol
     ) async {
+        loadGeneration += 1
+        let generation = loadGeneration
         if budgetID != self.budgetID {
             self.budgetID = budgetID
             submitGeneration += 1
@@ -112,8 +116,10 @@ final class AccountsViewModel {
         do {
             try await repository.refreshAccountsWithBalances(budgetID: budgetID)
         } catch {
+            guard generation == loadGeneration else { return }
             errorMessage = hasCachedAccounts ? nil : error.userFacingMessage
         }
+        guard generation == loadGeneration else { return }
         isLoading = false
         noteContentChange()
     }
