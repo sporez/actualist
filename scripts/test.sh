@@ -31,8 +31,10 @@ ACTUALIST_TEST_PARALLEL:
           parallel values, and dry-run do not create or touch a test-run lock.
 
 A run releases its lock when xcodebuild exits on its own, including test or
-build failures (exit status below 128). It keeps the lock when the run is
-interrupted, xcodebuild is killed by a signal, or ownership no longer matches.
+build failures (exit status below 128). An interrupted run stops xcodebuild
+and waits up to 60 seconds for it to exit; it releases the lock if xcodebuild
+exited. The lock is kept when xcodebuild outlives that wait, is killed by a
+signal while the script was not interrupted, or ownership no longer matches.
 
 A real invocation that finds .artifacts/.test-run.lock refuses to run. It does
 not delete or reclaim that lock, even if the recorded PID is dead or the
@@ -129,6 +131,7 @@ acquired=0
 interrupted=0
 interrupt_signal=""
 child_pid=""
+interrupt_grace_seconds=60
 run_token="$(uuidgen | tr '[:upper:]' '[:lower:]')"
 
 report_held_lock() {
@@ -164,12 +167,50 @@ signal_recorded_child() {
   builtin kill -TERM "$child_pid" 2>/dev/null || true
 }
 
-exit_interrupted() {
-  recovery_required "$1"
-  if [[ -n "$interrupt_signal" ]]; then
-    exit $((128 + interrupt_signal))
+release_lock() {
+  local token_now pid_now
+  token_now="$(cat "$lockdir/token" 2>/dev/null || echo "")"
+  pid_now="$(cat "$lockdir/pid" 2>/dev/null || echo "")"
+  if [[ "$token_now" != "$run_token" || "$pid_now" != "$$" ]]; then
+    recovery_required "lock ownership no longer matches this invocation"
+    exit 1
   fi
-  exit 129
+  rm -f "$lockdir/token" "$lockdir/pid" "$lockdir/child-pid" "$lockdir/mode" "$lockdir/started" \
+    "$lockdir/interrupted" "$lockdir/signaled-child"
+  if ! rmdir "$lockdir"; then
+    recovery_required "could not remove an otherwise empty lock directory without recursive deletion"
+    exit 1
+  fi
+  acquired=0
+}
+
+# An exited child stays a zombie until reaped, so `kill -0` cannot tell.
+child_has_exited() {
+  local state
+  state="$(ps -o stat= -p "$child_pid" 2>/dev/null || true)"
+  [[ -z "$state" || "$state" == Z* ]]
+}
+
+# xcodebuild ends its test session when it handles SIGTERM. Once it has
+# exited, the lock can go; if it outlives the grace period, keep the lock.
+exit_interrupted() {
+  local status=129
+  [[ -z "$interrupt_signal" ]] || status=$((128 + interrupt_signal))
+  if [[ -n "$child_pid" ]]; then
+    signal_recorded_child
+    local deadline=$((SECONDS + interrupt_grace_seconds))
+    while ! child_has_exited; do
+      if (( SECONDS >= deadline )); then
+        recovery_required "$1; xcodebuild did not exit within ${interrupt_grace_seconds}s"
+        exit "$status"
+      fi
+      sleep 0.5
+    done
+    wait "$child_pid" 2>/dev/null || true
+  fi
+  release_lock
+  echo "error: $1; the test-run lock was released" >&2
+  exit "$status"
 }
 
 on_signal() {
@@ -199,7 +240,7 @@ date -u +%Y-%m-%dT%H:%M:%SZ > "$lockdir/started"
 
 cd "$ROOT"
 if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
-  exit_interrupted "invocation interrupted during setup (${interrupt_signal:-signal}); workload was not launched"
+  exit_interrupted "invocation interrupted during setup (${interrupt_signal:-signal}); xcodebuild was not launched"
 fi
 set +e
 "${command[@]}" &
@@ -212,8 +253,7 @@ if [[ "$start_status" -ne 0 || -z "$child_pid" ]]; then
 fi
 printf '%s\n' "$child_pid" > "$lockdir/child-pid" || true
 if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
-  signal_recorded_child
-  exit_interrupted "invocation interrupted (${interrupt_signal:-signal}); child termination is not confirmed"
+  exit_interrupted "invocation interrupted (${interrupt_signal:-signal})"
 fi
 
 set +e
@@ -222,8 +262,7 @@ child_status=$?
 set -e
 
 if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
-  signal_recorded_child
-  exit_interrupted "invocation interrupted (${interrupt_signal:-signal}); child termination is not confirmed"
+  exit_interrupted "invocation interrupted (${interrupt_signal:-signal})"
 fi
 
 # xcodebuild ends its own test session before it exits, including after test
@@ -234,19 +273,7 @@ if [[ "$child_status" -ge 128 ]]; then
   exit "$child_status"
 fi
 
-token_now="$(cat "$lockdir/token" 2>/dev/null || echo "")"
-pid_now="$(cat "$lockdir/pid" 2>/dev/null || echo "")"
-if [[ "$token_now" != "$run_token" || "$pid_now" != "$$" ]]; then
-  recovery_required "lock ownership no longer matches this invocation"
-  exit 1
-fi
-
-rm -f "$lockdir/token" "$lockdir/pid" "$lockdir/child-pid" "$lockdir/mode" "$lockdir/started"
-if ! rmdir "$lockdir"; then
-  recovery_required "could not remove an otherwise empty lock directory without recursive deletion"
-  exit 1
-fi
-acquired=0
+release_lock
 if [[ "$child_status" -ne 0 ]]; then
   echo "error: xcodebuild exited $child_status; the test-run lock was released" >&2
 fi

@@ -822,8 +822,12 @@ The wrapper's lock is `.artifacts/.test-run.lock`.
 - An uninterrupted invocation releases its own lock once xcodebuild exits on
   its own and ownership is confirmed. That includes test and build failures
   (exit status below 128), so a red-first run does not strand the lock.
-- Interruption, a signal-terminated xcodebuild (exit status 128 or higher), a
-  failure to start it, or an ownership mismatch deliberately retains the lock.
+- An interrupted invocation sends xcodebuild SIGTERM and waits up to 60
+  seconds for it to exit. If it exits, the lock is released; if it is still
+  running, the lock is retained.
+- A signal-terminated xcodebuild while the wrapper was not interrupted (exit
+  status 128 or higher), a failure to start it, or an ownership mismatch
+  deliberately retains the lock.
 - Existing locks are not automatically reclaimed, including locks with missing,
   malformed, or dead-owner metadata.
 - Help, invalid arguments, invalid parallel values, and dry-run do not acquire
