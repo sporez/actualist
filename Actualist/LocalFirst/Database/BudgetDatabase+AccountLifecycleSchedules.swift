@@ -52,9 +52,13 @@ extension BudgetDatabase {
             ruleColumns: ruleColumns,
             db: db
         )
+        // A transfer into this account names its transfer payee, directly or through
+        // `payee_mapping` after a payee merge. The resolved ids are digest facts, so a
+        // merge that changes the references also changes the freshness check.
+        let transferPayeeIDs = try accountLifecycleTransferPayeeIDs(accountID: accountID, db: db)
         let decoder = JSONDecoder()
         var references: [AccountScheduleReference] = []
-        var components: [String] = []
+        var components: [String] = ["transfer-payees"] + transferPayeeIDs.sorted()
         var inspectionAvailable = true
         for row in rows {
             let fact = AccountLifecycleScheduleRow(row: row)
@@ -83,7 +87,9 @@ extension BudgetDatabase {
                 continue
             }
             guard fact.isLive else { continue }
-            if conditions.contains(where: { accountLifecycleCondition($0, references: accountID) }) {
+            if conditions.contains(where: {
+                accountLifecycleCondition($0, references: accountID, transferPayeeIDs: transferPayeeIDs)
+            }) {
                 references.append(AccountScheduleReference(
                     id: fact.scheduleID,
                     name: fact.name.isEmpty ? fact.scheduleID : fact.name
@@ -131,22 +137,53 @@ extension BudgetDatabase {
         )
     }
 
+    private func accountLifecycleTransferPayeeIDs(
+        accountID: String,
+        db: Database
+    ) throws -> Set<String> {
+        guard try tableExists("payees", db: db) else { return [] }
+        let columns = try columnSet(for: "payees", db: db)
+        guard columns.contains("id"),
+              let transferColumn = ["transfer_acct", "transferAccount"].first(where: columns.contains) else {
+            return []
+        }
+        let transferIDs = try Set(String.fetchAll(
+            db,
+            sql: """
+                SELECT id FROM payees
+                WHERE \(quotedIdentifier(transferColumn)) = ?
+                  AND \(predicateForLiveRows(columns: columns))
+                """,
+            arguments: [accountID]
+        ))
+        guard !transferIDs.isEmpty else { return [] }
+        let merged = try payeeMappingTargets(db: db).filter { transferIDs.contains($0.value) }.keys
+        return transferIDs.union(merged)
+    }
+
     private func accountLifecycleCondition(
         _ condition: RuleCondition,
-        references accountID: String
+        references accountID: String,
+        transferPayeeIDs: Set<String>
     ) -> Bool {
-        guard condition.field == "acct" || condition.field == "account" else { return false }
-        return accountLifecycleJSONValue(condition.value, contains: accountID)
+        switch condition.field {
+        case "acct", "account":
+            accountLifecycleJSONValue(condition.value, matches: { $0 == accountID })
+        case "payee", "description":
+            accountLifecycleJSONValue(condition.value, matches: transferPayeeIDs.contains)
+        default:
+            false
+        }
     }
 
     private func accountLifecycleJSONValue(
         _ value: RuleJSONValue,
-        contains accountID: String
+        matches: (String) -> Bool
     ) -> Bool {
         switch value {
-        case .string(let value): value == accountID
-        case .array(let values): values.contains { accountLifecycleJSONValue($0, contains: accountID) }
-        case .object(let values): values.values.contains { accountLifecycleJSONValue($0, contains: accountID) }
+        case .string(let value): matches(value)
+        case .array(let values): values.contains { accountLifecycleJSONValue($0, matches: matches) }
+        case .object(let values): values.values.contains { accountLifecycleJSONValue($0, matches: matches) }
         case .null, .bool, .number: false
         }
     }

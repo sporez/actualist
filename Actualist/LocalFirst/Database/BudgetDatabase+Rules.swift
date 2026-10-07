@@ -708,7 +708,7 @@ extension BudgetDatabase {
         return nil
     }
 
-    private func payeeMappingTargets(db: Database) throws -> [String: String] {
+    func payeeMappingTargets(db: Database) throws -> [String: String] {
         guard try tableExists("payee_mapping", db: db) else { return [:] }
         let columns = try columnSet(for: "payee_mapping", db: db)
         guard columns.contains("id") else { return [:] }
