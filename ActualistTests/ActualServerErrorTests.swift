@@ -9,6 +9,14 @@ extension LocalFirstActualStoreTests {
         #expect(message == "The server password is incorrect.")
     }
 
+    @Test func syncCatchUpTooLargeNamesARecoveryThatIsNotCircular() {
+        let message = ActualAPIError.syncCatchUpTooLarge.localizedDescription
+
+        #expect(message.contains("Reset sync"))
+        #expect(!message.hasSuffix("Download the budget again to catch up."))
+        #expect(SafeSyncDiagnostic.storedError(message) == message)
+    }
+
     @Test func categoryMatchingIsExactAndCannotBeTriggeredByAppendedServerText() {
         #expect(ActualServerErrorCategory.classify(reason: "invalid-password", details: nil) == .invalidPassword)
         #expect(ActualServerErrorCategory.classify(reason: "unauthorized", details: "token-not-found") == .sessionExpired)

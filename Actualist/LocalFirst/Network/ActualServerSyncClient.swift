@@ -622,7 +622,8 @@ enum ActualAPIError: LocalizedError {
     case syncRejected(status: Int, reason: ActualSyncRejectionReason)
     case httpStatus(Int)
     /// A sync reply was larger than the response cap. Never retried or split:
-    /// the user re-downloads the budget instead (audit decision D7c).
+    /// the copy names the real recovery, resetting sync from Actual on the web
+    /// (audit decision D7c; a plain re-download can hit the same cap).
     case syncCatchUpTooLarge
     case decoding
     case transport(URLError.Code?)
@@ -673,7 +674,7 @@ enum ActualAPIError: LocalizedError {
         case .httpStatus(let status):
             "The server returned HTTP \(status)."
         case .syncCatchUpTooLarge:
-            "This budget has more changes waiting on the server than Actualist can sync at once. Download the budget again to catch up."
+            "This budget has more changes waiting on the server than Actualist can sync at once. Reset sync for this budget in Actual on the web (Settings, then Reset sync), then download the budget here again."
         case .decoding:
             "Actualist could not read the server response."
         case .transport(let code):
