@@ -217,6 +217,35 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         #expect(await repository.didMoveFinished())
     }
 
+    @Test func aMonthChangeDuringMoveMoneyKeepsTheNewMonthAndClosesTheDraft() async throws {
+        let model = BudgetViewModel(initialBudgetID: "budget")
+        let repository = RecordingBudgetRepository(suspendsWrites: true)
+        model.selectedMonth = "2026-06"
+        model.budgetMonth = try BudgetViewModelFixtures.decodeBudgetMonth(
+            visibleCategoryBalance: 11_220,
+            hiddenCategoryBalance: 0,
+            lastMonthOverspent: 0
+        )
+        let category = try #require(model.budgetMonth?.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
+        model.beginAssignmentEditing(for: category)
+        model.beginMoveMoney()
+        model.moveMoneyWorkflow.setAmountDollars(25, currency: model.currency)
+        model.selectMoveMoneyDestination(.toBudget)
+
+        let submit = Task { @MainActor in
+            await model.submitMoveMoney(budgetID: "budget", repository: repository)
+        }
+        await repository.writeEntered.wait()
+        model.selectedMonth = "2026-07"
+        repository.writeRelease.trip()
+
+        #expect(await submit.value == false)
+        #expect(model.selectedMonth == "2026-07")
+        // Money moved once; the draft must not stay resubmittable.
+        #expect(model.moveMoneyDraft == nil)
+        #expect(await repository.recordedMoves().count == 1)
+    }
+
     @Test func cancellingTheCoverIntroWhileItSleepsStopsItWithoutChangingTheDraft() async throws {
         let model = try makeMoveMoneyModel(visibleCategoryBalance: -7_693)
         model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))

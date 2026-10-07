@@ -150,6 +150,9 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     private let assignError: Error?
     private let carryoverError: Error?
     private let suspendsCarryover: Bool
+    private let suspendsWrites: Bool
+    nonisolated let writeEntered = TestLatch()
+    nonisolated let writeRelease = TestLatch()
     private let moveError: Error?
     private let templateError: Error?
     private let holdReview: (@Sendable () async throws -> BudgetHoldReview)?
@@ -192,6 +195,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         assignError: Error? = nil,
         carryoverError: Error? = nil,
         suspendsCarryover: Bool = false,
+        suspendsWrites: Bool = false,
         moveError: Error? = nil,
         templateError: Error? = nil,
         holdReview: (@Sendable () async throws -> BudgetHoldReview)? = nil,
@@ -201,6 +205,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         self.assignError = assignError
         self.carryoverError = carryoverError
         self.suspendsCarryover = suspendsCarryover
+        self.suspendsWrites = suspendsWrites
         self.moveError = moveError
         self.templateError = templateError
         self.holdReview = holdReview
@@ -252,6 +257,11 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
                 month: month
             )
         )
+
+        if suspendsWrites {
+            writeEntered.trip()
+            await writeRelease.wait()
+        }
 
         if let assignError {
             throw assignError
@@ -343,6 +353,11 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
                     month: month
                 )
             )
+        }
+
+        if suspendsWrites {
+            writeEntered.trip()
+            await writeRelease.wait()
         }
 
         if let moveError {
@@ -440,6 +455,8 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     func onlyGroupHide() throws -> RecordedCategoryGroupHiddenUpdate {
         try #require(groupHides.first)
     }
+
+    func assignmentCount() -> Int { assignments.count }
 
     func onlyAssignment() throws -> RecordedBudgetAssignment {
         try #require(assignments.first)

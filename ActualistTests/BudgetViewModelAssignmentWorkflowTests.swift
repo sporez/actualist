@@ -341,6 +341,28 @@ struct BudgetViewModelAssignmentWorkflowTests {
         #expect(await repository.didAssignFinished())
     }
 
+    @Test func aMonthChangeDuringAnAssignmentKeepsTheNewMonthAndDoesNotReapplyTheDraft() async throws {
+        let model = BudgetViewModel(initialBudgetID: "budget")
+        let category = try BudgetViewModelFixtures.decodeCategory(budgeted: 5_283)
+        let repository = RecordingBudgetRepository(suspendsWrites: true)
+
+        model.selectedMonth = "2026-06"
+        model.beginAssignmentEditing(for: category)
+        model.appendAssignmentDigit(5)
+        let submit = Task { @MainActor in
+            await model.submitAssignment(budgetID: "budget", repository: repository)
+        }
+        await repository.writeEntered.wait()
+        model.selectedMonth = "2026-07"
+        repository.writeRelease.trip()
+
+        #expect(await submit.value == false)
+        #expect(model.selectedMonth == "2026-07")
+        // The write committed, so the draft is closed and cannot be repeated.
+        #expect(model.assignmentWorkflow.draft == nil)
+        #expect(await repository.assignmentCount() == 1)
+    }
+
     @Test func failedAssignmentKeepsDraftOpenWithInlineError() async throws {
         let model = BudgetViewModel(initialBudgetID: "budget")
         let category = try BudgetViewModelFixtures.decodeCategory(budgeted: 5_283)

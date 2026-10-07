@@ -596,7 +596,7 @@ final class BudgetViewModel {
         }
 
         guard loadedBudgetID == budgetID,
-              selectedMonth == loadedMonth.month.month,
+              self.selectedMonth == loadedMonth.month.month,
               loadedMonth.modeIdentity == modeIdentity else {
             return false
         }
@@ -684,7 +684,7 @@ final class BudgetViewModel {
             return false
         }
 
-        guard loadedBudgetID == budgetID, selectedMonth == loadedMonth.month.month else { return false }
+        guard loadedBudgetID == budgetID, self.selectedMonth == loadedMonth.month.month else { return false }
         apply(loadedMonth, budgetID: budgetID)
         errorMessage = nil
         return true
@@ -703,7 +703,7 @@ final class BudgetViewModel {
               let loadedMonth = await moveMoneyWorkflow.submit(
                 selectedMonth: selectedMonth, budgetID: budgetID, repository: repository
               ), loadedBudgetID == budgetID,
-              loadedMonth.month.month == selectedMonth,
+              loadedMonth.month.month == self.selectedMonth,
               loadedMonth.modeIdentity == modeIdentity else {
             return false
         }
