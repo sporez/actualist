@@ -378,9 +378,7 @@ import ZIPFoundation
                 try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table'")
             )
             #expect(tables.isSuperset(of: ["accounts", "category_groups", "categories", "transactions"]))
-            for stripped in BudgetDatabase.portableExportStrippedTables {
-                #expect(!tables.contains(stripped), "\(stripped) must not travel")
-            }
+            #expect(tables.filter { $0.hasPrefix("actualist_") || $0.hasPrefix("kvcache") }.isEmpty)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM accounts") == 1)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM categories") == 1)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM transactions") == 1)

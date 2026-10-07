@@ -11,8 +11,12 @@ import Foundation
 /// or fail every later sync. Such datasets are stored in `messages_crdt` for
 /// timestamp and merkle bookkeeping but never applied.
 enum ActualSyncDatasetPolicy {
+    /// Prefix of every table, index, and trigger this client adds to a budget
+    /// file. Sanitising a portable or downloaded file strips by this prefix.
+    static let localTablePrefix = "actualist_"
+
     private static let reservedPrefixes = [
-        "sqlite_", "actualist_", "messages_", "kvcache", "__", "db_version"
+        "sqlite_", localTablePrefix, "messages_", "kvcache", "__", "db_version"
     ]
 
     /// SQLite table names are case-insensitive, so match case-insensitively.

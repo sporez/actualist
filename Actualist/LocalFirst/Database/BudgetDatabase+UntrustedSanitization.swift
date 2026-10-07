@@ -46,10 +46,14 @@ extension BudgetDatabase {
     }
 
     /// Removes everything in the schema that is not Actual budget data:
-    /// Actualist bookkeeping tables (`portableExportStrippedTables`), every
+    /// every `actualist_*` table and index (`ActualSyncDatasetPolicy.localTablePrefix`;
+    /// all are recreated on open or on first use), the `kvcache` tables, every
     /// trigger, and every view that is not a `v_*` view. Upstream Actual has no
     /// triggers, and it creates and regenerates the `v_*` views itself, so
-    /// those stay. Actualist never queries them.
+    /// those stay. Actualist never queries them. The identity table must not
+    /// travel: `prepareBudgetIdentity` only inserts when absent, so a carried
+    /// row would reuse the source budget's storage identity. Stripping is by rule, so a
+    /// bookkeeping object added later cannot ship in an export or upload.
     static func sanitizeUntrustedSchema(in db: Database) throws {
         for trigger in try String.fetchAll(
             db, sql: "SELECT name FROM sqlite_master WHERE type = 'trigger'"
@@ -61,8 +65,22 @@ extension BudgetDatabase {
         ) {
             try db.execute(sql: "DROP VIEW IF EXISTS \(view.quotedDatabaseIdentifier)")
         }
-        for table in portableExportStrippedTables {
+        let isLocalName: (String) -> Bool = { name in
+            let lowered = name.lowercased()
+            return lowered.hasPrefix(ActualSyncDatasetPolicy.localTablePrefix)
+                || lowered == "kvcache" || lowered == "kvcache_key"
+        }
+        // Tables first: dropping one removes its indexes with it.
+        for table in try String.fetchAll(
+            db, sql: "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ) where isLocalName(table) {
             try db.execute(sql: "DROP TABLE IF EXISTS \(table.quotedDatabaseIdentifier)")
+        }
+        // Remaining indexes cover domain tables, e.g. `messages_crdt`.
+        for index in try String.fetchAll(
+            db, sql: "SELECT name FROM sqlite_master WHERE type = 'index'"
+        ) where isLocalName(index) {
+            try db.execute(sql: "DROP INDEX IF EXISTS \(index.quotedDatabaseIdentifier)")
         }
     }
 

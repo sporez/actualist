@@ -219,6 +219,13 @@ struct NewBudgetCreationTests {
         // registration file ID.
         #expect(validated.metadata.id != creation.fileID)
 
+        let uploaded = try DatabaseQueue(path: validated.databaseURL.path)
+        let localObjects = try await uploaded.read { db in
+            try String.fetchAll(db, sql: "SELECT name FROM sqlite_master")
+                .filter { $0.lowercased().hasPrefix(ActualSyncDatasetPolicy.localTablePrefix) }
+        }
+        #expect(localObjects == [])
+
         let database = try BudgetDatabase(databaseURL: validated.databaseURL)
         try await database.validateImportedBudget()
     }

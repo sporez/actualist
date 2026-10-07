@@ -10,6 +10,11 @@ struct UntrustedBudgetSanitizationTests {
     private let support = LocalFirstActualStoreTests()
     private static let outboxMarker = "SECRET-OUTBOX-MARKER-7f3a"
     private static let knownStorageID = "KNOWN-STORAGE-ID-0001"
+    /// Tables the hostile fixture plants; the rule-based sanitiser must drop each.
+    private static let strippedFixtureTables = [
+        "kvcache", "kvcache_key", "actualist_action_log", "actualist_outbox",
+        "actualist_local_migrations", "actualist_budget_identity", "actualist_sync_checkpoint"
+    ]
 
     // MARK: - Fixtures
 
@@ -102,7 +107,7 @@ struct UntrustedBudgetSanitizationTests {
 
     private func expectSanitized(_ url: URL) throws {
         let summary = try schema(of: url)
-        for stripped in BudgetDatabase.portableExportStrippedTables {
+        for stripped in Self.strippedFixtureTables {
             #expect(!summary.tables.contains(stripped), "\(stripped) survived")
         }
         #expect(summary.triggers.isEmpty)
@@ -182,11 +187,53 @@ struct UntrustedBudgetSanitizationTests {
         let summary = try schema(of: snapshotURL)
         #expect(summary.triggers.isEmpty)
         #expect(summary.views.contains("v_transactions"))
-        for stripped in BudgetDatabase.portableExportStrippedTables {
+        for stripped in Self.strippedFixtureTables {
             #expect(!summary.tables.contains(stripped))
         }
         let bytes = try Data(contentsOf: snapshotURL)
         #expect(bytes.range(of: Data(Self.outboxMarker.utf8)) == nil)
+    }
+
+    /// Every `sqlite_master` object an opened database creates for itself
+    /// (pending-new, Bank Sync last run, the timestamp index, outbox, action
+    /// log, checkpoint) must be stripped by rule, not by a hand-kept list.
+    private func actualistObjectNames(of url: URL) throws -> [String] {
+        let queue = try DatabaseQueue(path: url.path)
+        return try queue.read { db in
+            try String.fetchAll(db, sql: "SELECT name FROM sqlite_master")
+                .filter { $0.lowercased().hasPrefix(ActualSyncDatasetPolicy.localTablePrefix) }
+        }
+    }
+
+    @Test func exportOfAFullyExercisedDatabaseCarriesNoActualistObjects() async throws {
+        let source = try makeHostileDatabaseURL()
+        let database = try BudgetDatabase(databaseURL: source)
+        try await database.saveBankSyncLastRun(
+            BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: "done")
+        )
+        #expect(!(try actualistObjectNames(of: source)).isEmpty)
+        let snapshotURL = source.deletingLastPathComponent().appending(path: "snapshot.sqlite")
+
+        try await database.writePortableSnapshot(to: snapshotURL)
+
+        #expect(try actualistObjectNames(of: snapshotURL) == [])
+    }
+
+    @Test func serverDownloadSanitisationStripsEveryActualistObject() async throws {
+        let source = try makeHostileDatabaseURL()
+        let database = try BudgetDatabase(databaseURL: source)
+        try await database.saveBankSyncLastRun(
+            BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: "done")
+        )
+
+        try BudgetDatabase.sanitizeUntrustedDatabase(at: source)
+
+        #expect(try actualistObjectNames(of: source) == [])
+        let queue = try DatabaseQueue(path: source.path)
+        let kvcache = try await queue.read { db in
+            try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE name LIKE 'kvcache%'")
+        }
+        #expect(kvcache.isEmpty)
     }
 
     // MARK: - Database selection

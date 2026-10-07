@@ -2,25 +2,6 @@ import Foundation
 import GRDB
 
 extension BudgetDatabase {
-    /// Local-only tables that must not travel in a portable snapshot.
-    /// Domain tables stay. `actualist_local_migrations` and
-    /// `actualist_budget_identity` are Actualist bookkeeping, not Actual
-    /// domain tables, so they are stripped with the cache and outbox.
-    /// The identity table in particular must not travel: `prepareBudgetIdentity`
-    /// only inserts when absent, so a carried row would make the imported
-    /// budget reuse the source budget's local storage identity.
-    /// `actualist_sync_checkpoint` is this install's own last-sync record and
-    /// must not travel into another install either.
-    static let portableExportStrippedTables = [
-        "kvcache",
-        "kvcache_key",
-        "actualist_action_log",
-        "actualist_outbox",
-        "actualist_local_migrations",
-        "actualist_budget_identity",
-        "actualist_sync_checkpoint"
-    ]
-
     /// Writes a consistent snapshot of the open database. This uses GRDB's
     /// backup API so an uncheckpointed WAL is included. It does not copy the
     /// live `db.sqlite` file.
