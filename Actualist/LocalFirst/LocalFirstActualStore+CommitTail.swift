@@ -136,7 +136,8 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String,
         generation: Int,
-        accountIDs: [String]
+        accountIDs: [String],
+        learningIDs: Set<String> = []
     ) async -> DurableCommitTailOutcome<Void> {
         await finishDurableCommit(
             database: database,
@@ -145,6 +146,12 @@ extension LocalFirstActualStore {
                 try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             },
             reload: { [self] in
+                try await refreshRulesAndPayeesAfterLearning(
+                    learningIDs: learningIDs,
+                    database: database,
+                    budgetID: budgetID
+                )
+                try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
                 try await reloadAfterTransactionMutation(
                     database: database,
                     budgetID: budgetID,

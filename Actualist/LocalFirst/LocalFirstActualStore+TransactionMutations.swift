@@ -97,7 +97,6 @@ extension LocalFirstActualStore {
             source: actionSource,
             learningTransactionIDs: learningIDs
         )
-        try await reloadRulesIfNeeded(learningIDs: learningIDs, database: database, budgetID: budgetID)
         await didCreate()
 
         let uniqueAccounts = Array(Set(changedAccounts))
@@ -105,7 +104,8 @@ extension LocalFirstActualStore {
             database: database,
             budgetID: budgetID,
             generation: generation,
-            accountIDs: uniqueAccounts
+            accountIDs: uniqueAccounts,
+            learningIDs: learningIDs
         )
         return TransactionMutationResult(
             ok: true,
@@ -259,7 +259,6 @@ extension LocalFirstActualStore {
                 outcome: update
             )
         }.outcome
-        try await reloadRulesIfNeeded(learningIDs: learningIDs, database: database, budgetID: budgetID)
         await didUpdate()
 
         let changedAccounts = Array(Set(update.affectedAccountIDs + [originalAccountID, draft.accountID]))
@@ -268,7 +267,8 @@ extension LocalFirstActualStore {
             database: database,
             budgetID: budgetID,
             generation: generation,
-            accountIDs: changedAccounts
+            accountIDs: changedAccounts,
+            learningIDs: learningIDs
         )
         return TransactionMutationResult(
             ok: true,
@@ -397,7 +397,6 @@ extension LocalFirstActualStore {
                 outcome: ()
             )
         }
-        try await reloadRulesIfNeeded(learningIDs: transactionIDs, database: database, budgetID: budgetID)
         await didUpdate()
         let changedAccounts = accountIDs.sorted()
         let changedMonths = monthIDs.sorted()
@@ -406,7 +405,8 @@ extension LocalFirstActualStore {
             database: database,
             budgetID: budgetID,
             generation: generation,
-            accountIDs: changedAccounts
+            accountIDs: changedAccounts,
+            learningIDs: transactionIDs
         )
         return TransactionMutationResult(
             ok: true,
@@ -562,17 +562,6 @@ extension LocalFirstActualStore {
             builder: &builder
         )
         return (resolved.payeeID, resolved.messages)
-    }
-
-    private func reloadRulesIfNeeded(
-        learningIDs: Set<String>,
-        database: BudgetDatabase,
-        budgetID: String
-    ) async throws {
-        guard !learningIDs.isEmpty else { return }
-        try await refreshRulesCache(database: database, budgetID: budgetID)
-        payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
-            .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
     }
 
     private func trimmedPayeeName(_ name: String) -> String? {

@@ -1,6 +1,6 @@
 import Foundation
 
-typealias RulesReadHook = @MainActor @Sendable (_ budgetID: String) async -> Void
+typealias RulesReadHook = @MainActor @Sendable (_ budgetID: String) async throws -> Void
 
 extension LocalFirstActualStore {
     func cachedRules(budgetID: String) -> [ManagedRule]? {
@@ -95,11 +95,29 @@ extension LocalFirstActualStore {
         let revision = nextRulesCacheRevision
         rulesCacheRevisionByBudget[budgetID] = revision
         let loaded = try await database.fetchRules()
-        await rulesReadHook?(budgetID)
+        try await rulesReadHook?(budgetID)
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         guard rulesCacheRevisionByBudget[budgetID] == revision else {
             throw CancellationError()
         }
         rulesByBudget[budgetID] = loaded
+    }
+
+    /// Rules and payee refresh inside a durable write tail, for writes that
+    /// create learning rules. A newer refresh superseding this one is success
+    /// because that refresh publishes; any other failure throws and the tail
+    /// reports `refreshPending`. Mirrors `refreshSchedulesAfterWrite`.
+    func refreshRulesAndPayeesAfterLearning(
+        learningIDs: Set<String>,
+        database: BudgetDatabase,
+        budgetID: String
+    ) async throws {
+        guard !learningIDs.isEmpty else { return }
+        do {
+            try await refreshRulesCache(database: database, budgetID: budgetID)
+        } catch is CancellationError where !Task.isCancelled {
+            // Superseded (or session retired, which the payee publish rechecks).
+        }
+        try await publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
     }
 }

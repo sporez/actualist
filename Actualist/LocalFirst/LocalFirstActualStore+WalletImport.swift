@@ -157,9 +157,6 @@ extension LocalFirstActualStore {
         )
         if !learningMessages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(learningMessages)
-            try await refreshRulesCache(database: database, budgetID: budgetID)
-            payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
-                .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         }
 
         // A pending refresh invalidates the feed caches; the import itself
@@ -168,7 +165,8 @@ extension LocalFirstActualStore {
             database: database,
             budgetID: budgetID,
             generation: generation,
-            accountIDs: Array(affectedAccountIDs)
+            accountIDs: Array(affectedAccountIDs),
+            learningIDs: learningMessages.isEmpty ? [] : categorizedIDs
         )
         return WalletTransactionImportResult(
             importedCount: importedCount,
