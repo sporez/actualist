@@ -142,6 +142,10 @@ enum BankSyncReconciliation {
         options: ImportReconcileOptions = .bankSync
     ) -> Plan {
         let epochDays = existing.map { epochDay(compact: $0.dayID) }
+        // The fuzzy query only looks at rows of the candidate's amount, so index
+        // them once instead of scanning every stored row per candidate (a
+        // 50,000-row CSV against a busy account would otherwise be quadratic).
+        let offsetsByAmount = Dictionary(grouping: existing.indices) { existing[$0].amountMinorUnits }
         var claimed = Set<String>()
         var exactMatchedParentIDs = Set<String>()
 
@@ -175,7 +179,8 @@ enum BankSyncReconciliation {
                     for: candidate,
                     in: existing,
                     epochDays: epochDays,
-                    strictIdChecking: options.strictIdChecking
+                    strictIdChecking: options.strictIdChecking,
+                    offsetsByAmount: offsetsByAmount
                 )
                 : nil
             stepOne.append(StepOne(source: source, candidate: candidate, matchedID: idMatch?.id, fuzzy: fuzzy))
@@ -269,16 +274,20 @@ enum BankSyncReconciliation {
     /// `strictIdChecking`, rows with a different or absent `financial_id` are
     /// still eligible; with it, a row that already has an id is skipped when
     /// the candidate has one too (`(imported_id IS NULL OR ? IS NULL)`).
+    /// `offsetsByAmount` is an index of `existing` offsets per amount, in order.
     static func fuzzyDataset(
         for candidate: Candidate,
         in existing: [Existing],
         epochDays: [Int?],
-        strictIdChecking: Bool = false
+        strictIdChecking: Bool = false,
+        offsetsByAmount: [Int: [Int]]? = nil
     ) -> [Existing] {
         // A malformed day never falls inside the window (`dayDistance` is .max).
         guard let candidateDay = epochDay(compact: candidate.dayID) else { return [] }
         var matches: [(distance: Int, offset: Int)] = []
-        for (offset, row) in existing.enumerated() {
+        let offsets = offsetsByAmount.map { $0[candidate.amountMinorUnits] ?? [] } ?? Array(existing.indices)
+        for offset in offsets {
+            let row = existing[offset]
             guard row.isValidCandidate, row.amountMinorUnits == candidate.amountMinorUnits,
                   let day = epochDays[offset] else { continue }
             if strictIdChecking, candidate.financialID?.isEmpty == false, row.financialID != nil { continue }

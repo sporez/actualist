@@ -1,12 +1,11 @@
 import Foundation
 
 /// CSV import prepare/apply. Prepare is read-only: parse, all-or-nothing
-/// validation, and reconcile matching for review. Apply receives
-/// already-decided rows and reuses the shared local-first transaction
-/// construction (`createSimpleTransactionMessages` /
-/// `createTransferTransactionMessages`, `commitLocalSyncMessagesAndEnqueue`)
-/// in one atomic commit — no second transaction-write engine, and no wallet or
-/// bank-sync routing.
+/// validation, then the shared import reconcile (rules, matching) for review.
+/// Apply receives the decided rows and writes them through the same shared step
+/// as Bank Sync (`importReconcileWrites`) in one atomic commit, with the
+/// review's preconditions re-checked inside it. There is no second
+/// reconcile implementation and no wallet or bank-sync routing.
 extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
     func prepareTransactionCSVImport(
         _ request: TransactionCSVImportPreparationRequest
@@ -23,9 +22,43 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
 
         let payees = try await database.fetchPayees(orderedForPicker: false)
         let categories = try await database.fetchCategories()
-        let candidates = try await database.fetchTransactionCSVImportCandidates(
+        let accountIsOffBudget = try await database.accountIsOffBudget(request.accountID)
+        let options = ImportReconcileOptions.csv
+        let transferPayeeIDs = Self.transferPayeeIDs(payees)
+        let candidates = TransactionCSVImportCandidates.candidates(
+            rows: rows,
+            lookup: TransactionCSVImportLookup(
+                payeeIDByName: Self.payeeIDByName(payees),
+                transferPayeeIDs: transferPayeeIDs,
+                categoryIDByName: Self.categoryIDByName(categories)
+            ),
+            options: options
+        )
+        let previews = try await database.previewRules(
+            for: candidates.map { ImportReconcileProjection.previewDraft(for: $0, accountID: request.accountID) },
+            dateTimeZone: ImportReconcileProjection.ruleDateTimeZone
+        )
+        guard previews.count == candidates.count else {
+            throw LocalFirstError.invalidLocalWrite("missing import rule preview")
+        }
+        let projection = ImportReconcileProjection.project(
+            candidates: candidates,
+            previews: previews,
             accountID: request.accountID,
-            scope: TransactionCSVImportMatcher.candidateScope(rows: rows)
+            accountIsOffBudget: accountIsOffBudget
+        )
+        if let moved = projection.movedSources.first {
+            throw TransactionCSVImportError.unsupportedAccountMove(line: rows[moved].sourceLine)
+        }
+        let reconciled = try await reconcileProjectedImport(
+            database: database,
+            accountID: request.accountID,
+            accountIsOffBudget: accountIsOffBudget,
+            candidateDayIDs: candidates.map(\.dayID),
+            importedIDs: Set(candidates.compactMap(\.financialID)),
+            projected: projection.candidates,
+            transferPayeeIDs: transferPayeeIDs,
+            options: options
         )
 
         guard transactionFeedRequestIdentity.sessionID == sessionID,
@@ -34,27 +67,13 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
               openedBudgetID == request.budgetID else {
             throw CancellationError()
         }
-        let context = TransactionCSVImportMatchContext(
-            payeeIDByName: Self.payeeIDByName(payees),
-            transferPayeeIDs: Self.transferPayeeIDs(payees),
-            categoryIDByName: Self.categoryIDByName(categories)
-        )
-        let dispositions = await TransactionCSVImportPipeline.match(
-            rows: rows,
-            candidates: candidates,
-            context: context
-        )
-        // The match ran off the main actor; reject a review whose session
-        // ended meanwhile.
-        guard generation == budgetSessionGeneration,
-              self.database === database,
-              openedBudgetID == request.budgetID else {
-            throw CancellationError()
-        }
         return TransactionCSVImportReview(
-            rows: zip(rows, dispositions).map {
-                TransactionCSVImportReviewRow(row: $0, disposition: $1)
-            },
+            rows: Self.reviewRows(
+                rows: rows,
+                projection: projection,
+                reconciled: reconciled,
+                transferPayeeIDs: transferPayeeIDs
+            ),
             sessionGeneration: generation
         )
     }
@@ -69,141 +88,109 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             budgetID: request.budgetID,
             generation: request.sessionGeneration
         )
-        let payees = try await database.fetchPayees(orderedForPicker: false)
-        let categories = try await database.fetchCategories()
-        try requireSyncSession(
-            database: database,
-            budgetID: request.budgetID,
-            generation: request.sessionGeneration
-        )
-        let payeeIDByName = Self.payeeIDByName(payees)
-        let transferPayeeIDs = Self.transferPayeeIDs(payees)
-        let categoryIDByName = Self.categoryIDByName(categories)
+
+        var inserts: [BankSyncReconciliation.Candidate] = []
+        var matches: [BudgetDatabase.TransactionCSVImportMatch] = []
+        for reviewRow in request.rows {
+            switch reviewRow.outcome {
+            case .insert(let candidate, _):
+                inserts.append(candidate)
+            case .update(let update, let existing):
+                matches.append(BudgetDatabase.TransactionCSVImportMatch(
+                    line: reviewRow.row.sourceLine, update: update, existing: existing
+                ))
+            case .unchanged, .reconciled, .skippedByRule:
+                continue
+            }
+        }
+        guard !inserts.isEmpty || !matches.isEmpty else {
+            return TransactionCSVImportApplyResult(insertedCount: 0, updatedCount: 0)
+        }
 
         let accountIsOffBudget = try await database.accountIsOffBudget(request.accountID)
-
         var builder = LocalFirstSyncMessageBuilder()
-        var messages: [ActualSyncDecodedMessage] = []
-        var updates: [BudgetDatabase.TransactionCSVImportUpdate] = []
-        var affectedAccountIDs: Set<String> = [request.accountID]
-        var resolvedPayeeIDs: [String: String] = [:]
-        var knownPayees: [ActualPayee]?
-        var insertedCount = 0
-        var updatedCount = 0
         // Pinned Actual stamps inserted rows with a descending sort_order from
         // Date.now() so file order survives on display.
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
-
-        // Insert messages are only accumulated here; update messages are built
-        // and validated against live rows inside the single commit below, so
-        // any throw before or during it leaves zero rows applied.
-        for (index, reviewRow) in request.rows.enumerated() {
-            let row = reviewRow.row
-            switch reviewRow.disposition {
-            case .ignored, .skippedReconciled:
-                continue
-            case .update(let plan):
-                updates.append(BudgetDatabase.TransactionCSVImportUpdate(line: row.sourceLine, plan: plan))
-                updatedCount += 1
-            case .insert:
-                // Empty payee text resolves to a null payee, never an
-                // unnamed payee.
-                let trimmedPayee = row.payeeName
-                let payeeID: String?
-                if trimmedPayee.isEmpty {
-                    payeeID = nil
-                } else if let cached = resolvedPayeeIDs[trimmedPayee.lowercased()] {
-                    payeeID = cached
-                } else if let existing = payeeIDByName[trimmedPayee.lowercased()] {
-                    payeeID = existing
-                } else {
-                    if knownPayees == nil { knownPayees = try await database.fetchPayees() }
-                    let resolution = try await database.resolveOrCreatePayeeMessages(
-                        selectedPayeeID: nil,
-                        payeeName: trimmedPayee,
-                        knownPayees: knownPayees,
-                        builder: &builder
-                    )
-                    resolvedPayeeIDs[trimmedPayee.lowercased()] = resolution.payeeID
-                    payeeID = resolution.payeeID
-                    // The payee/payee_mapping creation messages must join the
-                    // same atomic commit or the transaction's payee join
-                    // resolves to nothing on read-back.
-                    messages += resolution.messages
-                }
-
-                // Write-time payee state is authoritative for the transfer
-                // shape (the wallet-import path derives it the same way);
-                // the reviewed flag is display-only.
-                let isTransfer = payeeID.map(transferPayeeIDs.contains) ?? false
-                var draft = TransactionDraft(
-                    accountID: request.accountID,
-                    date: row.date,
-                    amountMinorUnits: row.amountMinorUnits,
-                    payeeID: payeeID,
-                    payeeName: trimmedPayee,
-                    // Actual strips the category from every off-budget insert.
-                    categoryID: accountIsOffBudget
-                        ? nil
-                        : row.categoryName.flatMap { categoryIDByName[$0.lowercased()] },
-                    notes: row.notes,
-                    // The import handler's traced default when the row lacks
-                    // a cleared value.
-                    cleared: row.cleared ?? true,
-                    isTransfer: isTransfer
-                )
-                draft.importedPayee = trimmedPayee.isEmpty ? nil : trimmedPayee
-                draft.importedID = row.importedID
-                draft.sortOrder = sortOrderBase - Double(index)
-
-                let transactionID = UUID().uuidString
-                if isTransfer {
-                    guard let payeeID else {
-                        throw LocalFirstError.invalidLocalWrite("missing payee")
-                    }
-                    let transfer = try await database.createTransferTransactionMessages(
-                        draft: draft,
-                        sourceTransactionID: transactionID,
-                        payeeID: payeeID,
-                        builder: &builder
-                    )
-                    messages += transfer.messages
-                    affectedAccountIDs.insert(transfer.destinationAccountID)
-                } else {
-                    messages += try await database.createSimpleTransactionMessages(
-                        draft,
-                        transactionID: transactionID,
-                        payeeID: payeeID,
-                        builder: &builder
-                    )
-                }
-                insertedCount += 1
-            }
-        }
-
-        guard !messages.isEmpty || !updates.isEmpty else {
-            return TransactionCSVImportApplyResult(insertedCount: 0, updatedCount: 0)
-        }
+        let writes = try await importReconcileWrites(
+            database: database,
+            accountID: request.accountID,
+            accountIsOffBudget: accountIsOffBudget,
+            updates: matches.map { (update: $0.update, existing: $0.existing) },
+            inserts: inserts,
+            options: .csv,
+            sortOrder: { sortOrderBase - Double($0) },
+            builder: &builder
+        )
         try requireSyncSession(
             database: database,
             budgetID: request.budgetID,
             generation: request.sessionGeneration
         )
-        try await database.commitTransactionCSVImport(
-            accountID: request.accountID,
-            updates: updates,
-            insertMessages: messages,
-            builder: &builder
-        )
-        try await finishCommittedTransactionWrite(
+        do {
+            try await database.commitTransactionCSVImport(
+                accountID: request.accountID,
+                messages: writes.messages,
+                matches: matches,
+                expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence(
+                    accountID: request.accountID,
+                    importedIDs: inserts.compactMap(\.financialID)
+                )
+            )
+        } catch LocalFirstError.importedTransactionConflict {
+            // Another writer imported one of these ids after the review.
+            throw TransactionCSVImportError.reviewChanged
+        }
+        // The import is committed and cannot be repeated, so it finishes on the
+        // durable tail; a pending refresh never turns it into a failure.
+        _ = await finishDurableTransactionWrite(
             database: database,
             budgetID: request.budgetID,
-            accountIDs: Array(affectedAccountIDs)
+            generation: request.sessionGeneration,
+            accountIDs: Array(writes.affectedAccountIDs)
         )
         return TransactionCSVImportApplyResult(
-            insertedCount: insertedCount,
-            updatedCount: updatedCount
+            insertedCount: writes.insertedCount,
+            updatedCount: writes.updatedCount
         )
+    }
+
+    /// One outcome per CSV row, in file order. A row the plan does not mention
+    /// was dropped by a delete-transaction rule.
+    private static func reviewRows(
+        rows: [TransactionCSVImportRow],
+        projection: ImportReconcileProjection.Result,
+        reconciled: ImportReconcileOutcome,
+        transferPayeeIDs: Set<String>
+    ) -> [TransactionCSVImportReviewRow] {
+        let existingByID = Dictionary(
+            reconciled.existing.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
+        )
+        var outcomes = [TransactionCSVImportReviewRow.Outcome?](repeating: nil, count: rows.count)
+        for (entry, projectedIndex) in zip(reconciled.plan.entries, reconciled.plan.sources) {
+            let rowIndex = projection.sources[projectedIndex]
+            switch entry {
+            case .insert(let candidate):
+                outcomes[rowIndex] = .insert(
+                    candidate,
+                    isTransfer: candidate.payeeID.map(transferPayeeIDs.contains) ?? false
+                )
+            case .update(let update):
+                if let existing = existingByID[update.existingID] {
+                    outcomes[rowIndex] = .update(update, existing: existing)
+                } else {
+                    outcomes[rowIndex] = .unchanged
+                }
+            case .unchanged(let id):
+                outcomes[rowIndex] = existingByID[id]?.reconciled == true ? .reconciled : .unchanged
+            case .skippedDeleted:
+                // CSV re-imports deleted rows (reimportDeleted: true), so no id is suppressed.
+                outcomes[rowIndex] = .unchanged
+            }
+        }
+        return zip(rows, outcomes).map {
+            TransactionCSVImportReviewRow(row: $0, outcome: $1 ?? .skippedByRule)
+        }
     }
 
     private static func payeeIDByName(_ payees: [ActualPayee]) -> [String: String] {

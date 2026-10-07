@@ -51,11 +51,7 @@ struct TransactionCSVImportRevalidationTests {
             budgetID: "group-1",
             accountID: "checking",
             sessionGeneration: generation ?? review.sessionGeneration,
-            rows: review.rows.filter {
-                if case .insert = $0.disposition { return true }
-                if case .update = $0.disposition { return true }
-                return false
-            }
+            rows: review.rows.filter { $0.outcome.writes }
         )
     }
 
@@ -92,10 +88,7 @@ struct TransactionCSVImportRevalidationTests {
         let reviewed = try await review(bundle, matchAndInsertCSV)
         #expect(reviewed.sessionGeneration == bundle.store.budgetSessionGeneration)
         #expect(reviewed.rows.count == 2)
-        guard case .update = reviewed.rows[0].disposition else {
-            Issue.record("expected the first row to match txn")
-            return
-        }
+        #expect(reviewed.rows[0].outcome.kind == .update, "expected the first row to match txn")
     }
 
     @Test func staleSessionGenerationThrowsAndWritesNothing() async throws {

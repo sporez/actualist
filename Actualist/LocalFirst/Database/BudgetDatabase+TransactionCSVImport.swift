@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 
 extension BudgetDatabase {
-
+    /// Legacy matcher read; deleted with the CSV-only matcher (main-to-dev 3.5).
     /// Existing live rows in the importing account, reduced for reconcile
     /// matching. Child split rows are excluded; a split family matches through
     /// its parent. Sorted by date so fuzzy candidates carry a stable order.
@@ -102,64 +102,51 @@ extension BudgetDatabase {
         }
     }
 
-    /// One matched-row update decided at review time, with its CSV line for
-    /// error reporting.
-    struct TransactionCSVImportUpdate: Sendable {
+    /// One matched row decided at review time, with its CSV line for error
+    /// reporting. `existing` is the stored row as the review saw it.
+    struct TransactionCSVImportMatch: Sendable {
         let line: Int
-        let plan: TransactionCSVImportUpdatePlan
+        let update: BankSyncReconciliation.MatchedUpdate
+        let existing: BankSyncReconciliation.Existing
     }
 
-    /// Single atomic commit for a CSV import. Every update is validated and
-    /// its messages are built against the live row inside the same write
-    /// transaction, so a match that changed after review rejects the whole
-    /// import and writes nothing. Insert messages were built earlier; they
-    /// do not depend on existing rows.
+    /// Single atomic commit for a CSV import. The messages come from the shared
+    /// import reconcile step; the preconditions run in the same write
+    /// transaction, so a match that changed after review, or a row someone else
+    /// imported with the same `imported_id`, rejects the whole import and
+    /// writes nothing.
     func commitTransactionCSVImport(
         accountID: String,
-        updates: [TransactionCSVImportUpdate],
-        insertMessages: [ActualSyncDecodedMessage],
-        builder: inout LocalFirstSyncMessageBuilder,
+        messages: [ActualSyncDecodedMessage],
+        matches: [TransactionCSVImportMatch],
+        expectedAbsentImportedIDs: ImportedIDAbsence,
         now: Date = Date()
     ) throws {
         try Task.checkCancellation()
-        try Task.checkCancellation()
         _ = try commitLocalPlan(now: now) { db in
             try Task.checkCancellation()
-            var messages = insertMessages
             let columns = try columnSet(for: "transactions", db: db)
-            for update in updates {
-                let updateMessages = try transactionCSVImportUpdateMessages(
-                    update,
-                    accountID: accountID,
-                    columns: columns,
-                    db: db,
-                    builder: &builder
-                )
-                guard !updateMessages.isEmpty else {
-                    throw LocalFirstError.invalidLocalWrite("missing transaction")
-                }
-                messages += updateMessages
+            for match in matches {
+                try validateTransactionCSVImportMatch(match, accountID: accountID, columns: columns, db: db)
             }
+            try validateImportedIDsAbsent(expectedAbsentImportedIDs, db: db)
             return LocalCommitPlan(drafts: messages, action: nil, outcome: ())
         }
     }
 
-    /// Validates a matched row against its live state, then emits field-level
-    /// set messages for the columns the plan fills. The row must still be
-    /// live, in the importing account, not reconciled, and every field the
-    /// plan fills must still be empty (the fill semantics the review showed).
-    private func transactionCSVImportUpdateMessages(
-        _ update: TransactionCSVImportUpdate,
+    /// The row must still be live, in the importing account and not
+    /// reconciled, and every field the update writes must still hold the value
+    /// the review saw (the fill semantics the review showed).
+    private func validateTransactionCSVImportMatch(
+        _ match: TransactionCSVImportMatch,
         accountID: String,
         columns: Set<String>,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> [ActualSyncDecodedMessage] {
-        let plan = update.plan
-        let changed = TransactionCSVImportError.matchChanged(line: update.line)
+        db: Database
+    ) throws {
+        let changed = TransactionCSVImportError.matchChanged(line: match.line)
+        let update = match.update
+        let existing = match.existing
         let accountColumn = ["acct", "account"].first(where: columns.contains)
-        let split = transactionSplitQueryExpressions(columns: columns, tableAlias: "transactions")
-        let transferColumn = ["transferred_id", "transfer_id"].first(where: columns.contains)
         let payeeColumn = ["description", "payee"].first(where: columns.contains)
         guard let accountColumn,
               let live = try Row.fetchOne(
@@ -170,80 +157,40 @@ extension BudgetDatabase {
                              \(columns.contains("category") ? "category" : "NULL") AS category,
                              \(columns.contains("notes") ? "notes" : "NULL") AS notes,
                              \(columns.contains("cleared") ? "cleared" : "NULL") AS cleared,
-                             \(columns.contains("reconciled") ? "reconciled" : "NULL") AS reconciled,
-                             \(split.qualifiedIsParent) AS is_parent,
-                             \(transferColumn ?? "NULL") AS transfer_id
+                             \(columns.contains("reconciled") ? "reconciled" : "NULL") AS reconciled
                       FROM transactions
                       WHERE id = ? AND \(predicateForLiveRows(columns: columns))
                       """,
-                  arguments: [plan.existingTransactionID]
+                  arguments: [update.existingID]
               ),
               (live["account"] as String?) == accountID,
               !flexibleBool(live["reconciled"]) else {
             throw changed
         }
-        func isEmpty(_ column: String) -> Bool {
-            ((live[column] as String?) ?? "").isEmpty
+        func stored(_ column: String) -> String? {
+            let value: String? = live[column]
+            return value?.isEmpty == false ? value : nil
         }
-        if plan.payeeID != nil, !isEmpty("payee") { throw changed }
-        if plan.categoryID != nil {
-            let offBudget = try accountOffBudget(accountID, db: db)
-            let forbidden = flexibleBool(live["is_parent"]) || !isEmpty("transfer_id") || offBudget
-            if forbidden || !isEmpty("category") { throw changed }
+        func reviewed(_ value: String?) -> String? {
+            value?.isEmpty == false ? value : nil
         }
-        if plan.notes != nil, !isEmpty("notes") { throw changed }
-        if let cleared = plan.cleared, flexibleBool(live["cleared"]) == cleared { throw changed }
-
-        var messages: [ActualSyncDecodedMessage] = []
-        func append(_ column: String, _ value: LocalFirstSyncValue) throws {
-            messages.append(try builder.makeMessage(
-                dataset: "transactions",
-                row: plan.existingTransactionID,
-                column: column,
-                value: value
+        if update.payeeID != existing.payeeID, stored("payee") != reviewed(existing.payeeID) { throw changed }
+        if update.categoryID != existing.categoryID, stored("category") != reviewed(existing.categoryID) { throw changed }
+        if update.notes != existing.notes, stored("notes") != reviewed(existing.notes) { throw changed }
+        if update.cleared != existing.cleared, flexibleBool(live["cleared"]) != existing.cleared { throw changed }
+        // The cleared cascade only reaches children that are still live.
+        if !update.childIDs.isEmpty {
+            let split = transactionSplitQueryExpressions(columns: columns, tableAlias: "transactions")
+            let liveChildren = try Set(String.fetchAll(
+                db,
+                sql: """
+                    SELECT id FROM transactions
+                    WHERE \(split.parentID) = ? AND (\(split.isChild)) = 1
+                      AND \(predicateForLiveRows(columns: columns))
+                    """,
+                arguments: [update.existingID]
             ))
+            guard Set(update.childIDs).isSubset(of: liveChildren) else { throw changed }
         }
-        if let payeeID = plan.payeeID, let payeeColumn {
-            try append(payeeColumn, .string(payeeID))
-        }
-        if let categoryID = plan.categoryID, columns.contains("category") {
-            try append("category", .string(categoryID))
-        }
-        if let notes = plan.notes, columns.contains("notes") {
-            try append("notes", .string(notes))
-        }
-        if let cleared = plan.cleared, columns.contains("cleared") {
-            try append("cleared", .bool(cleared))
-            // Upstream copies a matched parent's cleared onto its live
-            // children (`reconcileTransactions`, sync.ts 721-735).
-            if flexibleBool(live["is_parent"]) {
-                let childIDs = try String.fetchAll(
-                    db,
-                    sql: """
-                        SELECT id FROM transactions
-                        WHERE \(split.parentID) = ? AND (\(split.isChild)) = 1
-                          AND \(predicateForLiveRows(columns: columns))
-                        """,
-                    arguments: [plan.existingTransactionID]
-                )
-                for childID in childIDs {
-                    messages.append(try builder.makeMessage(
-                        dataset: "transactions",
-                        row: childID,
-                        column: "cleared",
-                        value: .bool(cleared)
-                    ))
-                }
-            }
-        }
-        if let importedPayee = plan.importedPayee,
-           let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {
-            try append(importedPayeeColumn, .string(importedPayee))
-        }
-        if let importedID = plan.importedID, !importedID.isEmpty,
-           let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains) {
-            try append(importedIDColumn, .string(importedID))
-        }
-        return messages
     }
 }

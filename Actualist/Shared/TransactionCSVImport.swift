@@ -53,6 +53,12 @@ enum TransactionCSVImportError: Error, Equatable {
     case invalidRow(line: Int, reason: TransactionCSVImportRowError)
     /// A matched row changed after review, so nothing was written.
     case matchChanged(line: Int)
+    /// A row the review would insert was imported by someone else after the
+    /// review (same `imported_id`), so nothing was written.
+    case reviewChanged
+    /// A rule would move the row into another account. An import never writes
+    /// outside its own account, so the whole file is refused.
+    case unsupportedAccountMove(line: Int)
 
     var message: String {
         switch self {
@@ -68,6 +74,10 @@ enum TransactionCSVImportError: Error, Equatable {
             return "Row \(line) could not be read because \(reason.message)."
         case .matchChanged(let line):
             return "Row \(line) matches a transaction that changed after review. Nothing was imported. Open the import again to review it."
+        case .reviewChanged:
+            return "This account changed after review. Nothing was imported. Open the import again to review it."
+        case .unsupportedAccountMove(let line):
+            return "A rule would move row \(line) to another account, which an import can't do. Nothing was imported."
         }
     }
 }

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Review surface for the CSV import workflow. Displays already-decided
-/// dispositions and calls coordinator intents; amounts come pre-decided from
+/// outcomes and calls coordinator intents; amounts come pre-decided from
 /// the parsed rows through the shared review formatting helper.
 struct TransactionCSVImportReviewView: View {
     @Bindable var coordinator: TransactionCSVImportCoordinator
@@ -103,7 +103,7 @@ struct TransactionCSVImportReviewView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(coordinator.isIncluded(row) ? ActualistTheme.accent : ActualistTheme.secondaryText)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(Self.dispositionTitle(row.disposition))
+                        Text(Self.outcomeTitle(row.outcome))
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(ActualistTheme.primaryText)
                         Text(context)
@@ -132,7 +132,7 @@ struct TransactionCSVImportReviewView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(ActualistTheme.secondaryText)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(Self.dispositionTitle(row.disposition))
+                    Text(Self.outcomeTitle(row.outcome))
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(ActualistTheme.secondaryText)
                     Text(context)
@@ -170,16 +170,18 @@ struct TransactionCSVImportReviewView: View {
         .presentationDragIndicator(.visible)
     }
 
-    static func dispositionTitle(_ disposition: TransactionCSVImportDisposition) -> String {
-        switch disposition {
-        case .insert(let isTransfer):
+    static func outcomeTitle(_ outcome: TransactionCSVImportReviewRow.Outcome) -> String {
+        switch outcome {
+        case .insert(_, let isTransfer):
             return isTransfer ? "New transfer" : "New row"
         case .update:
             return "Update existing row"
-        case .ignored:
+        case .unchanged:
             return "Duplicate, unchanged"
-        case .skippedReconciled:
+        case .reconciled:
             return "Matches a reconciled row"
+        case .skippedByRule:
+            return "Skipped by a rule"
         }
     }
 

@@ -617,9 +617,7 @@ struct TransactionCSVImportTests {
             )
         )
         #expect(review.rows.count == 2)
-        #expect(review.rows.allSatisfy {
-            if case .insert = $0.disposition { return true } else { return false }
-        })
+        #expect(review.rows.allSatisfy { $0.outcome.kind == .insert })
         #expect(review.rows[0].row.amountMinorUnits == -12_345)
         #expect(review.rows[0].row.dateText == "2026-09-01")
         #expect(review.rows[0].row.payeeName == "Sample Shop")
@@ -670,12 +668,7 @@ struct TransactionCSVImportTests {
                 options: TransactionCSVImportOptions()
             )
         )
-        return review.rows.filter { row in
-            switch row.disposition {
-            case .insert, .update: return true
-            case .ignored, .skippedReconciled: return false
-            }
-        }
+        return review.rows.filter { $0.outcome.writes }
     }
 
     private static func fixedGenerationDate() -> Date {

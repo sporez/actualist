@@ -47,11 +47,7 @@ struct TransactionCSVImportStoreRulesTests {
                 budgetID: "group-1",
                 accountID: accountID,
                 sessionGeneration: review.sessionGeneration,
-                rows: review.rows.filter {
-                    if case .insert = $0.disposition { return true }
-                    if case .update = $0.disposition { return true }
-                    return false
-                }
+                rows: review.rows.filter { $0.outcome.writes }
             )
         )
         return (review, result)
@@ -87,7 +83,10 @@ struct TransactionCSVImportStoreRulesTests {
         #expect(try await column(bundle, "category", id: "parent1/c1") == "groceries")
     }
 
-    @Test func childRowIsNeverMatchedDirectly() async throws {
+    /// Upstream's fuzzy query reads `v_transactions`, which includes valid split
+    /// children (sync.ts ~866), and Bank Sync matches them the same way. The
+    /// CSV-only matcher excluded them with no upstream source.
+    @Test func aRowCanMatchASplitChildLikeUpstream() async throws {
         let bundle = try await makeBundle()
         let review = try await bundle.store.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
@@ -97,7 +96,11 @@ struct TransactionCSVImportStoreRulesTests {
                 options: TransactionCSVImportOptions()
             )
         )
-        #expect(review.rows.map(\.disposition) == [.insert(isTransfer: false)])
+        guard case .update(let update, _)? = review.rows.first?.outcome else {
+            Issue.record("expected the row to match a split child")
+            return
+        }
+        #expect(["parent1/c1", "parent1/c2"].contains(update.existingID))
     }
 
     @Test func matchedTransferLegGetsNoCategory() async throws {
@@ -130,7 +133,7 @@ struct TransactionCSVImportStoreRulesTests {
             into: "tracking",
             bundle: bundle
         )
-        #expect(review.rows.map(\.disposition) == [.insert(isTransfer: false)])
+        #expect(review.rows.map(\.outcome.kind) == [.insert])
         #expect(result.insertedCount == 1)
         let categories = try await read(bundle) {
             try Row.fetchAll($0, sql: "SELECT category FROM transactions WHERE acct = 'tracking'")

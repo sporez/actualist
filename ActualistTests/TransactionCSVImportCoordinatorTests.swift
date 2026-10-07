@@ -7,14 +7,21 @@ final class FakeTransactionCSVImportRepository: TransactionCSVImportRepositoryPr
     private(set) var prepareCallCount = 0
     private(set) var applyRequests: [TransactionCSVImportApplyRequest] = []
     var applyError: (any Error)?
-    var dispositions: [TransactionCSVImportDisposition] = [.insert(isTransfer: false)]
+    var outcomes: [TransactionCSVImportReviewRow.Outcome] = [
+        .insert(FakeTransactionCSVImportRepository.sampleCandidate, isTransfer: false)
+    ]
+
+    static let sampleCandidate = BankSyncReconciliation.Candidate(
+        financialID: nil, dayID: "20260927", amountMinorUnits: -100, payeeID: nil,
+        payeeName: "Sample Market", notes: nil, categoryID: nil, cleared: false, importedPayee: "Sample Market"
+    )
 
     func prepareTransactionCSVImport(
         _ request: TransactionCSVImportPreparationRequest
     ) async throws -> TransactionCSVImportReview {
         prepareCallCount += 1
         let date = TransactionCSVImportMapper.dayDate(fromISO: "2026-09-27")!
-        let rows = dispositions.enumerated().map { index, disposition in
+        let rows = outcomes.enumerated().map { index, outcome in
             TransactionCSVImportReviewRow(
                 row: TransactionCSVImportRow(
                     id: "csv-row-\(index + 1)",
@@ -28,7 +35,7 @@ final class FakeTransactionCSVImportRepository: TransactionCSVImportRepositoryPr
                     cleared: nil,
                     importedID: nil
                 ),
-                disposition: disposition
+                outcome: outcome
             )
         }
         return TransactionCSVImportReview(rows: rows, sessionGeneration: 7)
@@ -54,7 +61,9 @@ struct TransactionCSVImportCoordinatorTests {
 
     @Test func reviewSummaryCountsReconciledSkipsSeparatelyFromDuplicates() async throws {
         let repository = FakeTransactionCSVImportRepository()
-        repository.dispositions = [.insert(isTransfer: false), .ignored, .skippedReconciled]
+        repository.outcomes = [
+            .insert(FakeTransactionCSVImportRepository.sampleCandidate, isTransfer: false), .unchanged, .reconciled,
+        ]
         let coordinator = TransactionCSVImportCoordinator()
         await coordinator.load(
             contentsOf: try writeCSV(),

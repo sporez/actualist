@@ -17,7 +17,7 @@ final class TransactionCSVImportCoordinator {
     }
 
     private(set) var state: State = .idle
-    /// Rows the reviewer deselected. Ignored and reconciled-skip rows are
+    /// Rows the reviewer deselected. Rows that write nothing are
     /// fixed-excluded; new and update rows start included. Observed: the
     /// review list re-renders from it.
     private var excludedRowIDs: Set<String> = []
@@ -89,45 +89,33 @@ final class TransactionCSVImportCoordinator {
     }
 
     func toggleIncluded(_ row: TransactionCSVImportReviewRow) {
-        guard case .reviewing = state else { return }
-        switch row.disposition {
-        case .ignored, .skippedReconciled:
-            return
-        case .insert, .update:
-            let id = row.id
-            if excludedRowIDs.contains(id) {
-                excludedRowIDs.remove(id)
-            } else {
-                excludedRowIDs.insert(id)
-            }
+        guard case .reviewing = state, row.outcome.writes else { return }
+        let id = row.id
+        if excludedRowIDs.contains(id) {
+            excludedRowIDs.remove(id)
+        } else {
+            excludedRowIDs.insert(id)
         }
     }
 
     func isToggleable(_ row: TransactionCSVImportReviewRow) -> Bool {
-        switch row.disposition {
-        case .insert, .update: return true
-        case .ignored, .skippedReconciled: return false
-        }
+        row.outcome.writes
     }
 
     func isIncluded(_ row: TransactionCSVImportReviewRow) -> Bool {
-        switch row.disposition {
-        case .ignored, .skippedReconciled:
-            return false
-        case .insert, .update:
-            return !excludedRowIDs.contains(row.id)
-        }
+        row.outcome.writes && !excludedRowIDs.contains(row.id)
     }
 
-    var summary: (insert: Int, update: Int, ignored: Int, skipped: Int)? {
+    var summary: (insert: Int, update: Int, ignored: Int, skipped: Int, byRule: Int)? {
         guard case .reviewing(let review) = state else { return nil }
-        var summary = (insert: 0, update: 0, ignored: 0, skipped: 0)
+        var summary = (insert: 0, update: 0, ignored: 0, skipped: 0, byRule: 0)
         for row in review.rows {
-            switch row.disposition {
+            switch row.outcome.kind {
             case .insert: summary.insert += 1
             case .update: summary.update += 1
-            case .ignored: summary.ignored += 1
-            case .skippedReconciled: summary.skipped += 1
+            case .unchanged: summary.ignored += 1
+            case .reconciled: summary.skipped += 1
+            case .skippedByRule: summary.byRule += 1
             }
         }
         return summary
@@ -151,6 +139,9 @@ final class TransactionCSVImportCoordinator {
         ]
         if summary.skipped > 0 {
             lines.append(SummaryLine(title: "Matches reconciled rows", count: summary.skipped, symbol: "lock.circle"))
+        }
+        if summary.byRule > 0 {
+            lines.append(SummaryLine(title: "Skipped by a rule", count: summary.byRule, symbol: "minus.circle"))
         }
         return lines
     }

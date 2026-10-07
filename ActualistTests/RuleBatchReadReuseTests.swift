@@ -49,7 +49,7 @@ struct RuleBatchReadReuseTests {
         try await database.startStatementTraceForTesting(log)
         let result = try await bundle.store.applyTransactionCSVImport(TransactionCSVImportApplyRequest(
             budgetID: "group-1", accountID: "checking", sessionGeneration: review.sessionGeneration,
-            rows: review.rows.filter { if case .insert = $0.disposition { true } else { false } }
+            rows: review.rows.filter { $0.outcome.kind == .insert }
         ))
         try await database.stopStatementTraceForTesting()
         #expect(result.insertedCount == unknownNames)
