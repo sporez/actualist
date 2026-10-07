@@ -286,7 +286,8 @@ extension LocalFirstActualStoreTests {
         additionalFixtureSQL: String = "",
         reimportFailureCheckpoint: BudgetReimportCheckpoint? = nil,
         budgetFileManager: FileManager = .default,
-        transactionFeedPageReadHook: TransactionFeedPageReadHook? = nil
+        transactionFeedPageReadHook: TransactionFeedPageReadHook? = nil,
+        backgroundExecution: (any BackgroundExecutionAssertion)? = nil
     ) async throws -> OpenedWritableStoreBundle {
         let fixtureURL = try makeSQLiteFixture(extraSQL: """
             ALTER TABLE transactions ADD COLUMN description TEXT;
@@ -365,7 +366,8 @@ extension LocalFirstActualStoreTests {
             connectionTransportFactory: connectionTransportFactory,
             simpleFINTransportFactory: simpleFINTransportFactory,
             pendingLocalMessageFlushRetryDelays: pendingLocalMessageFlushRetryDelays,
-            transactionFeedPageReadHook: transactionFeedPageReadHook
+            transactionFeedPageReadHook: transactionFeedPageReadHook,
+            backgroundExecution: backgroundExecution
         )
         let budget = ActualBudget(
             budgetID: fileID,

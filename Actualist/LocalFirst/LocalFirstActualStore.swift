@@ -25,6 +25,7 @@ final class LocalFirstActualStore:
     let openIDAuthenticationCoordinator = ActualOpenIDAuthenticationCoordinator()
     let syncDebugRecorder: @MainActor (LocalFirstSyncDebugEvent) -> Void
     let pendingLocalMessageFlushRetryDelays: [Duration]
+    let backgroundExecution: any BackgroundExecutionAssertion
     @ObservationIgnored let transactionFeedPageReadHook: TransactionFeedPageReadHook?
     @ObservationIgnored let transactionFeedCacheRefreshGate: TransactionFeedCacheRefreshGate
     let syncClient = SyncClient()
@@ -199,7 +200,8 @@ final class LocalFirstActualStore:
         syncDebugRecorder: @escaping @MainActor (LocalFirstSyncDebugEvent) -> Void = { _ in },
         pendingLocalMessageFlushRetryDelays: [Duration] = [.zero, .seconds(2), .seconds(8), .seconds(30)],
         endpointHealth: ServerEndpointHealth? = nil,
-        transactionFeedPageReadHook: TransactionFeedPageReadHook? = nil
+        transactionFeedPageReadHook: TransactionFeedPageReadHook? = nil,
+        backgroundExecution: (any BackgroundExecutionAssertion)? = nil
     ) {
         self.keychain = keychain
         self.transportSession = transportSession
@@ -209,6 +211,7 @@ final class LocalFirstActualStore:
         self.simpleFINTransportFactory = simpleFINTransportFactory
         self.syncDebugRecorder = syncDebugRecorder
         self.pendingLocalMessageFlushRetryDelays = pendingLocalMessageFlushRetryDelays
+        self.backgroundExecution = backgroundExecution ?? UIKitBackgroundExecutionAssertion()
         self.transactionFeedPageReadHook = transactionFeedPageReadHook
         self.transactionFeedCacheRefreshGate = TransactionFeedCacheRefreshGate()
         // Constructed in the main-actor init body (not a default argument) so

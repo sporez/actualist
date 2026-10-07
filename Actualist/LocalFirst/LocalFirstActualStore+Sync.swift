@@ -180,7 +180,31 @@ extension LocalFirstActualStore {
             && openedServerURLString == serverURLString
     }
 
+    /// One flush attempt holds one background-execution assertion, released on
+    /// completion, cancellation or expiration. Expiration cancels the attempt.
+    /// Callers' backoff sleeps happen outside this method, so none is held then.
     func flushPendingLocalMessagesIfPossible(
+        database: BudgetDatabase,
+        budgetID: String,
+        serverURLString: String
+    ) async -> PendingLocalMessageFlushOutcome {
+        let attempt = Task {
+            await self.performFlushAttempt(
+                database: database,
+                budgetID: budgetID,
+                serverURLString: serverURLString
+            )
+        }
+        let assertion = backgroundExecution.begin(name: "Actualist outbox flush") { attempt.cancel() }
+        defer { assertion.end() }
+        return await withTaskCancellationHandler {
+            await attempt.value
+        } onCancel: {
+            attempt.cancel()
+        }
+    }
+
+    private func performFlushAttempt(
         database: BudgetDatabase,
         budgetID: String,
         serverURLString: String
