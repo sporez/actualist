@@ -78,8 +78,7 @@ extension LocalFirstActualStore {
         invalidateScheduleCache(budgetID: budgetID)
         invalidateRulesCache(budgetID: budgetID)
         try await refreshRulesCache(database: database, budgetID: budgetID)
-        payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
-            .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
+        try await publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
         await refreshActionLogDiagnosticSnapshot(database: database)
     }
 

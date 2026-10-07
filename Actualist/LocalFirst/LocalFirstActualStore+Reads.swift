@@ -1,5 +1,8 @@
 import Foundation
 
+/// Runs after the payee snapshot has been read and before it is published.
+typealias PayeeSnapshotReadHook = @MainActor @Sendable (_ budgetID: String) async -> Void
+
 extension LocalFirstActualStore {
     func budgets() async throws -> [ActualBudget] {
         cachedBudgets
@@ -114,8 +117,20 @@ extension LocalFirstActualStore {
 
     func refreshPayeeManagementSnapshot(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
-        payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
+        try await publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
+    }
+
+    /// Reads the payee snapshot and publishes it only while the session that
+    /// asked is still open, so a reload that outlives `closeOpenBudget` cannot
+    /// repopulate cleared caches. The one publisher for the attached tails and
+    /// the standalone refresh.
+    func publishPayeeManagementSnapshot(database: BudgetDatabase, budgetID: String) async throws {
+        let generation = budgetSessionGeneration
+        let snapshot = try await database.fetchPayeeManagementSnapshot()
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
+        await payeeSnapshotReadHook?(budgetID)
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        payeesByBudget[budgetID] = snapshot
     }
 
     func fetchTransaction(budgetID: String, id: String) async throws -> ActualTransaction? {

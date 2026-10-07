@@ -59,6 +59,7 @@ final class LocalFirstActualStore:
     @ObservationIgnored var rulesCacheRevisionByBudget: [String: UInt64] = [:]
     @ObservationIgnored var nextRulesCacheRevision: UInt64 = 0
     @ObservationIgnored var rulesReadHook: RulesReadHook?
+    @ObservationIgnored var payeeSnapshotReadHook: PayeeSnapshotReadHook?
     @ObservationIgnored var scheduleMutationBeforeCommitHook: ScheduleMutationHook?
     @ObservationIgnored var scheduleMutationAfterCommitHook: ScheduleMutationHook?
     @ObservationIgnored var scheduleMutationBeforeRefreshHook: ScheduleMutationRefreshHook?

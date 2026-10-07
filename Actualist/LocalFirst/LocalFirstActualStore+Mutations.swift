@@ -171,8 +171,7 @@ extension LocalFirstActualStore {
         budgetID: String
     ) async throws {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
-        payeesByBudget[budgetID] = try await database.fetchPayeeManagementSnapshot()
-            .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
+        try await publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
         invalidateReports(budgetID: budgetID)
 
         try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
