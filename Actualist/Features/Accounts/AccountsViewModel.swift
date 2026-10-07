@@ -27,7 +27,6 @@ final class AccountsViewModel {
     var errorMessage: String?
     var isAddAccountPresented = false
     var addAccountViewModel = AddAccountViewModel()
-    var isSubmitting = false
     var contentRevision: UInt64 = 0
     var groupEditor: GroupEditor?
     var groupEditorName = ""
@@ -35,6 +34,13 @@ final class AccountsViewModel {
 
     private var budgetID: String?
     private var submitGeneration = 0
+    /// The write that owns the busy state. Cleared by that write when it ends,
+    /// or by a budget change, which detaches the write without erasing busy
+    /// state for a later one.
+    private var runningOperationID: Int?
+    private var operationCounter = 0
+
+    var isSubmitting: Bool { runningOperationID != nil }
 
     private struct LayoutInputs: Equatable {
         var displays: [AccountDisplay]
@@ -88,6 +94,7 @@ final class AccountsViewModel {
         if budgetID != self.budgetID {
             self.budgetID = budgetID
             submitGeneration += 1
+            runningOperationID = nil
             groupEditor = nil
             groupEditorName = ""
             deleteReview = nil
@@ -172,14 +179,8 @@ final class AccountsViewModel {
             return false
         }
 
-        isSubmitting = true
-        submitGeneration += 1
-        let generation = submitGeneration
-        defer {
-            if generation == submitGeneration {
-                isSubmitting = false
-            }
-        }
+        let (operationID, generation) = beginOperation()
+        defer { endOperation(operationID) }
 
         do {
             switch editor {
@@ -215,14 +216,8 @@ final class AccountsViewModel {
         guard let budgetID, let review = deleteReview, !isSubmitting else {
             return
         }
-        isSubmitting = true
-        submitGeneration += 1
-        let generation = submitGeneration
-        defer {
-            if generation == submitGeneration {
-                isSubmitting = false
-            }
-        }
+        let (operationID, generation) = beginOperation()
+        defer { endOperation(operationID) }
         do {
             try await repository.deleteAccountGroupAndRefresh(
                 budgetID: budgetID,
@@ -250,14 +245,8 @@ final class AccountsViewModel {
         guard let budgetID, !isSubmitting else {
             return
         }
-        isSubmitting = true
-        submitGeneration += 1
-        let generation = submitGeneration
-        defer {
-            if generation == submitGeneration {
-                isSubmitting = false
-            }
-        }
+        let (operationID, generation) = beginOperation()
+        defer { endOperation(operationID) }
         do {
             try await repository.moveAccountToGroupAndRefresh(
                 budgetID: budgetID,
@@ -285,14 +274,8 @@ final class AccountsViewModel {
         guard let budgetID, !isSubmitting else {
             return
         }
-        isSubmitting = true
-        submitGeneration += 1
-        let generation = submitGeneration
-        defer {
-            if generation == submitGeneration {
-                isSubmitting = false
-            }
-        }
+        let (operationID, generation) = beginOperation()
+        defer { endOperation(operationID) }
         do {
             try await repository.moveAccountGroupAndRefresh(
                 budgetID: budgetID,
@@ -308,6 +291,19 @@ final class AccountsViewModel {
                 return
             }
             errorMessage = error.userFacingMessage
+        }
+    }
+
+    private func beginOperation() -> (id: Int, generation: Int) {
+        operationCounter += 1
+        runningOperationID = operationCounter
+        submitGeneration += 1
+        return (operationCounter, submitGeneration)
+    }
+
+    private func endOperation(_ id: Int) {
+        if runningOperationID == id {
+            runningOperationID = nil
         }
     }
 

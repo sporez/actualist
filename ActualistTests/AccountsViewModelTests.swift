@@ -137,6 +137,100 @@ struct AccountsViewModelTests {
         #expect(viewModel.deleteReview == nil)
         #expect(viewModel.groupEditorName.isEmpty)
     }
+    enum ParkedWrite: CaseIterable, Sendable {
+        case createGroup, renameGroup, deleteGroup, moveAccount, moveGroup
+    }
+
+    private func startWrite(
+        _ write: ParkedWrite,
+        on viewModel: AccountsViewModel,
+        repository: FakeAccountRepository
+    ) -> Task<Void, Never> {
+        let group = ActualAccountGroup(id: "cash", name: "Cash", sortOrder: 16_384)
+        let display = AccountDisplay(
+            account: ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false, accountGroupId: nil),
+            balance: 0
+        )
+        switch write {
+        case .createGroup:
+            viewModel.presentCreateGroup()
+            viewModel.groupEditorName = "Cash"
+            return Task { _ = await viewModel.submitGroupEditor(budgetID: "budget", repository: repository) }
+        case .renameGroup:
+            viewModel.presentRename(group)
+            viewModel.groupEditorName = "Cash 2"
+            return Task { _ = await viewModel.submitGroupEditor(budgetID: "budget", repository: repository) }
+        case .deleteGroup:
+            viewModel.presentDelete(group, displays: [])
+            return Task { await viewModel.confirmDelete(budgetID: "budget", repository: repository) }
+        case .moveAccount:
+            return Task {
+                await viewModel.moveAccount(display, toGroupID: "cash", budgetID: "budget", repository: repository)
+            }
+        case .moveGroup:
+            return Task {
+                await viewModel.moveGroup(group, beforeGroupID: nil, budgetID: "budget", repository: repository)
+            }
+        }
+    }
+
+    @Test(arguments: ParkedWrite.allCases)
+    func budgetChangeDuringAWriteDoesNotLeaveTheModelBusy(_ write: ParkedWrite) async {
+        let repository = FakeAccountRepository()
+        let viewModel = AccountsViewModel()
+        await viewModel.loadLocal(budgetID: "budget", hasCachedAccounts: true, repository: repository)
+        let gate = repository.parkNextWrite()
+        let task = startWrite(write, on: viewModel, repository: repository)
+        await gate.entered.wait()
+        #expect(viewModel.isSubmitting)
+
+        await viewModel.loadLocal(budgetID: "other", hasCachedAccounts: true, repository: repository)
+        #expect(!viewModel.isSubmitting)
+        let revision = viewModel.contentRevision
+
+        // A fresh edit for the new budget is not refused while the stale write is still parked.
+        let callsBefore = repository.writeCalls.count
+        await viewModel.moveGroup(
+            ActualAccountGroup(id: "g", name: "G", sortOrder: 1),
+            beforeGroupID: nil,
+            budgetID: "other",
+            repository: repository
+        )
+        #expect(repository.writeCalls.count == callsBefore + 1)
+
+        gate.release.trip()
+        await task.value
+        #expect(!viewModel.isSubmitting)
+        #expect(viewModel.errorMessage == nil)
+        #expect(viewModel.contentRevision == revision &+ 1) // only the new budget's own edit
+        await viewModel.moveGroup(
+            ActualAccountGroup(id: "g", name: "G", sortOrder: 1),
+            beforeGroupID: nil,
+            budgetID: "other",
+            repository: repository
+        )
+        #expect(repository.writeCalls.count == callsBefore + 2)
+    }
+
+    @Test func addAccountResetWhileCreatingDoesNotAllowASecondCreate() async {
+        let repository = FakeAccountRepository()
+        let viewModel = AddAccountViewModel()
+        viewModel.name = "Savings"
+        let gate = repository.parkNextWrite()
+        let first = Task { await viewModel.submit(budgetID: "budget", repository: repository) }
+        await gate.entered.wait()
+
+        viewModel.reset()
+        #expect(viewModel.isSubmitting)
+        viewModel.name = "Savings"
+        #expect(await viewModel.submit(budgetID: "budget", repository: repository) == false)
+
+        gate.release.trip()
+        #expect(await first.value)
+        #expect(repository.writeCalls == ["createAccount"])
+        #expect(!viewModel.isSubmitting)
+        #expect(viewModel.name.isEmpty)
+    }
 }
 
 @MainActor
@@ -147,6 +241,23 @@ private final class FakeAccountRepository: AccountRepositoryProtocol {
     var deletedIDs: [String] = []
     var loadError: Error?
     var createError: Error?
+    var writeCalls: [String] = []
+    private var parked: (entered: TestLatch, release: TestLatch)?
+
+    /// The next write records itself, signals `entered`, and waits for `release`.
+    func parkNextWrite() -> (entered: TestLatch, release: TestLatch) {
+        let gate = (entered: TestLatch(), release: TestLatch())
+        parked = gate
+        return gate
+    }
+
+    private func record(_ call: String) async {
+        writeCalls.append(call)
+        guard let gate = parked else { return }
+        parked = nil
+        gate.entered.trip()
+        await gate.release.wait()
+    }
 
     func accountDisplays(budgetID: String) -> [AccountDisplay] { displays }
     func accountGroups(budgetID: String) -> [ActualAccountGroup] { groups }
@@ -211,25 +322,35 @@ private final class FakeAccountRepository: AccountRepositoryProtocol {
             changed: ChangedResources(accounts: [], months: [], transactions: [])
         )
     }
-    func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {}
+    func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {
+        await record("createAccount")
+    }
     func createAccountGroupAndRefresh(budgetID: String, name: String) async throws {
+        await record("createGroup")
         if let createError {
             throw createError
         }
         createdNames.append(name)
     }
-    func renameAccountGroupAndRefresh(budgetID: String, groupID: String, name: String) async throws {}
+    func renameAccountGroupAndRefresh(budgetID: String, groupID: String, name: String) async throws {
+        await record("renameGroup")
+    }
     func deleteAccountGroupAndRefresh(budgetID: String, groupID: String) async throws {
+        await record("deleteGroup")
         deletedIDs.append(groupID)
     }
     func moveAccountToGroupAndRefresh(
         budgetID: String,
         accountID: String,
         groupID: String?
-    ) async throws {}
+    ) async throws {
+        await record("moveAccount")
+    }
     func moveAccountGroupAndRefresh(
         budgetID: String,
         groupID: String,
         beforeGroupID: String?
-    ) async throws {}
+    ) async throws {
+        await record("moveGroup")
+    }
 }
