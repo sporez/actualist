@@ -122,7 +122,8 @@ actor SyncClient {
         token: String,
         messages: [ActualSyncDecodedMessage],
         since: String? = nil,
-        sessionIsCurrent: (@Sendable () async -> Bool)? = nil
+        sessionIsCurrent: (@Sendable () async -> Bool)? = nil,
+        onUploadConfirmed: (@Sendable () async throws -> Void)? = nil
     ) async throws -> LocalFirstSyncResult {
         guard let configuration else {
             throw LocalFirstError.budgetNotOpened
@@ -191,6 +192,9 @@ actor SyncClient {
         guard unconfirmedCount == 0 else {
             throw LocalFirstError.syncUploadNotConfirmed(unconfirmedCount)
         }
+        // The server holds the upload now. Report it before the merkle re-pull below,
+        // whose failure must not leave confirmed messages queued for another upload.
+        try await onUploadConfirmed?()
 
         var combinedResponse = ActualSync_SyncResponse()
         combinedResponse.messages = Dictionary(

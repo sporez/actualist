@@ -1,5 +1,11 @@
 import Foundation
 
+/// Whether the server confirmed this flush's upload, shared with failover retries.
+private actor UploadConfirmation {
+    private(set) var isConfirmed = false
+    func markConfirmed() { isConfirmed = true }
+}
+
 extension LocalFirstActualStore {
     enum PendingLocalMessageFlushOutcome {
         case succeeded, failed, cancelled
@@ -269,24 +275,46 @@ extension LocalFirstActualStore {
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
         status.lastSyncAttemptAt = Date()
         syncStatus = status
+        let confirmation = UploadConfirmation()
         do {
             let result = try await withSyncFailover(serverURLString: serverURLString) { client in
-                try await self.syncClient.pushAndPull(
+                let sessionIsCurrent: @Sendable () async -> Bool = { [self] in
+                    await ownsSyncSession(database: database, budgetID: budgetID, generation: generation)
+                }
+                // A failover retry after confirmation only pulls; it must not re-push.
+                if await confirmation.isConfirmed {
+                    let pull = try await self.syncClient.pullAndApply(
+                        database: database,
+                        client: client,
+                        token: token,
+                        sessionIsCurrent: sessionIsCurrent
+                    )
+                    return LocalFirstSyncResult(
+                        pushedMessageCount: pending.count,
+                        appliedRemoteMessageCount: pull.appliedMessageCount,
+                        insertedTransactionIDsByAccount: pull.insertedTransactionIDsByAccount,
+                        quarantinedTimestamps: pull.quarantinedTimestamps
+                    )
+                }
+                return try await self.syncClient.pushAndPull(
                     database: database,
                     client: client,
                     token: token,
                     messages: pending.map(\.message),
                     since: pending.map(\.baseTimestamp).min(),
-                    sessionIsCurrent: { [self] in
-                        await ownsSyncSession(
+                    sessionIsCurrent: sessionIsCurrent,
+                    onUploadConfirmed: { [self] in
+                        // Delete the confirmed rows only while this session still owns the database.
+                        try await requireSyncSession(
                             database: database, budgetID: budgetID, generation: generation
                         )
+                        try await database.deletePendingLocalSyncMessages(pending)
+                        await confirmation.markConfirmed()
                     }
                 )
             }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             recordQuarantinedSyncValues(result.quarantinedTimestamps)
-            try await database.deletePendingLocalSyncMessages(pending)
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
@@ -313,7 +341,10 @@ extension LocalFirstActualStore {
                 token: token
             )
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            try? await database.markPendingLocalSyncMessagesFailed(pending, error: resolvedError)
+            // Confirmed rows were already deleted; this failure is a pull failure.
+            if await !confirmation.isConfirmed {
+                try? await database.markPendingLocalSyncMessagesFailed(pending, error: resolvedError)
+            }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? pending.count
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
