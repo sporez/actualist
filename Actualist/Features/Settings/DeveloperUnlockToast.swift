@@ -14,7 +14,8 @@ enum DeveloperUnlockToast {
     static func present(
         _ message: String,
         on appState: AppState,
-        replacing previous: Task<Void, Never>?
+        replacing previous: Task<Void, Never>?,
+        duration: Duration = .seconds(toastDurationSeconds)
     ) -> Task<Void, Never> {
         previous?.cancel()
         withAnimation(.snappy(duration: 0.2)) {
@@ -25,7 +26,7 @@ enum DeveloperUnlockToast {
             // A replaced toast cancels this task; it must not clear the
             // message that its replacement is now showing.
             do {
-                try await Task.sleep(for: .seconds(toastDurationSeconds))
+                try await Task.sleep(for: duration)
             } catch {
                 return
             }
