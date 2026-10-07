@@ -49,7 +49,7 @@ struct AccountGroupIDTrimmingTests {
         var builder = LocalFirstSyncMessageBuilder()
 
         await #expect(
-            throws: LocalFirstError.invalidLocalWrite("missing column account_groups.tombstone")
+            throws: LocalFirstError.schemaUnavailable("missing column account_groups.tombstone")
         ) {
             _ = try await database.deleteAccountGroupMessages(groupID: "cash", builder: &builder)
         }

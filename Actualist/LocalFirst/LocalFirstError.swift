@@ -37,6 +37,12 @@ enum LocalFirstError: LocalizedError, Equatable {
     case remoteDataLimitExceeded
     case insufficientStorage
     case invalidLocalWrite(String)
+    /// The budget file lacks a table or column the write needs. Deterministic per
+    /// budget, so schedule posting refuses instead of failing the whole run.
+    case schemaUnavailable(String)
+    /// A row the write references (account, category, payee) is deleted, closed or
+    /// missing. The user can fix it, unlike a schema gap.
+    case referencedRowUnavailable(String)
     /// A History undo was refused by the conflict check; the string is the
     /// user-facing reason (from `BudgetActionUndoBlock.userFacingReason`).
     case actionUndoBlocked(String)
@@ -110,7 +116,7 @@ enum LocalFirstError: LocalizedError, Equatable {
             "The server response exceeded Actualist's safe resource limits."
         case .insufficientStorage:
             "This device does not have enough free storage to import the budget safely."
-        case .invalidLocalWrite(let reason):
+        case .invalidLocalWrite(let reason), .schemaUnavailable(let reason), .referencedRowUnavailable(let reason):
             "Actualist could not apply the local-first write: \(reason)"
         case .actionUndoBlocked(let reason):
             reason

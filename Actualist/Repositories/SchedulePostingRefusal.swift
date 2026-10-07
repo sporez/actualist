@@ -14,6 +14,9 @@ enum SchedulePostingRefusal: Error, Hashable, Sendable {
     case ruleChangedScheduleLink
     /// The budget's tables lack something this occurrence's transaction graph needs.
     case unsupportedBudgetSchema
+    /// The schedule's rule or transfer points at an account, category or payee that was
+    /// deleted or closed. The user can fix this by editing the rule or reopening the account.
+    case referencedRowUnavailable
     case beforeMatchWindow(earliestDayID: String)
 }
 
@@ -28,6 +31,8 @@ extension SchedulePostingRefusal: LocalizedError {
             "This schedule changed during sync. Review its latest details and try again."
         case .unsupportedBudgetSchema:
             "This budget's file layout does not support posting this schedule."
+        case .referencedRowUnavailable:
+            "This schedule's rule or transfer points to an account, category, or payee that was deleted or closed. Edit the schedule's rule or reopen the account, then post it again."
         case .ruleDeletesTransaction:
             "A matching rule removes this scheduled transaction, so it cannot be posted."
         case .ruleChangedScheduleLink:

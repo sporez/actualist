@@ -265,7 +265,7 @@ extension BudgetDatabase {
 
         if nowTransfer {
             guard let transferColumn = columns.transferID else {
-                throw LocalFirstError.invalidLocalWrite("missing column transactions.transferred_id")
+                throw LocalFirstError.schemaUnavailable("missing column transactions.transferred_id")
             }
             let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
             let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)

@@ -618,6 +618,8 @@ final class ScheduleManagementCoordinator {
         case let localFirstError as LocalFirstError:
             // Unwrapped local-write refusals carry internal detail strings.
             if case .invalidLocalWrite = localFirstError { ScheduleMutationUserNotice.saveFailed }
+            else if case .schemaUnavailable = localFirstError { ScheduleMutationUserNotice.saveFailed }
+            else if case .referencedRowUnavailable = localFirstError { ScheduleMutationUserNotice.saveFailed }
             else { localFirstError.errorDescription ?? ScheduleMutationUserNotice.saveFailed }
         default:
             error.userFacingMessage ?? ScheduleMutationUserNotice.saveFailed

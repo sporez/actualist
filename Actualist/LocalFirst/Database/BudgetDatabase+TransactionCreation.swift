@@ -107,12 +107,12 @@ extension BudgetDatabase {
         var messages: [ActualSyncDecodedMessage] = []
         if try tableExists("accounts", db: db),
            try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
-            throw LocalFirstError.invalidLocalWrite("missing account")
+            throw LocalFirstError.referencedRowUnavailable("missing account")
         }
         if let categoryID = draft.categoryID,
            try tableExists("categories", db: db),
            try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
-            throw LocalFirstError.invalidLocalWrite("missing category")
+            throw LocalFirstError.referencedRowUnavailable("missing category")
         }
             let columns = try requiredColumns(
                 table: "transactions",
@@ -383,7 +383,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> (messages: [ActualSyncDecodedMessage], destinationAccountID: String, pairedTransactionID: String) {
         guard !draft.accountID.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("missing account")
+            throw LocalFirstError.referencedRowUnavailable("missing account")
         }
         guard draft.amountMinorUnits != 0 else {
             throw LocalFirstError.invalidLocalWrite("missing amount")
@@ -391,11 +391,11 @@ extension BudgetDatabase {
 
             let columns = try resolveTransactionRowColumns(db: db)
             guard columns.transferID != nil else {
-                throw LocalFirstError.invalidLocalWrite("missing column transactions.transferred_id")
+                throw LocalFirstError.schemaUnavailable("missing column transactions.transferred_id")
             }
             if try tableExists("accounts", db: db),
                try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
-                throw LocalFirstError.invalidLocalWrite("missing account")
+                throw LocalFirstError.referencedRowUnavailable("missing account")
             }
             let destinationAccountID = try transferDestinationAccountID(payeeID: payeeID, db: db)
             let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
@@ -450,7 +450,7 @@ extension BudgetDatabase {
 
     func transferDestinationAccountID(payeeID: String, db: Database) throws -> String {
         guard try tableExists("payees", db: db) else {
-            throw LocalFirstError.invalidLocalWrite("missing payees table")
+            throw LocalFirstError.schemaUnavailable("missing payees table")
         }
         let payeeColumns = try columnSet(for: "payees", db: db)
         let transferColumn = column(
@@ -546,14 +546,14 @@ extension BudgetDatabase {
         }
         if try tableExists("categories", db: db),
            try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
-            throw LocalFirstError.invalidLocalWrite("missing category")
+            throw LocalFirstError.referencedRowUnavailable("missing category")
         }
         return sourceOffBudget ? (nil, categoryID) : (categoryID, nil)
     }
 
     func transferPayeeID(forAccount account: String, db: Database) throws -> String {
         guard try tableExists("payees", db: db) else {
-            throw LocalFirstError.invalidLocalWrite("missing payees table")
+            throw LocalFirstError.schemaUnavailable("missing payees table")
         }
         let payeeColumns = try columnSet(for: "payees", db: db)
         let transferColumn = column(
@@ -568,7 +568,7 @@ extension BudgetDatabase {
                 arguments: [account]
               ),
               !payeeID.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("missing transfer payee for account")
+            throw LocalFirstError.referencedRowUnavailable("missing transfer payee for account")
         }
         return payeeID
     }

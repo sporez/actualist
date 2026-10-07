@@ -66,11 +66,11 @@ extension BudgetDatabase {
         db: Database
     ) throws -> Set<String> {
         guard try tableExists(table, db: db) else {
-            throw LocalFirstError.invalidLocalWrite("missing \(table) table")
+            throw LocalFirstError.schemaUnavailable("missing \(table) table")
         }
         let columns = try columnSet(for: table, db: db)
         for column in required where !columns.contains(column) {
-            throw LocalFirstError.invalidLocalWrite("missing column \(table).\(column)")
+            throw LocalFirstError.schemaUnavailable("missing column \(table).\(column)")
         }
         return columns
     }
@@ -83,7 +83,7 @@ extension BudgetDatabase {
         for candidate in candidates where columns.contains(candidate) {
             return candidate
         }
-        throw LocalFirstError.invalidLocalWrite("missing column \(table).\(candidates.joined(separator: "|"))")
+        throw LocalFirstError.schemaUnavailable("missing column \(table).\(candidates.joined(separator: "|"))")
     }
 
     func categoryMappingTransferColumn(db: Database) throws -> String? {

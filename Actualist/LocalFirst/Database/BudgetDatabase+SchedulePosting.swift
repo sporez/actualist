@@ -29,17 +29,20 @@ extension BudgetDatabase {
         }
         try Task.checkCancellation()
         let committed = try commitLocalPlan(now: now) { db in
-            // Schema gaps (a missing table or column) in the posting graph are
-            // deterministic per schedule, so they are refusals rather than
-            // errors that would stop automatic advancement on every sync.
+            // Schema gaps (a missing table or column) and deleted or closed
+            // referenced rows are deterministic per schedule, so they are
+            // refusals rather than errors that would stop automatic advancement
+            // on every sync.
             // I/O and cancellation propagate unchanged.
             do {
                 return try schedulePostingPlan(
                     review: review, draft: draft, transactionID: transactionID,
                     postedDayID: postedDayID, today: today, db: db
                 )
-            } catch LocalFirstError.invalidLocalWrite {
+            } catch LocalFirstError.schemaUnavailable {
                 throw SchedulePostingRefusal.unsupportedBudgetSchema
+            } catch LocalFirstError.referencedRowUnavailable {
+                throw SchedulePostingRefusal.referencedRowUnavailable
             }
         }
         let planned = committed.outcome

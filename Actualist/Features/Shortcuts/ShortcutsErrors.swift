@@ -105,7 +105,7 @@ enum ShortcutsError: LocalizedError, Equatable {
                 return .unsupportedTransfer
             case .budgetNotOpened:
                 return .budgetBusy
-            case .invalidLocalWrite, .unsupportedWrite:
+            case .invalidLocalWrite, .schemaUnavailable, .referencedRowUnavailable, .unsupportedWrite:
                 return .writeFailed
             case .unsupportedTemplate:
                 return .templateUnsupported

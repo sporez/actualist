@@ -209,7 +209,7 @@ extension BudgetDatabase {
         db: Database
     ) throws -> String {
         guard try tableExists("payees", db: db) else {
-            throw LocalFirstError.invalidLocalWrite("missing payees table")
+            throw LocalFirstError.schemaUnavailable("missing payees table")
         }
         let columns = try columnSet(for: "payees", db: db)
         guard let transferColumn = ["transfer_acct", "transferAccount"]

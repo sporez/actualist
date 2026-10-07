@@ -100,7 +100,7 @@ extension LocalFirstActualStoreTests {
         let url = try makeCategoryGroupsWithoutHiddenColumnFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite("missing column category_groups.hidden")) {
+        await #expect(throws: LocalFirstError.schemaUnavailable("missing column category_groups.hidden")) {
             _ = try await database.setCategoryGroupHiddenMessages(
                 groupID: "group",
                 hidden: true,

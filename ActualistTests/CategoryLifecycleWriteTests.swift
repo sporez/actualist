@@ -41,7 +41,7 @@ struct CategoryLifecycleWriteTests {
         }
 
         let missingMapping = try BudgetDatabase(databaseURL: try makeCategoryLifecycleFixtureWithoutMapping(), localNodeID: "node1")
-        await #expect(throws: LocalFirstError.invalidLocalWrite("missing category_mapping table")) {
+        await #expect(throws: LocalFirstError.schemaUnavailable("missing category_mapping table")) {
             _ = try await missingMapping.createCategoryMessages(categoryID: "fuel", name: "Fuel", groupID: "group", builder: &builder)
         }
     }
@@ -344,7 +344,7 @@ struct CategoryLifecycleWriteTests {
 
         try await queue.write { db in try db.execute(sql: "DROP TABLE category_mapping") }
         let missingMappingDatabase = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node2")
-        await #expect(throws: LocalFirstError.invalidLocalWrite("missing category_mapping table")) {
+        await #expect(throws: LocalFirstError.schemaUnavailable("missing category_mapping table")) {
             _ = try await missingMappingDatabase.deleteCategoryMessages(
                 categoryID: "clean", transferCategoryID: "destination", builder: &builder
             )
@@ -361,7 +361,7 @@ struct CategoryLifecycleWriteTests {
         let missingTombstoneDatabase = try BudgetDatabase(
             databaseURL: missingTombstoneURL, localNodeID: "node3"
         )
-        await #expect(throws: LocalFirstError.invalidLocalWrite("missing column categories.tombstone")) {
+        await #expect(throws: LocalFirstError.schemaUnavailable("missing column categories.tombstone")) {
             _ = try await missingTombstoneDatabase.deleteCategoryMessages(
                 categoryID: "clean", transferCategoryID: nil, builder: &builder
             )

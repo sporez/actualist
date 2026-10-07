@@ -17,7 +17,7 @@ extension BudgetDatabase {
     ) throws -> Set<String> {
         do {
             return try requiredColumns(table: table, required: required, db: db)
-        } catch LocalFirstError.invalidLocalWrite {
+        } catch LocalFirstError.schemaUnavailable {
             throw ScheduleMutationCommandError.unsupportedSchema
         }
     }

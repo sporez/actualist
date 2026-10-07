@@ -25,21 +25,21 @@ extension BudgetDatabase {
         db: Database
     ) throws -> PlannedTransactionGraph {
         guard !draft.accountID.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("missing account")
+            throw LocalFirstError.referencedRowUnavailable("missing account")
         }
         let columns = try resolveTransactionRowColumns(db: db)
         guard columns.hasSchedule else {
-            throw LocalFirstError.invalidLocalWrite("transactions.schedule is unavailable")
+            throw LocalFirstError.schemaUnavailable("transactions.schedule is unavailable")
         }
         if try tableExists("accounts", db: db),
            try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
-            throw LocalFirstError.invalidLocalWrite("missing account")
+            throw LocalFirstError.referencedRowUnavailable("missing account")
         }
         try validatePostingAccount(draft.accountID, db: db)
 
         if draft.isTransfer {
             guard let payeeID = draft.payeeID else {
-                throw LocalFirstError.invalidLocalWrite("missing transfer payee")
+                throw LocalFirstError.referencedRowUnavailable("missing transfer payee")
             }
             let destinationAccountID = try transferDestinationAccountID(payeeID: payeeID, db: db)
             let destinationPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
@@ -125,7 +125,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
         guard !draft.accountID.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("missing account")
+            throw LocalFirstError.referencedRowUnavailable("missing account")
         }
         guard !draft.splits.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("split requires at least one child")
@@ -133,7 +133,7 @@ extension BudgetDatabase {
         let columns = try resolveTransactionRowColumns(db: db)
         if try tableExists("accounts", db: db),
            try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
-            throw LocalFirstError.invalidLocalWrite("missing account")
+            throw LocalFirstError.referencedRowUnavailable("missing account")
         }
         try validateSplitCategories(draft.splits, db: db)
         try validateSplitDraftIDs(
@@ -179,7 +179,7 @@ extension BudgetDatabase {
             sql: "SELECT \(closed) AS closed, \(tombstone) AS tombstone FROM accounts WHERE id = ? LIMIT 1",
             arguments: [accountID]
         ), !flexibleBool(row["closed"]), !flexibleBool(row["tombstone"]) else {
-            throw LocalFirstError.invalidLocalWrite("transaction account is closed or unavailable")
+            throw LocalFirstError.referencedRowUnavailable("transaction account is closed or unavailable")
         }
     }
 }

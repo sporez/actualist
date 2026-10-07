@@ -95,6 +95,55 @@ struct BudgetDatabaseSchedulePostingTests {
         #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url) == before)
     }
 
+    /// A rule that points at a deleted category is a liveness failure the user can
+    /// fix, not a budget-layout gap (main-to-dev audit F-3).
+    @Test func ruleSettingTombstonedCategoryRefusesAsReferencedRowUnavailable() async throws {
+        let fixture = try makeFixture(extraSQL: """
+            INSERT INTO categories VALUES ('gone', 'Gone', 'group', 0, 0, 1, 2);
+            INSERT INTO rules VALUES (
+                'gone-category-rule', 'normal',
+                '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-10000}]',
+                '[{"op":"set","field":"category","value":"gone","type":"id"}]', 'and', 0
+            );
+            """)
+        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let messagesBefore = try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url)
+
+        await #expect(throws: SchedulePostingRefusal.referencedRowUnavailable) {
+            try await fixture.database.postScheduleOccurrence(
+                review: review, draft: draft(), transactionID: "gone-category",
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            )
+        }
+
+        #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url) == messagesBefore)
+        #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'gone-category'", fixture.url) == 0)
+    }
+
+    @Test func transferIntoClosedAccountRefusesAsReferencedRowUnavailable() async throws {
+        let fixture = try makeFixture(extraSQL: "UPDATE accounts SET closed = 1 WHERE id = 'credit';")
+        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let transfer = TransactionDraft(
+            accountID: "checking", date: Self.date, amountMinorUnits: -10_000,
+            payeeID: "xfer-credit", payeeName: "", categoryID: nil, notes: nil,
+            cleared: false, isTransfer: true, scheduleID: "rent"
+        )
+
+        await #expect(throws: SchedulePostingRefusal.referencedRowUnavailable) {
+            try await fixture.database.postScheduleOccurrence(
+                review: review, draft: transfer, transactionID: "closed-transfer",
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            )
+        }
+        #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'closed-transfer'", fixture.url) == 0)
+    }
+
+    @Test func referencedRowRefusalCopyIsActionableAndHidesInternalText() {
+        let message = SchedulePostingRefusal.referencedRowUnavailable.errorDescription ?? ""
+        #expect(message.contains("rule") && message.contains("account"))
+        #expect(!message.contains("local-first write"))
+    }
+
     @Test func concurrentSameClientPostsCommitAtMostOneOccurrence() async throws {
         let fixture = try makeFixture()
         let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
