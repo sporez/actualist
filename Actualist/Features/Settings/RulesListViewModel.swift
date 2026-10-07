@@ -53,11 +53,17 @@ final class RulesListViewModel {
             rules = cached
         }
         isLoading = rules.isEmpty
-        options = try? await appState.ruleRepository.ruleEditorOptions(budgetID: budgetID)
+        // A failed options read keeps the previous options and is surfaced below.
+        var optionsError: Error?
+        do {
+            options = try await appState.ruleRepository.ruleEditorOptions(budgetID: budgetID)
+        } catch {
+            optionsError = error
+        }
         do {
             try await appState.ruleRepository.refreshRules(budgetID: budgetID)
             rules = appState.ruleRepository.cachedRules(budgetID: budgetID) ?? rules
-            errorMessage = nil
+            errorMessage = optionsError.flatMap { $0.isCancellation ? nil : $0.userFacingMessage }
         } catch {
             errorMessage = error.userFacingMessage
         }
@@ -89,7 +95,7 @@ final class RulesListViewModel {
     }
 
     func duplicate(_ rule: ManagedRule, using appState: AppState) async -> Bool {
-        guard let draft = rule.draft else { return false }
+        guard let draft = rule.draft, !isSubmitting else { return false }
         return await save(ruleID: nil, draft: draft, using: appState)
     }
 

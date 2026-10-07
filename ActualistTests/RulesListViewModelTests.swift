@@ -4,6 +4,47 @@ import Testing
 
 @MainActor
 struct RulesListViewModelTests {
+    private let fixtures = LocalFirstActualStoreTests()
+    private static let rulesTableSQL = """
+        CREATE TABLE rules (
+            id TEXT PRIMARY KEY,
+            stage TEXT,
+            conditions TEXT,
+            actions TEXT,
+            conditions_op TEXT DEFAULT 'and',
+            tombstone INTEGER DEFAULT 0
+        );
+        """
+
+    @Test func doubleDuplicateWritesOnceAndFailedRefreshKeepsPreviousOptions() async throws {
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle(additionalFixtureSQL: Self.rulesTableSQL)
+        let appState = try fixtures.makeAppState(for: bundle)
+        let draft = RuleDraft(
+            stage: .normal,
+            conditionsJoin: .and,
+            conditions: [RuleCondition(field: "payee", operation: "is", value: .string("coffee"), type: "id")],
+            actions: [RuleAction(operation: "set", field: "category", value: .string("groceries"), type: "id")]
+        )
+        try await bundle.store.createRuleAndRefresh(budgetID: "group-1", draft: draft)
+        let model = RulesListViewModel()
+        await model.load(scope: .all, using: appState)
+        let original = try #require(model.rules.first)
+        #expect(model.options != nil)
+
+        let first = Task { await model.duplicate(original, using: appState) }
+        let second = Task { await model.duplicate(original, using: appState) }
+        let results = [await first.value, await second.value]
+
+        #expect(results.filter { $0 }.count == 1)
+        #expect(bundle.store.cachedRules(budgetID: "group-1")?.count == 2)
+        #expect(!model.isSubmitting)
+
+        bundle.store.closeOpenBudget()
+        await model.load(scope: .all, using: appState)
+        #expect(model.options != nil)
+        #expect(model.errorMessage != nil)
+    }
+
     @Test func payeeScopeHidesOtherAndCompletedRules() {
         let viewModel = RulesListViewModel()
         viewModel.rules = [
