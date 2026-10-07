@@ -819,9 +819,11 @@ The wrapper's lock is `.artifacts/.test-run.lock`.
 - It coordinates cooperating `scripts/test.sh` invocations in this checkout.
   It does not cover raw Xcode commands, other checkouts, or every simulator
   process.
-- A successful, uninterrupted invocation releases its own lock after its child
-  succeeds and ownership is confirmed.
-- Failure or interruption deliberately retains the lock.
+- An uninterrupted invocation releases its own lock once xcodebuild exits on
+  its own and ownership is confirmed. That includes test and build failures
+  (exit status below 128), so a red-first run does not strand the lock.
+- Interruption, a signal-terminated xcodebuild (exit status 128 or higher), a
+  failure to start it, or an ownership mismatch deliberately retains the lock.
 - Existing locks are not automatically reclaimed, including locks with missing,
   malformed, or dead-owner metadata.
 - Help, invalid arguments, invalid parallel values, and dry-run do not acquire

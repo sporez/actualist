@@ -30,6 +30,10 @@ ACTUALIST_TEST_PARALLEL:
   other   error, including an empty value. Help, invalid arguments, invalid
           parallel values, and dry-run do not create or touch a test-run lock.
 
+A run releases its lock when xcodebuild exits on its own, including test or
+build failures (exit status below 128). It keeps the lock when the run is
+interrupted, xcodebuild is killed by a signal, or ownership no longer matches.
+
 A real invocation that finds .artifacts/.test-run.lock refuses to run. It does
 not delete or reclaim that lock, even if the recorded PID is dead or the
 metadata is missing. Recovery means verifying the prior invocation and its
@@ -222,8 +226,11 @@ if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
   exit_interrupted "invocation interrupted (${interrupt_signal:-signal}); child termination is not confirmed"
 fi
 
-if [[ "$child_status" -ne 0 ]]; then
-  recovery_required "xcodebuild exited $child_status"
+# xcodebuild ends its own test session before it exits, including after test
+# or build failures. A signal exit (128+) means it was killed mid-run, so test
+# activity may outlive it.
+if [[ "$child_status" -ge 128 ]]; then
+  recovery_required "xcodebuild was terminated (exit $child_status)"
   exit "$child_status"
 fi
 
@@ -240,4 +247,7 @@ if ! rmdir "$lockdir"; then
   exit 1
 fi
 acquired=0
-exit 0
+if [[ "$child_status" -ne 0 ]]; then
+  echo "error: xcodebuild exited $child_status; the test-run lock was released" >&2
+fi
+exit "$child_status"
