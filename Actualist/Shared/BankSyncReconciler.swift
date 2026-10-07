@@ -127,6 +127,31 @@ enum BankSyncReconciliation {
 
     // MARK: - Matcher
 
+    /// `plan` off the main thread: the matcher is O(candidates x existing) and a
+    /// large CSV or sync batch would otherwise block the UI. The plan is the
+    /// same value `plan` returns.
+    @concurrent
+    static func planOffMain(
+        candidates: [Candidate],
+        existing: [Existing],
+        suppressedFinancialIDs: Set<String>,
+        accountIsOffBudget: Bool,
+        transferPayeeIDs: Set<String>,
+        options: ImportReconcileOptions
+    ) async -> Plan {
+        #if DEBUG
+        dispatchPrecondition(condition: .notOnQueue(.main))
+        #endif
+        return plan(
+            candidates: candidates,
+            existing: existing,
+            suppressedFinancialIDs: suppressedFinancialIDs,
+            accountIsOffBudget: accountIsOffBudget,
+            transferPayeeIDs: transferPayeeIDs,
+            options: options
+        )
+    }
+
     /// loot-core three-pass match, in order: (1) `financial_id` equality,
     /// (2) same payee within ±7 days and the same amount across every
     /// candidate, (3) nearest remaining same-amount row in the window.
@@ -141,6 +166,9 @@ enum BankSyncReconciliation {
         transferPayeeIDs: Set<String> = [],
         options: ImportReconcileOptions = .bankSync
     ) -> Plan {
+        #if DEBUG
+        MainThreadCallLog.record("reconcilePlan", key: candidates.compactMap(\.financialID).joined(separator: ","))
+        #endif
         let epochDays = existing.map { epochDay(compact: $0.dayID) }
         // The fuzzy query only looks at rows of the candidate's amount, so index
         // them once instead of scanning every stored row per candidate (a

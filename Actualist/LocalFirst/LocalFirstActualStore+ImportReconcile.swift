@@ -56,7 +56,7 @@ extension LocalFirstActualStore {
         )
         case nil: suppressed = try await database.bankSyncSuppressedFinancialIDs(accountID: accountID)
         }
-        let plan = BankSyncReconciliation.plan(
+        let plan = await BankSyncReconciliation.planOffMain(
             candidates: projected,
             existing: existing,
             suppressedFinancialIDs: suppressed,

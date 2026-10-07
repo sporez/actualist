@@ -196,4 +196,28 @@ struct ImportReconcileStepTests {
         }
         #expect(totalScoped > 0)
     }
+
+    // MARK: - Off main
+
+    @Test func theReconcilePlanRunsOffTheMainThread() async throws {
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let database = try #require(bundle.store.database)
+        let marker = "off-main-plan-\(UUID().uuidString)"
+
+        let outcome = try await bundle.store.reconcileProjectedImport(
+            database: database,
+            accountID: "checking",
+            accountIsOffBudget: false,
+            candidateDayIDs: ["20260310"],
+            projected: [candidate(id: marker)],
+            transferPayeeIDs: [],
+            options: .bankSync
+        )
+
+        #expect(outcome.plan.inserts.count + outcome.plan.entries.count >= 1)
+        #expect(
+            MainThreadCallLog.mainThreadCalls(stage: "reconcilePlan", keyContaining: marker).isEmpty,
+            "reconcilePlan ran on the main thread"
+        )
+    }
 }
