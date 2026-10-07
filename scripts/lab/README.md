@@ -13,6 +13,7 @@ scripts/lab/budgets.sh create <profile> [--name <suffix>] [--anchor YYYY-MM] [--
 scripts/lab/budgets.sh delete "<name>"        # a managed name only
 scripts/lab/budgets.sh delete --all-managed
 scripts/lab/budgets.sh reset                  # delete all managed, create standard + tracking + pair
+scripts/lab/budgets.sh wipe --yes             # delete EVERY budget on the server (empty-server flows)
 scripts/lab/budgets.sh download "<name>" <dir>
 ```
 
@@ -36,8 +37,12 @@ under `.artifacts/lab/`. Vitest output is noisy; the full log of the last run is
 ## Safety
 
 - Only budgets whose name starts with `Lab · ` are managed. `delete` and
-  `reset` never touch anything else (hand-made budgets such as "Actualist Test
-  Lab" are left alone), and `delete <name>` refuses an unmanaged name.
+  `reset` never touch anything else, and `delete <name>` refuses an unmanaged
+  name.
+- `wipe --yes` is the one exception: it deletes every budget on the server,
+  managed or not. Use it to reach an empty server (the Import / Create New
+  Budget picker flow appears only when the account has no budgets), then
+  `reset` to restore the standard set.
 - `create` refuses a name that already exists. A failed create removes its own
   half-built budget.
 - Budgets are deleted with the server's `/sync/delete-user-file`.

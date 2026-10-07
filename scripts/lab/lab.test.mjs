@@ -165,6 +165,18 @@ async function del(rest) {
   if (targets.length === 0) out('no managed budgets to delete');
 }
 
+// Deletes every budget on the server, managed or not. The lab server is
+// disposable; --yes is required so a stray call cannot empty it.
+async function wipe(rest) {
+  if (rest[0] !== '--yes') throw new Error('wipe deletes every budget on the lab server; pass --yes');
+  const files = await listFiles();
+  for (const f of files) {
+    await deleteFile(f);
+    out(`deleted "${f.name}" (${f.fileId})`);
+  }
+  if (files.length === 0) out('no budgets to delete');
+}
+
 async function download(rest) {
   const [name, dir] = rest;
   const f = (await listFiles()).find(x => x.name === name);
@@ -184,6 +196,7 @@ test(`lab ${args[0]}`, async () => {
   if (cmd === 'list') printList(await listFiles());
   else if (cmd === 'create') await create(rest);
   else if (cmd === 'delete') await del(rest);
+  else if (cmd === 'wipe') await wipe(rest);
   else if (cmd === 'download') await download(rest);
   else throw new Error(`unknown command ${cmd}`);
 });

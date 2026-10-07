@@ -4,6 +4,7 @@
 #   budgets.sh create <standard|basic|tracking|pair|large|empty> [--name <suffix>] [--anchor YYYY-MM] [--months N] [--per-month N]
 #   budgets.sh delete <name> | --all-managed
 #   budgets.sh reset
+#   budgets.sh wipe --yes        (deletes EVERY budget on the server)
 #   budgets.sh download <name> <dir>
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -19,7 +20,7 @@ fi
 : "${ACTUAL_UPSTREAM_DIR:=/Users/neil/CC/actualist/.artifacts/parity-sprint-20260927/upstream-actual}"
 EXPECTED_SHA='59fe126f637d858c061e1eeedbef5436c8f2225a'
 
-usage() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || usage
 CMD="$1"; shift
 
@@ -77,6 +78,10 @@ case "$CMD" in
     run_node "$(json_args delete --all-managed)"
     for p in standard tracking pair; do create_one "$p"; done
     run_node "$(json_args list)" ;;
+  wipe)
+    [ "${1:-}" = "--yes" ] || { echo 'wipe deletes every budget on the lab server; pass --yes' >&2; exit 2; }
+    announce
+    run_node "$(json_args wipe --yes)" ;;
   download)
     [ $# -eq 2 ] || usage
     mkdir -p "$2"
