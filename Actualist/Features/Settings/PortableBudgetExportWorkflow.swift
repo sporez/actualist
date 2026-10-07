@@ -31,11 +31,18 @@ final class PortableBudgetExportWorkflow {
             let archiveURL = try await store.exportPortableBudgetArchive(budgetID: budgetID)
             guard requestGeneration == generation, !Task.isCancelled else {
                 files.discard(archiveURL)
+                // A superseding request owns the state; otherwise do not
+                // strand `.exporting` after a cancelled task.
+                if requestGeneration == generation { state = .idle }
                 return
             }
             state = .ready(archiveURL)
         } catch {
-            guard requestGeneration == generation, !Task.isCancelled, !error.isCancellation else { return }
+            guard requestGeneration == generation else { return }
+            guard !Task.isCancelled, !error.isCancellation else {
+                state = .idle
+                return
+            }
             state = .failed("The export could not be created. Your budget has not been changed.")
         }
     }

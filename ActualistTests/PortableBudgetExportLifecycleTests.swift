@@ -54,6 +54,19 @@ struct PortableBudgetExportLifecycleTests {
         #expect(workflow.state == .idle)
     }
 
+    @Test(.timeLimit(.minutes(1))) func cancelledExportWithCurrentGenerationReturnsToIdleAndLeavesNoArchive() async throws {
+        let (bundle, files) = try await makeBundle()
+        let workflow = PortableBudgetExportWorkflow(files: files)
+
+        let task = Task { await workflow.export(budgetID: bundle.budget.syncID, store: bundle.store) }
+        task.cancel()
+        await task.value
+
+        #expect(workflow.state == .idle)
+        let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: files.directory.path)) ?? []
+        #expect(leftovers.isEmpty)
+    }
+
     @Test func secondExportRemovesTheFirst() async throws {
         let (bundle, files) = try await makeBundle()
         let workflow = PortableBudgetExportWorkflow(files: files)
