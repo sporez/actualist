@@ -6,17 +6,12 @@ import Testing
 struct BudgetTemplateScheduleDecoderTests {
     private let support = LocalFirstActualStoreTests()
 
-    @Test func databaseDecoderRefusesPatternsAndEndings() async throws {
+    @Test func databaseDecoderRefusesPatterns() async throws {
         let definitions = [
             (
                 "patterns",
                 #"{"start":"2026-01-01","frequency":"monthly","patterns":[{"type":"day","value":15}]}"#,
                 "schedule date patterns are not supported locally yet"
-            ),
-            (
-                "ending",
-                #"{"start":"2026-01-01","frequency":"monthly","endMode":"on_date","endDate":"2026-12-01"}"#,
-                "schedule end dates are not supported locally yet"
             )
         ]
 

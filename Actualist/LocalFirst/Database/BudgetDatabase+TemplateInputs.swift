@@ -540,9 +540,14 @@ extension BudgetDatabase {
         let frequency: String?
         let interval: Int
         if let recurrence {
+            // Upstream `getNextDate` falls back to the last occurrence once an
+            // ending recurrence has no occurrence left, which puts it in the past.
             guard let next = try recurrence.nextDateString(
                 onOrAfter: monthStart,
                 applyWeekendSkip: true,
+                calendar: BudgetTemplateCalendar.gregorian
+            ) ?? recurrence.lastOccurrence(
+                applyWeekendAdjustment: true,
                 calendar: BudgetTemplateCalendar.gregorian
             ) else {
                 throw LocalFirstError.unsupportedTemplate("schedule")
@@ -627,12 +632,6 @@ extension BudgetDatabase {
                     "schedule date patterns are not supported locally yet"
                 )
             }
-            if let endMode = object["endMode"]?.stringValue,
-               endMode != "never", !endMode.isEmpty {
-                throw LocalFirstError.unsupportedTemplate(
-                    "schedule end dates are not supported locally yet"
-                )
-            }
             do {
                 return try ScheduleRuleProjection.recurrence(
                     from: condition.value,
@@ -657,12 +656,5 @@ private extension RuleJSONValue {
         default:
             return nil
         }
-    }
-
-    var stringValue: String? {
-        if case .string(let value) = self {
-            return value
-        }
-        return nil
     }
 }
