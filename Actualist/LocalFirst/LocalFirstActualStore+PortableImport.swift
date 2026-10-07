@@ -74,6 +74,14 @@ extension LocalFirstActualStore {
             defer { if scoped { archiveURL.stopAccessingSecurityScopedResource() } }
             let archive = PortableBudgetArchive()
             validated = try archive.validate(archiveAt: archiveURL, stagingDirectory: stagingRoot)
+            // The new server group starts empty, so the carried CRDT history
+            // is cleared before the upload and the install (upstream
+            // `resetSync`). Never applied to downloads or reimports.
+            do {
+                try BudgetDatabase.resetSyncHistory(atStagedPortableDatabase: validated.databaseURL)
+            } catch {
+                throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
+            }
             archiveBytes = try archive.sanitizedArchiveBytes(
                 databaseAt: validated.databaseURL,
                 metadataAt: validated.metadataURL,
