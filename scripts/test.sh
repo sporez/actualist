@@ -41,6 +41,11 @@ not delete or reclaim that lock, even if the recorded PID is dead or the
 metadata is missing. Recovery means verifying the prior invocation and its
 test activity have ended, then removing the lock. A dead PID is not that
 verification.
+
+A real invocation deletes shut-down simulator clones in
+~/Library/Developer/XCTestDevices: on exit, the ones it created; before it
+starts, any at least 10 minutes old, including the clone Xcode finishes
+creating after the previous run exited. Booted clones are left alone.
 EOF
 }
 
@@ -222,6 +227,46 @@ on_signal() {
   signal_recorded_child
 }
 
+# Parallel testing clones the destination simulator into XCTestDevices, and
+# Xcode 27 leaves a shut-down clone behind after every run. CoreSimulator can
+# finish registering that clone up to a minute after xcodebuild exits, so a
+# run deletes its own shut-down clones on exit and, before it starts, sweeps
+# shut-down clones at least 10 minutes old. Booted clones and younger clones
+# that predate this run may belong to test activity in another checkout.
+clone_set="$HOME/Library/Developer/XCTestDevices"
+clone_sweep_age_seconds=600
+clones_before=""
+
+list_clones() {
+  xcrun simctl --set "$clone_set" list devices 2>/dev/null \
+    | sed -nE "s/^ +Clone [0-9]+ of .+ \(([0-9A-F-]{36})\) \(($1)\) *\$/\1/p" || true
+}
+
+delete_clone() {
+  xcrun simctl --set "$clone_set" delete "$1" 2>/dev/null \
+    || echo "warning: could not delete simulator clone $1" >&2
+}
+
+delete_stale_clones() {
+  [[ -d "$clone_set" ]] || return 0
+  local udid created now
+  now="$(date +%s)"
+  for udid in $(list_clones Shutdown); do
+    created="$(stat -f %m "$clone_set/$udid/device.plist" 2>/dev/null || echo "$now")"
+    (( now - created >= clone_sweep_age_seconds )) || continue
+    delete_clone "$udid"
+  done
+}
+
+delete_new_clones() {
+  [[ -d "$clone_set" ]] || return 0
+  local udid
+  for udid in $(list_clones Shutdown); do
+    [[ "$clones_before" == *"$udid"* ]] && continue
+    delete_clone "$udid"
+  done
+}
+
 trap 'on_signal 2' INT
 trap 'on_signal 15' TERM
 trap 'on_signal 1' HUP
@@ -242,6 +287,11 @@ cd "$ROOT"
 if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
   exit_interrupted "invocation interrupted during setup (${interrupt_signal:-signal}); xcodebuild was not launched"
 fi
+if [[ -d "$clone_set" ]]; then
+  delete_stale_clones
+  clones_before="$(list_clones '[A-Za-z ]+')"
+fi
+trap delete_new_clones EXIT
 set +e
 "${command[@]}" &
 child_pid=$!
