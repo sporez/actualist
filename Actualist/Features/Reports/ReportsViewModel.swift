@@ -22,6 +22,7 @@ final class ReportsViewModel {
     private(set) var isPrivacyModeEnabled = false
     private(set) var currency: BudgetCurrency = .usd
     private var loadGeneration = 0
+    private var refreshToken = 0
 
     func load(using appState: AppState, now: Date = ReportClock.now) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
@@ -44,10 +45,23 @@ final class ReportsViewModel {
             return
         }
 
+        await refresh(
+            sync: { _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true) },
+            reload: { await self.load(using: appState, now: now) }
+        )
+    }
+
+    /// `isRefreshing` belongs to the newest refresh: an earlier overlapping
+    /// refresh finishing first must not clear it while that one still runs.
+    func refresh(sync: () async -> Void, reload: () async -> Void) async {
+        refreshToken += 1
+        let token = refreshToken
         isRefreshing = true
-        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
-        await load(using: appState, now: now)
-        isRefreshing = false
+        await sync()
+        await reload()
+        if token == refreshToken {
+            isRefreshing = false
+        }
     }
 
     func load(

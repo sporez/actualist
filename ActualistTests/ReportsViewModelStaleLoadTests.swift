@@ -61,6 +61,41 @@ struct ReportsViewModelStaleLoadTests {
         #expect(model.snapshotBudgetID == "b")
         #expect(model.snapshot?.netWorth.balance == 200_000)
     }
+
+    @Test func earlierRefreshFinishingFirstDoesNotClearTheNewerRefreshesFlag() async {
+        let model = ReportsViewModel()
+        let olderEntered = TestLatch()
+        let olderRelease = TestLatch()
+        let newerEntered = TestLatch()
+        let newerRelease = TestLatch()
+        let older = Task {
+            await model.refresh(sync: {}, reload: {
+                olderEntered.trip()
+                await olderRelease.wait()
+            })
+        }
+        let newer = Task {
+            await model.refresh(sync: {}, reload: {
+                newerEntered.trip()
+                await newerRelease.wait()
+            })
+        }
+        func releaseAll() {
+            olderEntered.trip(); newerEntered.trip(); olderRelease.trip(); newerRelease.trip()
+        }
+        defer { older.cancel(); newer.cancel(); releaseAll() }
+        let bothStarted = await olderEntered.wait(timeout: .seconds(5), onTimeout: releaseAll)
+        let newerStarted = await newerEntered.wait(timeout: .seconds(5), onTimeout: releaseAll)
+        #expect(bothStarted && newerStarted)
+
+        olderRelease.trip()
+        await older.value
+        #expect(model.isRefreshing)
+
+        newerRelease.trip()
+        await newer.value
+        #expect(!model.isRefreshing)
+    }
 }
 
 @MainActor
