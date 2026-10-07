@@ -91,6 +91,9 @@ extension BudgetDatabase {
     /// rows do not linger in free pages. Throws `invalidDownloadedBudget` for
     /// bytes that are not a usable SQLite database.
     static func sanitizeUntrustedDatabase(at url: URL) throws {
+        #if DEBUG
+        MainThreadCallLog.record("sanitize", key: url.path)
+        #endif
         do {
             let queue = try DatabaseQueue(
                 path: url.path,

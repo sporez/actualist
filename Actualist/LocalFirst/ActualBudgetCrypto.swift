@@ -54,6 +54,9 @@ enum ActualBudgetCrypto {
     }
 
     static func decrypt(_ encrypted: ActualEncryptedData, keyData: Data) throws -> Data {
+        #if DEBUG
+        MainThreadCallLog.record("decrypt", key: encrypted.iv.base64EncodedString())
+        #endif
         guard encrypted.iv.count == nonceByteCount,
               encrypted.authTag.count == authTagByteCount,
               keyData.count == keyByteCount else {

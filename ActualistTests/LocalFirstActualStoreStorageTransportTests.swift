@@ -62,7 +62,7 @@ extension LocalFirstActualStoreTests {
         #expect(try fileManager.importedBudgetFileIDs() == [fileID])
     }
 
-    @Test func budgetArchiveImportAcceptsAValidStagedArchive() throws {
+    @Test func budgetArchiveImportAcceptsAValidStagedArchive() async throws {
         let rootURL = FileManager.default.temporaryDirectory
             .appending(path: "ActualistBudgetArchive-\(UUID().uuidString)", directoryHint: .isDirectory)
         let fileManager = BudgetFileManager(
@@ -76,7 +76,7 @@ extension LocalFirstActualStoreTests {
         let stagingURL = try fileManager.prepareDownloadStaging(fileID: "file-1")
         let sourceURL = rootURL.appending(path: "source.sqlite")
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
-        try DatabaseQueue(path: sourceURL.path).write { db in
+        try await DatabaseQueue(path: sourceURL.path).write { db in
             try db.execute(sql: "CREATE TABLE accounts (id TEXT PRIMARY KEY); INSERT INTO accounts VALUES ('a1')")
         }
         try makeArchive(
@@ -84,14 +84,14 @@ extension LocalFirstActualStoreTests {
             entries: [("nested/db.sqlite", try Data(contentsOf: sourceURL))]
         )
 
-        let databaseURL = try fileManager.importBudgetZip(
+        let databaseURL = try await fileManager.importBudgetZip(
             at: stagingURL,
             remoteFile: testRemoteFile(),
             metadata: testBudgetMetadata()
         )
 
         // Import sanitizes (and rewrites) the file, so compare content, not bytes.
-        let accountIDs = try DatabaseQueue(path: databaseURL.path).read { db in
+        let accountIDs = try await DatabaseQueue(path: databaseURL.path).read { db in
             try String.fetchAll(db, sql: "SELECT id FROM accounts")
         }
         #expect(accountIDs == ["a1"])
@@ -187,7 +187,7 @@ extension LocalFirstActualStoreTests {
         }
     }
 
-    @Test func budgetArchiveImportRejectsZipSlipAndEveryArchiveQuota() throws {
+    @Test func budgetArchiveImportRejectsZipSlipAndEveryArchiveQuota() async throws {
         struct ArchiveCase {
             let name: String
             let limits: LocalFirstResourceLimits
@@ -247,8 +247,8 @@ extension LocalFirstActualStoreTests {
             let stagingURL = try fileManager.prepareDownloadStaging(fileID: "file-1")
             try makeArchive(at: stagingURL, entries: archiveCase.entries)
 
-            #expect(throws: archiveCase.expectedError) {
-                _ = try fileManager.importBudgetZip(
+            await #expect(throws: archiveCase.expectedError) {
+                _ = try await fileManager.importBudgetZip(
                     at: stagingURL,
                     remoteFile: testRemoteFile(),
                     metadata: testBudgetMetadata()

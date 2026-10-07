@@ -100,6 +100,9 @@ struct PortableBudgetArchive {
         archiveAt archiveURL: URL,
         stagingDirectory: URL
     ) throws -> ValidatedArchive {
+        #if DEBUG
+        MainThreadCallLog.record("portableValidate", key: archiveURL.path)
+        #endif
         let compressedSize: UInt64
         do {
             compressedSize = try UntrustedZipExtractor.fileSize(

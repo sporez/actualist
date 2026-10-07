@@ -91,7 +91,7 @@ struct LocalFirstActualStoreScheduleInteropTests {
         )
         let stagingURL = try bundle.fileManager.prepareDownloadStaging(fileID: handoff.fileID)
         try fixtureArchive.write(to: stagingURL, options: .atomic)
-        _ = try bundle.fileManager.importBudgetZip(
+        _ = try await bundle.fileManager.importBudgetZip(
             at: stagingURL,
             remoteFile: ActualSyncRemoteFile(
                 fileID: handoff.fileID,

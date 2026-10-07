@@ -37,21 +37,27 @@ struct BudgetReimportWorkspace {
     let metadataURL: URL
 }
 
-struct BudgetFileManager {
+/// Invariant: every stored property is an immutable `let`; the only
+/// non-Sendable one is the `FileManager`, which is the process default or a test
+/// subclass, never given a delegate, and Foundation documents delegate-less
+/// `FileManager` instances as safe to call from multiple threads. The struct is
+/// Sendable so the import stages (`importBudgetZip`, `decryptStagedDownload`) can
+/// run `@concurrent` off the main actor.
+struct BudgetFileManager: @unchecked Sendable {
     private static let sqliteSidecarSuffixes = ["-wal", "-shm", "-journal"]
     private static let logger = Logger(subsystem: "com.sporez.actualist", category: "BudgetFiles")
 
     let applicationSupportURL: URL
     private let fileManager: FileManager
     private let resourceLimits: LocalFirstResourceLimits
-    private let reimportFailureInjector: ((BudgetReimportCheckpoint) throws -> Void)?
+    private let reimportFailureInjector: (@Sendable (BudgetReimportCheckpoint) throws -> Void)?
     private let launchSnapshotAccess: BudgetLaunchSnapshotFileAccess
 
     init(
         applicationSupportURL: URL? = nil,
         fileManager: FileManager = .default,
         resourceLimits: LocalFirstResourceLimits = .standard,
-        reimportFailureInjector: ((BudgetReimportCheckpoint) throws -> Void)? = nil
+        reimportFailureInjector: (@Sendable (BudgetReimportCheckpoint) throws -> Void)? = nil
     ) {
         self.fileManager = fileManager
         self.resourceLimits = resourceLimits
@@ -307,11 +313,30 @@ struct BudgetFileManager {
         try validateStagedDownload(at: stagingURL)
     }
 
+    /// Reads the staged encrypted download, decrypts it in memory and replaces
+    /// the staged file with the plaintext ZIP. Runs off the main actor; the
+    /// whole file is still held in memory (streaming is out of scope).
+    @concurrent
+    func decryptStagedDownload(
+        at stagingURL: URL,
+        encryptMeta: ActualEncryptedMetadata,
+        keyData: Data
+    ) async throws {
+        let encryptedData = try Data(contentsOf: stagingURL, options: .mappedIfSafe)
+        let budgetData = try ActualBudgetCrypto.decrypt(
+            encryptMeta.encryptedData(encryptedData),
+            keyData: keyData
+        )
+        try replaceStagedDownload(at: stagingURL, with: budgetData)
+    }
+
+    /// ZIP extraction, sanitizing and install run off the main actor.
+    @concurrent
     func importBudgetZip(
         at stagedArchiveURL: URL,
         remoteFile: ActualSyncRemoteFile,
         metadata: LocalFirstBudgetMetadata
-    ) throws -> URL {
+    ) async throws -> URL {
         try migrateLegacyBudgetDirectoryIfNeeded(fileID: remoteFile.fileID)
         let directory = try budgetDirectory(fileID: remoteFile.fileID)
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -326,11 +351,12 @@ struct BudgetFileManager {
         )
     }
 
+    @concurrent
     func importBudgetZip(
         at stagedArchiveURL: URL,
         into workspace: BudgetReimportWorkspace,
         metadata: LocalFirstBudgetMetadata
-    ) throws -> URL {
+    ) async throws -> URL {
         try reimportCheckpoint(.beforeExtract)
         return try importBudgetZip(
             at: stagedArchiveURL,
@@ -438,6 +464,9 @@ struct BudgetFileManager {
         metadataURL: URL,
         metadata: LocalFirstBudgetMetadata
     ) throws -> URL {
+        #if DEBUG
+        MainThreadCallLog.record("importBudgetZip", key: stagedArchiveURL.path)
+        #endif
         let directory = try containedURL(directory)
         let zipURL = try containedURL(stagedArchiveURL)
         defer { try? fileManager.removeItem(at: zipURL) }

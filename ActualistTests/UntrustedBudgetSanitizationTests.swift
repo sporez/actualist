@@ -136,7 +136,7 @@ struct UntrustedBudgetSanitizationTests {
         let database = try Data(contentsOf: try makeHostileDatabaseURL())
         let (fileManager, stagingURL) = try makeDownloadFixture(entries: [("db.sqlite", database)])
 
-        let imported = try fileManager.importBudgetZip(
+        let imported = try await fileManager.importBudgetZip(
             at: stagingURL,
             remoteFile: support.testRemoteFile(),
             metadata: support.testBudgetMetadata()
@@ -260,56 +260,56 @@ struct UntrustedBudgetSanitizationTests {
         }
     }
 
-    @Test func siblingSqliteFileDoesNotShadowDbSqlite() throws {
+    @Test func siblingSqliteFileDoesNotShadowDbSqlite() async throws {
         let (fileManager, stagingURL) = try makeDownloadFixture(entries: [
             ("a.sqlite", try tinyValidDatabase(marker: "wrong")),
             ("db.sqlite", try tinyValidDatabase(marker: "right"))
         ])
-        let imported = try fileManager.importBudgetZip(
+        let imported = try await fileManager.importBudgetZip(
             at: stagingURL, remoteFile: support.testRemoteFile(), metadata: support.testBudgetMetadata()
         )
         #expect(try firstAccountID(at: imported) == "right")
     }
 
-    @Test func onlyANonDbSqliteNameIsRejected() throws {
+    @Test func onlyANonDbSqliteNameIsRejected() async throws {
         let (fileManager, stagingURL) = try makeDownloadFixture(entries: [
             ("x.sqlite", try tinyValidDatabase(marker: "x"))
         ])
-        #expect(throws: LocalFirstError.missingImportedDatabase) {
-            try fileManager.importBudgetZip(
+        await #expect(throws: LocalFirstError.missingImportedDatabase) {
+            try await fileManager.importBudgetZip(
                 at: stagingURL, remoteFile: support.testRemoteFile(), metadata: support.testBudgetMetadata()
             )
         }
     }
 
-    @Test func twoNestedDbSqliteFilesAreRejected() throws {
+    @Test func twoNestedDbSqliteFilesAreRejected() async throws {
         let (fileManager, stagingURL) = try makeDownloadFixture(entries: [
             ("one/db.sqlite", try tinyValidDatabase(marker: "one")),
             ("two/db.sqlite", try tinyValidDatabase(marker: "two"))
         ])
-        #expect(throws: LocalFirstError.invalidDownloadedBudget) {
-            try fileManager.importBudgetZip(
+        await #expect(throws: LocalFirstError.invalidDownloadedBudget) {
+            try await fileManager.importBudgetZip(
                 at: stagingURL, remoteFile: support.testRemoteFile(), metadata: support.testBudgetMetadata()
             )
         }
     }
 
-    @Test func rootDbSqlitePreferredOverNested() throws {
+    @Test func rootDbSqlitePreferredOverNested() async throws {
         let (fileManager, stagingURL) = try makeDownloadFixture(entries: [
             ("nested/db.sqlite", try tinyValidDatabase(marker: "nested")),
             ("db.sqlite", try tinyValidDatabase(marker: "root"))
         ])
-        let imported = try fileManager.importBudgetZip(
+        let imported = try await fileManager.importBudgetZip(
             at: stagingURL, remoteFile: support.testRemoteFile(), metadata: support.testBudgetMetadata()
         )
         #expect(try firstAccountID(at: imported) == "root")
     }
 
-    @Test func singleNestedDbSqliteIsAccepted() throws {
+    @Test func singleNestedDbSqliteIsAccepted() async throws {
         let (fileManager, stagingURL) = try makeDownloadFixture(entries: [
             ("nested/db.sqlite", try tinyValidDatabase(marker: "nested"))
         ])
-        let imported = try fileManager.importBudgetZip(
+        let imported = try await fileManager.importBudgetZip(
             at: stagingURL, remoteFile: support.testRemoteFile(), metadata: support.testBudgetMetadata()
         )
         #expect(try firstAccountID(at: imported) == "nested")

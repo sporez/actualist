@@ -253,7 +253,7 @@ private func makeFirstDownloadStore(
     return store
 }
 
-private func makeUserKeyResponse(
+func makeUserKeyResponse(
     password: String,
     keyID: String,
     salt: String

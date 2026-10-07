@@ -11,6 +11,7 @@ extension LocalFirstActualStore {
     /// touches a sync or connection transport.
     func openDemoBudget(tracking: Bool = false) async throws {
         let fileID = DemoBudget.fileID
+        let expectedGeneration = budgetSessionGeneration
         let needsInstall = try demoBudgetNeedsInstall(fileID: fileID)
         if needsInstall || tracking {
             try fileManager.deleteImportedBudget(fileID: fileID)
@@ -23,13 +24,15 @@ extension LocalFirstActualStore {
                 groupID: DemoBudget.groupID,
                 name: DemoBudget.name
             )
-            _ = try fileManager.importBudgetZip(
+            _ = try await fileManager.importBudgetZip(
                 at: stagingURL,
                 remoteFile: remoteFile,
                 metadata: DemoBudget.metadata()
             )
         }
-        try await openImportedBudget(fileID: fileID, metadata: DemoBudget.metadata())
+        try await openImportedBudget(
+            fileID: fileID, metadata: DemoBudget.metadata(), expectedGeneration: expectedGeneration
+        )
     }
 
     /// Reinstall when the demo budget is missing or the on-disk version no

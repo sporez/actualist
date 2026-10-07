@@ -67,27 +67,10 @@ extension LocalFirstActualStore {
         // carries the sanitized re-zip of the validated pair — never the raw
         // user zip, whose embedded metadata and unvalidated extra entries
         // must not reach the server.
-        let validated: PortableBudgetArchive.ValidatedArchive
-        let archiveBytes: Data
-        do {
-            let scoped = archiveURL.startAccessingSecurityScopedResource()
-            defer { if scoped { archiveURL.stopAccessingSecurityScopedResource() } }
-            let archive = PortableBudgetArchive()
-            validated = try archive.validate(archiveAt: archiveURL, stagingDirectory: stagingRoot)
-            // The new server group starts empty, so the carried CRDT history
-            // is cleared before the upload and the install (upstream
-            // `resetSync`). Never applied to downloads or reimports.
-            do {
-                try BudgetDatabase.resetSyncHistory(atStagedPortableDatabase: validated.databaseURL)
-            } catch {
-                throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
-            }
-            archiveBytes = try archive.sanitizedArchiveBytes(
-                databaseAt: validated.databaseURL,
-                metadataAt: validated.metadataURL,
-                stagingDirectory: stagingRoot
-            )
-        }
+        let (validated, archiveBytes) = try await Self.validatePortableArchive(
+            at: archiveURL,
+            stagingRoot: stagingRoot
+        )
 
         let nodeID = HybridLogicalClock.makeClientID()
         var savedKeyID: String?
@@ -143,5 +126,33 @@ extension LocalFirstActualStore {
             discardSavedEncryptionKey(fileID: fileID, keyID: savedKeyID)
             throw error
         }
+    }
+
+    /// Extraction, sanitizing, validation and the sanitized re-zip are blocking
+    /// file and SQLite work, so they run off the main actor. Nothing local is
+    /// touched here; the staged pair lives under `stagingRoot`.
+    @concurrent
+    private static func validatePortableArchive(
+        at archiveURL: URL,
+        stagingRoot: URL
+    ) async throws -> (PortableBudgetArchive.ValidatedArchive, Data) {
+        let scoped = archiveURL.startAccessingSecurityScopedResource()
+        defer { if scoped { archiveURL.stopAccessingSecurityScopedResource() } }
+        let archive = PortableBudgetArchive()
+        let validated = try archive.validate(archiveAt: archiveURL, stagingDirectory: stagingRoot)
+        // The new server group starts empty, so the carried CRDT history
+        // is cleared before the upload and the install (upstream
+        // `resetSync`). Never applied to downloads or reimports.
+        do {
+            try BudgetDatabase.resetSyncHistory(atStagedPortableDatabase: validated.databaseURL)
+        } catch {
+            throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
+        }
+        let archiveBytes = try archive.sanitizedArchiveBytes(
+            databaseAt: validated.databaseURL,
+            metadataAt: validated.metadataURL,
+            stagingDirectory: stagingRoot
+        )
+        return (validated, archiveBytes)
     }
 }

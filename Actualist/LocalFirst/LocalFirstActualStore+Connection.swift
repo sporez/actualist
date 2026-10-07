@@ -237,12 +237,13 @@ extension LocalFirstActualStore {
             guard let encryptionContext else {
                 throw LocalFirstError.encryptedBudgetRequiresPassword
             }
-            let encryptedData = try Data(contentsOf: stagedArchiveURL, options: .mappedIfSafe)
-            let budgetData = try ActualBudgetCrypto.decrypt(
-                encryptMeta.encryptedData(encryptedData),
+            try await fileManager.decryptStagedDownload(
+                at: stagedArchiveURL,
+                encryptMeta: encryptMeta,
                 keyData: encryptionContext.keyData
             )
-            try fileManager.replaceStagedDownload(at: stagedArchiveURL, with: budgetData)
+            try Task.checkCancellation()
+            guard originalGeneration == budgetSessionGeneration else { throw CancellationError() }
         }
         let metadata = LocalFirstBudgetMetadata(
             localBudgetID: fileID,
@@ -252,11 +253,13 @@ extension LocalFirstActualStore {
             encryptionKeyID: remote.syncEncryptionKeyID,
             nodeID: HybridLogicalClock.makeClientID()
         )
-        _ = try fileManager.importBudgetZip(
+        _ = try await fileManager.importBudgetZip(
             at: stagedArchiveURL,
             remoteFile: remote,
             metadata: metadata
         )
+        try Task.checkCancellation()
+        guard originalGeneration == budgetSessionGeneration else { throw CancellationError() }
         try await openImportedBudget(
             fileID: fileID, metadata: metadata,
             encryptionContext: encryptionContext, expectedGeneration: originalGeneration
@@ -375,12 +378,12 @@ extension LocalFirstActualStore {
             guard let encryptionContext else {
                 throw LocalFirstError.encryptedBudgetRequiresPassword
             }
-            let encryptedData = try Data(contentsOf: workspace.archiveURL, options: .mappedIfSafe)
-            let budgetData = try ActualBudgetCrypto.decrypt(
-                encryptMeta.encryptedData(encryptedData),
+            try await fileManager.decryptStagedDownload(
+                at: workspace.archiveURL,
+                encryptMeta: encryptMeta,
                 keyData: encryptionContext.keyData
             )
-            try fileManager.replaceStagedDownload(at: workspace.archiveURL, with: budgetData)
+            try requireSyncSession(database: sourceDatabase, budgetID: budget.syncID, generation: sourceGeneration)
         }
 
         let metadata = LocalFirstBudgetMetadata(
@@ -391,11 +394,12 @@ extension LocalFirstActualStore {
             encryptionKeyID: remote.syncEncryptionKeyID,
             nodeID: originalMetadata.nodeID
         )
-        _ = try fileManager.importBudgetZip(
+        _ = try await fileManager.importBudgetZip(
             at: workspace.archiveURL,
             into: workspace,
             metadata: metadata
         )
+        try requireSyncSession(database: sourceDatabase, budgetID: budget.syncID, generation: sourceGeneration)
         let validationDatabase = try await BudgetDatabase.open(
             databaseURL: workspace.databaseURL,
             localNodeID: metadata.nodeID
