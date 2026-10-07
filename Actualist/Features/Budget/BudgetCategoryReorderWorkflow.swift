@@ -6,18 +6,17 @@ final class BudgetCategoryReorderWorkflow {
     private(set) var draft: BudgetCategoryOutlineDraft?
     private(set) var isSubmitting = false
     private(set) var errorMessage: String?
-    private var generation = 0
 
     func begin(groups: [BudgetMonthCategoryGroup], isTrackingBudget: Bool) {
-        generation += 1
-        isSubmitting = false
+        guard !isSubmitting else { return }
         errorMessage = nil
         draft = BudgetCategoryOutlineDraft(groups: groups, isTrackingBudget: isTrackingBudget)
     }
 
+    /// A committed write cannot be cancelled; teardown while submitting is refused
+    /// so the result still reaches the caller and a second save is rejected.
     func cancel() {
-        generation += 1
-        isSubmitting = false
+        guard !isSubmitting else { return }
         errorMessage = nil
         draft = nil
     }
@@ -50,20 +49,16 @@ final class BudgetCategoryReorderWorkflow {
             errorMessage = "No budget is open."
             return nil
         }
-        generation += 1
-        let token = generation
         isSubmitting = true
         errorMessage = nil
         do {
             let loaded = try await repository.applyCategoryOutlineAndRefresh(
                 draft: command, budgetID: budgetID, month: selectedMonth
             )
-            guard token == generation else { return nil }
             isSubmitting = false
             draft = nil
             return loaded
         } catch {
-            guard token == generation else { return nil }
             isSubmitting = false
             errorMessage = error.userFacingMessage
             return nil

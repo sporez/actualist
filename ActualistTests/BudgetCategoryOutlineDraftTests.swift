@@ -50,6 +50,31 @@ struct BudgetCategoryOutlineDraftTests {
         #expect(await repository.outlines.isEmpty)
     }
 
+    @Test @MainActor func cancelAndBeginDuringAnInFlightReorderSaveAreRefusedAndTheResultIsPublished() async throws {
+        let repository = CategoryLifecycleRecordingRepository(suspendWrites: true)
+        let workflow = BudgetCategoryReorderWorkflow()
+        workflow.begin(groups: groups, isTrackingBudget: false)
+        workflow.moveGroup(id: "bills", beforeGroupID: "everyday")
+        let first = Task { @MainActor in
+            await workflow.save(selectedMonth: "2026-07", budgetID: "budget", repository: repository)
+        }
+        await repository.writeEntered.wait()
+
+        defer { repository.writeRelease.trip() }
+        workflow.cancel()
+        workflow.begin(groups: groups, isTrackingBudget: false)
+        try #require(workflow.isSubmitting)
+        #expect(workflow.draft != nil)
+        let second = await workflow.save(selectedMonth: "2026-07", budgetID: "budget", repository: repository)
+        #expect(second == nil)
+
+        repository.writeRelease.trip()
+        #expect(await first.value != nil)
+        #expect(!workflow.isSubmitting)
+        #expect(workflow.draft == nil)
+        #expect(await repository.outlines.count == 1)
+    }
+
     private var groups: [BudgetMonthCategoryGroup] {
         [
             group("everyday", "Everyday", false, [category("food", "Food", false, "everyday"), category("fuel", "Fuel", false, "everyday")]),
