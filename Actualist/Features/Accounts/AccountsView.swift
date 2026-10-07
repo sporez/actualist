@@ -581,6 +581,7 @@ private struct AddAccountSheet: View {
                         viewModel.reset()
                         dismiss()
                     }
+                    .disabled(viewModel.isSubmitting)
                 }
             }
         }

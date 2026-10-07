@@ -38,10 +38,16 @@ final class AddAccountViewModel {
         !trimmedName.isEmpty && !isSubmitting
     }
 
+    /// Clears the draft. A running submit keeps its busy state, so a second
+    /// create cannot start underneath it.
     func reset() {
+        guard !isSubmitting else { return }
+        clearDraft()
+    }
+
+    private func clearDraft() {
         name = ""
         kind = .budget
-        isSubmitting = false
         errorMessage = nil
     }
 
@@ -80,7 +86,7 @@ final class AddAccountViewModel {
                 name: accountName,
                 offbudget: kind.offbudget
             )
-            reset()
+            clearDraft()
             return true
         } catch {
             errorMessage = error.userFacingMessage
