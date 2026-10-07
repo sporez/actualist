@@ -7,11 +7,17 @@ struct TransactionCSVEncoder {
     ]
     private static let formulaTriggers: Set<Unicode.Scalar> = ["=", "+", "-", "@", "\t", "\r"]
 
+    /// Runs off the main thread: a long account's export is O(rows) string work.
+    @concurrent
     func encode(
         _ rows: [TransactionCSVExportRow],
         generatedAt: Date = Date(),
         calendar: Calendar = Self.utcCalendar
-    ) -> TransactionCSVExport {
+    ) async -> TransactionCSVExport {
+        #if DEBUG
+        MainThreadCallLog.record("csvEncode", key: rows.map(\.id).joined(separator: ","))
+        dispatchPrecondition(condition: .notOnQueue(.main))
+        #endif
         let childrenByParent = Dictionary(grouping: rows.filter(\.isChild), by: \.familyID)
         var output = [Self.headers.map(Self.csvCell).joined(separator: ",")]
         output.reserveCapacity(rows.count + 1)

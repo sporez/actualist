@@ -379,7 +379,7 @@ struct TransactionCSVImportTests {
                 isParent: false, isChild: false
             ),
         ]
-        let export = TransactionCSVEncoder().encode(exportedRows, generatedAt: Self.fixedGenerationDate())
+        let export = await TransactionCSVEncoder().encode(exportedRows, generatedAt: Self.fixedGenerationDate())
 
         let review = try await bundle.store.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(

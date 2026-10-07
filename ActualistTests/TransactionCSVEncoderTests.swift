@@ -3,8 +3,8 @@ import Testing
 @testable import Actualist
 
 struct TransactionCSVEncoderTests {
-    @Test func writesPinnedActualHeaderRowsLFAndFinalNewline() throws {
-        let export = TransactionCSVEncoder().encode(
+    @Test func writesPinnedActualHeaderRowsLFAndFinalNewline() async throws {
+        let export = await TransactionCSVEncoder().encode(
             [row(id: "one", amount: -12345, isCleared: true)],
             generatedAt: date(2026, 9, 28)
         )
@@ -15,8 +15,8 @@ struct TransactionCSVEncoderTests {
         #expect(export.exportedRowCount == 1)
     }
 
-    @Test func quotesCSVControlsAndPrefixesFormulaLikeTextButNotNegativeNumbers() throws {
-        let export = TransactionCSVEncoder().encode([
+    @Test func quotesCSVControlsAndPrefixesFormulaLikeTextButNotNegativeNumbers() async throws {
+        let export = await TransactionCSVEncoder().encode([
             row(id: "one", payee: "=shop,\"x\"", notes: "line 1\r\nline 2", amount: -2500)
         ])
         let csv = try #require(String(data: export.data, encoding: .utf8))
@@ -27,7 +27,7 @@ struct TransactionCSVEncoderTests {
             for field in 0..<6 {
                 var values = Array(repeating: "ordinary", count: 6)
                 values[field] = "\(trigger)input"
-                let value = TransactionCSVEncoder().encode([row(
+                let value = await TransactionCSVEncoder().encode([row(
                     id: "trigger-\(field)", account: values[0], payee: values[2],
                     notes: values[3], categoryGroup: values[4], category: values[5], date: values[1]
                 )])
@@ -37,8 +37,8 @@ struct TransactionCSVEncoderTests {
         }
     }
 
-    @Test func quotesStandaloneCarriageReturnAndLineFeed() {
-        let export = TransactionCSVEncoder().encode([
+    @Test func quotesStandaloneCarriageReturnAndLineFeed() async {
+        let export = await TransactionCSVEncoder().encode([
             row(id: "carriage-return", notes: "before\rafter"),
             row(id: "line-feed", notes: "before\nafter"),
         ])
@@ -47,8 +47,8 @@ struct TransactionCSVEncoderTests {
         #expect(csv.contains("\"before\nafter\""))
     }
 
-    @Test func writesActualSplitMarkersAndReconciledStatus() throws {
-        let export = TransactionCSVEncoder().encode([
+    @Test func writesActualSplitMarkersAndReconciledStatus() async throws {
+        let export = await TransactionCSVEncoder().encode([
             row(id: "parent", family: "parent", notes: "envelope", amount: -5000, isParent: true),
             row(id: "child-a", family: "parent", amount: -3000, isChild: true),
             row(id: "child-b", family: "parent", amount: -2000, isReconciled: true, isChild: true),
@@ -61,13 +61,13 @@ struct TransactionCSVEncoderTests {
         #expect(export.exportedRowCount == 3)
     }
 
-    @Test func triggerLeadingDateIsSanitizedLikeEveryOtherStringCell() {
-        let export = TransactionCSVEncoder().encode([row(id: "date", date: "=2026-09-01")])
+    @Test func triggerLeadingDateIsSanitizedLikeEveryOtherStringCell() async {
+        let export = await TransactionCSVEncoder().encode([row(id: "date", date: "=2026-09-01")])
         #expect(String(decoding: export.data, as: UTF8.self).contains(",'=2026-09-01,"))
     }
 
-    @Test func preservesExactExtremeAmountAndEmptyNamesInLocaleNeutralCSV() throws {
-        let export = TransactionCSVEncoder().encode([
+    @Test func preservesExactExtremeAmountAndEmptyNamesInLocaleNeutralCSV() async throws {
+        let export = await TransactionCSVEncoder().encode([
             row(id: "empty", account: "", payee: "", categoryGroup: "", category: "", amount: Int.min),
         ])
         let csv = try #require(String(data: export.data, encoding: .utf8))
@@ -75,8 +75,8 @@ struct TransactionCSVEncoderTests {
         #expect(!csv.contains("-92,233,720"))
     }
 
-    @Test func retainsTheDatabaseProvidedRowOrder() throws {
-        let export = TransactionCSVEncoder().encode([
+    @Test func retainsTheDatabaseProvidedRowOrder() async throws {
+        let export = await TransactionCSVEncoder().encode([
             row(id: "first", payee: "First"),
             row(id: "second", payee: "Second"),
         ])
@@ -194,5 +194,22 @@ struct TransactionCSVExportDatabaseTests {
         #expect(pendingAfterExport == pendingAfterWrite)
         #expect(bundle.store.pendingLocalMessageFlushTask == nil)
         #expect(await transport.messageCounts().isEmpty)
+    }
+
+    @Test func storeCSVExportEncodesOffTheMainThread() async throws {
+        let support = LocalFirstActualStoreTests()
+        let bundle = try await support.makeOpenedWritableStoreBundle()
+        let database = try #require(bundle.store.database)
+        let rows = try await database.fetchTransactionCSVExportRows(accountID: "checking", query: .all)
+        let firstID = try #require(rows.first?.id)
+
+        _ = try await bundle.store.exportTransactionsCSV(
+            TransactionCSVExportRequest(budgetID: "group-1", accountID: "checking", query: .all)
+        )
+
+        #expect(
+            MainThreadCallLog.mainThreadCalls(stage: "csvEncode", keyContaining: firstID).isEmpty,
+            "csvEncode ran on the main thread"
+        )
     }
 }

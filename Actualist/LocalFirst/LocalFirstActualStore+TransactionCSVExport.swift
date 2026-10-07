@@ -15,6 +15,6 @@ extension LocalFirstActualStore: TransactionCSVExportRepositoryProtocol {
               openedBudgetID == request.budgetID else {
             throw CancellationError()
         }
-        return TransactionCSVEncoder().encode(rows)
+        return await TransactionCSVEncoder().encode(rows)
     }
 }

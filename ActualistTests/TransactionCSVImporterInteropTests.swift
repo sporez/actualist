@@ -19,10 +19,10 @@ struct TransactionCSVImporterInteropTests {
             "Requires the reviewed CSV interoperability runner; a normal suite records this test as skipped."
         )
     )
-    func writesActualImporterInteropFixture() throws {
+    func writesActualImporterInteropFixture() async throws {
         let configuration = try configuration()
         let cases = fixtureCases()
-        let export = TransactionCSVEncoder().encode(cases.map(\.row), generatedAt: fixedGenerationDate())
+        let export = await TransactionCSVEncoder().encode(cases.map(\.row), generatedAt: fixedGenerationDate())
 
         #expect(export.exportedFamilyCount == 7)
         #expect(export.exportedRowCount == cases.count)
