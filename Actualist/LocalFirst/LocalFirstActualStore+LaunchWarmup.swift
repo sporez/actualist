@@ -16,25 +16,37 @@ extension LocalFirstActualStore {
             guard owns(database, budgetID: budgetID) else { return }
             await LaunchSignpost.measure(LaunchStage.payeeWarmup) {
                 let snapshot = try? await database.fetchPayeeManagementSnapshot()
-                guard owns(database, budgetID: budgetID) else { return }
-                payeesByBudget[budgetID] = snapshot?
+                guard owns(database, budgetID: budgetID), let snapshot else { return }
+                payeesByBudget[budgetID] = snapshot
                     .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
             }
             guard owns(database, budgetID: budgetID) else { return }
             await LaunchSignpost.measure(LaunchStage.diagnosticWarmup) {
                 let snapshot = try? await database.actionLogDiagnosticSnapshot()
-                guard owns(database, budgetID: budgetID) else { return }
-                actionLogDiagnosticSnapshot = snapshot ?? .empty
+                guard owns(database, budgetID: budgetID), let snapshot else { return }
+                actionLogDiagnosticSnapshot = snapshot
             }
             guard owns(database, budgetID: budgetID) else { return }
             await LaunchSignpost.measure(LaunchStage.syncStatusRestore) {
+                // Sequenced like `recordSyncStatus`: a pending count read before a
+                // newer status landed must not overwrite it.
+                syncStatusSequence &+= 1
+                let sequence = syncStatusSequence
                 let checkpoint = try? await database.localSyncCheckpoint()
-                let pending = (try? await database.pendingLocalSyncMessageCount()) ?? 0
+                let pending = try? await database.pendingLocalSyncMessageCount()
+                #if DEBUG
+                await readPublicationHook?(.launchWarmupSyncStatus)
+                #endif
                 guard owns(database, budgetID: budgetID) else { return }
-                syncStatus?.lastSyncedAt = checkpoint?.lastSyncedAt
-                syncStatus?.lastAppliedMessageCount = checkpoint?.lastAppliedMessageCount ?? 0
-                syncStatus?.lastUploadedMessageCount = checkpoint?.lastUploadedMessageCount ?? 0
-                syncStatus?.pendingLocalMessageCount = pending
+                if let checkpoint {
+                    syncStatus?.lastSyncedAt = checkpoint.lastSyncedAt
+                    syncStatus?.lastAppliedMessageCount = checkpoint.lastAppliedMessageCount
+                    syncStatus?.lastUploadedMessageCount = checkpoint.lastUploadedMessageCount
+                }
+                if let pending, sequence > appliedPendingCountSequence {
+                    appliedPendingCountSequence = sequence
+                    syncStatus?.pendingLocalMessageCount = pending
+                }
             }
         }
     }

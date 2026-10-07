@@ -129,4 +129,25 @@ extension LocalFirstActualStoreTests {
         #expect(cached.transactions.first { $0.id == "loose" }?.notes == "newer")
     }
 
+    @Test func launchWarmupDoesNotOverwriteANewerPendingCountWithAnOlderRead() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let store = bundle.store
+        store.syncStatus = LocalFirstSyncStatus(fileID: "group-1", groupID: "group-1")
+        let database = try #require(store.database)
+
+        let result: Result<Void, any Error> = try await parkedRead(.launchWarmupSyncStatus, on: store, read: {
+            await store.warmLaunchCaches(budgetID: "group-1")
+        }, whileParked: {
+            var builder = LocalFirstSyncMessageBuilder()
+            let draft = try builder.makeMessage(
+                dataset: "accounts", row: "warm-write", column: "name", value: .string("Warm")
+            )
+            #expect(try await database.commitLocalSyncMessagesAndEnqueue([draft]) == 1)
+            await store.recordSyncStatus(budgetID: "group-1", uploadedCount: nil, appliedCount: nil, error: nil)
+        })
+
+        try result.get()
+        #expect(store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == 1)
+    }
+
 }
