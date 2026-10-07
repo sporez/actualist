@@ -228,19 +228,40 @@ extension BudgetDatabase {
     func bankSyncExistingRows(
         accountID: String,
         window: ClosedRange<Int>,
-        ids: [String]? = nil
+        ids: [String]? = nil,
+        orImportedIDs: Set<String> = []
     ) throws -> [BankSyncReconciliation.Existing] {
         if let ids, ids.isEmpty { return [] }
         let idChunks: [[String]?] = ids.map { all in
             stride(from: 0, to: all.count, by: 500).map { Array(all[$0..<min($0 + 500, all.count)]) }
         } ?? [nil]
-        return try idChunks.flatMap { chunk in try bankSyncExistingRows(accountID: accountID, window: window, idChunk: chunk) }
+        guard !orImportedIDs.isEmpty else {
+            return try idChunks.flatMap { chunk in
+                try bankSyncExistingRows(accountID: accountID, window: window, idChunk: chunk, importedIDChunk: [])
+            }
+        }
+        // The exact `imported_id` tier is not date-bound, so rows carrying one
+        // of these ids join the window; chunked to stay under SQLite's
+        // bound-variable limit, then de-duplicated in first-seen order.
+        let sortedIDs = orImportedIDs.sorted()
+        let importedChunks = stride(from: 0, to: sortedIDs.count, by: 500).map {
+            Array(sortedIDs[$0..<min($0 + 500, sortedIDs.count)])
+        }
+        var seen = Set<String>()
+        return try idChunks.flatMap { chunk in
+            try importedChunks.flatMap { importedChunk in
+                try bankSyncExistingRows(
+                    accountID: accountID, window: window, idChunk: chunk, importedIDChunk: importedChunk
+                )
+            }
+        }.filter { seen.insert($0.id).inserted }
     }
 
     private func bankSyncExistingRows(
         accountID: String,
         window: ClosedRange<Int>,
-        idChunk: [String]?
+        idChunk: [String]?,
+        importedIDChunk: [String]
     ) throws -> [BankSyncReconciliation.Existing] {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else { return [] }
@@ -253,6 +274,14 @@ extension BudgetDatabase {
             let importedPayeeSelect = importedPayeeColumn.map { "t.\($0)" } ?? "NULL"
             let transferIDSelect = transferIDColumn.map { "t.\($0)" } ?? "NULL"
 
+            let importedIDScope = financialIDColumn.flatMap { column -> String? in
+                importedIDChunk.isEmpty
+                    ? nil
+                    : "t.\(column) IN (\(Array(repeating: "?", count: importedIDChunk.count).joined(separator: ",")))"
+            }
+            let dateScope = importedIDScope.map {
+                "(\(split.qualifiedDate) BETWEEN ? AND ? OR \($0))"
+            } ?? "\(split.qualifiedDate) BETWEEN ? AND ?"
             let sql = """
                 SELECT t.id AS id,
                        \(financialIDSelect) AS financial_id,
@@ -271,7 +300,7 @@ extension BudgetDatabase {
                 FROM transactions t
                 \(split.parentJoin())
                 WHERE \(split.qualifiedAccount) = ?
-                  AND \(split.qualifiedDate) BETWEEN ? AND ?
+                  AND \(dateScope)
                   AND \(split.liveEffectivePredicate())
                   \(idChunk.map { "AND t.id IN (\(Array(repeating: "?", count: $0.count).joined(separator: ",")))" } ?? "")
                 """
@@ -279,6 +308,7 @@ extension BudgetDatabase {
                 db,
                 sql: sql,
                 arguments: StatementArguments([accountID, window.lowerBound, window.upperBound] as [any DatabaseValueConvertible])
+                    + StatementArguments(importedIDScope == nil ? [] : importedIDChunk)
                     + StatementArguments(idChunk ?? [])
             ).compactMap { row in
                 guard let id: String = row["id"],
@@ -334,9 +364,11 @@ extension BudgetDatabase {
 
     /// Actual 26.9.0 matchTransactions defaults a missing preference to true.
     /// Deleted IDs are account-wide dedupe keys, never mutable match rows.
-    func bankSyncSuppressedFinancialIDs(accountID: String) throws -> Set<String> {
+    /// `ignoringPreference` is the explicit `reimportDeleted: false` option.
+    func bankSyncSuppressedFinancialIDs(accountID: String, ignoringPreference: Bool = false) throws -> Set<String> {
         try queue.read { db in
-            let reimportDeleted = try preferenceValue("sync-reimport-deleted-\(accountID)", db: db) ?? "true"
+            let preference = try preferenceValue("sync-reimport-deleted-\(accountID)", db: db)
+            let reimportDeleted = ignoringPreference ? "false" : (preference ?? "true")
             guard reimportDeleted != "true",
                   try tableExists("transactions", db: db) else { return [] }
             let columns = try columnSet(for: "transactions", db: db)

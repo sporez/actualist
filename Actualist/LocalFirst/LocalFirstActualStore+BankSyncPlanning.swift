@@ -150,7 +150,10 @@ extension LocalFirstActualStore {
         }
 
         let allDrafts = prepared.flatMap(\.ruleDrafts)
-        let previews = try await database.previewRules(for: allDrafts, dateTimeZone: ActualDateOnly.utc)
+        let previews = try await database.previewRules(
+            for: allDrafts,
+            dateTimeZone: ImportReconcileProjection.ruleDateTimeZone
+        )
         guard previews.count == allDrafts.count else {
             throw LocalFirstError.invalidLocalWrite("missing bank sync rule preview")
         }
@@ -158,28 +161,18 @@ extension LocalFirstActualStore {
         for index in prepared.indices {
             try Task.checkCancellation()
             let count = prepared[index].candidates.count
-            let accountPreviews = previews[previewOffset..<(previewOffset + count)]
-            var projected: [BankSyncReconciliation.Candidate] = []
-            projected.reserveCapacity(count)
-            for (candidate, preview) in zip(
-                prepared[index].candidates,
-                accountPreviews
-            ) {
-                if let destination = preview.accountID, destination != linked[index].id {
-                    prepared[index].problems.append(
-                        .unsupportedAccountMove(remoteTransactionID: candidate.financialID)
-                    )
-                    continue
-                }
-                if let projectedCandidate = BankSyncReconciliation.applyingRulePreview(
-                    preview,
-                    to: candidate,
-                    accountIsOffBudget: linked[index].offbudget
-                ) {
-                    projected.append(projectedCandidate)
-                }
+            let projection = ImportReconcileProjection.project(
+                candidates: prepared[index].candidates,
+                previews: Array(previews[previewOffset..<(previewOffset + count)]),
+                accountID: linked[index].id,
+                accountIsOffBudget: linked[index].offbudget
+            )
+            for source in projection.movedSources {
+                prepared[index].problems.append(
+                    .unsupportedAccountMove(remoteTransactionID: prepared[index].candidates[source].financialID)
+                )
             }
-            prepared[index].projectedCandidates = projected
+            prepared[index].projectedCandidates = projection.candidates
             previewOffset += count
         }
 
@@ -363,10 +356,9 @@ extension LocalFirstActualStore {
                 importedPayee: payeeName
             )
             prepared.candidates.append(candidate)
-            prepared.ruleDrafts.append(bankSyncPreviewDraft(
-                candidate: candidate,
-                accountID: accountID,
-                dayID: dayID
+            prepared.ruleDrafts.append(ImportReconcileProjection.previewDraft(
+                for: candidate,
+                accountID: accountID
             ))
         }
         return prepared
@@ -386,17 +378,17 @@ extension LocalFirstActualStore {
         database: BudgetDatabase
     ) async throws -> BankSyncReview.AccountPlan {
         let candidateDayIDs = prepared.candidates.map(\.dayID)
-        let existing = try await database.bankSyncExistingRows(
+        let outcome = try await reconcileProjectedImport(
+            database: database,
             accountID: account.id,
-            window: Self.monthWidenedWindow(candidateDayIDs: candidateDayIDs)
-        )
-        let reconciliation = BankSyncReconciliation.plan(
-            candidates: prepared.projectedCandidates,
-            existing: existing,
-            suppressedFinancialIDs: try await database.bankSyncSuppressedFinancialIDs(accountID: account.id),
             accountIsOffBudget: account.offbudget,
-            transferPayeeIDs: transferPayeeIDs
+            candidateDayIDs: candidateDayIDs,
+            projected: prepared.projectedCandidates,
+            transferPayeeIDs: transferPayeeIDs,
+            options: .bankSync
         )
+        let existing = outcome.existing
+        let reconciliation = outcome.plan
 
         let inserts = reconciliation.inserts
         let balanceDisposition = BankSyncBalancePlanning.disposition(
@@ -491,29 +483,6 @@ extension LocalFirstActualStore {
             return cached
         }
         return try await database.fetchBudgetCurrency()
-    }
-
-    /// loot-core resolves the payee during `normalizeBankSyncTransactions`
-    /// so `runRules` in `transactionsStep1` sees `trans.payee` before matching.
-    /// Keep the raw provider name on `imported_payee` / `payee_name`.
-    private func bankSyncPreviewDraft(
-        candidate: BankSyncReconciliation.Candidate,
-        accountID: String,
-        dayID: String
-    ) -> TransactionDraft {
-        TransactionDraft(
-            accountID: accountID,
-            date: BankSyncAmounts.date(fromDayID: dayID)
-                ?? Date(timeIntervalSince1970: 0),
-            amountMinorUnits: candidate.amountMinorUnits,
-            payeeID: candidate.payeeID,
-            payeeName: candidate.payeeName ?? "",
-            categoryID: nil,
-            notes: candidate.notes,
-            cleared: candidate.cleared,
-            isTransfer: false,
-            importedPayee: candidate.importedPayee
-        )
     }
 
     /// Calendar-based read window around downloaded days. The reconciler owns

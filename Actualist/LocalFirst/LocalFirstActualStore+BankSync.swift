@@ -274,20 +274,16 @@ extension LocalFirstActualStore {
 
         var builder = LocalFirstSyncMessageBuilder()
         var messages: [ActualSyncDecodedMessage] = []
-        var resolvedPayeeIDs: [String: String] = [:]
-        var knownPayees: [ActualPayee]?
-        var insertedCount = 0
-        var updatedCount = 0
-        var insertedIDsByAccount: [String: [String]] = [:]
+        var openingBalanceID: String?
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
 
         let accountIsOffBudget = try await database.bankSyncLinkedAccounts()
             .first { $0.id == plan.link.accountID }?.offbudget ?? false
         if let openingBalance = plan.openingBalance {
-            let openingBalanceID = UUID().uuidString
-            insertedIDsByAccount[plan.link.accountID, default: []].append(openingBalanceID)
+            let id = UUID().uuidString
+            openingBalanceID = id
             messages.append(contentsOf: try await database.makeBankSyncOpeningBalanceMessages(
-                transactionID: openingBalanceID,
+                transactionID: id,
                 accountID: plan.link.accountID,
                 openingBalance: openingBalance,
                 onBudget: !accountIsOffBudget,
@@ -304,76 +300,32 @@ extension LocalFirstActualStore {
                 ids: Array(Set(plan.updates.map(\.existingID)))
             ).map { ($0.id, $0) }
         )
-        for update in plan.updates {
-            try Task.checkCancellation()
+        let matched = try plan.updates.map { update -> (
+            update: BankSyncReconciliation.MatchedUpdate,
+            existing: BankSyncReconciliation.Existing
+        ) in
             guard let existing = existingByID[update.existingID] else {
                 throw LocalFirstError.invalidLocalWrite("missing matched transaction")
             }
-            messages.append(contentsOf: try await database.makeBankSyncMatchUpdateMessages(
-                update: update,
-                existing: existing,
-                accountIsOffBudget: accountIsOffBudget,
-                builder: &builder
-            ))
-            updatedCount += 1
+            return (update: update, existing: existing)
         }
-
-        var affectedAccountIDs = Set([plan.link.accountID])
-        for (index, candidate) in plan.inserts.enumerated() {
-            try Task.checkCancellation()
-            let transactionID = UUID().uuidString
-            let payeeResolution = try await resolveBankSyncInsertPayee(
-                candidate: candidate,
-                resolvedPayeeIDs: &resolvedPayeeIDs,
-                knownPayees: &knownPayees,
-                database: database,
-                builder: &builder
-            )
-            let transferDestinationID = candidate.isSplit
-                ? nil
-                : try await database.transferAccountID(ifPayee: payeeResolution.payeeID)
-            let draft = try bankSyncInsertDraft(
-                candidate: candidate,
-                accountID: plan.link.accountID,
-                payeeID: payeeResolution.payeeID,
-                sortOrder: sortOrderBase + Double(index + 1),
-                accountIsOffBudget: accountIsOffBudget
-            )
-            let transactionMessages: [ActualSyncDecodedMessage]
-            if draft.isSplit {
-                transactionMessages = try await database.createSplitTransactionMessages(
-                    draft: draft,
-                    parentTransactionID: transactionID,
-                    payeeID: payeeResolution.payeeID,
-                    builder: &builder
-                )
-            } else if let transferDestinationID {
-                let transfer = try await database.createTransferTransactionMessages(
-                    draft: draft,
-                    sourceTransactionID: transactionID,
-                    payeeID: payeeResolution.payeeID,
-                    builder: &builder
-                )
-                transactionMessages = transfer.messages + (try await database.makeImportedIdentityMessages(
-                    transactionID: transactionID,
-                    importedID: candidate.financialID,
-                    importedPayee: candidate.importedPayee,
-                    builder: &builder
-                ))
-                affectedAccountIDs.insert(transferDestinationID)
-                insertedIDsByAccount[transferDestinationID, default: []].append(transfer.pairedTransactionID)
-            } else {
-                transactionMessages = try await database.createSimpleTransactionMessages(
-                    draft,
-                    transactionID: transactionID,
-                    payeeID: payeeResolution.payeeID,
-                    builder: &builder
-                )
-            }
-            messages.append(contentsOf: payeeResolution.messages)
-            messages.append(contentsOf: transactionMessages)
-            insertedIDsByAccount[plan.link.accountID, default: []].append(transactionID)
-            insertedCount += 1
+        let writes = try await importReconcileWrites(
+            database: database,
+            accountID: plan.link.accountID,
+            accountIsOffBudget: accountIsOffBudget,
+            updates: matched,
+            inserts: plan.inserts,
+            options: .bankSync,
+            sortOrder: { sortOrderBase + Double($0 + 1) },
+            builder: &builder
+        )
+        messages.append(contentsOf: writes.messages)
+        let insertedCount = writes.insertedCount
+        let updatedCount = writes.updatedCount
+        let affectedAccountIDs = writes.affectedAccountIDs
+        var insertedIDsByAccount = writes.insertedIDsByAccount
+        if let openingBalanceID {
+            insertedIDsByAccount[plan.link.accountID, default: []].insert(openingBalanceID, at: 0)
         }
 
         // Completion metadata follows the transaction writes in the same
@@ -450,76 +402,6 @@ extension LocalFirstActualStore {
             throw BankSyncCommittedRefreshError(result: result, underlyingError: reloadError)
         }
         return result
-    }
-
-    private func bankSyncInsertDraft(
-        candidate: BankSyncReconciliation.Candidate,
-        accountID: String,
-        payeeID: String,
-        sortOrder: Double,
-        accountIsOffBudget: Bool = false
-    ) throws -> TransactionDraft {
-        guard let date = BankSyncAmounts.date(fromDayID: candidate.dayID) else {
-            throw LocalFirstError.invalidLocalWrite("missing bank sync download")
-        }
-        var draft = TransactionDraft(
-            accountID: accountID,
-            date: date,
-            amountMinorUnits: candidate.amountMinorUnits,
-            payeeID: payeeID,
-            payeeName: candidate.payeeName ?? "",
-            categoryID: accountIsOffBudget ? nil : candidate.categoryID,
-            notes: candidate.notes,
-            cleared: candidate.cleared,
-            isTransfer: false
-        )
-        draft.importedPayee = candidate.importedPayee
-        draft.importedID = candidate.financialID
-        draft.sortOrder = sortOrder
-        draft.scheduleID = candidate.scheduleID
-        if candidate.isSplit {
-            draft.splits = candidate.splits.map {
-                TransactionSplitDraft(
-                    id: nil,
-                    categoryID: accountIsOffBudget ? nil : $0.categoryID,
-                    categoryName: nil,
-                    amountMinorUnits: $0.amountMinorUnits,
-                    payeeID: $0.payeeID,
-                    notes: $0.notes,
-                    sortOrder: $0.sortOrder
-                )
-            }
-        }
-        return draft
-    }
-
-    private func resolveBankSyncInsertPayee(
-        candidate: BankSyncReconciliation.Candidate,
-        resolvedPayeeIDs: inout [String: String],
-        knownPayees: inout [ActualPayee]?,
-        database: BudgetDatabase,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) async throws -> (payeeID: String, messages: [ActualSyncDecodedMessage]) {
-        if let selectedPayeeID = candidate.payeeID, !selectedPayeeID.isEmpty {
-            return (selectedPayeeID, [])
-        }
-        // Splits carry no payee of their own; the parent name drives creation.
-        let name = candidate.payeeName ?? ""
-        let key = name.lowercased()
-        if let cachedID = resolvedPayeeIDs[key], !key.isEmpty {
-            return (cachedID, [])
-        }
-        if knownPayees == nil { knownPayees = try await database.fetchPayees() }
-        let resolution = try await database.resolveOrCreatePayeeMessages(
-            selectedPayeeID: nil,
-            payeeName: name,
-            knownPayees: knownPayees,
-            builder: &builder
-        )
-        if !key.isEmpty {
-            resolvedPayeeIDs[key] = resolution.payeeID
-        }
-        return resolution
     }
 
     // MARK: - Screen reads (Phase 4)
