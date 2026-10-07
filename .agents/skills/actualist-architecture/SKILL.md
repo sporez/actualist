@@ -22,6 +22,8 @@ SwiftUI view
 
 App-wide session, settings, and routing coordination belongs in `AppState`; feature workflow state does not. Reads render from the local store/database. Writes produce Actual-compatible CRDT messages, apply them to SQLite, enqueue them in `actualist_outbox`, reload affected store caches, and then opportunistically flush.
 
+Build settings that affect where code runs: the app target sets no default actor isolation and does not enable `SWIFT_APPROACHABLE_CONCURRENCY` (it is set only on the UI-test target; see `project.pbxproj`). A plain `nonisolated async` function therefore already runs off the caller's actor. Heavy helpers still say `@concurrent` (for example `BudgetDatabase.open` and the CSV import pipeline) to make that intent explicit; `MainActor` isolation is always written out.
+
 ## Target and directory map
 
 | Path | Ownership |
@@ -32,7 +34,7 @@ App-wide session, settings, and routing coordination belongs in `AppState`; feat
 | `Actualist/LocalFirst/` | `LocalFirstActualStore`, local-first orchestration, cached snapshots, CRDT mutation construction, sync, import, and feature-facing repository conformance. |
 | `Actualist/LocalFirst/Database/` | `BudgetDatabase` actor, GRDB/SQLite reads, schema compatibility, calculations close to stored data, and atomic write/outbox transactions. |
 | `Actualist/LocalFirst/Network/` | Concrete Actual sync, SimpleFIN, and bridge HTTP clients. |
-| `Actualist/LocalFirst/Sync/` | Sync transport abstraction and CRDT message builder. |
+| `Actualist/LocalFirst/Sync/` | Sync transport abstraction, CRDT message builder, merkle trie, timestamps, and the reserved-dataset policy. |
 | `Actualist/LocalFirst/ActionLog/` | Undoable budget action models and inverse construction. |
 | `Actualist/Shared/` | Cross-feature value types and pure helpers such as money, bank-sync reconciliation, wallet mapping, rule projection, and notes. |
 | `Actualist/Models/` | App-wide domain models shared by multiple ownership areas. |
@@ -43,7 +45,7 @@ App-wide session, settings, and routing coordination belongs in `AppState`; feat
 | `ActualistWidget/` | Widget extension entry points, timeline providers, configuration intents, and widget views. |
 | `ActualistTests/` | Unit/integration tests and synthetic SQLite/Actual-core fixtures. Tests are flat and named after the production type or workflow. |
 | `ActualistUITests/` | End-to-end UI regressions grouped by visible surface. |
-| `scripts/` | Mechanical checks, simulator runner, focused test runner, parity tools, demo generation, and release tooling. |
+| `scripts/` | Mechanical checks, simulator runner, focused test runner, parity tools, demo generation, release tooling, and `scripts/lab/` (create, reset, list and download test budgets on a disposable Actual server through upstream's own client; see its README). |
 | `docs/` | Public development documentation and public plans. Local active planning and evidence may also exist under gitignored `reference/`. |
 
 The app, unit-test, UI-test, and widget directories are Xcode file-system synchronized groups. New Swift files under existing synchronized roots compile automatically, except explicitly excluded resources. The widget target also compiles a curated set of shared files from `Actualist/Widgets/` and `Actualist/DesignSystem/`; inspect `Actualist.xcodeproj/project.pbxproj` when changing that cross-target boundary.
@@ -154,32 +156,44 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 `Actualist/LocalFirst/LocalFirstActualStore.swift` defines the observable production repository implementation and owned caches/dependencies. Extensions divide orchestration by workflow:
 
-- `+Connection` — authenticate, select/open/import/reset budget sessions.
-- `+Sync` — pull/apply/flush sync and resolve sync failures.
+- `+Connection` — authenticate, select/open/import/reset budget sessions. The database is built off the main actor with `BudgetDatabase.open` (`@concurrent`); `init` stays for tests and records main-thread construction in DEBUG.
+- `+Sync`, `+SyncQuarantine`, `+Failover` — pull/apply/flush through the session's `ServerSyncLane`, quarantine diagnostics, and endpoint failover.
 - `+Reads` / `+BudgetCache` / `+BudgetLaunchSnapshot` — cached budget-month reads and launch snapshots.
 - `+TransactionFeeds` / `+TransactionFeedCache` — cached account and Spending feeds. Do not duplicate this cache.
 - `+LaunchWarmup` — store-side cache warming after open.
-- `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle` — local CRDT write flows.
-- `+BankSyncPlanning`, `+BankSync`, `+WalletImport` — imported transaction flows.
+- `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle`, `+AccountLifecycle`, `+Holds`, `+CommitTail` — local CRDT write flows and the shared post-commit tail.
+- `+TransactionBatch`, `+TransactionDuplicate`, `+TransactionMerge`, `+TransactionFilters`, `+TransactionCSVImport`, `+TransactionCSVExport`, `+PendingNewTransactions` — transaction-list actions, saved filters, and CSV.
+- `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
+- `+BankSyncPlanning`, `+BankSync`, `+WalletImport`, `+ImportReconcile` — imported transaction flows.
+- `+PortableExport`, `+PortableImport`, `+PortableRegistration`, `+NewBudget` — ZIP export and import, server registration, and New Budget.
 - `+Templates`, `+Rules`, `+Notes`, `+Reports`, `+Widgets`, `+ActionLog`, `+AccountGroups`, `+Reconciliation` — focused feature bridges.
-- `+Failover` and `ServerEndpointHealth.swift` — endpoint failover and health.
+- `ServerSyncLane.swift` — the one serialized flush/pull lane per budget session (flush flag, queued waiters, scheduled flush task, status tickets). `closeOpenBudget()` invalidates it and installs a fresh lane, so a late finisher releases its own dead lane.
+- `ServerEndpointHealth.swift` — endpoint health cache.
+- `StoreTestSeams.swift` — every optional test hook, in one `#if DEBUG` type behind `store.seams`. Release builds contain no hook property, type or awaited call site. Add new hooks here, never as store properties.
 - `DemoMode/` — offline bundled-budget session. Bundled files are `Actualist/Resources/DemoBudget.zip` and `TrackingDemoBudget.zip`.
 
 When adding a store operation, extend the workflow-specific file rather than growing the base type or creating a second concrete repository.
+
+Repositories are per feature, not one facade: `Actualist/Repositories/` holds `BudgetRepositoryProtocol`, `TransactionRepositoryProtocol` plus focused protocols for batch, duplicate, merge, CSV import, saved filters, schedules (read, mutation, posting, conversion), account lifecycle, payees, rules, notes and reports. `LocalFirstActualStore` conforms to all of them; a view model depends only on the protocol it uses, and tests inject a fake of that one protocol.
 
 ### Database
 
 `BudgetDatabase` is an actor around one imported budget's GRDB `DatabaseQueue`. File naming is the ownership index:
 
 - `+BasicReads`, `+BudgetReads`, `+TransactionReads`, `+Reports` — query families.
-- `+Sync` — CRDT application, local atomic mutation, and outbox behavior.
+- `+Sync`, `+Merkle` — remote CRDT application and the merkle trie (see Sync and merkle below).
+- `+LocalCommit`, `+UserActionPlan` — the write core (see Write trace).
 - `+BudgetWrites`, `+EnvelopeHolds`, `+TransactionCreation`, `+TransactionUpdates`, `+TransactionSplitWrites` — budget and transaction mutation families.
 - `+CategoryLifecycle`, `+CategoryLifecycleDeletion`, `+CategoryVisibility` — category structure and hidden-category persistence.
 - `+Schema`, `+LocalMigrations`, `+AccountGroupCompatibility` — local/schema compatibility.
 - `+Rules`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
 - `+ActionLog*` — durable action history and undo inputs.
-- `BudgetFileManager.swift` — imported budget directories/files and cache-presence lifecycle.
+- `+Schedules`, `+ScheduleReads`, `+ScheduleWrites`, `+SchedulePosting`, `+ScheduleAdvancement`, `+ScheduleConversion` and `ScheduleRuleProjection.swift` — schedules and their linked rules.
+- `+PortableExport`, `+PortableSyncReset`, `+NewBudgetSeed` — portable ZIP content and the CRDT reset applied to an imported file.
+- `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `+TransactionFilters`, `+TransactionCSV*`, `+TransactionQuery` — list actions, structured queries and CSV.
+- `+*ReviewGuard`, `+ReconciledMutationGuard`, `+ImportedIDPrecondition`, `+PayeeCreationPrecondition` — review preconditions checked inside the commit transaction.
+- `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.
 
 Keep SQL and storage-version tolerance here. Keep feature screen state out.
 
@@ -187,6 +201,7 @@ Keep SQL and storage-version tolerance here. Keep feature screen state out.
 
 - `LocalFirst/Network/ActualServerSyncClient.swift` — normal Actual server sync HTTP protocol and rejection decoding.
 - `LocalFirst/Sync/SyncClient.swift` — sync transport abstraction/types.
+- `LocalFirst/Sync/MerkleTrie.swift`, `SyncTimestamp.swift`, `ActualSyncDatasetPolicy.swift` — Actual's merkle trie, hybrid logical clock timestamps, and the set of datasets that are stored but never applied.
 - `LocalFirst/Sync/LocalFirstSyncMessageBuilder.swift` — compatible CRDT message construction.
 - `LocalFirst/ActualBudgetCrypto.swift` — budget encryption operations.
 - `LocalFirst/Generated/Sync.pb.swift` — generated protobuf; do not hand-edit.
@@ -208,11 +223,36 @@ Network clients transport/decode. They do not become a read source for screens.
 
 1. A feature view emits intent only.
 2. Its view model/coordinator validates workflow state and decides command values.
-3. The repository call reaches a workflow-specific `LocalFirstActualStore` extension.
-4. The store constructs Actual-compatible CRDT messages.
-5. `BudgetDatabase` applies messages and enqueues the outbox in one protected SQLite transaction.
-6. The store reloads affected local caches before returning.
-7. The store opportunistically flushes; local success does not depend on immediate network success.
+3. The repository call reaches a workflow-specific `LocalFirstActualStore` extension. A review-then-apply flow (reconciled rows, templates, holds, batch, merge, duplicate, bank link, imported IDs) first returns a review carrying the preconditions it was built from.
+4. The store calls `BudgetDatabase.commitUserActionPlan` (or one of its adapters, below). Its build closure runs inside the write transaction, so messages are built from the live rows read through `db`, never from an earlier read. Do not build messages from a snapshot and commit them later.
+5. The core, `commitLocalPlan`, checks the session write fence once, then in one SQLite transaction: validates the review preconditions (`validateLocalCommit` over `LocalCommitReview`), captures action-log facts, applies the CRDT cells, writes the merkle trie, enqueues `actualist_outbox`, and records pending new transactions. A failed precondition rolls back everything.
+6. The fence is `invalidateSessionWrites()`, a non-blocking atomic flag. It refuses commits that have not started; a commit already inside its transaction finishes. A caller about to swap or delete the files awaits `quiesce()` after flipping it. `closeOpenBudget()` flips it.
+7. After the commit the store finishes through `LocalFirstActualStore+CommitTail`. The tail rule: a write that has committed is never reported as cancelled or failed. User-repeatable writes (create, update, delete, categorize, assign, Move Money, Holds, Wallet import) use the durable tail (`finishDurableCommit`: an unstructured task, so caller cancellation cannot interrupt the reload; the result is returned, or `refreshPending`). Idempotent last-write-wins writes (notes, hide, rename, payee and rule edits, carryover, templates) use the attached tail, which reports `refreshPending` on a cancelled reload. Schedule advancement keeps its own background tail.
+8. The tail reloads affected local caches and opportunistically flushes through the sync lane; local success never depends on the network.
+
+Adapters over the core: `commitUserActionPlan` (user gestures; adds the action-log descriptor), `commitLocalSyncMessagesAndEnqueue` (pre-built message drafts with optional preconditions), and the undo commit. New writers should reuse the core rather than open their own write transaction.
+
+### Sync and merkle
+
+- The pull path asks the server for messages since the local merkle trie diverges (`merkleDivergence`), applies them with `applyRemoteSyncMessagesTrackingInserts`, and updates the trie in the same transaction. `writeTrackingMerkle` stages inserts and persists the pruned trie atomically; the in-memory cache is replaced only after commit.
+- An imported `messages_clock` is not trusted. `ensureMerkleTrieTrusted()` rebuilds the trie lazily, once per file, on the first merkle use rather than at open.
+- A remote batch with an invalid timestamp is rejected whole. A value that cannot be read, or that targets a reserved dataset, is stored in `messages_crdt` but never applied (quarantine); `+SyncQuarantine` reports counts and timestamps only, never values.
+- Server access goes through the session's `ServerSyncLane`, which serializes flush and pull in request order.
+
+### Import, export and the CRDT reset
+
+- Every imported-transaction source (Bank Sync, CSV, Wallet) shares one reconcile pipeline: rule projection, then `reconcileProjectedImport`, then `importReconcileWrites` (`LocalFirstActualStore+ImportReconcile.swift`, `Shared/BankSyncReconciler.swift`). The source owns only parsing, mapping and its own review.
+- CSV import stages are `@concurrent` helpers in `Shared/TransactionCSVImportPipeline.swift`; the store applies the reviewed plan through the write core.
+- Portable ZIP export writes a temporary plaintext archive that is removed after the share (`PortableExportFiles`). Portable import validates and stages the archive (`PortableBudgetArchive`, `UntrustedZipExtractor`), clears its carried CRDT history with `resetSyncHistory` (the new server group starts empty, so a carried trie could never converge), installs it into a new directory, and registers it on the server. A budget downloaded or re-imported from a server keeps its `messages_crdt`.
+- New Budget (`+NewBudget`, `BudgetDatabase+NewBudgetSeed`) seeds a starter schema and registers it the same way.
+
+### Schedules
+
+Reads are `LocalFirstActualStore+Schedules` over `BudgetDatabase+ScheduleReads`, cached per budget with a request identity for stale results. Edits go through a review (`ScheduleMutationPrecondition`) and `+ScheduleMutations`; a schedule and its rule are written together (`ScheduleRuleProjection`, `ScheduleRuleMutation`). Posting a due schedule is `+SchedulePosting` behind a posting gate; background advancement is `+ScheduleAdvancement`.
+
+### Session transitions
+
+`Actualist/App/BudgetSessionTransitionCoordinator.swift` is the single owner of select, restore, reimport, Shortcut/background opens, discovery and demo transitions. It de-duplicates a request for the budget already in transition, refuses a conflicting budget or kind, and runs on an unstructured task so a cancelled caller cannot abandon a transition. The store's session generation still stops stale work from publishing.
 
 ### Connection/open
 
@@ -229,6 +269,8 @@ Network clients transport/decode. They do not become a read source for screens.
 - SQLite/schema/oracle fixtures live under `ActualistTests/Fixtures/`.
 - UI suites under `ActualistUITests/` are named by visible surface or interaction, such as adaptive settings, reconciliation, iPad review, notes, tracking budget, month swipe, category lifecycle, credential recovery, or Springboard quick actions.
 - `scripts/test.sh unit <Suite>...` and `scripts/test.sh ui <Suite[/testMethod]>...` are the supported focused runners.
+- Tests that need to park a store operation use the DEBUG hooks on `store.seams` with `TestLatch`/`ObservedTestState`, not yield loops.
+- `scripts/lab/budgets.sh` builds and resets test budgets on a disposable Actual server for live checks; read `scripts/lab/README.md` before use and never point it at a real server.
 - `scripts/run-ios-simulator.sh --boot --reset --demo --screen <path> --screenshot` is the supported visual path.
 - `scripts/check.sh` is always required before handoff but does not replace behavior-specific verification.
 

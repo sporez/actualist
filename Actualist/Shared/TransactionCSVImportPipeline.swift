@@ -8,9 +8,10 @@ enum TransactionCSVImportLimits {
 }
 
 /// File read, parse and map stages that do not touch the store. Each is
-/// `@concurrent` so a large file never runs on the main actor: this target's
-/// approachable-concurrency setting would otherwise run a plain `nonisolated
-/// async` function on its caller's actor.
+/// `@concurrent` to state that a large file never runs on the main actor. The
+/// app target does not enable approachable concurrency (only the UI-test
+/// target does), so a plain `nonisolated async` function would also leave the
+/// caller's actor; the attribute keeps that true if the setting is ever added.
 enum TransactionCSVImportPipeline {
     /// Reads the file with security-scoped access held open for the whole
     /// read. The size is checked before any bytes are read, and again on the
