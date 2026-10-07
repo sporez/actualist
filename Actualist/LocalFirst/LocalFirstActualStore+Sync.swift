@@ -191,7 +191,8 @@ extension LocalFirstActualStore {
     func flushPendingLocalMessagesSerialized(
         database: BudgetDatabase,
         budgetID: String,
-        serverURLString: String
+        serverURLString: String,
+        token: String? = nil
     ) async throws -> LocalFirstSyncResult {
         let generation = budgetSessionGeneration
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
@@ -216,7 +217,8 @@ extension LocalFirstActualStore {
             let result = try await flushPendingLocalMessages(
                 database: database,
                 budgetID: budgetID,
-                serverURLString: serverURLString
+                serverURLString: serverURLString,
+                token: token
             )
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             totalResult = LocalFirstSyncResult(
@@ -245,10 +247,13 @@ extension LocalFirstActualStore {
         waiters.forEach { $0.resume() }
     }
 
+    /// `token` is the sync token the calling operation already read; nil reads it
+    /// here once pending messages exist.
     func flushPendingLocalMessages(
         database: BudgetDatabase,
         budgetID: String,
-        serverURLString: String
+        serverURLString: String,
+        token knownToken: String? = nil
     ) async throws -> LocalFirstSyncResult {
         let generation = budgetSessionGeneration
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
@@ -257,8 +262,8 @@ extension LocalFirstActualStore {
         guard !pending.isEmpty else {
             return LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
         }
-        let token = try keychain.readActualSyncToken()
-        guard let token else {
+        let resolvedToken = try knownToken ?? keychain.readActualSyncToken()
+        guard let token = resolvedToken else {
             throw LocalFirstError.missingSyncToken
         }
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
@@ -304,7 +309,8 @@ extension LocalFirstActualStore {
             guard !error.isCancellation else { throw error }
             let resolvedError = await resolvedSyncFailure(
                 error,
-                serverURLString: serverURLString
+                serverURLString: serverURLString,
+                token: token
             )
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             try? await database.markPendingLocalSyncMessagesFailed(pending, error: resolvedError)
@@ -355,7 +361,8 @@ extension LocalFirstActualStore {
             let flushedResult = try await flushPendingLocalMessagesSerialized(
                 database: database,
                 budgetID: budgetID,
-                serverURLString: serverURLString
+                serverURLString: serverURLString,
+                token: token
             )
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let pullResult = try await withSyncFailover(serverURLString: serverURLString) { client in
@@ -410,7 +417,8 @@ extension LocalFirstActualStore {
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let resolvedError = await resolvedSyncFailure(
                 error,
-                serverURLString: serverURLString
+                serverURLString: serverURLString,
+                token: token
             )
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             await recordSyncStatus(
@@ -435,7 +443,7 @@ extension LocalFirstActualStore {
     /// which Actual also does for a non-encryption reset, so it is confirmed
     /// against the live remote file metadata before being treated as an
     /// encryption change.
-    private func resolvedSyncFailure(_ error: Error, serverURLString: String) async -> Error {
+    private func resolvedSyncFailure(_ error: Error, serverURLString: String, token: String) async -> Error {
         guard case .syncRejected(_, let reason)? = error as? ActualAPIError else {
             return error
         }
@@ -444,7 +452,8 @@ extension LocalFirstActualStore {
             return LocalFirstError.budgetEncryptionChanged
         case .fileHasReset:
             let remoteIdentityDiffers = await remoteEncryptionIdentityDiffers(
-                serverURLString: serverURLString
+                serverURLString: serverURLString,
+                token: token
             )
             return remoteIdentityDiffers ? LocalFirstError.budgetEncryptionChanged : error
         case .fileOldVersion, .fileNeedsUpload, .fileKeyMismatch:
@@ -453,15 +462,11 @@ extension LocalFirstActualStore {
     }
 
     /// `true` only when the live remote file metadata reports a different
-    /// encryption key ID than the currently opened budget. A missing token,
-    /// unknown file ID, or failed lookup is treated as "no evidence of change"
-    /// so the original server error is preserved.
-    private func remoteEncryptionIdentityDiffers(serverURLString: String) async -> Bool {
+    /// encryption key ID than the currently opened budget. An unknown file ID or
+    /// failed lookup is treated as "no evidence of change" so the original
+    /// server error is preserved.
+    private func remoteEncryptionIdentityDiffers(serverURLString: String, token: String) async -> Bool {
         guard let fileID = await syncClient.configuration?.fileID else {
-            return false
-        }
-        let token = try? keychain.readActualSyncToken()
-        guard let token else {
             return false
         }
         let remote: ActualSyncRemoteFile?

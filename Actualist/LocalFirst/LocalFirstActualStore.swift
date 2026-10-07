@@ -149,6 +149,9 @@ final class LocalFirstActualStore:
         customHeadersRevision &+= 1
     }
 
+    /// Cached transports already carry the headers they were built with, so
+    /// Keychain is read only on a cache miss. `saveCustomHTTPHeaders`, `reset()`
+    /// and `eraseLocalData()` drop the caches.
     func invalidateNetworkTransports() {
         cachedSyncTransportsByURL = [:]
         cachedConnectionTransportsByURL = [:]
@@ -156,9 +159,9 @@ final class LocalFirstActualStore:
     }
 
     func syncTransport(for url: URL, role: ActualServerEndpointRole = .primary) throws -> any ActualSyncTransport {
-        let fields = try keychain.readCustomHTTPHeaders().fields(for: role, url: url)
         let key = role.rawValue + ":" + url.absoluteString
         if let cached = cachedSyncTransportsByURL[key] { return cached }
+        let fields = try keychain.readCustomHTTPHeaders().fields(for: role, url: url)
         let transport = syncTransportFactory?(url)
             ?? ActualServerSyncClient(baseURL: url, customHeaders: fields, session: transportSession)
         cachedSyncTransportsByURL[key] = transport
@@ -166,9 +169,9 @@ final class LocalFirstActualStore:
     }
 
     func connectionTransport(for url: URL, role: ActualServerEndpointRole = .primary) throws -> any ActualServerConnectionTransport {
-        let fields = try keychain.readCustomHTTPHeaders().fields(for: role, url: url)
         let key = role.rawValue + ":" + url.absoluteString
         if let cached = cachedConnectionTransportsByURL[key] { return cached }
+        let fields = try keychain.readCustomHTTPHeaders().fields(for: role, url: url)
         let transport = connectionTransportFactory?(url)
             ?? ActualServerSyncClient(baseURL: url, customHeaders: fields, session: transportSession)
         cachedConnectionTransportsByURL[key] = transport
@@ -176,9 +179,9 @@ final class LocalFirstActualStore:
     }
 
     func simpleFINTransport(for url: URL, role: ActualServerEndpointRole = .primary) throws -> any SimpleFINServerTransport {
-        let fields = try keychain.readCustomHTTPHeaders().fields(for: role, url: url)
         let key = role.rawValue + ":" + url.absoluteString
         if let cached = cachedSimpleFINTransportsByURL[key] { return cached }
+        let fields = try keychain.readCustomHTTPHeaders().fields(for: role, url: url)
         let transport = simpleFINTransportFactory?(url)
             ?? ActualServerSimpleFINClient(baseURL: url, customHeaders: fields, session: transportSession)
         cachedSimpleFINTransportsByURL[key] = transport
