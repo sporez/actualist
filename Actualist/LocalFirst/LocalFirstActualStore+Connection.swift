@@ -232,6 +232,7 @@ extension LocalFirstActualStore {
         }
         try Task.checkCancellation()
         guard originalGeneration == budgetSessionGeneration else { throw CancellationError() }
+        BudgetOpenProgress.current?.tick()
         try fileManager.validateStagedDownload(at: stagedArchiveURL)
         if let encryptMeta = remote.encryptMeta {
             guard let encryptionContext else {
@@ -260,10 +261,12 @@ extension LocalFirstActualStore {
         )
         try Task.checkCancellation()
         guard originalGeneration == budgetSessionGeneration else { throw CancellationError() }
+        BudgetOpenProgress.current?.tick()
         try await openImportedBudget(
             fileID: fileID, metadata: metadata,
             encryptionContext: encryptionContext, expectedGeneration: originalGeneration
         )
+        BudgetOpenProgress.current?.tick()
         openedServerURLString = serverURLString
         try await pullAndReload(budgetID: metadata.groupID ?? metadata.cloudFileID, serverURLString: serverURLString)
         return nil

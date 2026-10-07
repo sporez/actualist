@@ -173,14 +173,20 @@ final class BudgetPickerViewModel {
     var isLoading = false
     var openState: BudgetPickerOpenState = .idle
 
-    /// Hard ceiling for a single budget-open attempt. The Actual download path
-    /// uses a 30s per-request timeout, but a black-holed cellular connection can
-    /// hold an idle socket well past that with no data flow. Without this ceiling
-    /// a stalled open leaves the picker at "connecting" indefinitely, which reads
-    /// as a dead tap to the user.
-    private let openTimeout: Duration = .seconds(60)
+    init(openIdleTimeout: Duration = .seconds(60)) {
+        self.openIdleTimeout = openIdleTimeout
+    }
 
-    private var openTask: Task<Void, Never>?
+    /// Idle window for a budget-open attempt: the open is cancelled when this
+    /// long passes with no download chunk or stage completing. The Actual
+    /// download path uses a 30s per-request timeout, but a black-holed cellular
+    /// connection can hold an idle socket well past that with no data flow.
+    /// Without a limit a stalled open leaves the picker at "connecting"
+    /// indefinitely, which reads as a dead tap; a slow but moving download is
+    /// allowed to finish.
+    private let openIdleTimeout: Duration
+
+    private(set) var openTask: Task<Void, Never>?
     private var openGeneration = 0
 
     var openingBudgetID: String? {
@@ -248,26 +254,47 @@ final class BudgetPickerViewModel {
         using appState: AppState,
         generation: Int
     ) async {
-        // The open runs on AppState/store; race it against a timeout so a
-        // stalled network cannot pin the picker forever. The open is owned by
-        // the session-transition coordinator, so the timeout cancels it there;
-        // that propagates to the URLSession bytes iterator, aborting the download.
+        // The open runs on AppState/store; an idle watchdog cancels it when no
+        // progress arrives for a window, so a stalled network cannot pin the
+        // picker forever. The open is owned by the session-transition
+        // coordinator, which cancels the download itself. A cancelled caller
+        // (a newer open replacing this one) cancels it the same way.
+        let progress = BudgetOpenProgress()
         let work = Task { @MainActor in
-            await appState.selectBudgetForCurrentBackend(budget, encryptionPassword: password)
+            await BudgetOpenProgress.$current.withValue(progress) {
+                await appState.selectBudgetForCurrentBackend(budget, encryptionPassword: password)
+            }
         }
-        let timer = Task { @MainActor in
-            do { try await Task.sleep(for: openTimeout) } catch { return }
-            work.cancel()
-            appState.budgetSessionTransitions.cancel()
+        let timeout = openIdleTimeout
+        let watchdog = Task { @MainActor in
+            var lastTicks = progress.ticks
+            while true {
+                do { try await Task.sleep(for: timeout) } catch { return }
+                let ticks = progress.ticks
+                if ticks == lastTicks {
+                    progress.markStalled()
+                    work.cancel()
+                    appState.budgetSessionTransitions.cancel()
+                    return
+                }
+                lastTicks = ticks
+            }
         }
-        let outcome = await work.value
-        timer.cancel()
+        let outcome = await withTaskCancellationHandler {
+            await work.value
+        } onCancel: {
+            Task { @MainActor in
+                work.cancel()
+                appState.budgetSessionTransitions.cancel()
+            }
+        }
+        watchdog.cancel()
 
         // A newer open (or dismissal) should own the screen state; bail before
         // overwriting it with a stale result.
         guard generation == openGeneration, !Task.isCancelled else { return }
 
-        if work.isCancelled {
+        if progress.didStall {
             let message = "Opening this budget is taking too long. Check your connection to the Actual server and try again."
             appState.lastErrorMessage = message
             openState = .failed(message: message)

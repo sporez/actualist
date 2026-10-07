@@ -390,6 +390,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             let errorBody = ChunkBox()
             let byteCount = Mutex<UInt64>(0)
             let succeeded = Mutex(false)
+            let openProgress = BudgetOpenProgress.current
             let refuseRedirects = refuseRedirects
             let response = try await LimitedResponseReader.stream(
                 for: request,
@@ -407,6 +408,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
                     return .init(maximumBytes: 64 * 1_024, truncatesAtLimit: true)
                 },
                 onChunk: { chunk in
+                    openProgress?.tick()
                     if succeeded.withLock({ $0 }) {
                         try handle.write(contentsOf: chunk)
                         byteCount.withLock { $0 += UInt64(chunk.count) }

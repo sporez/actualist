@@ -50,6 +50,12 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
     let downloadGate: StubConnectionWaitGate?
     let userKeyGate: StubConnectionWaitGate?
     let userKeyResponse: ActualUserKeyResponse?
+    /// Cancellable stall inside `downloadUserFile`. With `downloadProgressTicks`
+    /// above zero the delay is split into that many steps, each reporting open progress.
+    let downloadDelay: Duration
+    let downloadProgressTicks: Int
+    nonisolated let downloadStarted = TestLatch()
+    nonisolated let downloadCancelled = TestLatch()
     private(set) var loginMethodsRequestCount = 0
     private(set) var listUserFilesRequestCount = 0
     private var loginMethodsStarted = TestLatch()
@@ -69,8 +75,12 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
         listUserFilesGate: StubConnectionWaitGate? = nil,
         downloadGate: StubConnectionWaitGate? = nil,
         userKeyGate: StubConnectionWaitGate? = nil,
-        userKeyResponse: ActualUserKeyResponse? = nil
+        userKeyResponse: ActualUserKeyResponse? = nil,
+        downloadDelay: Duration = .zero,
+        downloadProgressTicks: Int = 0
     ) {
+        self.downloadDelay = downloadDelay
+        self.downloadProgressTicks = downloadProgressTicks
         self.failurePoint = failurePoint
         self.files = files
         self.token = token
@@ -150,6 +160,22 @@ actor StubConnectionTransport: ActualServerConnectionTransport {
     }
 
     func downloadUserFile(fileID: String, token: String, to destinationURL: URL) async throws {
+        downloadStarted.trip()
+        if downloadDelay > .zero {
+            do {
+                if downloadProgressTicks > 0 {
+                    for _ in 0..<downloadProgressTicks {
+                        BudgetOpenProgress.current?.tick()
+                        try await Task.sleep(for: downloadDelay / downloadProgressTicks)
+                    }
+                } else {
+                    try await Task.sleep(for: downloadDelay)
+                }
+            } catch {
+                downloadCancelled.trip()
+                throw error
+            }
+        }
         if failurePoint == .download {
             try downloadData.prefix(max(1, downloadData.count / 2)).write(to: destinationURL)
             throw LocalFirstTestSyncError.failed

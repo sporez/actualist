@@ -331,68 +331,25 @@ final class AppSessionRecovery {
             guard store.isOpen(budgetID: budget.syncID) else { throw LocalFirstError.budgetNotOpened }
             return .opened(credentialError)
         } catch {
-            guard identity == generation, !Task.isCancelled, !error.isCancellation else { return .superseded }
-            let isOpen = store.isOpen(budgetID: budget.syncID)
-            noteFailure(error, hasOpenBudget: isOpen)
-            let status: ServerConnectionStatus = (error as? LocalFirstError) == .budgetEncryptionChanged
-                ? .syncBlocked : (isOpen ? .online : .offline)
-            return .failed(error, status)
-        }
-    }
-
-    private(set) var state: State = .idle
-    @ObservationIgnored let transitions = BudgetSessionTransitionCoordinator()
-    @ObservationIgnored private var generation = 0
-    @ObservationIgnored private var discoveryTask: Task<BudgetDiscovery, Error>?
-
-    var identity: Int { generation }
-    func isCurrent(_ identity: Int) -> Bool { identity == generation }
-
-    func invalidate() {
-        generation &+= 1
-        discoveryTask?.cancel()
-        discoveryTask = nil
-        state = .idle
-    }
-
-    func noteFailure(_ error: KeychainReadError, hasOpenBudget: Bool) {
-        state = hasOpenBudget ? .localOnly(error) : .blocked(error)
-    }
-
-    func noteFailure(_ error: Error, hasOpenBudget: Bool) {
-        if let accessError = error as? KeychainReadError {
-            noteFailure(accessError, hasOpenBudget: hasOpenBudget)
-        }
-    }
-
-    func clear() { state = .idle }
-
-    func restore(settings: AppSettings, store: LocalFirstActualStore) async -> Outcome {
-        let identity = generation
-        guard let selectedBudgetID = settings.selectedBudgetID,
-              let budget = ActualBudget.reconstructedFromSettings(settings) else { return .missingCache }
-        // Reopening would cancel a background pull or Shortcut on this budget.
-        if store.isOpen(budgetID: selectedBudgetID) { return .opened(budget) }
-        do {
-            let opened = try await store.openCachedBudget(budget, expectedGeneration: store.budgetSessionGeneration)
-            guard identity == generation, !Task.isCancelled else { return .superseded }
-            guard opened else { return .missingCache }
-            guard store.isOpen(budgetID: selectedBudgetID) else {
-                store.reset()
-                return .missingCache
+            guard identity == generation else { return .superseded }
+            // A cancellation that did not come from a teardown (sign-out and
+            // erase invalidate this identity) is the picker's stall watchdog or
+            // a replaced open. `openSelection` already closed the previous
+            // budget, so put it back instead of leaving no budget open.
+            let cancelled = Task.isCancelled || error.isCancellation
+            if canRestorePreviousBudget, let previousBudget {
+                store.closeOpenBudget()
+                // An unstructured task is not cancelled with this one, so the
+                // restore can run to completion after a cancelled open.
+                let restored = await Task { @MainActor in
+                    (try? await store.openCachedBudget(
+                        previousBudget, expectedGeneration: store.budgetSessionGeneration
+                    )) == true
+                }.value
+                guard identity == generation else { return .superseded }
+                if restored { return .restored(error) }
             }
-            return .opened(budget)
-        } catch {
-            guard identity == generation, !Task.isCancelled else { return .superseded }
-            // A store generation change with this identity unchanged means
-            // another session change won; it owns the outcome.
-            if error.isCancellation {
-                return store.isOpen(budgetID: selectedBudgetID) ? .opened(budget) : .superseded
-            }
-            if let keychainError = error as? KeychainReadError {
-                noteFailure(keychainError, hasOpenBudget: false)
-            }
-            return .failed(error)
+            return cancelled ? .superseded : .failed(error)
         }
     }
 
