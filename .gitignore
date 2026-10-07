@@ -73,15 +73,20 @@ scripts/*
 scripts/*-parity/**/node_modules/
 !scripts/parity/
 !scripts/parity/**
+# Disposable lab server budget tool (credentials live in ignored scripts/lib/lab.env).
+!scripts/lab/
+!scripts/lab/**
 **/__pycache__/
 *.pyc
 !scripts/generate-demo-budget/
 !scripts/generate-demo-budget/generate_demo_budget.py
 !scripts/lib/
 !scripts/lib/destinations.example.sh
+!scripts/lib/lab.example.env
 !scripts/lib/load-destinations.sh
 !scripts/lib/testflight-notes.sh
 scripts/lib/destinations.sh
+scripts/lib/lab.env
 .xcode-ota.yml
 .xcode-ota/
 .xcode-ota/builds/
