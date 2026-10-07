@@ -467,28 +467,39 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     /// before the first successful connection; once any request succeeds the
     /// permission is granted permanently, so established servers fail fast.
     ///
-    /// Retry policy: the retry engages on *any* `.transport` failure while
-    /// `hasConnected` is false. Not every transport failure proves the server saw
-    /// nothing (a response can be lost after the request was delivered), so this
-    /// relies on the retried operations being safe to repeat: sync uploads are
-    /// keyed by message timestamp and the server ignores a repeat (`INSERT OR IGNORE` in
-    /// upstream `sync-simple.js` `addMessages`), and login
-    /// has no side effect beyond issuing a token. This deliberately covers error codes
-    /// (and non-`URLError` failures that surface as `.transport(nil)`) beyond the
-    /// `.cannotConnectToHost`/`.cannotFindHost` pair iOS historically produced
-    /// while the Local Network sheet is pending. On iOS 26 a *denied* Local
-    /// Network grant kills the TLS handshake and surfaces as
+    /// Retry policy: only `.transport(.cannotConnectToHost)`,
+    /// `.transport(.cannotFindHost)` and `.transport(.secureConnectionFailed)`
+    /// are retried while `hasConnected` is false. The first two are what iOS
+    /// produces while the Local Network sheet is pending. On iOS 26 a *denied*
+    /// Local Network grant kills the TLS handshake and surfaces as
     /// `.secureConnectionFailed` (-1200) while a raw TCP connect still succeeds
-    /// — verified on-device. The retry rule does not depend on which code
-    /// was returned, only on the fact that `hasConnected` is still false.
-    /// `LocalFirstError` (resource limits, app errors) and non-transport
-    /// `ActualAPIError` (HTTP statuses, decoding) are not retried: they either
-    /// are not network failures or imply the server already responded, so the
-    /// permission gate is no longer the issue. When retries exhaust the failure
-    /// is labeled `.localNetworkDenied`; the error copy is hedged because a
+    /// - verified on-device. These requests are safe to repeat: sync uploads
+    /// are keyed by message timestamp and the server ignores a repeat
+    /// (`INSERT OR IGNORE` in upstream `sync-simple.js` `addMessages`), and
+    /// login has no side effect beyond issuing a token.
+    ///
+    /// Every other transport error, including `.timedOut` and
+    /// `.transport(nil)`, is thrown at once. A black-holed server already spent
+    /// a full request timeout, so retrying would hold the failover layer
+    /// (`withSyncFailover`) back from the fallback endpoint for about two more
+    /// minutes. `LocalFirstError` (resource limits, app errors) and
+    /// non-transport `ActualAPIError` (HTTP statuses, decoding) are not retried
+    /// either: they are not network failures or imply the server already
+    /// responded. When retries of the retryable codes exhaust, the failure is
+    /// labeled `.localNetworkDenied`; the error copy is hedged because a
     /// genuinely-down server on first connect is indistinguishable without a
     /// public permission-state API, and checking the toggle in Settings is the
     /// correct first remedy either way.
+    private static func isLocalNetworkGateCode(_ error: ActualAPIError) -> Bool {
+        guard case .transport(let code) = error else { return false }
+        switch code {
+        case .cannotConnectToHost, .cannotFindHost, .secureConnectionFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
     private func withFirstConnectionRecovery<T>(
         _ operation: () async throws -> T
     ) async throws -> T {
@@ -501,7 +512,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         } catch let error as LocalFirstError {
             throw error
         } catch let error as ActualAPIError {
-            guard !hasConnected, case .transport = error else {
+            guard !hasConnected, Self.isLocalNetworkGateCode(error) else {
                 throw error
             }
             for delay in firstConnectionRetryDelays {
@@ -519,7 +530,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
                 } catch let error as LocalFirstError {
                     throw error
                 } catch let error as ActualAPIError {
-                    guard case .transport = error else {
+                    guard Self.isLocalNetworkGateCode(error) else {
                         throw error
                     }
                     continue

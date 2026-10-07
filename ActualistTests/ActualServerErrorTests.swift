@@ -370,6 +370,73 @@ struct FirstConnectionRetryTests {
         #expect(FirstConnectionRetryURLProtocol.attemptCount == 3)
     }
 
+    @Test func timedOutFirstConnectionIsThrownWithoutRetrying() async throws {
+        FirstConnectionRetryURLProtocol.attemptCount = 0
+        FirstConnectionRetryURLProtocol.failuresRemaining = 100
+        FirstConnectionRetryURLProtocol.errorCode = .timedOut
+        defer { FirstConnectionRetryURLProtocol.errorCode = .cannotConnectToHost }
+
+        let client = makeRetryClient()
+        do {
+            _ = try await client.loginMethods()
+            Issue.record("A timed-out first connection should have thrown")
+        } catch let error as ActualAPIError {
+            guard case .transport(let code) = error, code == .timedOut else {
+                Issue.record("Expected .transport(.timedOut), got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected an ActualAPIError, got \(type(of: error))")
+        }
+        #expect(FirstConnectionRetryURLProtocol.attemptCount == 1)
+    }
+
+    @MainActor
+    @Test func timedOutPrimaryReachesTheFallbackWithoutRetryDelays() async throws {
+        FirstConnectionRetryURLProtocol.attemptCount = 0
+        FirstConnectionRetryURLProtocol.failuresRemaining = 100
+        FirstConnectionRetryURLProtocol.errorCode = .timedOut
+        defer { FirstConnectionRetryURLProtocol.errorCode = .cannotConnectToHost }
+
+        let primary = makeRetryClient()
+        let fallback = RecordingSyncTransport()
+        let store = LocalFirstActualStore(
+            syncTransportFactory: { url in
+                (url.absoluteString == "https://primary.example.com" ? primary : fallback) as any ActualSyncTransport
+            }
+        )
+        store.fallbackServerURLString = "https://fallback.example.com"
+
+        _ = try await store.withSyncFailover(serverURLString: "https://primary.example.com") { transport in
+            _ = try await transport.sync(data: Data(), token: "token")
+        }
+
+        #expect(FirstConnectionRetryURLProtocol.attemptCount == 1)
+        #expect(await fallback.messageCounts() == [0])
+    }
+
+    @Test(arguments: [URLError.Code.cannotConnectToHost, .cannotFindHost, .secureConnectionFailed])
+    func localNetworkCodesAreRetriedAndEndAsLocalNetworkDenied(code: URLError.Code) async throws {
+        FirstConnectionRetryURLProtocol.attemptCount = 0
+        FirstConnectionRetryURLProtocol.failuresRemaining = 100
+        FirstConnectionRetryURLProtocol.errorCode = code
+        defer { FirstConnectionRetryURLProtocol.errorCode = .cannotConnectToHost }
+
+        let client = makeRetryClient(delays: [.milliseconds(1), .milliseconds(1)])
+        do {
+            _ = try await client.loginMethods()
+            Issue.record("The exhausted retry loop should have thrown")
+        } catch let error as ActualAPIError {
+            guard case .localNetworkDenied = error else {
+                Issue.record("Expected .localNetworkDenied, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected an ActualAPIError, got \(type(of: error))")
+        }
+        #expect(FirstConnectionRetryURLProtocol.attemptCount == 3)
+    }
+
     @Test(arguments: [1, 2])
     func cancellationStopsFirstConnectionRetries(attempt: Int) async {
         FirstConnectionRetryURLProtocol.attemptCount = 0
