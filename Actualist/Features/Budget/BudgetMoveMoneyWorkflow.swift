@@ -151,12 +151,14 @@ final class BudgetMoveMoneyWorkflow {
 
         coverIntroTarget = nil
         let generation = coverIntroGeneration
+        // A cancelled sleep returns at once; Task.isCancelled after each wait
+        // stops the intro instead of running the remaining steps instantly.
         let sleep = sleep ?? { nanoseconds in
-            try? await Task.sleep(nanoseconds: nanoseconds)
+            do { try await Task.sleep(nanoseconds: nanoseconds) } catch {}
         }
 
         await sleep(BudgetMoveMoneyCoverIntro.startDelayNanoseconds)
-        guard generation == coverIntroGeneration, draft != nil else {
+        guard !Task.isCancelled, generation == coverIntroGeneration, draft != nil else {
             return
         }
 
@@ -165,7 +167,8 @@ final class BudgetMoveMoneyWorkflow {
                 BudgetMoveMoneyCoverIntro.animationNanoseconds
                     / UInt64(BudgetMoveMoneyCoverIntro.stepCount)
             )
-            guard generation == coverIntroGeneration,
+            guard !Task.isCancelled,
+                  generation == coverIntroGeneration,
                   var draft = editableDraft else {
                 return
             }
@@ -179,7 +182,7 @@ final class BudgetMoveMoneyWorkflow {
             self.draft = draft
         }
 
-        guard generation == coverIntroGeneration else {
+        guard !Task.isCancelled, generation == coverIntroGeneration else {
             return
         }
         sliderDetent.registerLandingBump()

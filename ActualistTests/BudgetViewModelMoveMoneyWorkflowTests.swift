@@ -217,6 +217,27 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         #expect(await repository.didMoveFinished())
     }
 
+    @Test func cancellingTheCoverIntroWhileItSleepsStopsItWithoutChangingTheDraft() async throws {
+        let model = try makeMoveMoneyModel(visibleCategoryBalance: -7_693)
+        model.selectMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
+        let entered = TestLatch()
+        let release = TestLatch()
+
+        let intro = Task { @MainActor in
+            await model.moveMoneyWorkflow.playCoverIntro { _ in
+                entered.trip()
+                await release.wait()
+            }
+        }
+        await entered.wait()
+        intro.cancel()
+        release.trip()
+        await intro.value
+
+        #expect(model.moveMoneyDraft?.amount == 0)
+        #expect(model.moveMoneySliderDetentFeedback == 0)
+    }
+
     @Test func moveMoneyDirectionToggleMovesFromSelectedCategoryIntoFocusedCategory() async throws {
         let model = BudgetViewModel(initialBudgetID: "budget")
         let repository = RecordingBudgetRepository()
