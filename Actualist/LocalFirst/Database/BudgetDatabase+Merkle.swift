@@ -12,6 +12,7 @@ extension BudgetDatabase {
 
     /// Runs a write transaction that may insert into `messages_crdt`.
     func writeTrackingMerkle<T>(_ body: (Database) throws -> T) throws -> T {
+        try ensureMerkleTrieTrusted()
         merkleWorking = nil
         merkleStaged = nil
         defer {
@@ -59,6 +60,7 @@ extension BudgetDatabase {
     /// Milliseconds of the earliest minute where the server's trie and this
     /// file's disagree, or nil when they match.
     func merkleDivergence(from server: MerkleTrie) throws -> Int64? {
+        try ensureMerkleTrieTrusted()
         let local = try queue.read { db -> (MerkleTrie, Bool) in
             if let merkleCache { return (merkleCache, false) }
             if let stored = try Self.storedMerkleTrie(db) { return (stored, true) }
@@ -83,7 +85,17 @@ extension BudgetDatabase {
 
     var localClockTimestamp: String? { localClock?.lastTimestamp }
 
-    // MARK: Open-time rebuild
+    // MARK: First-use rebuild
+
+    /// Runs the once-per-file rebuild on the first merkle read or write instead
+    /// of at open, so the rebuild executes on this actor and never on the
+    /// caller that opens the database. Nothing opens depend on the trie: the
+    /// clock seed reads `messages_crdt`, not `messages_clock`.
+    func ensureMerkleTrieTrusted() throws {
+        guard !merkleTrieChecked else { return }
+        try Self.prepareMerkleTrie(in: queue, localNodeID: localClock?.nodeID)
+        merkleTrieChecked = true
+    }
 
     /// An imported `messages_clock` is not trusted: it may come from a build that
     /// never kept the trie or from a different codebase. Rebuild once per file.

@@ -82,6 +82,11 @@ struct MerkleClockPersistenceTests {
             """)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node")
 
+        // Opening does not rebuild (F-8): the stored clock and marker are untouched until first use.
+        #expect(try storedTrie(url)?.hash == 777)
+        #expect(try count("SELECT COUNT(*) FROM actualist_local_migrations WHERE name = 'merkle-v1'", url) == 0)
+
+        #expect(try await database.merkleDivergence(from: expectedTrie([t1, t2])) == nil)
         #expect(try storedTrie(url) == expectedTrie([t1, t2]))
         let text = try #require(try clockText(url))
         #expect(text.contains("2026-07-04T12:09:00.000Z-0003-abcdef0123456789"))
@@ -90,9 +95,23 @@ struct MerkleClockPersistenceTests {
 
         // A second open does not rebuild: a clock written since is kept.
         try run("UPDATE messages_clock SET clock = '{\"timestamp\":\"2026-07-04T12:09:00.000Z-0003-abcdef0123456789\",\"merkle\":{\"hash\":5}}'", url)
-        _ = try BudgetDatabase(databaseURL: url, localNodeID: "node")
+        let reopened = try BudgetDatabase(databaseURL: url, localNodeID: "node")
+        _ = try await reopened.merkleDivergence(from: expectedTrie([t1, t2]))
         #expect(try storedTrie(url)?.hash == 5)
-        _ = database
+    }
+
+    @Test func firstLocalWriteRebuildsAnUntrustedImportedClockOnce() async throws {
+        let url = try support.makeSQLiteFixture(extraSQL: """
+            INSERT INTO messages_crdt VALUES ('\(t1)', 'transactions', 'txn', 'category', 'S:a');
+            CREATE TABLE messages_clock (id INTEGER PRIMARY KEY, clock TEXT);
+            INSERT INTO messages_clock VALUES (1, '{"timestamp":"2026-07-04T12:09:00.000Z-0003-abcdef0123456789","merkle":{"hash":777}}');
+            """)
+        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node")
+        #expect(try count("SELECT COUNT(*) FROM actualist_local_migrations WHERE name = 'merkle-v1'", url) == 0)
+
+        _ = try await database.applyRemoteSyncMessages([message(t2, "S:b")])
+        #expect(try storedTrie(url) == expectedTrie([t1, t2]))
+        #expect(try count("SELECT COUNT(*) FROM actualist_local_migrations WHERE name = 'merkle-v1'", url) == 1)
     }
 
     @Test func rebuildFromTheLogEqualsIncrementalInserts() async throws {
@@ -106,7 +125,8 @@ struct MerkleClockPersistenceTests {
             INSERT INTO messages_crdt VALUES ('\(t2)', 'transactions', 'txn', 'category', 'S:b');
             INSERT INTO messages_crdt VALUES ('\(t3)', 'transactions', 'txn', 'category', 'S:c');
             """)
-        _ = try BudgetDatabase(databaseURL: rebuiltURL, localNodeID: "node")
+        let rebuilt = try BudgetDatabase(databaseURL: rebuiltURL, localNodeID: "node")
+        _ = try await rebuilt.merkleDivergence(from: incrementalTrie)
         let stored = try storedTrie(rebuiltURL)?.jsonString
         #expect(stored == incrementalTrie.jsonString, "rebuilt=\(stored ?? "nil") incremental=\(incrementalTrie.jsonString)")
     }

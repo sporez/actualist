@@ -11,6 +11,8 @@ actor BudgetDatabase {
     var merkleCache: MerkleTrie?
     var merkleWorking: MerkleTrie?
     var merkleStaged: MerkleTrie?
+    /// False until the once-per-file stored-clock rebuild has been checked (see `ensureMerkleTrieTrusted`).
+    var merkleTrieChecked = false
     var tableExistsCache: [String: Bool] = [:]
     var columnSetCache: [String: Set<String>] = [:]
     /// Cross-launch cache authority. Every database path that changes Actual
@@ -39,7 +41,6 @@ actor BudgetDatabase {
         try Self.prepareCompatibilityMigrationIDs(in: queue)
         try Self.prepareBudgetIdentity(in: queue)
         try Self.prepareMessagesTimestampIndex(in: queue)
-        try Self.prepareMerkleTrie(in: queue, localNodeID: localNodeID)
         if let localNodeID {
             let latestTimestamp = try queue.read { db in
                 let hasMessagesTable = try Bool.fetchOne(

@@ -27,13 +27,18 @@ struct UpgradeOpenTimingTests {
         let clock = ContinuousClock()
         let nodeID = "0123456789abcdef"
 
+        var firstDatabase: BudgetDatabase?
         let first = try clock.measure {
-            _ = try BudgetDatabase(databaseURL: copy, localNodeID: nodeID)
+            firstDatabase = try BudgetDatabase(databaseURL: copy, localNodeID: nodeID)
         }
+        // The merkle rebuild now runs on the database actor at first use, not at open.
+        let rebuildStart = clock.now
+        try await #require(firstDatabase).ensureMerkleTrieTrusted()
+        let firstUseRebuild = clock.now - rebuildStart
         let second = try clock.measure {
             _ = try BudgetDatabase(databaseURL: copy, localNodeID: nodeID)
         }
-        let line = "UPGRADE-TIMING messages_crdt=\(rowCount) firstOpen=\(first) secondOpen=\(second)"
+        let line = "UPGRADE-TIMING messages_crdt=\(rowCount) firstOpen=\(first) firstUseRebuild=\(firstUseRebuild) secondOpen=\(second)"
         print(line)
         // The runner's stdout is not surfaced by the wrapper's log; leave the result beside the source.
         let report = URL(fileURLWithPath: source).deletingLastPathComponent().appendingPathComponent("timing.txt")
