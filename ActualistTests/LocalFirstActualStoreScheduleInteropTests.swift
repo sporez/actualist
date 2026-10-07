@@ -128,7 +128,7 @@ struct LocalFirstActualStoreScheduleInteropTests {
 
         // Await only the production flush task created by postSchedule. This is
         // not scheduler polling and does not replace the store's normal path.
-        let productionFlush = store.pendingLocalMessageFlushTask
+        let productionFlush = store.syncLane.scheduledFlushTask
         await productionFlush?.value
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: handoff.groupID) == 0)
 

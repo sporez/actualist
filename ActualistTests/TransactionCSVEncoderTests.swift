@@ -192,7 +192,7 @@ struct TransactionCSVExportDatabaseTests {
         #expect(csv.components(separatedBy: "Coffee Shop").count - 1 == 1)
         #expect(csv.contains("Local CRDT write"))
         #expect(pendingAfterExport == pendingAfterWrite)
-        #expect(bundle.store.pendingLocalMessageFlushTask == nil)
+        #expect(bundle.store.syncLane.scheduledFlushTask == nil)
         #expect(await transport.messageCounts().isEmpty)
     }
 

@@ -77,13 +77,18 @@ extension LocalFirstActualStore {
     /// and debug-event recording can attribute the result to primary or
     /// fallback. After a successful failover the primary is cached as down
     /// for a TTL so later calls skip it.
+    ///
+    /// `onEndpoint` reports each endpoint as it is tried, so a caller can
+    /// attribute its own result without reading the shared `lastSyncEndpoint`.
     func withSyncFailover<T>(
         serverURLString: String,
+        onEndpoint: (LocalFirstSyncDebugEvent.Endpoint) -> Void = { _ in },
         operation: @escaping @Sendable (any ActualSyncTransport) async throws -> T
     ) async throws -> T {
         try await withFailover(
             serverURLString: serverURLString,
             resolveTransport: syncTransport(for:role:),
+            onEndpoint: onEndpoint,
             operation: operation
         )
     }
@@ -97,6 +102,7 @@ extension LocalFirstActualStore {
         try await withFailover(
             serverURLString: serverURLString,
             resolveTransport: connectionTransport(for:role:),
+            onEndpoint: { _ in },
             operation: operation
         )
     }
@@ -104,6 +110,7 @@ extension LocalFirstActualStore {
     private func withFailover<Transport, T>(
         serverURLString: String,
         resolveTransport: (URL, ActualServerEndpointRole) throws -> Transport,
+        onEndpoint: (LocalFirstSyncDebugEvent.Endpoint) -> Void,
         operation: (Transport) async throws -> T
     ) async throws -> T {
         let generation = budgetSessionGeneration
@@ -115,6 +122,7 @@ extension LocalFirstActualStore {
         if let fallbackURL = endpoints.fallback,
            shouldSkipPrimary(primary: primaryURL, fallback: fallbackURL) {
             lastSyncEndpoint = .fallback
+            onEndpoint(.fallback)
             do {
                 let result = try await operation(resolveTransport(fallbackURL, .fallback))
                 try Task.checkCancellation()
@@ -131,6 +139,7 @@ extension LocalFirstActualStore {
         }
 
         lastSyncEndpoint = .primary
+        onEndpoint(.primary)
         do {
             let result = try await operation(resolveTransport(primaryURL, .primary))
             try Task.checkCancellation()
@@ -147,6 +156,7 @@ extension LocalFirstActualStore {
                 throw error
             }
             lastSyncEndpoint = .fallback
+            onEndpoint(.fallback)
             let result = try await operation(resolveTransport(fallbackURL, .fallback))
             try Task.checkCancellation()
             guard generation == budgetSessionGeneration else { throw CancellationError() }

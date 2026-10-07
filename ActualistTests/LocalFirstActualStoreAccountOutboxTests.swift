@@ -300,7 +300,7 @@ extension LocalFirstActualStoreTests {
         let database = try #require(bundle.store.database)
         bundle.store.openedServerURLString = "https://sync.example"
         await bundle.store.schedulePendingLocalMessageFlush(database: database, budgetID: "group-1")
-        await bundle.store.pendingLocalMessageFlushTask?.value
+        await bundle.store.syncLane.scheduledFlushTask?.value
 
         #expect(pendingCount > 0)
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)

@@ -45,7 +45,7 @@ extension LocalFirstActualStoreTests {
     @Test func writeArrivingInTheFlushTailStartsAnotherPass() async throws {
         let (bundle, transport, gate) = try await makeParkedFlushTail()
         let store = bundle.store
-        let task = try #require(store.pendingLocalMessageFlushTask)
+        let task = try #require(store.syncLane.scheduledFlushTask)
 
         try await commitLateWriteWhileParked(in: bundle)
         gate.release.trip()
@@ -58,7 +58,7 @@ extension LocalFirstActualStoreTests {
     @Test func flushTailRequestIsIgnoredWhenTheServerChangedWhileParked() async throws {
         let (bundle, transport, gate) = try await makeParkedFlushTail()
         let store = bundle.store
-        let task = try #require(store.pendingLocalMessageFlushTask)
+        let task = try #require(store.syncLane.scheduledFlushTask)
 
         try await commitLateWriteWhileParked(in: bundle)
         store.openedServerURLString = "https://other.example"
@@ -144,6 +144,6 @@ extension LocalFirstActualStoreTests {
         let database = try #require(bundle.store.database)
         bundle.store.openedServerURLString = "https://sync.example"
         await bundle.store.schedulePendingLocalMessageFlush(database: database, budgetID: "group-1")
-        await bundle.store.pendingLocalMessageFlushTask?.value
+        await bundle.store.syncLane.scheduledFlushTask?.value
     }
 }

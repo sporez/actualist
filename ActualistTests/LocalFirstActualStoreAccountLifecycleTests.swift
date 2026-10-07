@@ -157,7 +157,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         #expect(store.accountsByBudget.isEmpty)
         #expect(store.transactionFeedPagesByKey.isEmpty)
         #expect(store.actionLogDiagnosticSnapshot == .empty)
-        #expect(store.pendingLocalMessageFlushTask == nil)
+        #expect(store.syncLane.scheduledFlushTask == nil)
         #expect(try await originalDatabase.fetchAccounts().first { $0.id == "checking" }?.name == "Daily Spending")
         #expect(try await originalDatabase.pendingLocalSyncMessageCount() == 1)
     }

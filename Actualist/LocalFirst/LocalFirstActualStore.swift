@@ -117,10 +117,9 @@ final class LocalFirstActualStore:
     /// paths can attribute the result. Read by sync-status and debug-event
     /// recording; not persisted.
     var lastSyncEndpoint: LocalFirstSyncDebugEvent.Endpoint = .primary
-    var isFlushingPendingLocalMessages = false
-    var shouldFlushPendingLocalMessagesAgain = false
-    var pendingLocalMessageFlushWaiters: [CheckedContinuation<Void, Never>] = []
-    var pendingLocalMessageFlushTask: Task<Void, Never>?
+    /// This session's server-sync lane (flush, pull and their status).
+    /// `closeOpenBudget()` invalidates it and installs a fresh one.
+    @ObservationIgnored var syncLane = ServerSyncLane()
 
     /// Cached transports per base URL so `ActualServerSyncClient.hasConnected`
     /// (and the underlying URLSession connection pool) persists across syncs.
@@ -260,8 +259,8 @@ final class LocalFirstActualStore:
         budgetDiscoveryGeneration &+= 1
         let generation = budgetSessionGeneration
         Task { await syncClient.invalidate(generation: generation) }
-        pendingLocalMessageFlushTask?.cancel()
-        pendingLocalMessageFlushTask = nil
+        syncLane.invalidate()
+        syncLane = ServerSyncLane()
         openedBudgetID = nil
         openedGroupID = nil
         openedNodeID = nil
@@ -295,10 +294,7 @@ final class LocalFirstActualStore:
         currencyByBudget = [:]
         bankSyncGenerationByAccount = [:]
         syncStatus = nil
-        isFlushingPendingLocalMessages = false
         isDemoBudgetActive = false
-        shouldFlushPendingLocalMessagesAgain = false
-        resumePendingLocalMessageFlushWaiters()
     }
 
     func eraseLocalData() async throws {

@@ -26,13 +26,18 @@ struct LocalFirstSyncResult: Equatable, Sendable {
     let insertedTransactionIDsByAccount: [String: [String]]
     /// Timestamps of remote values stored but not applied because they were unreadable.
     let quarantinedTimestamps: [String]
+    /// The endpoint the store used for this operation. Set by the store's sync
+    /// lane, not by the sync client, so it never reflects a concurrent attempt.
+    var endpoint: LocalFirstSyncDebugEvent.Endpoint?
 
     init(
         pushedMessageCount: Int,
         appliedRemoteMessageCount: Int,
         insertedTransactionIDsByAccount: [String: [String]] = [:],
-        quarantinedTimestamps: [String] = []
+        quarantinedTimestamps: [String] = [],
+        endpoint: LocalFirstSyncDebugEvent.Endpoint? = nil
     ) {
+        self.endpoint = endpoint
         self.pushedMessageCount = pushedMessageCount
         self.appliedRemoteMessageCount = appliedRemoteMessageCount
         self.insertedTransactionIDsByAccount = insertedTransactionIDsByAccount

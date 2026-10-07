@@ -44,7 +44,7 @@ extension LocalFirstActualStoreTests {
         try bundle.keychain.saveActualSyncToken("token")
         try await enqueueAssertionDraft(in: bundle)
 
-        await bundle.store.pendingLocalMessageFlushTask?.value
+        await bundle.store.syncLane.scheduledFlushTask?.value
 
         #expect(assertion.begins == 1)
         #expect(assertion.ends == 1)
@@ -81,7 +81,7 @@ extension LocalFirstActualStoreTests {
 
         assertion.expirationHandlers.first?()
         gate.release.trip()
-        await bundle.store.pendingLocalMessageFlushTask?.value
+        await bundle.store.syncLane.scheduledFlushTask?.value
 
         #expect(assertion.begins == 1)
         #expect(assertion.ends == 1)
@@ -99,7 +99,7 @@ extension LocalFirstActualStoreTests {
         )
         try bundle.keychain.saveActualSyncToken("token")
         try await enqueueAssertionDraft(in: bundle)
-        let task = try #require(bundle.store.pendingLocalMessageFlushTask)
+        let task = try #require(bundle.store.syncLane.scheduledFlushTask)
 
         // After the first attempt ends the loop can only be sleeping.
         let ended = await assertion.firstEnd.wait(timeout: .seconds(20)) { task.cancel() }

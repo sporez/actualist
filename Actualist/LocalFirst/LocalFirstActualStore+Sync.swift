@@ -45,10 +45,16 @@ extension LocalFirstActualStore {
         let budgetID = budget.syncID
         let refreshedDatabase = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let syncResult = try await pullAndReload(
+        // D16: every apply during this run counts toward its alert, including
+        // a scheduled flush that lands before or while this run's own pull.
+        let lane = syncLane
+        let runToken = lane.beginBackgroundRun()
+        defer { _ = lane.endBackgroundRun(runToken) }
+        try await pullAndReload(
             budgetID: budgetID,
             serverURLString: serverURLString
         )
+        let insertedByAccount = lane.endBackgroundRun(runToken)
 
         try requireSyncSession(database: refreshedDatabase, budgetID: budgetID, generation: generation)
         let accountDisplays: [AccountDisplay]
@@ -61,7 +67,7 @@ extension LocalFirstActualStore {
         let accounts = accountDisplays.map(\.account).filter { !$0.closed }
 
         return accounts.compactMap { account in
-            let newIDs = syncResult.insertedTransactionIDsByAccount[account.id] ?? []
+            let newIDs = insertedByAccount[account.id] ?? []
             guard !newIDs.isEmpty else {
                 return nil
             }
@@ -106,13 +112,15 @@ extension LocalFirstActualStore {
         guard let serverURLString = openedServerURLString, !serverURLString.isEmpty else {
             return
         }
-        if pendingLocalMessageFlushTask != nil || isFlushingPendingLocalMessages {
-            shouldFlushPendingLocalMessagesAgain = true
+        let lane = syncLane
+        if lane.scheduledFlushTask != nil || lane.isFlushing {
+            lane.flushRequestedAgain = true
             return
         }
 
-        pendingLocalMessageFlushTask = Task { [weak self] in
+        lane.scheduledFlushTask = Task { [weak self] in
             await self?.runScheduledPendingLocalMessageFlush(
+                lane: lane,
                 database: database,
                 budgetID: budgetID,
                 serverURLString: serverURLString
@@ -121,6 +129,7 @@ extension LocalFirstActualStore {
     }
 
     func runScheduledPendingLocalMessageFlush(
+        lane: ServerSyncLane,
         database: BudgetDatabase,
         budgetID: String,
         serverURLString: String
@@ -153,27 +162,28 @@ extension LocalFirstActualStore {
             // task was still non-nil. Take another pass instead of clearing the
             // task, or that write waits for the next trigger.
         } while takeFlushRequestedDuringTail(
+            lane: lane,
             database: database,
             budgetID: budgetID,
             generation: generation,
             serverURLString: serverURLString
         )
         if ownsSyncSession(database: database, budgetID: budgetID, generation: generation) {
-            pendingLocalMessageFlushTask = nil
+            lane.scheduledFlushTask = nil
         }
     }
 
-    /// Consumes `shouldFlushPendingLocalMessagesAgain` for a new scheduled pass.
+    /// Consumes the lane's `flushRequestedAgain` for a new scheduled pass.
     /// Clearing the flag on every call keeps a stale request from looping when
     /// the session, server or task no longer permits another pass.
     private func takeFlushRequestedDuringTail(
+        lane: ServerSyncLane,
         database: BudgetDatabase,
         budgetID: String,
         generation: Int,
         serverURLString: String
     ) -> Bool {
-        guard shouldFlushPendingLocalMessagesAgain else { return false }
-        shouldFlushPendingLocalMessagesAgain = false
+        guard lane.takeFlushRequestedAgain() else { return false }
         return !Task.isCancelled
             && !isDemoBudgetActive
             && ownsSyncSession(database: database, budgetID: budgetID, generation: generation)
@@ -210,12 +220,14 @@ extension LocalFirstActualStore {
         serverURLString: String
     ) async -> PendingLocalMessageFlushOutcome {
         let generation = budgetSessionGeneration
+        var ticket: Int?
         do {
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let result = try await flushPendingLocalMessagesSerialized(
                 database: database,
                 budgetID: budgetID,
-                serverURLString: serverURLString
+                serverURLString: serverURLString,
+                onTicket: { ticket = $0 }
             )
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             if result.appliedRemoteMessageCount > 0 {
@@ -227,7 +239,9 @@ extension LocalFirstActualStore {
                     budgetID: budgetID,
                     uploadedCount: result.pushedMessageCount,
                     appliedCount: result.appliedRemoteMessageCount,
-                    error: nil
+                    error: nil,
+                    endpoint: result.endpoint,
+                    ticket: ticket
                 )
             }
             return .succeeded
@@ -240,69 +254,52 @@ extension LocalFirstActualStore {
                 budgetID: budgetID,
                 uploadedCount: nil,
                 appliedCount: nil,
-                error: error
+                error: error,
+                ticket: ticket
             )
             return .failed
         }
     }
 
+    /// Runs the flush as one lane operation. `onTicket` receives the run's
+    /// status ticket so the caller's status update is ordered against later ones.
     func flushPendingLocalMessagesSerialized(
         database: BudgetDatabase,
         budgetID: String,
         serverURLString: String,
-        token: String? = nil
+        token: String? = nil,
+        onTicket: (Int) -> Void = { _ in }
     ) async throws -> LocalFirstSyncResult {
         let generation = budgetSessionGeneration
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-        while isFlushingPendingLocalMessages {
-            shouldFlushPendingLocalMessagesAgain = true
-            await waitForPendingLocalMessageFlushToFinish()
-            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        let lane = syncLane
+        return try await lane.run(.flush) { ticket in
+            onTicket(ticket)
+            var totalResult = LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
+            repeat {
+                try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+                lane.flushRequestedAgain = false
+                let result = try await flushPendingLocalMessages(
+                    database: database,
+                    budgetID: budgetID,
+                    serverURLString: serverURLString,
+                    token: token
+                )
+                try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+                lane.noteInserted(result.insertedTransactionIDsByAccount)
+                totalResult = LocalFirstSyncResult(
+                    pushedMessageCount: totalResult.pushedMessageCount + result.pushedMessageCount,
+                    appliedRemoteMessageCount: totalResult.appliedRemoteMessageCount + result.appliedRemoteMessageCount,
+                    insertedTransactionIDsByAccount: mergedTransactionIDsByAccount(
+                        totalResult.insertedTransactionIDsByAccount,
+                        result.insertedTransactionIDsByAccount
+                    ),
+                    quarantinedTimestamps: totalResult.quarantinedTimestamps + result.quarantinedTimestamps,
+                    endpoint: result.endpoint ?? totalResult.endpoint
+                )
+            } while lane.flushRequestedAgain
+            return totalResult
         }
-
-        isFlushingPendingLocalMessages = true
-        defer {
-            if ownsSyncSession(database: database, budgetID: budgetID, generation: generation) {
-                isFlushingPendingLocalMessages = false
-                resumePendingLocalMessageFlushWaiters()
-            }
-        }
-
-        var totalResult = LocalFirstSyncResult(pushedMessageCount: 0, appliedRemoteMessageCount: 0)
-        repeat {
-            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            shouldFlushPendingLocalMessagesAgain = false
-            let result = try await flushPendingLocalMessages(
-                database: database,
-                budgetID: budgetID,
-                serverURLString: serverURLString,
-                token: token
-            )
-            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            totalResult = LocalFirstSyncResult(
-                pushedMessageCount: totalResult.pushedMessageCount + result.pushedMessageCount,
-                appliedRemoteMessageCount: totalResult.appliedRemoteMessageCount + result.appliedRemoteMessageCount,
-                insertedTransactionIDsByAccount: mergedTransactionIDsByAccount(
-                    totalResult.insertedTransactionIDsByAccount,
-                    result.insertedTransactionIDsByAccount
-                ),
-                quarantinedTimestamps: totalResult.quarantinedTimestamps + result.quarantinedTimestamps
-            )
-        } while shouldFlushPendingLocalMessagesAgain
-
-        return totalResult
-    }
-
-    func waitForPendingLocalMessageFlushToFinish() async {
-        await withCheckedContinuation { continuation in
-            pendingLocalMessageFlushWaiters.append(continuation)
-        }
-    }
-
-    func resumePendingLocalMessageFlushWaiters() {
-        let waiters = pendingLocalMessageFlushWaiters
-        pendingLocalMessageFlushWaiters = []
-        waiters.forEach { $0.resume() }
     }
 
     /// `token` is the sync token the calling operation already read; nil reads it
@@ -328,8 +325,12 @@ extension LocalFirstActualStore {
         status.lastSyncAttemptAt = Date()
         syncStatus = status
         let confirmation = UploadConfirmation()
+        var usedEndpoint = lastSyncEndpoint
         do {
-            let result = try await withSyncFailover(serverURLString: serverURLString) { client in
+            var result = try await withSyncFailover(
+                serverURLString: serverURLString,
+                onEndpoint: { usedEndpoint = $0 }
+            ) { client in
                 let sessionIsCurrent: @Sendable () async -> Bool = { [self] in
                     await ownsSyncSession(database: database, budgetID: budgetID, generation: generation)
                 }
@@ -366,14 +367,15 @@ extension LocalFirstActualStore {
                 )
             }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            recordQuarantinedSyncValues(result.quarantinedTimestamps)
+            result.endpoint = usedEndpoint
+            recordQuarantinedSyncValues(result.quarantinedTimestamps, endpoint: usedEndpoint)
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             let remainingCount = (try? await database.pendingLocalSyncMessageCount()) ?? 0
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             // One run uploads at most one batch (`pendingLocalSyncMessages(limit:)`).
             // Confirmed rows are deleted above, so any that remain are a later batch.
             if remainingCount > 0 {
-                shouldFlushPendingLocalMessagesAgain = true
+                syncLane.flushRequestedAgain = true
             }
             recordSyncDebugEvent(
                 outcome: .succeeded,
@@ -382,7 +384,7 @@ extension LocalFirstActualStore {
                 downloadedCount: result.appliedRemoteMessageCount,
                 pendingAfter: remainingCount,
                 message: "Server confirmed \(result.pushedMessageCount) uploaded sync message\(result.pushedMessageCount == 1 ? "" : "s")",
-                endpoint: lastSyncEndpoint
+                endpoint: usedEndpoint
             )
             return result
         } catch {
@@ -405,7 +407,7 @@ extension LocalFirstActualStore {
                 pendingBefore: pending.count,
                 pendingAfter: remainingCount,
                 message: SafeSyncDiagnostic.description(for: resolvedError),
-                endpoint: lastSyncEndpoint
+                endpoint: usedEndpoint
             )
             throw resolvedError
         }
@@ -440,6 +442,8 @@ extension LocalFirstActualStore {
         var status = syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID)
         status.lastSyncAttemptAt = Date()
         syncStatus = status
+        var pullTicket: Int?
+        var pullEndpoint: LocalFirstSyncDebugEvent.Endpoint?
         do {
             let flushedResult = try await flushPendingLocalMessagesSerialized(
                 database: database,
@@ -448,20 +452,32 @@ extension LocalFirstActualStore {
                 token: token
             )
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            let pullResult = try await withSyncFailover(serverURLString: serverURLString) { client in
-                try await self.syncClient.pullAndApply(
-                    database: database,
-                    client: client,
-                    token: token,
-                    sessionIsCurrent: { [self] in
-                        await ownsSyncSession(
-                            database: database, budgetID: budgetID, generation: generation
-                        )
-                    }
-                )
+            let lane = syncLane
+            let pullResult = try await lane.run(.pull) { ticket in
+                pullTicket = ticket
+                var attemptEndpoint = lastSyncEndpoint
+                defer { pullEndpoint = attemptEndpoint }
+                let pulled = try await withSyncFailover(
+                    serverURLString: serverURLString,
+                    onEndpoint: { attemptEndpoint = $0 }
+                ) { client in
+                    try await self.syncClient.pullAndApply(
+                        database: database,
+                        client: client,
+                        token: token,
+                        sessionIsCurrent: { [self] in
+                            await ownsSyncSession(
+                                database: database, budgetID: budgetID, generation: generation
+                            )
+                        }
+                    )
+                }
+                try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+                lane.noteInserted(pulled.insertedTransactionIDsByAccount)
+                return pulled
             }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-            recordQuarantinedSyncValues(pullResult.quarantinedTimestamps)
+            recordQuarantinedSyncValues(pullResult.quarantinedTimestamps, endpoint: pullEndpoint)
             #if DEBUG
             print("[Actualist LocalFirst] Applied \(pullResult.appliedMessageCount) remote sync messages")
             #endif
@@ -477,13 +493,16 @@ extension LocalFirstActualStore {
                     flushedResult.insertedTransactionIDsByAccount,
                     pullResult.insertedTransactionIDsByAccount
                 ),
-                quarantinedTimestamps: flushedResult.quarantinedTimestamps + pullResult.quarantinedTimestamps
+                quarantinedTimestamps: flushedResult.quarantinedTimestamps + pullResult.quarantinedTimestamps,
+                endpoint: pullEndpoint
             )
             await recordSyncStatus(
                 budgetID: budgetID,
                 uploadedCount: result.pushedMessageCount,
                 appliedCount: result.appliedRemoteMessageCount,
-                error: nil
+                error: nil,
+                endpoint: pullEndpoint,
+                ticket: pullTicket
             )
             // Demo returns above. A failed pull throws above. Manual posting
             // passes false so this pull does not post the occurrence it is
@@ -508,7 +527,9 @@ extension LocalFirstActualStore {
                 budgetID: budgetID,
                 uploadedCount: nil,
                 appliedCount: nil,
-                error: resolvedError
+                error: resolvedError,
+                endpoint: pullEndpoint,
+                ticket: pullTicket
             )
             throw resolvedError
         }
@@ -601,7 +622,9 @@ extension LocalFirstActualStore {
         budgetID: String,
         uploadedCount: Int?,
         appliedCount: Int?,
-        error: Error?
+        error: Error?,
+        endpoint: LocalFirstSyncDebugEvent.Endpoint? = nil,
+        ticket: Int? = nil
     ) async {
         guard let database else { return }
         let generation = budgetSessionGeneration
@@ -614,7 +637,7 @@ extension LocalFirstActualStore {
         var errorDescription: String?
         if let appliedCount, let uploadedCount {
             let lastSyncedAt = Date()
-            let usedFallback = lastSyncEndpoint == .fallback
+            let usedFallback = (endpoint ?? lastSyncEndpoint) == .fallback
             success = LocalFirstSyncStatusUpdate.Success(
                 lastSyncedAt: lastSyncedAt,
                 appliedCount: appliedCount,
@@ -645,6 +668,9 @@ extension LocalFirstActualStore {
             errorDescription = SafeSyncDiagnostic.description(for: error)
         }
         guard ownsSyncSession(database: database, budgetID: budgetID, generation: generation) else { return }
+        // An update from an older lane operation than one already applied is
+        // dropped whole, so an older failure cannot overwrite a newer success.
+        if let ticket, !syncLane.acceptsStatus(ticket: ticket) { return }
         let acceptsPendingCount = pendingCount != nil && sequence > appliedPendingCountSequence
         if acceptsPendingCount { appliedPendingCountSequence = sequence }
         syncStatus = (syncStatus ?? LocalFirstSyncStatus(fileID: budgetID, groupID: openedGroupID))
