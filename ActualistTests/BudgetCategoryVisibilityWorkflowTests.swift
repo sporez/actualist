@@ -69,7 +69,7 @@ struct BudgetCategoryVisibilityWorkflowTests {
         #expect(workflow.errorMessage == "Income groups cannot be hidden.")
     }
 
-    @Test func cancelDropsAStaleMonthResult() async throws {
+    @Test func aMonthChangeDuringTheWriteStillPublishesTheCommittedResult() async throws {
         let repository = DelayedVisibilityRepository()
         let workflow = BudgetCategoryVisibilityWorkflow()
         let task = Task {
@@ -84,9 +84,19 @@ struct BudgetCategoryVisibilityWorkflowTests {
         }
         await repository.waitUntilStarted()
         workflow.cancel()
+        try #require(workflow.isSubmitting)
+        let second = await workflow.setCategoryHidden(
+            false,
+            categoryID: "mortgage",
+            groupHidden: false,
+            selectedMonth: "2026-07",
+            budgetID: "budget",
+            repository: repository
+        )
+        #expect(second == nil)
         await repository.finish()
         let loaded = await task.value
-        #expect(loaded == nil)
+        #expect(loaded != nil)
         #expect(!workflow.isSubmitting)
     }
 

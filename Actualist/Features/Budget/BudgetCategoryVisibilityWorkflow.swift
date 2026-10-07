@@ -6,11 +6,12 @@ import Observation
 final class BudgetCategoryVisibilityWorkflow {
     private(set) var isSubmitting = false
     private(set) var errorMessage: String?
-    private var generation = 0
 
+    /// A committed write cannot be cancelled; teardown while submitting is refused
+    /// so the result still reaches the caller and a second write is rejected.
     func cancel() {
-        generation += 1
-        isSubmitting = false
+        guard !isSubmitting else { return }
+        errorMessage = nil
     }
 
     func setCategoryHidden(
@@ -80,25 +81,17 @@ final class BudgetCategoryVisibilityWorkflow {
             return nil
         }
 
-        generation += 1
-        let token = generation
         isSubmitting = true
         errorMessage = nil
 
         do {
             let loaded = try await work(selectedMonth, budgetID)
-            guard token == generation else {
-                return nil
-            }
             isSubmitting = false
             // The write committed to the budget captured above; if another budget
             // is selected now, the caller must not refresh or apply for it.
             if let currentBudgetID, currentBudgetID() != budgetID { return nil }
             return loaded
         } catch {
-            guard token == generation else {
-                return nil
-            }
             isSubmitting = false
             if let currentBudgetID, currentBudgetID() != budgetID { return nil }
             errorMessage = error.userFacingMessage
