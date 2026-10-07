@@ -126,30 +126,58 @@ extension LocalFirstActualStore {
         serverURLString: String
     ) async {
         let generation = budgetSessionGeneration
-        for delay in pendingLocalMessageFlushRetryDelays {
-            guard !Task.isCancelled,
-                  ownsSyncSession(database: database, budgetID: budgetID, generation: generation),
-                  openedServerURLString == serverURLString else {
-                break
-            }
-            if delay != .zero {
-                do {
-                    try await Task.sleep(for: delay)
-                } catch {
+        repeat {
+            for delay in pendingLocalMessageFlushRetryDelays {
+                guard !Task.isCancelled,
+                      ownsSyncSession(database: database, budgetID: budgetID, generation: generation),
+                      openedServerURLString == serverURLString else {
+                    break
+                }
+                if delay != .zero {
+                    do {
+                        try await Task.sleep(for: delay)
+                    } catch {
+                        break
+                    }
+                }
+                if await flushPendingLocalMessagesIfPossible(
+                    database: database,
+                    budgetID: budgetID,
+                    serverURLString: serverURLString
+                ) != .failed {
                     break
                 }
             }
-            if await flushPendingLocalMessagesIfPossible(
-                database: database,
-                budgetID: budgetID,
-                serverURLString: serverURLString
-            ) != .failed {
-                break
-            }
-        }
+            // A write that committed while this task was past the serialized
+            // loop (in its reload/status tail) only set the flag, because the
+            // task was still non-nil. Take another pass instead of clearing the
+            // task, or that write waits for the next trigger.
+        } while takeFlushRequestedDuringTail(
+            database: database,
+            budgetID: budgetID,
+            generation: generation,
+            serverURLString: serverURLString
+        )
         if ownsSyncSession(database: database, budgetID: budgetID, generation: generation) {
             pendingLocalMessageFlushTask = nil
         }
+    }
+
+    /// Consumes `shouldFlushPendingLocalMessagesAgain` for a new scheduled pass.
+    /// Clearing the flag on every call keeps a stale request from looping when
+    /// the session, server or task no longer permits another pass.
+    private func takeFlushRequestedDuringTail(
+        database: BudgetDatabase,
+        budgetID: String,
+        generation: Int,
+        serverURLString: String
+    ) -> Bool {
+        guard shouldFlushPendingLocalMessagesAgain else { return false }
+        shouldFlushPendingLocalMessagesAgain = false
+        return !Task.isCancelled
+            && !isDemoBudgetActive
+            && ownsSyncSession(database: database, budgetID: budgetID, generation: generation)
+            && openedServerURLString == serverURLString
     }
 
     func flushPendingLocalMessagesIfPossible(
