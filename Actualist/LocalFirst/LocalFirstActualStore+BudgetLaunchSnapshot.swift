@@ -13,8 +13,8 @@ extension LocalFirstActualStore {
     ) async {
         let revision: UInt64?
         do {
-            revision = try LaunchSignpost.measureSync(LaunchStage.launchSnapshotRevisionRead) {
-                try files.prepareRevision()
+            revision = try await LaunchSignpost.measure(LaunchStage.launchSnapshotRevisionRead) {
+                try await files.loadRevision()
             }
         } catch {
             LaunchSignpost.event(LaunchStage.launchSnapshotMiss)
@@ -31,8 +31,8 @@ extension LocalFirstActualStore {
 
         let stored: BudgetLaunchSnapshot?
         do {
-            let pair = try LaunchSignpost.measureSync(LaunchStage.launchSnapshotRead) {
-                try files.readRevisionAndSnapshot()
+            let pair = try await LaunchSignpost.measure(LaunchStage.launchSnapshotRead) {
+                try await files.loadRevisionAndSnapshot()
             }
             guard pair.revision == revision else {
                 LaunchSignpost.event(LaunchStage.launchSnapshotMiss)
@@ -117,7 +117,7 @@ extension LocalFirstActualStore {
             displayedMonth: loaded.selectedMonth
         )
         if let expectedRevision {
-            persistBudgetLaunchSnapshot(loaded, revision: expectedRevision)
+            await persistBudgetLaunchSnapshot(loaded, revision: expectedRevision)
         }
     }
 
@@ -127,17 +127,17 @@ extension LocalFirstActualStore {
     func persistBudgetLaunchSnapshotIfCanonical(
         _ loaded: LoadedBudgetMonth,
         revision: UInt64
-    ) {
+    ) async {
         guard let context = launchSnapshotContext,
               context.budgetID == openedBudgetID,
               context.displayedMonth == loaded.selectedMonth,
               context.preferredCalendarMonth == YearMonth(date: Date()).rawValue else {
             return
         }
-        persistBudgetLaunchSnapshot(loaded, revision: revision)
+        await persistBudgetLaunchSnapshot(loaded, revision: revision)
     }
 
-    private func persistBudgetLaunchSnapshot(_ loaded: LoadedBudgetMonth, revision: UInt64) {
+    private func persistBudgetLaunchSnapshot(_ loaded: LoadedBudgetMonth, revision: UInt64) async {
         guard launchSnapshotWrittenRevision != revision else { return }
         guard let files = launchSnapshotFiles,
               let context = launchSnapshotContext,
@@ -151,10 +151,14 @@ extension LocalFirstActualStore {
               ) else {
             return
         }
-        let didWrite = try? LaunchSignpost.measureSync(LaunchStage.launchSnapshotWrite) {
-            try files.writeSnapshot(snapshot, ifRevisionIs: revision)
+        let session = budgetSessionGeneration
+        let didWrite = try? await LaunchSignpost.measure(LaunchStage.launchSnapshotWrite) {
+            try await files.storeSnapshot(snapshot, ifRevisionIs: revision)
         }
-        if didWrite == true {
+        // The write is compare-and-write on the file's own revision, so a stale
+        // result is harmless on disk; only the in-memory marker needs the session
+        // to be the one that started the write.
+        if didWrite == true, session == budgetSessionGeneration {
             launchSnapshotWrittenRevision = revision
         }
     }

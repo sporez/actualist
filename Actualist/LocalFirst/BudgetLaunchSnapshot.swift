@@ -154,6 +154,24 @@ struct BudgetLaunchSnapshotFiles: @unchecked Sendable {
         )
     }
 
+    /// Off-main entry points for the store. The sidecar read, decode, encode and
+    /// write are blocking file I/O; the shared lock inside `access` stays the
+    /// single authority, so compare-and-write is unchanged.
+    @concurrent
+    func loadRevision() async throws -> UInt64 {
+        try prepareRevision()
+    }
+
+    @concurrent
+    func loadRevisionAndSnapshot() async throws -> (revision: UInt64, snapshot: BudgetLaunchSnapshot?) {
+        try readRevisionAndSnapshot()
+    }
+
+    @concurrent
+    func storeSnapshot(_ snapshot: BudgetLaunchSnapshot, ifRevisionIs expectedRevision: UInt64) async throws -> Bool {
+        try writeSnapshot(snapshot, ifRevisionIs: expectedRevision)
+    }
+
     @discardableResult
     func advanceRevision() throws -> UInt64 {
         try access.advanceRevision(
@@ -192,7 +210,10 @@ final class BudgetLaunchSnapshotFileAccess: @unchecked Sendable {
     }
 
     func prepareRevision(localFileID: String, revisionURL: URL, snapshotURL: URL) throws -> UInt64 {
-        try withLock {
+        #if DEBUG
+        MainThreadCallLog.record("launchSnapshotPrepare", key: revisionURL.path)
+        #endif
+        return try withLock {
             if let record = try validRevisionRecord(at: revisionURL, localFileID: localFileID) {
                 return record.revision
             }
@@ -209,7 +230,10 @@ final class BudgetLaunchSnapshotFileAccess: @unchecked Sendable {
         revisionURL: URL,
         snapshotURL: URL
     ) throws -> (revision: UInt64, snapshot: BudgetLaunchSnapshot?) {
-        try withLock {
+        #if DEBUG
+        MainThreadCallLog.record("launchSnapshotRead", key: revisionURL.path)
+        #endif
+        return try withLock {
             guard let record = try validRevisionRecord(at: revisionURL, localFileID: localFileID) else {
                 try removeIfPresent(snapshotURL)
                 let initial = BudgetLaunchRevisionRecord(localFileID: localFileID, revision: 0)
@@ -252,7 +276,10 @@ final class BudgetLaunchSnapshotFileAccess: @unchecked Sendable {
         revisionURL: URL,
         snapshotURL: URL
     ) throws -> Bool {
-        try withLock {
+        #if DEBUG
+        MainThreadCallLog.record("launchSnapshotWrite", key: snapshotURL.path)
+        #endif
+        return try withLock {
             guard let record = try validRevisionRecord(at: revisionURL, localFileID: localFileID),
                   record.revision == expectedRevision,
                   snapshot.revision == expectedRevision,
