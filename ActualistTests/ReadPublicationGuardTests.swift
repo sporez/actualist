@@ -150,4 +150,30 @@ extension LocalFirstActualStoreTests {
         #expect(store.syncStatus(budgetID: "group-1")?.pendingLocalMessageCount == 1)
     }
 
+    @Test func launchSeedIgnoresASnapshotWhoseRevisionAdvancedWhileItWasBeingRead() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let store = bundle.store
+        let original = try #require(store.cachedBudgetMonth(budgetID: "group-1"))
+        let files = try bundle.fileManager.launchSnapshotFiles(fileID: "file-1")
+        store.reset()
+        let queue = try DatabaseQueue(path: bundle.fileManager.databaseURL(fileID: "file-1").path)
+
+        let gate = ReadGate()
+        gate.install(on: store, site: .launchSeed)
+        let reopen = Task { try await store.openCachedBudget(bundle.budget) }
+        let parked = await gate.entered.wait(timeout: .seconds(20)) { gate.release.trip() }
+        #expect(parked)
+        // A write advances the persistent revision while the snapshot is in hand.
+        _ = try files.advanceRevision()
+        try await queue.write { db in
+            try db.execute(
+                sql: "UPDATE zero_budgets SET amount = 88888 WHERE month = 202607 AND category = 'groceries'"
+            )
+        }
+        gate.release.trip()
+        #expect(try await reopen.value)
+
+        let seeded = try #require(store.cachedBudgetMonth(budgetID: "group-1"))
+        #expect(seeded.month != original.month)
+    }
 }

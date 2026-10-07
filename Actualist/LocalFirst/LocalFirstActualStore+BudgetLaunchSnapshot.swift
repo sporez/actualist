@@ -52,8 +52,15 @@ extension LocalFirstActualStore {
         }
 
         let modeIdentity = try? await database.fetchBudgetModeIdentity()
+        #if DEBUG
+        await readPublicationHook?(.launchSeed)
+        #endif
         guard !Task.isCancelled, self.database === database, openedBudgetID == budgetID else { return }
-        if let revision,
+        // A write that advanced the persistent revision while the snapshot was
+        // being read makes it stale: fall through to the live projection.
+        let currentRevision = try? await files.loadRevision()
+        guard !Task.isCancelled, self.database === database, openedBudgetID == budgetID else { return }
+        if let revision, currentRevision == revision,
            let stored,
            let modeIdentity,
            let restored = stored.restoredMonth(
@@ -89,7 +96,7 @@ extension LocalFirstActualStore {
             metadata: metadata,
             budgetID: budgetID,
             preferredCalendarMonth: preferredCalendarMonth,
-            expectedRevision: revision
+            expectedRevision: currentRevision ?? revision
         )
     }
 
