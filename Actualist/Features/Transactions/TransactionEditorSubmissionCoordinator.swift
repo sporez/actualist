@@ -40,7 +40,9 @@ final class TransactionEditorSubmissionCoordinator {
     }
 
     enum EditingIdentity: Equatable, Sendable {
-        case creating
+        /// `transactionID` is minted once per editor presentation so a repeated
+        /// Save after an ambiguous outcome cannot create a second transaction.
+        case creating(transactionID: String)
         /// `baseline` is the transaction the editor loaded; the store diffs the
         /// draft against it so untouched fields are not rewritten.
         case updating(
@@ -124,10 +126,11 @@ final class TransactionEditorSubmissionCoordinator {
         do {
             let result: TransactionMutationResult
             switch editingIdentity {
-            case .creating:
+            case .creating(let transactionID):
                 result = try await repository.createTransactionAndRefresh(
                     draft,
-                    budgetID: budgetID
+                    budgetID: budgetID,
+                    transactionID: transactionID
                 ) { [weak self] in
                     await MainActor.run {
                         self?.transitionToRefetching(token: token)

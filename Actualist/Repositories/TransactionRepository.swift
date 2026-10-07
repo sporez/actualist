@@ -109,9 +109,11 @@ protocol TransactionRepositoryProtocol: AnyObject {
         intoAccountID accountID: String,
         budgetID: String
     ) async throws -> WalletTransactionImportResult
+    /// `transactionID` makes a retried create idempotent; `nil` mints a fresh id.
     func createTransactionAndRefresh(
         _ draft: TransactionDraft,
         budgetID: String,
+        transactionID: String?,
         didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func updateTransactionAndRefresh(

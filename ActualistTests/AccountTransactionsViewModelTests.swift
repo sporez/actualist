@@ -688,6 +688,7 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
     func createTransactionAndRefresh(
         _ draft: TransactionDraft,
         budgetID: String,
+        transactionID: String?,
         didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 

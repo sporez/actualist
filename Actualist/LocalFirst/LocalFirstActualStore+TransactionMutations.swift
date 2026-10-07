@@ -13,6 +13,22 @@ extension LocalFirstActualStore {
         try await createTransactionAndRefresh(
             draft,
             budgetID: budgetID,
+            transactionID: nil,
+            actionSource: .ui,
+            didCreate: didCreate
+        )
+    }
+
+    func createTransactionAndRefresh(
+        _ draft: TransactionDraft,
+        budgetID: String,
+        transactionID: String?,
+        didCreate: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await createTransactionAndRefresh(
+            draft,
+            budgetID: budgetID,
+            transactionID: transactionID,
             actionSource: .ui,
             didCreate: didCreate
         )
@@ -24,10 +40,29 @@ extension LocalFirstActualStore {
         actionSource: BudgetActionSource,
         didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
+        try await createTransactionAndRefresh(
+            draft,
+            budgetID: budgetID,
+            transactionID: nil,
+            actionSource: actionSource,
+            didCreate: didCreate
+        )
+    }
+
+    /// `transactionID` is chosen once per editor presentation so a retried save
+    /// is idempotent: when that row already exists (live or tombstoned) the
+    /// commit writes nothing and the call succeeds. `nil` mints a fresh id.
+    func createTransactionAndRefresh(
+        _ draft: TransactionDraft,
+        budgetID: String,
+        transactionID callerTransactionID: String?,
+        actionSource: BudgetActionSource,
+        didCreate: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let draft = try await database.draftByResolvingSchedule(draft)
-        let transactionID = UUID().uuidString
+        let transactionID = callerTransactionID ?? UUID().uuidString
         var builder = LocalFirstSyncMessageBuilder()
         let payeeResolution = try await resolvePayeeIfNeeded(
             draft: draft,
@@ -82,21 +117,28 @@ extension LocalFirstActualStore {
             ? [transactionID]
             : []
         let createdPayeeID = payeeResolution.messages.isEmpty ? nil : payeeResolution.payeeID
-        _ = try await database.commitUserAction(
-            messages,
-            descriptor: .createTransaction(CreateTransactionDescriptor(
-                month: draft.month.rawValue,
-                amount: draft.amountMinorUnits,
-                payeeName: trimmedPayeeName(draft.payeeName),
-                categoryID: draft.categoryID,
-                primaryTransactionID: transactionID,
-                transactionIDs: affectedTransactionIDs,
-                graph: graph,
-                createdPayeeID: createdPayeeID
-            )),
-            source: actionSource,
-            learningTransactionIDs: learningIDs
-        )
+        let descriptor = BudgetActionDescriptor.createTransaction(CreateTransactionDescriptor(
+            month: draft.month.rawValue,
+            amount: draft.amountMinorUnits,
+            payeeName: trimmedPayeeName(draft.payeeName),
+            categoryID: draft.categoryID,
+            primaryTransactionID: transactionID,
+            transactionIDs: affectedTransactionIDs,
+            graph: graph,
+            createdPayeeID: createdPayeeID
+        ))
+        let absence = callerTransactionID.map { BudgetDatabase.TransactionIDAbsence(transactionID: $0) }
+        let alreadyCommitted = try await database.commitUserActionPlan(source: actionSource) { database, db in
+            if let absence, try absence.isViolated(in: database, db: db) {
+                return UserActionPlan(drafts: [], descriptor: nil, outcome: true)
+            }
+            return UserActionPlan(
+                drafts: messages,
+                descriptor: descriptor,
+                learningTransactionIDs: learningIDs,
+                outcome: false
+            )
+        }.outcome
         await didCreate()
 
         let uniqueAccounts = Array(Set(changedAccounts))
@@ -105,7 +147,7 @@ extension LocalFirstActualStore {
             budgetID: budgetID,
             generation: generation,
             accountIDs: uniqueAccounts,
-            learningIDs: learningIDs
+            learningIDs: alreadyCommitted ? [] : learningIDs
         )
         return TransactionMutationResult(
             ok: true,

@@ -608,6 +608,7 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
     func createTransactionAndRefresh(
         _ draft: TransactionDraft,
         budgetID: String,
+        transactionID: String?,
         didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         TransactionMutationResult(ok: true, changed: ChangedResources(accounts: [], months: [], transactions: []))

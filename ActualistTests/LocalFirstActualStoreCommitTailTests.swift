@@ -96,7 +96,7 @@ struct LocalFirstActualStoreCommitTailTests {
         let coordinator = TransactionEditorSubmissionCoordinator()
         let caller = Task { @MainActor in
             await coordinator.execute(
-                editingIdentity: .creating,
+                editingIdentity: .creating(transactionID: "new-id"),
                 draft: draft,
                 budgetID: "group-1",
                 repository: store

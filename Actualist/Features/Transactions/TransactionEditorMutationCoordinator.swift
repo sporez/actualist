@@ -28,9 +28,13 @@ final class TransactionEditorMutationCoordinator {
     private(set) var state: State = .idle
     private(set) var isTransactionReconciled: Bool
     private let submission = TransactionEditorSubmissionCoordinator()
+    /// Lives as long as this coordinator, which the editor view model creates
+    /// once per presentation, so every Save attempt of a create reuses it.
+    private let newTransactionID: String
     @ObservationIgnored private var generation = 0
 
-    init(transaction: ActualTransaction?) {
+    init(transaction: ActualTransaction?, newTransactionID: String = UUID().uuidString) {
+        self.newTransactionID = newTransactionID
         transactionID = transaction?.id
         baseline = transaction
         originalAccountID = transaction?.account
@@ -245,7 +249,7 @@ final class TransactionEditorMutationCoordinator {
     }
 
     private var editingIdentity: TransactionEditorSubmissionCoordinator.EditingIdentity? {
-        if !isEditing { return .creating }
+        if !isEditing { return .creating(transactionID: newTransactionID) }
         guard let transactionID, let originalAccountID, let originalMonth else { return nil }
         return .updating(
             transactionID: transactionID,

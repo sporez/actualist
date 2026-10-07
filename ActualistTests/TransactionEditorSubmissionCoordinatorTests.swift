@@ -48,13 +48,13 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let preflight = coordinator.preflight(
             validation: .valid,
             draft: draft,
-            editingIdentity: .creating
+            editingIdentity: .creating(transactionID: "new-id")
         )
 
         guard case .proceed(let identity, let resolvedDraft) = preflight else {
             Issue.record("expected .proceed"); return
         }
-        #expect(identity == .creating)
+        #expect(identity == .creating(transactionID: "new-id"))
         #expect(resolvedDraft == draft)
 
         let outcome = await coordinator.execute(
@@ -115,7 +115,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
 
         let task = Task {
             await coordinator.execute(
-                editingIdentity: .creating,
+                editingIdentity: .creating(transactionID: "new-id"),
                 draft: draft,
                 budgetID: "budget",
                 repository: repository
@@ -145,7 +145,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
 
         let firstSubmit = Task {
             await coordinator.execute(
-                editingIdentity: .creating,
+                editingIdentity: .creating(transactionID: "new-id"),
                 draft: draft,
                 budgetID: "budget",
                 repository: repository
@@ -161,7 +161,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let secondPreflight = coordinator.preflight(
             validation: .valid,
             draft: draft,
-            editingIdentity: .creating
+            editingIdentity: .creating(transactionID: "new-id")
         )
         #expect(secondPreflight == .rejectedAlreadySubmitting)
         #expect(await repository.draftCount() == 1)
@@ -180,7 +180,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let draft = makeDraft()
 
         let outcome = await coordinator.execute(
-            editingIdentity: .creating,
+            editingIdentity: .creating(transactionID: "new-id"),
             draft: draft,
             budgetID: "budget",
             repository: repository
@@ -193,7 +193,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let retryPreflight = coordinator.preflight(
             validation: .valid,
             draft: draft,
-            editingIdentity: .creating
+            editingIdentity: .creating(transactionID: "new-id")
         )
         #expect(isProceed(retryPreflight))
     }
@@ -204,7 +204,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let draft = makeDraft()
 
         let outcome = await coordinator.execute(
-            editingIdentity: .creating,
+            editingIdentity: .creating(transactionID: "new-id"),
             draft: draft,
             budgetID: "budget",
             repository: repository
@@ -226,7 +226,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
 
         let task = Task {
             await coordinator.execute(
-                editingIdentity: .creating,
+                editingIdentity: .creating(transactionID: "new-id"),
                 draft: draft,
                 budgetID: "budget",
                 repository: repository
@@ -255,7 +255,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let draft = makeDraft()
 
         _ = await coordinator.execute(
-            editingIdentity: .creating,
+            editingIdentity: .creating(transactionID: "new-id"),
             draft: draft,
             budgetID: "budget",
             repository: repository
@@ -269,7 +269,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let preflight = coordinator.preflight(
             validation: .valid,
             draft: draft,
-            editingIdentity: .creating
+            editingIdentity: .creating(transactionID: "new-id")
         )
         #expect(isProceed(preflight))
     }
@@ -282,7 +282,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let preflight = coordinator.preflight(
             validation: .overflow,
             draft: makeDraft(),
-            editingIdentity: .creating
+            editingIdentity: .creating(transactionID: "new-id")
         )
 
         #expect(preflight == .rejectedSplitOverflow(message: "The split amounts are too large."))
@@ -296,7 +296,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let preflight = coordinator.preflight(
             validation: .mismatch(mismatch),
             draft: makeDraft(),
-            editingIdentity: .creating
+            editingIdentity: .creating(transactionID: "new-id")
         )
 
         #expect(preflight == .rejectedSplitMismatch)
@@ -309,7 +309,7 @@ struct TransactionEditorSubmissionCoordinatorTests {
         let preflight = coordinator.preflight(
             validation: .valid,
             draft: nil,
-            editingIdentity: .creating
+            editingIdentity: .creating(transactionID: "new-id")
         )
 
         #expect(preflight == .rejectedInvalidDraft)
