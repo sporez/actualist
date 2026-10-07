@@ -301,12 +301,16 @@ extension LocalFirstActualStore {
 
         try fileManager.hardenCachedBudget(fileID: fileID)
         _ = try encryptionContext(metadata: metadata)
-        let validationDatabase = try BudgetDatabase(
-            databaseURL: fileManager.databaseURL(fileID: fileID),
-            localNodeID: metadata.nodeID
-        )
+        let databaseURL = try fileManager.databaseURL(fileID: fileID)
+        if let database, database.databaseURL == databaseURL {
+            // The store already owns a connection to this exact file; a second
+            // write-capable connection would run compatibility writes and can
+            // collide with an in-flight write.
+            _ = try await database.fetchAccountDisplays()
+        } else {
+            try BudgetDatabase.validateCachedBudgetReadOnly(at: databaseURL)
+        }
         try fileManager.hardenCachedBudget(fileID: fileID)
-        _ = try await validationDatabase.fetchAccountDisplays()
         return true
     }
 

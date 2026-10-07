@@ -12,6 +12,9 @@ extension BudgetDatabase {
     ) -> Configuration {
         var configuration = Configuration()
         configuration.readonly = readonly
+        // One writer per file remains the norm; the timeout only absorbs a
+        // brief overlap instead of failing at once with SQLITE_BUSY.
+        configuration.busyMode = .timeout(2)
         configuration.prepareDatabase { db in
             try db.execute(sql: "PRAGMA trusted_schema = OFF")
             if deleteJournal {
@@ -19,6 +22,27 @@ extension BudgetDatabase {
             }
         }
         return configuration
+    }
+
+    /// Proves a cached budget file opens and reads without running the
+    /// compatibility writes that `init` performs. It reads only `sqlite_master`
+    /// and, when present, the base `accounts` table, so a pre-compatibility
+    /// file that a normal open would repair still validates. A file that is
+    /// not a SQLite database, or whose tables are unreadable, throws.
+    static func validateCachedBudgetReadOnly(at url: URL) throws {
+        let queue = try DatabaseQueue(
+            path: url.path,
+            configuration: untrustedFileConfiguration(readonly: true)
+        )
+        try queue.read { db in
+            let hasAccounts = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'accounts')"
+            ) ?? false
+            if hasAccounts {
+                _ = try Row.fetchOne(db, sql: "SELECT id, name FROM accounts LIMIT 1")
+            }
+        }
     }
 
     /// Removes everything in the schema that is not Actual budget data:
