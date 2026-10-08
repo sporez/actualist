@@ -27,42 +27,44 @@ struct SettingsBudgetPickerSheet: View {
                         .settingsRowChrome()
                 }
 
-                Section("Choose Budget") {
-                    ForEach(appState.budgets) { budget in
-                        Button {
-                            Task { await selectBudget(budget) }
-                        } label: {
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(budgetDisplayName(budget))
-                                        .font(ActualistTypography.rowTitle(for: density))
-                                        .foregroundStyle(ActualistTheme.primaryText)
-                                    if !appState.settings.randomizedDisplayValuesEnabled {
-                                        Text(budget.syncID)
-                                            .font(ActualistTypography.rowLabel(for: density))
+                if !appState.budgets.isEmpty {
+                    Section("Choose Budget") {
+                        ForEach(appState.budgets) { budget in
+                            Button {
+                                Task { await selectBudget(budget) }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(budgetDisplayName(budget))
+                                            .font(ActualistTypography.rowTitle(for: density))
+                                            .foregroundStyle(ActualistTheme.primaryText)
+                                        if !appState.settings.randomizedDisplayValuesEnabled {
+                                            Text(budget.syncID)
+                                                .font(ActualistTypography.rowLabel(for: density))
+                                                .foregroundStyle(ActualistTheme.secondaryText)
+                                                .lineLimit(1)
+                                                .truncationMode(.middle)
+                                        }
+                                    }
+
+                                    Spacer()
+
+                                    if appState.settings.selectedBudgetID == budget.syncID {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(ActualistTheme.accent)
+                                    } else {
+                                        Image(systemName: "chevron.right")
                                             .foregroundStyle(ActualistTheme.secondaryText)
-                                            .lineLimit(1)
-                                            .truncationMode(.middle)
                                     }
                                 }
-
-                                Spacer()
-
-                                if appState.settings.selectedBudgetID == budget.syncID {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(ActualistTheme.accent)
-                                } else {
-                                    Image(systemName: "chevron.right")
-                                        .foregroundStyle(ActualistTheme.secondaryText)
-                                }
+                                .contentShape(Rectangle())
                             }
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .disabled(appState.budgetSessionTransitions.isTransitionInFlight)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(appState.budgetSessionTransitions.isTransitionInFlight)
                     }
+                    .settingsSectionChrome()
                 }
-                .settingsSectionChrome()
 
                 if emptyBudgetCoordinator.offer(using: appState) == .offered {
                     EmptyBudgetPickerSection(

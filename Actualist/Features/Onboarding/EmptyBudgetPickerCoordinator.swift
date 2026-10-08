@@ -290,7 +290,6 @@ struct EmptyBudgetPickerSection: View {
         }
         .sheet(isPresented: $isCreateFormPresented) {
             EmptyBudgetCreateForm(coordinator: coordinator, onCreated: onBudgetSelected)
-                .environment(appState)
         }
         .fileImporter(
             isPresented: $isImportPickerPresented,
@@ -324,57 +323,50 @@ private struct EmptyBudgetCreateForm: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("New Budget") {
-                    TextField(
-                        "Budget Name",
-                        text: $budgetName,
-                        prompt: Text("Required")
-                    )
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-
-                    Toggle("Encrypt Budget", isOn: $encryptionWanted)
-
-                    if encryptionWanted {
-                        SecureField(
-                            "Encryption Password",
-                            text: $encryptionPassword,
-                            prompt: Text("Required")
-                        )
-                    }
+        ReviewSheetContent {
+            ReviewSheetHeader(
+                title: "Create Budget",
+                subtitle: "Starts an empty budget on your server."
+            )
+            ReviewFormCard {
+                ReviewFormFieldRow(title: "Budget Name") {
+                    TextField("Budget Name", text: $budgetName, prompt: Text("Required"))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .reviewSheetFieldStyle()
                 }
-
-                if case .failed(let message) = coordinator.phase {
-                    Section {
-                        Text(message)
-                            .foregroundStyle(ActualistTheme.danger)
+                ReviewFormToggleRow(title: "Encrypt Budget", isOn: $encryptionWanted)
+                if encryptionWanted {
+                    ReviewFormFieldRow(title: "Encryption Password") {
+                        SecureField("Encryption Password", text: $encryptionPassword, prompt: Text("Required"))
+                            .reviewSheetFieldStyle()
                     }
                 }
             }
-            .navigationTitle("Create Budget")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
+            if case .failed(let message) = coordinator.phase {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(ActualistTheme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton { dismiss() }
+            ReviewSheetPrimaryButton {
+                Task {
+                    await coordinator.createBudget(input, using: appState)
+                    if coordinator.phase == .idle,
+                       appState.settings.selectedBudgetID != nil {
+                        onCreated()
                         dismiss()
                     }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        Task {
-                            await coordinator.createBudget(input, using: appState)
-                            if coordinator.phase == .idle,
-                               appState.settings.selectedBudgetID != nil {
-                                onCreated()
-                                dismiss()
-                            }
-                        }
-                    }
-                    .disabled(!input.isSubmittable || coordinator.isWorkflowActive)
-                }
+            } label: {
+                Text("Create")
             }
+            .disabled(!input.isSubmittable || coordinator.isWorkflowActive)
         }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
     }
 }

@@ -25,17 +25,18 @@ struct BudgetTemplateEditorMonthField: View {
 }
 
 private struct BudgetTemplateEditorMonthSheet: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: String
     let field: BudgetTemplateEditorInputField
     let itemID: UUID
     let viewModel: BudgetTemplateEditorViewModel
 
     var body: some View {
-        NavigationStack {
-            Form {
+        ReviewSheetContent {
+            ReviewSheetHeader(title: title)
+            VStack(spacing: 0) {
                 Picker("Month", selection: Binding(
                     get: { viewModel.monthSelection(for: field, id: itemID).month },
                     set: { viewModel.setMonthNumber($0, field: field, id: itemID) }
@@ -57,18 +58,16 @@ private struct BudgetTemplateEditorMonthSheet: View {
                 .pickerStyle(.wheel)
                 .accessibilityIdentifier("template-year-wheel")
             }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .tint(ActualistTheme.accent)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        viewModel.completeMonthSelection(field: field, id: itemID)
-                        dismiss()
-                    }
-                }
+            .actualistReviewCard(padding: 6)
+        }
+        .reviewSheetBottomBar {
+            ReviewSheetPrimaryButton {
+                viewModel.completeMonthSelection(field: field, id: itemID)
+                dismiss()
+            } label: {
+                Text("Done")
             }
         }
-        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.fraction(0.8), .large])
+        .reviewSheetPresentation(detents: [.fraction(0.8), .large], appState: appState)
     }
 }

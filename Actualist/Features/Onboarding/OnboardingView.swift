@@ -289,34 +289,36 @@ struct BudgetPickerView: View {
                     }
                 }
 
-                Section {
-                    ForEach(appState.budgets) { budget in
-                        Button {
-                            viewModel.selectBudget(budget, using: appState)
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(budgetDisplayName(budget))
-                                        .font(ActualistTypography.rowTitle(for: density))
-                                    if !appState.settings.randomizedDisplayValuesEnabled {
-                                        Text(budget.syncID)
-                                            .font(ActualistTypography.rowLabel(for: density))
-                                            .foregroundStyle(.secondary)
+                if !appState.budgets.isEmpty {
+                    Section {
+                        ForEach(appState.budgets) { budget in
+                            Button {
+                                viewModel.selectBudget(budget, using: appState)
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(budgetDisplayName(budget))
+                                            .font(ActualistTypography.rowTitle(for: density))
+                                        if !appState.settings.randomizedDisplayValuesEnabled {
+                                            Text(budget.syncID)
+                                                .font(ActualistTypography.rowLabel(for: density))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    if viewModel.openingBudgetID == budget.syncID {
+                                        ProgressView()
+                                    } else {
+                                        Image(systemName: "chevron.right")
+                                            .foregroundStyle(ActualistTheme.secondaryText)
                                     }
                                 }
-                                Spacer()
-                                if viewModel.openingBudgetID == budget.syncID {
-                                    ProgressView()
-                                } else {
-                                    Image(systemName: "chevron.right")
-                                        .foregroundStyle(ActualistTheme.secondaryText)
-                                }
                             }
+                            .disabled(viewModel.hasInFlightOpen)
                         }
-                        .disabled(viewModel.hasInFlightOpen)
+                    } header: {
+                        Text("Choose Budget")
                     }
-                } header: {
-                    Text("Choose Budget")
                 }
 
                 if emptyBudgetCoordinator.offer(using: appState) == .offered {

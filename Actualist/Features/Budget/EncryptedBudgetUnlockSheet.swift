@@ -3,7 +3,6 @@ import SwiftUI
 struct EncryptedBudgetUnlockSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
-    @State private var selectedDetent: PresentationDetent = .medium
 
     @Binding var encryptionPassword: String
 
@@ -13,44 +12,37 @@ struct EncryptedBudgetUnlockSheet: View {
     let onUnlock: () -> Void
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
+        ReviewSheetContent {
+            ReviewSheetHeader(title: "Unlock Budget", subtitle: "Enter this budget's encryption password.")
+            ReviewFormCard {
+                ReviewFormFieldRow(title: "Encryption Password") {
                     SecureField("Encryption Password", text: $encryptionPassword)
                         .textInputAutocapitalization(.never)
                         .textContentType(.password)
-                } footer: {
-                    Text(LocalFirstRecoveryGuidance.encryptionPasswordNotice)
+                        .reviewSheetFieldStyle()
                 }
-
                 if let errorMessage {
-                    Section {
-                        Text(errorMessage)
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.danger)
-                    }
+                    Text(errorMessage)
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.danger)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .navigationTitle("Unlock Budget")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isUnlocking ? "Unlocking" : "Unlock", action: onUnlock)
-                        .disabled(encryptionPassword.isEmpty || isUnlocking)
-                }
-            }
+            Text(LocalFirstRecoveryGuidance.encryptionPasswordNotice)
+                .font(.footnote)
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 4)
         }
-        .presentationDetents([.medium, .large], selection: $selectedDetent)
-        .appSwitcherPrivacyAwareDragIndicator()
+        .scrollDismissesKeyboard(.interactively)
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton(action: onCancel)
+            ReviewSheetPrimaryButton(action: onUnlock) {
+                Text(isUnlocking ? "Unlocking" : "Unlock")
+            }
+            .disabled(encryptionPassword.isEmpty || isUnlocking)
+        }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
         .interactiveDismissDisabled(isUnlocking)
-        .appSwitcherPrivacyProtected(using: appState)
     }
 }
