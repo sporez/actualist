@@ -273,17 +273,11 @@ enum SchedulePresentation {
         }
     }
 
-    static func dateLabel(_ dayID: String?) -> String {
-        guard let dayID,
-              let date = ActualScheduleRecurrence.date(from: dayID) else {
+    static func dateLabel(_ dayID: String?, locale: Locale = .current) -> String {
+        guard let dayID, let label = ActualDateDisplay.mediumDay(dayID, locale: locale) else {
             return "Date unavailable"
         }
-        var format = Date.FormatStyle.dateTime
-            .month(.abbreviated)
-            .day()
-            .year()
-        format.timeZone = .gmt
-        return date.formatted(format)
+        return label
     }
 
     static func recurrenceLabel(_ rule: ScheduleDateRule) -> String {

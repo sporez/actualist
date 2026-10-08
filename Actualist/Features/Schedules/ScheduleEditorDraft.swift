@@ -523,26 +523,29 @@ struct ScheduleEditorDraft: Hashable, Sendable {
         if dateRuleWasUnsupported && !dateWasChanged {
             rows.append(("Date", "Original date options unchanged"))
         } else if let rule = dateRule() {
-            rows.append(("Date", Self.dateRuleSummary(rule)))
+            rows.append(("Date", Self.dateRuleSummary(rule, locale: locale)))
         }
         rows.append(("Automatic posting", postsTransaction ? "On" : "Off"))
         return rows
     }
 
-    private static func dateRuleSummary(_ rule: ScheduleDateRule) -> String {
+    private static func dateRuleSummary(_ rule: ScheduleDateRule, locale: Locale) -> String {
         switch rule {
         case .oneTime(let dayID, let operation):
-            return "\(operation == "isapprox" ? "About " : "")\(dayID)"
+            return "\(operation == "isapprox" ? "About " : "")\(SchedulePresentation.dateLabel(dayID, locale: locale))"
         case .recurring(let recurrence, let operation):
             let approximate = operation == "isapprox" ? "About " : ""
-            var details = [SchedulePresentation.recurrenceLabel(rule), "Starts \(recurrence.startDayID)"]
+            var details = [
+                SchedulePresentation.recurrenceLabel(rule),
+                "Starts \(SchedulePresentation.dateLabel(recurrence.startDayID, locale: locale))",
+            ]
             if recurrence.skipWeekend {
                 details.append(recurrence.weekendAdjustment == .before ? "Moves before weekends" : "Moves after weekends")
             }
             switch recurrence.ending {
             case .never: details.append("No end date")
             case .afterOccurrences(let count): details.append("Ends after \(count) occurrences")
-            case .onDate(let dayID): details.append("Ends \(dayID)")
+            case .onDate(let dayID): details.append("Ends \(SchedulePresentation.dateLabel(dayID, locale: locale))")
             }
             return "\(approximate)\(details.joined(separator: " · "))"
         case .unavailable: return "Unavailable"

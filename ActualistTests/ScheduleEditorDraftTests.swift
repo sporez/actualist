@@ -442,4 +442,18 @@ struct ScheduleEditorDraftTests {
             )
         )
     }
+
+    @Test
+    func reviewDateFollowsTheRegionInsteadOfISO() {
+        var draft = ScheduleEditorDraft(todayDayID: "2026-09-28")
+        draft.accountID = "checking"
+        draft.amountText = "12.34"
+        draft.oneTimeDayID = "2026-10-09"
+        let us = draft.reviewRows(currency: .usd, locale: Locale(identifier: "en_US"), choices: nil)
+            .first { $0.0 == "Date" }?.1
+        let gb = draft.reviewRows(currency: .usd, locale: Locale(identifier: "en_GB"), choices: nil)
+            .first { $0.0 == "Date" }?.1
+        #expect(us == "Oct 9, 2026")
+        #expect(gb == "9 Oct 2026")
+    }
 }
