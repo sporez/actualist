@@ -131,6 +131,8 @@ struct TransactionMergeReviewRow: Hashable, Sendable, Identifiable {
     let isParent: Bool
     let isChild: Bool
     let isTransfer: Bool
+    /// Resolved payee (or transfer counterpart account) name; nil when none.
+    var payeeName: String? = nil
 
     var id: String { transactionID }
 }

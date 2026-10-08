@@ -162,15 +162,15 @@ struct TransactionMergeReviewSheet: View {
             }
             .foregroundStyle(ActualistTheme.primaryText)
 
-            if let role = input.role, let context = input.context, let amount = input.amount {
+            if let title = input.title, let context = input.context, let amount = input.amount {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        mergeIdentity(role: role, context: context)
+                        mergeIdentity(title: title, context: context)
                         Spacer(minLength: 8)
                         mergeAmount(amount)
                     }
                     VStack(alignment: .leading, spacing: 8) {
-                        mergeIdentity(role: role, context: context)
+                        mergeIdentity(title: title, context: context)
                         mergeAmount(amount)
                     }
                 }
@@ -203,9 +203,9 @@ struct TransactionMergeReviewSheet: View {
         .accessibilityIdentifier("transaction-merge-input-\(input.position)-\(input.id)")
     }
 
-    private func mergeIdentity(role: String, context: String) -> some View {
+    private func mergeIdentity(title: String, context: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(role)
+            Text(title)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(ActualistTheme.secondaryText)
             Text(context)

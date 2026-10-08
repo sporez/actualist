@@ -63,6 +63,23 @@ struct TransactionMergeMutationTests {
         }
     }
 
+    @Test func reviewRowsCarryMappedPayeeNames() async throws {
+        let bundle = try await makeMergeFixture(additionalFixtureSQL: simpleSecondRowSQL + """
+
+            INSERT INTO payee_mapping VALUES ('merged-away', 'coffee');
+            UPDATE transactions SET description = 'merged-away' WHERE id = 'txn';
+            UPDATE transactions SET description = 'xfer-credit' WHERE id = 'second';
+            """)
+        let database = try bundle.store.requireDatabase(for: "group-1")
+        let review = try await database.reviewTransactionMerge(
+            context: context(for: bundle.store),
+            orderedTransactionIDs: ["txn", "second"]
+        )
+        #expect(review.inputRows.map(\.payeeName) == ["Coffee Shop", "Credit Card"])
+        #expect(review.keptRow?.payeeName == "Credit Card")
+        #expect(review.droppedRow?.payeeName == "Coffee Shop")
+    }
+
     @Test func aggregateReconciliationCoversAdoptedSplitChildAndTransferPeer() async throws {
         let bundle = try await makeMergeFixture(additionalFixtureSQL: """
             UPDATE transactions SET date = 20260702, reconciled = 0 WHERE id = 'txn';

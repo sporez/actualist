@@ -25,6 +25,20 @@ enum TransactionCommandReviewFormatting {
         return "Transaction"
     }
 
+    /// Row title: the payee (or transfer counterpart account) when known,
+    /// otherwise the generic role. Sample-values mode masks it like the feed.
+    static func rowTitle(
+        payeeName: String?,
+        isTransfer: Bool,
+        role: String,
+        seed: String,
+        isPrivacyModeEnabled: Bool
+    ) -> String {
+        guard let payeeName, !payeeName.isEmpty else { return role }
+        guard isPrivacyModeEnabled else { return payeeName }
+        return PrivacyDisplay.name(for: isTransfer ? .account : .payee, seed: seed)
+    }
+
     static func note(_ value: String?, isPrivacyModeEnabled: Bool) -> String? {
         guard !isPrivacyModeEnabled,
               let value,

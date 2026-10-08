@@ -21,6 +21,8 @@ struct TransactionDuplicateReviewRow: Hashable, Sendable, Identifiable {
     let isChild: Bool
     let parentDuplicateTransactionID: String?
     let transferDuplicateTransactionID: String?
+    /// Resolved payee (or transfer counterpart account) name; nil when none.
+    var payeeName: String? = nil
 
     var id: String { duplicateTransactionID }
 }

@@ -145,7 +145,13 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("the selected transaction graph cannot be duplicated")
         }
 
-        let groups = try transactionDuplicateReviewGroups(duplicatePlan)
+        let groups = try transactionDuplicateReviewGroups(
+            duplicatePlan,
+            payeeNames: try reviewPayeeNames(
+                payeeIDs: duplicatePlan.rowChanges.map(\.duplicate.payeeID),
+                db: db
+            )
+        )
         let fingerprint = try transactionDuplicateFingerprint(
             id: id,
             context: context,
@@ -257,7 +263,8 @@ extension BudgetDatabase {
     }
 
     private func transactionDuplicateReviewGroups(
-        _ plan: TransactionDuplicatePlan
+        _ plan: TransactionDuplicatePlan,
+        payeeNames: [String: String]
     ) throws -> [TransactionDuplicateGroupReview] {
         let changesBySourceID = Dictionary(
             uniqueKeysWithValues: plan.rowChanges.map { ($0.before.id, $0) }
@@ -287,7 +294,8 @@ extension BudgetDatabase {
                     isParent: change.duplicate.isParent == true,
                     isChild: change.duplicate.isChild == true,
                     parentDuplicateTransactionID: change.duplicate.parentID,
-                    transferDuplicateTransactionID: change.duplicate.transferID
+                    transferDuplicateTransactionID: change.duplicate.transferID,
+                    payeeName: change.duplicate.payeeID.flatMap { payeeNames[$0] }
                 )
             }
             return TransactionDuplicateGroupReview(

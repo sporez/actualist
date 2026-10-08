@@ -146,12 +146,16 @@ extension BudgetDatabase {
             ?? allSnapshotsByID.values.filter { $0.reconciled == true }.map(\.id).sorted()
         let affectedResources = plan?.affectedResources
             ?? transactionMergeAffectedResources(Array(allSnapshotsByID.values))
+        let payeeNames = try reviewPayeeNames(
+            payeeIDs: allSnapshotsByID.values.map(\.payeeID),
+            db: db
+        )
         let keptRow = plan.flatMap { plan in
             plan.afterSnapshots.first { $0.id == plan.keptTransactionID }
-        }.flatMap(transactionMergeReviewRow)
+        }.flatMap { transactionMergeReviewRow($0, payeeNames: payeeNames) }
         let droppedRow = plan.flatMap { plan in
             plan.beforeSnapshots.first { $0.id == plan.droppedTransactionID }
-        }.flatMap(transactionMergeReviewRow)
+        }.flatMap { transactionMergeReviewRow($0, payeeNames: payeeNames) }
         return TransactionMergeDatabasePlan(
             review: TransactionMergeReview(
                 id: id,
@@ -170,7 +174,7 @@ extension BudgetDatabase {
                 reconciledTransactionIDs: reconciledIDs,
                 reviewFingerprint: fingerprint,
                 inputRows: orderedTransactionIDs.compactMap { allSnapshotsByID[$0] }
-                    .compactMap(transactionMergeReviewRow)
+                    .compactMap { transactionMergeReviewRow($0, payeeNames: payeeNames) }
             ),
             plan: plan
         )
@@ -400,7 +404,8 @@ extension BudgetDatabase {
     }
 
     private func transactionMergeReviewRow(
-        _ snapshot: TransactionBatchTransactionSnapshot
+        _ snapshot: TransactionBatchTransactionSnapshot,
+        payeeNames: [String: String]
     ) -> TransactionMergeReviewRow? {
         guard let accountID = snapshot.accountID,
               let dateValue = snapshot.dateValue,
@@ -417,7 +422,8 @@ extension BudgetDatabase {
             reconciled: snapshot.reconciled,
             isParent: snapshot.isParent == true,
             isChild: snapshot.isChild == true,
-            isTransfer: snapshot.transferID != nil
+            isTransfer: snapshot.transferID != nil,
+            payeeName: snapshot.payeeID.flatMap { payeeNames[$0] }
         )
     }
 

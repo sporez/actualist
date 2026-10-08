@@ -10,6 +10,8 @@ struct TransactionMergeReviewDisplay: Equatable {
         let outcomeLabel: String?
         let isKept: Bool
         let role: String?
+        /// Payee name when known, else `role`.
+        let title: String?
         let context: String?
         let amount: String?
         let note: String?
@@ -78,6 +80,19 @@ struct TransactionMergeReviewDisplay: Equatable {
                         isParent: $0.isParent,
                         isChild: $0.isChild,
                         isTransfer: $0.isTransfer
+                    )
+                },
+                title: row.map {
+                    TransactionCommandReviewFormatting.rowTitle(
+                        payeeName: $0.payeeName,
+                        isTransfer: $0.isTransfer,
+                        role: TransactionCommandReviewFormatting.role(
+                            isParent: $0.isParent,
+                            isChild: $0.isChild,
+                            isTransfer: $0.isTransfer
+                        ),
+                        seed: "merge-review-payee-\(transactionID)",
+                        isPrivacyModeEnabled: isPrivacyModeEnabled
                     )
                 },
                 context: row.map {

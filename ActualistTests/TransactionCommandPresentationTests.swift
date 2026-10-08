@@ -141,6 +141,66 @@ struct TransactionCommandPresentationTests {
         #expect(display.inputs.allSatisfy { $0.outcomeLabel == nil })
     }
 
+    @Test func reviewRowsUsePayeeNameAsTitleAndMaskItInSampleValuesMode() {
+        var named = mergePresentationRow(id: "child", amount: -500)
+        named.payeeName = "Globex Payroll"
+        let rows = [named, mergePresentationRow(id: "other", amount: -500)]
+        let plain = blockedMergeDisplay(.accountMismatch, inputRows: rows)
+        #expect(plain.inputs.map(\.title) == ["Globex Payroll", "Transaction"])
+
+        let masked = TransactionMergeReviewDisplay(
+            review: TransactionMergeReview(
+                id: "review",
+                context: makeCommandContext(),
+                orderedTransactionIDs: ["child", "other"],
+                keptRow: nil,
+                droppedRow: nil,
+                fieldEffects: [],
+                childMovements: [],
+                transferDisposition: .none,
+                reciprocalTransferPairs: [],
+                tombstonedTransactionIDs: [],
+                tombstonedPeerIDs: [],
+                affectedResources: TransactionMergeAffectedResources(
+                    changed: ChangedResources(accounts: [], months: [], transactions: []),
+                    payeeIDs: [],
+                    categoryIDs: []
+                ),
+                blockedReason: .accountMismatch,
+                reconciledTransactionIDs: [],
+                reviewFingerprint: "fingerprint",
+                inputRows: rows
+            ),
+            locale: Locale(identifier: "en_US"),
+            isPrivacyModeEnabled: true
+        )
+        #expect(masked.inputs.first?.title == PrivacyDisplay.name(for: .payee, seed: "merge-review-payee-child"))
+        #expect(masked.inputs.first?.title != "Globex Payroll")
+        #expect(masked.inputs.last?.title == "Transaction")
+    }
+
+    @Test func duplicateRowsUsePayeeNameAsTitle() {
+        var row = duplicateRow(sourceID: "source")
+        row.payeeName = "Coffee Shop"
+        let display = TransactionDuplicateReviewDisplay(
+            review: TransactionDuplicateReview(
+                id: "review",
+                context: makeCommandContext(),
+                selections: [],
+                groups: [TransactionDuplicateGroupReview(
+                    id: "g", selectedTransactionIDs: ["source"], sourceTransactionIDs: ["source"],
+                    duplicateTransactionIDs: ["copy-source"], rows: [row]
+                )],
+                allocations: [],
+                affectedResources: ChangedResources(accounts: [], months: [], transactions: []),
+                reviewFingerprint: "fingerprint",
+                canSubmit: true
+            ),
+            currency: .usd
+        )
+        #expect(display.groups.first?.rows.first?.title == "Coffee Shop")
+    }
+
     @Test func blockedMergeMarksOnlyAMissingInputUnavailable() {
         let display = blockedMergeDisplay(
             .missingRootSnapshot("other"),

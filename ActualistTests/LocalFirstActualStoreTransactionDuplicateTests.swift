@@ -47,6 +47,19 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
         #expect(spending.transactions.contains { $0.id == cloneForChecking })
     }
 
+    @Test func reviewRowsNameTheTransferCounterpartAccount() async throws {
+        let bundle = try await makeBundle(additionalFixtureSQL: transferFixtureSQL)
+        let review = try await bundle.store.reviewTransactionDuplicate(
+            context: context(for: bundle.store),
+            selections: [identity("source-transfer")]
+        )
+        let names = review.groups.flatMap(\.rows).reduce(into: [String: String?]()) {
+            $0[$1.sourceTransactionID] = $1.payeeName
+        }
+        #expect(names["source-transfer"] == "Credit Card")
+        #expect(names["source-transfer-peer"] == "Checking")
+    }
+
     @Test func staleSessionReviewCannotCommitAfterSameBudgetReopen() async throws {
         let bundle = try await makeBundle()
         let store = bundle.store

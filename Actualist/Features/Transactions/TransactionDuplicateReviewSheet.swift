@@ -144,7 +144,7 @@ struct TransactionDuplicateReviewSheet: View {
 
     private func duplicateIdentity(_ row: TransactionDuplicateReviewDisplay.Row) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(row.role)
+            Text(row.title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(ActualistTheme.primaryText)
             Text(row.context)

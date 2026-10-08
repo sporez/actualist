@@ -7,6 +7,8 @@ struct TransactionDuplicateReviewDisplay: Equatable {
         let id: String
         let sourceTransactionID: String
         let role: String
+        /// Payee name when known, else `role`.
+        let title: String
         let context: String
         let amount: String
         let note: String?
@@ -53,13 +55,21 @@ struct TransactionDuplicateReviewDisplay: Equatable {
                     ? "New copy"
                     : "New copy \(index + 1)",
                 rows: group.rows.map { row in
-                    Row(
+                    let role = TransactionCommandReviewFormatting.role(
+                        isParent: row.isParent,
+                        isChild: row.isChild,
+                        isTransfer: row.transferDuplicateTransactionID != nil
+                    )
+                    return Row(
                         id: row.duplicateTransactionID,
                         sourceTransactionID: row.sourceTransactionID,
-                        role: TransactionCommandReviewFormatting.role(
-                            isParent: row.isParent,
-                            isChild: row.isChild,
-                            isTransfer: row.transferDuplicateTransactionID != nil
+                        role: role,
+                        title: TransactionCommandReviewFormatting.rowTitle(
+                            payeeName: row.payeeName,
+                            isTransfer: row.transferDuplicateTransactionID != nil,
+                            role: role,
+                            seed: "duplicate-review-payee-\(row.duplicateTransactionID)",
+                            isPrivacyModeEnabled: isPrivacyModeEnabled
                         ),
                         context: TransactionCommandReviewFormatting.dateText(row.date, locale: locale),
                         amount: TransactionCommandReviewFormatting.amountText(
