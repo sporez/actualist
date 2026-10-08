@@ -86,7 +86,8 @@ enum BankSyncReconciliation {
     /// The write planned onto one matched local row. Blank local fields are
     /// filled from the download; user-filled payee / category / notes win.
     /// Existing transfers and off-budget rows keep their category exactly,
-    /// including nil. `financialID` and `importedPayee` are bank-owned.
+    /// including nil. `financialID` and `importedPayee` are the row's own
+    /// import identity: nil means the source had none (`x || null`, sync.ts).
     struct MatchedUpdate: Equatable, Sendable {
         let existingID: String
         let financialID: String?
@@ -259,12 +260,9 @@ enum BankSyncReconciliation {
             }
 
             let existingNotes = row.notes?.isEmpty == false ? row.notes : nil
-            // A row that never had a bank id or payee text (CSV) keeps what the
-            // matched row already stores; see `isBankSyncAccount`.
-            let keepsStoredIdentity = !options.isBankSyncAccount
             let update = MatchedUpdate(
                 existingID: row.id,
-                financialID: candidate.financialID ?? (keepsStoredIdentity ? row.financialID : nil),
+                financialID: candidate.financialID,
                 payeeID: mergedPayeeID(
                     existing: row,
                     candidate: candidate,
@@ -275,7 +273,7 @@ enum BankSyncReconciliation {
                     candidate: candidate,
                     accountIsOffBudget: accountIsOffBudget
                 ),
-                importedPayee: candidate.importedPayee ?? (keepsStoredIdentity ? row.importedPayee : nil),
+                importedPayee: candidate.importedPayee,
                 notes: existingNotes ?? candidate.notes,
                 cleared: row.cleared || candidate.cleared,
                 childIDs: childIDsForClearCascade(of: row, in: existing, cleared: row.cleared || candidate.cleared)

@@ -11,10 +11,10 @@ import Foundation
 /// behavior stays byte-identical).
 struct ImportReconcileOptions: Equatable, Sendable {
     /// The rows come from a bank provider: each carries its own `imported_id`
-    /// and a provider payee name. When false (CSV), a matched row keeps its
-    /// stored `imported_id` and `imported_payee` if the incoming row has none.
-    /// Upstream clears them instead, which would erase a Bank Sync id on a row
-    /// a CSV re-import merely touched; Actualist's apply never clears either.
+    /// and a provider payee name, and the apply never writes a missing one.
+    /// When false (CSV), a matched update writes the incoming `imported_id` and
+    /// `imported_payee` even when absent, clearing the stored value
+    /// (`imported_id: trans.imported_id || null`, sync.ts).
     var isBankSyncAccount: Bool
     /// Upstream's fuzzy query only considers rows that have no `imported_id`
     /// when the incoming row has one (`(imported_id IS NULL OR ? IS NULL)`).

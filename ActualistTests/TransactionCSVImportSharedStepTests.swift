@@ -248,4 +248,18 @@ struct TransactionCSVImportSharedStepTests {
 
         #expect(review.rows.map(\.outcome.kind) == [.unchanged])
     }
+
+    /// Upstream writes `imported_id: trans.imported_id || null` and
+    /// `imported_payee: trans.imported_payee || null` on every matched update
+    /// (sync.ts 685/688, no `isBankSyncAccount` gate), so a CSV row without an
+    /// id clears the stored one and the stored import text becomes the file's.
+    @Test func aMatchedCSVRowWithoutAnImportedIDClearsTheStoredIdentity() async throws {
+        let bundle = try await makeBundle()
+        try exec(bundle, "UPDATE transactions SET imported_id = 'bank-1', imported_description = 'Old Text' WHERE id = 'txn'")
+
+        try await importAll(bundle, "Date,Payee,Notes,Amount\n2026-07-03,Coffee Shop,,-123.45\n")
+
+        #expect(try scalar(bundle, "SELECT imported_id FROM transactions WHERE id = 'txn'") == nil)
+        #expect(try scalar(bundle, "SELECT imported_description FROM transactions WHERE id = 'txn'") == "Coffee Shop")
+    }
 }

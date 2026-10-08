@@ -379,12 +379,12 @@ struct ImportReconcileEquivalenceTests {
         #expect(Self.shared(rows, stored, options: lenient) == [.update(id: "e1", fill(importedID: "bank-2"))])
     }
 
-    @Test func aRowWithoutAnIdKeepsTheStoredIdentityUnlessItIsABankSyncAccount() {
+    @Test func aRowWithoutAnIdPlansAnUpdateThatClearsTheStoredIdentity() {
         let stored = [existing(id: "e1", importedID: "bank-1", importedPayee: "Bank Text")]
         let rows = [row("r1", payee: "")]
-        #expect(Self.shared(rows, stored, options: Self.parity) == [.unchanged])
-        // Upstream would write null over both; `isBankSyncAccount` keeps that
-        // reading for the one caller whose rows always carry both.
+        // Upstream writes `imported_id: x || null` on every matched update;
+        // the planner carries the absence and the apply decides (`isBankSyncAccount`).
+        #expect(Self.shared(rows, stored, options: Self.parity) == [.update(id: "e1", fill())])
         var bank = Self.parity
         bank.isBankSyncAccount = true
         #expect(Self.shared(rows, stored, options: bank) == [.update(id: "e1", fill())])

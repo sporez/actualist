@@ -569,10 +569,15 @@ extension BudgetDatabase {
     /// One matched row's update messages. Only fields that actually change
     /// from the current row are written; the parent's planned cleared value
     /// cascades onto its live children in the same commit.
+    ///
+    /// - Parameter clearsMissingImportIdentity: Write null over a stored
+    ///   `imported_id` / `imported_payee` the update does not carry (CSV, as
+    ///   upstream's `x || null`). Bank Sync never clears either.
     func makeBankSyncMatchUpdateMessages(
         update: BankSyncReconciliation.MatchedUpdate,
         existing: BankSyncReconciliation.Existing,
         accountIsOffBudget: Bool = false,
+        clearsMissingImportIdentity: Bool = false,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try queue.read { db in
@@ -593,6 +598,8 @@ extension BudgetDatabase {
                         .string(financialID),
                         changed: financialID != existing.financialID
                     )
+                } else if clearsMissingImportIdentity {
+                    try appendIfChanged(financialIDColumn, .null, changed: existing.financialID != nil)
                 }
             }
             let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
@@ -613,6 +620,8 @@ extension BudgetDatabase {
                         .string(importedPayee),
                         changed: importedPayee != existing.importedPayee
                     )
+                } else if clearsMissingImportIdentity {
+                    try appendIfChanged(importedPayeeColumn, .null, changed: existing.importedPayee != nil)
                 }
             }
             if columns.contains("notes"), let notes = update.notes {

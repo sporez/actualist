@@ -89,6 +89,7 @@ extension LocalFirstActualStore {
                 update: update,
                 existing: existing,
                 accountIsOffBudget: accountIsOffBudget,
+                clearsMissingImportIdentity: !options.isBankSyncAccount,
                 builder: &builder
             ))
             writes.updatedCount += 1
