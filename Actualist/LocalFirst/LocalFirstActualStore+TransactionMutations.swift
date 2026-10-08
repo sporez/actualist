@@ -257,7 +257,6 @@ extension LocalFirstActualStore {
             nil
         }
         let typedPayeeName = trimmedPayeeName(draft.payeeName)
-        let learningIDs: Set<String> = draft.categoryID == nil ? [] : [transactionID]
         let payeeBuilder = builder
         #if DEBUG
         await testSeams?.userActionBeforeCommitHook?()
@@ -265,7 +264,7 @@ extension LocalFirstActualStore {
         // The existing row, its family and the History decision are read inside
         // the write transaction so a remote edit that landed since the editor
         // opened is not judged against stale state.
-        let update = try await database.commitUserActionPlan(
+        let committed = try await database.commitUserActionPlan(
             source: actionSource,
             reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition(
                 transactionID: transactionID,
@@ -328,13 +327,17 @@ extension LocalFirstActualStore {
             } else {
                 descriptor = nil
             }
+            // loot-core learns only from an update whose diff carries a category.
+            let learningIDs = update.categoryAssignedIDs(among: [transactionID])
             return UserActionPlan(
                 drafts: settled.creationMessages + update.messages,
                 descriptor: descriptor,
                 learningTransactionIDs: learningIDs,
-                outcome: update
+                outcome: (update: update, learningIDs: learningIDs)
             )
         }.outcome
+        let update = committed.update
+        let learningIDs = committed.learningIDs
         await didUpdate()
 
         let changedAccounts = Array(Set(update.affectedAccountIDs + [originalAccountID, draft.accountID]))

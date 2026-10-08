@@ -1,6 +1,19 @@
 import Foundation
 import GRDB
 
+extension BudgetDatabase.TransactionWriteResult {
+    /// The listed rows whose category this write sets to a value. An unchanged
+    /// category emits no message and a cleared one emits null, so neither
+    /// qualifies (loot-core: `updated.filter(update => update.category)`).
+    func categoryAssignedIDs(among rowIDs: Set<String>) -> Set<String> {
+        Set(messages.compactMap { message in
+            message.dataset == "transactions" && message.column == "category"
+                && message.serializedValue != LocalFirstSyncValue.null.serialized
+                && rowIDs.contains(message.row) ? message.row : nil
+        })
+    }
+}
+
 extension BudgetDatabase {
 
     /// Reads the existing row and its pair through `db`, so an update built in its
