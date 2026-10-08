@@ -7,6 +7,7 @@ final class FakeTransactionCSVImportRepository: TransactionCSVImportRepositoryPr
     private(set) var prepareCallCount = 0
     private(set) var applyRequests: [TransactionCSVImportApplyRequest] = []
     var applyError: (any Error)?
+    var applyResult = TransactionCSVImportApplyResult(insertedCount: 1, updatedCount: 0)
     var outcomes: [TransactionCSVImportReviewRow.Outcome] = [
         .insert(FakeTransactionCSVImportRepository.sampleCandidate, isTransfer: false)
     ]
@@ -46,7 +47,7 @@ final class FakeTransactionCSVImportRepository: TransactionCSVImportRepositoryPr
     ) async throws -> TransactionCSVImportApplyResult {
         applyRequests.append(request)
         if let applyError { throw applyError }
-        return TransactionCSVImportApplyResult(insertedCount: 1, updatedCount: 0)
+        return applyResult
     }
 }
 
@@ -89,9 +90,26 @@ struct TransactionCSVImportCoordinatorTests {
         var importedCount = 0
         await coordinator.submit(repository: repository, onImported: { importedCount += 1 })
         #expect(importedCount == 1)
-        #expect(coordinator.state == .completed(TransactionCSVImportApplyResult(insertedCount: 1, updatedCount: 0)))
+        #expect(coordinator.state == .idle)
+        #expect(coordinator.importFeedback == 1)
         // The apply request carries the review's session generation.
         #expect(repository.applyRequests.map(\.sessionGeneration) == [7])
+    }
+
+    @Test func importThatChangedNothingClosesWithoutFeedback() async throws {
+        let repository = FakeTransactionCSVImportRepository()
+        repository.applyResult = TransactionCSVImportApplyResult(insertedCount: 0, updatedCount: 0)
+        let coordinator = TransactionCSVImportCoordinator()
+        await coordinator.load(
+            contentsOf: try writeCSV(),
+            accountID: "checking",
+            budgetID: "group-1",
+            repository: repository
+        )
+        await coordinator.submit(repository: repository)
+        #expect(coordinator.state == .idle)
+        #expect(!coordinator.isPresenting)
+        #expect(coordinator.importFeedback == 0)
     }
 
     @Test func onImportedDoesNotRunWhenTheImportFails() async throws {
@@ -107,6 +125,7 @@ struct TransactionCSVImportCoordinatorTests {
         var importedCount = 0
         await coordinator.submit(repository: repository, onImported: { importedCount += 1 })
         #expect(importedCount == 0)
+        #expect(coordinator.importFeedback == 0)
         #expect(coordinator.failureMessage?.contains("Nothing was imported") == true)
     }
 

@@ -12,11 +12,14 @@ final class TransactionCSVImportCoordinator {
         case loading
         case reviewing(TransactionCSVImportReview)
         case submitting(TransactionCSVImportReview)
-        case completed(TransactionCSVImportApplyResult)
         case failed(String)
     }
 
     private(set) var state: State = .idle
+    /// Bumped once per import that wrote rows; the host plays the success
+    /// haptic from it because the review sheet closes on commit. An import
+    /// that changed nothing closes silently.
+    private(set) var importFeedback = 0
     /// Rows the reviewer deselected. Rows that write nothing are
     /// fixed-excluded; new and update rows start included. Observed: the
     /// review list re-renders from it.
@@ -51,7 +54,7 @@ final class TransactionCSVImportCoordinator {
     var isPresenting: Bool {
         switch state {
         case .idle: return false
-        case .loading, .reviewing, .submitting, .completed, .failed: return true
+        case .loading, .reviewing, .submitting, .failed: return true
         }
     }
 
@@ -184,7 +187,8 @@ final class TransactionCSVImportCoordinator {
             // was dismissed while the apply was in flight.
             onImported()
             guard submitGeneration == generation, !Task.isCancelled else { return }
-            state = .completed(result)
+            if result.insertedCount + result.updatedCount > 0 { importFeedback &+= 1 }
+            clearWorkflow()
         } catch {
             guard submitGeneration == generation, !Task.isCancelled, !error.isCancellation else { return }
             state = .failed(Self.failureMessage(for: error))
@@ -193,6 +197,10 @@ final class TransactionCSVImportCoordinator {
 
     func reset() {
         guard !isSubmitting else { return }
+        clearWorkflow()
+    }
+
+    private func clearWorkflow() {
         generation &+= 1
         state = .idle
         excludedRowIDs = []
@@ -203,7 +211,7 @@ final class TransactionCSVImportCoordinator {
     private var canStartWorkflow: Bool {
         switch state {
         case .idle, .failed: return true
-        case .loading, .reviewing, .submitting, .completed: return false
+        case .loading, .reviewing, .submitting: return false
         }
     }
 

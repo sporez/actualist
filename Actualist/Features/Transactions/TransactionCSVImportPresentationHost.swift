@@ -35,6 +35,7 @@ struct TransactionCSVImportPresentationHost: ViewModifier {
             .sheet(isPresented: reviewBinding) {
                 reviewSheet
             }
+            .sensoryFeedback(.success, trigger: coordinator.importFeedback)
             .onBudgetSessionChange { coordinator.reset() }
     }
 

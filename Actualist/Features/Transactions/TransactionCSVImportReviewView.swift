@@ -27,11 +27,6 @@ struct TransactionCSVImportReviewView: View {
                 title: "Importing",
                 message: "The selected rows are being saved together…"
             )
-        case .completed(let result):
-            TransactionCommandCommittedSheet(
-                message: Self.completionMessage(result),
-                onDone: onCancel
-            )
         case .failed(let message):
             failureSheet(message)
         }
@@ -183,19 +178,5 @@ struct TransactionCSVImportReviewView: View {
         case .skippedByRule:
             return "Skipped by a rule"
         }
-    }
-
-    private static func completionMessage(_ result: TransactionCSVImportApplyResult) -> String {
-        var parts: [String] = []
-        if result.insertedCount > 0 {
-            parts.append("\(result.insertedCount) new row\(result.insertedCount == 1 ? "" : "s") added")
-        }
-        if result.updatedCount > 0 {
-            parts.append("\(result.updatedCount) existing row\(result.updatedCount == 1 ? "" : "s") updated")
-        }
-        guard !parts.isEmpty else {
-            return "Nothing needed to change. Every row in the file was already saved."
-        }
-        return parts.joined(separator: " and ") + "."
     }
 }
