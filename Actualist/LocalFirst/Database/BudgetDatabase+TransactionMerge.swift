@@ -168,7 +168,9 @@ extension BudgetDatabase {
                 affectedResources: affectedResources,
                 blockedReason: result.blockedReason,
                 reconciledTransactionIDs: reconciledIDs,
-                reviewFingerprint: fingerprint
+                reviewFingerprint: fingerprint,
+                inputRows: orderedTransactionIDs.compactMap { allSnapshotsByID[$0] }
+                    .compactMap(transactionMergeReviewRow)
             ),
             plan: plan
         )

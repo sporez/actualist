@@ -257,6 +257,7 @@ struct TransactionMergeMutationTests {
         )
         #expect(childReview.blockedReason == .selectedChild("split-child"))
         #expect(!childReview.canSubmit)
+        #expect(childReview.inputRows.map(\.transactionID) == ["split-child", "txn"])
 
         let errorBundle = try await makeMergeFixture(additionalFixtureSQL: """
             INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent,

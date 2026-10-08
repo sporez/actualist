@@ -120,6 +120,40 @@ struct TransactionCommandPresentationTests {
         #expect(child.inputs.allSatisfy { $0.outcomeLabel == nil })
     }
 
+    @Test func blockedMergeStillShowsBothSelectedTransactions() {
+        let display = blockedMergeDisplay(
+            .amountMismatch,
+            inputRows: [
+                mergePresentationRow(id: "child", amount: -500, notes: "Lunch"),
+                mergePresentationRow(id: "other", amount: -750)
+            ]
+        )
+
+        #expect(display.blockedMessage == "These transactions have different amounts, so they cannot be merged.")
+        #expect(display.canSubmit == false)
+        #expect(display.inputs.map(\.amount) == [
+            BudgetCurrency.usd.formatted(-500),
+            BudgetCurrency.usd.formatted(-750)
+        ])
+        #expect(display.inputs.allSatisfy { $0.context == "Aug 15, 2026" && $0.role == "Transaction" })
+        #expect(display.inputs.first?.note == "Lunch")
+        #expect(display.inputs.allSatisfy { $0.detail == "This transaction will not be changed." })
+        #expect(display.inputs.allSatisfy { $0.outcomeLabel == nil })
+    }
+
+    @Test func blockedMergeMarksOnlyAMissingInputUnavailable() {
+        let display = blockedMergeDisplay(
+            .missingRootSnapshot("other"),
+            inputRows: [mergePresentationRow(id: "child", amount: -500)]
+        )
+
+        #expect(display.inputs.map(\.detail) == [
+            "This transaction will not be changed.",
+            "This transaction is unavailable."
+        ])
+        #expect(display.inputs.last?.amount == nil)
+    }
+
     @Test func reconciledMergeUsesTheBatchConfirmationSentence() {
         let review = TransactionMergeReview(
             id: "review",
@@ -174,7 +208,10 @@ struct TransactionCommandPresentationTests {
     }
 }
 
-private func blockedMergeDisplay(_ reason: TransactionMergeBlockedReason) -> TransactionMergeReviewDisplay {
+private func blockedMergeDisplay(
+    _ reason: TransactionMergeBlockedReason,
+    inputRows: [TransactionMergeReviewRow] = []
+) -> TransactionMergeReviewDisplay {
     TransactionMergeReviewDisplay(
         review: TransactionMergeReview(
             id: "review",
@@ -195,7 +232,8 @@ private func blockedMergeDisplay(_ reason: TransactionMergeBlockedReason) -> Tra
             ),
             blockedReason: reason,
             reconciledTransactionIDs: ["child"],
-            reviewFingerprint: "fingerprint"
+            reviewFingerprint: "fingerprint",
+            inputRows: inputRows
         ),
         locale: Locale(identifier: "en_US")
     )

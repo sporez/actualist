@@ -55,8 +55,9 @@ struct TransactionMergeReviewDisplay: Equatable {
             authorizationMessage = nil
         }
 
-        let rowsByID = [review.keptRow, review.droppedRow]
-            .compactMap { $0 }
+        // The merged rows describe the result; the current input rows keep a
+        // blocked review readable. Kept and dropped take precedence.
+        let rowsByID = (review.inputRows + [review.keptRow, review.droppedRow].compactMap { $0 })
             .reduce(into: [String: TransactionMergeReviewRow]()) { rows, row in
                 rows[row.transactionID] = row
             }
@@ -96,7 +97,9 @@ struct TransactionMergeReviewDisplay: Equatable {
                 ),
                 detail: isKept
                     ? "This transaction is kept."
-                    : (isDropped ? "This transaction will be removed." : "This transaction is unavailable.")
+                    : (isDropped
+                        ? "This transaction will be removed."
+                        : (row == nil ? "This transaction is unavailable." : "This transaction will not be changed."))
             )
         }
         keptLabel = inputs.first { $0.isKept }?.positionLabel

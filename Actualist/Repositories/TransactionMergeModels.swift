@@ -151,6 +151,9 @@ struct TransactionMergeReview: Hashable, Sendable, Identifiable {
     let blockedReason: TransactionMergeBlockedReason?
     let reconciledTransactionIDs: [String]
     let reviewFingerprint: String
+    /// The two selected rows as they are now, so a blocked review can still
+    /// show them. Empty when the review was built without row data.
+    var inputRows: [TransactionMergeReviewRow] = []
 
     var canSubmit: Bool {
         blockedReason == nil && keptRow != nil && droppedRow != nil
