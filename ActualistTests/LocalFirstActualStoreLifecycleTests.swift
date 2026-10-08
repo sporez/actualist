@@ -139,15 +139,13 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test(arguments: [
-        ("http://actual.example.com", StubConnectionTransport.FailurePoint.none, false),
-        ("https://unreachable.example", .loginMethods, false),
-        ("https://wrong-password.example", .login, false),
-        ("https://empty.example", .none, true)
+        ("http://actual.example.com", StubConnectionTransport.FailurePoint.none),
+        ("https://unreachable.example", .loginMethods),
+        ("https://wrong-password.example", .login)
     ])
     func failedConnectionValidationPreservesWorkingConnection(
         attemptedURL: String,
-        failurePoint: StubConnectionTransport.FailurePoint,
-        returnsNoBudgets: Bool
+        failurePoint: StubConnectionTransport.FailurePoint
     ) async throws {
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let settingsStore = AppSettingsStore(defaults: defaults)
@@ -177,7 +175,7 @@ extension LocalFirstActualStoreTests {
 
         let connectionTransport = StubConnectionTransport(
             failurePoint: failurePoint,
-            files: returnsNoBudgets ? [] : [
+            files: [
                 ActualSyncRemoteFile(
                     fileID: "file-new",
                     groupID: "group-new",
@@ -212,6 +210,49 @@ extension LocalFirstActualStoreTests {
         #expect(state.setupPhase == .ready)
         #expect(state.connectionStatus == .online)
         #expect(model.actualPassword == "attempted-password")
+    }
+
+    /// An authenticated server with no budgets is a successful connection: the
+    /// app switches to it and routes to the budget picker's empty state
+    /// (Create New Budget / Import) instead of rejecting it.
+    @Test func connectingToServerWithNoBudgetsRoutesToEmptyPicker() async throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        settingsStore.save(AppSettings(
+            localFirstServerURLString: "https://working.example",
+            selectedBudgetID: "group-old",
+            selectedBudgetName: "Working Budget",
+            selectedLocalFirstFileID: "file-old",
+            selectedLocalFirstGroupID: "group-old"
+        ))
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString,
+            backend: FakeKeychainBackend()
+        )
+        try keychain.saveActualSyncToken("working-token")
+        let connectionTransport = StubConnectionTransport(failurePoint: .none, files: [])
+        let store = LocalFirstActualStore(
+            keychain: keychain,
+            connectionTransportFactory: { _ in connectionTransport }
+        )
+        let state = AppState(
+            settingsStore: settingsStore,
+            keychain: keychain,
+            localFirstStore: store
+        )
+        state.setupPhase = .ready
+        let model = SettingsViewModel()
+        model.actualPassword = "attempted-password"
+        model.serverURLString = "https://empty.example"
+
+        await model.saveAndTest(using: state)
+
+        #expect(state.settings.localFirstServerURLString == "https://empty.example")
+        #expect(state.settings.selectedBudgetID == nil)
+        #expect(state.settings.selectedLocalFirstFileID == nil)
+        #expect(state.setupPhase == .selectingBudget)
+        #expect(try keychain.readActualSyncToken() != "working-token")
     }
 
     @Test func syncStatusDefaultsAndEquality() async {

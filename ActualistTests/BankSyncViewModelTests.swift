@@ -180,7 +180,7 @@ extension LocalFirstActualStoreTests {
         #expect(line.updatedCount == 1)
         let match = try #require(line.matchLines.first)
         #expect(match.title == "Coffee Shop")
-        #expect(match.dateText == "2026-07-02")
+        #expect(match.dateText == ActualDateDisplay.mediumDay("2026-07-02"))
         #expect(match.changes == [
             "Attach bank transaction ID",
             "Bank payee: None → “Coffee Shop”",

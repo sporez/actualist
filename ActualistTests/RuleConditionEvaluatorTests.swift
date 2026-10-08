@@ -570,7 +570,7 @@ struct RuleConditionEvaluatorTests {
         #expect(rule.isScheduleOwned)
         #expect(summary.contains("payee is Internet Provider"))
         #expect(summary.contains("account is Checking"))
-        #expect(summary.contains("date is 2026-08-11"))
+        #expect(summary.contains("date is \(ActualDateDisplay.mediumDay("2026-08-11") ?? "")"))
         #expect(summary.contains("amount is approximately"))
         #expect(summary.contains("then link to schedule"))
         #expect(details.contains("Action: Link to schedule"))
