@@ -7,8 +7,10 @@
 #   budgets.sh wipe --yes        (deletes EVERY budget on the server)
 #   budgets.sh download <name> <dir>
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$HERE/../.." && pwd)"
+# /bin/pwd returns the on-disk case; bash's builtin keeps a mistyped one (cc vs CC),
+# and vitest then matches no test file.
+HERE="$(cd "$(dirname "$0")" && /bin/pwd -P)"
+ROOT="$(cd "$HERE/../.." && /bin/pwd -P)"
 LAB_ENV="$ROOT/scripts/lib/lab.env"
 # Values already in the environment win over lab.env.
 if [ -f "$LAB_ENV" ]; then
@@ -85,6 +87,6 @@ case "$CMD" in
   download)
     [ $# -eq 2 ] || usage
     mkdir -p "$2"
-    run_node "$(json_args download "$1" "$(cd "$2" && pwd)")" ;;
+    run_node "$(json_args download "$1" "$(cd "$2" && /bin/pwd -P)")" ;;
   *) usage ;;
 esac

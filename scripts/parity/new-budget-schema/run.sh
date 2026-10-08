@@ -6,7 +6,9 @@
 # Needs ACTUAL_UPSTREAM_DIR (pinned checkout, read-only) and node v24.21.0.
 set -euo pipefail
 
-HERE="$(cd "$(dirname "$0")" && pwd)"
+# /bin/pwd returns the on-disk case; bash's builtin keeps a mistyped one (cc vs CC),
+# and vitest then matches no test file.
+HERE="$(cd "$(dirname "$0")" && /bin/pwd -P)"
 REPO="$(cd "$HERE/../../.." && pwd)"
 : "${ACTUAL_UPSTREAM_DIR:?set to the pinned Actual v26.9.0 checkout}"
 OUT="${NEWBUDGET_OUT_DIR:-$REPO/.artifacts/audit-remediation-2026-10/newbudget-schema}"

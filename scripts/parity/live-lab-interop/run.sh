@@ -4,7 +4,9 @@
 # Env: ACTUAL_LAB_URL, ACTUAL_LAB_PASSWORD, ACTUAL_UPSTREAM_DIR,
 #      ACTUAL_LAB_HANDOFF_DIR (shared with the Swift tests). See README.md.
 set -euo pipefail
-HERE="$(cd "$(dirname "$0")" && pwd)"
+# /bin/pwd returns the on-disk case; bash's builtin keeps a mistyped one (cc vs CC),
+# and vitest then matches no test file.
+HERE="$(cd "$(dirname "$0")" && /bin/pwd -P)"
 : "${ACTUAL_UPSTREAM_DIR:?set to the pinned Actual v26.9.0 checkout}"
 : "${ACTUAL_LAB_URL:?}" "${ACTUAL_LAB_PASSWORD:?}" "${ACTUAL_LAB_HANDOFF_DIR:?}"
 EXPECTED_SHA='59fe126f637d858c061e1eeedbef5436c8f2225a'
