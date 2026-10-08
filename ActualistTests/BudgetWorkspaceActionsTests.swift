@@ -84,4 +84,15 @@ struct BudgetWorkspaceActionsTests {
         #expect(state.routeCoordinator.pendingRoute == nil)
     }
 
+    @Test @MainActor func monthNoteTitleUsesTheRegionMonthNameNotTheMonthID() {
+        let actions = BudgetWorkspaceActions(viewport: BudgetViewportModel(repository: BudgetViewportTestRepository()))
+        actions.openMonthNote("2026-08")
+        guard case .note(let target) = actions.sheet else {
+            Issue.record("Expected the month note sheet")
+            return
+        }
+        #expect(target.entityID == "2026-08")
+        #expect(target.title == BudgetMonthNavigationPresentation.title(for: "2026-08"))
+        #expect(target.title != "2026-08")
+    }
 }

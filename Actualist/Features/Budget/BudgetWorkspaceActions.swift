@@ -159,7 +159,10 @@ final class BudgetWorkspaceActions {
     }
 
     func openMonthNote(_ month: String) {
-        guard let target = ActualNoteTarget.budgetMonth(month: month, title: month) else { return }
+        guard let target = ActualNoteTarget.budgetMonth(
+            month: month,
+            title: BudgetMonthNavigationPresentation.title(for: month)
+        ) else { return }
         actionMonth = month
         sheet = .note(target)
     }
