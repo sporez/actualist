@@ -48,6 +48,9 @@ final class BudgetCategoryLifecycleController {
     let reorder = BudgetCategoryReorderWorkflow()
     let deletion = BudgetCategoryDeletionWorkflow()
 
+    /// Incremented once per committed create, rename, delete or reorder; never for no-ops or failures.
+    private(set) var successFeedback = 0
+
     var errorMessage: String? {
         organization.errorMessage ?? reorder.errorMessage ?? deletion.errorMessage
     }
@@ -94,41 +97,41 @@ final class BudgetCategoryLifecycleController {
         switch sheet {
         case .createCategory(let groups, let isTrackingBudget):
             guard let group = groups.first(where: { $0.id == selectedGroupID }) else { return false }
-            return await organization.createCategory(
+            return committed(await organization.createCategory(
                 name: name,
                 group: group,
                 isTrackingBudget: isTrackingBudget,
                 selectedMonth: selectedMonth,
                 budgetID: budgetID,
                 repository: repository
-            ) != nil
+            ))
         case .createGroup:
-            return await organization.createGroup(
+            return committed(await organization.createGroup(
                 name: name,
                 selectedMonth: selectedMonth,
                 budgetID: budgetID,
                 repository: repository
-            ) != nil
+            ))
         case .renameCategory(let category, let isTrackingBudget):
             if name.trimmingCharacters(in: .whitespacesAndNewlines) == category.name { return true }
-            return await organization.renameCategory(
+            return committed(await organization.renameCategory(
                 category,
                 name: name,
                 isTrackingBudget: isTrackingBudget,
                 selectedMonth: selectedMonth,
                 budgetID: budgetID,
                 repository: repository
-            ) != nil
+            ))
         case .renameGroup(let group, let isTrackingBudget):
             if name.trimmingCharacters(in: .whitespacesAndNewlines) == group.name { return true }
-            return await organization.renameGroup(
+            return committed(await organization.renameGroup(
                 group,
                 name: name,
                 isTrackingBudget: isTrackingBudget,
                 selectedMonth: selectedMonth,
                 budgetID: budgetID,
                 repository: repository
-            ) != nil
+            ))
         case .reorder, .deleteCategory, .deleteGroup:
             return false
         }
@@ -189,11 +192,11 @@ final class BudgetCategoryLifecycleController {
         budgetID: String?,
         repository: any BudgetRepositoryProtocol
     ) async -> Bool {
-        await deletion.delete(
+        committed(await deletion.delete(
             selectedMonth: selectedMonth,
             budgetID: budgetID,
             repository: repository
-        ) != nil
+        ))
     }
 
     func saveReorder(
@@ -202,11 +205,17 @@ final class BudgetCategoryLifecycleController {
         repository: any BudgetRepositoryProtocol
     ) async -> Bool {
         if reorder.draft?.command == nil { return true }
-        return await reorder.save(
+        return committed(await reorder.save(
             selectedMonth: selectedMonth,
             budgetID: budgetID,
             repository: repository
-        ) != nil
+        ))
+    }
+
+    private func committed<Result>(_ result: Result?) -> Bool {
+        guard result != nil else { return false }
+        successFeedback += 1
+        return true
     }
 
     private func finishDeleteRequest(

@@ -148,6 +148,7 @@ struct BudgetTemplateEditorView: View {
         guard await viewModel.save() else {
             return
         }
+        ActualistHaptics.success()
         onSaved()
         dismiss()
     }

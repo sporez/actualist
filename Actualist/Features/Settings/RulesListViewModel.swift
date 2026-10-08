@@ -22,6 +22,8 @@ final class RulesListViewModel {
     var isLoading = false
     var isSubmitting = false
     var errorMessage: String?
+    /// Incremented once per saved, duplicated or deleted rule; never on failure.
+    private(set) var successFeedback = 0
 
     func displayedRules(for scope: RulesListScope) -> [ManagedRule] {
         let scoped = rules.filter { rule in
@@ -87,6 +89,7 @@ final class RulesListViewModel {
             rules = appState.ruleRepository.cachedRules(budgetID: budgetID) ?? rules
             appState.recordLocalDataMutation()
             errorMessage = nil
+            successFeedback += 1
             return true
         } catch {
             errorMessage = error.userFacingMessage
@@ -108,6 +111,7 @@ final class RulesListViewModel {
             rules = appState.ruleRepository.cachedRules(budgetID: budgetID) ?? rules
             appState.recordLocalDataMutation()
             errorMessage = nil
+            successFeedback += 1
             return true
         } catch {
             errorMessage = error.userFacingMessage

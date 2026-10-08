@@ -189,6 +189,8 @@ final class EmptyBudgetPickerCoordinator {
             await workflows.selectBudget(appState, budget)
             if appState.settings.selectedBudgetID == budget.syncID {
                 phase = .idle
+                // Played here because the picker host is replaced once the budget opens.
+                ActualistHaptics.success()
             } else if let message = appState.lastErrorMessage {
                 phase = .failed(message: message)
             } else {
@@ -217,6 +219,8 @@ final class EmptyBudgetPickerCoordinator {
             await workflows.selectBudget(appState, budget)
             if appState.settings.selectedBudgetID == budget.syncID {
                 phase = .idle
+                // Played here because the picker host is replaced once the budget opens.
+                ActualistHaptics.success()
             } else if let message = appState.lastErrorMessage {
                 phase = .failed(message: message)
             } else {

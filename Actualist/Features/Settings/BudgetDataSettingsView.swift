@@ -390,6 +390,7 @@ struct BudgetDataSettingsView: View {
         isReimporting = true
         let outcome = await appState.reimportLocalFirstBudget(encryptionPassword: encryptionPassword)
         isReimporting = false
+        if outcome == .opened { ActualistHaptics.success() }
 
         guard outcome == .needsEncryptionPassword else {
             return

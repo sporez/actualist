@@ -122,6 +122,7 @@ struct BudgetMoveMoneyView: View {
     private func submitMoveMoney() {
         Task {
             if await viewModel.submitMoveMoney(using: appState) {
+                ActualistHaptics.success()
                 onSaved()
                 dismiss()
             }

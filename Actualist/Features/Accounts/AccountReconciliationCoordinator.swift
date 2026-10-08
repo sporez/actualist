@@ -329,6 +329,10 @@ final class AccountReconciliationCoordinator {
                 case .refresh, .createAdjustment:
                     state = .reconciling(session.replacingSnapshot(result.snapshot))
                 }
+                // Played here because the host that presents the panel is in another feature.
+                if action == .createAdjustment || action == .lockTransactions {
+                    ActualistHaptics.success()
+                }
                 finishOperation(requestGeneration)
             } catch {
                 guard isCurrent(requestGeneration, identity: session.identity) else { return }

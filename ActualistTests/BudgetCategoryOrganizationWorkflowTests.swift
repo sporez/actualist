@@ -102,6 +102,7 @@ struct BudgetCategoryOrganizationWorkflowTests {
             repository: repository
         ))
         #expect(await repository.createdCategories == [.init(name: "Fuel", groupID: "hidden")])
+        #expect(controller.successFeedback == 1)
 
         let existing = category("food", "Food", false, "hidden")
         let rename = BudgetCategoryLifecycleSheet.renameCategory(existing, isTrackingBudget: false)
@@ -115,6 +116,8 @@ struct BudgetCategoryOrganizationWorkflowTests {
             repository: repository
         ))
         #expect(await repository.renamedCategories.isEmpty)
+        // An unchanged rename dismisses the sheet but is not a commit.
+        #expect(controller.successFeedback == 1)
     }
 
     @Test func lifecycleControllerAllowsTrackingIncomeAndIncludesItInReorder() async {

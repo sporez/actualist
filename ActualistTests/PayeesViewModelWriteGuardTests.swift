@@ -22,5 +22,6 @@ struct PayeesViewModelWriteGuardTests {
         #expect(names.contains("Alpha Payee"))
         #expect(!names.contains("Beta Payee"))
         #expect(!model.isSubmitting)
+        #expect(model.successFeedback == 1)
     }
 }

@@ -53,6 +53,7 @@ struct PayeeRulesView: View {
         .task { await viewModel.load(scope: .payee(payee.id), using: appState) }
         .refreshable { await viewModel.load(scope: .payee(payee.id), using: appState) }
         .ruleEditorSheet(target: $editorTarget, viewModel: viewModel)
+        .sensoryFeedback(.success, trigger: viewModel.successFeedback)
     }
 
     private func ruleRow(_ rule: ManagedRule) -> some View {

@@ -71,7 +71,12 @@ struct BudgetHoldSheet: View {
             set: { if !$0 { model.cancelRelease() } }
         )) {
             Button(model.releaseConfirmationTitle) {
-                Task { if await model.submitRelease(using: appState) { dismiss() } }
+                Task {
+                    if await model.submitRelease(using: appState) {
+                        ActualistHaptics.success()
+                        dismiss()
+                    }
+                }
             }
             .accessibilityIdentifier("budget-hold-release-confirm")
             Button("Cancel", role: .cancel) { model.cancelRelease() }
@@ -176,7 +181,12 @@ struct BudgetHoldSheet: View {
         .safeAreaBar(edge: .bottom, spacing: 0) {
             Button {
                 isAmountFocused = false
-                Task { if await model.submitHold(using: appState) { dismiss() } }
+                Task {
+                    if await model.submitHold(using: appState) {
+                        ActualistHaptics.success()
+                        dismiss()
+                    }
+                }
             } label: {
                 HStack {
                     if model.isSaving { ProgressView() }

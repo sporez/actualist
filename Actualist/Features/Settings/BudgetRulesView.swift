@@ -59,6 +59,7 @@ struct BudgetRulesView: View {
         .task { await viewModel.load(scope: .all, using: appState) }
         .refreshable { await viewModel.load(scope: .all, using: appState) }
         .ruleEditorSheet(target: $editorTarget, viewModel: viewModel)
+        .sensoryFeedback(.success, trigger: viewModel.successFeedback)
     }
 
     private func ruleRow(_ rule: ManagedRule) -> some View {

@@ -134,10 +134,12 @@ struct AccountsView: View {
                         viewModel.isGroupEditorPresented = false
                     },
                     onSubmit: {
-                        await viewModel.submitGroupEditor(
+                        let saved = await viewModel.submitGroupEditor(
                             budgetID: appState.settings.selectedBudgetID,
                             repository: appState.accountRepository
                         )
+                        if saved { ActualistHaptics.success() }
+                        return saved
                     }
                 )
                 .presentationDetents([.medium])
@@ -600,6 +602,7 @@ private struct AddAccountSheet: View {
             return
         }
 
+        ActualistHaptics.success()
         dismiss()
     }
 }

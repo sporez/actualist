@@ -231,6 +231,7 @@ struct PayeesView: View {
         .onChange(of: appState.localDataRevision) {
             Task { await viewModel.load(using: appState) }
         }
+        .sensoryFeedback(.success, trigger: viewModel.successFeedback)
         .sheet(isPresented: $isCreatePresented) {
             PayeeNameEntrySheet(viewModel: viewModel)
             .appSwitcherPrivacyAwareDragIndicator()

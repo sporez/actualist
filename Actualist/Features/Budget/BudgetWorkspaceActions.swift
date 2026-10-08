@@ -294,6 +294,7 @@ final class BudgetWorkspaceActions {
             budgetID: actionBudgetID,
             repository: viewport.repository
         )
+        if succeeded { ActualistHaptics.success() }
         if succeeded, viewport.budgetID == actionBudgetID, viewport.snapshot(for: actionMonth) != nil {
             await viewport.refreshVisibleMonths()
         }

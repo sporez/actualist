@@ -19,6 +19,9 @@ final class PayeesViewModel {
     var isLoading = false
     var isSubmitting = false
     var errorMessage: String?
+    /// Incremented once per created, renamed, merged or deleted payee; never on failure.
+    /// Undo and favorite/learning toggles do not count.
+    private(set) var successFeedback = 0
 
     var regularPayees: [ManagedPayee] {
         filtered(snapshot.payees.filter { payee in
@@ -97,13 +100,13 @@ final class PayeesViewModel {
     }
 
     func create(name: String, using appState: AppState) async -> Bool {
-        await mutate(using: appState) { repository, budgetID in
+        await mutateWithFeedback(using: appState) { repository, budgetID in
             try await repository.createPayeeAndRefresh(budgetID: budgetID, name: name)
         }
     }
 
     func rename(payeeID: String, name: String, using appState: AppState) async -> Bool {
-        await mutate(using: appState) { repository, budgetID in
+        await mutateWithFeedback(using: appState) { repository, budgetID in
             try await repository.renamePayeeAndRefresh(
                 budgetID: budgetID,
                 payeeID: payeeID,
@@ -118,7 +121,7 @@ final class PayeesViewModel {
             errorMessage = "Choose a different payee to merge."
             return false
         }
-        let succeeded = await mutate(using: appState) { repository, budgetID in
+        let succeeded = await mutateWithFeedback(using: appState) { repository, budgetID in
             try await repository.mergePayeesAndRefresh(
                 budgetID: budgetID,
                 sourcePayeeIDs: sources,
@@ -132,7 +135,7 @@ final class PayeesViewModel {
     }
 
     func delete(payeeID: String, using appState: AppState) async -> Bool {
-        await mutate(using: appState) { repository, budgetID in
+        await mutateWithFeedback(using: appState) { repository, budgetID in
             try await repository.deletePayeeAndRefresh(budgetID: budgetID, payeeID: payeeID)
         }
     }
@@ -143,7 +146,7 @@ final class PayeesViewModel {
             errorMessage = "Only unused payees without rule references can be deleted."
             return false
         }
-        let succeeded = await mutate(using: appState) { repository, budgetID in
+        let succeeded = await mutateWithFeedback(using: appState) { repository, budgetID in
             try await repository.deletePayeesAndRefresh(budgetID: budgetID, payeeIDs: ids)
         }
         if succeeded { endSelection() }
@@ -228,6 +231,16 @@ final class PayeesViewModel {
         } else {
             selectedPayeeIDs.formUnion(visibleRegularPayeeIDs)
         }
+    }
+
+    /// A `mutate` that also counts toward `successFeedback`: create, rename, merge and delete.
+    private func mutateWithFeedback(
+        using appState: AppState,
+        operation: (any PayeeRepositoryProtocol, String) async throws -> Void
+    ) async -> Bool {
+        let succeeded = await mutate(using: appState, operation: operation)
+        if succeeded { successFeedback += 1 }
+        return succeeded
     }
 
     private func mutate(

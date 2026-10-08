@@ -254,6 +254,7 @@ struct BudgetView: View {
                 .onChange(of: viewModel.modeIdentity) {
                     holdTarget = nil
                 }
+                .sensoryFeedback(.success, trigger: categoryLifecycle.successFeedback)
                 .sheet(isPresented: $isHistoryPresented) {
                     HistoryView()
                         .appSwitcherPrivacyProtected(using: appState)
@@ -367,13 +368,14 @@ struct BudgetView: View {
     ) {
         Task {
             guard let budgetID = appState.settings.selectedBudgetID else { return }
-            _ = await BudgetTemplateWorkflow.applyReviewed(
+            let applied = await BudgetTemplateWorkflow.applyReviewed(
                 confirmation,
                 revision: reviewRevision,
                 model: viewModel,
                 budgetID: budgetID,
                 repository: appState.budgetRepository
             )
+            if applied { ActualistHaptics.success() }
         }
     }
 

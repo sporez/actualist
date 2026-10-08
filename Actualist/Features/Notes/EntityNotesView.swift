@@ -151,6 +151,7 @@ struct EntityNotesView: View {
         guard await viewModel.save(repository: repository) else {
             return
         }
+        ActualistHaptics.success()
         onSaved()
         dismiss()
     }

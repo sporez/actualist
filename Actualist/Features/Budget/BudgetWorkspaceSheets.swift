@@ -23,6 +23,7 @@ struct BudgetWorkspaceSheets: ViewModifier {
                     Task { await actions.applyConfirmation(confirmation, reviewRevision: reviewRevision, using: appState) }
                 }
             ))
+            .sensoryFeedback(.success, trigger: actions.categoryLifecycle.successFeedback)
             .onChange(of: appState.settings.selectedBudgetID) { _, budgetID in
                 actions.reconcileHoldPresentation(budgetID: budgetID, modeIdentity: nil)
             }

@@ -38,6 +38,7 @@ struct RulesListViewModelTests {
         #expect(results.filter { $0 }.count == 1)
         #expect(bundle.store.cachedRules(budgetID: "group-1")?.count == 2)
         #expect(!model.isSubmitting)
+        #expect(model.successFeedback == 1)
 
         bundle.store.closeOpenBudget()
         await model.load(scope: .all, using: appState)
