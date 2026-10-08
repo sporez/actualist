@@ -77,6 +77,7 @@ struct ScheduleEditorDraftTests {
         draft.name = "Rename"
         draft.nameWasChanged = true
         draft.amountText = "45.00"
+        draft.amountSign = .deposit
         draft.amountWasChanged = true
         draft.dateWasChanged = true
 
@@ -99,6 +100,7 @@ struct ScheduleEditorDraftTests {
     @Test func amountDraftUsesBudgetCurrencyScaleAndValidatesRanges() {
         var draft = ScheduleEditorDraft(todayDayID: "2026-09-28")
         draft.amountMode = .range
+        draft.amountSign = .deposit
         draft.amountText = "12.34"
         draft.rangeEndText = "24.68"
 
@@ -126,7 +128,8 @@ struct ScheduleEditorDraftTests {
             detail: detail(payeeID: "coffee"),
             currency: hiddenFractionUSD
         )
-        #expect(negativeExact.amountText == "-123.45")
+        #expect(negativeExact.amountText == "123.45")
+        #expect(negativeExact.amountSign == .spend)
         #expect(negativeExact.amountDraft(currency: hiddenFractionUSD, locale: locale) == .exact(-12_345))
 
         let negativeApproximate = ScheduleEditorDraft(
@@ -134,7 +137,8 @@ struct ScheduleEditorDraftTests {
             detail: detail(payeeID: "coffee"),
             currency: hiddenFractionUSD
         )
-        #expect(negativeApproximate.amountText == "-123.45")
+        #expect(negativeApproximate.amountText == "123.45")
+        #expect(negativeApproximate.amountSign == .spend)
         #expect(negativeApproximate.amountDraft(currency: hiddenFractionUSD, locale: locale) == .approximate(-12_345))
 
         let positiveRange = ScheduleEditorDraft(
@@ -142,6 +146,7 @@ struct ScheduleEditorDraftTests {
             detail: detail(payeeID: "coffee"),
             currency: hiddenFractionUSD
         )
+        #expect(positiveRange.amountSign == .deposit)
         #expect(positiveRange.amountText == "123.45")
         #expect(positiveRange.rangeEndText == "234.56")
         #expect(positiveRange.amountDraft(currency: hiddenFractionUSD, locale: locale) == .range(lower: 12_345, upper: 23_456))
@@ -151,8 +156,9 @@ struct ScheduleEditorDraftTests {
             detail: detail(payeeID: "coffee"),
             currency: hiddenFractionUSD
         )
-        #expect(negativeRange.amountText == "-234.56")
-        #expect(negativeRange.rangeEndText == "-123.45")
+        #expect(negativeRange.amountSign == .spend)
+        #expect(negativeRange.amountText == "123.45")
+        #expect(negativeRange.rangeEndText == "234.56")
         #expect(negativeRange.amountDraft(currency: hiddenFractionUSD, locale: locale) == .range(lower: -23_456, upper: -12_345))
 
         let wholeCurrency = ScheduleEditorDraft(
@@ -162,6 +168,83 @@ struct ScheduleEditorDraftTests {
         )
         #expect(wholeCurrency.amountText == "12345")
         #expect(wholeCurrency.amountDraft(currency: .jpy, locale: locale) == .exact(12_345))
+    }
+
+    @Test func newScheduleDefaultsToSpendAndAppliesTheSignInEveryAmountMode() {
+        let locale = Locale(identifier: "en_US")
+        var draft = ScheduleEditorDraft(todayDayID: "2026-09-28")
+        #expect(draft.amountSign == .spend)
+        draft.amountText = "45.00"
+
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .exact(-4_500))
+        draft.amountMode = .approximate
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .approximate(-4_500))
+        draft.amountMode = .range
+        draft.rangeEndText = "60.00"
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .range(lower: -6_000, upper: -4_500))
+
+        draft.amountSign = .deposit
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .range(lower: 4_500, upper: 6_000))
+        draft.amountMode = .exact
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .exact(4_500))
+        draft.amountMode = .approximate
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .approximate(4_500))
+    }
+
+    @Test func typedMinusDoesNotFlipTheChosenSignAndZeroStaysZero() {
+        let locale = Locale(identifier: "en_US")
+        var draft = ScheduleEditorDraft(todayDayID: "2026-09-28")
+        draft.amountText = "-45.00"
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .exact(-4_500))
+        draft.amountSign = .deposit
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .exact(4_500))
+
+        draft.amountText = "0"
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .exact(0))
+        draft.amountSign = .spend
+        #expect(draft.amountDraft(currency: .usd, locale: locale) == .exact(0))
+    }
+
+    @Test func createDefinitionCarriesTheSignedAmountForExpenseAndDeposit() throws {
+        let locale = Locale(identifier: "en_US")
+        var draft = ScheduleEditorDraft(todayDayID: "2026-09-28")
+        draft.accountID = "checking"
+        draft.amountText = "12.50"
+
+        #expect(try #require(draft.createDefinition(currency: .usd, locale: locale)).amount == .exact(-1_250))
+        draft.amountSign = .deposit
+        #expect(try #require(draft.createDefinition(currency: .usd, locale: locale)).amount == .exact(1_250))
+    }
+
+    @Test func editingStoredNegativeAmountShowsSpendAndOnlyAChangeProducesACommand() throws {
+        let locale = Locale(identifier: "en_US")
+        let reviewed = review(payeeID: "coffee", amountValue: "-12345")
+        let detail = detail(payeeID: "coffee")
+        var draft = ScheduleEditorDraft(review: reviewed, detail: detail, currency: .usd)
+        #expect(draft.amountSign == .spend)
+        #expect(draft.amountText == "123.45")
+
+        draft.amountWasChanged = true
+        #expect(try #require(draft.editFields(currency: .usd, locale: locale)).amount == .unchanged)
+
+        draft.amountSign = .deposit
+        #expect(try #require(draft.editFields(currency: .usd, locale: locale)).amount == .set(.exact(12_345)))
+    }
+
+    @Test func rangeThatCrossesZeroIsLeftUnchangedUntilTheUserEntersAnAmount() throws {
+        let locale = Locale(identifier: "en_US")
+        let reviewed = review(
+            payeeID: "coffee", amountValue: #"{"num1":-1000,"num2":2000}"#, amountOperation: "isbetween"
+        )
+        var draft = ScheduleEditorDraft(review: reviewed, detail: detail(payeeID: "coffee"), currency: .usd)
+        #expect(draft.amountWasUnsupported)
+        #expect(try #require(draft.editFields(currency: .usd, locale: locale)).amount == .unchanged)
+
+        draft.amountText = "10.00"
+        draft.rangeEndText = "20.00"
+        draft.amountWasChanged = true
+        #expect(try #require(draft.editFields(currency: .usd, locale: locale)).amount
+            == .set(.range(lower: -2_000, upper: -1_000)))
     }
 
     @Test func revertingEditedFieldsProducesNoCommandAndTrimsNameLikeStore() throws {

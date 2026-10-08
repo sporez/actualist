@@ -15,6 +15,20 @@ enum ScheduleEditorAmountMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// The direction of a schedule amount. The field holds positive digits and the
+/// draft applies this sign when it builds a command, so the decimal pad needs no
+/// minus key.
+enum ScheduleEditorAmountSign: String, CaseIterable, Identifiable, Sendable {
+    case spend = "Spend"
+    case deposit = "Deposit"
+
+    var id: String { rawValue }
+
+    fileprivate func apply(to magnitude: Int) -> Int {
+        self == .spend ? -magnitude : magnitude
+    }
+}
+
 enum ScheduleEditorDateMode: String, CaseIterable, Identifiable, Sendable {
     case oneTime
     case recurring
@@ -113,6 +127,8 @@ struct ScheduleEditorDraft: Hashable, Sendable {
     var amountWasUnsupported = false
     var dateRuleWasUnsupported = false
     var amountMode: ScheduleEditorAmountMode = .exact
+    /// New schedules default to Spend; an existing schedule shows its stored sign.
+    var amountSign: ScheduleEditorAmountSign = .spend
     var amountText = ""
     var rangeEndText = ""
     var dateMode: ScheduleEditorDateMode = .oneTime
@@ -167,14 +183,27 @@ struct ScheduleEditorDraft: Hashable, Sendable {
         switch projection.amount {
         case .exact(let value):
             amountMode = .exact
-            amountText = Self.preciseEditableAmountText(value, currency: currency)
+            amountSign = value < 0 ? .spend : .deposit
+            amountText = Self.preciseEditableAmountText(abs(value), currency: currency)
         case .approximate(let value):
             amountMode = .approximate
-            amountText = Self.preciseEditableAmountText(value, currency: currency)
+            amountSign = value < 0 ? .spend : .deposit
+            amountText = Self.preciseEditableAmountText(abs(value), currency: currency)
         case .range(let lower, let upper, _):
             amountMode = .range
-            amountText = Self.preciseEditableAmountText(lower, currency: currency)
-            rangeEndText = Self.preciseEditableAmountText(upper, currency: currency)
+            if upper <= 0 && lower < 0 {
+                amountSign = .spend
+                amountText = Self.preciseEditableAmountText(-upper, currency: currency)
+                rangeEndText = Self.preciseEditableAmountText(-lower, currency: currency)
+            } else if lower >= 0 {
+                amountSign = .deposit
+                amountText = Self.preciseEditableAmountText(lower, currency: currency)
+                rangeEndText = Self.preciseEditableAmountText(upper, currency: currency)
+            } else {
+                // A range that crosses zero has no single Spend or Deposit sign.
+                // It stays unchanged until the user enters a new amount.
+                amountWasUnsupported = true
+            }
         case .unavailable:
             amountWasUnsupported = true
             amountText = ""
@@ -233,15 +262,21 @@ struct ScheduleEditorDraft: Hashable, Sendable {
     }
 
     func amountDraft(currency: BudgetCurrency, locale: Locale) -> ScheduleAmountDraft? {
-        guard let first = Self.minorUnits(amountText, currency: currency, locale: locale) else { return nil }
+        guard let typed = Self.minorUnits(amountText, currency: currency, locale: locale) else { return nil }
+        let first = abs(typed)
         switch amountMode {
-        case .exact: return .exact(first)
-        case .approximate: return .approximate(first)
+        case .exact: return .exact(amountSign.apply(to: first))
+        case .approximate: return .approximate(amountSign.apply(to: first))
         case .range:
-            guard let second = Self.minorUnits(rangeEndText, currency: currency, locale: locale), first <= second else {
+            guard let typedEnd = Self.minorUnits(rangeEndText, currency: currency, locale: locale),
+                  first <= abs(typedEnd) else {
                 return nil
             }
-            return .range(lower: first, upper: second)
+            let second = abs(typedEnd)
+            // Spend flips the order so the stored lower bound stays the smaller number.
+            return amountSign == .spend
+                ? .range(lower: -second, upper: -first)
+                : .range(lower: first, upper: second)
         }
     }
 

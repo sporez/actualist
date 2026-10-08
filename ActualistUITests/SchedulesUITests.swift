@@ -113,6 +113,9 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertTrue(app.buttons["schedule-editor-account"].exists)
         XCTAssertTrue(app.buttons["schedule-editor-payee"].exists)
         XCTAssertTrue(app.textFields["schedule-editor-amount"].exists)
+        let sign = app.segmentedControls["schedule-editor-sign"]
+        XCTAssertTrue(sign.exists)
+        XCTAssertTrue(sign.buttons["Spend"].isSelected)
         XCTAssertTrue(app.buttons["schedule-save-review-button"].exists)
         attachScreenshot(named: "schedules-create-editor-dark", app: app)
 
@@ -128,6 +131,24 @@ final class SchedulesUITests: XCTestCase {
         app.buttons["schedule-editor-cancel"].tap()
         XCTAssertTrue(editor.waitForNonExistence(timeout: 8))
         closeSchedules(in: app)
+    }
+
+    func testNewScheduleDefaultsToSpendAndListShowsNegativeAmount() throws {
+        prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
+        let app = launchBudget()
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
+        try requireCompact(app)
+        createSupportedSchedule(named: "UI Expense Schedule", repeats: false, in: app)
+
+        let row = scheduleRow(named: "UI Expense Schedule", in: app)
+        XCTAssertTrue(row.waitForExistence(timeout: 8))
+        XCTAssertTrue(
+            row.label.contains("-12.34") || row.label.contains("\u{2212}12.34"),
+            "A schedule created with the default Spend sign must list a negative amount: \(row.label)"
+        )
     }
 
     func testDisposableScheduleEditCanReviewBackAndConfirm() throws {

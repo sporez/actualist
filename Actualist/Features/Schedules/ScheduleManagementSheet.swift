@@ -371,6 +371,16 @@ struct ScheduleEditorView: View {
             }
             .pickerStyle(.segmented)
             .disabled(!isCreate && !session.capabilities.canEditAmount)
+            Picker("Amount direction", selection: Binding(
+                get: { draft?.amountSign ?? .spend },
+                set: { coordinator.setAmountSign($0) }
+            )) {
+                ForEach(ScheduleEditorAmountSign.allCases) { sign in Text(sign.rawValue).tag(sign) }
+            }
+            .pickerStyle(.segmented)
+            .tint(draft?.amountSign == .deposit ? ActualistTheme.positive : ActualistTheme.danger)
+            .disabled(!isCreate && !session.capabilities.canEditAmount)
+            .accessibilityIdentifier("schedule-editor-sign")
             let amountLayout = dynamicTypeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
                 : AnyLayout(HStackLayout(spacing: 8))

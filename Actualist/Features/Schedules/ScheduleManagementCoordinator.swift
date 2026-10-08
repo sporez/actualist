@@ -322,6 +322,7 @@ final class ScheduleManagementCoordinator {
     func setAccount(_ value: String?) { updateDraft { $0.accountID = value; $0.accountWasChanged = true } }
     func setPayee(_ value: String?) { updateDraft { $0.payeeID = value; $0.payeeWasChanged = true } }
     func setAmountMode(_ value: ScheduleEditorAmountMode) { updateDraft { $0.amountMode = value; $0.amountWasChanged = true } }
+    func setAmountSign(_ value: ScheduleEditorAmountSign) { updateDraft { $0.amountSign = value; $0.amountWasChanged = true } }
     func setAmount(_ value: String) {
         updateDraft {
             $0.amountText = value
