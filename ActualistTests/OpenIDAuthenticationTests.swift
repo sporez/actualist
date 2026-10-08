@@ -126,6 +126,30 @@ extension LocalFirstActualStoreTests {
         #expect(try keychain.readActualSyncToken() == nil)
     }
 
+    @Test func authenticatedAccountWithNoFilesStagesAnEmptyBudgetList() async throws {
+        let transport = StubConnectionTransport(files: [], token: "empty-account-token")
+        let keychain = KeychainStore(
+            service: "OpenIDTests", account: UUID().uuidString, backend: FakeKeychainBackend()
+        )
+        let store = LocalFirstActualStore(
+            keychain: keychain,
+            connectionTransportFactory: { _ in transport }
+        )
+
+        // A stale selection must not surface selectedBudgetUnavailable when the
+        // account has no budgets at all.
+        let staged = try await store.stageConnection(
+            serverURLString: "https://sync.example",
+            password: "password",
+            selectedBudgetID: "stale-group"
+        )
+
+        #expect(staged.token == "empty-account-token")
+        #expect(staged.budgets.isEmpty)
+        #expect(staged.remoteFilesByFileID.isEmpty)
+        #expect(try keychain.readActualSyncToken() == nil)
+    }
+
     @Test func onboardingOpenIDOnlyDiscoveryImmediatelyStartsAuthentication() async throws {
         let (viewModel, appState, transport) = makeOnboardingSystem(
             loginMethodsData: Data(#"{"methods":["openid"]}"#.utf8)

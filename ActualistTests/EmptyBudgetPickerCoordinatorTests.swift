@@ -44,6 +44,57 @@ struct EmptyBudgetPickerCoordinatorTests {
         var importedArchiveURLs: [URL] = []
     }
 
+    // MARK: - Zero-budget account to offer
+
+    @Test func zeroBudgetLoginRoutesToPickerAndOffersCreateAndImport() async throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.EmptyLogin.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        // A leftover selection from a budget deleted on the server.
+        settingsStore.save(
+            AppSettings(
+                localFirstServerURLString: "https://sync.example",
+                selectedBudgetID: "stale-group",
+                selectedBudgetName: "Deleted Budget",
+                selectedLocalFirstFileID: "stale-file",
+                selectedLocalFirstGroupID: "stale-group"
+            )
+        )
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString,
+            backend: FakeKeychainBackend()
+        )
+        let transport = StubConnectionTransport(files: [], token: "empty-token")
+        let rootURL = FileManager.default.temporaryDirectory
+            .appending(path: "ActualistEmptyLogin-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let store = LocalFirstActualStore(
+            keychain: keychain,
+            fileManager: BudgetFileManager(applicationSupportURL: rootURL),
+            connectionTransportFactory: { _ in transport }
+        )
+        let appState = AppState(settingsStore: settingsStore, keychain: keychain, localFirstStore: store)
+
+        let connected = await appState.saveLocalFirstConnection(
+            serverURLString: "https://sync.example",
+            password: "password"
+        )
+
+        #expect(connected)
+        #expect(appState.lastErrorMessage == nil)
+        #expect(appState.setupPhase == .selectingBudget)
+        #expect(appState.budgets.isEmpty)
+        #expect(appState.settings.selectedBudgetID == nil)
+        #expect(try keychain.readActualSyncToken() == "empty-token")
+
+        // The picker's own discovery then records success for the empty list.
+        try await appState.loadBudgets()
+        let coordinator = EmptyBudgetPickerCoordinator()
+        #expect(coordinator.offer(using: appState) == .hidden(.discoveryIncomplete))
+        coordinator.recordDiscovery(succeeded: true)
+        #expect(coordinator.offer(using: appState) == .offered)
+        #expect(appState.setupPhase == .selectingBudget)
+    }
+
     // MARK: - Offer decision (empty vs failure vs populated vs demo)
 
     @Test func successfulZeroBudgetDiscoveryOffersEmptyBudgetActions() {

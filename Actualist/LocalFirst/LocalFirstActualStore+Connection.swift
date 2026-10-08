@@ -66,12 +66,13 @@ extension LocalFirstActualStore {
         }
 
         let files = try await client.listUserFiles(token: token)
-        guard !files.isEmpty else {
-            throw LocalFirstError.noBudgetsAvailable
-        }
-
         let budgets = files.map(\.actualBudget)
+        // An authenticated account with no files is a successful connection:
+        // it routes to the picker's empty state (Create / Import). A stale
+        // selection is only an error when other budgets exist to choose from,
+        // so it cannot mask the empty case.
         if let selectedBudgetID,
+           !budgets.isEmpty,
            !budgets.contains(where: { $0.syncID == selectedBudgetID }) {
             throw LocalFirstError.selectedBudgetUnavailable
         }
