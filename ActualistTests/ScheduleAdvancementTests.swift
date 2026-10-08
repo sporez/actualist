@@ -114,6 +114,45 @@ struct ScheduleAdvancementTests {
         #expect(try metadataObject(beside: fixture.url)["note"] as? String == "retain-me")
     }
 
+    /// An automatic recurring schedule posted early on its scheduled date is
+    /// paid, so the next sync moves it forward instead of posting it again.
+    @Test func earlyManualPostOfAutomaticRecurringScheduleIsNotPostedAgain() async throws {
+        let upcoming = "2026-10-05"
+        let following = "2026-11-05"
+        let fixture = try makeDatabase(
+            extraSQL: recurringScheduleSQL(
+                scheduleID: "rent", startDayID: "2026-09-05", frequency: "monthly",
+                nextDayID: upcoming, amount: -10_000
+            )
+        )
+        let review = try await fixture.database.scheduleMutationReview(budgetID: Self.budgetID, scheduleID: "rent")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        let draft = TransactionDraft(
+            accountID: "checking",
+            date: calendar.date(from: DateComponents(year: 2026, month: 10, day: 5, hour: 12))!,
+            amountMinorUnits: -10_000, payeeID: nil, payeeName: "", categoryID: nil, notes: nil,
+            cleared: false, isTransfer: false, scheduleID: "rent"
+        )
+        #expect(try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+            .detail(id: "rent")?.status == .upcoming)
+
+        _ = try await fixture.database.postScheduleOccurrence(
+            review: review, draft: draft, transactionID: "early", postedDayID: upcoming, asOf: Self.today
+        )
+        #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
+
+        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
+        let advanced = try #require(
+            try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today).detail(id: "rent")
+        )
+        #expect(advanced.effectiveNextDate == following)
+
+        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: upcoming)
+        #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
+    }
+
     @Test func closedAccountIsNotPosted() async throws {
         let fixture = try makeDatabase(
             extraSQL: oneTimeScheduleSQL(scheduleID: "rent", dayID: Self.today, amount: -10_000) + """

@@ -10,12 +10,20 @@ struct SchedulePostingReviewContent: Hashable, Sendable {
     let accountText: String
     let payeeText: String
     let scheduledDateText: String
+    let scheduledDayID: String?
     let todayDateText: String
     let todayDayID: String
     let selectedDate: SchedulePostingDate
     let canSubmit: Bool
     let unavailableReason: String?
 
+    /// Shown when the chosen date falls before the scheduled date. Actual still
+    /// posts it, but the schedule keeps waiting for its own occurrence.
+    var earlyPostNotice: String? {
+        guard canSubmit, case .today(let dayID) = selectedDate,
+              let scheduledDayID, dayID < scheduledDayID else { return nil }
+        return "Posting today saves a transaction linked to this schedule. The \(scheduledDateText) occurrence may still show as not paid."
+    }
 }
 
 enum SchedulePostingCoordinatorState: Hashable, Sendable {
@@ -113,7 +121,7 @@ final class SchedulePostingCoordinator {
                     defaultUpcomingLength: schedules.defaultUpcomingLength,
                     context: context
                 )
-                let eligibleStatus = [.due, .upcoming, .missed].contains(detail.status)
+                let eligibleStatus = detail.status.allowsManualPosting
                 let amount = detail.amount.postingAmount
                 let scheduledDate = detail.effectiveNextDate
                 let reason: String?
@@ -147,6 +155,7 @@ final class SchedulePostingCoordinator {
                     accountText: presentation.accountText,
                     payeeText: presentation.payeeText,
                     scheduledDateText: SchedulePresentation.dateLabel(scheduledDate),
+                    scheduledDayID: scheduledDate,
                     todayDateText: SchedulePresentation.dateLabel(today),
                     todayDayID: today,
                     selectedDate: .scheduled,
@@ -249,6 +258,7 @@ final class SchedulePostingCoordinator {
             accountText: content.accountText,
             payeeText: content.payeeText,
             scheduledDateText: content.scheduledDateText,
+            scheduledDayID: content.scheduledDayID,
             todayDateText: content.todayDateText,
             todayDayID: content.todayDayID,
             selectedDate: date,

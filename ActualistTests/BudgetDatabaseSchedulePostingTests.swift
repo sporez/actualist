@@ -207,74 +207,67 @@ struct BudgetDatabaseSchedulePostingTests {
             .detail(id: "rent")?.status == .paid)
     }
 
-    @Test func postTodayIsRejectedWhenUpcomingExactOccurrenceCannotBeMatched() async throws {
+    /// Actual's "Post transaction today" has no match-window refusal: the
+    /// transaction is created and linked, but an exact occurrence stays unpaid.
+    @Test func postTodayForUpcomingExactOccurrenceIsAcceptedAndLeavesItUnpaid() async throws {
         let occurrence = Self.dayID(afterToday: 3)
-        let fixture = try makeFixture(extraSQL: """
-            UPDATE schedules_next_date
-            SET local_next_date = \(Self.packedDay(occurrence)), base_next_date = \(Self.packedDay(occurrence))
-            WHERE schedule_id = 'rent';
-            """)
+        let fixture = try makeFixture(extraSQL: Self.moveNextDateSQL(to: occurrence))
         let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
-        let clockBefore = await fixture.database.localClock
-        let transactionsBefore = try readInt("SELECT COUNT(*) FROM transactions", fixture.url)
-        let messagesBefore = try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url)
-        let outboxBefore = try readOptionalTableCount("actualist_outbox", fixture.url)
-        let historyBefore = try readOptionalTableCount("actualist_action_log", fixture.url)
+        let historyBefore = try readOptionalTableCount("actualist_action_log", fixture.url) ?? 0
 
-        for _ in 0..<2 {
-            let message = try await rejectionMessage {
-                try await fixture.database.postScheduleOccurrence(
-                    review: review, draft: draft(), transactionID: "too-early",
-                    postedDayID: Self.today, asOf: Self.today, now: Self.noon
-                )
-            }
-            #expect(message.contains("before Actual's payment match window"))
-            #expect(message.contains("Actual will not mark it as paid"))
-            #expect(message.contains(occurrence))
-        }
+        let receipt = try await fixture.database.postScheduleOccurrence(
+            review: review, draft: draft(), transactionID: "early-today",
+            postedDayID: Self.today, asOf: Self.today, now: Self.noon
+        )
 
-        #expect(try readInt("SELECT COUNT(*) FROM transactions", fixture.url) == transactionsBefore)
-        #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url) == messagesBefore)
-        #expect(try readOptionalTableCount("actualist_outbox", fixture.url) == outboxBefore)
-        #expect(try readOptionalTableCount("actualist_action_log", fixture.url) == historyBefore)
-        #expect(await fixture.database.localClock == clockBefore)
+        #expect(receipt.occurrenceDayID == occurrence)
+        #expect(receipt.postedDayID == Self.today)
+        #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'early-today' AND schedule = 'rent'", fixture.url) == 1)
+        #expect(try readInt("SELECT COUNT(*) FROM actualist_outbox", fixture.url) == receipt.appliedMessageCount)
+        #expect(try readOptionalTableCount("actualist_action_log", fixture.url) == historyBefore + 1)
         #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
             .detail(id: "rent")?.status == .upcoming)
     }
 
-    @Test func dateRuleBeforeApproximateMatchWindowIsRejectedWithoutCommit() async throws {
-        let occurrence = Self.dayID(afterToday: 3)
-        let earlierDate = Self.dayID(afterToday: -1)
-        let fixture = try makeFixture(extraSQL: Self.approximateDateSQL(occurrence: occurrence) + """
-            INSERT INTO rules VALUES (
-                'move-date-earlier', 'normal',
-                '[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-10000}]',
-                '[{"op":"set","field":"date","value":"\(earlierDate)"}]', 'and', 0
-            );
-            """)
+    @Test func farFutureScheduleCanPostTodayAndScheduledDateButCompletedCannot() async throws {
+        let occurrence = Self.dayID(afterToday: 40)
+        let fixture = try makeFixture(extraSQL: Self.moveNextDateSQL(to: occurrence))
+        let initial = try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+        #expect(initial.detail(id: "rent")?.status == .scheduled)
         let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
-        let clockBefore = await fixture.database.localClock
-        let messagesBefore = try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url)
-        let transactionCountBefore = try readInt("SELECT COUNT(*) FROM transactions", fixture.url)
-        let outboxBefore = try readOptionalTableCount("actualist_outbox", fixture.url)
-        let historyBefore = try readOptionalTableCount("actualist_action_log", fixture.url)
 
-        for _ in 0..<2 {
-            let message = try await rejectionMessage {
-                try await fixture.database.postScheduleOccurrence(
-                    review: review, draft: draft(), transactionID: "rule-too-early",
-                    postedDayID: Self.today, asOf: Self.today, now: Self.noon
-                )
-            }
-            #expect(message.contains("before Actual's payment match window"))
-            #expect(message.contains("Actual will not mark it as paid"))
-            #expect(message.contains(Self.dayID(afterToday: 1)))
+        let future = TransactionDraft(
+            accountID: "checking", date: Self.date(of: occurrence),
+            amountMinorUnits: -10_000, payeeID: nil, payeeName: "",
+            categoryID: nil, notes: nil, cleared: false, isTransfer: false, scheduleID: "rent"
+        )
+        let today = try await fixture.database.postScheduleOccurrence(
+            review: review, draft: draft(), transactionID: "far-today",
+            postedDayID: Self.today, asOf: Self.today, now: Self.noon
+        )
+        #expect(today.postedDayID == Self.today)
+        #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+            .detail(id: "rent")?.status == .scheduled)
+
+        let onDate = try await fixture.database.postScheduleOccurrence(
+            review: review, draft: future, transactionID: "far-date",
+            postedDayID: occurrence, asOf: Self.today, now: Self.noon
+        )
+        #expect(onDate.postedDayID == occurrence)
+        #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+            .detail(id: "rent")?.status == .paid)
+
+        let completed = try makeFixture(
+            extraSQL: Self.moveNextDateSQL(to: occurrence) + "UPDATE schedules SET completed = 1 WHERE id = 'rent';"
+        )
+        let completedReview = try await completed.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        await #expect(throws: SchedulePostingRefusal.occurrenceUnavailable) {
+            try await completed.database.postScheduleOccurrence(
+                review: completedReview, draft: draft(), transactionID: "completed",
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            )
         }
-        #expect(try readInt("SELECT COUNT(*) FROM transactions", fixture.url) == transactionCountBefore)
-        #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url) == messagesBefore)
-        #expect(try readOptionalTableCount("actualist_outbox", fixture.url) == outboxBefore)
-        #expect(try readOptionalTableCount("actualist_action_log", fixture.url) == historyBefore)
-        #expect(await fixture.database.localClock == clockBefore)
+        #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'completed'", completed.url) == 0)
     }
 
     @Test func approximateManualPostingAtTwoDayLookbackBoundaryIsAccepted() async throws {
@@ -474,6 +467,21 @@ struct BudgetDatabaseSchedulePostingTests {
 
     private static func packedDay(_ dayID: String) -> Int {
         Int(dayID.replacingOccurrences(of: "-", with: ""))!
+    }
+
+    private static func moveNextDateSQL(to occurrence: String) -> String {
+        """
+        UPDATE schedules_next_date
+        SET local_next_date = \(packedDay(occurrence)), base_next_date = \(packedDay(occurrence))
+        WHERE schedule_id = 'rent';
+        """
+    }
+
+    private static func date(of dayID: String) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .autoupdatingCurrent
+        let parts = dayID.split(separator: "-").compactMap { Int($0) }
+        return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: 12))!
     }
 
     private static func approximateDateSQL(occurrence: String) -> String {

@@ -36,6 +36,16 @@ enum ScheduleStatus: String, CaseIterable, Hashable, Sendable {
     case missed
     case scheduled
 
+    /// Actual's "Post transaction" menu is offered for every non-completed schedule.
+    /// Paid stays refused here: its occurrence already has a transaction, and the
+    /// refusal is what keeps a double tap or a peer's post from duplicating it.
+    var allowsManualPosting: Bool {
+        switch self {
+        case .due, .upcoming, .missed, .scheduled: true
+        case .completed, .paid: false
+        }
+    }
+
     static func resolve(
         nextDate: String,
         completed: Bool,

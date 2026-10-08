@@ -72,6 +72,13 @@ struct SchedulePostingReviewView: View {
             }
             .actualistReviewCard(padding: 12)
 
+            if let notice = review.earlyPostNotice {
+                Label(notice, systemImage: "info.circle")
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("schedule-post-early-notice")
+            }
             if let reason = review.unavailableReason {
                 Label(reason, systemImage: "exclamationmark.triangle.fill")
                     .font(.subheadline)

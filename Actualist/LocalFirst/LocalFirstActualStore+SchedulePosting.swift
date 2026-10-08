@@ -131,7 +131,7 @@ extension LocalFirstActualStore {
         try requireSchedulePostingSession(session, database: database)
         guard let detail = loaded.detail(id: review.mutation.scheduleID),
               detail.capabilities.canPost,
-              [.due, .upcoming, .missed].contains(detail.status),
+              detail.status.allowsManualPosting,
               detail.account.availability == .available,
               let accountID = detail.account.id,
               let amount = detail.amount.postingAmount else {

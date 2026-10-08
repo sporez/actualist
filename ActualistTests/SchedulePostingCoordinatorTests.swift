@@ -44,6 +44,57 @@ struct SchedulePostingCoordinatorTests {
         #expect(!changed.canSubmit)
     }
 
+    @Test(arguments: [ScheduleStatus.due, .upcoming, .missed, .scheduled])
+    func nonCompletedUnpaidStatusesCanBeReviewedForPosting(status: ScheduleStatus) async {
+        let repository = SchedulePostingCoordinatorRepositoryFake()
+        repository.detailStatus = status
+        let coordinator = await preparedCoordinator(repository)
+
+        guard case .review(let review) = coordinator.state else {
+            Issue.record("Expected a prepared review")
+            return
+        }
+        #expect(review.canSubmit)
+        #expect(review.unavailableReason == nil)
+    }
+
+    @Test(arguments: [ScheduleStatus.completed, .paid])
+    func completedAndPaidStatusesRemainUnavailable(status: ScheduleStatus) async {
+        let repository = SchedulePostingCoordinatorRepositoryFake()
+        repository.detailStatus = status
+        let coordinator = await preparedCoordinator(repository)
+
+        guard case .review(let review) = coordinator.state else {
+            Issue.record("Expected a prepared review")
+            return
+        }
+        #expect(!review.canSubmit)
+        #expect(review.unavailableReason != nil)
+    }
+
+    @Test func earlyPostNoticeAppearsOnlyForTodayBeforeTheScheduledDate() async {
+        let repository = SchedulePostingCoordinatorRepositoryFake()
+        repository.detailStatus = .scheduled
+        let coordinator = SchedulePostingCoordinator()
+        coordinator.beginReview(
+            scheduleID: "rent", expectedBudgetID: "budget", expectedGeneration: 4,
+            today: "2026-09-20", currency: .usd, isPrivacyModeEnabled: false,
+            scheduleRepository: repository, postingRepository: repository
+        )
+        await waitForReview(coordinator)
+        guard case .review(let scheduled) = coordinator.state else {
+            Issue.record("Expected a prepared review")
+            return
+        }
+        #expect(scheduled.earlyPostNotice == nil)
+        coordinator.selectDate(.today(dayID: "2026-09-20"))
+        guard case .review(let early) = coordinator.state else {
+            Issue.record("Expected a prepared review")
+            return
+        }
+        #expect(early.earlyPostNotice != nil)
+    }
+
     @Test func duplicateConfirmationWaitsForOneSyncFirstSubmission() async {
         let repository = SchedulePostingCoordinatorRepositoryFake()
         repository.pausePostBeforeSyncCompletion = true
@@ -190,6 +241,7 @@ private enum SchedulePostingTestError: Error, LocalizedError {
 @MainActor
 private final class SchedulePostingCoordinatorRepositoryFake: ScheduleRepositoryProtocol, SchedulePostingRepositoryProtocol {
     var availability = SchedulePostingAvailability(canPost: true, reason: nil)
+    var detailStatus: ScheduleStatus = .due
     var pausePostBeforeSyncCompletion = false
     var cancellationAfterSyncGate = false
     var postError: Error?
@@ -252,7 +304,7 @@ private final class SchedulePostingCoordinatorRepositoryFake: ScheduleRepository
             dateRule: .oneTime(dayID: "2026-09-28", operation: "is"),
             account: ScheduleAccountReference(id: "checking", name: "Checking", availability: .available),
             payee: SchedulePayeeReference(id: "landlord", name: "Landlord", isMissing: false),
-            effectiveNextDate: "2026-09-28", status: .due, completed: false,
+            effectiveNextDate: "2026-09-28", status: detailStatus, completed: false,
             postsTransaction: false, customUpcomingLength: nil, sortOrder: 1,
             rawConditionsJSON: nil, rawActionsJSON: nil,
             capabilities: ScheduleMutationCapabilities(

@@ -91,7 +91,7 @@ extension BudgetDatabase {
             db: db
         ),
               schedule.capabilities.canPost,
-              [.due, .upcoming, .missed].contains(schedule.status),
+              schedule.status.allowsManualPosting,
               schedule.account.availability == .available,
               current.projection.amount.postingAmount != nil,
               current.review.schedule.completed == false,
@@ -148,15 +148,9 @@ extension BudgetDatabase {
         guard let occurrenceDate = schedule.effectiveNextDate else {
             throw SchedulePostingRefusal.occurrenceUnavailable
         }
-        let matchStartDate = scheduleTransactionLowerBound(
-            occurrenceDate: occurrenceDate,
-            matchingMode: current.projection.occurrenceMatchingMode,
-            postsTransaction: schedule.postsTransaction
-        )
-        let transactionDay = ActualDateOnly.dayID(from: graph.primaryDate, timeZone: .autoupdatingCurrent)
-        guard transactionDay >= matchStartDate else {
-            throw SchedulePostingRefusal.beforeMatchWindow(earliestDayID: matchStartDate)
-        }
+        // Like Actual's "Post transaction today", a transaction dated before the
+        // occurrence's match window is created anyway. It is linked to the
+        // schedule but leaves the occurrence unpaid.
         let descriptor = CreateTransactionDescriptor(
             month: YearMonth(date: finalDraft.date).rawValue,
             amount: finalDraft.amountMinorUnits,

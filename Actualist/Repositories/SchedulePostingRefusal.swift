@@ -17,7 +17,6 @@ enum SchedulePostingRefusal: Error, Hashable, Sendable {
     /// The schedule's rule or transfer points at an account, category or payee that was
     /// deleted or closed. The user can fix this by editing the rule or reopening the account.
     case referencedRowUnavailable
-    case beforeMatchWindow(earliestDayID: String)
 }
 
 extension SchedulePostingRefusal: LocalizedError {
@@ -37,8 +36,6 @@ extension SchedulePostingRefusal: LocalizedError {
             "A matching rule removes this scheduled transaction, so it cannot be posted."
         case .ruleChangedScheduleLink:
             "A matching rule changed the transaction's schedule link, so Actual will not mark this occurrence as paid. Update the rule to keep it linked to this schedule."
-        case .beforeMatchWindow(let earliestDayID):
-            "The transaction date is before Actual's payment match window for this occurrence, so Actual will not mark it as paid. Choose a date on or after \(earliestDayID) or update the matching rule's date."
         }
     }
 }
