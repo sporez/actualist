@@ -27,6 +27,8 @@ enum AccountLifecycleState: Hashable, Sendable {
 final class AccountLifecycleCoordinator {
     private(set) var state: AccountLifecycleState = .idle
     private(set) var isPrivacyModeEnabled: Bool
+    /// Incremented once per applied rename, reopen, close or delete; never for no-ops or failures.
+    private(set) var successFeedback = 0
 
     @ObservationIgnored private var operationTask: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
@@ -159,6 +161,7 @@ final class AccountLifecycleCoordinator {
                 switch result {
                 case .applied(let outcome):
                     state = .completed(outcome)
+                    successFeedback += 1
                     finishOperation(requestGeneration)
                     onCommitted(draft.identity, outcome)
                     return
@@ -203,6 +206,7 @@ final class AccountLifecycleCoordinator {
                 switch result {
                 case .applied(let outcome):
                     state = .completed(outcome)
+                    successFeedback += 1
                     finishOperation(requestGeneration)
                     onCommitted(session.identity, outcome)
                     return
@@ -317,6 +321,7 @@ final class AccountLifecycleCoordinator {
                 switch result {
                 case .applied(let outcome):
                     state = .completed(outcome)
+                    successFeedback += 1
                     finishOperation(requestGeneration)
                     onCommitted(identity, outcome)
                     return

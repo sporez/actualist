@@ -7,11 +7,7 @@ final class AppRouteCoordinator {
     private(set) var pendingRoute: AppRoute?
     private(set) var pendingAccountLifecycleReceipt: AccountLifecycleRouteReceipt?
 
-    var readyAccountLifecycleReceiptID: UUID? {
-        guard let receipt = pendingAccountLifecycleReceipt,
-              !receipt.awaitsSavedNoticeDismissal else { return nil }
-        return receipt.id
-    }
+    var readyAccountLifecycleReceiptID: UUID? { pendingAccountLifecycleReceipt?.id }
     var settingsPath: [SettingsPage] = []
     private var settingsPresentation: SettingsPresentation = .hidden
 
@@ -85,14 +81,9 @@ final class AppRouteCoordinator {
 
     func consumeAccountLifecycleReceipt(id: UUID) -> AccountLifecycleRouteReceipt? {
         guard let receipt = pendingAccountLifecycleReceipt,
-              receipt.id == id, !receipt.awaitsSavedNoticeDismissal else { return nil }
+              receipt.id == id else { return nil }
         pendingAccountLifecycleReceipt = nil
         return receipt
-    }
-
-    func accountLifecycleSavedNoticeDismissed(receiptID: UUID) {
-        guard pendingAccountLifecycleReceipt?.id == receiptID else { return }
-        pendingAccountLifecycleReceipt?.awaitsSavedNoticeDismissal = false
     }
 
     @discardableResult

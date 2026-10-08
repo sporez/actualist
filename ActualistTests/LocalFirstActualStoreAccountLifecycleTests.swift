@@ -116,7 +116,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
             return
         }
         #expect(outcome.refreshPending)
-        #expect(AccountLifecyclePresentation.mutationSheet(for: .completed(outcome)) == .savedRefreshPending)
+        #expect(AccountLifecyclePresentation.mutationSheet(for: .completed(outcome)) == nil)
         let database = try #require(store.database)
         #expect(try await database.fetchAccounts().first { $0.id == "checking" }?.name == "Daily Spending")
         #expect(try await database.pendingLocalSyncMessageCount() == 1)

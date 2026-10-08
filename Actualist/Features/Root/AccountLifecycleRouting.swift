@@ -5,7 +5,6 @@ struct AccountLifecycleRouteReceipt: Identifiable, Equatable {
     let identity: AccountLifecycleIdentity
     let budgetSessionGeneration: Int
     let operation: AccountLifecycleOperation
-    var awaitsSavedNoticeDismissal: Bool
 }
 
 /// Reconciles navigation only after a committed lifecycle operation in this session.
@@ -24,8 +23,7 @@ enum AccountLifecycleRouting {
                 AccountLifecycleRouteReceipt(
                     identity: identity,
                     budgetSessionGeneration: generation,
-                    operation: outcome.operation,
-                    awaitsSavedNoticeDismissal: outcome.refreshPending
+                    operation: outcome.operation
                 )
             )
             appState.recordLocalDataMutation()

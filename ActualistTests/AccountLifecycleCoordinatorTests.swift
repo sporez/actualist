@@ -29,6 +29,7 @@ struct AccountLifecycleCoordinatorTests {
         #expect(repository.renameCalls == 1)
         #expect(repository.lastRenameCommand?.newName == "Daily Spending")
         #expect(mutation?.account.name == "Daily Spending")
+        #expect(coordinator.successFeedback == 1)
     }
 
     @Test func duplicateRenameIntentIsSerializedWhileRepositoryIsSuspended() async throws {
@@ -128,6 +129,7 @@ struct AccountLifecycleCoordinatorTests {
             expectedClosed: true
         ))
         #expect(mutationCount == 0)
+        #expect(coordinator.successFeedback == 0)
     }
 
     @Test func reopenMutationCallbackCanCancelCompletedWorkflow() async {
@@ -207,6 +209,7 @@ struct AccountLifecycleCoordinatorTests {
         #expect(coordinator.review == replacement)
         #expect(coordinator.didReplaceReview)
         #expect(repository.closeCalls == 1)
+        #expect(coordinator.successFeedback == 0)
 
         repository.closeResult = .applied(outcome(operation: .close, account: closedAccount))
         var mutation: AccountLifecycleOutcome?
@@ -216,6 +219,7 @@ struct AccountLifecycleCoordinatorTests {
         await applied.value
         #expect(mutation?.operation == .close)
         #expect(repository.closeCalls == 2)
+        #expect(coordinator.successFeedback == 1)
     }
 
     @Test func accountOrBudgetContextChangeCancelsPresentedWorkflow() {
@@ -342,6 +346,7 @@ struct AccountLifecycleCoordinatorTests {
         let failed = try #require(coordinator.submitRename(repository: repository) { _, _ in })
         await failed.value
         #expect(coordinator.errorMessage != nil)
+        #expect(coordinator.successFeedback == 0)
         #expect(!coordinator.canEditRename)
         #expect(!coordinator.canSubmitRename)
         #expect(AccountLifecyclePresentation.mutationSheet(for: coordinator.state) == .rename)

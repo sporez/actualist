@@ -74,6 +74,8 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     .interactiveDismissDisabled(coordinator.isSubmitting)
                     .presentationBackground(ActualistTheme.background)
             }
+            // The host outlives the sheet, so the haptic survives the dismissal.
+            .sensoryFeedback(.success, trigger: coordinator.successFeedback)
             .onBudgetSessionChange { coordinator.cancel() }
             .onChange(of: appState.settings.randomizedDisplayValuesEnabled, initial: true) {
                 coordinator.updatePrivacyMode(appState.settings.randomizedDisplayValuesEnabled)
@@ -90,42 +92,6 @@ struct AccountLifecyclePresentationHost: ViewModifier {
     @ViewBuilder
     private var sheetContent: some View {
         switch AccountLifecyclePresentation.mutationSheet(for: coordinator.state) {
-        case .savedRefreshPending:
-            let receiptID = appState.routeCoordinator.pendingAccountLifecycleReceipt?.id
-            NavigationStack {
-                ReviewSheetContent {
-                    ReviewSheetHeader(
-                        title: "Account Change Saved",
-                        subtitle: "Your change is saved on this device."
-                    )
-                    Label(
-                        "Pull to refresh the account list to update its display.",
-                        systemImage: "checkmark.circle.fill"
-                    )
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .actualistReviewCard()
-                }
-                .reviewSheetBottomBar {
-                    Spacer(minLength: 0)
-                    Button { coordinator.cancel() } label: {
-                        Text("Done")
-                            .font(.subheadline.weight(.semibold))
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, minHeight: 32)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                }
-                .toolbar(.hidden, for: .navigationBar)
-            }
-            .presentationDetents([.medium])
-            .onDisappear {
-                if let receiptID {
-                    appState.routeCoordinator.accountLifecycleSavedNoticeDismissed(receiptID: receiptID)
-                }
-            }
         case .rename:
             AccountRenameSheet(coordinator: coordinator) {
                 coordinator.submitRename(

@@ -16,12 +16,7 @@ struct AccountLifecycleRoutingTests {
         )
         let receipt = try #require(state.routeCoordinator.pendingAccountLifecycleReceipt)
 
-        #expect(state.routeCoordinator.readyAccountLifecycleReceiptID == nil)
-        #expect(AccountLifecycleRouting.consume(
-            receiptID: receipt.id, using: state, selection: .account(account)
-        ) == .account(account))
-        #expect(state.accountNavigationPath == [account])
-        state.routeCoordinator.accountLifecycleSavedNoticeDismissed(receiptID: receipt.id)
+        #expect(state.routeCoordinator.readyAccountLifecycleReceiptID == receipt.id)
 
         let selection = AccountLifecycleRouting.consume(
             receiptID: receipt.id, using: state, selection: .account(account)
@@ -119,7 +114,6 @@ struct AccountLifecycleRoutingTests {
         completion(identity(), outcome(.delete))
         let current = try #require(state.routeCoordinator.pendingAccountLifecycleReceipt)
 
-        state.routeCoordinator.accountLifecycleSavedNoticeDismissed(receiptID: old.id)
         #expect(AccountLifecycleRouting.consume(
             receiptID: old.id, using: state, selection: .reports
         ) == .reports)
