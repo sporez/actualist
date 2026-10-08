@@ -133,12 +133,12 @@ struct BudgetMoveMoneyView: View {
             VStack(spacing: 14) {
                 Text(draft.direction.headerTitle)
                     .font(ActualistTypography.sectionTitle(for: density))
-                    .foregroundStyle(ActualistTheme.primaryText)
+                    .foregroundStyle(BudgetMoveMoneyHeaderStyle.primaryText)
 
                 VStack(spacing: 10) {
                     Text(display.focusedCategoryName(draft))
                         .font(ActualistTypography.rowTitle(for: density))
-                        .foregroundStyle(ActualistTheme.primaryText)
+                        .foregroundStyle(BudgetMoveMoneyHeaderStyle.primaryText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
 
@@ -171,7 +171,7 @@ struct BudgetMoveMoneyView: View {
 
                     Text(draft.direction.counterpartyPrompt)
                         .font(ActualistTypography.rowLabel(for: density))
-                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .foregroundStyle(BudgetMoveMoneyHeaderStyle.secondaryText)
                 }
                 .padding(.top, 4)
 
@@ -205,7 +205,7 @@ struct BudgetMoveMoneyView: View {
                 cornerRadii: RectangleCornerRadii(bottomLeading: 32, bottomTrailing: 32),
                 style: .continuous
             )
-            .fill(Color(red: 0.14, green: 0.37, blue: 0.04))
+            .fill(BudgetMoveMoneyHeaderStyle.fill)
         )
     }
 
@@ -359,10 +359,19 @@ struct BudgetMoveMoneyView: View {
             return ActualistTheme.danger
         }
         if amount == 0 {
-            return ActualistTheme.secondaryText
+            return BudgetMoveMoneyHeaderStyle.secondaryText
         }
-        return ActualistTheme.primaryText
+        return BudgetMoveMoneyHeaderStyle.primaryText
     }
+}
+
+/// The header keeps one dark green in every theme, so its text uses fixed
+/// light colors instead of the palette's text colors, which turn dark in
+/// light themes.
+private enum BudgetMoveMoneyHeaderStyle {
+    static let fill = Color(red: 0.14, green: 0.37, blue: 0.04)
+    static let primaryText = Color.white
+    static let secondaryText = Color.white.opacity(0.78)
 }
 
 private enum BudgetMoveMoneyLayout {
