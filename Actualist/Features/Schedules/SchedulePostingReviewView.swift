@@ -27,10 +27,6 @@ struct SchedulePostingReviewView: View {
                     message: "The transaction is being saved to this budget. Keep this review open until it finishes.",
                     symbol: "square.and.arrow.down"
                 )
-            case .committed(let receipt):
-                committed(receipt, refreshPending: false)
-            case .committedRefreshPending(let receipt):
-                committed(receipt, refreshPending: true)
             case .failed(let message):
                 failure(message)
             }
@@ -142,40 +138,6 @@ struct SchedulePostingReviewView: View {
             }
             .buttonStyle(.glass)
             .disabled(coordinator.state.isSubmitting)
-        }
-    }
-
-    private func committed(_ receipt: SchedulePostingReceipt, refreshPending: Bool) -> some View {
-        ReviewSheetContent {
-            ReviewSheetHeader(title: "Transaction Posted")
-            Label(
-                refreshPending
-                    ? "The transaction was saved. The schedule view still needs to refresh."
-                    : "The transaction was saved to this budget.",
-                systemImage: refreshPending ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill"
-            )
-            .font(.subheadline)
-            .foregroundStyle(refreshPending ? ActualistTheme.warning : ActualistTheme.positive)
-            .fixedSize(horizontal: false, vertical: true)
-            .actualistReviewCard()
-            ReviewSummaryRow(title: "Schedule occurrence", value: SchedulePresentation.dateLabel(receipt.occurrenceDayID), symbol: "calendar.badge.clock")
-            ReviewSummaryRow(title: "Transaction date", value: SchedulePresentation.dateLabel(receipt.postedDayID), symbol: "calendar")
-            Text("Closing this message will not post the transaction again.")
-                .font(.footnote)
-                .foregroundStyle(ActualistTheme.secondaryText)
-        }
-        .reviewSheetBottomBar {
-            Button {
-                coordinator.finishCommitted()
-                dismiss()
-            } label: {
-                Text("Done")
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
         }
     }
 

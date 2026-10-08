@@ -46,11 +46,8 @@ enum ScheduleManagementState: Hashable, Sendable {
     case idle
     case loading(String)
     case editing(ScheduleEditorSession)
-    case reviewingSave(ScheduleEditorSession)
     case reviewingAction(ScheduleActionReview)
     case submitting(String)
-    case committed(ScheduleMutationOutcome)
-    case noChanges(ScheduleMutationOutcome)
     case failed(String)
 
     var isSubmitting: Bool {
@@ -63,6 +60,9 @@ enum ScheduleManagementState: Hashable, Sendable {
 @Observable
 final class ScheduleManagementCoordinator {
     private(set) var state: ScheduleManagementState = .idle
+    /// Bumped once per durable change. The presenting host reloads from it and
+    /// plays the success haptic, because the sheet is already dismissed (state
+    /// `.idle`) by the time the commit lands.
     private(set) var contentRevision: UInt64 = 0
 
     @ObservationIgnored private var generation = 0
@@ -377,35 +377,27 @@ final class ScheduleManagementCoordinator {
     func setPostsTransaction(_ value: Bool) { updateDraft { $0.postsTransaction = value; $0.postingWasChanged = true } }
     func setUpcomingLength(_ value: String?) { updateDraft { $0.upcomingLength = value; $0.upcomingWasChanged = true } }
 
-    func reviewSave(locale: Locale) {
+    func save(
+        locale: Locale,
+        mutationRepository: any ScheduleMutationRepositoryProtocol
+    ) {
         guard case .editing(let session) = state,
-              session.capabilities.canEdit else { return }
-        guard session.draft.canReview(
-            isCreate: session.originalReview == nil,
+              session.capabilities.canEdit, !isSubmitting else { return }
+        let isCreate = session.originalReview == nil
+        guard session.draft.canSave(
+            isCreate: isCreate,
             capabilities: session.capabilities,
             currency: session.currency,
             locale: locale
         ) else {
             state = .editing(session.withNotice(session.draft.validationMessage(
-                isCreate: session.originalReview == nil,
+                isCreate: isCreate,
                 capabilities: session.capabilities,
                 currency: session.currency,
                 locale: locale
             )))
             return
         }
-        state = .reviewingSave(session)
-    }
-
-    func backToEditor() {
-        if case .reviewingSave(let session) = state { state = .editing(session) }
-    }
-
-    func confirmSave(
-        locale: Locale,
-        mutationRepository: any ScheduleMutationRepositoryProtocol
-    ) {
-        guard case .reviewingSave(let session) = state, !isSubmitting else { return }
         guard currentContextMatches(
                 session.identity,
                 expectedBudgetID: session.identity.budgetID,
@@ -461,15 +453,6 @@ final class ScheduleManagementCoordinator {
                     )
                     result = try await mutationRepository.createSchedule(command, context: context)
                 }
-                guard currentContextMatches(
-                    context,
-                    expectedBudgetID: context.budgetID,
-                    expectedGeneration: context.generation,
-                    repository: mutationRepository
-                ) else {
-                    finishMutation(request, outcome: result)
-                    return
-                }
                 finishMutation(request, outcome: result)
             } catch {
                 guard isCurrent(request) else { return }
@@ -516,15 +499,6 @@ final class ScheduleManagementCoordinator {
                 case .complete:
                     outcome = try await mutationRepository.completeSchedule(review: review.reviewed)
                 }
-                guard currentContextMatches(
-                    review.reviewed.context,
-                    expectedBudgetID: review.reviewed.context.budgetID,
-                    expectedGeneration: review.reviewed.context.generation,
-                    repository: mutationRepository
-                ) else {
-                    finishMutation(request, outcome: outcome)
-                    return
-                }
                 finishMutation(request, outcome: outcome)
             } catch {
                 guard isCurrent(request) else { return }
@@ -532,11 +506,6 @@ final class ScheduleManagementCoordinator {
                 finish(request)
             }
         }
-    }
-
-    func finishCommitted() {
-        guard isCommittedOrNoChanges else { return }
-        state = .idle
     }
 
     @discardableResult
@@ -568,20 +537,11 @@ final class ScheduleManagementCoordinator {
     }
 
     private func finishMutation(_ request: Int, outcome: ScheduleMutationOutcome) {
-        if outcome.receipt.kind == .unchanged {
-            state = .noChanges(outcome)
-        } else {
-            state = .committed(outcome)
-            contentRevision &+= 1
-        }
+        // A durable commit and a no-op both close the sheet; only a real change
+        // bumps the revision (reload and success haptic).
+        state = .idle
+        if outcome.receipt.kind != .unchanged { contentRevision &+= 1 }
         finish(request)
-    }
-
-    private var isCommittedOrNoChanges: Bool {
-        switch state {
-        case .committed, .noChanges: true
-        default: false
-        }
     }
 
     private func isCurrent(_ request: Int) -> Bool {

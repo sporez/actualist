@@ -81,7 +81,7 @@ struct ScheduleEditorDraftTests {
         draft.amountWasChanged = true
         draft.dateWasChanged = true
 
-        #expect(!draft.canReview(
+        #expect(!draft.canSave(
             isCreate: false,
             capabilities: detail.capabilities,
             currency: .usd,
@@ -266,7 +266,7 @@ struct ScheduleEditorDraftTests {
 
         let fields = try #require(draft.editFields(currency: .usd, locale: locale))
         #expect(fields.isEmpty)
-        #expect(!draft.canReview(
+        #expect(!draft.canSave(
             isCreate: false,
             capabilities: detail.capabilities,
             currency: .usd,
@@ -300,7 +300,7 @@ struct ScheduleEditorDraftTests {
 
         #expect(draft.hasUnsupportedDatePatterns)
         draft.dateWasChanged = true
-        #expect(!draft.canReview(
+        #expect(!draft.canSave(
             isCreate: false,
             capabilities: detail.capabilities,
             currency: .usd,
@@ -310,7 +310,7 @@ struct ScheduleEditorDraftTests {
         draft.dateWasChanged = false
         draft.name = "Renamed"
         draft.nameWasChanged = true
-        #expect(draft.canReview(
+        #expect(draft.canSave(
             isCreate: false,
             capabilities: detail.capabilities,
             currency: .usd,
@@ -319,7 +319,7 @@ struct ScheduleEditorDraftTests {
         #expect(draft.editFields(currency: .usd, locale: Locale(identifier: "en_US"))?.dateRule == .unchanged)
     }
 
-    @Test func privacyProjectionMasksEditorChoicesAndReviewValues() throws {
+    @Test func privacyProjectionMasksEditorChoices() throws {
         let choices = ScheduleEditorChoices.project(
             TransactionEditorOptions(
                 accounts: [ActualAccount(id: "checking", name: "Private Checking", offbudget: false, closed: false)],
@@ -329,26 +329,8 @@ struct ScheduleEditorDraftTests {
             ),
             privacyEnabled: true
         )
-        var draft = ScheduleEditorDraft(todayDayID: "2026-09-28")
-        draft.name = "Private schedule"
-        draft.accountID = "checking"
-        draft.payeeID = "coffee"
-        draft.amountText = "45.00"
-        draft.amountMode = .exact
-
-        let values = draft.reviewRows(
-            currency: .usd,
-            locale: Locale(identifier: "en_US"),
-            choices: choices,
-            privacyEnabled: true,
-            scheduleID: "schedule"
-        ).map(\.1)
         #expect(!choices.accounts[0].title.contains("Private Checking"))
         #expect(!choices.payees[0].title.contains("Private Coffee"))
-        #expect(!values.contains("Private schedule"))
-        #expect(!values.contains("Private Checking"))
-        #expect(!values.contains("Private Coffee"))
-        #expect(!values.contains(BudgetCurrency.usd.formatted(4_500)))
     }
 
     private func review(
@@ -441,19 +423,5 @@ struct ScheduleEditorDraftTests {
                 baseNextDateTimestamp: "1"
             )
         )
-    }
-
-    @Test
-    func reviewDateFollowsTheRegionInsteadOfISO() {
-        var draft = ScheduleEditorDraft(todayDayID: "2026-09-28")
-        draft.accountID = "checking"
-        draft.amountText = "12.34"
-        draft.oneTimeDayID = "2026-10-09"
-        let us = draft.reviewRows(currency: .usd, locale: Locale(identifier: "en_US"), choices: nil)
-            .first { $0.0 == "Date" }?.1
-        let gb = draft.reviewRows(currency: .usd, locale: Locale(identifier: "en_GB"), choices: nil)
-            .first { $0.0 == "Date" }?.1
-        #expect(us == "Oct 9, 2026")
-        #expect(gb == "9 Oct 2026")
     }
 }

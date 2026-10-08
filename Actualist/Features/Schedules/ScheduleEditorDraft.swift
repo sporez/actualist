@@ -425,7 +425,7 @@ struct ScheduleEditorDraft: Hashable, Sendable {
         return fields
     }
 
-    func canReview(
+    func canSave(
         isCreate: Bool,
         capabilities: ScheduleMutationCapabilities,
         currency: BudgetCurrency,
@@ -459,7 +459,7 @@ struct ScheduleEditorDraft: Hashable, Sendable {
             }
             if hasInvalidEndingCount { return Self.endingCountValidationMessage }
             guard dateRule() != nil else { return "Choose a valid schedule date and recurrence." }
-            return "Review the schedule details before saving."
+            return "Check the schedule details and try again."
         }
         guard let fields = editFields(currency: currency, locale: locale) else {
             if amountWasChanged { return amountMode == .range ? "Enter a valid amount range." : "Enter a valid amount." }
@@ -468,7 +468,7 @@ struct ScheduleEditorDraft: Hashable, Sendable {
                     ? Self.endingCountValidationMessage
                     : "Choose a valid schedule date and recurrence."
             }
-            return "Make a supported change before reviewing."
+            return "Make a supported change before saving."
         }
         if fields.accountID != .unchanged && !capabilities.canEditAccount { return "The account option cannot be changed safely." }
         if fields.payeeMappingID != .unchanged && !capabilities.canEditPayee { return "The payee option cannot be changed safely." }
@@ -481,75 +481,7 @@ struct ScheduleEditorDraft: Hashable, Sendable {
             || fields.customUpcomingLength != .unchanged) && !capabilities.canEditMetadata {
             return "Schedule details cannot be changed safely."
         }
-        return "Make a supported change before reviewing."
-    }
-
-    func reviewRows(
-        currency: BudgetCurrency,
-        locale: Locale,
-        choices: ScheduleEditorChoices?,
-        privacyEnabled: Bool = false,
-        scheduleID: String = "new"
-    ) -> [(String, String)] {
-        let displayName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Unnamed schedule" : name
-        var rows = [("Name", privacyEnabled ? "Sample Schedule" : displayName)]
-        if let accountID {
-            let title = choices?.accounts.first(where: { $0.id == accountID })?.title ?? "Current account"
-            rows.append(("Account", title))
-        }
-        let payeeTitle = choices?.payees.first(where: { $0.id == payeeID })?.title
-        rows.append(("Payee", payeeID == nil ? "No payee" : (payeeTitle ?? "Current payee")))
-        if amountWasUnsupported && !amountWasChanged {
-            rows.append(("Amount", "Original amount options unchanged"))
-        } else if let amount = amountDraft(currency: currency, locale: locale) {
-            switch amount {
-            case .exact(let value):
-                rows.append(("Amount", privacyEnabled
-                    ? SchedulePresentation.amountLabel(.exact(value), currency: currency, privacyEnabled: true, seed: "schedule-\(scheduleID)")
-                    : currency.formatted(value)))
-            case .approximate(let value):
-                rows.append(("Amount", privacyEnabled
-                    ? SchedulePresentation.amountLabel(.approximate(value), currency: currency, privacyEnabled: true, seed: "schedule-\(scheduleID)")
-                    : "About \(currency.formatted(value))"))
-            case .range(let lower, let upper):
-                rows.append(("Amount", SchedulePresentation.amountLabel(
-                    .range(lower: lower, upper: upper, postingAmount: lower),
-                    currency: currency,
-                    privacyEnabled: privacyEnabled,
-                    seed: "schedule-\(scheduleID)"
-                )))
-            }
-        }
-        if dateRuleWasUnsupported && !dateWasChanged {
-            rows.append(("Date", "Original date options unchanged"))
-        } else if let rule = dateRule() {
-            rows.append(("Date", Self.dateRuleSummary(rule, locale: locale)))
-        }
-        rows.append(("Automatic posting", postsTransaction ? "On" : "Off"))
-        return rows
-    }
-
-    private static func dateRuleSummary(_ rule: ScheduleDateRule, locale: Locale) -> String {
-        switch rule {
-        case .oneTime(let dayID, let operation):
-            return "\(operation == "isapprox" ? "About " : "")\(SchedulePresentation.dateLabel(dayID, locale: locale))"
-        case .recurring(let recurrence, let operation):
-            let approximate = operation == "isapprox" ? "About " : ""
-            var details = [
-                SchedulePresentation.recurrenceLabel(rule),
-                "Starts \(SchedulePresentation.dateLabel(recurrence.startDayID, locale: locale))",
-            ]
-            if recurrence.skipWeekend {
-                details.append(recurrence.weekendAdjustment == .before ? "Moves before weekends" : "Moves after weekends")
-            }
-            switch recurrence.ending {
-            case .never: details.append("No end date")
-            case .afterOccurrences(let count): details.append("Ends after \(count) occurrences")
-            case .onDate(let dayID): details.append("Ends \(SchedulePresentation.dateLabel(dayID, locale: locale))")
-            }
-            return "\(approximate)\(details.joined(separator: " · "))"
-        case .unavailable: return "Unavailable"
-        }
+        return "Make a supported change before saving."
     }
 
     static func dayID(from date: Date, timeZone: TimeZone = .autoupdatingCurrent) -> String {

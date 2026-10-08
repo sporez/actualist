@@ -116,7 +116,7 @@ final class SchedulesUITests: XCTestCase {
         let sign = app.segmentedControls["schedule-editor-sign"]
         XCTAssertTrue(sign.exists)
         XCTAssertTrue(sign.buttons["Spend"].isSelected)
-        XCTAssertTrue(app.buttons["schedule-save-review-button"].exists)
+        XCTAssertTrue(app.buttons["schedule-save-button"].exists)
         attachScreenshot(named: "schedules-create-editor-dark", app: app)
 
         app.buttons["schedule-editor-payee"].tap()
@@ -151,7 +151,7 @@ final class SchedulesUITests: XCTestCase {
         )
     }
 
-    func testDisposableScheduleEditCanReviewBackAndConfirm() throws {
+    func testDisposableScheduleEditSavesDirectlyAndReturnsToDetail() throws {
         prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
         let app = launchBudget()
         defer {
@@ -172,15 +172,11 @@ final class SchedulesUITests: XCTestCase {
         let existing = name.value as? String ?? ""
         name.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: existing.count))
         name.typeText("UI Schedule Edited")
-        app.buttons["schedule-save-review-button"].tap()
-        XCTAssertTrue(app.scrollViews["schedule-save-review"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["UI Schedule Edited"].exists)
-        app.buttons["Back"].tap()
-
-        app.buttons["schedule-save-review-button"].tap()
-        app.buttons["schedule-save-confirm"].tap()
-        XCTAssertTrue(app.staticTexts["Schedule Updated"].waitForExistence(timeout: 8))
-        app.buttons["Done"].tap()
+        app.buttons["schedule-save-button"].tap()
+        XCTAssertTrue(
+            app.scrollViews["schedule-editor"].waitForNonExistence(timeout: 8),
+            "Save must commit and close the editor without an extra review or success screen"
+        )
         let back = app.navigationBars["Schedule Details"].buttons["Schedules"]
         XCTAssertTrue(back.waitForExistence(timeout: 5))
         back.tap()
@@ -201,8 +197,10 @@ final class SchedulesUITests: XCTestCase {
         cancelActionReview(in: app)
         openManagementAction("schedule-skip", in: app)
         app.buttons["schedule-action-confirm"].tap()
-        XCTAssertTrue(app.staticTexts["Next Date Skipped"].waitForExistence(timeout: 8))
-        app.buttons["Done"].tap()
+        XCTAssertTrue(
+            app.scrollViews["schedule-action-review"].waitForNonExistence(timeout: 8),
+            "Confirming must close the review without a success screen"
+        )
     }
 
     func testDisposableScheduleCompletionReviewCanCancelAndConfirm() throws {
@@ -219,8 +217,10 @@ final class SchedulesUITests: XCTestCase {
         cancelActionReview(in: app)
         openManagementAction("schedule-complete", in: app)
         app.buttons["schedule-action-confirm"].tap()
-        XCTAssertTrue(app.staticTexts["Schedule Completed"].waitForExistence(timeout: 8))
-        app.buttons["Done"].tap()
+        XCTAssertTrue(
+            app.scrollViews["schedule-action-review"].waitForNonExistence(timeout: 8),
+            "Confirming must close the review without a success screen"
+        )
     }
 
     func testDisposableScheduleDeletionReviewCanCancelAndConfirm() throws {
@@ -237,8 +237,7 @@ final class SchedulesUITests: XCTestCase {
         cancelActionReview(in: app)
         openManagementAction("schedule-delete", in: app)
         app.buttons["schedule-action-confirm"].tap()
-        XCTAssertTrue(app.staticTexts["Schedule Deleted"].waitForExistence(timeout: 8))
-        app.buttons["Done"].tap()
+        XCTAssertTrue(app.scrollViews["schedule-action-review"].waitForNonExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts["Schedule Unavailable"].waitForExistence(timeout: 8))
     }
 
@@ -292,11 +291,8 @@ final class SchedulesUITests: XCTestCase {
         if repeats {
             app.buttons["Repeating"].tap()
         }
-        app.buttons["schedule-save-review-button"].tap()
-        XCTAssertTrue(app.scrollViews["schedule-save-review"].waitForExistence(timeout: 5))
-        app.buttons["schedule-save-confirm"].tap()
-        XCTAssertTrue(app.staticTexts["Schedule Created"].waitForExistence(timeout: 8))
-        app.buttons["Done"].tap()
+        app.buttons["schedule-save-button"].tap()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 8))
         XCTAssertTrue(scheduleRow(named: name, in: app).waitForExistence(timeout: 8))
     }
 

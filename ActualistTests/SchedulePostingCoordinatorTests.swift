@@ -115,6 +115,8 @@ struct SchedulePostingCoordinatorTests {
         repository.commitRelease.trip()
         await waitForCommitted(coordinator)
         #expect(repository.postCalls == 1)
+        #expect(coordinator.state == .idle)
+        #expect(coordinator.committedRevision == 1)
     }
 
     @Test func syncFailureIsVisibleAndNeverEntersSubmitPhase() async {
@@ -183,11 +185,10 @@ struct SchedulePostingCoordinatorTests {
         repository.commitRelease.trip()
         await waitForCommitted(coordinator)
 
-        guard case .committedRefreshPending(let receipt) = coordinator.state else {
-            Issue.record("A committed write must not appear to have failed")
-            return
-        }
-        #expect(receipt.transactionID == "committed-transaction")
+        // A durable post with a pending cache refresh closes the sheet like any
+        // other commit; it must never surface as a failure.
+        #expect(coordinator.state == .idle)
+        #expect(coordinator.committedRevision == 1)
     }
 
     private func preparedCoordinator(
@@ -221,12 +222,7 @@ struct SchedulePostingCoordinatorTests {
     }
 
     private func waitForCommitted(_ coordinator: SchedulePostingCoordinator) async {
-        await ObservedTestState {
-            switch coordinator.state {
-            case .committed, .committedRefreshPending: true
-            default: false
-            }
-        }.wait()
+        await ObservedTestState { coordinator.committedRevision == 1 }.wait()
     }
 }
 

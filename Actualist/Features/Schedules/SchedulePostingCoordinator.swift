@@ -32,14 +32,12 @@ enum SchedulePostingCoordinatorState: Hashable, Sendable {
     case review(SchedulePostingReviewContent)
     case syncing(SchedulePostingReviewContent)
     case submitting(SchedulePostingReviewContent)
-    case committed(SchedulePostingReceipt)
-    case committedRefreshPending(SchedulePostingReceipt)
     case failed(String)
 
     var isBusy: Bool {
         switch self {
         case .loading, .syncing, .submitting: true
-        case .idle, .review, .committed, .committedRefreshPending, .failed: false
+        case .idle, .review, .failed: false
         }
     }
 
@@ -53,6 +51,11 @@ enum SchedulePostingCoordinatorState: Hashable, Sendable {
 @Observable
 final class SchedulePostingCoordinator {
     private(set) var state: SchedulePostingCoordinatorState = .idle
+    /// Bumped once per durable post. A durable post returns the coordinator to
+    /// `.idle` (the sheet dismisses itself), so the presenting host reloads and
+    /// plays the success haptic from this counter. A pending cache refresh needs
+    /// no screen of its own; the host's reload covers it.
+    private(set) var committedRevision: UInt64 = 0
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var operationTask: Task<Void, Never>?
 
@@ -185,7 +188,7 @@ final class SchedulePostingCoordinator {
         operationTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let receipt = try await postingRepository.postSchedule(
+                _ = try await postingRepository.postSchedule(
                     review: content.review,
                     date: content.selectedDate,
                     onPhaseChange: { [weak self] phase in
@@ -197,20 +200,14 @@ final class SchedulePostingCoordinator {
                     }
                 )
                 guard isCurrent(request) else { return }
-                state = receipt.refreshPending ? .committedRefreshPending(receipt) : .committed(receipt)
+                state = .idle
+                committedRevision &+= 1
                 finish(request)
             } catch {
                 guard isCurrent(request) else { return }
                 state = .failed(message(for: error))
                 finish(request)
             }
-        }
-    }
-
-    func finishCommitted() {
-        switch state {
-        case .committed, .committedRefreshPending: state = .idle
-        default: break
         }
     }
 

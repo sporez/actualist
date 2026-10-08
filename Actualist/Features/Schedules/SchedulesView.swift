@@ -208,14 +208,10 @@ struct SchedulesView: View {
                 workflowSheet = nil
             }
         }
-        .onChange(of: postingCoordinator.state) { _, state in
-            switch state {
-            case .committed, .committedRefreshPending:
-                reloadAfterCommit()
-            default:
-                break
-            }
-        }
+        .onChange(of: postingCoordinator.committedRevision) { reloadAfterCommit() }
+        // Host-side: the workflow sheet is already gone when a commit lands.
+        .sensoryFeedback(.success, trigger: managementCoordinator.contentRevision)
+        .sensoryFeedback(.success, trigger: postingCoordinator.committedRevision)
     }
 
     private var privacyNotice: some View {

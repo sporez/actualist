@@ -18,19 +18,14 @@ struct ScheduleManagementSheet: View {
                 ScheduleEditorView(
                     coordinator: coordinator,
                     session: session,
+                    mutationRepository: mutationRepository,
                     currency: currency,
                     locale: locale
                 )
-            case .reviewingSave(let session):
-                saveReview(session)
             case .reviewingAction(let review):
                 actionReview(review)
             case .submitting(let title):
                 ProgressView(title).frame(maxWidth: .infinity, maxHeight: .infinity)
-            case .committed(let outcome):
-                committed(outcome)
-            case .noChanges(let outcome):
-                committed(outcome)
             case .failed(let message):
                 failure(message)
             }
@@ -41,46 +36,6 @@ struct ScheduleManagementSheet: View {
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .presentationBackground(ActualistTheme.background)
         .interactiveDismissDisabled(coordinator.isSubmitting)
-    }
-
-    @ViewBuilder
-    private func saveReview(_ session: ScheduleEditorSession) -> some View {
-        ReviewSheetContent {
-            ReviewSheetHeader(
-                title: session.scheduleID == nil ? "Review Schedule" : "Review Changes",
-                subtitle: "Check the schedule details before saving."
-            )
-            VStack(spacing: 10) {
-                ForEach(Array(session.draft.reviewRows(
-                    currency: currency,
-                    locale: locale,
-                    choices: session.choices,
-                    privacyEnabled: session.isPrivacyModeEnabled,
-                    scheduleID: session.scheduleID ?? "new"
-                ).enumerated()), id: \.offset) { _, row in
-                    ReviewSummaryRow(title: row.0, value: row.1, symbol: reviewSymbol(row.0))
-                }
-            }
-            .actualistReviewCard(padding: 12)
-            if let notice = session.notice { noticeCard(notice, warning: true) }
-            if session.draft.postsTransaction {
-                Text("Automatic posting happens only after a successful sync opportunity.")
-                    .font(.footnote)
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .accessibilityIdentifier("schedule-save-review")
-        .reviewSheetBottomBar {
-            ReviewSheetSecondaryButton(title: "Back", role: nil, action: { coordinator.backToEditor() })
-                .disabled(coordinator.isSubmitting)
-            ReviewSheetPrimaryButton {
-                coordinator.confirmSave(locale: locale, mutationRepository: mutationRepository)
-            } label: {
-                Text("Save Schedule")
-            }
-            .accessibilityIdentifier("schedule-save-confirm")
-        }
     }
 
     @ViewBuilder
@@ -128,47 +83,10 @@ struct ScheduleManagementSheet: View {
         }
     }
 
-    private func committed(_ outcome: ScheduleMutationOutcome) -> some View {
-        let isUnchanged = outcome.receipt.kind == .unchanged
-        return ReviewSheetContent {
-            ReviewSheetHeader(title: committedTitle(outcome))
-            Label(
-                isUnchanged
-                    ? "No schedule changes were needed. Nothing was submitted."
-                    : (outcome.refreshPending
-                        ? "Your change was saved. The schedule list is still refreshing."
-                        : committedMessage(outcome)),
-                systemImage: isUnchanged
-                    ? "minus.circle"
-                    : (outcome.refreshPending ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
-            )
-            .foregroundStyle(isUnchanged ? ActualistTheme.secondaryText : (outcome.refreshPending ? ActualistTheme.warning : ActualistTheme.positive))
-            .fixedSize(horizontal: false, vertical: true)
-            .actualistReviewCard()
-            Text(isUnchanged
-                ? "You can close this review. No schedule update was sent."
-                : "You can close this review. The saved change will not be submitted again.")
-                .font(.footnote)
-                .foregroundStyle(ActualistTheme.secondaryText)
-        }
-        .reviewSheetBottomBar {
-            Button {
-                closeCommitted()
-            } label: {
-                Text("Done")
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
-        }
-    }
-
     private func failure(_ message: String) -> some View {
         ReviewSheetContent {
             ReviewSheetHeader(title: "Schedule Not Changed")
-            noticeCard(message, warning: false)
+            noticeCard(message)
             Text("No new save will be sent from this message. Review the schedule again before trying another change.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -188,45 +106,12 @@ struct ScheduleManagementSheet: View {
         }
     }
 
-    private func noticeCard(_ message: String, warning: Bool) -> some View {
-        Label(message, systemImage: warning ? "exclamationmark.triangle.fill" : "xmark.circle.fill")
+    private func noticeCard(_ message: String) -> some View {
+        Label(message, systemImage: "xmark.circle.fill")
             .font(.subheadline)
-            .foregroundStyle(warning ? ActualistTheme.warning : ActualistTheme.danger)
+            .foregroundStyle(ActualistTheme.danger)
             .fixedSize(horizontal: false, vertical: true)
             .actualistReviewCard(padding: 12)
-    }
-
-    private func committedTitle(_ outcome: ScheduleMutationOutcome) -> String {
-        switch outcome.receipt.kind {
-        case .created: "Schedule Created"
-        case .updated: "Schedule Updated"
-        case .deleted: "Schedule Deleted"
-        case .skipped: "Next Date Skipped"
-        case .completed: "Schedule Completed"
-        case .unchanged: "No Changes"
-        }
-    }
-
-    private func committedMessage(_ outcome: ScheduleMutationOutcome) -> String {
-        switch outcome.receipt.kind {
-        case .created: "Your new schedule was saved to this budget."
-        case .updated: "Your schedule changes were saved to this budget."
-        case .deleted: "The schedule was removed from this budget. Past transactions were not changed."
-        case .skipped: "The next scheduled date was skipped. No transaction was posted."
-        case .completed: "The schedule was marked completed. No transaction was posted."
-        case .unchanged: "No schedule changes were needed."
-        }
-    }
-
-    private func reviewSymbol(_ title: String) -> String {
-        switch title {
-        case "Name": "textformat"
-        case "Account": "building.columns"
-        case "Payee": "person.crop.circle"
-        case "Amount": "dollarsign.circle"
-        case "Date": "calendar"
-        default: "info.circle"
-        }
     }
 
     private func actionExplanation(_ action: ScheduleManagementAction) -> String {
@@ -242,16 +127,13 @@ struct ScheduleManagementSheet: View {
         dismiss()
     }
 
-    private func closeCommitted() {
-        coordinator.finishCommitted()
-        dismiss()
-    }
 }
 
 struct ScheduleEditorView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Bindable var coordinator: ScheduleManagementCoordinator
     let session: ScheduleEditorSession
+    let mutationRepository: any ScheduleMutationRepositoryProtocol
     @State private var isPayeePickerPresented = false
     let currency: BudgetCurrency
     let locale: Locale
@@ -282,12 +164,12 @@ struct ScheduleEditorView: View {
             ReviewSheetSecondaryButton { coordinator.cancel() }
                 .accessibilityIdentifier("schedule-editor-cancel")
             ReviewSheetPrimaryButton {
-                coordinator.reviewSave(locale: locale)
+                coordinator.save(locale: locale, mutationRepository: mutationRepository)
             } label: {
-                Text("Review")
+                Text("Save")
             }
             .disabled(coordinator.isSubmitting)
-            .accessibilityIdentifier("schedule-save-review-button")
+            .accessibilityIdentifier("schedule-save-button")
         }
     }
 
@@ -410,6 +292,11 @@ struct ScheduleEditorView: View {
                 }
             }
             .disabled(!isCreate && !session.capabilities.canEditAmount)
+            if draft?.amountWasUnsupported == true && draft?.amountWasChanged == false {
+                Text("Original amount options unchanged.")
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
             Text("Amounts use the selected budget’s currency and precision.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -610,6 +497,12 @@ struct ScheduleEditorView: View {
                 set: { coordinator.setPostsTransaction($0) }
             ))
             .disabled(!isCreate && !session.capabilities.canEditMetadata)
+            if draft?.postsTransaction == true {
+                Text("Automatic posting happens only after a successful sync opportunity.")
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Picker("Upcoming window", selection: Binding(
                 get: { draft?.upcomingLength ?? "__budget_default__" },
                 set: { coordinator.setUpcomingLength($0 == "__budget_default__" ? nil : $0) }
@@ -657,7 +550,7 @@ struct ScheduleEditorView: View {
 
     private var draft: ScheduleEditorDraft? {
         switch coordinator.state {
-        case .editing(let current), .reviewingSave(let current): current.draft
+        case .editing(let current): current.draft
         default: nil
         }
     }

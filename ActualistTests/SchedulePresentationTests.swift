@@ -237,4 +237,9 @@ struct SchedulePresentationTests {
             )
         )
     }
+
+    @Test func dateLabelFollowsTheRegionInsteadOfISO() {
+        #expect(SchedulePresentation.dateLabel("2026-10-09", locale: Locale(identifier: "en_US")) == "Oct 9, 2026")
+        #expect(SchedulePresentation.dateLabel("2026-10-09", locale: Locale(identifier: "en_GB")) == "9 Oct 2026")
+    }
 }

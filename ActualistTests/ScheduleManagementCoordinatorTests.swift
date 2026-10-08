@@ -5,7 +5,7 @@ import Testing
 @MainActor
 @Suite("Schedule management coordinator")
 struct ScheduleManagementCoordinatorTests {
-    @Test func duplicateSubmitIsExcludedAndRefreshPendingRemainsCommitted() async {
+    @Test func duplicateSaveCommitsOnceAndDismissesTheSheet() async {
         let store = ScheduleManagementRepositoryFake()
         let transactionRepository = RecordingTransactionRepository(
             editorOptionsResult: TransactionEditorOptions(
@@ -29,7 +29,7 @@ struct ScheduleManagementCoordinatorTests {
         await ObservedTestState {
             if case .editing = coordinator.state { true } else { false }
         }.wait()
-        coordinator.reviewSave(locale: Locale(identifier: "en_US"))
+        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
         guard case .editing(let invalidSession) = coordinator.state else {
             Issue.record("An incomplete schedule must remain in the editor")
             return
@@ -42,25 +42,16 @@ struct ScheduleManagementCoordinatorTests {
         }
         #expect(correctedSession.notice == nil)
         coordinator.setAmount("12.34")
-        coordinator.reviewSave(locale: Locale(identifier: "en_US"))
-        coordinator.confirmSave(locale: Locale(identifier: "en_US"), mutationRepository: store)
-        coordinator.confirmSave(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
 
-        await ObservedTestState {
-            if case .committed = coordinator.state { true } else { false }
-        }.wait()
-        guard case .committed(let outcome) = coordinator.state else {
-            Issue.record("Expected a durable schedule receipt")
-            return
-        }
-        #expect(store.createCalls == 1)
-        #expect(outcome.refreshPending)
-        coordinator.finishCommitted()
+        await ObservedTestState { coordinator.contentRevision == 1 }.wait()
+        // A durable save (even with a pending refresh) dismisses the sheet.
         #expect(coordinator.state == .idle)
         #expect(store.createCalls == 1)
     }
 
-    @Test func unchangedMutationOutcomeDoesNotRequestScheduleRefresh() async {
+    @Test func unchangedMutationOutcomeClosesQuietlyWithoutRefreshOrFeedback() async {
         let store = ScheduleManagementRepositoryFake()
         store.createOutcome = ScheduleMutationOutcome(
             receipt: ScheduleMutationResult(
@@ -92,23 +83,17 @@ struct ScheduleManagementCoordinatorTests {
         }.wait()
         coordinator.setAccount("checking")
         coordinator.setAmount("12.34")
-        coordinator.reviewSave(locale: Locale(identifier: "en_US"))
-        coordinator.confirmSave(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        #expect(coordinator.state.isSubmitting)
 
-        await ObservedTestState {
-            if case .noChanges = coordinator.state { true } else { false }
-        }.wait()
+        await ObservedTestState { coordinator.state == .idle }.wait()
 
-        guard case .noChanges(let outcome) = coordinator.state else {
-            Issue.record("Expected the no-op outcome to remain reviewable")
-            return
-        }
-        #expect(outcome.receipt.kind == .unchanged)
+        #expect(store.createCalls == 1)
         #expect(coordinator.contentRevision == 0)
         #expect(store.refreshCalls == 0)
     }
 
-    @Test func staleBudgetSessionCannotSubmitReviewedCreate() async {
+    @Test func staleBudgetSessionCannotSubmitCreate() async {
         let store = ScheduleManagementRepositoryFake()
         let transactionRepository = RecordingTransactionRepository(
             editorOptionsResult: TransactionEditorOptions(
@@ -133,10 +118,9 @@ struct ScheduleManagementCoordinatorTests {
         }.wait()
         coordinator.setAccount("checking")
         coordinator.setAmount("12.34")
-        coordinator.reviewSave(locale: Locale(identifier: "en_US"))
         store.generation = 2
 
-        coordinator.confirmSave(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
 
         #expect(store.createCalls == 0)
         if case .failed(let message) = coordinator.state {
@@ -203,22 +187,26 @@ struct ScheduleManagementCoordinatorTests {
 
         for invalid in ["", "0", "-2", "abc"] {
             coordinator.setEndingCount(invalid)
-            coordinator.reviewSave(locale: locale)
+            coordinator.save(locale: locale, mutationRepository: store)
             guard case .editing(let session) = coordinator.state else {
-                Issue.record("A non-positive count \(invalid) must not reach review")
+                Issue.record("A non-positive count \(invalid) must not be saved")
                 return
             }
             #expect(session.draft.dateRule() == nil)
             #expect(session.notice == "Enter a number of occurrences greater than zero.")
         }
         coordinator.setEndingCount("3")
-        coordinator.reviewSave(locale: locale)
-        guard case .reviewingSave(let valid) = coordinator.state else {
-            Issue.record("A positive count must be reviewable")
+        guard case .editing(let valid) = coordinator.state else {
+            Issue.record("Expected the editor")
             return
         }
         #expect(valid.draft.dateRule()?.recurrence?.ending == .afterOccurrences(3))
-        coordinator.backToEditor()
+        #expect(valid.draft.canSave(
+            isCreate: true,
+            capabilities: valid.capabilities,
+            currency: .usd,
+            locale: locale
+        ))
 
         coordinator.setEndingCount("5")
         coordinator.setEndingMode(.never)
@@ -300,8 +288,10 @@ struct ScheduleManagementCoordinatorTests {
             }.wait()
             coordinator.setAccount("checking")
             coordinator.setAmount("12.34")
-            coordinator.reviewSave(locale: Locale(identifier: "en_US"))
-            coordinator.confirmSave(locale: Locale(identifier: "en_US"), mutationRepository: store)
+            coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
+            // Save moves to `.submitting` synchronously, so waiting for
+            // `.editing` observes the failure reopening the editor.
+            #expect(coordinator.state.isSubmitting)
 
             await ObservedTestState {
                 if case .editing = coordinator.state { true } else { false }
