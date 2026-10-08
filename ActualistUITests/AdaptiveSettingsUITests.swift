@@ -135,6 +135,26 @@ final class AdaptiveSettingsUITests: XCTestCase {
         dismissShareSheet(in: app, sheet: shareSheet)
     }
 
+    @MainActor
+    func testBudgetExportOpensShareSheetWithOneTapOnTheLabel() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication(bundleIdentifier: try UITestAppIdentity.appIdentifier)
+        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/budget-data"]
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["Budget & Data"].waitForExistence(timeout: 15))
+        let exportRow = app.buttons["budget-export-share"]
+        XCTAssertTrue(exportRow.waitForExistence(timeout: 10))
+
+        // The label, not the trailing space, must be tappable.
+        exportRow.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
+        let shareSheet = app.otherElements["ActivityListView"]
+        XCTAssertTrue(shareSheet.waitForExistence(timeout: 15))
+
+        dismissShareSheet(in: app, sheet: shareSheet)
+        XCTAssertTrue(exportRow.waitForExistence(timeout: 5))
+    }
+
     private func dismissShareSheet(in app: XCUIApplication, sheet: XCUIElement) {
         // iOS 27 exposes native sharing as a popover with a dismiss region;
         // its embedded ActivityListView cannot receive a swipe through XCTest.

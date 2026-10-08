@@ -8,7 +8,6 @@ struct BudgetDataSettingsView: View {
 
     @State private var viewModel = SettingsViewModel()
     @State private var carryoverViewModel = BulkCategoryCarryoverViewModel()
-    @State private var exportWorkflow = PortableBudgetExportWorkflow()
     @State private var isBudgetPickerPresented = false
     @State private var isAccountOrderPresented = false
     @State private var isReimporting = false
@@ -209,7 +208,6 @@ struct BudgetDataSettingsView: View {
         }
         .task(id: appState.settings.selectedBudgetID) {
             isCarryoverConfirmationPresented = false
-            exportWorkflow.reset()
             guard let budgetID = appState.settings.selectedBudgetID else {
                 carryoverViewModel.reset()
                 return
@@ -247,60 +245,43 @@ struct BudgetDataSettingsView: View {
     }
 
     /// Export is non-destructive and stays its own section, visually and
-    /// semantically separate from the destructive Reimport row above. The
-    /// workflow owns the export; this only renders its state.
+    /// semantically separate from the destructive Reimport row above. One tap
+    /// opens the share sheet; the ZIP is built when a destination asks for it
+    /// (`PortableBudgetArchiveTransfer`).
     @ViewBuilder
     private var exportSection: some View {
         Section {
-            switch exportWorkflow.state {
-            case .idle:
-                Button {
-                    Task { await exportBudget() }
-                } label: {
-                    SettingsActionLabel(title: "Export Budget", systemImage: "square.and.arrow.up")
-                }
-                .disabled(appState.settings.selectedBudgetID == nil)
-            case .exporting:
-                LabeledContent("Exporting Budget") {
-                    ProgressView()
-                }
-            case .ready(let archiveURL):
+            if let budgetID = appState.settings.selectedBudgetID {
                 ShareLink(
-                    item: archiveURL,
+                    item: PortableBudgetArchiveTransfer.make(budgetID: budgetID, appState: appState),
                     preview: SharePreview(
-                        archiveURL.lastPathComponent,
+                        PortableBudgetArchiveTransfer.suggestedFileName,
                         image: Image(systemName: "doc.zipper")
                     )
                 ) {
-                    SettingsActionLabel(title: "Share Budget ZIP…", systemImage: "square.and.arrow.up")
+                    exportRowLabel
                 }
-                .simultaneousGesture(
-                    TapGesture().onEnded {
-                        appState.beginAppInitiatedSystemUIPresentation()
-                    }
-                )
-            case .failed(let message):
-                Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(ActualistTheme.danger)
-
-                Button {
-                    Task { await exportBudget() }
-                } label: {
-                    SettingsActionLabel(title: "Try Again", systemImage: "arrow.clockwise")
-                }
-                .disabled(appState.settings.selectedBudgetID == nil)
+                .accessibilityIdentifier("budget-export-share")
+            } else {
+                exportRowLabel
+                    .foregroundStyle(ActualistTheme.secondaryText)
             }
         } header: {
             Text("Export")
         } footer: {
-            Text(PortableBudgetExportWorkflow.footerText(
+            Text(PortableBudgetArchiveTransfer.footerText(
                 isBudgetEncrypted: appState.localFirstStore.isOpenBudgetEncrypted
             ))
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
         .settingsSectionChrome()
+    }
+
+    private var exportRowLabel: some View {
+        SettingsActionLabel(title: "Share Budget ZIP…", systemImage: "square.and.arrow.up")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
     }
 
     private var allCategoriesCarryoverSelection: Binding<Bool> {
@@ -400,11 +381,6 @@ struct BudgetDataSettingsView: View {
             base: base,
             pendingChangeCount: appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
         )
-    }
-
-    private func exportBudget() async {
-        guard let budgetID = appState.settings.selectedBudgetID else { return }
-        await exportWorkflow.export(budgetID: budgetID, store: appState.localFirstStore)
     }
 
     private func reimport(encryptionPassword: String? = nil) async {
