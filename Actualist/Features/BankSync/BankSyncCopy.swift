@@ -87,7 +87,8 @@ enum BankSyncCopy {
         guard dayID.count == 8 else {
             return dayID
         }
-        return "\(dayID.prefix(4))-\(dayID.dropFirst(4).prefix(2))-\(dayID.suffix(2))"
+        let iso = "\(dayID.prefix(4))-\(dayID.dropFirst(4).prefix(2))-\(dayID.suffix(2))"
+        return ActualDateDisplay.mediumDay(iso) ?? iso
     }
 
     static func matchChangeText(_ change: BankSyncReview.MatchChange) -> String {

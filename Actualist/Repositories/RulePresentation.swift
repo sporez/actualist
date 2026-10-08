@@ -53,7 +53,8 @@ enum RulePresentation {
     static func valueText(
         _ value: RuleJSONValue,
         field: String?,
-        options: RuleEditorOptions?
+        options: RuleEditorOptions?,
+        locale: Locale = .current
     ) -> String {
         guard let field else {
             return plainValueText(value)
@@ -70,7 +71,7 @@ enum RulePresentation {
             if case .bool(let enabled) = value { return enabled ? "Yes" : "No" }
             return value == .null ? "None" : "Unsupported value"
         case .date:
-            return dateValueText(value)
+            return dateValueText(value, locale: locale)
         case .string:
             return plainValueText(value)
         case nil:
@@ -140,11 +141,11 @@ enum RulePresentation {
         }
     }
 
-    private static func dateValueText(_ value: RuleJSONValue) -> String {
+    private static func dateValueText(_ value: RuleJSONValue, locale: Locale) -> String {
         guard case .object(let recurrence) = value else {
-            return plainValueText(value)
+            return localizedDateText(value, locale: locale)
         }
-        let start = recurrence["start"].map(plainValueText)
+        let start = recurrence["start"].map { localizedDateText($0, locale: locale) }
         let frequency: String?
         switch recurrence["frequency"] {
         case .some(.string(let value)):
@@ -156,6 +157,15 @@ enum RulePresentation {
             .compactMap { $0 }
             .joined(separator: " ")
         return text.isEmpty ? "Recurring date" : text
+    }
+
+    /// Day (`yyyy-MM-dd`) and month (`yyyy-MM`) rule values follow the device
+    /// region; anything else prints as stored so the summary stays honest.
+    private static func localizedDateText(_ value: RuleJSONValue, locale: Locale) -> String {
+        guard case .string(let text) = value else { return plainValueText(value) }
+        return ActualDateDisplay.mediumDay(text, locale: locale)
+            ?? ActualDateDisplay.monthYear(text, locale: locale)
+            ?? plainValueText(value)
     }
 
     private static func plainValueText(_ value: RuleJSONValue) -> String {

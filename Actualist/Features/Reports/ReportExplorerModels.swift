@@ -349,20 +349,11 @@ extension ReportCardKind {
 }
 
 extension ReportCalendar {
-    static func dayRangeTitle(startDay: String, endDay: String) -> String {
-        guard let start = date(fromDayID: startDay), let end = date(fromDayID: endDay) else {
+    static func dayRangeTitle(startDay: String, endDay: String, locale: Locale = .current) -> String {
+        guard let start = ActualDateDisplay.mediumDay(startDay, locale: locale),
+              let end = ActualDateDisplay.mediumDay(endDay, locale: locale) else {
             return "\(startDay) – \(endDay)"
         }
-        let formatter = dayFormatter("MMM d, yyyy")
-        return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
-    }
-
-    private static func dayFormatter(_ format: String) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.calendar = gregorianUTC
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.locale = .current
-        formatter.dateFormat = format
-        return formatter
+        return "\(start) – \(end)"
     }
 }

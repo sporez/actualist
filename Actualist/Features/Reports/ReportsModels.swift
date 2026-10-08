@@ -273,35 +273,22 @@ enum ReportCalendar {
         return result
     }
 
-    static func monthTitle(_ monthID: String) -> String {
-        guard let date = date(fromMonthID: monthID) else { return monthID }
-        return formatter("MMMM yyyy").string(from: date)
+    static func monthTitle(_ monthID: String, locale: Locale = .current) -> String {
+        ActualDateDisplay.monthYear(monthID, width: .wide, locale: locale) ?? monthID
     }
 
-    static func shortMonthTitle(_ monthID: String) -> String {
-        guard let date = date(fromMonthID: monthID) else { return monthID }
-        return formatter("MMM yyyy").string(from: date)
+    static func shortMonthTitle(_ monthID: String, locale: Locale = .current) -> String {
+        ActualDateDisplay.monthYear(monthID, locale: locale) ?? monthID
     }
 
-    static func rangeTitle(startDay: String, endDay: String) -> String {
+    static func rangeTitle(startDay: String, endDay: String, locale: Locale = .current) -> String {
         guard let start = date(fromDayID: startDay), let end = date(fromDayID: endDay) else {
             return "\(startDay) – \(endDay)"
         }
-        let formatter = formatter("MMM yyyy")
-        return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
+        return "\(shortMonthTitle(monthID(for: start), locale: locale)) – \(shortMonthTitle(monthID(for: end), locale: locale))"
     }
 
-    static func longDayTitle(_ dayID: String) -> String {
-        guard let date = date(fromDayID: dayID) else { return dayID }
-        return formatter("EEEE, MMMM d, yyyy").string(from: date)
-    }
-
-    private static func formatter(_ format: String) -> DateFormatter {
-        let formatter = DateFormatter()
-        formatter.calendar = gregorianUTC
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.locale = .current
-        formatter.dateFormat = format
-        return formatter
+    static func longDayTitle(_ dayID: String, locale: Locale = .current) -> String {
+        ActualDateDisplay.weekdayLongDay(dayID, locale: locale) ?? dayID
     }
 }

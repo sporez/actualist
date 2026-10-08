@@ -93,7 +93,7 @@ struct TransactionCSVImportReviewView: View {
             currency: currency,
             isPrivacyModeEnabled: isPrivacyModeEnabled
         )
-        let context = "\(row.row.dateText) · \(amount)"
+        let context = "\(TransactionCommandReviewFormatting.dateText(row.row.dateText, locale: .current)) · \(amount)"
         if coordinator.isIncluded(row) || coordinator.isToggleable(row) {
             Button {
                 coordinator.toggleIncluded(row)

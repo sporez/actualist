@@ -449,7 +449,7 @@ final class TransactionFilterWorkflow {
     private func conditionSummary(_ condition: TransactionQueryCondition) -> String {
         switch condition {
         case .date(let value):
-            "Date \(value.operation.displayName) \(value.day.rawValue) (kept unchanged)"
+            "Date \(value.operation.displayName) \(TransactionCommandReviewFormatting.dateText(value.day.rawValue, locale: .current)) (kept unchanged)"
         case .account(let value): summary(field: .account, value: value)
         case .payee(let value): summary(field: .payee, value: value)
         case .category(let value): summary(field: .category, value: value)
