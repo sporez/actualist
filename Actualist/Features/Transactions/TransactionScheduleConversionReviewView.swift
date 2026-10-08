@@ -17,7 +17,6 @@ struct TransactionScheduleConversionReviewView: View {
             case .review(let review): reviewContent(review)
             case .submitting:
                 progressContent
-            case .committed(let receipt): committed(receipt)
             case .failed(let message): failure(message)
             }
         }
@@ -97,38 +96,6 @@ struct TransactionScheduleConversionReviewView: View {
             .fixedSize(horizontal: false, vertical: true)
             .actualistReviewCard()
             ProgressView().frame(maxWidth: .infinity)
-        }
-    }
-
-    private func committed(_ receipt: ScheduleConversionReceipt) -> some View {
-        ReviewSheetContent {
-            ReviewSheetHeader(title: "Schedule Created")
-            Label(
-                receipt.refreshPending
-                    ? "The schedule was saved. The transaction and schedule views still need to refresh."
-                    : "The schedule was saved and the original transaction was removed.",
-                systemImage: receipt.refreshPending ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill"
-            )
-            .font(.subheadline)
-            .foregroundStyle(receipt.refreshPending ? ActualistTheme.warning : ActualistTheme.positive)
-            .fixedSize(horizontal: false, vertical: true)
-            .actualistReviewCard()
-            Text("Closing this review will not create another schedule.")
-                .font(.footnote)
-                .foregroundStyle(ActualistTheme.secondaryText)
-        }
-        .reviewSheetBottomBar {
-            Button {
-                coordinator.finishCommitted()
-                dismiss()
-            } label: {
-                Text("Done")
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
         }
     }
 

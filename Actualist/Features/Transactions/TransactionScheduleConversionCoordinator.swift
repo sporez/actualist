@@ -25,13 +25,12 @@ enum TransactionScheduleConversionState: Hashable, Sendable {
     case loading
     case review(TransactionScheduleConversionReviewContent)
     case submitting(TransactionScheduleConversionReviewContent)
-    case committed(ScheduleConversionReceipt)
     case failed(String)
 
     var isBusy: Bool {
         switch self {
         case .loading, .submitting: true
-        case .idle, .review, .committed, .failed: false
+        case .idle, .review, .failed: false
         }
     }
 
@@ -45,6 +44,9 @@ enum TransactionScheduleConversionState: Hashable, Sendable {
 @Observable
 final class TransactionScheduleConversionCoordinator {
     private(set) var state: TransactionScheduleConversionState = .idle
+    /// Bumped once per committed conversion; the presenting host plays the
+    /// success haptic from it because the review sheet closes immediately.
+    private(set) var commitFeedback = 0
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var operationTask: Task<Void, Never>?
 
@@ -138,7 +140,8 @@ final class TransactionScheduleConversionCoordinator {
             do {
                 let receipt = try await repository.convertFutureTransaction(review: content.review)
                 guard isCurrent(request) else { return }
-                state = .committed(receipt)
+                state = .idle
+                commitFeedback &+= 1
                 finish(request)
                 onCommitted(TransactionScheduleConversionOutcome(
                     context: content.review.context,
@@ -150,11 +153,6 @@ final class TransactionScheduleConversionCoordinator {
                 finish(request)
             }
         }
-    }
-
-    func finishCommitted() {
-        guard case .committed = state else { return }
-        state = .idle
     }
 
     @discardableResult

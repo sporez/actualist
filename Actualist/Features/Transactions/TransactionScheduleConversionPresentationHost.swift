@@ -61,6 +61,7 @@ struct TransactionScheduleConversionPresentationHost: ViewModifier {
                 )
                 .appSwitcherPrivacyProtected(using: appState)
             }
+            .sensoryFeedback(.success, trigger: coordinator.commitFeedback)
             .onBudgetSessionChange { _ = coordinator.cancel() }
     }
 

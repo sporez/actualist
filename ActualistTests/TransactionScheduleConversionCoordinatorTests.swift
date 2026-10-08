@@ -89,16 +89,16 @@ struct TransactionScheduleConversionCoordinatorTests {
         )
         await ObservedTestState { if case .review = coordinator.state { true } else { false } }.wait()
 
-        coordinator.confirm(repository: repository)
-        await ObservedTestState { if case .committed = coordinator.state { true } else { false } }.wait()
+        var outcome: TransactionScheduleConversionOutcome?
+        #expect(coordinator.commitFeedback == 0)
+        coordinator.confirm(repository: repository) { outcome = $0 }
+        await ObservedTestState { coordinator.commitFeedback == 1 }.wait()
 
+        #expect(coordinator.state == .idle)
         #expect(repository.convertedReviews == [review])
-        if case .committed(let receipt) = coordinator.state {
-            #expect(receipt.refreshPending)
-            #expect(receipt.scheduleID == "schedule")
-        } else {
-            Issue.record("Expected durable conversion receipt")
-        }
+        let receipt = try #require(outcome?.receipt)
+        #expect(receipt.refreshPending)
+        #expect(receipt.scheduleID == "schedule")
     }
 
     @Test func replacingACompletedReviewConvertsOnlyTheNewestSelectedRow() async throws {
@@ -130,7 +130,7 @@ struct TransactionScheduleConversionCoordinatorTests {
         }.wait()
 
         coordinator.confirm(repository: repository)
-        await ObservedTestState { if case .committed = coordinator.state { true } else { false } }.wait()
+        await ObservedTestState { coordinator.commitFeedback == 1 }.wait()
         #expect(repository.convertedReviews.map(\.sourceTransactionID) == ["second"])
     }
 
@@ -155,13 +155,10 @@ struct TransactionScheduleConversionCoordinatorTests {
         #expect(coordinator.state.isSubmitting)
         repository.context = ScheduleMutationSessionContext(budgetID: "replacement", generation: 8)
         repository.releaseConvert?.trip()
-        await ObservedTestState { if case .committed = coordinator.state { true } else { false } }.wait()
+        await ObservedTestState { coordinator.commitFeedback == 1 }.wait()
 
-        if case .committed(let receipt) = coordinator.state {
-            #expect(receipt.scheduleID == "schedule-future")
-        } else {
-            Issue.record("Expected the durable receipt after commit")
-        }
+        #expect(coordinator.state == .idle)
+        #expect(outcome?.receipt.scheduleID == "schedule-future")
         #expect(outcome?.context == committedContext)
         #expect(outcome?.context != repository.context)
     }
