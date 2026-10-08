@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AccountReconciliationTargetSheet: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
     @Bindable var coordinator: AccountReconciliationCoordinator
@@ -10,161 +11,140 @@ struct AccountReconciliationTargetSheet: View {
     @FocusState private var isAmountFocused: Bool
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                ActualistTheme.background.ignoresSafeArea()
-
-                if let presentation = coordinator.targetPresentation(
-                    privacyModeEnabled: privacyModeEnabled
-                ) {
-                    targetContent(presentation)
-                } else if let errorMessage = coordinator.startErrorMessage {
-                    startError(errorMessage)
-                } else {
-                    ProgressView("Loading account balance")
-                        .tint(ActualistTheme.accent)
-                }
-            }
-            .navigationTitle("Reconcile")
-            .navigationBarTitleDisplayMode(.inline)
-            .actualistKeyboardDone(isVisible: isAmountFocused) {
-                isAmountFocused = false
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        coordinator.cancel()
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .actualistToolbarGlassButton()
-                    .accessibilityLabel("Close Reconcile")
-                }
+        let presentation = coordinator.targetPresentation(privacyModeEnabled: privacyModeEnabled)
+        ReviewSheetContent {
+            ReviewSheetHeader(title: "Reconcile")
+            if let presentation {
+                targetContent(presentation)
+            } else if let errorMessage = coordinator.startErrorMessage {
+                startError(errorMessage)
+            } else {
+                ProgressView("Loading account balance")
+                    .tint(ActualistTheme.accent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
             }
         }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.hidden)
-    }
-
-    private func targetContent(
-        _ presentation: AccountReconciliationTargetPresentation
-    ) -> some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                VStack(spacing: 8) {
-                    Text(presentation.accountName)
-                        .font(ActualistTypography.sectionTitle(for: density))
-                        .foregroundStyle(ActualistTheme.secondaryText)
-
-                    if presentation.isPrivacyProtected {
-                        Text(presentation.amountText)
-                            .font(ActualistTypography.editorAmount(for: density))
-                            .foregroundStyle(ActualistTheme.primaryText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.55)
-                            .accessibilityLabel("Sample target balance")
-                    } else {
-                        HStack(spacing: 4) {
-                            Button {
-                                coordinator.toggleTargetSign()
-                            } label: {
-                                Image(systemName: presentation.isNegative ? "minus" : "plus")
-                                    .font(.title2.weight(.semibold))
-                                    .foregroundStyle(ActualistTheme.primaryText)
-                                    .frame(width: 28, height: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Amount sign")
-                            .accessibilityValue(presentation.isNegative ? "Minus" : "Plus")
-                            .accessibilityIdentifier("reconciliation-target-sign")
-
-                            MoneyAmountEntryField(
-                                text: targetTextBinding,
-                                displayText: presentation.amountText,
-                                foreground: ActualistTheme.primaryText,
-                                keyboard: .decimal,
-                                focus: $isAmountFocused,
-                                accessibilityLabel: "Target Balance",
-                                accessibilityIdentifier: "reconciliation-target-field"
-                            )
-                            .fixedSize(horizontal: true, vertical: false)
-
-                            Color.clear
-                                .frame(width: 28, height: 44)
-                                .accessibilityHidden(true)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-
-                    Text(AccountReconciliationCopy.balancePrompt)
-                        .font(ActualistTypography.body(for: density))
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 28)
-                .background(
-                    ActualistTheme.elevatedSurface,
-                    in: RoundedRectangle(cornerRadius: 32, style: .continuous)
-                )
-
-                VStack(spacing: 0) {
-                    detailRow(label: "Cleared balance", value: presentation.clearedBalanceText)
-                    if let synced = presentation.lastSyncedBalanceText {
-                        Divider().overlay(ActualistTheme.separator)
-                        Button {
-                            coordinator.useLastSyncedBalance()
-                        } label: {
-                            bankBalanceActionRow(value: synced)
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(presentation.isPrivacyProtected)
-                        .accessibilityLabel(AccountReconciliationCopy.useBankBalance)
-                        .accessibilityValue(synced)
-                        .accessibilityIdentifier("reconciliation-use-bank-balance")
-                    }
-                    Divider().overlay(ActualistTheme.separator)
-                    detailRow(label: "Last reconciled", value: presentation.lastReconciledText)
-                }
-                .padding(.horizontal, 16)
-                .background(
-                    ActualistTheme.surface,
-                    in: RoundedRectangle(cornerRadius: 24, style: .continuous)
-                )
-
-                if let validationMessage = presentation.validationMessage {
-                    Text(validationMessage)
-                        .font(ActualistTypography.rowTitle(for: density))
-                        .foregroundStyle(
-                            presentation.isPrivacyProtected
-                                ? ActualistTheme.secondaryText
-                                : ActualistTheme.danger
-                        )
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityIdentifier("reconciliation-target-message")
-                }
-
-                Button {
+        .scrollDismissesKeyboard(.interactively)
+        .actualistKeyboardDone(isVisible: isAmountFocused) {
+            isAmountFocused = false
+        }
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton {
+                coordinator.cancel()
+                dismiss()
+            }
+            .accessibilityLabel("Close Reconcile")
+            if let presentation {
+                ReviewSheetPrimaryButton {
                     coordinator.confirmTarget()
                 } label: {
                     Label(AccountReconciliationCopy.reconcile, systemImage: "checkmark.circle.fill")
-                        .font(ActualistTypography.control(for: density))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
                 }
-                .buttonStyle(.glassProminent)
-                .tint(ActualistTheme.accent)
                 .disabled(!presentation.canContinue)
                 .accessibilityIdentifier("reconciliation-start-button")
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 18)
-            .padding(.bottom, 32)
         }
-        .scrollDismissesKeyboard(.interactively)
+        .reviewSheetPresentation(detents: [.large], appState: appState)
+    }
+
+    @ViewBuilder
+    private func targetContent(
+        _ presentation: AccountReconciliationTargetPresentation
+    ) -> some View {
+        VStack(spacing: 8) {
+            Text(presentation.accountName)
+                .font(ActualistTypography.sectionTitle(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+
+            if presentation.isPrivacyProtected {
+                Text(presentation.amountText)
+                    .font(ActualistTypography.editorAmount(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+                    .accessibilityLabel("Sample target balance")
+            } else {
+                HStack(spacing: 4) {
+                    Button {
+                        coordinator.toggleTargetSign()
+                    } label: {
+                        Image(systemName: presentation.isNegative ? "minus" : "plus")
+                            .font(.title2.weight(.semibold))
+                            .foregroundStyle(ActualistTheme.primaryText)
+                            .frame(width: 28, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Amount sign")
+                    .accessibilityValue(presentation.isNegative ? "Minus" : "Plus")
+                    .accessibilityIdentifier("reconciliation-target-sign")
+
+                    MoneyAmountEntryField(
+                        text: targetTextBinding,
+                        displayText: presentation.amountText,
+                        foreground: ActualistTheme.primaryText,
+                        keyboard: .decimal,
+                        focus: $isAmountFocused,
+                        accessibilityLabel: "Target Balance",
+                        accessibilityIdentifier: "reconciliation-target-field"
+                    )
+                    .fixedSize(horizontal: true, vertical: false)
+
+                    Color.clear
+                        .frame(width: 28, height: 44)
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity)
+            }
+
+            Text(AccountReconciliationCopy.balancePrompt)
+                .font(ActualistTypography.body(for: density))
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .actualistReviewCard()
+
+        VStack(spacing: 0) {
+            detailRow(label: "Cleared balance", value: presentation.clearedBalanceText)
+            if let synced = presentation.lastSyncedBalanceText {
+                Divider().overlay(ActualistTheme.separator)
+                Button {
+                    coordinator.useLastSyncedBalance()
+                } label: {
+                    bankBalanceActionRow(value: synced)
+                }
+                .buttonStyle(.plain)
+                .disabled(presentation.isPrivacyProtected)
+                .accessibilityLabel(AccountReconciliationCopy.useBankBalance)
+                .accessibilityValue(synced)
+                .accessibilityIdentifier("reconciliation-use-bank-balance")
+            }
+            Divider().overlay(ActualistTheme.separator)
+            detailRow(label: "Last reconciled", value: presentation.lastReconciledText)
+        }
+        .padding(.horizontal, 14)
+        .background(
+            ActualistTheme.surface,
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .strokeBorder(ActualistTheme.separator, lineWidth: 1))
+
+        if let validationMessage = presentation.validationMessage {
+            Text(validationMessage)
+                .font(ActualistTypography.rowTitle(for: density))
+                .foregroundStyle(
+                    presentation.isPrivacyProtected
+                        ? ActualistTheme.secondaryText
+                        : ActualistTheme.danger
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("reconciliation-target-message")
+        }
     }
 
     private func startError(_ message: String) -> some View {

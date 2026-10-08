@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EntityNotesView: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -27,37 +28,39 @@ struct EntityNotesView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.isPrivacyModeEnabled {
-                    privacyContent
-                } else if viewModel.isLoading || viewModel.phase == .idle {
-                    loadingContent
-                } else {
-                    editorContent
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(ActualistTheme.background)
-            .navigationTitle(viewModel.target.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(viewModel.isPrivacyModeEnabled ? "Done" : "Cancel") {
-                        viewModel.cancel()
-                        dismiss()
-                    }
-                }
-                if !viewModel.isPrivacyModeEnabled {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
-                            Task { await save() }
-                        }
-                        .disabled(!viewModel.canSave)
-                    }
-                }
+        ReviewSheetContent {
+            ReviewSheetHeader(title: viewModel.target.title)
+            if viewModel.isPrivacyModeEnabled {
+                privacyContent
+            } else if viewModel.isLoading || viewModel.phase == .idle {
+                loadingContent
+            } else {
+                editorContent
             }
         }
+        .scrollDismissesKeyboard(.interactively)
+        .reviewSheetBottomBar {
+            if viewModel.isPrivacyModeEnabled {
+                ReviewSheetPrimaryButton {
+                    viewModel.cancel()
+                    dismiss()
+                } label: {
+                    Text("Done")
+                }
+            } else {
+                ReviewSheetSecondaryButton {
+                    viewModel.cancel()
+                    dismiss()
+                }
+                ReviewSheetPrimaryButton {
+                    Task { await save() }
+                } label: {
+                    Text("Save")
+                }
+                .disabled(!viewModel.canSave)
+            }
+        }
+        .reviewSheetPresentation(detents: [.large], appState: appState)
         .interactiveDismissDisabled(viewModel.isSaving)
         .task {
             await viewModel.load(repository: repository)
@@ -69,32 +72,26 @@ struct EntityNotesView: View {
 
     private var editorContent: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Note")
-                    .font(ActualistTypography.rowLabel(for: density))
-                    .foregroundStyle(ActualistTheme.secondaryText)
-
-                DisclosureGroup(isExpanded: $isMarkdownHelpExpanded) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(verbatim: "**bold** → Bold")
-                            .bold()
-                        Text(verbatim: "*italic* → Italic")
-                            .italic()
-                    }
+            DisclosureGroup(isExpanded: $isMarkdownHelpExpanded) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(verbatim: "**bold** → Bold")
+                        .bold()
+                    Text(verbatim: "*italic* → Italic")
+                        .italic()
+                }
+                .font(.caption)
+                .foregroundStyle(ActualistTheme.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 8)
+                .accessibilityIdentifier("notes-markdown-examples")
+            } label: {
+                Text("Supported Markdown")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 8)
-                    .accessibilityIdentifier("notes-markdown-examples")
-                } label: {
-                    Text("Supported Markdown")
-                        .font(.caption)
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                }
-                .tint(ActualistTheme.secondaryText)
-                .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: isMarkdownHelpExpanded)
-                .accessibilityIdentifier("notes-markdown-help")
             }
+            .tint(ActualistTheme.secondaryText)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: isMarkdownHelpExpanded)
+            .accessibilityIdentifier("notes-markdown-help")
 
             TextEditor(text: Binding(
                 get: { viewModel.text },
@@ -104,11 +101,8 @@ struct EntityNotesView: View {
             .foregroundStyle(ActualistTheme.primaryText)
             .accessibilityIdentifier("entity-notes-editor")
             .scrollContentBackground(.hidden)
-            .padding(12)
-            .background(
-                ActualistTheme.surface,
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-            )
+            .frame(minHeight: 220)
+            .reviewSheetFieldStyle()
             .disabled(viewModel.isSaving)
 
             if let errorMessage = viewModel.errorMessage {
@@ -118,7 +112,7 @@ struct EntityNotesView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(18)
+        .actualistReviewCard()
     }
 
     private var loadingContent: some View {

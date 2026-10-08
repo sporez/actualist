@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct AccountGroupEditorSheet: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.actualistDensity) private var density
 
     let title: String
     @Binding var name: String
@@ -13,64 +13,44 @@ struct AccountGroupEditorSheet: View {
     let onSubmit: () async -> Bool
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Name")
-                            .font(ActualistTypography.rowLabel(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-
-                        TextField("Cash", text: $name)
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.primaryText)
-                            .textInputAutocapitalization(.words)
-                            .submitLabel(.done)
-                            .onSubmit {
-                                Task { await submit() }
-                            }
-                    }
-                    .padding(16)
-                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.danger)
-                    }
-
-                    Button {
-                        Task { await submit() }
-                    } label: {
-                        if isSubmitting {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Text("Save")
-                                .font(ActualistTypography.control(for: density))
-                                .frame(maxWidth: .infinity)
+        ReviewSheetContent {
+            ReviewSheetHeader(title: title)
+            ReviewFormCard {
+                ReviewFormFieldRow(title: "Name") {
+                    TextField("Cash", text: $name)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            Task { await submit() }
                         }
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .disabled(!canSubmit)
+                        .reviewSheetFieldStyle()
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 20)
             }
-            .scrollDismissesKeyboard(.interactively)
-            .background(ActualistTheme.background)
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onCancel()
-                        dismiss()
-                    }
-                }
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(ActualistTheme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .scrollDismissesKeyboard(.interactively)
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton {
+                onCancel()
+                dismiss()
+            }
+            ReviewSheetPrimaryButton {
+                Task { await submit() }
+            } label: {
+                if isSubmitting {
+                    ProgressView()
+                } else {
+                    Text("Save")
+                }
+            }
+            .disabled(!canSubmit)
+        }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
     }
 
     private func submit() async {

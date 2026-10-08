@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TransactionCSVExportReviewView: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     let budgetID: String
     let accountID: String
@@ -18,27 +19,14 @@ struct TransactionCSVExportReviewView: View {
         }
         .reviewSheetBottomBar {
             if case .ready(let export) = workflow.state {
-                Button(role: .cancel, action: close) {
-                    Text("Done")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                }
-                .buttonStyle(.glass)
+                ReviewSheetSecondaryButton(title: "Done", action: close)
                 shareCSVButton(for: export)
             } else {
-                Button(role: .cancel, action: close) {
-                    Text("Cancel")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                }
-                .buttonStyle(.glass)
+                ReviewSheetSecondaryButton(action: close)
                 Spacer(minLength: 0)
             }
         }
-        .background(ActualistTheme.background)
-        .presentationBackground(ActualistTheme.background)
+        .reviewSheetPresentation(appState: appState)
         .task {
             await workflow.export(budgetID: budgetID, accountID: accountID, repository: repository)
         }

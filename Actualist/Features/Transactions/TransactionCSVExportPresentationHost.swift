@@ -14,7 +14,6 @@ struct TransactionCSVExportPresentationHost: ViewModifier {
                         accountID: accountID,
                         repository: appState.localFirstStore
                     )
-                    .appSwitcherPrivacyProtected(using: appState)
                 } else {
                     ChooseBudgetUnavailableView()
                 }

@@ -431,7 +431,6 @@ struct AccountTransactionsView: View {
                 privacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                 onRetry: retryReconciliationStart
             )
-            .appSwitcherPrivacyProtected(using: appState)
         }
         .modifier(AccountLifecyclePresentationHost(coordinator: lifecycleCoordinator))
         .modifier(TransactionFilterPresentationHost(presentation: transactionFilterPresentation))

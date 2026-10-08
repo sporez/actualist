@@ -29,7 +29,8 @@ struct AppIconPickerSheet: View {
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: 16)]
 
     var body: some View {
-        NavigationStack {
+        ReviewSheetContent {
+            ReviewSheetHeader(title: "App Icon")
             VStack(spacing: 16) {
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(AppIcon.allCases) { icon in
@@ -51,37 +52,32 @@ struct AppIconPickerSheet: View {
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.danger)
                         .multilineTextAlignment(.center)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(ActualistTheme.background)
-            .navigationTitle("App Icon")
-            .navigationBarTitleDisplayMode(.inline)
-            .overlay(alignment: .bottom) {
-                if let developerUnlockToastMessage = appState.developerUnlockToastMessage {
-                    Text(developerUnlockToastMessage)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(ActualistTheme.primaryText)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background(ActualistTheme.elevatedSurface, in: Capsule())
-                        .padding(.bottom, 22)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .allowsHitTesting(false)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
+            .actualistReviewCard()
+        }
+        .overlay(alignment: .bottom) {
+            if let developerUnlockToastMessage = appState.developerUnlockToastMessage {
+                Text(developerUnlockToastMessage)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(ActualistTheme.elevatedSurface, in: Capsule())
+                    .padding(.bottom, 80)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .allowsHitTesting(false)
             }
         }
-        .appSwitcherPrivacyProtected(using: appState)
+        .reviewSheetBottomBar {
+            ReviewSheetPrimaryButton {
+                dismiss()
+            } label: {
+                Text("Done")
+            }
+        }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
         .onDisappear {
             toastTask?.cancel()
         }

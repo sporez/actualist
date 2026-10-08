@@ -137,8 +137,6 @@ struct AppearanceSettingsView: View {
         .sheet(isPresented: $isAppIconPickerPresented) {
             AppIconPickerSheet(viewModel: viewModel)
                 .environment(appState)
-                .presentationDetents([.height(320)])
-                .appSwitcherPrivacyAwareDragIndicator()
         }
     }
 

@@ -119,9 +119,6 @@ struct AccountsView: View {
             }
             .sheet(isPresented: $viewModel.isAddAccountPresented) {
                 AddAccountSheet(viewModel: viewModel.addAccountViewModel)
-                    .presentationDetents([.medium, .large])
-                    .appSwitcherPrivacyAwareDragIndicator()
-                    .appSwitcherPrivacyProtected(using: appState)
             }
             .sheet(isPresented: $viewModel.isGroupEditorPresented) {
                 AccountGroupEditorSheet(
@@ -142,9 +139,6 @@ struct AccountsView: View {
                         return saved
                     }
                 )
-                .presentationDetents([.medium])
-                .appSwitcherPrivacyAwareDragIndicator()
-                    .appSwitcherPrivacyProtected(using: appState)
             }
             .modifier(AccountLifecyclePresentationHost(coordinator: lifecycleCoordinator))
         }
@@ -497,113 +491,6 @@ private struct AccountsEmptyView: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, alignment: .center)
-    }
-}
-
-private struct AddAccountSheet: View {
-    @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.actualistDensity) private var density
-
-    @Bindable var viewModel: AddAccountViewModel
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Name")
-                            .font(ActualistTypography.rowLabel(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-
-                        TextField("Checking", text: $viewModel.name)
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.primaryText)
-                            .textInputAutocapitalization(.words)
-                            .submitLabel(.done)
-                            .onSubmit {
-                                Task { await submit() }
-                            }
-                    }
-                    .padding(16)
-                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Type")
-                            .font(ActualistTypography.rowLabel(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-
-                        Picker("Account Type", selection: $viewModel.kind) {
-                            ForEach(AddAccountViewModel.AccountKind.allCases) { kind in
-                                Text(kind.title)
-                                    .tag(kind)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-
-                        Text(viewModel.kind.detail)
-                            .font(ActualistTypography.rowLabel(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                    }
-                    .padding(16)
-                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-
-                    if let errorMessage = viewModel.errorMessage {
-                        Text(errorMessage)
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.danger)
-                    }
-
-                    Button {
-                        Task { await submit() }
-                    } label: {
-                        if viewModel.isSubmitting {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Text("Create Account")
-                                .font(ActualistTypography.control(for: density))
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .disabled(!viewModel.canSubmit)
-                }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 20)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .background(ActualistTheme.background)
-            .navigationTitle("Add Account")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        viewModel.reset()
-                        dismiss()
-                    }
-                    .disabled(viewModel.isSubmitting)
-                }
-            }
-        }
-        .onDisappear {
-            if !viewModel.isSubmitting {
-                viewModel.reset()
-            }
-        }
-    }
-
-    private func submit() async {
-        guard await viewModel.submit(
-            budgetID: appState.settings.selectedBudgetID,
-            repository: appState.accountRepository
-        ) else {
-            return
-        }
-
-        ActualistHaptics.success()
-        dismiss()
     }
 }
 
