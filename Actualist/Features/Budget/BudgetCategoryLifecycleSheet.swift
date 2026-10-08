@@ -236,7 +236,6 @@ final class BudgetCategoryLifecycleController {
 
 struct BudgetCategoryNameSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.actualistDensity) private var density
     @Bindable var controller: BudgetCategoryLifecycleController
     let sheet: BudgetCategoryLifecycleSheet
     let selectedMonth: String?
@@ -285,34 +284,21 @@ struct BudgetCategoryNameSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Name")
-                            .font(ActualistTypography.rowLabel(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                ReviewSheetHeader(title: sheet.title)
 
+                ReviewFormCard {
+                    ReviewFormFieldRow(title: "Name") {
                         TextField(nameFieldLabel, text: $name)
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.primaryText)
+                            .reviewSheetFieldStyle()
                             .textInputAutocapitalization(.words)
                             .submitLabel(.done)
                             .accessibilityIdentifier("budget-category-lifecycle-name")
                     }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        ActualistTheme.surface,
-                        in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    )
 
                     if !categoryGroupChoices.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Group")
-                                .font(ActualistTypography.rowLabel(for: density))
-                                .foregroundStyle(ActualistTheme.secondaryText)
-
+                        ReviewFormFieldRow(title: "Group") {
                             Picker("Group", selection: $selectedGroupID) {
                                 ForEach(categoryGroupChoices) { group in
                                     Text(group.hidden == true ? "\(group.name) (Hidden)" : group.name)
@@ -320,59 +306,50 @@ struct BudgetCategoryNameSheet: View {
                                 }
                             }
                             .pickerStyle(.menu)
+                            .labelsHidden()
                             .tint(ActualistTheme.accent)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .accessibilityIdentifier("budget-category-lifecycle-group")
                         }
-                        .padding(16)
+                    }
+                }
+
+                if let errorMessage = controller.errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.danger)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            ActualistTheme.surface,
-                            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        )
-                    }
-
-                    if let errorMessage = controller.errorMessage {
-                        Text(errorMessage)
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.danger)
-                            .accessibilityIdentifier("budget-category-lifecycle-error")
-                    }
-
-                    Button { submit() } label: {
-                        if controller.isSubmitting {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Text(saveTitle)
-                                .font(ActualistTypography.control(for: density))
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .buttonStyle(.glassProminent)
-                    .tint(ActualistTheme.accent)
-                    .disabled(controller.isSubmitting || requiresGroup && selectedGroupID == nil)
-                    .accessibilityIdentifier("budget-category-lifecycle-save")
-                }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 20)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .accessibilityIdentifier("budget-category-lifecycle-name-sheet")
-            .navigationTitle(sheet.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        controller.cancel()
-                        dismiss()
-                    }
-                    .disabled(controller.isSubmitting)
+                        .accessibilityIdentifier("budget-category-lifecycle-error")
                 }
             }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 12)
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .background(ActualistTheme.background)
+        .foregroundStyle(ActualistTheme.primaryText)
+        .tint(ActualistTheme.accent)
+        .accessibilityIdentifier("budget-category-lifecycle-name-sheet")
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton {
+                controller.cancel()
+                dismiss()
+            }
+            .disabled(controller.isSubmitting)
+
+            ReviewSheetPrimaryButton {
+                submit()
+            } label: {
+                if controller.isSubmitting {
+                    ProgressView()
+                } else {
+                    Text(saveTitle)
+                }
+            }
+            .disabled(controller.isSubmitting || requiresGroup && selectedGroupID == nil)
+            .accessibilityIdentifier("budget-category-lifecycle-save")
         }
         .interactiveDismissDisabled(controller.isSubmitting)
     }
@@ -423,6 +400,7 @@ struct BudgetCategoryNameSheet: View {
 }
 
 struct BudgetCategoryLifecycleContent: View {
+    @Environment(AppState.self) private var appState
     @Bindable var controller: BudgetCategoryLifecycleController
     let sheet: BudgetCategoryLifecycleSheet
     let selectedMonth: String?
@@ -461,9 +439,7 @@ struct BudgetCategoryLifecycleContent: View {
                 )
             }
         }
-        .presentationDetents(presentationDetents)
-        .appSwitcherPrivacyAwareDragIndicator()
-        .presentationBackground(ActualistTheme.background)
+        .reviewSheetPresentation(detents: presentationDetents, appState: appState)
     }
 
     private var presentationDetents: Set<PresentationDetent> {

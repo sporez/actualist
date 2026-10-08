@@ -172,7 +172,7 @@ final class TrackingBudgetUITests: XCTestCase {
             : app.buttons["budget-alert-overspending"]
         XCTAssertTrue(review.waitForExistence(timeout: 10))
         review.tap()
-        XCTAssertTrue(app.navigationBars["Overspent Categories"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Overspent Categories"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Cover"].exists)
         let category = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'budget-overspent-'")).firstMatch
         XCTAssertTrue(category.waitForExistence(timeout: 5))

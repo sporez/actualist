@@ -8,64 +8,58 @@ struct HistoryView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var viewModel = HistoryViewModel()
     @State private var selectedDetent: PresentationDetent = .medium
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                ActualistTheme.background.ignoresSafeArea()
+        VStack(spacing: 0) {
+            ReviewSheetHeader(title: "History")
+                .padding(.horizontal, 22)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
-                content
-            }
-            .navigationTitle("History")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .accessibilityLabel("Close")
-                }
-            }
-            .task { await viewModel.load(using: appState) }
-            .sheet(item: reviewBinding) { review in
-                HistoryUndoReviewView(
-                    review: review,
-                    isCommitting: viewModel.committingActionID == review.actionID,
-                    onConfirm: {
-                        Task {
-                            if await viewModel.confirmUndo(using: appState) {
-                                ActualistHaptics.success()
-                            }
+            content
+        }
+        .background(ActualistTheme.background)
+        .foregroundStyle(ActualistTheme.primaryText)
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton(title: "Close") { dismiss() }
+                .accessibilityIdentifier("history-close")
+        }
+        .task { await viewModel.load(using: appState) }
+        .sheet(item: reviewBinding) { review in
+            HistoryUndoReviewView(
+                review: review,
+                isCommitting: viewModel.committingActionID == review.actionID,
+                onConfirm: {
+                    Task {
+                        if await viewModel.confirmUndo(using: appState) {
+                            ActualistHaptics.success()
                         }
-                    },
-                    onCancel: {
-                        viewModel.cancelUndo()
-                    }
-                )
-                .environment(appState)
-                .presentationDetents([.medium])
-                .presentationDragIndicator(.visible)
-                .appSwitcherPrivacyProtected(using: appState)
-            }
-            .alert(
-                "Couldn't Undo",
-                isPresented: undoFailureBinding,
-                actions: {
-                    Button("OK", role: .cancel) {
-                        viewModel.dismissUndoFailure()
                     }
                 },
-                message: {
-                    Text(viewModel.undoFailureMessage ?? "")
+                onCancel: {
+                    viewModel.cancelUndo()
                 }
             )
+            .environment(appState)
         }
-        .presentationDetents([.medium, .large], selection: $selectedDetent)
-        .presentationDragIndicator(.visible)
+        .alert(
+            "Couldn't Undo",
+            isPresented: undoFailureBinding,
+            actions: {
+                Button("OK", role: .cancel) {
+                    viewModel.dismissUndoFailure()
+                }
+            },
+            message: {
+                Text(viewModel.undoFailureMessage ?? "")
+            }
+        )
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large], selection: $selectedDetent)
+        .appSwitcherPrivacyAwareDragIndicator()
+        .presentationBackground(ActualistTheme.background)
     }
 
     private var reviewBinding: Binding<HistoryUndoReviewPresentation?> {
@@ -149,9 +143,11 @@ struct HistoryView: View {
                     )
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 28)
+            .padding(.horizontal, 22)
+            .padding(.top, 6)
+            .padding(.bottom, 12)
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
         .refreshable {
@@ -214,6 +210,8 @@ private struct HistoryRowView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .strokeBorder(ActualistTheme.separator, lineWidth: 1))
         .accessibilityElement(children: .combine)
     }
 

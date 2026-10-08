@@ -227,7 +227,7 @@ final class IPadReviewUITests: XCTestCase {
             if title == "Rent" {
                 XCTAssertTrue(app.buttons["Close Category Details"].waitForExistence(timeout: 10))
             } else {
-                XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS %@", title)).firstMatch.waitForExistence(timeout: 10))
+                XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 10))
             }
             screenshot("review-settings-route-\(title)")
             app.terminate()

@@ -290,7 +290,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         row.tap()
         XCTAssertTrue(app.buttons["Move Money"].waitForExistence(timeout: 5))
         app.buttons["Move Money"].tap()
-        XCTAssertTrue(app.navigationBars["Move to"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Move to"].waitForExistence(timeout: 5))
         capture("shown-hidden-category-actions", app)
     }
 

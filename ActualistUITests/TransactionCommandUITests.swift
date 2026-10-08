@@ -155,7 +155,7 @@ final class TransactionCommandUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 10))
         app.buttons["Budget Actions"].tap()
         app.buttons["History"].tap()
-        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["History"].waitForExistence(timeout: 10))
 
         let undoRows = app.buttons.matching(
             NSPredicate(format: "label CONTAINS[c] %@", "Undo Duplicated")
@@ -169,7 +169,7 @@ final class TransactionCommandUITests: XCTestCase {
         XCTAssertTrue(confirmUndo.waitForExistence(timeout: 5))
         attachScreenshot(named: "duplicate-history-undo-\(layoutName(in: app))", app: app)
         confirmUndo.tap()
-        XCTAssertTrue(app.navigationBars["Undo Action"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Undo Action"].waitForNonExistence(timeout: 10))
     }
 
     private func launchFreshSpendingDemo() -> XCUIApplication {

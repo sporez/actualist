@@ -118,21 +118,21 @@ final class TransactionBatchSelectionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 10))
         app.buttons["Budget Actions"].tap()
         app.buttons["History"].tap()
-        XCTAssertTrue(app.navigationBars["History"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["History"].waitForExistence(timeout: 10))
 
         let undoRow = app.buttons.matching(
             NSPredicate(format: "label CONTAINS[c] %@", "Undo Cleared")
         ).firstMatch
         XCTAssertTrue(undoRow.waitForExistence(timeout: 10))
         undoRow.tap()
-        XCTAssertTrue(app.navigationBars["Undo Action"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Undo Action"].waitForExistence(timeout: 5))
         let confirmUndo = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH[c] %@", "Confirm undo of Cleared")
         ).firstMatch
         XCTAssertTrue(confirmUndo.waitForExistence(timeout: 5))
         attachScreenshot(named: "batch-clear-history-undo-dark-\(layoutName(in: app))", app: app)
         confirmUndo.tap()
-        XCTAssertTrue(app.navigationBars["Undo Action"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Undo Action"].waitForNonExistence(timeout: 10))
     }
 
     func testClearReviewSupportsLightAccessibilityText() throws {

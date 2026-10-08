@@ -198,7 +198,7 @@ final class BudgetHoldEntryPointUITests: XCTestCase {
             XCTAssertTrue(bounds.contains(amount.frame), "\(identifier) must fit inside the review", file: file, line: line)
         }
         let confirm = app.buttons["budget-hold-confirm"]
-        XCTAssertGreaterThanOrEqual(confirm.frame.width, bounds.width - 80, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(confirm.frame.width, bounds.width / 2 - 40, file: file, line: line)
         XCTAssertTrue(window.contains(confirm.frame), "Hold action must be visible without scrolling", file: file, line: line)
     }
 

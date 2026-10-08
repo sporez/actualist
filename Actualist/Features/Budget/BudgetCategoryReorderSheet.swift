@@ -11,54 +11,52 @@ struct BudgetCategoryReorderSheet: View {
     let onSaved: @MainActor () async -> Void
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    if let draft = controller.reorder.draft {
-                        ForEach(draft.groups) { group in
-                            groupCard(group)
-                        }
-                    }
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ReviewSheetHeader(title: "Reorder Categories")
+                    .padding(.bottom, 2)
 
-                    if let errorMessage = controller.errorMessage {
-                        Text(errorMessage)
-                            .foregroundStyle(ActualistTheme.danger)
-                            .padding(16)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(
-                                ActualistTheme.surface,
-                                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            )
-                            .accessibilityIdentifier("budget-category-reorder-error")
+                if let draft = controller.reorder.draft {
+                    ForEach(draft.groups) { group in
+                        groupCard(group)
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-            }
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .accessibilityIdentifier("budget-category-reorder-sheet")
-            .onDrop(
-                of: [UTType.text],
-                delegate: ReorderContainerDropDelegate(lastDropEvent: $lastDropEvent)
-            )
-            .navigationTitle("Reorder Categories")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        controller.cancel()
-                        dismiss()
-                    }
-                    .disabled(controller.isSubmitting)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
-                        .disabled(controller.isSubmitting)
-                        .accessibilityIdentifier("budget-category-reorder-save")
+
+                if let errorMessage = controller.errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.danger)
+                        .actualistReviewCard()
+                        .accessibilityIdentifier("budget-category-reorder-error")
                 }
             }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 12)
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
+        }
+        .background(ActualistTheme.background)
+        .foregroundStyle(ActualistTheme.primaryText)
+        .tint(ActualistTheme.accent)
+        .accessibilityIdentifier("budget-category-reorder-sheet")
+        .onDrop(
+            of: [UTType.text],
+            delegate: ReorderContainerDropDelegate(lastDropEvent: $lastDropEvent)
+        )
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton {
+                controller.cancel()
+                dismiss()
+            }
+            .disabled(controller.isSubmitting)
+
+            ReviewSheetPrimaryButton {
+                save()
+            } label: {
+                Text("Save")
+            }
+            .disabled(controller.isSubmitting)
+            .accessibilityIdentifier("budget-category-reorder-save")
         }
         .interactiveDismissDisabled(controller.isSubmitting)
     }
@@ -94,9 +92,11 @@ struct BudgetCategoryReorderSheet: View {
         }
         .background(
             ActualistTheme.surface,
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .strokeBorder(ActualistTheme.separator, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .onDrop(
             of: [UTType.text],
             delegate: GroupCardDropDelegate(

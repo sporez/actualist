@@ -4,6 +4,7 @@ struct UncategorizedTransactionsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var viewModel = UncategorizedTransactionsViewModel()
     @State private var selectedTransaction: SelectedUncategorizedTransaction?
     @State private var isBulkCategoryPickerPresented = false
@@ -31,66 +32,59 @@ struct UncategorizedTransactionsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                ActualistTheme.background.ignoresSafeArea()
-
-                ScrollView {
-                    content
-                        .padding(.horizontal, 18)
-                        .padding(.top, 18)
-                        .padding(.bottom, 28)
-                }
-                .scrollIndicators(.hidden)
-                .refreshable {
-                    await viewModel.refresh(month: month, using: appState)
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                ReviewSheetHeader(title: "Uncategorized")
+                content
             }
-            .navigationTitle("Uncategorized")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
+            .padding(.horizontal, 22)
+            .padding(.vertical, 12)
+            .frame(maxWidth: 640)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollIndicators(.hidden)
+        .refreshable {
+            await viewModel.refresh(month: month, using: appState)
+        }
+        .background(ActualistTheme.background)
+        .foregroundStyle(ActualistTheme.primaryText)
+        .reviewSheetBottomBar {
+            if viewModel.isSelecting {
+                ReviewSheetSecondaryButton(title: "Done", role: nil) {
+                    viewModel.endSelection()
+                }
+                .disabled(viewModel.isCategorizing)
+                .accessibilityIdentifier("uncategorized-select-done")
+
+                ReviewSheetPrimaryButton {
+                    isBulkCategoryPickerPresented = true
+                } label: {
+                    if viewModel.isBulkCategorizing {
+                        ProgressView()
+                    } else {
+                        Text("Categorize")
+                    }
+                }
+                .disabled(!viewModel.canSubmitSelection)
+                .accessibilityIdentifier("uncategorized-categorize")
+            } else {
+                ReviewSheetSecondaryButton(title: "Close") { dismiss() }
+                    .accessibilityIdentifier("uncategorized-close")
+
+                if viewModel.canBeginSelection {
+                    ReviewSheetPrimaryButton {
+                        viewModel.beginSelection()
                     } label: {
-                        Image(systemName: "xmark")
+                        Text("Select")
                     }
-                }
-
-                if viewModel.isSelecting || viewModel.canBeginSelection {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(viewModel.isSelecting ? "Done" : "Select") {
-                            if viewModel.isSelecting {
-                                viewModel.endSelection()
-                            } else {
-                                viewModel.beginSelection()
-                            }
-                        }
-                        .disabled(viewModel.isCategorizing)
-                    }
-                }
-
-                if viewModel.isSelecting {
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        Spacer()
-                        Button {
-                            isBulkCategoryPickerPresented = true
-                        } label: {
-                            Group {
-                                if viewModel.isBulkCategorizing {
-                                    ProgressView()
-                                } else {
-                                    Text("Categorize")
-                                }
-                            }
-                        }
-                        .disabled(!viewModel.canSubmitSelection)
-                    }
+                    .disabled(viewModel.isCategorizing)
+                    .accessibilityIdentifier("uncategorized-select-done")
                 }
             }
         }
-        .presentationDetents([.medium, .large], selection: $selectedDetent)
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large], selection: $selectedDetent)
         .appSwitcherPrivacyAwareDragIndicator()
+        .presentationBackground(ActualistTheme.background)
         .task {
             await viewModel.loadIfNeeded(month: month, using: appState)
             if viewModel.transactions.count >= 4 {
@@ -178,39 +172,36 @@ struct UncategorizedTransactionsView: View {
     @ViewBuilder
     private var content: some View {
         if viewModel.isLoading, viewModel.transactions.isEmpty {
-            GlassPanel {
-                HStack {
-                    ProgressView()
-                    Text("Loading transactions")
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                }
-                .frame(maxWidth: .infinity)
+            HStack {
+                ProgressView()
+                Text("Loading transactions")
+                    .foregroundStyle(ActualistTheme.secondaryText)
             }
+            .frame(maxWidth: .infinity)
+            .actualistReviewCard()
         } else if viewModel.transactions.isEmpty, let errorMessage = viewModel.errorMessage {
-            GlassPanel {
-                VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.title)
-                        .foregroundStyle(ActualistTheme.danger)
-                    Text(errorMessage)
-                        .font(ActualistTypography.rowTitle(for: density))
-                        .foregroundStyle(ActualistTheme.primaryText)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity)
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.title)
+                    .foregroundStyle(ActualistTheme.danger)
+                Text(errorMessage)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
+                    .multilineTextAlignment(.center)
             }
+            .frame(maxWidth: .infinity)
+            .actualistReviewCard()
         } else if viewModel.transactions.isEmpty {
-            GlassPanel {
-                VStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title)
-                        .foregroundStyle(ActualistTheme.positive)
-                    Text("No uncategorized transactions")
-                        .font(ActualistTypography.rowTitle(for: density))
-                        .foregroundStyle(ActualistTheme.primaryText)
-                }
-                .frame(maxWidth: .infinity)
+            VStack(spacing: 12) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title)
+                    .foregroundStyle(ActualistTheme.positive)
+                Text("No uncategorized transactions")
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.primaryText)
             }
+            .frame(maxWidth: .infinity)
+            .actualistReviewCard()
         } else {
             VStack(alignment: .leading, spacing: 14) {
                 if let errorMessage = viewModel.errorMessage {
@@ -238,7 +229,10 @@ struct UncategorizedTransactionsView: View {
                                     )
                                 }
                             }
-                            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .strokeBorder(ActualistTheme.separator, lineWidth: 1))
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
                     }
                 }

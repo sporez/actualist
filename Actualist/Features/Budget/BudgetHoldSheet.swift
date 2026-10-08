@@ -11,49 +11,64 @@ struct BudgetHoldSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if appState.settings.randomizedDisplayValuesEnabled {
-                    ContentUnavailableView("Sample Values", systemImage: "eye.slash", description: Text("Turn off Sample Values to hold or release money."))
-                } else if appState.settings.selectedBudgetID != model.target.budgetID {
-                    ContentUnavailableView("Budget Changed", systemImage: "calendar", description: Text("Close this sheet and open the selected budget."))
-                } else if model.draft != nil {
-                    reviewContent
-                } else if model.isLoading {
-                    ProgressView("Loading budget")
-                } else {
-                    VStack(spacing: 16) {
-                        if let error = model.errorMessage {
-                            Text(error).foregroundStyle(ActualistTheme.danger)
-                        } else {
-                            Text("The review is not loaded.")
-                        }
-                        Button("Try Again") { Task { await model.load(using: appState) } }
-                            .buttonStyle(.glass)
+        Group {
+            if appState.settings.randomizedDisplayValuesEnabled {
+                ContentUnavailableView("Sample Values", systemImage: "eye.slash", description: Text("Turn off Sample Values to hold or release money."))
+            } else if appState.settings.selectedBudgetID != model.target.budgetID {
+                ContentUnavailableView("Budget Changed", systemImage: "calendar", description: Text("Close this sheet and open the selected budget."))
+            } else if model.draft != nil {
+                reviewContent
+            } else if model.isLoading {
+                ProgressView("Loading budget")
+            } else {
+                VStack(spacing: 16) {
+                    if let error = model.errorMessage {
+                        Text(error).foregroundStyle(ActualistTheme.danger)
+                    } else {
+                        Text("The review is not loaded.")
                     }
-                    .padding()
+                    Button("Try Again") { Task { await model.load(using: appState) } }
+                        .buttonStyle(.glass)
                 }
+                .padding()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(ActualistTheme.background)
-            .navigationTitle("Hold for Next Month")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") {
-                        model.cancel()
-                        dismiss()
-                    }
-                    .labelStyle(.iconOnly)
-                    .disabled(model.isSaving)
-                    .accessibilityIdentifier("budget-hold-close")
-                }
-            }
-            .actualistKeyboardDone(isVisible: isAmountFocused) { isAmountFocused = false }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(ActualistTheme.background)
+        .foregroundStyle(ActualistTheme.primaryText)
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton(title: "Close") {
+                model.cancel()
+                dismiss()
+            }
+            .disabled(model.isSaving)
+            .accessibilityIdentifier("budget-hold-close")
+
+            if model.draft != nil && !appState.settings.randomizedDisplayValuesEnabled
+                && appState.settings.selectedBudgetID == model.target.budgetID {
+                ReviewSheetPrimaryButton {
+                    isAmountFocused = false
+                    Task {
+                        if await model.submitHold(using: appState) {
+                            ActualistHaptics.success()
+                            dismiss()
+                        }
+                    }
+                } label: {
+                    HStack {
+                        if model.isSaving { ProgressView() }
+                        Text(model.holdTitle)
+                    }
+                }
+                .disabled(!model.canHold)
+                .accessibilityIdentifier("budget-hold-confirm")
+            }
+        }
+        .actualistKeyboardDone(isVisible: isAmountFocused) { isAmountFocused = false }
         .frame(idealWidth: 520)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("budget-hold-sheet")
-        .presentationDetents([.large])
+        .reviewSheetPresentation(appState: appState)
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .interactiveDismissDisabled(model.isSaving)
         .task { await model.prepare(using: appState) }
@@ -87,11 +102,16 @@ struct BudgetHoldSheet: View {
 
     private var reviewContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(model.monthContext)
-                    .font(.subheadline)
-                    .foregroundStyle(ActualistTheme.secondaryText)
-                    .accessibilityIdentifier("budget-hold-month")
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(spacing: 6) {
+                    ReviewSheetHeader(title: "Hold for Next Month")
+                    Text(model.monthContext)
+                        .font(.subheadline)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityIdentifier("budget-hold-month")
+                }
 
                 card {
                     amountRow("To Budget", value: model.availableText, id: "budget-hold-current-available",
@@ -171,49 +191,18 @@ struct BudgetHoldSheet: View {
                         .buttonStyle(.glass)
                 }
             }
-            .padding(20)
+            .padding(.horizontal, 22)
+            .padding(.vertical, 12)
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
         }
         .accessibilityIdentifier("budget-hold-review")
         .scrollDismissesKeyboard(.interactively)
         .foregroundStyle(ActualistTheme.primaryText)
-        .safeAreaBar(edge: .bottom, spacing: 0) {
-            Button {
-                isAmountFocused = false
-                Task {
-                    if await model.submitHold(using: appState) {
-                        ActualistHaptics.success()
-                        dismiss()
-                    }
-                }
-            } label: {
-                HStack {
-                    if model.isSaving { ProgressView() }
-                    Text(model.holdTitle)
-                        .font(.headline)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity, minHeight: 36)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
-            .disabled(!model.canHold)
-            .accessibilityIdentifier("budget-hold-confirm")
-            .frame(maxWidth: 480)
-            .padding(.horizontal, 20)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
-        }
     }
 
     private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12, content: content)
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18))
+        ReviewFormCard { content() }
     }
 
     private func amountRow(_ label: String, value: String, id: String, foreground: Color = ActualistTheme.primaryText) -> some View {

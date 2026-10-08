@@ -72,7 +72,6 @@ struct BudgetMoveMoneyView: View {
         .presentationDragIndicator(.hidden)
         .sheet(isPresented: $isDestinationPickerPresented) {
             BudgetMoveMoneyDestinationPicker(viewModel: viewModel)
-                .appSwitcherPrivacyProtected(using: appState)
         }
         .task(id: viewModel.moveMoneyDraft?.focusedCategoryID) {
             guard !didAutoPresentDestinationPicker else {
@@ -479,49 +478,36 @@ private struct BudgetMoveMoneyDestinationPicker: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                ActualistTheme.background.ignoresSafeArea()
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        searchField
-                        toBudgetButton
-                        destinationGroups
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 18)
-                    .padding(.bottom, 28)
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                ReviewSheetHeader(title: viewModel.moveMoneyDraft?.direction == .intoFocusedCategory ? "Move from" : "Move to")
+                searchField
+                toBudgetButton
+                destinationGroups
             }
-            .navigationTitle(viewModel.moveMoneyDraft?.direction == .intoFocusedCategory ? "Move from" : "Move to")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .actualistToolbarGlassButton()
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        if isSplitMode {
-                            viewModel.finalizeMoveMoneyDestinationSelection()
-                            dismiss()
-                        } else {
-                            isSplitMode = true
-                        }
-                    } label: {
-                        Text(isSplitMode ? "Done" : "Split")
-                    }
-                }
-            }
+            .padding(.horizontal, 22)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
         }
-        .presentationDetents([.medium, .large])
-        .appSwitcherPrivacyAwareDragIndicator()
+        .background(ActualistTheme.background)
+        .foregroundStyle(ActualistTheme.primaryText)
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton { dismiss() }
+                .accessibilityIdentifier("move-money-destination-cancel")
+
+            ReviewSheetPrimaryButton {
+                if isSplitMode {
+                    viewModel.finalizeMoveMoneyDestinationSelection()
+                    dismiss()
+                } else {
+                    isSplitMode = true
+                }
+            } label: {
+                Text(isSplitMode ? "Done" : "Split")
+            }
+            .accessibilityIdentifier("move-money-destination-split")
+        }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
         .onAppear {
             isSplitMode = viewModel.moveMoneyDraft?.allocations.isEmpty == false
         }
