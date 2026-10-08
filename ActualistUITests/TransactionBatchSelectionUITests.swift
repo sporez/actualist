@@ -107,12 +107,12 @@ final class TransactionBatchSelectionUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Review Clear Transactions"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Clear"].isEnabled)
         app.buttons["Clear"].tap()
-        XCTAssertTrue(app.staticTexts["Changes Saved"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(
-            format: "label CONTAINS[c] %@", "saved"
-        )).firstMatch.exists)
+        // Confirming saves and closes right away: no success screen, and
+        // selection mode exits with the review.
+        XCTAssertTrue(app.staticTexts["Review Clear Transactions"].waitForNonExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Changes Saved"].exists)
+        XCTAssertTrue(app.staticTexts["transaction-selection-count"].waitForNonExistence(timeout: 10))
         attachScreenshot(named: "batch-clear-saved-dark-\(layoutName(in: app))", app: app)
-        app.buttons["Done"].tap()
 
         openBudget(in: app)
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 10))

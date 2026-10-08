@@ -20,6 +20,9 @@ final class TransactionBatchPresentation {
     private(set) var sheetContent: SheetContent?
     private(set) var commandSheet: CommandSheet?
     private(set) var categoryPicker: TransactionBatchCategoryPickerWorkflow?
+    /// Bumped once per committed batch, duplicate or merge. The host plays the
+    /// success haptic from it because the review sheet closes on commit.
+    private(set) var commitFeedback = 0
 
     var selectedCount: Int { selection.selectedCount }
 
@@ -29,7 +32,7 @@ final class TransactionBatchPresentation {
         if duplicate.hidesSelectionChrome || merge.hidesSelectionChrome { return false }
         switch selection.state {
         case .selecting, .failed: return true
-        case .inactive, .preparing, .reviewing, .submitting, .committed: return false
+        case .inactive, .preparing, .reviewing, .submitting: return false
         }
     }
 
@@ -105,8 +108,7 @@ final class TransactionBatchPresentation {
     }
 
     func exitSelection() {
-        guard !duplicate.isSubmitting, !merge.isSubmitting,
-              !duplicate.isCommitted, !merge.isCommitted else { return }
+        guard !duplicate.isSubmitting, !merge.isSubmitting else { return }
         endCommandFlows()
         selection.exit()
         cancelCategoryPicker()
@@ -132,7 +134,6 @@ final class TransactionBatchPresentation {
         case .preparing(let preparation): selection.cancelPreparation(preparation)
         case .reviewing: selection.cancelReview()
         case .submitting: return
-        case .committed: selection.finishCommittedResult()
         case .inactive, .selecting, .failed: break
         }
         guard !duplicate.isSubmitting, !merge.isSubmitting else { return }
@@ -218,7 +219,10 @@ final class TransactionBatchPresentation {
                     review: review,
                     authorization: review.authorization
                 )
-                selection.completeSubmission(reviewID: review.id, result: outcome)
+                if selection.completeSubmission(reviewID: review.id) {
+                    sheetContent = nil
+                    commitFeedback &+= 1
+                }
                 onCommitted(outcome)
             } catch {
                 selection.failSubmission(reviewID: review.id, message: error.userFacingMessage ?? error.localizedDescription)
@@ -323,7 +327,9 @@ final class TransactionBatchPresentation {
         Task { @MainActor [self] in
             do {
                 let outcome = try await repository.commitTransactionDuplicate(review: review)
-                duplicate.completeSubmission(reviewID: review.id, result: outcome)
+                if duplicate.completeSubmission(reviewID: review.id) {
+                    finishCommandCommit()
+                }
                 onCommitted(outcome)
             } catch {
                 duplicate.failSubmission(
@@ -352,7 +358,9 @@ final class TransactionBatchPresentation {
                     review: review,
                     authorization: TransactionMergeCoordinator.authorization(for: review)
                 )
-                merge.completeSubmission(reviewID: review.id, result: outcome)
+                if merge.completeSubmission(reviewID: review.id) {
+                    finishCommandCommit()
+                }
                 onCommitted(outcome)
             } catch {
                 merge.failSubmission(
@@ -369,21 +377,10 @@ final class TransactionBatchPresentation {
         }
     }
 
-    func finishCommittedResult() {
-        if duplicate.isCommitted {
-            duplicate.finishCommittedResult()
-            commandSheet = nil
-            selection.exit()
-            return
-        }
-        if merge.isCommitted {
-            merge.finishCommittedResult()
-            commandSheet = nil
-            selection.exit()
-            return
-        }
-        selection.finishCommittedResult()
-        sheetContent = nil
+    private func finishCommandCommit() {
+        commandSheet = nil
+        selection.exit()
+        commitFeedback &+= 1
     }
 
     private var commandFlowLocksSelection: Bool {
@@ -392,10 +389,10 @@ final class TransactionBatchPresentation {
 
     private var isProtectedFlow: Bool {
         switch selection.state {
-        case .submitting, .committed:
+        case .submitting:
             return true
         case .inactive, .selecting, .preparing, .reviewing, .failed:
-            return duplicate.isSubmitting || merge.isSubmitting || duplicate.isCommitted || merge.isCommitted
+            return duplicate.isSubmitting || merge.isSubmitting
         }
     }
 
@@ -404,7 +401,7 @@ final class TransactionBatchPresentation {
         case .selecting(let context, _), .failed(let context, _, _): context
         case .preparing(let preparation): preparation.context
         case .reviewing(let review), .submitting(let review): review.context
-        case .inactive, .committed: nil
+        case .inactive: nil
         }
     }
 

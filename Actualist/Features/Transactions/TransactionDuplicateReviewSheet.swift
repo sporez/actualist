@@ -6,7 +6,6 @@ struct TransactionDuplicateCommandSheet: View {
     let isPrivacyModeEnabled: Bool
     let onCancel: () -> Void
     let onConfirm: () -> Void
-    let onDone: () -> Void
 
     var body: some View {
         switch coordinator.state {
@@ -28,24 +27,9 @@ struct TransactionDuplicateCommandSheet: View {
                 title: "Saving Changes",
                 message: "The selected copies are being saved together…"
             )
-        case .committed(let outcome):
-            TransactionCommandCommittedSheet(
-                message: Self.completionMessage(outcome),
-                onDone: onDone
-            )
         case .idle, .failed:
             EmptyView()
         }
-    }
-
-    private static func completionMessage(_ outcome: TransactionDuplicateOutcome) -> String {
-        guard outcome.sessionCurrent else {
-            return "Copies were saved, but this budget is no longer open. Reopen it to see the new transactions."
-        }
-        if outcome.refreshPending {
-            return "Copies were saved. The transaction list is refreshing. You can undo them together in Budget → History."
-        }
-        return "The selected transactions were duplicated. You can undo them together in Budget → History."
     }
 }
 
@@ -99,6 +83,8 @@ struct TransactionDuplicateReviewSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .actualistReviewCard()
             }
+
+            TransactionHistoryUndoHint()
 
             ForEach(display.groups) { group in
                 VStack(alignment: .leading, spacing: 10) {

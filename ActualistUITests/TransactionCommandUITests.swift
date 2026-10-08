@@ -147,8 +147,9 @@ final class TransactionCommandUITests: XCTestCase {
         XCTAssertTrue(app.buttons["transaction-duplicate-confirm"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["transaction-duplicate-confirm"].isEnabled)
         app.buttons["transaction-duplicate-confirm"].tap()
-        XCTAssertTrue(app.staticTexts["Changes Saved"].waitForExistence(timeout: 10))
-        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["transaction-duplicate-confirm"].waitForNonExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Changes Saved"].exists)
+        XCTAssertTrue(app.staticTexts["transaction-selection-count"].waitForNonExistence(timeout: 10))
 
         openBudget(in: app)
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 10))

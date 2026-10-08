@@ -19,7 +19,6 @@ final class TransactionDuplicateCoordinator {
         case preparing(Preparation)
         case reviewing(TransactionDuplicateReview)
         case submitting(TransactionDuplicateReview)
-        case committed(TransactionDuplicateOutcome)
         case failed(
             context: TransactionSelectionContext,
             message: String
@@ -34,14 +33,9 @@ final class TransactionDuplicateCoordinator {
         return false
     }
 
-    var isCommitted: Bool {
-        if case .committed = state { return true }
-        return false
-    }
-
     var hidesSelectionChrome: Bool {
         switch state {
-        case .preparing, .reviewing, .submitting, .committed: true
+        case .preparing, .reviewing, .submitting: true
         case .idle, .failed: false
         }
     }
@@ -59,7 +53,7 @@ final class TransactionDuplicateCoordinator {
         switch state {
         case .idle, .failed:
             break
-        case .preparing, .reviewing, .submitting, .committed:
+        case .preparing, .reviewing, .submitting:
             return nil
         }
         guard !selections.isEmpty else { return nil }
@@ -130,9 +124,13 @@ final class TransactionDuplicateCoordinator {
         return review
     }
 
-    func completeSubmission(reviewID: String, result: TransactionDuplicateOutcome) {
-        guard case .submitting(let review) = state, review.id == reviewID else { return }
-        state = .committed(result)
+    /// Returns whether this review was the one in flight; stale completions change nothing.
+    @discardableResult
+    func completeSubmission(reviewID: String) -> Bool {
+        guard case .submitting(let review) = state, review.id == reviewID else { return false }
+        invalidatePendingWork()
+        state = .idle
+        return true
     }
 
     func failSubmission(reviewID: String, message: String) {
@@ -143,16 +141,10 @@ final class TransactionDuplicateCoordinator {
         )
     }
 
-    func finishCommittedResult() {
-        guard case .committed = state else { return }
-        invalidatePendingWork()
-        state = .idle
-    }
-
-    /// Drops an in-flight review without touching a submit or a saved result.
+    /// Drops an in-flight review without touching a submit.
     func invalidate() {
         switch state {
-        case .submitting, .committed:
+        case .submitting:
             return
         case .idle, .preparing, .reviewing, .failed:
             invalidatePendingWork()
@@ -166,8 +158,6 @@ final class TransactionDuplicateCoordinator {
             cancelPreparation(preparation)
         case .reviewing:
             cancelReview()
-        case .committed:
-            finishCommittedResult()
         case .failed:
             dismissFailure()
         case .idle, .submitting:

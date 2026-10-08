@@ -20,6 +20,7 @@ struct TransactionBatchPresentationHost: ViewModifier {
                     .appSwitcherPrivacyProtected(using: appState)
                     .interactiveDismissDisabled(presentation.preventsSheetDismissal)
             }
+            .sensoryFeedback(.success, trigger: presentation.commitFeedback)
             .onChange(of: context) { _, context in presentation.contextChanged(to: context) }
             .onChange(of: selectedBudgetID) { _, _ in presentation.contextChanged(to: context) }
             .onChange(of: sessionGeneration) { presentation.sessionChanged() }
@@ -43,8 +44,7 @@ struct TransactionBatchPresentationHost: ViewModifier {
                 currency: currency,
                 isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                 onCancel: { presentation.cancelSheet() },
-                onConfirm: { confirmDuplicate() },
-                onDone: { presentation.finishCommittedResult() }
+                onConfirm: { confirmDuplicate() }
             )
         case .merge:
             TransactionMergeCommandSheet(
@@ -52,8 +52,7 @@ struct TransactionBatchPresentationHost: ViewModifier {
                 currency: currency,
                 isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                 onCancel: { presentation.cancelSheet() },
-                onConfirm: { confirmMerge() },
-                onDone: { presentation.finishCommittedResult() }
+                onConfirm: { confirmMerge() }
             )
         case nil:
             TransactionBatchInteractionSheet(

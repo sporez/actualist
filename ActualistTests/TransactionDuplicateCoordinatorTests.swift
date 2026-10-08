@@ -132,6 +132,40 @@ struct TransactionDuplicateCoordinatorTests {
         #expect(presentation.selection.orderedSelectedIdentities.map(\.transactionID) == ["first", "second"])
     }
 
+    @Test func confirmedDuplicateClosesAndBumpsFeedbackOnce() async throws {
+        let repository = CommittingDuplicateRepository()
+        let presentation = TransactionBatchPresentation()
+        let context = makeCommandContext()
+        presentation.enter(context: context)
+        presentation.toggle(transaction(id: "first"))
+        let task = try #require(presentation.prepareDuplicate(feedContext: context, repository: repository))
+        await task.value
+        #expect(presentation.commitFeedback == 0)
+        presentation.confirmDuplicate(repository: repository, currentFeedContext: { context }, onCommitted: { _ in })
+        await ObservedTestState { presentation.commitFeedback == 1 }.wait()
+
+        #expect(presentation.commandSheet == nil)
+        #expect(presentation.duplicate.state == .idle)
+        #expect(presentation.selection.state == .inactive)
+        #expect(!presentation.isSelectionMode)
+    }
+
+    @Test func failedDuplicateCommitDoesNotBumpFeedback() async throws {
+        let repository = CommittingDuplicateRepository()
+        repository.commitFails = true
+        let presentation = TransactionBatchPresentation()
+        let context = makeCommandContext()
+        presentation.enter(context: context)
+        presentation.toggle(transaction(id: "first"))
+        let task = try #require(presentation.prepareDuplicate(feedContext: context, repository: repository))
+        await task.value
+        presentation.confirmDuplicate(repository: repository, currentFeedContext: { context }, onCommitted: { _ in })
+        await ObservedTestState { presentation.selectionFailureMessage != nil }.wait()
+
+        #expect(presentation.commitFeedback == 0)
+        #expect(presentation.isSelectionMode)
+    }
+
     @Test func duplicateFailurePreservesTheSelection() async throws {
         let repository = ThrowingDuplicateRepository()
         let presentation = TransactionBatchPresentation()
@@ -194,6 +228,37 @@ private final class DeferredDuplicateRepository: TransactionDuplicateRepositoryP
     ) async throws -> TransactionDuplicateOutcome {
         Issue.record("Commit was not expected")
         throw DuplicateReviewFailure.expected
+    }
+}
+
+@MainActor
+private final class CommittingDuplicateRepository: TransactionDuplicateRepositoryProtocol {
+    var commitFails = false
+
+    func reviewTransactionDuplicate(
+        context: TransactionSelectionContext,
+        selections: [TransactionSelectionIdentity]
+    ) async throws -> TransactionDuplicateReview {
+        duplicateReview(
+            context: context,
+            selections: selections,
+            groupIDs: selections.map(\.transactionID),
+            id: "review"
+        )
+    }
+
+    func commitTransactionDuplicate(
+        review: TransactionDuplicateReview
+    ) async throws -> TransactionDuplicateOutcome {
+        if commitFails { throw DuplicateReviewFailure.expected }
+        return TransactionDuplicateOutcome(
+            receipt: TransactionDuplicateReceipt(
+                changed: ChangedResources(accounts: ["checking"], months: ["2026-08"], transactions: []),
+                actionID: "action"
+            ),
+            refreshPending: false,
+            sessionCurrent: true
+        )
     }
 }
 

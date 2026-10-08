@@ -353,15 +353,10 @@ struct TransactionSelectionCoordinatorTests {
             querySignature: TransactionFeedQuery().signature
         ))
         #expect(coordinator.isSubmitting)
-        let result = TransactionBatchResult(
-            changedAccountIDs: ["account"],
-            changedMonthIDs: ["2026-09"],
-            changedTransactionIDs: ["txn"],
-            actionID: "action"
-        )
-        let outcome = TransactionBatchOutcome(receipt: result, refreshPending: true, sessionCurrent: false)
-        coordinator.completeSubmission(reviewID: review.id, result: outcome)
-        #expect(coordinator.state == .committed(outcome))
+        #expect(!coordinator.completeSubmission(reviewID: "stale"))
+        #expect(coordinator.isSubmitting)
+        #expect(coordinator.completeSubmission(reviewID: review.id))
+        #expect(coordinator.state == .inactive)
     }
 
     @Test func cancellingReviewReturnsToSelectionAndFailedSubmitRetainsIt() throws {

@@ -117,12 +117,35 @@ struct TransactionMergeCoordinatorTests {
             onCommitted: { _ in }
         )
         await repository.waitForCommit()
+        await ObservedTestState { presentation.commitFeedback == 1 }.wait()
 
+        #expect(presentation.commandSheet == nil)
+        #expect(presentation.selection.state == .inactive)
+        #expect(presentation.merge.state == .idle)
         #expect(repository.authorization == TransactionMergeAuthorization(
             reviewID: "review",
             reviewFingerprint: "fingerprint",
             reconciledTransactionIDs: ["paired", "first"]
         ))
+    }
+
+    @Test func failedMergeCommitClosesTheSheetWithoutFeedback() async throws {
+        let repository = RecordingMergeRepository()
+        repository.commitFails = true
+        let presentation = TransactionBatchPresentation()
+        let context = makeCommandContext()
+        presentation.enter(context: context)
+        presentation.toggle(transaction(id: "first"))
+        presentation.toggle(transaction(id: "second"))
+        repository.review = mergeReview(context: context, orderedIDs: ["first", "second"])
+        let task = try #require(presentation.prepareMerge(feedContext: context, repository: repository))
+        await task.value
+        presentation.confirmMerge(repository: repository, currentFeedContext: { context }, onCommitted: { _ in })
+        await ObservedTestState { presentation.selectionFailureMessage != nil }.wait()
+
+        #expect(presentation.commitFeedback == 0)
+        #expect(presentation.commandSheet == nil)
+        #expect(presentation.isSelectionMode)
     }
 
     @Test func mergeFailurePreservesTapOrder() async throws {
@@ -145,6 +168,7 @@ struct TransactionMergeCoordinatorTests {
 private final class RecordingMergeRepository: TransactionMergeRepositoryProtocol {
     var review = mergeReview(context: makeCommandContext(), orderedIDs: [])
     private(set) var authorization: TransactionMergeAuthorization?
+    var commitFails = false
     private let committed = TestLatch()
 
     func reviewTransactionMerge(
@@ -160,6 +184,7 @@ private final class RecordingMergeRepository: TransactionMergeRepositoryProtocol
     ) async throws -> TransactionMergeOutcome {
         self.authorization = authorization
         committed.trip()
+        if commitFails { throw MergeReviewFailure.expected }
         return TransactionMergeOutcome(
             receipt: TransactionMergeReceipt(
                 changedAccountIDs: ["checking"],

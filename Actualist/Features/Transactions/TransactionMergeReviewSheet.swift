@@ -6,7 +6,6 @@ struct TransactionMergeCommandSheet: View {
     let isPrivacyModeEnabled: Bool
     let onCancel: () -> Void
     let onConfirm: () -> Void
-    let onDone: () -> Void
 
     var body: some View {
         switch coordinator.state {
@@ -28,24 +27,9 @@ struct TransactionMergeCommandSheet: View {
                 title: "Saving Changes",
                 message: "The selected transactions are being merged…"
             )
-        case .committed(let outcome):
-            TransactionCommandCommittedSheet(
-                message: Self.completionMessage(outcome),
-                onDone: onDone
-            )
         case .idle, .failed:
             EmptyView()
         }
-    }
-
-    private static func completionMessage(_ outcome: TransactionMergeOutcome) -> String {
-        guard outcome.sessionCurrent else {
-            return "The merge was saved, but this budget is no longer open. Reopen it to see the updated transactions."
-        }
-        if outcome.refreshPending {
-            return "The merge was saved. The transaction list is refreshing. You can undo it in Budget → History."
-        }
-        return "The selected transactions were merged. You can undo them together in Budget → History."
     }
 }
 
@@ -111,6 +95,8 @@ struct TransactionMergeReviewSheet: View {
                     .actualistReviewCard()
                     .accessibilityIdentifier("transaction-merge-reconciled-warning")
             }
+
+            TransactionHistoryUndoHint()
 
             ForEach(display.inputs) { input in
                 inputCard(input, effects: input.isKept ? display.keptEffects : [])
@@ -248,36 +234,6 @@ struct TransactionCommandProgressSheet: View {
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 16)
-        .background(ActualistTheme.background)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
-}
-
-struct TransactionCommandCommittedSheet: View {
-    let message: String
-    let onDone: () -> Void
-
-    var body: some View {
-        ReviewSheetContent {
-            ReviewSheetHeader(title: "Changes Saved")
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(ActualistTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .actualistReviewCard()
-        }
-        .reviewSheetBottomBar {
-            Button(action: onDone) {
-                Text("Done")
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
-        }
         .background(ActualistTheme.background)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

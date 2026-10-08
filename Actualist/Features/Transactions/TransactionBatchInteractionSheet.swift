@@ -53,8 +53,6 @@ struct TransactionBatchInteractionSheet: View {
             )
         case .submitting:
             progressContent(title: "Saving Changes", message: "The selected changes are being saved together…")
-        case .committed(let outcome):
-            committedContent(outcome)
         case .inactive, .selecting, .failed:
             EmptyView()
         }
@@ -72,40 +70,5 @@ struct TransactionBatchInteractionSheet: View {
         .background(ActualistTheme.background)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-    }
-
-    private func committedContent(_ outcome: TransactionBatchOutcome) -> some View {
-        ReviewSheetContent {
-            ReviewSheetHeader(title: "Changes Saved")
-            Text(completionMessage(outcome))
-                .font(.subheadline)
-                .foregroundStyle(ActualistTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .actualistReviewCard()
-        }
-        .reviewSheetBottomBar {
-            Button(action: { presentation.finishCommittedResult() }) {
-                Text("Done")
-                    .font(.subheadline.weight(.semibold))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .buttonStyle(.glassProminent)
-            .tint(ActualistTheme.accent)
-        }
-        .background(ActualistTheme.background)
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
-
-    private func completionMessage(_ outcome: TransactionBatchOutcome) -> String {
-        guard outcome.sessionCurrent else {
-            return "Changes were saved, but this budget is no longer open. Reopen it to see the updated transactions."
-        }
-        if outcome.refreshPending {
-            return "Changes were saved. The transaction list is refreshing. You can undo them together in Budget → History."
-        }
-        return "The selected changes were saved together. You can undo them together in Budget → History."
     }
 }

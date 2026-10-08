@@ -58,6 +58,8 @@ struct TransactionBatchReviewSheet: View {
                     .actualistReviewCard()
             }
 
+            TransactionHistoryUndoHint()
+
             LazyVStack(spacing: 10) {
                 ForEach(display.rows) { row in
                     transactionCard(row)

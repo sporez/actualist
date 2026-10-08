@@ -26,7 +26,6 @@ final class TransactionMergeCoordinator {
         case preparing(Preparation)
         case reviewing(ReviewedMerge)
         case submitting(ReviewedMerge)
-        case committed(TransactionMergeOutcome)
         case failed(
             context: TransactionSelectionContext,
             message: String
@@ -41,14 +40,9 @@ final class TransactionMergeCoordinator {
         return false
     }
 
-    var isCommitted: Bool {
-        if case .committed = state { return true }
-        return false
-    }
-
     var hidesSelectionChrome: Bool {
         switch state {
-        case .preparing, .reviewing, .submitting, .committed: true
+        case .preparing, .reviewing, .submitting: true
         case .idle, .failed: false
         }
     }
@@ -61,7 +55,7 @@ final class TransactionMergeCoordinator {
     var review: TransactionMergeReview? {
         switch state {
         case .reviewing(let reviewed), .submitting(let reviewed): reviewed.review
-        case .idle, .preparing, .committed, .failed: nil
+        case .idle, .preparing, .failed: nil
         }
     }
 
@@ -85,7 +79,7 @@ final class TransactionMergeCoordinator {
         switch state {
         case .idle, .failed:
             break
-        case .preparing, .reviewing, .submitting, .committed:
+        case .preparing, .reviewing, .submitting:
             return nil
         }
         guard !selections.isEmpty else { return nil }
@@ -153,9 +147,13 @@ final class TransactionMergeCoordinator {
         return reviewed.review
     }
 
-    func completeSubmission(reviewID: String, result: TransactionMergeOutcome) {
-        guard case .submitting(let reviewed) = state, reviewed.review.id == reviewID else { return }
-        state = .committed(result)
+    /// Returns whether this review was the one in flight; stale completions change nothing.
+    @discardableResult
+    func completeSubmission(reviewID: String) -> Bool {
+        guard case .submitting(let reviewed) = state, reviewed.review.id == reviewID else { return false }
+        invalidatePendingWork()
+        state = .idle
+        return true
     }
 
     func failSubmission(reviewID: String, message: String) {
@@ -166,15 +164,9 @@ final class TransactionMergeCoordinator {
         )
     }
 
-    func finishCommittedResult() {
-        guard case .committed = state else { return }
-        invalidatePendingWork()
-        state = .idle
-    }
-
     func invalidate() {
         switch state {
-        case .submitting, .committed:
+        case .submitting:
             return
         case .idle, .preparing, .reviewing, .failed:
             invalidatePendingWork()
@@ -188,8 +180,6 @@ final class TransactionMergeCoordinator {
             cancelPreparation(preparation)
         case .reviewing:
             cancelReview()
-        case .committed:
-            finishCommittedResult()
         case .failed:
             dismissFailure()
         case .idle, .submitting:

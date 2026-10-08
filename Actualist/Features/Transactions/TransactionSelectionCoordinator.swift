@@ -18,7 +18,6 @@ final class TransactionSelectionCoordinator {
         case preparing(Preparation)
         case reviewing(TransactionBatchReview)
         case submitting(TransactionBatchReview)
-        case committed(TransactionBatchOutcome)
         case failed(context: TransactionSelectionContext, selections: TransactionOrderedSelection, message: String)
     }
 
@@ -43,7 +42,7 @@ final class TransactionSelectionCoordinator {
         case .selecting(_, let selections), .failed(_, let selections, _): selections.identities
         case .preparing(let preparation): preparation.selections
         case .reviewing(let review): review.selections
-        case .submitting, .committed, .inactive: []
+        case .submitting, .inactive: []
         }
     }
 
@@ -189,9 +188,13 @@ final class TransactionSelectionCoordinator {
         return review
     }
 
-    func completeSubmission(reviewID: String, result: TransactionBatchOutcome) {
-        guard case .submitting(let review) = state, review.id == reviewID else { return }
-        state = .committed(result)
+    /// Returns whether this review was the one in flight; stale completions change nothing.
+    @discardableResult
+    func completeSubmission(reviewID: String) -> Bool {
+        guard case .submitting(let review) = state, review.id == reviewID else { return false }
+        invalidatePendingWork()
+        state = .inactive
+        return true
     }
 
     func failSubmission(reviewID: String, message: String) {
@@ -203,18 +206,12 @@ final class TransactionSelectionCoordinator {
         )
     }
 
-    func finishCommittedResult() {
-        guard case .committed = state else { return }
-        invalidatePendingWork()
-        state = .inactive
-    }
-
     private var activeContext: TransactionSelectionContext? {
         switch state {
         case .selecting(let context, _), .failed(let context, _, _): context
         case .preparing(let preparation): preparation.context
         case .reviewing(let review), .submitting(let review): review.context
-        case .inactive, .committed: nil
+        case .inactive: nil
         }
     }
 
