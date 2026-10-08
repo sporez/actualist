@@ -52,7 +52,7 @@ final class LabBudgetSwitchUITests: XCTestCase {
         pairB.doubleTap()
 
         XCTAssertTrue(selected("Lab · Pair B", in: app).waitForExistence(timeout: 120))
-        XCTAssertFalse(app.navigationBars["Budgets"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Cancel"].waitForExistence(timeout: 3))
         XCTAssertFalse(selected("Lab · Pair A", in: app).exists)
         XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] %@", "error")).firstMatch.exists)
     }

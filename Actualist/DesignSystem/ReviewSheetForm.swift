@@ -87,3 +87,30 @@ struct ReviewFormSegmentedRow<Value: Hashable>: View {
         }
     }
 }
+
+/// Centered title (and optional subtitle) as the first row of a `List`/`Form`
+/// based review sheet. Used where List features (swipe delete, reordering,
+/// refresh) must be kept; the row is chrome-free like `ReviewSheetHeader`.
+struct ReviewSheetListHeader: View {
+    let title: String
+    var subtitle: String? = nil
+
+    var body: some View {
+        ReviewSheetHeader(title: title, subtitle: subtitle)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 4, trailing: 0))
+    }
+}
+
+extension View {
+    /// Themed `List`/`Form` surface for review sheets: opaque background and
+    /// palette text/tint. Sections stay inset cards via `settingsSectionChrome`.
+    func reviewSheetList() -> some View {
+        self
+            .scrollContentBackground(.hidden)
+            .background(ActualistTheme.background)
+            .foregroundStyle(ActualistTheme.primaryText)
+            .tint(ActualistTheme.accent)
+    }
+}

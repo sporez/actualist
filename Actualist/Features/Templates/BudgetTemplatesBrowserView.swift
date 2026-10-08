@@ -102,7 +102,6 @@ struct BudgetTemplatesBrowserView: View {
             BudgetTemplateEditorView(target: target) {
                 Task { await load() }
             }
-            .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(isPresented: $isPickerPresented, onDismiss: {
             presentPendingPickerCategory()
@@ -113,7 +112,6 @@ struct BudgetTemplatesBrowserView: View {
             ) { categoryID in
                 pendingPickerCategoryID = categoryID
             }
-            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 
@@ -150,54 +148,46 @@ struct BudgetTemplatesBrowserView: View {
 }
 
 struct BudgetTemplatesCategoryPickerView: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     let visibleSections: [BudgetTemplatesBrowserSection]
     let hiddenSection: BudgetTemplatesBrowserSection?
     let onSelect: (String) -> Void
 
     var body: some View {
-        NavigationStack {
-            List {
-                if visibleSections.isEmpty && hiddenSection == nil {
-                    ContentUnavailableView(
-                        "No Categories",
-                        systemImage: "sparkles",
-                        description: Text("Every category already has a template.")
-                    )
-                } else {
-                    ForEach(visibleSections) { section in
-                        Section(section.title) {
-                            ForEach(section.rows) { row in
-                                pickerRow(row)
-                            }
+        List {
+            ReviewSheetListHeader(title: "Category")
+            if visibleSections.isEmpty && hiddenSection == nil {
+                ContentUnavailableView(
+                    "No Categories",
+                    systemImage: "sparkles",
+                    description: Text("Every category already has a template.")
+                )
+            } else {
+                ForEach(visibleSections) { section in
+                    Section(section.title) {
+                        ForEach(section.rows) { row in
+                            pickerRow(row)
                         }
-                        .settingsSectionChrome()
                     }
-
-                    if let hiddenSection {
-                        Section(hiddenSection.title) {
-                            ForEach(hiddenSection.rows) { row in
-                                pickerRow(row)
-                            }
-                        }
-                        .settingsSectionChrome()
-                    }
+                    .settingsSectionChrome()
                 }
-            }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .navigationTitle("Category")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
+
+                if let hiddenSection {
+                    Section(hiddenSection.title) {
+                        ForEach(hiddenSection.rows) { row in
+                            pickerRow(row)
+                        }
                     }
+                    .settingsSectionChrome()
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .appSwitcherPrivacyAwareDragIndicator()
+        .reviewSheetList()
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton { dismiss() }
+        }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
     }
 
     private func pickerRow(_ row: BudgetTemplatesBrowserRow) -> some View {

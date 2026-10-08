@@ -11,30 +11,17 @@ struct BankSyncAccountSheet: View {
     @State private var selectedRemoteID: String?
 
     var body: some View {
-        NavigationStack {
-            List {
-                if line.isLinked {
-                    linkedSection
-                } else {
-                    linkSection
-                }
+        List {
+            ReviewSheetListHeader(title: line.name)
+            if line.isLinked {
+                linkedSection
+            } else {
+                linkSection
             }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .navigationTitle(line.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .accessibilityLabel("Close")
-                }
-            }
+        }
+        .reviewSheetList()
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton(title: "Close", role: nil) { dismiss() }
         }
         .task(id: viewModel.canLinkAccounts) {
             await viewModel.ensureRemoteAccounts()
@@ -42,6 +29,7 @@ struct BankSyncAccountSheet: View {
         .onDisappear {
             viewModel.dismissAccountSheet()
         }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
     }
 
     private var linkedSection: some View {

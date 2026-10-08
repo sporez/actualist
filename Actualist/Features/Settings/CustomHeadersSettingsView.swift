@@ -12,6 +12,7 @@ struct CustomHeadersSettingsView: View {
 
     var body: some View {
         List {
+            ReviewSheetListHeader(title: "Custom Headers")
             ForEach(viewModel.endpoints) { endpoint in
                 Section {
                     Text(endpoint.serverLabel)
@@ -80,19 +81,16 @@ struct CustomHeadersSettingsView: View {
                     .settingsSectionChrome()
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(ActualistTheme.background)
-        .foregroundStyle(ActualistTheme.primaryText)
-        .tint(ActualistTheme.accent)
-        .navigationTitle("Custom Headers")
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden()
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") { if viewModel.save() { dismiss() } }
-                    .disabled(!viewModel.canSave)
+        .reviewSheetList()
+        .toolbar(.hidden, for: .navigationBar)
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton { dismiss() }
+            ReviewSheetPrimaryButton {
+                if viewModel.save() { dismiss() }
+            } label: {
+                Text("Save")
             }
+            .disabled(!viewModel.canSave)
         }
         .onDisappear { viewModel.cancelTesting() }
     }

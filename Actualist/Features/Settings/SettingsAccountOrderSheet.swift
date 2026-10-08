@@ -10,79 +10,70 @@ struct SettingsAccountOrderSheet: View {
     private var buckets: [SettingsAccountOrderViewModel.OrderBucket] { model.buckets(using: appState) }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if model.isLoading {
-                    ProgressView("Loading accounts")
-                        .settingsRowChrome()
-                }
+        List {
+            ReviewSheetListHeader(
+                title: "Account Order",
+                subtitle: "Drag accounts to reorder them."
+            )
+            if model.isLoading {
+                ProgressView("Loading accounts")
+                    .settingsRowChrome()
+            }
 
-                if let errorMessage = model.errorMessage {
-                    Text(errorMessage)
+            if let errorMessage = model.errorMessage {
+                Text(errorMessage)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.danger)
+                    .settingsRowChrome()
+            }
+
+            if appState.settings.selectedBudgetID == nil {
+                Section("Accounts") {
+                    Text("Select a budget before setting account order.")
                         .font(ActualistTypography.rowTitle(for: density))
-                        .foregroundStyle(ActualistTheme.danger)
-                        .settingsRowChrome()
+                        .foregroundStyle(ActualistTheme.secondaryText)
                 }
-
-                if appState.settings.selectedBudgetID == nil {
-                    Section("Accounts") {
-                        Text("Select a budget before setting account order.")
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                    }
-                    .settingsSectionChrome()
-                } else if buckets.isEmpty && !model.isLoading {
-                    Section("Accounts") {
-                        Text("No accounts loaded.")
-                            .font(ActualistTypography.rowTitle(for: density))
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                    }
-                    .settingsSectionChrome()
-                } else {
-                    ForEach(buckets) { bucket in
-                        Section {
-                            ForEach(bucket.accounts) { account in
-                                SettingsAccountOrderRow(account: account)
-                            }
-                            .onMove { model.move(in: bucket, from: $0, to: $1, using: appState) }
-                        } header: {
-                            SettingsAccountOrderBucketHeader(bucket: bucket)
+                .settingsSectionChrome()
+            } else if buckets.isEmpty && !model.isLoading {
+                Section("Accounts") {
+                    Text("No accounts loaded.")
+                        .font(ActualistTypography.rowTitle(for: density))
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .settingsSectionChrome()
+            } else {
+                ForEach(buckets) { bucket in
+                    Section {
+                        ForEach(bucket.accounts) { account in
+                            SettingsAccountOrderRow(account: account)
                         }
-                        .settingsSectionChrome()
+                        .onMove { model.move(in: bucket, from: $0, to: $1, using: appState) }
+                    } header: {
+                        SettingsAccountOrderBucketHeader(bucket: bucket)
                     }
+                    .settingsSectionChrome()
                 }
-            }
-            .environment(\.editMode, .constant(.active))
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .navigationTitle("Account Order")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Reset") {
-                        model.reset(using: appState)
-                    }
-                    .disabled(!model.hasCustomOrder(using: appState))
-                }
-
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-            .task {
-                await model.load(using: appState)
-            }
-            .refreshable {
-                await model.refresh(using: appState)
             }
         }
-        .appSwitcherPrivacyProtected(using: appState)
+        .environment(\.editMode, .constant(.active))
+        .reviewSheetList()
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton(title: "Reset", role: nil) {
+                model.reset(using: appState)
+            }
+            .disabled(!model.hasCustomOrder(using: appState))
+            ReviewSheetPrimaryButton { dismiss() } label: {
+                Text("Done")
+            }
+        }
+        .task {
+            await model.load(using: appState)
+        }
+        .refreshable {
+            await model.refresh(using: appState)
+        }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
     }
-
 }
 
 private struct SettingsAccountOrderBucketHeader: View {

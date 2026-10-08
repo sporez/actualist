@@ -234,16 +234,12 @@ struct PayeesView: View {
         .sensoryFeedback(.success, trigger: viewModel.successFeedback)
         .sheet(isPresented: $isCreatePresented) {
             PayeeNameEntrySheet(viewModel: viewModel)
-            .appSwitcherPrivacyAwareDragIndicator()
-            .appSwitcherPrivacyProtected(using: appState)
         }
         .sheet(isPresented: $isMergeTargetPresented) {
             PayeeMergeTargetSheet(payees: viewModel.selectedPayees) { payee in
                 isMergeTargetPresented = false
                 Task { _ = await viewModel.merge(into: payee.id, using: appState) }
             }
-            .appSwitcherPrivacyAwareDragIndicator()
-            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 
@@ -538,91 +534,92 @@ private struct PayeeNameEntrySheet: View {
     @State private var isSubmitting = false
 
     var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Payee name", text: $name)
-                    .textInputAutocapitalization(.words)
-                    .settingsRowChrome()
-
-                if let errorMessage = viewModel.errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(ActualistTheme.danger)
-                        .settingsRowChrome()
+        ReviewSheetContent {
+            ReviewSheetHeader(title: "New Payee")
+            ReviewFormCard {
+                ReviewFormFieldRow(title: "Payee name") {
+                    TextField("Payee name", text: $name)
+                        .textInputAutocapitalization(.words)
+                        .reviewSheetFieldStyle()
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .navigationTitle("New Payee")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                        .disabled(isSubmitting)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        isSubmitting = true
-                        Task {
-                            if await viewModel.create(name: name, using: appState) {
-                                dismiss()
-                            }
-                            isSubmitting = false
-                        }
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
-                }
+            if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .scrollDismissesKeyboard(.interactively)
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton { dismiss() }
+                .disabled(isSubmitting)
+            ReviewSheetPrimaryButton {
+                isSubmitting = true
+                Task {
+                    if await viewModel.create(name: name, using: appState) {
+                        dismiss()
+                    }
+                    isSubmitting = false
+                }
+            } label: {
+                Text("Add")
+            }
+            .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSubmitting)
+        }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
     }
 }
 
 private struct PayeeMergeTargetSheet: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     let payees: [ManagedPayee]
     let onChoose: (ManagedPayee) -> Void
     @State private var pendingMergeTarget: ManagedPayee?
 
     var body: some View {
-        NavigationStack {
-            List(payees) { payee in
-                Button {
-                    pendingMergeTarget = payee
-                } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(payee.displayName)
-                            .foregroundStyle(ActualistTheme.primaryText)
-                        Text("Keep this payee")
-                            .font(.caption)
-                            .foregroundStyle(ActualistTheme.secondaryText)
+        List {
+            ReviewSheetListHeader(
+                title: "Choose Payee to Keep",
+                subtitle: "The other selected payees merge into it."
+            )
+            Section {
+                ForEach(payees) { payee in
+                    Button {
+                        pendingMergeTarget = payee
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(payee.displayName)
+                                .foregroundStyle(ActualistTheme.primaryText)
+                            Text("Keep this payee")
+                                .font(.caption)
+                                .foregroundStyle(ActualistTheme.secondaryText)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .settingsRowChrome()
-                .confirmationDialog(
-                    "Merge Payees?",
-                    isPresented: $pendingMergeTarget.isPresented(matching: payee.id),
-                    titleVisibility: .visible
-                ) {
-                    Button("Merge into \(payee.displayName)", role: .destructive) {
-                        onChoose(payee)
+                    .buttonStyle(.plain)
+                    .confirmationDialog(
+                        "Merge Payees?",
+                        isPresented: $pendingMergeTarget.isPresented(matching: payee.id),
+                        titleVisibility: .visible
+                    ) {
+                        Button("Merge into \(payee.displayName)", role: .destructive) {
+                            onChoose(payee)
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("Transactions will display as \(payee.displayName). The other selected payees will be removed.")
                     }
-                    Button("Cancel", role: .cancel) {}
-                } message: {
-                    Text("Transactions will display as \(payee.displayName). The other selected payees will be removed.")
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .navigationTitle("Choose Payee to Keep")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
+            .settingsSectionChrome()
         }
+        .reviewSheetList()
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton { dismiss() }
+        }
+        .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
     }
 }

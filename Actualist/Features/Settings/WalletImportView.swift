@@ -15,64 +15,66 @@ struct WalletImportView: View {
     @State private var viewModel = WalletImportViewModel()
 
     var body: some View {
-        NavigationStack {
-            Form {
-                if !WalletImportAvailability.isFinancialDataAvailable {
+        Form {
+            ReviewSheetListHeader(title: "Review Apple Wallet Activity")
+            if !WalletImportAvailability.isFinancialDataAvailable {
+                Section {
+                    Text("Apple Wallet activity isn't available on this iPhone. It needs Apple Card, Apple Cash, or Savings, which are only offered in the United States.")
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+                .settingsSectionChrome()
+            } else {
+                accountSection
+                if !viewModel.displayedCandidates.isEmpty {
+                    candidatesSection
+                }
+                if let result = viewModel.result {
                     Section {
-                        Text("Apple Wallet activity isn't available on this iPhone. It needs Apple Card, Apple Cash, or Savings, which are only offered in the United States.")
-                            .foregroundStyle(ActualistTheme.secondaryText)
+                        Text(result.summaryText)
+                            .foregroundStyle(ActualistTheme.primaryText)
                     }
                     .settingsSectionChrome()
-                } else {
-                    accountSection
-                    if !viewModel.displayedCandidates.isEmpty {
-                        candidatesSection
-                    }
-                    importSection
-                    if let result = viewModel.result {
-                        Section {
-                            Text(result.summaryText)
-                                .foregroundStyle(ActualistTheme.primaryText)
-                        }
-                        .settingsSectionChrome()
-                    }
-                    if let errorMessage = viewModel.errorMessage {
-                        Section {
-                            Text(errorMessage)
-                                .foregroundStyle(ActualistTheme.danger)
-                        }
-                        .settingsSectionChrome()
-                    }
                 }
-            }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .navigationTitle("Review Apple Wallet Activity")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
+                if let errorMessage = viewModel.errorMessage {
+                    Section {
+                        Text(errorMessage)
+                            .foregroundStyle(ActualistTheme.danger)
                     }
-                }
-            }
-            .task {
-                await viewModel.prepare(using: appState)
-                if !initialFields.isEmpty {
-                    viewModel.updateFields(initialFields, currency: currency)
-                }
-            }
-            .onChange(of: viewModel.selectedAccountID) {
-                viewModel.noteAccountChanged()
-                Task {
-                    await viewModel.refreshExistingIDs(using: appState)
+                    .settingsSectionChrome()
                 }
             }
         }
-        .appSwitcherPrivacyAwareDragIndicator()
-        .appSwitcherPrivacyProtected(using: appState)
+        .reviewSheetList()
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton(title: "Close", role: nil) { dismiss() }
+            if WalletImportAvailability.isFinancialDataAvailable {
+                ReviewSheetPrimaryButton {
+                    Task {
+                        await viewModel.importSelected(using: appState)
+                    }
+                } label: {
+                    if viewModel.isImporting {
+                        ProgressView()
+                    } else {
+                        Text(viewModel.importButtonTitle)
+                    }
+                }
+                .disabled(!viewModel.canImport)
+            }
+        }
+        .task {
+            await viewModel.prepare(using: appState)
+            if !initialFields.isEmpty {
+                viewModel.updateFields(initialFields, currency: currency)
+            }
+        }
+        .onChange(of: viewModel.selectedAccountID) {
+            viewModel.noteAccountChanged()
+            Task {
+                await viewModel.refreshExistingIDs(using: appState)
+            }
+        }
+        .reviewSheetPresentation(appState: appState)
     }
 
     private var accountSection: some View {
@@ -101,26 +103,6 @@ struct WalletImportView: View {
             ForEach(viewModel.displayedCandidates) { row in
                 WalletImportCandidateRow(row: row)
             }
-        }
-        .settingsSectionChrome()
-    }
-
-    private var importSection: some View {
-        Section {
-            Button {
-                Task {
-                    await viewModel.importSelected(using: appState)
-                }
-            } label: {
-                if viewModel.isImporting {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Text(viewModel.importButtonTitle)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .disabled(!viewModel.canImport)
         }
         .settingsSectionChrome()
     }

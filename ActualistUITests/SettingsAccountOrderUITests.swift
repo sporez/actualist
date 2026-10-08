@@ -15,14 +15,14 @@ final class SettingsAccountOrderUITests: XCTestCase {
         for _ in 0..<4 where !accountOrder.isHittable { app.swipeUp() }
         XCTAssertTrue(accountOrder.isHittable)
         accountOrder.tap()
-        XCTAssertTrue(app.navigationBars["Account Order"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Account Order"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Everyday Checking"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Loading accounts"].exists)
         let capture = XCTAttachment(screenshot: app.screenshot())
         capture.name = "account-order-loaded"
         capture.lifetime = .keepAlways
         add(capture)
-        app.navigationBars["Account Order"].buttons["Done"].tap()
+        app.buttons["Done"].tap()
         XCTAssertTrue(app.navigationBars["Budget & Data"].waitForExistence(timeout: 5))
     }
 }

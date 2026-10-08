@@ -77,8 +77,6 @@ private struct BankSyncScreen: View {
             }
         )) { line in
             BankSyncAccountSheet(viewModel: viewModel, line: line)
-                .presentationDetents([.medium, .large])
-                .appSwitcherPrivacyAwareDragIndicator()
                 .environment(appState)
         }
         .walletImportPresentation(isPickerPresented: $isWalletPickerPresented)

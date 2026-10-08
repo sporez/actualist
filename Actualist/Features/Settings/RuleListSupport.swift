@@ -59,8 +59,6 @@ private struct RuleEditorSheetModifier: ViewModifier {
                     using: appState
                 )
             }
-            .appSwitcherPrivacyAwareDragIndicator()
-            .appSwitcherPrivacyProtected(using: appState)
         }
     }
 }

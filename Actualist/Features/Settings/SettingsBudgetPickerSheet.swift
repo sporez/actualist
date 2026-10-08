@@ -13,112 +13,102 @@ struct SettingsBudgetPickerSheet: View {
     @State private var emptyBudgetCoordinator = EmptyBudgetPickerCoordinator()
 
     var body: some View {
-        NavigationStack {
-            List {
-                if viewModel.isLoadingBudgets {
-                    ProgressView("Loading budgets")
-                        .settingsRowChrome()
-                }
+        List {
+            ReviewSheetListHeader(title: "Budgets")
+            if viewModel.isLoadingBudgets {
+                ProgressView("Loading budgets")
+                    .settingsRowChrome()
+            }
 
-                if let message = appState.lastErrorMessage {
-                    Text(message)
-                        .font(ActualistTypography.rowTitle(for: density))
-                        .foregroundStyle(ActualistTheme.danger)
-                        .settingsRowChrome()
-                }
+            if let message = appState.lastErrorMessage {
+                Text(message)
+                    .font(ActualistTypography.rowTitle(for: density))
+                    .foregroundStyle(ActualistTheme.danger)
+                    .settingsRowChrome()
+            }
 
-                if !appState.budgets.isEmpty {
-                    Section("Choose Budget") {
-                        ForEach(appState.budgets) { budget in
-                            Button {
-                                Task { await selectBudget(budget) }
-                            } label: {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(budgetDisplayName(budget))
-                                            .font(ActualistTypography.rowTitle(for: density))
-                                            .foregroundStyle(ActualistTheme.primaryText)
-                                        if !appState.settings.randomizedDisplayValuesEnabled {
-                                            Text(budget.syncID)
-                                                .font(ActualistTypography.rowLabel(for: density))
-                                                .foregroundStyle(ActualistTheme.secondaryText)
-                                                .lineLimit(1)
-                                                .truncationMode(.middle)
-                                        }
-                                    }
-
-                                    Spacer()
-
-                                    if appState.settings.selectedBudgetID == budget.syncID {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(ActualistTheme.accent)
-                                    } else {
-                                        Image(systemName: "chevron.right")
+            if !appState.budgets.isEmpty {
+                Section("Choose Budget") {
+                    ForEach(appState.budgets) { budget in
+                        Button {
+                            Task { await selectBudget(budget) }
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(budgetDisplayName(budget))
+                                        .font(ActualistTypography.rowTitle(for: density))
+                                        .foregroundStyle(ActualistTheme.primaryText)
+                                    if !appState.settings.randomizedDisplayValuesEnabled {
+                                        Text(budget.syncID)
+                                            .font(ActualistTypography.rowLabel(for: density))
                                             .foregroundStyle(ActualistTheme.secondaryText)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
                                     }
                                 }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(appState.budgetSessionTransitions.isTransitionInFlight)
-                        }
-                    }
-                    .settingsSectionChrome()
-                }
 
-                if emptyBudgetCoordinator.offer(using: appState) == .offered {
-                    EmptyBudgetPickerSection(
-                        coordinator: emptyBudgetCoordinator,
-                        onBudgetSelected: { isPresented = false }
-                    )
-                    .settingsSectionChrome()
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .navigationTitle("Budgets")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
+                                Spacer()
+
+                                if appState.settings.selectedBudgetID == budget.syncID {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(ActualistTheme.accent)
+                                } else {
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(ActualistTheme.secondaryText)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(appState.budgetSessionTransitions.isTransitionInFlight)
                     }
                 }
+                .settingsSectionChrome()
             }
-            .task {
-                // Demo mode has a single bundled budget and no server list to load.
-                guard !appState.isDemoMode else {
-                    return
-                }
-                let succeeded = await viewModel.loadBudgetsForSelection(using: appState)
-                emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
-            }
-            .refreshable {
-                guard !appState.isDemoMode else {
-                    return
-                }
-                let succeeded = await viewModel.loadBudgetsForSelection(using: appState)
-                emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
-            }
-            .sheet(item: $encryptedBudgetPrompt, onDismiss: clearEncryptedBudgetPassword) { budget in
-                EncryptedBudgetUnlockSheet(
-                    encryptionPassword: $encryptionPassword,
-                    isUnlocking: isUnlockingEncryptedBudget,
-                    errorMessage: encryptedBudgetUnlockErrorMessage,
-                    onCancel: {
-                        encryptedBudgetPrompt = nil
-                        clearEncryptedBudgetPassword()
-                    },
-                    onUnlock: {
-                        Task { await unlockBudget(budget) }
-                    }
+
+            if emptyBudgetCoordinator.offer(using: appState) == .offered {
+                EmptyBudgetPickerSection(
+                    coordinator: emptyBudgetCoordinator,
+                    onBudgetSelected: { isPresented = false }
                 )
-                .environment(appState)
+                .settingsSectionChrome()
             }
         }
-        .appSwitcherPrivacyProtected(using: appState)
+        .reviewSheetList()
+        .reviewSheetBottomBar {
+            ReviewSheetSecondaryButton { dismiss() }
+        }
+        .task {
+            // Demo mode has a single bundled budget and no server list to load.
+            guard !appState.isDemoMode else {
+                return
+            }
+            let succeeded = await viewModel.loadBudgetsForSelection(using: appState)
+            emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
+        }
+        .refreshable {
+            guard !appState.isDemoMode else {
+                return
+            }
+            let succeeded = await viewModel.loadBudgetsForSelection(using: appState)
+            emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
+        }
+        .sheet(item: $encryptedBudgetPrompt, onDismiss: clearEncryptedBudgetPassword) { budget in
+            EncryptedBudgetUnlockSheet(
+                encryptionPassword: $encryptionPassword,
+                isUnlocking: isUnlockingEncryptedBudget,
+                errorMessage: encryptedBudgetUnlockErrorMessage,
+                onCancel: {
+                    encryptedBudgetPrompt = nil
+                    clearEncryptedBudgetPassword()
+                },
+                onUnlock: {
+                    Task { await unlockBudget(budget) }
+                }
+            )
+            .environment(appState)
+        }
+        .reviewSheetPresentation(appState: appState)
     }
 
     private var encryptedBudgetUnlockErrorMessage: String? {

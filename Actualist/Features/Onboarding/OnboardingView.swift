@@ -240,14 +240,13 @@ struct OnboardingView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .sheet(isPresented: $showCustomHeaders) {
-            NavigationStack {
-                CustomHeadersSettingsView(
-                    store: appState.localFirstStore,
-                    primaryURLString: viewModel.serverURLString,
-                    fallbackURLString: appState.settings.fallbackServerURLString,
-                    context: .onboarding
-                )
-            }
+            CustomHeadersSettingsView(
+                store: appState.localFirstStore,
+                primaryURLString: viewModel.serverURLString,
+                fallbackURLString: appState.settings.fallbackServerURLString,
+                context: .onboarding
+            )
+            .reviewSheetPresentation(appState: appState)
         }
         .onAppear {
             viewModel.hydrate(from: appState)

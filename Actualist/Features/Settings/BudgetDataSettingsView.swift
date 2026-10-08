@@ -228,8 +228,6 @@ struct BudgetDataSettingsView: View {
         .sheet(isPresented: $isAccountOrderPresented) {
             SettingsAccountOrderSheet()
                 .environment(appState)
-                .presentationDetents([.medium, .large])
-                .appSwitcherPrivacyAwareDragIndicator()
         }
         .alert("Encryption Password", isPresented: $isReimportPasswordPresented) {
             SecureField("Encryption password", text: $reimportPassword)

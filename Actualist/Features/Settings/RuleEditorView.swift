@@ -29,119 +29,117 @@ struct RuleEditorView: View {
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        NavigationStack {
-            Form {
-                if target.rule?.isEditable == false {
-                    Section {
-                        ForEach(
-                            Array((target.rule?.readOnlyDetails(options: viewModel.options) ?? []).enumerated()),
-                            id: \.offset
-                        ) { _, detail in
-                            Text(detail)
+        Form {
+            ReviewSheetListHeader(title: sheetTitle)
+            if target.rule?.isEditable == false {
+                Section {
+                    ForEach(
+                        Array((target.rule?.readOnlyDetails(options: viewModel.options) ?? []).enumerated()),
+                        id: \.offset
+                    ) { _, detail in
+                        Text(detail)
+                    }
+                } header: {
+                    Text("Read-only rule")
+                } footer: {
+                    Text(
+                        target.rule?.isScheduleOwned == true
+                            ? "This rule is managed by an Actual schedule. It cannot be edited or deleted here."
+                            : "This rule contains data Actualist cannot round-trip safely. It can still be deleted."
+                    )
+                }
+            } else {
+                Section("Order") {
+                    RuleMenuPickerRow("Stage", selection: $viewModel.draft.stage) {
+                        ForEach(RuleStage.allCases) { stage in
+                            Text(stage.displayName).tag(stage)
                         }
-                    } header: {
-                        Text("Read-only rule")
-                    } footer: {
-                        Text(
-                            target.rule?.isScheduleOwned == true
-                                ? "This rule is managed by an Actual schedule. It cannot be edited or deleted here."
-                                : "This rule contains data Actualist cannot round-trip safely. It can still be deleted."
+                    }
+                    RuleMenuPickerRow("Match", selection: $viewModel.draft.conditionsJoin) {
+                        ForEach(RuleConditionJoin.allCases) { join in
+                            Text(join == .and ? "All conditions" : "Any condition").tag(join)
+                        }
+                    }
+                }
+                .settingsSectionChrome()
+
+                Section("Conditions") {
+                    ForEach($viewModel.draft.conditions) { $condition in
+                        RuleConditionEditor(
+                            condition: $condition,
+                            options: viewModel.options,
+                            focus: $focusedField
                         )
                     }
-                } else {
-                    Section("Order") {
-                        RuleMenuPickerRow("Stage", selection: $viewModel.draft.stage) {
-                            ForEach(RuleStage.allCases) { stage in
-                                Text(stage.displayName).tag(stage)
-                            }
-                        }
-                        RuleMenuPickerRow("Match", selection: $viewModel.draft.conditionsJoin) {
-                            ForEach(RuleConditionJoin.allCases) { join in
-                                Text(join == .and ? "All conditions" : "Any condition").tag(join)
-                            }
-                        }
-                    }
-                    .settingsSectionChrome()
-
-                    Section("Conditions") {
-                        ForEach($viewModel.draft.conditions) { $condition in
-                            RuleConditionEditor(
-                                condition: $condition,
-                                options: viewModel.options,
-                                focus: $focusedField
-                            )
-                        }
-                        .onDelete { viewModel.draft.conditions.remove(atOffsets: $0) }
-                        Button("Add Condition", systemImage: "plus") {
-                            viewModel.draft.conditions.append(
-                                RuleCondition(field: "description", operation: "is", value: .string(target.fallbackPayeeID), type: "id")
-                            )
-                        }
-                    }
-                    .settingsSectionChrome()
-
-                    Section("Actions") {
-                        ForEach($viewModel.draft.actions) { $action in
-                            RuleActionEditor(
-                                action: $action,
-                                options: viewModel.options,
-                                focus: $focusedField
-                            )
-                        }
-                        .onDelete { viewModel.draft.actions.remove(atOffsets: $0) }
-                        Button("Add Action", systemImage: "plus") {
-                            viewModel.draft.actions.append(RuleAction(operation: "set", field: "category", value: .null, type: "id"))
-                        }
-                    }
-                    .settingsSectionChrome()
-
-                    matchingTransactionsSection
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(ActualistTheme.danger)
-                        .settingsRowChrome()
-                }
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .tint(ActualistTheme.accent)
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .navigationTitle(target.rule == nil ? "New Rule" : target.rule?.isEditable == false ? "View Rule" : "Edit Rule")
-            .navigationBarTitleDisplayMode(.inline)
-            .actualistKeyboardDone(isVisible: focusedField != nil) {
-                focusedField = nil
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(target.rule?.isEditable == false ? "Done" : "Cancel") {
-                        dismiss()
-                    }
-                    .disabled(isSubmitting)
-                }
-                if target.rule?.isEditable != false {
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Save") {
-                            focusedField = nil
-                            Task { if await onSave(viewModel.draft) { dismiss() } }
-                        }
-                        .disabled(!viewModel.draft.canRoundTripAndEvaluate || isSubmitting)
+                    .onDelete { viewModel.draft.conditions.remove(atOffsets: $0) }
+                    Button("Add Condition", systemImage: "plus") {
+                        viewModel.draft.conditions.append(
+                            RuleCondition(field: "description", operation: "is", value: .string(target.fallbackPayeeID), type: "id")
+                        )
                     }
                 }
+                .settingsSectionChrome()
+
+                Section("Actions") {
+                    ForEach($viewModel.draft.actions) { $action in
+                        RuleActionEditor(
+                            action: $action,
+                            options: viewModel.options,
+                            focus: $focusedField
+                        )
+                    }
+                    .onDelete { viewModel.draft.actions.remove(atOffsets: $0) }
+                    Button("Add Action", systemImage: "plus") {
+                        viewModel.draft.actions.append(RuleAction(operation: "set", field: "category", value: .null, type: "id"))
+                    }
+                }
+                .settingsSectionChrome()
+
+                matchingTransactionsSection
             }
-            .task {
-                await viewModel.load(using: appState)
-            }
-            .onChange(of: viewModel.draft) {
-                viewModel.scheduleMatchRefresh(using: appState)
-            }
-            .onDisappear {
-                viewModel.cancelMatchRefresh()
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.danger)
+                    .settingsRowChrome()
             }
         }
+        .scrollDismissesKeyboard(.interactively)
+        .reviewSheetList()
+        .actualistKeyboardDone(isVisible: focusedField != nil) {
+            focusedField = nil
+        }
+        .reviewSheetBottomBar {
+            if target.rule?.isEditable == false {
+                ReviewSheetSecondaryButton(title: "Done", role: nil) { dismiss() }
+            } else {
+                ReviewSheetSecondaryButton { dismiss() }
+                    .disabled(isSubmitting)
+                ReviewSheetPrimaryButton {
+                    focusedField = nil
+                    Task { if await onSave(viewModel.draft) { dismiss() } }
+                } label: {
+                    Text("Save")
+                }
+                .disabled(!viewModel.draft.canRoundTripAndEvaluate || isSubmitting)
+            }
+        }
+        .task {
+            await viewModel.load(using: appState)
+        }
+        .onChange(of: viewModel.draft) {
+            viewModel.scheduleMatchRefresh(using: appState)
+        }
+        .onDisappear {
+            viewModel.cancelMatchRefresh()
+        }
+        .reviewSheetPresentation(appState: appState)
         .interactiveDismissDisabled(isSubmitting)
+    }
+
+    private var sheetTitle: String {
+        target.rule == nil ? "New Rule" : target.rule?.isEditable == false ? "View Rule" : "Edit Rule"
     }
 
     @ViewBuilder
@@ -205,10 +203,17 @@ struct RuleMenuPickerRow<Selection: Hashable, Content: View>: View {
         self.content = content
     }
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        HStack {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout())
+        layout {
             Text(title)
-            Spacer()
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer()
+            }
             Picker("", selection: $selection, content: content)
                 .labelsHidden()
                 .pickerStyle(.menu)

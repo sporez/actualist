@@ -16,77 +16,69 @@ struct SettingsDeveloperDiagnosticsSheet: View {
     #endif
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section("Local-First Sync") {
-                    LocalFirstSyncDiagnosticRows(
-                        status: syncStatus,
-                        debug: syncDebug,
-                        endpointHealth: endpointHealth
+        List {
+            ReviewSheetListHeader(title: "Developer")
+            Section("Local-First Sync") {
+                LocalFirstSyncDiagnosticRows(
+                    status: syncStatus,
+                    debug: syncDebug,
+                    endpointHealth: endpointHealth
+                )
+
+                Button {
+                    Task { await retrySync() }
+                } label: {
+                    SettingsActionLabel(
+                        title: isRetryingSync ? "Retrying Sync" : "Retry Pending Sync",
+                        systemImage: "arrow.triangle.2.circlepath"
                     )
-
-                    Button {
-                        Task { await retrySync() }
-                    } label: {
-                        SettingsActionLabel(
-                            title: isRetryingSync ? "Retrying Sync" : "Retry Pending Sync",
-                            systemImage: "arrow.triangle.2.circlepath"
-                        )
-                    }
-                    .disabled(isRetryingSync || syncStatus?.pendingLocalMessageCount == 0)
                 }
-                .settingsSectionChrome()
-
-                #if DEBUG
-                Section("Notifications") {
-                    Button {
-                        Task { await debugNotification.post(using: appState) }
-                    } label: {
-                        SettingsActionLabel(
-                            title: debugNotification.isPosting ? "Posting Test Alert" : "Post Test Transaction Alert",
-                            systemImage: "bell.badge"
-                        )
-                    }
-                    .disabled(debugNotification.isPosting)
-
-                    if let message = debugNotification.message {
-                        Text(message)
-                            .font(.footnote)
-                            .foregroundStyle(ActualistTheme.secondaryText)
-                    }
-                }
-                .settingsSectionChrome()
-                #endif
-
-                Section("Background Refresh Logs") {
-                    BackgroundRefreshDebugRows(debug: debug)
-                }
-                .settingsSectionChrome()
-
-                Section("Developer Mode") {
-                    Button(role: .destructive) {
-                        hideDeveloperMode()
-                    } label: {
-                        SettingsActionLabel(title: "Hide Developer Mode", systemImage: "eye.slash")
-                    }
-                }
-                .settingsSectionChrome()
+                .disabled(isRetryingSync || syncStatus?.pendingLocalMessageCount == 0)
             }
-            .scrollContentBackground(.hidden)
-            .background(ActualistTheme.background)
-            .foregroundStyle(ActualistTheme.primaryText)
-            .tint(ActualistTheme.accent)
-            .navigationTitle("Developer")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        dismiss()
-                    }
+            .settingsSectionChrome()
+
+            #if DEBUG
+            Section("Notifications") {
+                Button {
+                    Task { await debugNotification.post(using: appState) }
+                } label: {
+                    SettingsActionLabel(
+                        title: debugNotification.isPosting ? "Posting Test Alert" : "Post Test Transaction Alert",
+                        systemImage: "bell.badge"
+                    )
                 }
+                .disabled(debugNotification.isPosting)
+
+                if let message = debugNotification.message {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
+            }
+            .settingsSectionChrome()
+            #endif
+
+            Section("Background Refresh Logs") {
+                BackgroundRefreshDebugRows(debug: debug)
+            }
+            .settingsSectionChrome()
+
+            Section("Developer Mode") {
+                Button(role: .destructive) {
+                    hideDeveloperMode()
+                } label: {
+                    SettingsActionLabel(title: "Hide Developer Mode", systemImage: "eye.slash")
+                }
+            }
+            .settingsSectionChrome()
+        }
+        .reviewSheetList()
+        .reviewSheetBottomBar {
+            ReviewSheetPrimaryButton { dismiss() } label: {
+                Text("Done")
             }
         }
-        .appSwitcherPrivacyProtected(using: appState)
+        .reviewSheetPresentation(appState: appState)
     }
 
     private func retrySync() async {
