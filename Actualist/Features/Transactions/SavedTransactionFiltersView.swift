@@ -88,6 +88,7 @@ struct SavedTransactionFiltersView: View {
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .presentationBackground(ActualistTheme.background)
         .task { await coordinator.load() }
+        .sensoryFeedback(.success, trigger: coordinator.mutationFeedback)
         .onDisappear { coordinator.cancel() }
         .confirmationDialog(
             "Delete Saved Filter?",

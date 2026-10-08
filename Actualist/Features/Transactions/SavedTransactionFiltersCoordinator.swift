@@ -11,6 +11,8 @@ final class SavedTransactionFiltersCoordinator {
     private(set) var unavailableMessage: String?
     private(set) var errorMessage: String?
     private(set) var statusMessage: String?
+    /// Bumped once per saved, renamed or deleted filter; the sheet plays the success haptic from it.
+    private(set) var mutationFeedback = 0
     var nameDraft = ""
     private(set) var filterBeingDeleted: SavedTransactionFilter?
     private(set) var filterBeingRenamed: SavedTransactionFilter?
@@ -187,6 +189,7 @@ final class SavedTransactionFiltersCoordinator {
     }
 
     private func acceptMutationResult(_ result: SavedTransactionFilterMutationResult) {
+        if result.changed { mutationFeedback &+= 1 }
         if let refreshedFilters = result.filters {
             filters = refreshedFilters.filter { !$0.tombstone }
         }
