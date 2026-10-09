@@ -144,6 +144,29 @@ struct TransactionCSVImportRevalidationTests {
         try await expectRejected(bundle, applyRequest(reviewed))
     }
 
+    /// Strict id checking (sync.ts ~890) only fuzzy-matches a row with no
+    /// `imported_id` when the file row has one, so an id synced onto the match
+    /// after review means a fresh review would insert instead. The stale review
+    /// must not write its id over the synced one. Known gap: the commit check
+    /// does not compare `imported_id` (follow-ups: CSV import stale imported_id).
+    @Test func importedIDSetBySyncAfterReviewRejects() async throws {
+        let bundle = try await makeBundle()
+        let csv = Data("Date,Payee,Notes,Amount,imported_id\n2026-07-03,Coffee Shop,,-123.45,csv-1\n".utf8)
+        let reviewed = try await review(bundle, csv)
+        #expect(reviewed.rows.map(\.outcome.kind) == [.update])
+        try mutate(bundle, "UPDATE transactions SET imported_id = 'bank-9' WHERE id = 'txn'")
+        #expect(try await review(bundle, csv).rows.map(\.outcome.kind) == [.insert])
+
+        await withKnownIssue("CSV apply does not revalidate the matched row's imported_id") {
+            try await expectRejected(bundle, applyRequest(reviewed))
+            let url = try bundle.fileManager.databaseURL(fileID: #require(bundle.budget.budgetID))
+            let importedID = try await DatabaseQueue(path: url.path).read {
+                try String.fetchOne($0, sql: "SELECT imported_id FROM transactions WHERE id = 'txn'")
+            }
+            #expect(importedID == "bank-9")
+        }
+    }
+
     @Test func untouchedMatchStillAppliesAfterRevalidation() async throws {
         let bundle = try await makeBundle()
         let reviewed = try await review(bundle, matchAndInsertCSV)
