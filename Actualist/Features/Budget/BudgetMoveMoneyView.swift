@@ -165,7 +165,7 @@ struct BudgetMoveMoneyView: View {
                         // read as a button inside a button.
                         Image(systemName: draft.direction.arrowSystemImage)
                             .font(.title2.weight(.bold))
-                            .foregroundStyle(BudgetMoveMoneyHeaderStyle.primaryText)
+                            .foregroundStyle(ActualistTheme.primaryText)
                             .frame(width: 54, height: 54)
                     }
                     .buttonStyle(.glass)
