@@ -148,6 +148,12 @@ final class EmptyBudgetPickerCoordinator {
     }
 
     private(set) var phase: Phase = .idle
+    /// The create form and import picker are presented from the host's list
+    /// container, not from the offer section: the section is rebuilt when the
+    /// budget list reloads, which would reset section-local state and close
+    /// a sheet that had just opened.
+    var isCreateFormPresented = false
+    var isImportPickerPresented = false
     private var isDiscoverySucceeded = false
     private let workflows: Workflows
 
@@ -236,16 +242,14 @@ final class EmptyBudgetPickerCoordinator {
 }
 
 /// The Create New Budget / Import section both budget-picker hosts embed when
-/// the coordinator offers it. Presentation only: it binds the create form's
-/// controls and calls coordinator intents.
+/// the coordinator offers it. Presentation only: its buttons ask the
+/// coordinator to present the create form or import picker, which the host
+/// attaches with `emptyBudgetPickerPresentations`.
 struct EmptyBudgetPickerSection: View {
     let coordinator: EmptyBudgetPickerCoordinator
-    var onBudgetSelected: () -> Void = {}
 
     @Environment(AppState.self) private var appState
     @Environment(\.actualistDensity) private var density
-    @State private var isCreateFormPresented = false
-    @State private var isImportPickerPresented = false
 
     var body: some View {
         Section {
@@ -267,7 +271,7 @@ struct EmptyBudgetPickerSection: View {
             } else {
                 HStack(spacing: 8) {
                     Button {
-                        isCreateFormPresented = true
+                        coordinator.isCreateFormPresented = true
                     } label: {
                         Label("Create New Budget", systemImage: "plus.circle.fill")
                             .font(ActualistTypography.control(for: density))
@@ -277,7 +281,7 @@ struct EmptyBudgetPickerSection: View {
                     .tint(ActualistTheme.accent)
 
                     Button {
-                        isImportPickerPresented = true
+                        coordinator.isImportPickerPresented = true
                     } label: {
                         Label("Import", systemImage: "square.and.arrow.down")
                             .font(ActualistTypography.control(for: density))
@@ -288,17 +292,40 @@ struct EmptyBudgetPickerSection: View {
         } header: {
             Text(appState.budgets.isEmpty ? "No Budgets" : "New Budget")
         }
-        .sheet(isPresented: $isCreateFormPresented) {
-            EmptyBudgetCreateForm(coordinator: coordinator, onCreated: onBudgetSelected)
-        }
-        .fileImporter(
-            isPresented: $isImportPickerPresented,
-            allowedContentTypes: [.zip],
-            allowsMultipleSelection: false
-        ) { result in
-            guard case .success(let urls) = result, let archiveURL = urls.first else { return }
-            Task { await coordinator.importBudget(at: archiveURL, using: appState) }
-        }
+    }
+}
+
+extension View {
+    /// Attaches the create form and import picker for an
+    /// `EmptyBudgetPickerSection`. Apply it to the host's list container so
+    /// the presentations survive the list reloading its rows.
+    func emptyBudgetPickerPresentations(
+        coordinator: EmptyBudgetPickerCoordinator,
+        onBudgetSelected: @escaping () -> Void = {}
+    ) -> some View {
+        modifier(EmptyBudgetPickerPresentations(coordinator: coordinator, onBudgetSelected: onBudgetSelected))
+    }
+}
+
+private struct EmptyBudgetPickerPresentations: ViewModifier {
+    @Bindable var coordinator: EmptyBudgetPickerCoordinator
+    let onBudgetSelected: () -> Void
+
+    @Environment(AppState.self) private var appState
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: $coordinator.isCreateFormPresented) {
+                EmptyBudgetCreateForm(coordinator: coordinator, onCreated: onBudgetSelected)
+            }
+            .fileImporter(
+                isPresented: $coordinator.isImportPickerPresented,
+                allowedContentTypes: [.zip],
+                allowsMultipleSelection: false
+            ) { result in
+                guard case .success(let urls) = result, let archiveURL = urls.first else { return }
+                Task { await coordinator.importBudget(at: archiveURL, using: appState) }
+            }
     }
 }
 

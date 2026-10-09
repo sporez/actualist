@@ -326,6 +326,7 @@ struct BudgetPickerView: View {
             }
             .scrollContentBackground(.hidden)
             .background(ActualistTheme.background)
+            .emptyBudgetPickerPresentations(coordinator: emptyBudgetCoordinator)
             .navigationTitle("Budgets")
             .task {
                 if appState.budgets.isEmpty {

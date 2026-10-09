@@ -67,14 +67,15 @@ struct SettingsBudgetPickerSheet: View {
             }
 
             if emptyBudgetCoordinator.offer(using: appState) == .offered {
-                EmptyBudgetPickerSection(
-                    coordinator: emptyBudgetCoordinator,
-                    onBudgetSelected: { isPresented = false }
-                )
+                EmptyBudgetPickerSection(coordinator: emptyBudgetCoordinator)
                 .settingsSectionChrome()
             }
         }
         .reviewSheetList()
+        .emptyBudgetPickerPresentations(
+            coordinator: emptyBudgetCoordinator,
+            onBudgetSelected: { isPresented = false }
+        )
         .reviewSheetBottomBar {
             ReviewSheetSecondaryButton { dismiss() }
         }
