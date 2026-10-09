@@ -35,8 +35,9 @@ extension BudgetDatabase {
     }
 
     /// The row must still be live, in the importing account and not
-    /// reconciled, and every field the update writes must still hold the value
-    /// the review saw (the fill semantics the review showed).
+    /// reconciled, its `imported_id` must be unchanged, and every field the
+    /// update fills must still hold the value the review saw (the fill
+    /// semantics the review showed).
     private func validateTransactionCSVImportMatch(
         _ match: TransactionCSVImportMatch,
         accountID: String,
@@ -48,11 +49,13 @@ extension BudgetDatabase {
         let existing = match.existing
         let accountColumn = ["acct", "account"].first(where: columns.contains)
         let payeeColumn = ["description", "payee"].first(where: columns.contains)
+        let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains)
         guard let accountColumn,
               let live = try Row.fetchOne(
                   db,
                   sql: """
                       SELECT \(accountColumn) AS account,
+                             \(importedIDColumn ?? "NULL") AS imported_id,
                              \(payeeColumn ?? "NULL") AS payee,
                              \(columns.contains("category") ? "category" : "NULL") AS category,
                              \(columns.contains("notes") ? "notes" : "NULL") AS notes,
@@ -67,6 +70,10 @@ extension BudgetDatabase {
               !flexibleBool(live["reconciled"]) else {
             throw changed
         }
+        // Checked even when the update does not write it: under strict id
+        // checking the stored id decides whether this row matches at all
+        // (sync.ts ~890), so a fresh review could match elsewhere or insert.
+        if (live["imported_id"] as String?) != existing.financialID { throw changed }
         func stored(_ column: String) -> String? {
             let value: String? = live[column]
             return value?.isEmpty == false ? value : nil
