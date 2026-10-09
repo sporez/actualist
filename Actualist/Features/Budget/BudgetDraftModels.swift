@@ -128,9 +128,9 @@ enum BudgetMoveMoneyDirection: Equatable, Sendable {
     var arrowSystemImage: String {
         switch self {
         case .outOfFocusedCategory:
-            "arrow.down.circle.fill"
+            "arrow.down"
         case .intoFocusedCategory:
-            "arrow.up.circle.fill"
+            "arrow.up"
         }
     }
 

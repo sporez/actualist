@@ -160,12 +160,16 @@ struct BudgetMoveMoneyView: View {
                             isDestinationPickerPresented = true
                         }
                     } label: {
+                        // A plain arrow in one circular glass button, like the
+                        // close button; a filled circle symbol inside the glass
+                        // read as a button inside a button.
                         Image(systemName: draft.direction.arrowSystemImage)
-                            .font(.title.weight(.bold))
-                            .symbolRenderingMode(.palette)
-                            .foregroundStyle(Color.black.opacity(0.72), Color.white.opacity(0.92))
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(BudgetMoveMoneyHeaderStyle.primaryText)
+                            .frame(width: 54, height: 54)
                     }
                     .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
                     .disabled(draft.isSubmitting)
                     .accessibilityLabel("Switch move money direction")
 
