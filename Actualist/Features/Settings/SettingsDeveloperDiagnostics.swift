@@ -244,14 +244,23 @@ private struct LocalFirstSyncDebugEventRow: View {
 struct SettingsActionLabel: View {
     let title: String
     let systemImage: String
+    /// Swaps the icon for a spinner while the row's action is working.
+    var isBusy = false
+    var busyLabel: String? = nil
 
     var body: some View {
         Label {
             Text(title)
                 .foregroundStyle(ActualistTheme.primaryText)
         } icon: {
-            Image(systemName: systemImage)
-                .foregroundStyle(ActualistTheme.accent)
+            if isBusy {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel(busyLabel ?? title)
+            } else {
+                Image(systemName: systemImage)
+                    .foregroundStyle(ActualistTheme.accent)
+            }
         }
     }
 }

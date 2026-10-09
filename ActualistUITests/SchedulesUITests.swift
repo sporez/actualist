@@ -113,9 +113,18 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertTrue(app.buttons["schedule-editor-account"].exists)
         XCTAssertTrue(app.buttons["schedule-editor-payee"].exists)
         XCTAssertTrue(app.textFields["schedule-editor-amount"].exists)
-        let sign = app.segmentedControls["schedule-editor-sign"]
+        let sign = app.buttons["schedule-editor-sign"]
         XCTAssertTrue(sign.exists)
-        XCTAssertTrue(sign.buttons["Spend"].isSelected)
+        XCTAssertEqual(sign.value as? String, "Spend")
+        XCTAssertTrue(app.buttons["schedule-editor-amount-type"].exists)
+        sign.tap()
+        XCTAssertEqual(sign.value as? String, "Deposit")
+        sign.tap()
+        XCTAssertEqual(sign.value as? String, "Spend")
+        app.textFields["schedule-editor-amount"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.staticTexts["New Schedule"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.buttons["schedule-save-button"].exists)
         attachScreenshot(named: "schedules-create-editor-dark", app: app)
 

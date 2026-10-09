@@ -424,4 +424,9 @@ struct ScheduleEditorDraftTests {
             )
         )
     }
+
+    @Test func amountSignToggleFlipsBetweenSpendAndDeposit() {
+        #expect(ScheduleEditorAmountSign.spend.toggled == .deposit)
+        #expect(ScheduleEditorAmountSign.deposit.toggled == .spend)
+    }
 }

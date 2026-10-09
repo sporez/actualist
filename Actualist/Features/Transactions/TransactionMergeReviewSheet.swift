@@ -12,7 +12,8 @@ struct TransactionMergeCommandSheet: View {
         case .preparing:
             TransactionCommandProgressSheet(
                 title: "Preparing Review",
-                message: "Checking the selected transaction rows…"
+                message: "Checking the selected transaction rows…",
+                detents: [.large]
             )
         case .reviewing(let reviewed):
             TransactionMergeReviewSheet(
@@ -25,7 +26,8 @@ struct TransactionMergeCommandSheet: View {
         case .submitting:
             TransactionCommandProgressSheet(
                 title: "Saving Changes",
-                message: "The selected transactions are being merged…"
+                message: "The selected transactions are being merged…",
+                detents: [.large]
             )
         case .idle, .failed:
             EmptyView()
@@ -124,7 +126,8 @@ struct TransactionMergeReviewSheet: View {
             .accessibilityIdentifier("transaction-merge-confirm")
         }
         .background(ActualistTheme.background)
-        .presentationDetents([.medium, .large])
+        // Opens fully expanded so both inputs and the reason are visible without a swipe.
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }
 
@@ -224,6 +227,7 @@ struct TransactionMergeReviewSheet: View {
 struct TransactionCommandProgressSheet: View {
     let title: String
     let message: String
+    var detents: Set<PresentationDetent> = [.medium, .large]
 
     var body: some View {
         VStack(spacing: 12) {
@@ -235,7 +239,7 @@ struct TransactionCommandProgressSheet: View {
         .padding(.horizontal, 22)
         .padding(.vertical, 16)
         .background(ActualistTheme.background)
-        .presentationDetents([.medium, .large])
+        .presentationDetents(detents)
         .presentationDragIndicator(.visible)
     }
 }

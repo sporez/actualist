@@ -11,6 +11,7 @@ struct BudgetDataSettingsView: View {
     @State private var isBudgetPickerPresented = false
     @State private var isAccountOrderPresented = false
     @State private var isReimporting = false
+    @State private var exportActivity = PortableBudgetExportActivity()
     @State private var isReimportConfirmationPresented = false
     @State private var isReimportPasswordPresented = false
     @State private var reimportPassword = ""
@@ -251,7 +252,7 @@ struct BudgetDataSettingsView: View {
         Section {
             if let budgetID = appState.settings.selectedBudgetID {
                 ShareLink(
-                    item: PortableBudgetArchiveTransfer.make(budgetID: budgetID, appState: appState),
+                    item: PortableBudgetArchiveTransfer.make(budgetID: budgetID, appState: appState, activity: exportActivity),
                     preview: SharePreview(
                         PortableBudgetArchiveTransfer.suggestedFileName,
                         image: Image(systemName: "doc.zipper")
@@ -277,9 +278,14 @@ struct BudgetDataSettingsView: View {
     }
 
     private var exportRowLabel: some View {
-        SettingsActionLabel(title: "Share Budget ZIP…", systemImage: "square.and.arrow.up")
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
+        SettingsActionLabel(
+            title: "Share Budget ZIP…",
+            systemImage: "square.and.arrow.up",
+            isBusy: exportActivity.isPreparing,
+            busyLabel: "Preparing budget ZIP"
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     private var allCategoriesCarryoverSelection: Binding<Bool> {

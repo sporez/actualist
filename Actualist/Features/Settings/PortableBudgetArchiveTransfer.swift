@@ -28,7 +28,11 @@ struct PortableBudgetArchiveTransfer: Transferable, Sendable {
     static let suggestedFileName = "Budget Export"
 
     @MainActor
-    static func make(budgetID: String, appState: AppState) -> PortableBudgetArchiveTransfer {
+    static func make(
+        budgetID: String,
+        appState: AppState,
+        activity: PortableBudgetExportActivity? = nil
+    ) -> PortableBudgetArchiveTransfer {
         PortableBudgetArchiveTransfer(
             budgetID: budgetID,
             // The share sheet and its destinations can move the scene out of
@@ -39,7 +43,9 @@ struct PortableBudgetArchiveTransfer: Transferable, Sendable {
             // the scene next becomes active.
             willExport: { appState.beginAppInitiatedSystemUIPresentation() },
             export: { budgetID in
-                try await appState.localFirstStore.exportPortableBudgetArchive(budgetID: budgetID)
+                activity?.begin()
+                defer { activity?.end() }
+                return try await appState.localFirstStore.exportPortableBudgetArchive(budgetID: budgetID)
             }
         )
     }
@@ -65,4 +71,19 @@ struct PortableBudgetArchiveTransfer: Transferable, Sendable {
         guard isBudgetEncrypted else { return baseFooter }
         return baseFooter + " This export is not encrypted. Anyone with the file can read your budget."
     }
+}
+
+/// Whether a Share ZIP request is still building its archive. The share sheet
+/// waits for the file, which can take seconds, so the Export row shows a
+/// spinner meanwhile. Counted, because a destination can request the file
+/// more than once and the requests can overlap.
+@MainActor @Observable
+final class PortableBudgetExportActivity {
+    private(set) var inFlightCount = 0
+
+    var isPreparing: Bool { inFlightCount > 0 }
+
+    func begin() { inFlightCount += 1 }
+
+    func end() { inFlightCount = max(0, inFlightCount - 1) }
 }

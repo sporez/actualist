@@ -135,6 +135,8 @@ struct ScheduleEditorView: View {
     let session: ScheduleEditorSession
     let mutationRepository: any ScheduleMutationRepositoryProtocol
     @State private var isPayeePickerPresented = false
+    @FocusState private var focusedField: FocusedField?
+    private enum FocusedField { case name, amount, rangeEnd }
     let currency: BudgetCurrency
     let locale: Locale
 
@@ -160,6 +162,8 @@ struct ScheduleEditorView: View {
         }
         .accessibilityIdentifier("schedule-editor")
         .scrollDismissesKeyboard(.interactively)
+        // Controls inside win their own taps; a tap on empty space ends editing.
+        .onTapGesture { focusedField = nil }
         .reviewSheetBottomBar {
             ReviewSheetSecondaryButton { coordinator.cancel() }
                 .accessibilityIdentifier("schedule-editor-cancel")
@@ -184,6 +188,7 @@ struct ScheduleEditorView: View {
                 set: { coordinator.setName($0) }
             ))
             .textInputAutocapitalization(.words)
+            .focused($focusedField, equals: .name)
             .accessibilityIdentifier("schedule-editor-name")
             .reviewSheetFieldStyle()
             .disabled(session.scheduleID != nil && !session.capabilities.canEditMetadata)
@@ -245,38 +250,41 @@ struct ScheduleEditorView: View {
                 )
             }
 
-            Picker("Amount type", selection: Binding(
-                get: { draft?.amountMode ?? .exact },
-                set: { coordinator.setAmountMode($0) }
-            )) {
-                ForEach(ScheduleEditorAmountMode.allCases) { mode in Text(mode.title).tag(mode) }
+            HStack(spacing: 8) {
+                Text("Amount type").foregroundStyle(ActualistTheme.primaryText)
+                Spacer(minLength: 12)
+                Picker("Amount type", selection: Binding(
+                    get: { draft?.amountMode ?? .exact },
+                    set: { coordinator.setAmountMode($0) }
+                )) {
+                    ForEach(ScheduleEditorAmountMode.allCases) { mode in Text(mode.title).tag(mode) }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .accessibilityIdentifier("schedule-editor-amount-type")
             }
-            .pickerStyle(.segmented)
             .disabled(!isCreate && !session.capabilities.canEditAmount)
-            Picker("Amount direction", selection: Binding(
-                get: { draft?.amountSign ?? .spend },
-                set: { coordinator.setAmountSign($0) }
-            )) {
-                ForEach(ScheduleEditorAmountSign.allCases) { sign in Text(sign.rawValue).tag(sign) }
-            }
-            .pickerStyle(.segmented)
-            .tint(draft?.amountSign == .deposit ? ActualistTheme.positive : ActualistTheme.danger)
-            .disabled(!isCreate && !session.capabilities.canEditAmount)
-            .accessibilityIdentifier("schedule-editor-sign")
             let amountLayout = dynamicTypeSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
                 : AnyLayout(HStackLayout(spacing: 8))
             amountLayout {
-                TextField("Amount", text: Binding(
-                    get: {
-                        guard let draft else { return "" }
-                        return session.isPrivacyModeEnabled && !draft.amountInputWasEdited ? "" : draft.amountText
-                    },
-                    set: { coordinator.setAmount($0) }
-                ))
-                .keyboardType(.decimalPad)
-                .accessibilityIdentifier("schedule-editor-amount")
-                .reviewSheetFieldStyle()
+                HStack(spacing: 8) {
+                    ScheduleAmountSignToggle(sign: draft?.amountSign ?? .spend) {
+                        coordinator.setAmountSign((draft?.amountSign ?? .spend).toggled)
+                    }
+                    .accessibilityIdentifier("schedule-editor-sign")
+                    TextField("Amount", text: Binding(
+                        get: {
+                            guard let draft else { return "" }
+                            return session.isPrivacyModeEnabled && !draft.amountInputWasEdited ? "" : draft.amountText
+                        },
+                        set: { coordinator.setAmount($0) }
+                    ))
+                    .keyboardType(.decimalPad)
+                    .focused($focusedField, equals: .amount)
+                    .accessibilityIdentifier("schedule-editor-amount")
+                    .reviewSheetFieldStyle()
+                }
                 if draft?.amountMode == .range {
                     Text("to").foregroundStyle(ActualistTheme.secondaryText)
                     TextField("Amount", text: Binding(
@@ -287,6 +295,7 @@ struct ScheduleEditorView: View {
                         set: { coordinator.setRangeEnd($0) }
                     ))
                     .keyboardType(.decimalPad)
+                    .focused($focusedField, equals: .rangeEnd)
                     .accessibilityIdentifier("schedule-editor-amount-upper")
                     .reviewSheetFieldStyle()
                 }

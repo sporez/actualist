@@ -22,7 +22,7 @@ struct SchedulePostingReviewContent: Hashable, Sendable {
     var earlyPostNotice: String? {
         guard canSubmit, case .today(let dayID) = selectedDate,
               let scheduledDayID, dayID < scheduledDayID else { return nil }
-        return "Posting today saves a transaction linked to this schedule. The \(scheduledDateText) occurrence may still show as not paid."
+        return "The transaction will be dated today. The schedule may still show \(scheduledDateText) as upcoming."
     }
 }
 

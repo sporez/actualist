@@ -83,7 +83,7 @@ struct SchedulePostingReviewView: View {
                     .actualistReviewCard(padding: 12)
                     .accessibilityIdentifier("schedule-post-unavailable-reason")
             }
-            Text("Actualist syncs this budget before posting. A saved transaction stays saved even if the schedule view needs to refresh.")
+            Text("Your budget syncs first, so a payment another device already added isn't added twice.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)

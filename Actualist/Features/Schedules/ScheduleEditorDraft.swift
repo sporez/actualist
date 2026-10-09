@@ -24,6 +24,8 @@ enum ScheduleEditorAmountSign: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    var toggled: ScheduleEditorAmountSign { self == .spend ? .deposit : .spend }
+
     fileprivate func apply(to magnitude: Int) -> Int {
         self == .spend ? -magnitude : magnitude
     }

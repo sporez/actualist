@@ -131,6 +131,45 @@ struct PortableBudgetExportLifecycleTests {
         #expect(!appState.isAppSwitcherCoverSuppressedForSystemUI)
     }
 
+    @Test func exportActivityCountsOverlappingRequestsAndNeverGoesNegative() {
+        let activity = PortableBudgetExportActivity()
+        #expect(!activity.isPreparing)
+        activity.begin()
+        activity.begin()
+        activity.end()
+        #expect(activity.isPreparing)
+        activity.end()
+        #expect(!activity.isPreparing)
+        activity.end()
+        #expect(activity.inFlightCount == 0)
+    }
+
+    @Test func madeTransferClearsActivityAfterSuccessAndFailure() async throws {
+        let (bundle, _) = try await makeBundle()
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let appState = AppState(
+            settingsStore: AppSettingsStore(defaults: defaults),
+            keychain: bundle.keychain,
+            localFirstStore: bundle.store
+        )
+        let activity = PortableBudgetExportActivity()
+
+        let transfer = PortableBudgetArchiveTransfer.make(
+            budgetID: bundle.budget.syncID, appState: appState, activity: activity
+        )
+        _ = try await transfer.exportArchive()
+        #expect(activity.inFlightCount == 0)
+
+        let refused = PortableBudgetArchiveTransfer.make(
+            budgetID: "a-budget-that-is-not-open", appState: appState, activity: activity
+        )
+        await #expect(throws: (any Error).self) {
+            try await refused.exportArchive()
+        }
+        #expect(activity.inFlightCount == 0)
+        appState.clearAppInitiatedSystemUIPresentationSuppression()
+    }
+
     @Test func sweepKeepsFreshFilesAndRemovesStaleOnes() throws {
         let files = makeScratchFiles()
         let now = Date(timeIntervalSince1970: 2_000_000_000)
