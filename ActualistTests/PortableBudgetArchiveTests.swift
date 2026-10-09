@@ -378,7 +378,11 @@ import ZIPFoundation
                 try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table'")
             )
             #expect(tables.isSuperset(of: ["accounts", "category_groups", "categories", "transactions"]))
-            #expect(tables.filter { $0.hasPrefix("actualist_") || $0.hasPrefix("kvcache") }.isEmpty)
+            #expect(tables.filter { $0.hasPrefix("actualist_") }.isEmpty)
+            // Upstream's Actual-format import runs DELETE FROM kvcache/kvcache_key.
+            #expect(tables.isSuperset(of: ["kvcache", "kvcache_key"]))
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM kvcache") == 0)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM kvcache_key") == 0)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM accounts") == 1)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM categories") == 1)
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM transactions") == 1)

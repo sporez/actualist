@@ -11,8 +11,10 @@ struct UntrustedBudgetSanitizationTests {
     private static let outboxMarker = "SECRET-OUTBOX-MARKER-7f3a"
     private static let knownStorageID = "KNOWN-STORAGE-ID-0001"
     /// Tables the hostile fixture plants; the rule-based sanitiser must drop each.
+    /// Its `kvcache` rows are covered by `expectEmptyKVCache`: those tables are
+    /// recreated empty because upstream's import clears them.
     private static let strippedFixtureTables = [
-        "kvcache", "kvcache_key", "actualist_action_log", "actualist_outbox",
+        "actualist_action_log", "actualist_outbox",
         "actualist_local_migrations", "actualist_budget_identity", "actualist_sync_checkpoint"
     ]
 
@@ -117,6 +119,17 @@ struct UntrustedBudgetSanitizationTests {
         let bytes = try Data(contentsOf: url)
         #expect(bytes.range(of: Data(Self.outboxMarker.utf8)) == nil)
         #expect(bytes.range(of: Data(Self.knownStorageID.utf8)) == nil)
+        try expectEmptyKVCache(url)
+    }
+
+    private func expectEmptyKVCache(_ url: URL) throws {
+        let queue = try DatabaseQueue(path: url.path)
+        try queue.read { db in
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM kvcache") == 0)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM kvcache_key") == 0)
+            let keyColumns = try Row.fetchAll(db, sql: "PRAGMA table_info(kvcache_key)").map { $0["name"] as String }
+            #expect(keyColumns == ["id", "key"])
+        }
     }
 
     private func makeDownloadFixture(
@@ -192,6 +205,7 @@ struct UntrustedBudgetSanitizationTests {
         }
         let bytes = try Data(contentsOf: snapshotURL)
         #expect(bytes.range(of: Data(Self.outboxMarker.utf8)) == nil)
+        try expectEmptyKVCache(snapshotURL)
     }
 
     /// Every `sqlite_master` object an opened database creates for itself
@@ -230,10 +244,15 @@ struct UntrustedBudgetSanitizationTests {
 
         #expect(try actualistObjectNames(of: source) == [])
         let queue = try DatabaseQueue(path: source.path)
+        // Upstream's Actual-format import clears both tables, so they stay, empty.
         let kvcache = try await queue.read { db in
-            try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE name LIKE 'kvcache%'")
+            try String.fetchAll(db, sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'kvcache%' ORDER BY name")
         }
-        #expect(kvcache.isEmpty)
+        #expect(kvcache == ["kvcache", "kvcache_key"])
+        let kvRows = try await queue.read { db in
+            try Int.fetchOne(db, sql: "SELECT (SELECT COUNT(*) FROM kvcache) + (SELECT COUNT(*) FROM kvcache_key)")
+        }
+        #expect(kvRows == 0)
     }
 
     // MARK: - Database selection

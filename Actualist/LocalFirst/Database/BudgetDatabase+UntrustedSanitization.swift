@@ -47,13 +47,19 @@ extension BudgetDatabase {
 
     /// Removes everything in the schema that is not Actual budget data:
     /// every `actualist_*` table and index (`ActualSyncDatasetPolicy.localTablePrefix`;
-    /// all are recreated on open or on first use), the `kvcache` tables, every
-    /// trigger, and every view that is not a `v_*` view. Upstream Actual has no
+    /// all are recreated on open or on first use), the `kvcache` tables' rows,
+    /// every trigger, and every view that is not a `v_*` view. Upstream Actual has no
     /// triggers, and it creates and regenerates the `v_*` views itself, so
     /// those stay. Actualist never queries them. The identity table must not
     /// travel: `prepareBudgetIdentity` only inserts when absent, so a carried
     /// row would reuse the source budget's storage identity. Stripping is by rule, so a
     /// bookkeeping object added later cannot ship in an export or upload.
+    ///
+    /// `kvcache` and `kvcache_key` are dropped (whatever schema or rows they
+    /// carried) and recreated empty with upstream's schema. Upstream's export
+    /// keeps both tables and clears them, and its Actual-format import runs
+    /// `DELETE FROM kvcache; DELETE FROM kvcache_key;` (v26.9.0
+    /// `importers/actual.ts`), which fails with "no such table" without them.
     static func sanitizeUntrustedSchema(in db: Database) throws {
         for trigger in try String.fetchAll(
             db, sql: "SELECT name FROM sqlite_master WHERE type = 'trigger'"
@@ -82,6 +88,10 @@ extension BudgetDatabase {
         ) where isLocalName(index) {
             try db.execute(sql: "DROP INDEX IF EXISTS \(index.quotedDatabaseIdentifier)")
         }
+        try db.execute(sql: """
+            CREATE TABLE kvcache (key TEXT PRIMARY KEY, value TEXT);
+            CREATE TABLE kvcache_key (id INTEGER PRIMARY KEY, key REAL);
+            """)
     }
 
     /// Sanitizes an extracted, not yet installed database in place. Runs
