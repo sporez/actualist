@@ -33,7 +33,7 @@ extension LocalFirstActualStore {
         exportFiles.sweepStale()
         let archiveURL = try exportFiles.makeArchiveURL()
         do {
-            _ = try await PortableBudgetArchive().export(
+            try await Self.writePortableArchive(
                 database: database,
                 budgetName: budgetName,
                 sourceIdentity: budgetID,
@@ -49,5 +49,22 @@ extension LocalFirstActualStore {
             throw CancellationError()
         }
         return archiveURL
+    }
+
+    /// Zipping the snapshot is blocking file work. Off the main actor, the UI
+    /// keeps drawing (the Export row's spinner) while the share sheet waits.
+    @concurrent
+    private static func writePortableArchive(
+        database: BudgetDatabase,
+        budgetName: String,
+        sourceIdentity: String,
+        to archiveURL: URL
+    ) async throws {
+        _ = try await PortableBudgetArchive().export(
+            database: database,
+            budgetName: budgetName,
+            sourceIdentity: sourceIdentity,
+            to: archiveURL
+        )
     }
 }

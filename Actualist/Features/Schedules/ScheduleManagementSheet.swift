@@ -202,22 +202,25 @@ struct ScheduleEditorView: View {
     private var transactionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeading("Transaction", symbol: "arrow.left.arrow.right")
-            Picker("Account", selection: Binding(
-                get: { draft?.accountID },
-                set: { coordinator.setAccount($0) }
-            )) {
-                if let accountID = draft?.accountID,
-                   !session.choices.accounts.contains(where: { $0.id == accountID }) {
-                    Text("Current account (unavailable)").tag(Optional(accountID))
+            formRow("Account") {
+                Picker("Account", selection: Binding(
+                    get: { draft?.accountID },
+                    set: { coordinator.setAccount($0) }
+                )) {
+                    if let accountID = draft?.accountID,
+                       !session.choices.accounts.contains(where: { $0.id == accountID }) {
+                        Text("Current account (unavailable)").tag(Optional(accountID))
+                    }
+                    Text("Choose account").tag(String?.none)
+                    ForEach(session.choices.accounts) { account in
+                        Text(account.title).tag(Optional(account.id))
+                    }
                 }
-                Text("Choose account").tag(String?.none)
-                ForEach(session.choices.accounts) { account in
-                    Text(account.title).tag(Optional(account.id))
-                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .accessibilityIdentifier("schedule-editor-account")
             }
-            .pickerStyle(.menu)
             .disabled(!isCreate && !session.capabilities.canEditAccount)
-            .accessibilityIdentifier("schedule-editor-account")
 
             Button {
                 isPayeePickerPresented = true
@@ -250,9 +253,7 @@ struct ScheduleEditorView: View {
                 )
             }
 
-            HStack(spacing: 8) {
-                Text("Amount type").foregroundStyle(ActualistTheme.primaryText)
-                Spacer(minLength: 12)
+            formRow("Amount type") {
                 Picker("Amount type", selection: Binding(
                     get: { draft?.amountMode ?? .exact },
                     set: { coordinator.setAmountMode($0) }
@@ -313,6 +314,16 @@ struct ScheduleEditorView: View {
         .actualistReviewCard()
     }
 
+    /// A descriptor on the left with its control on the right, like the
+    /// Payee row.
+    private func formRow<Control: View>(_ title: String, @ViewBuilder control: () -> Control) -> some View {
+        HStack(spacing: 8) {
+            Text(title).foregroundStyle(ActualistTheme.primaryText)
+            Spacer(minLength: 12)
+            control()
+        }
+    }
+
     private var dateSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             sectionHeading("Date", symbol: "calendar.badge.clock")
@@ -325,14 +336,17 @@ struct ScheduleEditorView: View {
             .pickerStyle(.segmented)
             .disabled(!isCreate && !session.canEditDate)
 
-            Picker("Date match", selection: Binding(
-                get: { draft?.operation ?? "is" },
-                set: { coordinator.setOperation($0) }
-            )) {
-                Text("On date").tag("is")
-                Text("About this date").tag("isapprox")
+            formRow("Date match") {
+                Picker("Date match", selection: Binding(
+                    get: { draft?.operation ?? "is" },
+                    set: { coordinator.setOperation($0) }
+                )) {
+                    Text("On date").tag("is")
+                    Text("About this date").tag("isapprox")
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
             }
-            .pickerStyle(.menu)
             .disabled(!isCreate && !session.canEditDate)
 
             if draft?.dateMode == .oneTime {
@@ -357,10 +371,16 @@ struct ScheduleEditorView: View {
         VStack(alignment: .leading, spacing: 10) {
             DatePicker("Starts", selection: recurrenceStartDate, displayedComponents: .date)
                 .datePickerStyle(.compact)
-            let recurrenceLayout = dynamicTypeSize.isAccessibilitySize
-                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-                : AnyLayout(HStackLayout(spacing: 8))
-            recurrenceLayout {
+            formRow("Repeats every") {
+                TextField("Every", text: Binding(
+                    get: { draft?.intervalText ?? "1" },
+                    set: { coordinator.setInterval($0) }
+                ))
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.center)
+                .frame(width: 54)
+                .accessibilityLabel("Repeat interval")
+                .reviewSheetFieldStyle()
                 Picker("Repeats", selection: Binding(
                     get: { draft?.frequency ?? .monthly },
                     set: { coordinator.setFrequency($0) }
@@ -371,15 +391,7 @@ struct ScheduleEditorView: View {
                     Text("Year").tag(ActualScheduleFrequency.yearly)
                 }
                 .pickerStyle(.menu)
-                TextField("Every", text: Binding(
-                    get: { draft?.intervalText ?? "1" },
-                    set: { coordinator.setInterval($0) }
-                ))
-                .keyboardType(.numberPad)
-                .frame(width: 54)
-                .accessibilityLabel("Repeat interval")
-                .reviewSheetFieldStyle()
-                Text("interval").foregroundStyle(ActualistTheme.secondaryText)
+                .labelsHidden()
             }
             if draft?.frequency == .monthly { monthlyPatternControls }
             Toggle("Move weekend dates", isOn: Binding(
@@ -388,28 +400,38 @@ struct ScheduleEditorView: View {
             ))
             .accessibilityIdentifier("schedule-editor-skip-weekend")
             if draft?.skipWeekend == true {
-                Picker("Weekend adjustment", selection: Binding(
-                    get: { draft?.weekendAdjustment ?? .after },
-                    set: { coordinator.setWeekendAdjustment($0) }
-                )) {
-                    Text("Before weekend").tag(ActualScheduleWeekendAdjustment.before)
-                    Text("After weekend").tag(ActualScheduleWeekendAdjustment.after)
+                formRow("Move to") {
+                    Picker("Weekend adjustment", selection: Binding(
+                        get: { draft?.weekendAdjustment ?? .after },
+                        set: { coordinator.setWeekendAdjustment($0) }
+                    )) {
+                        Text("Before weekend").tag(ActualScheduleWeekendAdjustment.before)
+                        Text("After weekend").tag(ActualScheduleWeekendAdjustment.after)
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                }
+            }
+            formRow("Ends") {
+                Picker("Ends", selection: endingMode) {
+                    ForEach(ScheduleEditorEndingMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
                 }
                 .pickerStyle(.menu)
+                .labelsHidden()
             }
-            Picker("Ends", selection: endingMode) {
-                ForEach(ScheduleEditorEndingMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.menu)
             if draft?.endingMode == .afterOccurrences {
-                TextField("Number of occurrences", text: Binding(
-                    get: { draft?.endingCountText ?? "12" },
-                    set: { coordinator.setEndingCount($0) }
-                ))
-                .keyboardType(.numberPad)
-                .reviewSheetFieldStyle()
+                formRow("Occurrences") {
+                    TextField("Number of occurrences", text: Binding(
+                        get: { draft?.endingCountText ?? "12" },
+                        set: { coordinator.setEndingCount($0) }
+                    ))
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.center)
+                    .frame(width: 70)
+                    .reviewSheetFieldStyle()
+                }
             } else if draft?.endingMode == .onDate {
                 DatePicker("End date", selection: endingDate, displayedComponents: .date)
                     .datePickerStyle(.compact)
@@ -446,12 +468,19 @@ struct ScheduleEditorView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private static func patternRowLabel(_ pattern: ActualSchedulePattern) -> String {
+        if case .dayOfMonth = pattern { return "Day" }
+        return "On the"
+    }
+
     @ViewBuilder
     private func monthlyPatternRow(_ pattern: ActualSchedulePattern, at index: Int) -> some View {
         let patternLayout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
             : AnyLayout(HStackLayout(spacing: 8))
         patternLayout {
+            Text(Self.patternRowLabel(pattern)).foregroundStyle(ActualistTheme.primaryText)
+            Spacer(minLength: 12)
             switch pattern {
             case .dayOfMonth(let day):
                 Picker("Day of month", selection: Binding(
@@ -463,18 +492,9 @@ struct ScheduleEditorView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .labelsHidden()
                 .accessibilityIdentifier("schedule-pattern-day-\(index)")
             case .weekday(let weekday, let ordinal):
-                Picker("Weekday", selection: Binding(
-                    get: { weekday },
-                    set: { coordinator.replacePattern(at: index, with: .weekday($0, ordinal: ordinal)) }
-                )) {
-                    ForEach(Self.weekdays, id: \.self) { value in
-                        Text(value.title).tag(value)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("schedule-pattern-weekday-\(index)")
                 Picker("Occurrence", selection: Binding(
                     get: { ordinal },
                     set: { coordinator.replacePattern(at: index, with: .weekday(weekday, ordinal: $0)) }
@@ -484,7 +504,19 @@ struct ScheduleEditorView: View {
                     }
                 }
                 .pickerStyle(.menu)
+                .labelsHidden()
                 .accessibilityIdentifier("schedule-pattern-ordinal-\(index)")
+                Picker("Weekday", selection: Binding(
+                    get: { weekday },
+                    set: { coordinator.replacePattern(at: index, with: .weekday($0, ordinal: ordinal)) }
+                )) {
+                    ForEach(Self.weekdays, id: \.self) { value in
+                        Text(value.title).tag(value)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .accessibilityIdentifier("schedule-pattern-weekday-\(index)")
             }
             Button(role: .destructive) {
                 coordinator.removePattern(at: index)
@@ -512,18 +544,21 @@ struct ScheduleEditorView: View {
                     .foregroundStyle(ActualistTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Picker("Upcoming window", selection: Binding(
-                get: { draft?.upcomingLength ?? "__budget_default__" },
-                set: { coordinator.setUpcomingLength($0 == "__budget_default__" ? nil : $0) }
-            )) {
-                Text("Budget default").tag("__budget_default__")
-                Text("7 days").tag("7")
-                Text("14 days").tag("14")
-                Text("30 days").tag("30")
-                Text("Current month").tag("currentMonth")
-                Text("One month").tag("oneMonth")
+            formRow("Upcoming window") {
+                Picker("Upcoming window", selection: Binding(
+                    get: { draft?.upcomingLength ?? "__budget_default__" },
+                    set: { coordinator.setUpcomingLength($0 == "__budget_default__" ? nil : $0) }
+                )) {
+                    Text("Budget default").tag("__budget_default__")
+                    Text("7 days").tag("7")
+                    Text("14 days").tag("14")
+                    Text("30 days").tag("30")
+                    Text("Current month").tag("currentMonth")
+                    Text("One month").tag("oneMonth")
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
             }
-            .pickerStyle(.menu)
             .disabled(!isCreate && !session.capabilities.canEditMetadata)
         }
         .actualistReviewCard()
