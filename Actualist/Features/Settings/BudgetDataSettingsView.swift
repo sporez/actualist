@@ -207,8 +207,12 @@ struct BudgetDataSettingsView: View {
         .onAppear {
             viewModel.hydrate(from: appState)
         }
-        // A ready ZIP belongs to the budget and visit it was built for.
-        .onChange(of: appState.settings.selectedBudgetID) { exportWorkflow.reset() }
+        // The share ZIP is built for the open budget when the screen opens and
+        // discarded when it goes away. It is not rebuilt on background data
+        // changes: that would delete a file a share sheet may still be reading.
+        .task(id: appState.settings.selectedBudgetID) {
+            prepareExport()
+        }
         .onDisappear { exportWorkflow.reset() }
         .task(id: appState.settings.selectedBudgetID) {
             isCarryoverConfirmationPresented = false
@@ -247,54 +251,37 @@ struct BudgetDataSettingsView: View {
     }
 
     /// Export is non-destructive and stays its own section, visually and
-    /// semantically separate from the destructive Reimport row above. Export
-    /// Budget builds the ZIP with visible progress; the row then becomes a
-    /// ShareLink for the ready file (`PortableBudgetExportWorkflow`).
+    /// semantically separate from the destructive Reimport row above. The ZIP
+    /// is built when the screen opens, so the row is one tap on a ready file
+    /// (`PortableBudgetExportWorkflow`).
     @ViewBuilder
     private var exportSection: some View {
         Section {
-            if let budgetID = appState.settings.selectedBudgetID {
-                if let archiveURL = exportWorkflow.readyArchive(for: budgetID) {
-                    ShareLink(
-                        item: PortableBudgetArchiveTransfer.make(archiveURL: archiveURL, appState: appState),
-                        preview: SharePreview(
-                            PortableBudgetArchiveTransfer.suggestedFileName,
-                            image: Image(systemName: "doc.zipper")
-                        )
-                    ) {
-                        exportRowLabel(title: "Share Budget ZIP…", systemImage: "square.and.arrow.up")
-                    }
-                    .accessibilityIdentifier("budget-export-share")
-                } else {
-                    Button {
-                        Task {
-                            await exportWorkflow.prepare(budgetID: budgetID) { budgetID in
-                                try await appState.localFirstStore.exportPortableBudgetArchive(budgetID: budgetID)
-                            }
-                        }
-                    } label: {
-                        exportRowLabel(
-                            title: exportWorkflow.isPreparing ? "Preparing Budget ZIP…" : "Export Budget",
-                            systemImage: "doc.zipper"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(exportWorkflow.isPreparing)
-                    .accessibilityIdentifier("budget-export-prepare")
+            if let budgetID = appState.settings.selectedBudgetID,
+               let archiveURL = exportWorkflow.readyArchive(for: budgetID) {
+                ShareLink(
+                    item: archiveURL,
+                    preview: SharePreview("Budget Export", image: Image(systemName: "doc.zipper"))
+                ) {
+                    exportRowLabel
                 }
-                if case .failed(let message) = exportWorkflow.state {
-                    Text(message)
-                        .font(.footnote)
-                        .foregroundStyle(ActualistTheme.danger)
-                }
+                .accessibilityIdentifier("budget-export-share")
             } else {
-                exportRowLabel(title: "Export Budget", systemImage: "doc.zipper")
+                exportRowLabel
                     .foregroundStyle(ActualistTheme.secondaryText)
+                    .accessibilityIdentifier("budget-export-share")
+            }
+            if case .failed(let message) = exportWorkflow.state {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.danger)
+                Button("Try Again") { prepareExport() }
+                    .accessibilityIdentifier("budget-export-retry")
             }
         } header: {
             Text("Export")
         } footer: {
-            Text(PortableBudgetArchiveTransfer.footerText(
+            Text(PortableBudgetExportWorkflow.footerText(
                 isBudgetEncrypted: appState.localFirstStore.isOpenBudgetEncrypted
             ))
                 .font(.caption)
@@ -303,10 +290,19 @@ struct BudgetDataSettingsView: View {
         .settingsSectionChrome()
     }
 
-    private func exportRowLabel(title: String, systemImage: String) -> some View {
+    private func prepareExport() {
+        guard let budgetID = appState.settings.selectedBudgetID else { return }
+        Task {
+            await exportWorkflow.prepare(budgetID: budgetID) { budgetID in
+                try await appState.localFirstStore.exportPortableBudgetArchive(budgetID: budgetID)
+            }
+        }
+    }
+
+    private var exportRowLabel: some View {
         SettingsActionLabel(
-            title: title,
-            systemImage: systemImage,
+            title: "Share Budget ZIP…",
+            systemImage: "square.and.arrow.up",
             isBusy: exportWorkflow.isPreparing
         )
         .frame(maxWidth: .infinity, alignment: .leading)

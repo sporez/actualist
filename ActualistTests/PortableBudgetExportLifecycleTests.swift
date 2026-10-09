@@ -26,8 +26,13 @@ struct PortableBudgetExportLifecycleTests {
         return (bundle, files)
     }
 
+    /// Ages an export file and its per-export folder, which is what the sweep reads.
     private func age(_ url: URL, to date: Date) throws {
         try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: date],
+            ofItemAtPath: url.deletingLastPathComponent().path
+        )
     }
 
     @Test func exportIsWrittenInsideTheExportDirectory() async throws {
@@ -35,7 +40,8 @@ struct PortableBudgetExportLifecycleTests {
 
         let url = try await bundle.store.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
 
-        #expect(url.deletingLastPathComponent().standardizedFileURL == files.directory.standardizedFileURL)
+        #expect(url.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL == files.directory.standardizedFileURL)
+        #expect(url.lastPathComponent == PortableExportFiles.archiveFileName)
         #expect(FileManager.default.fileExists(atPath: url.path))
     }
 
@@ -49,7 +55,8 @@ struct PortableBudgetExportLifecycleTests {
 
         let url = try #require(workflow.readyArchive(for: budgetID))
         #expect(workflow.readyArchive(for: "another-budget") == nil)
-        #expect(url.deletingLastPathComponent().standardizedFileURL == files.directory.standardizedFileURL)
+        #expect(url.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL == files.directory.standardizedFileURL)
+        #expect(url.lastPathComponent == PortableExportFiles.archiveFileName)
         let staging = FileManager.default.temporaryDirectory
             .appending(path: "WorkflowValidate-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
@@ -109,26 +116,6 @@ struct PortableBudgetExportLifecycleTests {
         #expect(workflow.state == .idle)
         let url = try #require(finishedURL)
         #expect(!FileManager.default.fileExists(atPath: url.path))
-    }
-
-    @Test func shareItemStartsAppSwitcherSuppressionOnlyWhenRequested() async throws {
-        let (bundle, _) = try await makeBundle()
-        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
-        let appState = AppState(
-            settingsStore: AppSettingsStore(defaults: defaults),
-            keychain: bundle.keychain,
-            localFirstStore: bundle.store
-        )
-        appState.updateAppSwitcherPrivacyMode(.always)
-        let archiveURL = URL(fileURLWithPath: "/tmp/ready.zip")
-        let transfer = PortableBudgetArchiveTransfer.make(archiveURL: archiveURL, appState: appState)
-        #expect(!appState.isAppSwitcherCoverSuppressedForSystemUI)
-
-        let shared = await transfer.exportArchive()
-
-        #expect(shared == archiveURL)
-        #expect(appState.isAppSwitcherCoverSuppressedForSystemUI)
-        appState.clearAppInitiatedSystemUIPresentationSuppression()
     }
 
     /// On iPhone the temporary directory sits under `/var`, a symlink to
@@ -212,9 +199,20 @@ struct PortableBudgetExportLifecycleTests {
         #expect(FileManager.default.fileExists(atPath: outside.path))
     }
 
+    @Test func discardRemovesTheExportAndItsFolder() throws {
+        let files = makeScratchFiles()
+        let url = try files.makeArchiveURL()
+        try Data("zip".utf8).write(to: url)
+
+        files.discard(url)
+
+        #expect(!FileManager.default.fileExists(atPath: url.deletingLastPathComponent().path))
+        #expect(FileManager.default.fileExists(atPath: files.directory.path))
+    }
+
     @Test func footerWarnsOnlyForEncryptedBudgets() {
-        let plain = PortableBudgetArchiveTransfer.footerText(isBudgetEncrypted: false)
-        let encrypted = PortableBudgetArchiveTransfer.footerText(isBudgetEncrypted: true)
+        let plain = PortableBudgetExportWorkflow.footerText(isBudgetEncrypted: false)
+        let encrypted = PortableBudgetExportWorkflow.footerText(isBudgetEncrypted: true)
 
         #expect(!plain.contains("not encrypted"))
         #expect(encrypted.hasPrefix(plain))

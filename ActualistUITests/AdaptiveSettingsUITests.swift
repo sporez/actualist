@@ -136,16 +136,14 @@ final class AdaptiveSettingsUITests: XCTestCase {
     }
 
     @MainActor
-    func testBudgetExportPreparesThenSharesFromTheLabel() throws {
+    func testBudgetExportOpensShareSheetWithOneTapOnTheLabel() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: try UITestAppIdentity.appIdentifier)
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/budget-data"]
         app.launch()
 
         XCTAssertTrue(app.navigationBars["Budget & Data"].waitForExistence(timeout: 15))
-        let prepareRow = app.buttons["budget-export-prepare"]
-        XCTAssertTrue(prepareRow.waitForExistence(timeout: 10))
-        prepareRow.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
+        // The ZIP is built when the screen opens; the row becomes a share link.
         let exportRow = app.buttons["budget-export-share"]
         XCTAssertTrue(exportRow.waitForExistence(timeout: 20))
 

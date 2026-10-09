@@ -1,10 +1,11 @@
 import Foundation
 import Observation
 
-/// Budget & Data's two-step export: Export Budget builds the ZIP (the row
-/// shows progress), then Share Budget ZIP shares the ready file. Opening the
-/// share sheet keeps the main thread busy on device, so progress has to be
-/// shown before the share tap, not during it.
+/// Budget & Data's export: the screen builds the ZIP when it opens (and again
+/// when the open budget changes), so Share Budget ZIP is one tap on a ready plain
+/// file. A ShareLink over a custom `Transferable` took about five seconds to
+/// open on device even with the file ready; a plain file URL opens at once
+/// (device A/B, 2026-10-09).
 ///
 /// Each prepare gets a generation. A superseded or cancelled build discards
 /// its archive, and `reset` (leaving the screen, switching budgets) discards
@@ -67,8 +68,7 @@ final class PortableBudgetExportWorkflow {
         }
     }
 
-    /// Back to Export Budget; removes a ready archive and invalidates a build
-    /// in flight.
+    /// Removes a ready archive and invalidates a build in flight.
     func reset() {
         generation &+= 1
         discardReadyArchive()
@@ -79,5 +79,14 @@ final class PortableBudgetExportWorkflow {
         if case .ready(_, let url) = state {
             files.discard(url)
         }
+    }
+
+    nonisolated static let baseFooter = "Saves the open budget as a portable ZIP file you can share or import elsewhere. Your server data is not changed."
+
+    /// Footer copy for the Export section. The ZIP is always plaintext, even
+    /// when the budget is end-to-end encrypted on the server.
+    nonisolated static func footerText(isBudgetEncrypted: Bool) -> String {
+        guard isBudgetEncrypted else { return baseFooter }
+        return baseFooter + " This export is not encrypted. Anyone with the file can read your budget."
     }
 }

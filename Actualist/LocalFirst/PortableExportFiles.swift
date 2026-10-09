@@ -12,6 +12,10 @@ import Foundation
 struct PortableExportFiles {
     static let staleAge: TimeInterval = 10 * 60
     static let directoryName = "PortableExports"
+    /// The name a receiver sees. Fixed, so it never carries the budget's name
+    /// (which privacy display settings may mask). Each export gets its own
+    /// folder so the same name can repeat.
+    static let archiveFileName = "Budget Export.zip"
 
     let directory: URL
     private let fileManager: FileManager
@@ -24,11 +28,13 @@ struct PortableExportFiles {
         self.fileManager = fileManager
     }
 
-    /// A fresh archive path inside the protected export directory.
+    /// A fresh archive path, `<export directory>/<id>/Budget Export.zip`.
     func makeArchiveURL() throws -> URL {
-        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let folder = directory.appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
         try protect(directory)
-        return directory.appending(path: "budget-export-\(UUID().uuidString).zip")
+        try protect(folder)
+        return folder.appending(path: Self.archiveFileName)
     }
 
     /// Applies the protection class to a finished export file.
@@ -41,16 +47,16 @@ struct PortableExportFiles {
         #endif
     }
 
-    /// Removes one export, but only inside the export directory.
+    /// Removes one export and its folder, but only inside the export directory.
     func discard(_ url: URL) {
-        guard url.standardizedFileURL.deletingLastPathComponent()
-            == directory.standardizedFileURL else {
+        let folder = url.standardizedFileURL.deletingLastPathComponent()
+        guard folder.deletingLastPathComponent() == directory.standardizedFileURL else {
             return
         }
-        try? fileManager.removeItem(at: url)
+        try? fileManager.removeItem(at: folder)
     }
 
-    /// Removes exports last modified more than `staleAge` before `now`.
+    /// Removes export folders last modified more than `staleAge` before `now`.
     func sweepStale(now: Date = Date()) {
         let cutoff = now.addingTimeInterval(-Self.staleAge)
         for url in contents() {
