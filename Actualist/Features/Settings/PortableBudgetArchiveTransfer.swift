@@ -73,17 +73,41 @@ struct PortableBudgetArchiveTransfer: Transferable, Sendable {
     }
 }
 
-/// Whether a Share ZIP request is still building its archive. The share sheet
-/// waits for the file, which can take seconds, so the Export row shows a
-/// spinner meanwhile. Counted, because a destination can request the file
-/// more than once and the requests can overlap.
+/// Whether the Export row should show its spinner. The share sheet takes
+/// seconds to ask for the file after the tap, so the spinner starts at the
+/// tap (`shareRequested`) and stays through the archive build. Builds are
+/// counted because a destination can request the file more than once.
 @MainActor @Observable
 final class PortableBudgetExportActivity {
     private(set) var inFlightCount = 0
+    private(set) var isAwaitingShareSheet = false
+    private var awaitingTimeout: Task<Void, Never>?
+    private let awaitingLimit: Duration
 
-    var isPreparing: Bool { inFlightCount > 0 }
+    init(awaitingLimit: Duration = .seconds(15)) {
+        self.awaitingLimit = awaitingLimit
+    }
+
+    var isPreparing: Bool { inFlightCount > 0 || isAwaitingShareSheet }
+
+    /// The row was tapped. If the share sheet never asks for the file, the
+    /// spinner clears after `awaitingLimit`.
+    func shareRequested() {
+        isAwaitingShareSheet = true
+        awaitingTimeout?.cancel()
+        awaitingTimeout = Task { [weak self, awaitingLimit] in
+            do { try await Task.sleep(for: awaitingLimit) } catch { return }
+            self?.isAwaitingShareSheet = false
+        }
+    }
 
     func begin() { inFlightCount += 1 }
 
-    func end() { inFlightCount = max(0, inFlightCount - 1) }
+    func end() {
+        inFlightCount = max(0, inFlightCount - 1)
+        guard inFlightCount == 0 else { return }
+        isAwaitingShareSheet = false
+        awaitingTimeout?.cancel()
+        awaitingTimeout = nil
+    }
 }

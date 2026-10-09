@@ -144,6 +144,23 @@ struct PortableBudgetExportLifecycleTests {
         #expect(activity.inFlightCount == 0)
     }
 
+    @Test func shareTapShowsPreparingUntilTheBuildFinishes() {
+        let activity = PortableBudgetExportActivity()
+        activity.shareRequested()
+        #expect(activity.isPreparing)
+        activity.begin()
+        activity.end()
+        #expect(!activity.isPreparing)
+    }
+
+    @Test func shareTapWithoutAFileRequestClearsAfterTheLimit() async throws {
+        let activity = PortableBudgetExportActivity(awaitingLimit: .milliseconds(50))
+        activity.shareRequested()
+        #expect(activity.isPreparing)
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(!activity.isPreparing)
+    }
+
     @Test func madeTransferClearsActivityAfterSuccessAndFailure() async throws {
         let (bundle, _) = try await makeBundle()
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))

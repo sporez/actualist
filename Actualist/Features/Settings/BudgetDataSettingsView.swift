@@ -260,6 +260,7 @@ struct BudgetDataSettingsView: View {
                 ) {
                     exportRowLabel
                 }
+                .buttonStyle(ShareTapNotifyingButtonStyle { exportActivity.shareRequested() })
                 .accessibilityIdentifier("budget-export-share")
             } else {
                 exportRowLabel
@@ -401,5 +402,22 @@ struct BudgetDataSettingsView: View {
         }
         reimportPassword = ""
         isReimportPasswordPresented = true
+    }
+}
+
+/// Reports a ShareLink tap before running the link's own action. A gesture
+/// layered on the link competed with its hit target (D2); a button style
+/// keeps the link's own tap handling and full-row hit shape.
+private struct ShareTapNotifyingButtonStyle: PrimitiveButtonStyle {
+    let onTap: () -> Void
+
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            onTap()
+            configuration.trigger()
+        } label: {
+            configuration.label
+        }
+        .buttonStyle(.plain)
     }
 }
