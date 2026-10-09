@@ -144,6 +144,19 @@ struct PortableBudgetExportLifecycleTests {
         #expect(activity.inFlightCount == 0)
     }
 
+    @Test func everyArchiveRejectionHasAPlainMessage() {
+        let reasons: [PortableBudgetArchiveError.Reason] = [
+            .unsafePath, .symbolicLink, .resourceLimit, .insufficientStorage, .truncated,
+            .missingDatabase, .missingMetadata, .splitDirectories, .ambiguous, .checksumMismatch,
+            .malformedMetadata, .oversizedMetadata, .integrity, .unsupportedSchema,
+        ]
+        for reason in reasons {
+            let message = PortableBudgetArchiveError(stage: .beforeInstall, reason: reason).localizedDescription
+            #expect(!message.contains("PortableBudgetArchiveError"), "\(reason): \(message)")
+            #expect(!message.contains("couldn’t be completed"), "\(reason): \(message)")
+        }
+    }
+
     @Test func shareTapShowsPreparingUntilTheBuildFinishes() {
         let activity = PortableBudgetExportActivity()
         activity.shareRequested()
