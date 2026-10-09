@@ -144,6 +144,25 @@ struct PortableBudgetExportLifecycleTests {
         #expect(activity.inFlightCount == 0)
     }
 
+    /// On iPhone the temporary directory sits under `/var`, a symlink to
+    /// `/private/var`. A staging directory reached through a symlink must
+    /// still accept the export's own entries.
+    @Test func validationAcceptsAStagingDirectoryReachedThroughASymlink() async throws {
+        let (bundle, _) = try await makeBundle()
+        let url = try await bundle.store.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
+        let base = FileManager.default.temporaryDirectory
+            .appending(path: "SymlinkStage-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let real = base.appending(path: "real", directoryHint: .isDirectory)
+        let alias = base.appending(path: "alias", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: real)
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        let validated = try PortableBudgetArchive().validate(archiveAt: url, stagingDirectory: alias)
+
+        #expect(validated.metadata.budgetName == "Writable Budget")
+    }
+
     @Test func everyArchiveRejectionHasAPlainMessage() {
         let reasons: [PortableBudgetArchiveError.Reason] = [
             .unsafePath, .symbolicLink, .resourceLimit, .insufficientStorage, .truncated,

@@ -354,11 +354,30 @@ struct PortableBudgetArchive {
     }
 
     private func containedURL(_ candidate: URL, root: URL) throws -> URL {
-        let root = root.standardizedFileURL.resolvingSymlinksInPath()
-        let resolved = candidate.standardizedFileURL.resolvingSymlinksInPath()
+        let root = resolvedPath(root)
+        let resolved = resolvedPath(candidate)
         guard resolved.pathComponents.starts(with: root.pathComponents),
               resolved.pathComponents.count > root.pathComponents.count else {
             throw UntrustedZipFailure.unsafePath
+        }
+        return resolved
+    }
+
+    /// Resolves symlinks through the deepest existing ancestor, then appends
+    /// the components that don't exist yet. `resolvingSymlinksInPath` leaves a
+    /// missing path unresolved, so an entry about to be extracted kept its
+    /// `/var/...` spelling while the existing root became `/private/var/...`
+    /// on device, and every entry looked like it escaped the root.
+    private func resolvedPath(_ url: URL) -> URL {
+        var existing = url.standardizedFileURL
+        var missing: [String] = []
+        while !fileManager.fileExists(atPath: existing.path), existing.pathComponents.count > 1 {
+            missing.insert(existing.lastPathComponent, at: 0)
+            existing.deleteLastPathComponent()
+        }
+        var resolved = existing.resolvingSymlinksInPath()
+        for component in missing {
+            resolved.append(path: component)
         }
         return resolved
     }

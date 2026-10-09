@@ -408,13 +408,20 @@ struct BudgetDataSettingsView: View {
 /// Reports a ShareLink tap before running the link's own action. A gesture
 /// layered on the link competed with its hit target (D2); a button style
 /// keeps the link's own tap handling and full-row hit shape.
+///
+/// Opening the share sheet keeps the main thread busy for seconds on device,
+/// so the link's action waits one short beat after the tap. That lets the
+/// spinner commit; once on screen it keeps animating while the sheet loads.
 private struct ShareTapNotifyingButtonStyle: PrimitiveButtonStyle {
     let onTap: () -> Void
 
     func makeBody(configuration: Configuration) -> some View {
         Button {
             onTap()
-            configuration.trigger()
+            Task { @MainActor in
+                do { try await Task.sleep(for: .milliseconds(60)) } catch { return }
+                configuration.trigger()
+            }
         } label: {
             configuration.label
         }
