@@ -246,7 +246,6 @@ struct SettingsActionLabel: View {
     let systemImage: String
     /// Swaps the icon for a spinner while the row's action is working.
     var isBusy = false
-    var busyLabel: String? = nil
 
     var body: some View {
         Label {
@@ -256,7 +255,7 @@ struct SettingsActionLabel: View {
             if isBusy {
                 ProgressView()
                     .controlSize(.small)
-                    .accessibilityLabel(busyLabel ?? title)
+                    .accessibilityLabel(title)
             } else {
                 Image(systemName: systemImage)
                     .foregroundStyle(ActualistTheme.accent)

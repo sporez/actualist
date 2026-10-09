@@ -2,8 +2,9 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Plaintext export ZIP lifecycle: where it is written, and when it is removed
-/// (sign-out, age) and the lazy share item that requests it.
+/// Plaintext export ZIP lifecycle: where it is written, the two-step
+/// prepare-then-share workflow, the share item, and when files are removed
+/// (reset, supersession, sign-out, age).
 @Suite @MainActor
 struct PortableBudgetExportLifecycleTests {
     private let support = LocalFirstActualStoreTests()
@@ -25,10 +26,6 @@ struct PortableBudgetExportLifecycleTests {
         return (bundle, files)
     }
 
-    @MainActor private final class BeganCounter {
-        var count = 0
-    }
-
     private func age(_ url: URL, to date: Date) throws {
         try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
     }
@@ -42,77 +39,79 @@ struct PortableBudgetExportLifecycleTests {
         #expect(FileManager.default.fileExists(atPath: url.path))
     }
 
-    @Test func transferRequestBuildsArchiveForTheBoundBudget() async throws {
+    @Test func prepareBuildsAValidArchiveForTheBudget() async throws {
         let (bundle, files) = try await makeBundle()
         let store = bundle.store
-        let began = BeganCounter()
-        let transfer = PortableBudgetArchiveTransfer(
-            budgetID: bundle.budget.syncID,
-            willExport: { began.count += 1 },
-            export: { budgetID in try await store.exportPortableBudgetArchive(budgetID: budgetID) }
-        )
+        let workflow = PortableBudgetExportWorkflow(files: files)
+        let budgetID = bundle.budget.syncID
 
-        let url = try await transfer.exportArchive()
+        await workflow.prepare(budgetID: budgetID) { try await store.exportPortableBudgetArchive(budgetID: $0) }
 
-        #expect(began.count == 1)
+        let url = try #require(workflow.readyArchive(for: budgetID))
+        #expect(workflow.readyArchive(for: "another-budget") == nil)
         #expect(url.deletingLastPathComponent().standardizedFileURL == files.directory.standardizedFileURL)
         let staging = FileManager.default.temporaryDirectory
-            .appending(path: "TransferValidate-\(UUID().uuidString)", directoryHint: .isDirectory)
+            .appending(path: "WorkflowValidate-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
         let validated = try PortableBudgetArchive().validate(archiveAt: url, stagingDirectory: staging)
         #expect(validated.metadata.budgetName == "Writable Budget")
     }
 
-    @Test func eachTransferRequestWritesItsOwnArchive() async throws {
-        let (bundle, _) = try await makeBundle()
-        let store = bundle.store
-        let transfer = PortableBudgetArchiveTransfer(
-            budgetID: bundle.budget.syncID,
-            willExport: {},
-            export: { budgetID in try await store.exportPortableBudgetArchive(budgetID: budgetID) }
-        )
-
-        let first = try await transfer.exportArchive()
-        let second = try await transfer.exportArchive()
-
-        #expect(first != second)
-        #expect(FileManager.default.fileExists(atPath: first.path))
-        #expect(FileManager.default.fileExists(atPath: second.path))
-    }
-
-    @Test func transferForAnotherBudgetFailsWithoutWritingAnArchive() async throws {
+    @Test func prepareForANonOpenBudgetFailsWithoutLeavingAnArchive() async throws {
         let (bundle, files) = try await makeBundle()
         let store = bundle.store
-        let transfer = PortableBudgetArchiveTransfer(
-            budgetID: "a-budget-that-is-not-open",
-            willExport: {},
-            export: { budgetID in try await store.exportPortableBudgetArchive(budgetID: budgetID) }
-        )
+        let workflow = PortableBudgetExportWorkflow(files: files)
 
-        await #expect(throws: (any Error).self) {
-            try await transfer.exportArchive()
+        await workflow.prepare(budgetID: "a-budget-that-is-not-open") {
+            try await store.exportPortableBudgetArchive(budgetID: $0)
         }
 
+        guard case .failed = workflow.state else {
+            Issue.record("Expected a failed export, got \(workflow.state)")
+            return
+        }
         let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: files.directory.path)) ?? []
         #expect(leftovers.isEmpty)
     }
 
-    @Test func transferPropagatesExportFailureAfterStartingSuppression() async {
-        struct ExportFailure: Error {}
-        let began = BeganCounter()
-        let transfer = PortableBudgetArchiveTransfer(
-            budgetID: "budget",
-            willExport: { began.count += 1 },
-            export: { _ in throw ExportFailure() }
-        )
+    @Test func resetAndRepreparingDiscardTheReadyArchive() async throws {
+        let (bundle, files) = try await makeBundle()
+        let store = bundle.store
+        let workflow = PortableBudgetExportWorkflow(files: files)
+        let budgetID = bundle.budget.syncID
+        let export: @MainActor (String) async throws -> URL = { try await store.exportPortableBudgetArchive(budgetID: $0) }
 
-        await #expect(throws: ExportFailure.self) {
-            try await transfer.exportArchive()
-        }
-        #expect(began.count == 1)
+        await workflow.prepare(budgetID: budgetID, export: export)
+        let first = try #require(workflow.readyArchive(for: budgetID))
+        await workflow.prepare(budgetID: budgetID, export: export)
+        let second = try #require(workflow.readyArchive(for: budgetID))
+        #expect(!FileManager.default.fileExists(atPath: first.path))
+
+        workflow.reset()
+
+        #expect(workflow.state == .idle)
+        #expect(!FileManager.default.fileExists(atPath: second.path))
     }
 
-    @Test func makeTriggersAppSwitcherSuppressionOnlyWhenRequested() async throws {
+    @Test func aBuildFinishingAfterResetIsDiscarded() async throws {
+        let (bundle, files) = try await makeBundle()
+        let store = bundle.store
+        let workflow = PortableBudgetExportWorkflow(files: files)
+        var finishedURL: URL?
+
+        await workflow.prepare(budgetID: bundle.budget.syncID) { budgetID in
+            let url = try await store.exportPortableBudgetArchive(budgetID: budgetID)
+            finishedURL = url
+            workflow.reset()
+            return url
+        }
+
+        #expect(workflow.state == .idle)
+        let url = try #require(finishedURL)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test func shareItemStartsAppSwitcherSuppressionOnlyWhenRequested() async throws {
         let (bundle, _) = try await makeBundle()
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let appState = AppState(
@@ -121,27 +120,15 @@ struct PortableBudgetExportLifecycleTests {
             localFirstStore: bundle.store
         )
         appState.updateAppSwitcherPrivacyMode(.always)
-        let transfer = PortableBudgetArchiveTransfer.make(budgetID: bundle.budget.syncID, appState: appState)
+        let archiveURL = URL(fileURLWithPath: "/tmp/ready.zip")
+        let transfer = PortableBudgetArchiveTransfer.make(archiveURL: archiveURL, appState: appState)
         #expect(!appState.isAppSwitcherCoverSuppressedForSystemUI)
 
-        _ = try await transfer.exportArchive()
+        let shared = await transfer.exportArchive()
 
+        #expect(shared == archiveURL)
         #expect(appState.isAppSwitcherCoverSuppressedForSystemUI)
         appState.clearAppInitiatedSystemUIPresentationSuppression()
-        #expect(!appState.isAppSwitcherCoverSuppressedForSystemUI)
-    }
-
-    @Test func exportActivityCountsOverlappingRequestsAndNeverGoesNegative() {
-        let activity = PortableBudgetExportActivity()
-        #expect(!activity.isPreparing)
-        activity.begin()
-        activity.begin()
-        activity.end()
-        #expect(activity.isPreparing)
-        activity.end()
-        #expect(!activity.isPreparing)
-        activity.end()
-        #expect(activity.inFlightCount == 0)
     }
 
     /// On iPhone the temporary directory sits under `/var`, a symlink to
@@ -174,49 +161,6 @@ struct PortableBudgetExportLifecycleTests {
             #expect(!message.contains("PortableBudgetArchiveError"), "\(reason): \(message)")
             #expect(!message.contains("couldn’t be completed"), "\(reason): \(message)")
         }
-    }
-
-    @Test func shareTapShowsPreparingUntilTheBuildFinishes() {
-        let activity = PortableBudgetExportActivity()
-        activity.shareRequested()
-        #expect(activity.isPreparing)
-        activity.begin()
-        activity.end()
-        #expect(!activity.isPreparing)
-    }
-
-    @Test func shareTapWithoutAFileRequestClearsAfterTheLimit() async throws {
-        let activity = PortableBudgetExportActivity(awaitingLimit: .milliseconds(50))
-        activity.shareRequested()
-        #expect(activity.isPreparing)
-        try await Task.sleep(for: .milliseconds(400))
-        #expect(!activity.isPreparing)
-    }
-
-    @Test func madeTransferClearsActivityAfterSuccessAndFailure() async throws {
-        let (bundle, _) = try await makeBundle()
-        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
-        let appState = AppState(
-            settingsStore: AppSettingsStore(defaults: defaults),
-            keychain: bundle.keychain,
-            localFirstStore: bundle.store
-        )
-        let activity = PortableBudgetExportActivity()
-
-        let transfer = PortableBudgetArchiveTransfer.make(
-            budgetID: bundle.budget.syncID, appState: appState, activity: activity
-        )
-        _ = try await transfer.exportArchive()
-        #expect(activity.inFlightCount == 0)
-
-        let refused = PortableBudgetArchiveTransfer.make(
-            budgetID: "a-budget-that-is-not-open", appState: appState, activity: activity
-        )
-        await #expect(throws: (any Error).self) {
-            try await refused.exportArchive()
-        }
-        #expect(activity.inFlightCount == 0)
-        appState.clearAppInitiatedSystemUIPresentationSuppression()
     }
 
     @Test func sweepKeepsFreshFilesAndRemovesStaleOnes() throws {

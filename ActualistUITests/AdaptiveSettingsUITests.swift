@@ -136,15 +136,18 @@ final class AdaptiveSettingsUITests: XCTestCase {
     }
 
     @MainActor
-    func testBudgetExportOpensShareSheetWithOneTapOnTheLabel() throws {
+    func testBudgetExportPreparesThenSharesFromTheLabel() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: try UITestAppIdentity.appIdentifier)
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/budget-data"]
         app.launch()
 
         XCTAssertTrue(app.navigationBars["Budget & Data"].waitForExistence(timeout: 15))
+        let prepareRow = app.buttons["budget-export-prepare"]
+        XCTAssertTrue(prepareRow.waitForExistence(timeout: 10))
+        prepareRow.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()
         let exportRow = app.buttons["budget-export-share"]
-        XCTAssertTrue(exportRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(exportRow.waitForExistence(timeout: 20))
 
         // The label, not the trailing space, must be tappable.
         exportRow.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)).tap()

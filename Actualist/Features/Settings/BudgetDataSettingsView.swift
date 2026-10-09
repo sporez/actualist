@@ -11,7 +11,7 @@ struct BudgetDataSettingsView: View {
     @State private var isBudgetPickerPresented = false
     @State private var isAccountOrderPresented = false
     @State private var isReimporting = false
-    @State private var exportActivity = PortableBudgetExportActivity()
+    @State private var exportWorkflow = PortableBudgetExportWorkflow()
     @State private var isReimportConfirmationPresented = false
     @State private var isReimportPasswordPresented = false
     @State private var reimportPassword = ""
@@ -207,6 +207,9 @@ struct BudgetDataSettingsView: View {
         .onAppear {
             viewModel.hydrate(from: appState)
         }
+        // A ready ZIP belongs to the budget and visit it was built for.
+        .onChange(of: appState.settings.selectedBudgetID) { exportWorkflow.reset() }
+        .onDisappear { exportWorkflow.reset() }
         .task(id: appState.settings.selectedBudgetID) {
             isCarryoverConfirmationPresented = false
             guard let budgetID = appState.settings.selectedBudgetID else {
@@ -244,26 +247,48 @@ struct BudgetDataSettingsView: View {
     }
 
     /// Export is non-destructive and stays its own section, visually and
-    /// semantically separate from the destructive Reimport row above. One tap
-    /// opens the share sheet; the ZIP is built when a destination asks for it
-    /// (`PortableBudgetArchiveTransfer`).
+    /// semantically separate from the destructive Reimport row above. Export
+    /// Budget builds the ZIP with visible progress; the row then becomes a
+    /// ShareLink for the ready file (`PortableBudgetExportWorkflow`).
     @ViewBuilder
     private var exportSection: some View {
         Section {
             if let budgetID = appState.settings.selectedBudgetID {
-                ShareLink(
-                    item: PortableBudgetArchiveTransfer.make(budgetID: budgetID, appState: appState, activity: exportActivity),
-                    preview: SharePreview(
-                        PortableBudgetArchiveTransfer.suggestedFileName,
-                        image: Image(systemName: "doc.zipper")
-                    )
-                ) {
-                    exportRowLabel
+                if let archiveURL = exportWorkflow.readyArchive(for: budgetID) {
+                    ShareLink(
+                        item: PortableBudgetArchiveTransfer.make(archiveURL: archiveURL, appState: appState),
+                        preview: SharePreview(
+                            PortableBudgetArchiveTransfer.suggestedFileName,
+                            image: Image(systemName: "doc.zipper")
+                        )
+                    ) {
+                        exportRowLabel(title: "Share Budget ZIP…", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityIdentifier("budget-export-share")
+                } else {
+                    Button {
+                        Task {
+                            await exportWorkflow.prepare(budgetID: budgetID) { budgetID in
+                                try await appState.localFirstStore.exportPortableBudgetArchive(budgetID: budgetID)
+                            }
+                        }
+                    } label: {
+                        exportRowLabel(
+                            title: exportWorkflow.isPreparing ? "Preparing Budget ZIP…" : "Export Budget",
+                            systemImage: "doc.zipper"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(exportWorkflow.isPreparing)
+                    .accessibilityIdentifier("budget-export-prepare")
                 }
-                .buttonStyle(ShareTapNotifyingButtonStyle { exportActivity.shareRequested() })
-                .accessibilityIdentifier("budget-export-share")
+                if case .failed(let message) = exportWorkflow.state {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundStyle(ActualistTheme.danger)
+                }
             } else {
-                exportRowLabel
+                exportRowLabel(title: "Export Budget", systemImage: "doc.zipper")
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
         } header: {
@@ -278,12 +303,11 @@ struct BudgetDataSettingsView: View {
         .settingsSectionChrome()
     }
 
-    private var exportRowLabel: some View {
+    private func exportRowLabel(title: String, systemImage: String) -> some View {
         SettingsActionLabel(
-            title: "Share Budget ZIP…",
-            systemImage: "square.and.arrow.up",
-            isBusy: exportActivity.isPreparing,
-            busyLabel: "Preparing budget ZIP"
+            title: title,
+            systemImage: systemImage,
+            isBusy: exportWorkflow.isPreparing
         )
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -402,29 +426,5 @@ struct BudgetDataSettingsView: View {
         }
         reimportPassword = ""
         isReimportPasswordPresented = true
-    }
-}
-
-/// Reports a ShareLink tap before running the link's own action. A gesture
-/// layered on the link competed with its hit target (D2); a button style
-/// keeps the link's own tap handling and full-row hit shape.
-///
-/// Opening the share sheet keeps the main thread busy for seconds on device,
-/// so the link's action waits one short beat after the tap. That lets the
-/// spinner commit; once on screen it keeps animating while the sheet loads.
-private struct ShareTapNotifyingButtonStyle: PrimitiveButtonStyle {
-    let onTap: () -> Void
-
-    func makeBody(configuration: Configuration) -> some View {
-        Button {
-            onTap()
-            Task { @MainActor in
-                do { try await Task.sleep(for: .milliseconds(60)) } catch { return }
-                configuration.trigger()
-            }
-        } label: {
-            configuration.label
-        }
-        .buttonStyle(.plain)
     }
 }
