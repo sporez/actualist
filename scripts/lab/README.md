@@ -27,7 +27,7 @@ Nothing secret or address-like is tracked.
 - `ACTUAL_UPSTREAM_DIR`: the pinned, read-only Actual v26.9.0 checkout (`59fe126f`)
   with `node_modules`. The script refuses to run unless HEAD matches and
   `git status` is clean, and checks again afterwards. Nothing is installed into
-  it. Default: the parity-sprint checkout under the main `actualist` checkout.
+  it. Required; set it in the environment or in `scripts/lib/lab.env`.
 
 The target URL is printed before any write. The script refuses to run without
 `ACTUAL_LAB_URL`. Scratch (client data dirs, vite cache, `last-run.log`) lives
