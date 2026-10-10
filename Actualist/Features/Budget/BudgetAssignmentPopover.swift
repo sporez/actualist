@@ -5,7 +5,6 @@ struct BudgetAssignmentPopover: View {
     @Bindable var viewport: BudgetViewportModel
     let actions: BudgetWorkspaceActions
     let categoryName: String
-    @FocusState private var keyboardFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -48,26 +47,44 @@ struct BudgetAssignmentPopover: View {
         }
         .frame(width: 370)
         .background(ActualistTheme.elevatedSurface)
-        .focusable(true, interactions: .edit)
-        .focused($keyboardFocused)
-        .focusEffectDisabled()
-        .task {
-            await Task.yield()
-            keyboardFocused = true
-        }
-        .onKeyPress(phases: .down) { press in
-            let input: String
-            switch press.key {
-            case .return: input = "\r"
-            case .escape: input = "\u{1b}"
-            case .tab: input = press.modifiers.contains(.shift) ? "\u{19}" : "\t"
-            case .delete: input = "\u{8}"
-            default: input = press.characters
-            }
-            guard BudgetAssignmentHardwareInput.action(for: input) != nil else { return .ignored }
-            Task { await viewport.handleHardwareInput(input) }
-            return .handled
-        }
+        .background { hardwareKeyShortcuts }
     }
 
+    /// Hardware keyboard input. On device the popover's content never became
+    /// first responder (`onKeyPress` and focus requests were dropped), while
+    /// the dismiss button's `.cancelAction` shortcut worked, so every key the
+    /// keypad accepts is a shortcut on an invisible button, routed through
+    /// the same `handleHardwareInput` the key handler used. Escape stays on the
+    /// dismiss button.
+    private var hardwareKeyShortcuts: some View {
+        ZStack {
+            ForEach(Self.hardwareShortcuts.indices, id: \.self) { index in
+                let shortcut = Self.hardwareShortcuts[index]
+                Button("") { Task { await viewport.handleHardwareInput(shortcut.input) } }
+                    .keyboardShortcut(shortcut.key, modifiers: shortcut.modifiers)
+            }
+        }
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
+    }
+
+    private struct HardwareShortcut {
+        let key: KeyEquivalent
+        let modifiers: EventModifiers
+        let input: String
+    }
+
+    private static let hardwareShortcuts: [HardwareShortcut] =
+        (0...9).map { HardwareShortcut(key: KeyEquivalent(Character(String($0))), modifiers: [], input: String($0)) } + [
+            HardwareShortcut(key: ".", modifiers: [], input: "."),
+            HardwareShortcut(key: "+", modifiers: [], input: "+"),
+            HardwareShortcut(key: "=", modifiers: [.shift], input: "+"),
+            HardwareShortcut(key: "-", modifiers: [], input: "-"),
+            HardwareShortcut(key: "=", modifiers: [], input: "="),
+            HardwareShortcut(key: .return, modifiers: [], input: "\r"),
+            HardwareShortcut(key: .delete, modifiers: [], input: "\u{8}"),
+            HardwareShortcut(key: .tab, modifiers: [], input: "\t"),
+            HardwareShortcut(key: .tab, modifiers: [.shift], input: "\u{19}"),
+        ]
 }
