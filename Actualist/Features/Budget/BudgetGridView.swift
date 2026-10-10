@@ -62,7 +62,7 @@ struct BudgetGridView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffectDisabled()
             .accessibilityLabel(group.title)
             .accessibilityValue(viewport.expandedGroupIDs.contains(group.id) ? "Expanded" : "Collapsed")
             .accessibilityIdentifier("budget-grid-group-\(group.id)")
@@ -148,7 +148,7 @@ struct BudgetGridView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffectDisabled()
             .accessibilityLabel("\(category.title), category details")
             .accessibilityIdentifier("budget-grid-category-\(category.id)")
             .frame(width: metrics.categoryColumnWidth, alignment: .leading)
@@ -243,7 +243,7 @@ private struct BudgetGridMonthCells: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffectDisabled()
             .accessibilityLabel("\(category.title), \(month.title), \(semantics.budgetedLabel), \(month.currency.formatted(value.budgeted))")
             .accessibilityIdentifier("assigned-\(month.id)-\(category.id)")
             .popover(isPresented: Binding(get: { presentsAssignment }, set: { if !$0 { viewport.assignmentPopoverDismissed(categoryID: category.id, month: month.id) } })) {
@@ -260,7 +260,7 @@ private struct BudgetGridMonthCells: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffectDisabled()
             .accessibilityLabel("\(category.title), \(month.title), \(secondValue.accessibilityText)")
             .accessibilityIdentifier("available-\(month.id)-\(category.id)")
         }
@@ -270,7 +270,6 @@ private struct BudgetGridMonthCells: View {
         .minimumScaleFactor(0.85)
         .padding(.horizontal, sizing.cellPadding)
         .frame(width: width)
-        .background(isEditing ? ActualistTheme.control : Color.clear)
     }
 
     private var secondValue: BudgetSecondValuePresentation {
