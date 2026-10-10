@@ -62,6 +62,7 @@ scripts/*
 !scripts/check.sh
 !scripts/lint-concurrency-escape-hatches.sh
 !scripts/lint-liquid-glass.sh
+!scripts/lint-private-patterns.sh
 !scripts/lint-reference-links.sh
 !scripts/lint-testflight-notes.sh
 !scripts/run-ios-simulator.sh
@@ -87,6 +88,7 @@ scripts/*-parity/**/node_modules/
 !scripts/lib/testflight-notes.sh
 scripts/lib/destinations.sh
 scripts/lib/lab.env
+scripts/lib/private-patterns.txt
 .xcode-ota.yml
 .xcode-ota/
 .xcode-ota/builds/

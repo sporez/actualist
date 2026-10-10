@@ -3,7 +3,7 @@ import Foundation
 /// Pure CSV text parser. Mirrors pinned Actual 26.9.0 `parseFile`'s
 /// `csv-parse/sync` option set (`bom: true`, `quote: '"'`, `trim: true`,
 /// `relax_column_count: true`, `skip_empty_lines: true`) with caller-provided
-/// `delimiter` and `hasHeaderRow` (`.artifacts/sprint-next/csv-import-oracle.md`).
+/// `delimiter` and `hasHeaderRow`.
 /// It performs no field mapping, no date or amount interpretation, and no row
 /// validation; those live in the import mapping stage. No repository access.
 struct TransactionCSVParser {

@@ -12,14 +12,14 @@ struct DiagnosticReportTests {
 
         let result = redactor.redact(
             "My Family Budget failed for account-secret-id at https://actual.private.example/sync "
-                + "from 192.168.1.7 user@example.com token=topsecret "
+                + "from 10.0.0.7 user@example.com token=topsecret "
                 + "file /Users/person/Budgets/db.sqlite amount $4,294.87\nretrying"
         )
 
         #expect(!result.contains("My Family Budget"))
         #expect(!result.contains("account-secret-id"))
         #expect(!result.contains("actual.private.example"))
-        #expect(!result.contains("192.168.1.7"))
+        #expect(!result.contains("10.0.0.7"))
         #expect(!result.contains("user@example.com"))
         #expect(!result.contains("topsecret"))
         #expect(!result.contains("/Users/person"))

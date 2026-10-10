@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Mechanical pre-handoff gate. Cheap on purpose: whitespace, Liquid Glass,
-# concurrency escape hatches, TestFlight notes, pbxproj membership, file-size signals, and reference-doc
-# link integrity. Does not build, test, or archive.
+# concurrency escape hatches, private identifiers, TestFlight notes, pbxproj membership, file-size
+# signals, and reference-doc link integrity. Does not build, test, or archive.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -35,6 +35,9 @@ section "Liquid Glass"
 
 section "Concurrency escape hatches"
 "$ROOT/scripts/lint-concurrency-escape-hatches.sh" || status=1
+
+section "Private identifiers"
+"$ROOT/scripts/lint-private-patterns.sh" || status=1
 
 section "TestFlight notes"
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -107,7 +110,7 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         echo "error: $path is $lines lines; do not add production code to a file at or above 1,000."
         status=1
       elif [[ "$lines" -ge 800 ]]; then
-        echo "warning: $path is $lines lines; reassess keep-or-split before adding responsibility."
+        echo "warning: $path is $lines lines; review whether it now holds more than one responsibility; split only at a real seam."
       fi
     done
   fi

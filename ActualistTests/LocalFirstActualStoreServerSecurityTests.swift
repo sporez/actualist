@@ -28,10 +28,10 @@ extension LocalFirstActualStoreTests {
 
     @Test func serverConnectionSecurityWarnsForLocalHTTP() async {
         #expect(
-            ActualServerConnectionSecurity.warningMessage(for: "http://192.168.1.16:5007")
+            ActualServerConnectionSecurity.warningMessage(for: "http://10.0.0.2:5006")
                 == ActualServerConnectionSecurity.localHTTPWarning
         )
-        #expect(ActualServerConnectionSecurity.blockedMessage(for: "http://192.168.1.16:5007") == nil)
+        #expect(ActualServerConnectionSecurity.blockedMessage(for: "http://10.0.0.2:5006") == nil)
         #expect(ActualServerConnectionSecurity.localHTTPWarning.contains("server password"))
         #expect(ActualServerConnectionSecurity.localHTTPWarning.contains("long-lived sync token"))
         #expect(ActualServerConnectionSecurity.localHTTPWarning.contains("every request"))
@@ -40,7 +40,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func serverConnectionSecurityHandlesEveryTypedURLPrefixAndEmptyHost() {
         let addresses = [
-            "http://192.168.1.16:5007",
+            "http://10.0.0.2:5006",
             "HTTP://localhost:5006",
             "http://actual.tailnet-name.ts.net:5006",
             "http://[fe80::1%25en0]:5006",
@@ -90,7 +90,7 @@ extension LocalFirstActualStoreTests {
         "http://[fd12:3456:789a::1]:5006",
         "http://[fe80::1]:5006",
         "http://[fe80::1%25en0]:5006",
-        "http://[::ffff:192.168.1.20]:5006"
+        "http://[::ffff:172.16.0.20]:5006"
     ])
     func serverConnectionSecurityAllowsLocalAndTailnetHTTP(_ input: String) {
         #expect(

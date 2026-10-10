@@ -15,7 +15,7 @@ struct ServerURLSecurityHardeningTests {
     private static let acceptedInputs = [
         "https://public.example.com",
         "actual.example.com",
-        "http://192.168.1.16:5007",
+        "http://10.0.0.2:5006",
         "http://nas.local:5006",
         "http://actual.tailnet-name.ts.net:5006",
         "https://actual.tailnet-name.ts.net"
@@ -39,7 +39,7 @@ struct ServerURLSecurityHardeningTests {
             #expect(endpoints.primary?.absoluteString == "https://primary.example.com")
             #expect(endpoints.fallback == nil, "\(input)")
         }
-        for input in ["http://192.168.1.16:5007", "http://actual.tailnet-name.ts.net:5006"] {
+        for input in ["http://10.0.0.2:5006", "http://actual.tailnet-name.ts.net:5006"] {
             store.fallbackServerURLString = input
             #expect(store.failoverEndpoints(for: "https://primary.example.com").fallback != nil, "\(input)")
         }
@@ -54,8 +54,8 @@ struct ServerURLSecurityHardeningTests {
             #expect(state.settings.fallbackServerURLString == "https://good.example.com", "\(input)")
             #expect(state.localFirstStore.fallbackServerURLString == "https://good.example.com", "\(input)")
         }
-        #expect(state.updateFallbackServerURL("http://192.168.1.16:5007") == nil)
-        #expect(state.settings.fallbackServerURLString == "http://192.168.1.16:5007")
+        #expect(state.updateFallbackServerURL("http://10.0.0.2:5006") == nil)
+        #expect(state.settings.fallbackServerURLString == "http://10.0.0.2:5006")
         #expect(state.updateFallbackServerURL("") == nil)
         #expect(state.settings.fallbackServerURLString.isEmpty)
         #expect(state.localFirstStore.fallbackServerURLString == nil)

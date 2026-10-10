@@ -19,17 +19,18 @@ Glass-aware, and optimized for repeated budget review.
   reuse an applicable result when its relevant inputs are unchanged. It covers
   whitespace, Liquid Glass, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
-  `// Invariant:` comment), TestFlight notes, synchronized-group integrity,
-  file-size signals, and available `reference/` document links. It does not
-  replace tests.
+  `// Invariant:` comment), private identifiers (patterns from an optional
+  gitignored list), TestFlight notes, synchronized-group integrity, and
+  file-size signals. It does not replace tests.
 - Architecture guidance: `.agents/skills/actualist-architecture/SKILL.md`.
   Skill-aware clients expose it as `skill://actualist-architecture`.
 - Machine-specific simulator/device configuration: gitignored
   `scripts/lib/destinations.sh`, based on
   `scripts/lib/destinations.example.sh`. Pin destinations by UDID, never by
   display name.
-- Optional maintainer guidance: `.opencode/AGENTS.local.md`, when available.
-  Private planning references and machine-specific procedures belong there.
+- Optional maintainer guidance: a gitignored local overlay may supplement this
+  file. Private planning references and machine-specific procedures belong
+  there.
 
 Apply explicit task scope and verification authorization before default workflow
 preferences. A read-only audit or planning request is not implementation
@@ -124,6 +125,12 @@ an implementation seam.
   opportunistically flush.
 - Do not commit sync tokens, passwords, encryption keys, budget IDs, imported
   databases, or personal financial data.
+- Test data must never name a real server. Use `example.com`-style hostnames
+  and reserved documentation addresses (`192.0.2.x`, `198.51.100.x`,
+  `2001:db8::`). When a test needs a private-network address, use `10.0.0.x`
+  or `172.16.x.x`, never an address copied from a real network. Unit tests
+  never connect to an address taken from test data. Live-server tests are
+  opt-in and target only a disposable test server.
 
 ## Development Defaults
 
@@ -276,8 +283,8 @@ Remove one layer of glass before handing off.
 
 ## Commit And TestFlight Notes
 
-Trailers are the What to Test changelog. They are not QA scripts. The release
-helper keeps the newest note per `[topic]` and drops earlier ones.
+Trailers are the What to Test changelog. They are not QA scripts. Only the
+newest note per `[topic]` reaches a release; earlier ones are dropped.
 
 Decide, in this order:
 
@@ -418,16 +425,21 @@ current task.
 
 ## File Size And Structural Maintainability
 
-- Treat file size as an architectural signal, not a quota. Reassess a Swift file
-  before adding code when it is near or above 800 lines. Record an explicit
-  keep-or-split decision before implementation.
+- Treat file size as an architectural signal, not a quota. 800 lines is a
+  review trigger, not a cut line. At or near it, ask whether the file now holds
+  more than one responsibility, and record an explicit keep-or-split decision
+  before implementation. A cohesive file may stay large. A split must follow a
+  real seam, never a line count.
 - Do not add a substantive responsibility to a file that is already at or above
-  800 lines. Extract a cohesive seam first within the approved scope. A truly
-  local bug fix may proceed only when it adds no responsibility and no net
+  800 lines. Put that responsibility in its own cohesive home from the start. A
+  truly local bug fix may proceed only when it adds no responsibility and no net
   growth; explain that exception in the handoff.
 - Do not add net-new production code to a file at or above 1,000 lines. Reduce it
   below the threshold through a responsibility-based extraction first, unless
   the user explicitly approves a documented exception.
+- A split that leaves both halves near the threshold, or that produces
+  `X`/`XReads`/`XWrites` siblings sharing the same helpers, was probably cut
+  by size. Find the seam instead.
 - Never allow a file to cross 1,000 lines during implementation and defer the
   split to later. File-size review is a pre-implementation decision, not a
   cleanup task.
@@ -441,6 +453,14 @@ current task.
   lower line counts. Preserve or improve access control. A split should reduce
   coupling or make ownership clearer; it should not expose previously private
   state, create forwarding boilerplate, or make one workflow harder to follow.
+- `BudgetDatabase` and `LocalFirstActualStore` are already spread across many
+  extension files. Another `BudgetDatabase+X.swift` or
+  `LocalFirstActualStore+X.swift` file does not count as an extraction. Put a
+  new domain's logic in a focused type that keeps its helpers `private`. For the
+  database, that is a stateless type whose functions take the GRDB handle inside
+  the actor's transaction. The actor stays the single owner of the queue,
+  clock, merkle state, and write fence. Do not split it into multiple actors.
+  Thin entry points on the central type are fine.
 - Prefer composition when a view model or coordinator owns multiple independent
   workflows. Extract a focused collaborator with an explicit input/output
   contract and focused tests, while leaving the parent responsible for
@@ -485,6 +505,11 @@ current task.
 - Comments must explain a real invariant, compatibility fact, or non-obvious
   reason. Do not use comments to justify avoidable indirection or duplication.
   Do not present an unconfirmed diagnosis as an established invariant.
+- Keep comments minimal. They must not reference anything specific to a
+  maintainer's machine, network, or private files. That means no local paths,
+  no gitignored files (`.artifacts/`, planning notes, audit evidence), and no
+  device or simulator identifiers, hostnames, or IP addresses. Cite only
+  tracked files or public upstream sources.
 
 ## UI Principles
 

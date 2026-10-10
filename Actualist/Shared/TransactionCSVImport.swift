@@ -1,8 +1,6 @@
 import Foundation
 
-/// Normalized CSV import rows plus the pure mapping stage. Contracts:
-/// `.artifacts/sprint-next/csv-import-oracle.md` (parse) and
-/// `.artifacts/sprint-next/csv-apply-oracle.md` (apply). Matching and writing
+/// Normalized CSV import rows plus the pure mapping stage. Matching and writing
 /// are the shared import reconcile step (`BankSyncReconciliation`,
 /// `importReconcileWrites`). Pure value logic only; no repository access and no
 /// message construction.
