@@ -490,7 +490,6 @@
         "transactionId": "child-a",
         "rows": [
           {
-            "id": "parent",
             "account": "checking",
             "date": "2026-09-14",
             "amount": -5000,
@@ -501,9 +500,9 @@
             "reconciled": true,
             "is_parent": true,
             "is_child": false,
+            "id": "parent",
             "subtransactions": [
               {
-                "id": "child-a",
                 "account": "checking",
                 "date": "2026-09-14",
                 "amount": -2000,
@@ -514,10 +513,10 @@
                 "reconciled": true,
                 "is_parent": false,
                 "is_child": true,
+                "id": "child-a",
                 "parent_id": "parent"
               },
               {
-                "id": "child-b",
                 "account": "checking",
                 "date": "2026-09-14",
                 "amount": -3000,
@@ -528,30 +527,302 @@
                 "reconciled": true,
                 "is_parent": false,
                 "is_child": true,
+                "id": "child-b",
                 "parent_id": "parent"
               }
             ]
+          }
+        ],
+        "groupedQueryResult": [
+          {
+            "id": "parent",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "reconciled": true
+          },
+          {
+            "id": "child-a",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent",
+            "reconciled": true
+          },
+          {
+            "id": "child-b",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent",
+            "reconciled": true
+          }
+        ]
+      },
+      "value": [],
+      "readback": {
+        "before": {
+          "child-a": true,
+          "child-b": true,
+          "parent": true
+        },
+        "after": {
+          "child-a": true,
+          "child-b": true,
+          "parent": true
+        },
+        "changed": []
+      }
+    },
+    {
+      "id": "unlock-split-parent",
+      "input": {
+        "transactionId": "parent",
+        "rows": [
+          {
+            "account": "checking",
+            "date": "2026-09-14",
+            "amount": -5000,
+            "category": null,
+            "payee": null,
+            "notes": null,
+            "cleared": true,
+            "reconciled": true,
+            "is_parent": true,
+            "is_child": false,
+            "id": "parent",
+            "subtransactions": [
+              {
+                "account": "checking",
+                "date": "2026-09-14",
+                "amount": -2000,
+                "category": null,
+                "payee": null,
+                "notes": null,
+                "cleared": true,
+                "reconciled": true,
+                "is_parent": false,
+                "is_child": true,
+                "id": "child-a",
+                "parent_id": "parent"
+              },
+              {
+                "account": "checking",
+                "date": "2026-09-14",
+                "amount": -3000,
+                "category": null,
+                "payee": null,
+                "notes": null,
+                "cleared": true,
+                "reconciled": true,
+                "is_parent": false,
+                "is_child": true,
+                "id": "child-b",
+                "parent_id": "parent"
+              }
+            ]
+          }
+        ],
+        "groupedQueryResult": [
+          {
+            "id": "parent",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "reconciled": true
+          },
+          {
+            "id": "child-a",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent",
+            "reconciled": true
+          },
+          {
+            "id": "child-b",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent",
+            "reconciled": true
           }
         ]
       },
       "value": [
         {
           "id": "parent",
-          "error": null
+          "reconciled": false
         },
         {
           "id": "child-a",
-          "starting_balance_flag": null,
-          "sort_order": null,
-          "error": null
+          "reconciled": false
         },
         {
           "id": "child-b",
-          "starting_balance_flag": null,
-          "sort_order": null,
-          "error": null
+          "reconciled": false
         }
-      ]
+      ],
+      "readback": {
+        "before": {
+          "child-a": true,
+          "child-b": true,
+          "parent": true
+        },
+        "after": {
+          "child-a": false,
+          "child-b": false,
+          "parent": false
+        },
+        "changed": [
+          "child-a",
+          "child-b",
+          "parent"
+        ]
+      }
+    },
+    {
+      "id": "unlock-split-member-unreconciled-parent",
+      "input": {
+        "transactionId": "child-a",
+        "rows": [
+          {
+            "account": "checking",
+            "date": "2026-09-14",
+            "amount": -5000,
+            "category": null,
+            "payee": null,
+            "notes": null,
+            "cleared": true,
+            "reconciled": false,
+            "is_parent": true,
+            "is_child": false,
+            "id": "parent",
+            "subtransactions": [
+              {
+                "account": "checking",
+                "date": "2026-09-14",
+                "amount": -2000,
+                "category": null,
+                "payee": null,
+                "notes": null,
+                "cleared": true,
+                "reconciled": true,
+                "is_parent": false,
+                "is_child": true,
+                "id": "child-a",
+                "parent_id": "parent"
+              },
+              {
+                "account": "checking",
+                "date": "2026-09-14",
+                "amount": -3000,
+                "category": null,
+                "payee": null,
+                "notes": null,
+                "cleared": true,
+                "reconciled": true,
+                "is_parent": false,
+                "is_child": true,
+                "id": "child-b",
+                "parent_id": "parent"
+              }
+            ]
+          }
+        ],
+        "groupedQueryResult": [
+          {
+            "id": "parent",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "reconciled": false
+          },
+          {
+            "id": "child-a",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent",
+            "reconciled": true
+          },
+          {
+            "id": "child-b",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent",
+            "reconciled": true
+          }
+        ]
+      },
+      "value": [
+        {
+          "id": "child-a",
+          "reconciled": false
+        },
+        {
+          "id": "child-b",
+          "reconciled": false
+        }
+      ],
+      "readback": {
+        "before": {
+          "child-a": true,
+          "child-b": true,
+          "parent": false
+        },
+        "after": {
+          "child-a": false,
+          "child-b": false,
+          "parent": false
+        },
+        "changed": [
+          "child-a",
+          "child-b"
+        ]
+      }
+    },
+    {
+      "id": "unlock-simple-row",
+      "input": {
+        "transactionId": "simple",
+        "rows": [
+          {
+            "account": "checking",
+            "date": "2026-09-14",
+            "amount": -2500,
+            "category": null,
+            "payee": null,
+            "notes": null,
+            "cleared": true,
+            "reconciled": true,
+            "is_parent": false,
+            "is_child": false,
+            "id": "simple"
+          }
+        ],
+        "groupedQueryResult": [
+          {
+            "id": "simple",
+            "is_parent": false,
+            "is_child": false,
+            "parent_id": null,
+            "reconciled": true
+          }
+        ]
+      },
+      "value": [
+        {
+          "id": "simple",
+          "reconciled": false
+        }
+      ],
+      "readback": {
+        "before": {
+          "simple": true
+        },
+        "after": {
+          "simple": false
+        },
+        "changed": [
+          "simple"
+        ]
+      }
     }
   ]
 }

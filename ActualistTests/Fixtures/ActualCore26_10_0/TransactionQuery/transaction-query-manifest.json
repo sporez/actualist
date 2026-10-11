@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/transaction-query-parity/generate.mjs",
+    "sha256": "40fb29d04e1e9b07c1104bae0e0e5b9c02e6d3bec1e58564aa3909e5904b9dbc"
+  },
+  "helpers": [
+    {
+      "path": "scripts/transaction-query-parity/cases.mjs",
+      "sha256": "579f96d0e21d2809cacf575e281a58838241c15a440b5a6f3b44614f00fbfa32"
+    },
+    {
+      "path": "scripts/transaction-query-parity/oracle-runner.template",
+      "sha256": "7c4d510e0ad4c15c159257b4a052d351f67d1339e6d6c353ac380ab58cbfd74f"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": null,
+  "timeZone": "UTC",
+  "familyCounts": {
+    "condition": 33,
+    "family": 5,
+    "filter": 8,
+    "splitmodes": 5
+  },
+  "caseCount": 51,
+  "amountUnits": "integer minor units; seeded dates are integer YYYYMMDD, conditions carry ISO day strings",
+  "execution": "Actual filter handlers (filter-create, make-filters-from-conditions) and aqlQuery over an offline in-memory SQLite budget seeded from the plan worlds, in a vitest run with TZ pinned",
+  "scope": "synthetic local data only; no server round trip",
+  "normalization": [
+    "filter ids minted by uuid v4 are mocked with a counter reset per case and renamed uuid-<n> by first appearance within a case",
+    "physical, grouped-root, displayed, context and unmatched id lists of the condition and family cases are sorted; the split-mode cases keep the executor order under an explicit desktop-client orderBy",
+    "CRDT messages keep insertion order and drop the clock; table dumps are ordered by id",
+    "amounts and dates are never normalized"
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/filters/app.ts",
+      "sha256": "3d7eb3bb3e838016c7dfa4c977f2373475d530b14964c78e54602b350731f1cc"
+    },
+    {
+      "path": "packages/loot-core/src/server/rules/condition.ts",
+      "sha256": "18eb813e695d4d2312f6417cd134a966f8914d0954176a3329efae01ac55506f"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transaction-rules.ts",
+      "sha256": "a6f08970af6f8d190c4c3b1a9ef2fad18c9f7e7211758a38d8bf02b9232c06ea"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/schema/executors.ts",
+      "sha256": "f8869a70b722beec361f1309e7a92f9b982b480314ae63c3b97ae161be93d375"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/schema/index.ts",
+      "sha256": "0ca5282bb17655bbb27f876c5883a2af7f2fc2801e27ddae79606db833190366"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/mappings.ts",
+      "sha256": "6ec833744859b6e14f9a83a91cbfa99980bfe1b69750c567a146e7b2ff0573b9"
+    },
+    {
+      "path": "packages/loot-core/src/server/sync/serialization.ts",
+      "sha256": "0fef74e9f988e02a2d2098ba89f481f87d0717e53f20077399f2a90c62f339bf"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/setup.ts",
+      "sha256": "1deb435399c7871a57baea5668474ad2e8290d0925f472a1b971a1832ec18b70"
+    },
+    {
+      "path": "packages/loot-core/vitest.config.ts",
+      "sha256": "9e003d80211596a03ac02b1d923629d5481faf9e54de02a292893390fca8245f"
+    },
+    {
+      "path": "packages/desktop-client/src/components/filters/FiltersMenu.tsx",
+      "sha256": "86751580a3b20231897f02f3475fd6977c7a6bc992dd68d4541780cf5e0997a6"
+    },
+    {
+      "path": "packages/desktop-client/src/components/filters/SavedFilterMenuButton.tsx",
+      "sha256": "4453bea5de864579101213d2c27df3567a52d1b0002c752641a538928390379e"
+    },
+    {
+      "path": "packages/desktop-client/src/queries/index.ts",
+      "sha256": "eff3ee339452006b13a4335848b7db0dc3364f5ad54776d8477340afa1b3c922"
+    },
+    {
+      "path": "packages/desktop-client/src/components/accounts/Account.tsx",
+      "sha256": "43e3f7311e7cc34e3c07c685e2bcbb8d090df4f269b3b3c1025e75007b81f970"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/TransactionQuery/transaction-query-contract.json",
+      "sha256": "3b96c965dda7a2e838c684e4113ccaf69d6177adcefb1fc37e146757d4548b39",
+      "caseCount": 51,
+      "caseIDs": [
+        "q1-date-is-day",
+        "q1-date-isapprox-day",
+        "q1-date-gt-exclusive-lower",
+        "q1-date-gte-inclusive-lower",
+        "q1-date-lt-exclusive-upper",
+        "q1-date-lte-inclusive-upper",
+        "q1-date-month-option",
+        "q1-date-year-option",
+        "q1-account-is",
+        "q1-account-is-not",
+        "q1-account-one-of",
+        "q1-account-not-one-of",
+        "q1-account-contains-name",
+        "q1-account-matches-name",
+        "q1-account-does-not-contain-name",
+        "q1-account-on-budget",
+        "q1-account-off-budget",
+        "q1-payee-is-mapped-id",
+        "q1-payee-is-not-null",
+        "q1-payee-one-of",
+        "q1-payee-not-one-of",
+        "q1-payee-contains-name",
+        "q1-payee-matches-name",
+        "q1-payee-does-not-contain-name",
+        "q1-payee-is-null",
+        "q1-category-is-mapped-id",
+        "q1-category-is-not-null",
+        "q1-category-one-of",
+        "q1-category-not-one-of",
+        "q1-category-contains-name",
+        "q1-category-matches-name",
+        "q1-category-does-not-contain-name",
+        "q1-category-is-null-uncategorized",
+        "q3-date-family-grouping",
+        "q3-account-family-grouping",
+        "q3-payee-child-selects-family",
+        "q3-category-child-selects-family",
+        "q3-free-text-grouped-versus-physical",
+        "q2-exact-condition-equivalence",
+        "q2-reordered-condition-equivalence",
+        "q2-duplicate-condition-multiplicity",
+        "q2-number-versus-string-value",
+        "q2-options-key-order",
+        "q2-single-condition-and-versus-or",
+        "q2-multiple-condition-and-versus-or-control",
+        "q2-duplicate-live-name-precedes-condition-check",
+        "split-modes-two-child-family",
+        "child-note-search",
+        "dead-parent-excludes-orphan",
+        "flag-disagreement-parent-id-without-is-child",
+        "default-order"
+      ]
+    },
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/Splits/grouped-query-cases.json",
+      "sha256": "05218a7de136eef6639f49d878407512b8542ca0466266e92834bed09c4ef603",
+      "caseCount": 5,
+      "caseIDs": [
+        "split-modes-two-child-family",
+        "child-note-search",
+        "dead-parent-excludes-orphan",
+        "flag-disagreement-parent-id-without-is-child",
+        "default-order"
+      ]
+    }
+  ],
+  "oracleOnly": [
+    {
+      "id": "q1-date-month-option",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-date-year-option",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-account-contains-name",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-account-matches-name",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-account-does-not-contain-name",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-account-on-budget",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-account-off-budget",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-payee-contains-name",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-payee-matches-name",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-payee-does-not-contain-name",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-category-contains-name",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-category-matches-name",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    },
+    {
+      "id": "q1-category-does-not-contain-name",
+      "reason": "feature gap: operator not supported by Actualist filters (user decision 2026-10-11)"
+    }
+  ],
+  "oracleOnlyFields": [],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}

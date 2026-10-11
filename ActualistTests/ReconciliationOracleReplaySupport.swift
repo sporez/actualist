@@ -34,6 +34,7 @@ enum ReconciliationOracleReplay {
     static func replay(
         caseID: String,
         input: [String: Any],
+        readback: [String: Any]?,
         makeFixture: (String) throws -> URL
     ) async throws -> OracleValue {
         switch caseID {
@@ -80,7 +81,8 @@ enum ReconciliationOracleReplay {
             )
             return try await rowCells(session)
 
-        case "unlock", "unlock-split-member":
+        case "unlock", "unlock-split-member", "unlock-split-parent",
+            "unlock-split-member-unreconciled-parent", "unlock-simple-row":
             let transactionID = try OracleJSON.string(input, "transactionId")
             let session = try open(
                 rows: try OracleJSON.objects(input["rows"], "rows"),
@@ -91,7 +93,11 @@ enum ReconciliationOracleReplay {
                 transactionID: transactionID,
                 now: now
             )
-            return try await rowCells(session)
+            var fields: [String: OracleValue] = ["messages": try await rowCells(session)]
+            if readback != nil {
+                fields["after"] = try reconciledFlags(session, ids: seededIDs(input["rows"] as? [[String: Any]] ?? []))
+            }
+            return .object(fields)
 
         case "adjustment-rule-delete":
             let session = try open(
@@ -126,10 +132,21 @@ enum ReconciliationOracleReplay {
 
     /// Drops the fixture keys this replay does not produce: the `query` the balance read was built
     /// from, and the `realized` row the oracle's rule stage recorded before the adjustment write.
-    static func expectedValue(_ caseID: String, input: [String: Any], _ value: OracleValue) -> OracleValue {
+    static func expectedValue(
+        _ caseID: String,
+        input: [String: Any],
+        readback: [String: Any]?,
+        _ value: OracleValue
+    ) throws -> OracleValue {
         switch caseID {
-        case "lock", "unlock", "unlock-split-member":
+        case "lock":
             return expectedRowCells(input, value)
+        case _ where caseID.hasPrefix("unlock"):
+            var fields: [String: OracleValue] = ["messages": expectedRowCells(input, value)]
+            if let readback {
+                fields["after"] = try OracleValue(json: OracleJSON.object(readback["after"], "readback.after"))
+            }
+            return .object(fields)
         default:
             break
         }
@@ -214,6 +231,28 @@ enum ReconciliationOracleReplay {
             threw = true
         }
         return (try lockedCount(session), threw)
+    }
+
+    /// Each seeded row's `reconciled` end state, by id (the fixture's `readback.after`).
+    private static func reconciledFlags(_ session: Session, ids: Set<String>) throws -> OracleValue {
+        let flags: [String: OracleValue] = try session.queue.read { db in
+            var result: [String: OracleValue] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT id, reconciled FROM transactions WHERE tombstone = 0") {
+                let id: String = row["id"]
+                guard ids.contains(id) else {
+                    continue
+                }
+                let reconciled: Int? = row["reconciled"]
+                result[id] = .number(Double(reconciled ?? 0))
+            }
+            return result
+        }
+        return .object(flags)
+    }
+
+    /// Ids of the fixture rows and their embedded subtransactions, excluding the base fixture's own row.
+    private static func seededIDs(_ rows: [[String: Any]]) -> Set<String> {
+        Set(nonNullKeys(rows).keys)
     }
 
     private static func lockedCount(_ session: Session) throws -> Int {

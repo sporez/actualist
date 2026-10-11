@@ -1,152 +1,98 @@
 # Transaction query and saved-filter parity oracle
 
-This tooling-only overlay answers transaction research gates Q1–Q3 against the
-real pinned Actual Budget v26.10.0 filter handlers, condition-to-AQL compiler, and
-transaction query executor. It does not implement Actualist production behavior.
+Runs the real pinned Actual Budget filter handlers, condition-to-AQL compiler and
+transaction query executor over synthetic budgets and records the results as a
+committed fixture. A Swift replay inserts the recorded rows into its own starter
+schema and compares. This harness does not implement Actualist behavior.
 
-The runner copies the two TypeScript harness files into an **isolated writable,
-dependency-ready clone** of Actual, executes one bounded Vitest selection, writes
-evidence outside both Actual checkouts, and removes only its owned overlay files.
-The shared pinned source is provenance input only and is never overlaid.
-
-## Predetermined matrix
-
-The matrix has exactly **46 stable case identities**:
-
-- **Q1 — 33 authored conditions:** date `is`, `isapprox`, `gt`, `gte`, `lt`,
-  `lte`, month, and year; every authored account operator; every authored payee
-  operator plus null; every authored category operator plus uncategorized/null.
-  The synthetic rows include inclusive/exclusive date boundaries, mapped payee
-  and category IDs, multiple-ID operands, negation, on/off-budget accounts,
-  split rows, context rows, and a tombstone.
-- **Q3 — 5 family comparisons:** date, account, payee, category, and free-text
-  child matching. Every case executes both `splits: all` and `splits: grouped`,
-  recording physical matches separately from selected roots and attached family
-  context.
-- **Q2 — 8 handler equivalence cases:** exact and reordered conditions,
-  duplicate-condition multiplicity, number versus string values, options key
-  order, one-condition `and` versus `or`, multi-condition join control, and a
-  duplicate live name.
-
-Each case is written as `pending`, then durably updated to `running` and finally
-`passed` or `failed`. A hard interruption can therefore leave the exact last
-case visible without inventing an observation for it. The result also includes
-the complete predetermined identity list, normalized CRDT messages, raw saved
-filter/domain rows, compiled AQL filters, physical query rows, grouped rows, and
-explicit context IDs.
-
-`sourcePrediction` is pre-run analysis from the pinned source. It is deliberately
-separate from `assertions` and from runtime `observed` evidence. A green process
-means all 46 cases ran and their independent assertions passed; it does not turn
-the prediction field into an observation or authorize C2 production work.
-
-## Ownership and prerequisites
-
-Only the sprint coordinator may execute this oracle. The writable checkout must
-be a disposable isolated clone under that coordinator's sole ownership. It must
-not be the shared source checkout or a worktree sharing the source checkout's Git
-common directory.
-
-Required inputs:
-
-- `ACTUALIST_PARITY_ORACLE_ROOT`: the clean, read-only source checkout, checked by
-  `scripts/parity/lib/oracle-pin.mjs oracle-root` at the pinned Actual tag and commit in
-  `config/parity/oracle-pin.json` (`v26.10.0`, `2bebdbaa…`);
-- the writable clone at the same pinned tag and commit;
-- `@actual-app/core` version `26.10.0`;
-- Node `24.21.x`, repository Yarn `4.17.1`, and installed Vitest `5.0.0`;
-- existing `node_modules/.yarn-state.yml` and `better-sqlite3` `13.0.3` native
-  binary in the writable clone.
-
-The runner never installs dependencies, contacts a server, or reads credentials.
-The normal loot-core node-test setup supplies the in-memory SQLite database and
-normal network mocks. All accounts, payees, categories, mappings, filters, and
-transactions are synthetic.
-
-The pinned Electron filesystem adapter requires `ACTUAL_DATA_DIR`. The runner
-does not inherit or infer it: every run creates the unique owned directory
-`<evidence>/<run-label>/actual-data`, marks its ownership, and passes that exact
-path explicitly to the child.
-
-## Exact coordinator command
-
-Prepare a distinct dependency-ready clone first, then run:
+## Commands
 
 ```sh
-scripts/transaction-query-parity/run-oracle.sh \
-  --writable-clone /absolute/path/to/isolated-dependency-ready-actual \
-  --evidence "$ACTUALIST_ROOT/.artifacts/parity-sprint-20260927/transaction-query-parity" \
-  --run-label investigation
+# Regenerate (needs the pinned oracle checkout, see the harness standard)
+ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/transaction-query-parity/generate.mjs
+# Regenerate into a temp directory and fail on any byte of drift
+ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/transaction-query-parity/generate.mjs --check
+# Oracle-free checks of the committed fixture
+node scripts/transaction-query-parity/verify.mjs
 ```
 
-The runner records the exact underlying command in
-`<evidence>/investigation/exact-command.txt`. Its only executable oracle
-selection is:
+`generate.mjs` checks `ACTUALIST_PARITY_ORACLE_ROOT` against
+`config/parity/oracle-pin.json` before and after the run (`assertPinnedOracle`),
+verifies the SHA-256 of every pinned source below, writes one vitest file into the
+checkout, runs it, and removes it. The oracle checkout must be clean and
+dependency-ready; the run is a few seconds. The pinned Electron filesystem adapter
+needs `ACTUAL_DATA_DIR`, which the generator points at a temporary directory inside
+the checkout and removes. `TZ` is pinned to `UTC`.
 
-```text
-@actual-app/core Vitest --run \
-  src/server/transactions/transaction-query-parity.test.ts \
-  --reporter=verbose --bail=1
-```
+## Outputs
 
-The outer wall-clock ceiling is **180 seconds** and the harness test timeout is
-170 seconds. The runner starts the child in a new process group, durably records
-the supervisor PID and child process-group ID, forwards interruption only to
-those owned processes, waits 10 seconds after `TERM`, and uses `KILL` only for
-that still-live owned group. It retains the overlay if termination cannot be
-confirmed rather than deleting files under a live process. The owned
-`actual-data` directory is removed only after process termination and ownership
-are both confirmed. Ordinary assertion/runtime failures retain their JSON,
-logs, provenance, command, and exit evidence while removing only the confirmed
-owned scratch directory. Unconfirmed termination or ownership retains the
-scratch directory and records why.
+- `ActualistTests/Fixtures/ActualCore26_10_0/TransactionQuery/transaction-query-contract.json`
+  and `transaction-query-manifest.json`: 51 cases, the synthetic `worlds` they
+  reference, pin, oracle source hashes, generator and helper hashes.
+- `ActualistTests/Fixtures/ActualCore26_10_0/Splits/grouped-query-cases.json`:
+  generated by this harness (formerly hand-written). It is the projection of the
+  five `splitmodes` cases that `TransactionSplitQueryTests` reads; it is listed in
+  the TransactionQuery manifest, not the Splits manifest.
 
-Run-label directories are single-use (the admitted label is
-`repin-v26.10.0-20261010`; the earlier `investigation` and `post-correction`
-labels are spent), including a preflight failure. The evidence
-root must contain a `.artifacts` path segment and must be outside the source and
-writable Actual checkouts. It may be inside the Actualist checkout that owns the
-script. The runner also rejects wrong refs,
-shared Git identity, dirty tracked files, missing dependencies, occupied overlay
-targets, and an already-spent run label.
+`verify.mjs` needs no oracle: manifest pins, helper hashes, plan identity,
+record shape, the plan's structural checks, and that the grouped-query file is
+exactly the projection of the recorded cases.
 
-## Evidence layout
+## Matrix (51 cases)
 
-Each run directory contains:
+- **`condition` — 33 authored Q1 conditions:** date `is`, `isapprox`, `gt`, `gte`,
+  `lt`, `lte`, month and year options; every authored account, payee and category
+  operator including null and uncategorized. The `query` world has inclusive and
+  exclusive date boundaries, merged-away payee and category ids resolved through
+  the mappings, on/off-budget accounts, a split family, a null-reference row and a
+  tombstone. Each case records the compiled filters, `filter-create` outcome,
+  stored row and CRDT messages, `splits: all` physical matches, and the
+  `splits: grouped` roots, displayed rows, attached context and `_unmatched` ids.
+- **`family` — 5 Q3 comparisons:** date, account, payee, category and free-text
+  child matching over one split family (`family` world), recording physical
+  matches separately from the grouped roots and attached context.
+- **`filter` — 8 Q2 handler cases:** exact and reordered conditions, duplicate-
+  condition multiplicity, number versus string operands, options key order,
+  one-condition `and` versus `or`, multi-condition join control, and a duplicate
+  live name (checked before conditions). A baseline row is seeded raw; the case
+  records `created` / `duplicate-condition` / `duplicate-name`, the error text, the
+  filter rows and the CRDT messages.
+- **`splitmodes` — 5 cases over the synthetic rows of `TransactionSplitQueryTests`:**
+  `split-modes-two-child-family`, `child-note-search`,
+  `dead-parent-excludes-orphan`, `flag-disagreement-parent-id-without-is-child`
+  and `default-order`. Every case runs `all`, `inline`, `none` and `grouped`
+  (grouped adds each family's children and `_unmatched` ids) under the desktop
+  client's explicit order (date desc, starting-balance flag, sort order desc, id
+  desc); the dead-parent case also records the account balance as an inline
+  `$sum` of the amount, which is how Actual's account balance query works.
 
-- `oracle-result.json`: durable per-case gate input, prediction, assertions,
-  observed output, and state;
-- `oracle.log`, `oracle.exit`, and `outcome.env`;
-- `provenance.env`: tool paths/versions and SHA-256 hashes for harness, pinned
-  source owners, dependency state, and native SQLite binding;
-- `exact-command.txt`;
-- `oracle-source/`: the exact harness and runner sources used;
-- `actual-data-cleanup.env`: owned scratch path, termination confirmation, and
-  whether cleanup removed or retained it;
-- `source-git-status.txt`, `pre-overlay-git-status.txt`, and
-  `post-cleanup-git-status.txt`.
+Oracle-only: 13 Q1 cases are marked `oracleOnly` (user decision 2026-10-11, feature gap:
+operator not supported by Actualist filters): the date `month` / `year` options,
+`contains` / `matches` / `doesNotContain` on account, payee and category names, and
+`onBudget` / `offBudget`. They stay in the fixture as oracle evidence; the Swift replay
+does not run them. The Q3 free-text flat search is an intended Actualist difference.
 
-Interpret a missing result, `completed: false`, any pending/running case, a
-nonzero `oracle.exit`, or post-cleanup tracked changes as incomplete evidence.
-Do not replace a failed observation with the source prediction.
+## Determinism and normalization
+
+- No timestamp or run label is written. Case order is the plan order.
+- Filter ids come from uuid v4. The runner mocks it with a counter reset at the
+  start of every case and renames the ids `uuid-<n>` by first appearance within
+  the case. Nothing is numbered across cases.
+- Condition and family cases sort their id lists (physical, roots, displayed,
+  context, unmatched); the executor does not order them without an `orderBy`. The
+  split-mode cases keep the executor order under the explicit `orderBy`.
+- CRDT messages keep insertion order and drop the clock; table dumps are ordered by
+  primary key; `worlds` are dumped from the seeded database and checked identical
+  on every reuse.
+- Amounts and dates are never normalized.
 
 ## Pinned source owners
 
-The harness records hashes and line references for:
-
-- `packages/loot-core/src/server/filters/app.ts` — create/update name and
-  condition equivalence;
-- `packages/loot-core/src/server/rules/condition.ts` and
-  `transactions/transaction-rules.ts` — validation, serialization, null special
-  cases, and AQL conversion;
-- `packages/loot-core/src/server/aql/schema/executors.ts` — physical versus
-  grouped split execution and `_unmatched` context;
-- `packages/desktop-client/src/components/filters/FiltersMenu.tsx` and
-  `SavedFilterMenuButton.tsx` — authored condition and handler payload shapes;
-- `packages/desktop-client/src/queries/index.ts` — free-text transaction query
-  shape;
-- the transaction-filter schema migration and model types.
-
-No generated fixture is promoted automatically. The coordinator must review the
-complete result and make the Q1/Q2/Q3 product decisions before using it to change
-contracts or begin C2.
+`packages/loot-core/src/server/filters/app.ts` (create handler, name and condition
+equivalence), `rules/condition.ts` and `transactions/transaction-rules.ts`
+(validation, serialization, null special cases, AQL conversion),
+`aql/schema/executors.ts` and `aql/schema/index.ts` (split modes, views),
+`db/mappings.ts`, `sync/serialization.ts`, the loot-core vitest config and mocks,
+and in desktop-client `FiltersMenu.tsx`, `SavedFilterMenuButton.tsx`,
+`queries/index.ts` and `Account.tsx` (authored shapes, free-text query, grouped
+account query). Their hashes are in the manifest.

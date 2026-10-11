@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/transaction-command-parity/generate.mjs",
+    "sha256": "8f340b9d74e7797c53d5e937192d9525959657f2fe187b0d5982010c7957cf06"
+  },
+  "helpers": [
+    {
+      "path": "scripts/transaction-command-parity/matrix.json",
+      "sha256": "186b697a6e93094d065b45e15cdbaddb084b00a4a3a947dc811273956dc28112"
+    },
+    {
+      "path": "scripts/transaction-command-parity/oracle-runner.template",
+      "sha256": "7b15f6f211779e385cf1c9b6a1b246b52f1c36b43bdd7c45352f4520ccbfe2af"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": null,
+  "timeZone": "UTC",
+  "caseCount": 39,
+  "amountUnits": "integer minor units",
+  "execution": "Actual transactions-batch-update (duplicate: the added rows the desktop client builds) and transactions-merge handlers on an offline in-memory SQLite database, then one real undo",
+  "scope": "synthetic local handler behavior only; no server round trip",
+  "normalization": [
+    "ids Actual mints (id1, id2, ... from the loot-core test uuid mock) are uuid-N by first appearance in the case; setup ids are explicit",
+    "sort_order 123456789 is the frozen Date.now() Actual gives a row without one; it is not a comparable value",
+    "repeated CRDT messages are kept verbatim, in the order Actual wrote them",
+    "reference rows are recorded once; a case lists only the tables a checkpoint changed",
+    "amounts and dates are never normalized"
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/transactions/app.ts",
+      "sha256": "6fbfa6064e60e2817fa9870a8e1762a69ee10d1b87893f40ab49dd683cac767c"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/merge.ts",
+      "sha256": "2baecb44746a623f4905bbff3a678e101dae3dc27988d2d739e4ad60489b84b5"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transfer.ts",
+      "sha256": "309ebae609b20dee6053bc0a84e80e310a0d53fd4aed7c284d7e4379c9305701"
+    },
+    {
+      "path": "packages/loot-core/src/server/undo.ts",
+      "sha256": "2b664e329d843c8022f935d131b7a88a40f85b3e64904faed50f8aeffd5deafe"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71"
+    },
+    {
+      "path": "packages/loot-core/src/server/mutators.ts",
+      "sha256": "f24756558fd2aadc3cbff1fd23514b5908ef6b319c1ad7d8eefeb5ee649f538f"
+    },
+    {
+      "path": "packages/loot-core/src/shared/transactions.ts",
+      "sha256": "99563d32b2fcefa4a33e512fbdb4c3d9c5ba804e9fc9acd50054f2b58addd5c9"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/setup.ts",
+      "sha256": "1deb435399c7871a57baea5668474ad2e8290d0925f472a1b971a1832ec18b70"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/TransactionCommand/transaction-command-contract.json",
+      "sha256": "df4bef78e6cba10c6f20a2e1103df776472c977046eae9e4175a053e9c074dd3",
+      "caseCount": 39,
+      "caseIDs": [
+        "D1-simple-root",
+        "D1-split-root-two-children",
+        "D1-split-child-alone",
+        "D1-parent-and-child",
+        "D1-transfer-root",
+        "D2-import-metadata-root",
+        "D2-split-metadata-parent-only",
+        "D2-sort-order-clone",
+        "D2-transfer-pair-clone",
+        "D2-split-error-clone",
+        "D2-duplicate-does-not-request-learning",
+        "M1-imported-over-manual-forward",
+        "M1-imported-over-manual-reverse",
+        "M1-imported-payee-over-manual",
+        "M1-earlier-date-forward",
+        "M1-earlier-date-reverse",
+        "M1-equal-import-equal-date-forward",
+        "M1-equal-import-equal-date-reverse",
+        "M2-neither-split",
+        "M2-keep-simple-drop-split",
+        "M2-keep-split-drop-simple",
+        "M2-both-splits-two-children",
+        "M2-split-zero-children",
+        "M2-split-one-child",
+        "M2-selected-child-vs-simple",
+        "M2-selected-children-same-parent",
+        "M2-conflicting-split-families",
+        "M3-neither-transfer",
+        "M3-one-transfer-on-budget",
+        "M3-one-transfer-off-budget",
+        "M3-two-transfers-same-destination",
+        "M3-two-transfers-different-destination",
+        "M3-paired-reconciled",
+        "M3-partial-transfer-pair",
+        "M3-malformed-transfer-pair",
+        "M4-atomic-forward-graph",
+        "M4-atomic-reject-invalid-second-pair",
+        "M4-undo-conflict-after-merge",
+        "M4-undo-restores-both-graphs"
+      ]
+    }
+  ],
+  "oracleOnly": [],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}

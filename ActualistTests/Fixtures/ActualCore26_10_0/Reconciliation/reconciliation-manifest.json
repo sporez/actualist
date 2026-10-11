@@ -7,7 +7,7 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/reconciliation-parity/generate.mjs",
-    "sha256": "345e66f70c43dcba800210ac41d5b42b0ce5d9348f448aa86eca80e8d3ea7703"
+    "sha256": "0fcf563e650eb883fefa359615387c7ad1a8bc6e3e2f2e64ae5ad32d968d1449"
   },
   "helpers": [
     {
@@ -72,12 +72,20 @@
     {
       "path": "packages/loot-core/src/server/rules/action.ts",
       "sha256": "12cbd130c59634b2f711a7068c05e9de4dcef5dd71efe3601c3d64ad2bb68976"
+    },
+    {
+      "path": "packages/loot-core/src/server/main.ts",
+      "sha256": "94eddc57719c9f720f0034ea552ff59c6ba487906de5c20b4d3903585589efa1"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/app.ts",
+      "sha256": "6fbfa6064e60e2817fa9870a8e1762a69ee10d1b87893f40ab49dd683cac767c"
     }
   ],
   "fixture": {
     "path": "ActualistTests/Fixtures/ActualCore26_10_0/Reconciliation/reconciliation-contract.json",
-    "sha256": "31e8a3e6d6b8f1ec34292711f9c9bee4654a29131fdbf82781ba3fce324f11d0",
-    "caseCount": 9,
+    "sha256": "fbb87e1950db490b71dbcc320ace37c9b2049a1fda914b46ecadbfd35ad62720",
+    "caseCount": 12,
     "caseIDs": [
       "cleared-balance",
       "finish",
@@ -87,7 +95,10 @@
       "unlock",
       "done-nonzero-difference",
       "adjustment-rule-clears-notes",
-      "unlock-split-member"
+      "unlock-split-member",
+      "unlock-split-parent",
+      "unlock-split-member-unreconciled-parent",
+      "unlock-simple-row"
     ]
   },
   "oracleOnly": [
@@ -100,6 +111,6 @@
       "reason": "source-guard only, the oracle client stamp rule is not executed."
     }
   ],
-  "caseCount": 9,
+  "caseCount": 12,
   "contractSourceSha256": "da00774e458201d7e97aeeb51f7090fdceb52c47acb270fea4c923b767019c01"
 }

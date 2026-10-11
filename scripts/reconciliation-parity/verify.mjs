@@ -66,7 +66,7 @@ for (const source of manifest.sourceFiles) {
     fail(`invalid source entry: ${JSON.stringify(source)}`);
   }
 }
-if (!Array.isArray(manifest.evidenceSourceFiles) || manifest.evidenceSourceFiles.length !== 4) {
+if (!Array.isArray(manifest.evidenceSourceFiles) || manifest.evidenceSourceFiles.length !== 6) {
   fail('evidence source hash list is incomplete');
 }
 for (const source of manifest.evidenceSourceFiles) {
@@ -91,6 +91,7 @@ for (const id of [
   'cleared-balance', 'finish', 'adjustment-rule-projection',
   'adjustment-rule-delete', 'lock', 'unlock',
   'done-nonzero-difference', 'adjustment-rule-clears-notes', 'unlock-split-member',
+  'unlock-split-parent', 'unlock-split-member-unreconciled-parent', 'unlock-simple-row',
 ]) {
   if (!caseIDs.has(id)) fail(`missing reviewed case: ${id}`);
 }
@@ -111,5 +112,23 @@ if (done?.value?.lastReconciledStamp?.evidence !== 'source-guard, not executed')
 const rulesCase = fixture.cases.find(value => value.id === 'adjustment-rule-clears-notes');
 if (!rulesCase?.input?.ruleEngineOutput || !('notes' in rulesCase.input.ruleEngineOutput)) {
   fail('adjustment-rule-clears-notes must record the loot-core rules output');
+}
+// The unlock cases ran on real rows: the read-back must agree with what was sent.
+for (const id of ['unlock-split-member', 'unlock-split-parent', 'unlock-split-member-unreconciled-parent', 'unlock-simple-row']) {
+  const unlock = fixture.cases.find(value => value.id === id);
+  const readback = unlock?.readback;
+  if (!readback?.before || !readback?.after || !Array.isArray(readback.changed)) {
+    fail(`${id} must record the read-back of every row's reconciled flag`);
+  }
+  const ids = Object.keys(readback.before);
+  if (JSON.stringify(ids) !== JSON.stringify(Object.keys(readback.after))) fail(`${id} read-back rows differ`);
+  const changed = ids.filter(rowID => readback.before[rowID] !== readback.after[rowID]);
+  if (JSON.stringify(changed) !== JSON.stringify(readback.changed)) fail(`${id} changed list disagrees with the read-back`);
+  for (const entry of unlock.value ?? []) {
+    if (readback.after[entry.id] !== false) fail(`${id} sent an unlock for ${entry.id} that did not stick`);
+  }
+  if (!Array.isArray(unlock.input?.groupedQueryResult) || unlock.input.groupedQueryResult.length === 0) {
+    fail(`${id} must record the real grouped query result`);
+  }
 }
 console.log(`Reconciliation parity fixture verified (${manifest.actual.tag}, ${fixture.cases.length} cases).`);

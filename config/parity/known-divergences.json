@@ -176,9 +176,11 @@
       "fixtureCases": [
         "unlock-split-member"
       ],
-      "summary": "Unlocking a split member writes reconciled = false to each reconciled family row (parent and both children), where the fixture's expected rows record no reconciled write. Cause: BudgetDatabase+Reconciliation.swift:290-306 unlocks every reconciled row of the family. Whether the family should unlock together is a product decision.",
+      "summary": "Unlocking a child of a reconciled split writes reconciled = false to the parent and both children, where the pinned Actual's real unlock sends nothing: the grouped query returns the family, but makeChild copies the parent's reconciled value, so the update carries no change and all three rows stay reconciled (readback.after). Cause: BudgetDatabase+Reconciliation.swift:290-306 unlocks every reconciled row of the family. unlock-split-parent, unlock-split-member-unreconciled-parent and unlock-simple-row match the oracle.",
       "opened": "2026-10-10",
-      "reviewBy": "2026-10-24"
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: unlocking any part of a split unlocks the family; Actual's child unlock is a no-op because makeChild copies the parent's reconciled."
     },
     {
       "id": "OP-20",
@@ -1126,6 +1128,438 @@
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: keep refusing closed accounts at create. Neither app's editor offers a closed account, and advancement of an existing schedule on a closed account already matches Actual."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "named-first-sync-future-dated-rows-only"
+      ],
+      "id": "OP-54",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A bank-synced account whose only live rows are dated after today is not treated as a first sync, so no Starting Balance row is added; the pinned Actual ignores rows dated after today and treats the account as new. Cause: bankSyncOldestLiveTransactionDayID counts every live row (BudgetDatabase+BankSync.swift:207-222) and downloadBankSyncPlans derives accountHadLiveTransactions from it (LocalFirstActualStore+BankSyncPlanning.swift:76-83); Actual's getAccountOldestTransaction filters date <= today."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "gen-fuzzy-083",
+        "gen-fuzzy-085",
+        "named-id-match-outside-window-bank",
+        "named-id-match-outside-window-simplefin",
+        "named-split-parent-match-by-imported-id"
+      ],
+      "id": "OP-55",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "Bank Sync matches a downloaded provider ID only against stored rows within seven days of the download's date, so a row with the same ID dated further away is not matched and the download is inserted again (a split parent matched by ID loses its cleared cascade too); the pinned Actual matches the imported ID on any date. File import is not affected. Cause: makeBankSyncPlan calls reconcileProjectedImport without importedIDs (LocalFirstActualStore+BankSyncPlanning.swift:366-374), so bankSyncExistingRows reads only the window (LocalFirstActualStore+ImportReconcile.swift:36-40, BudgetDatabase+BankSync.swift:276-300)."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "gen-update-dates-001",
+        "gen-update-dates-002",
+        "gen-update-dates-007",
+        "gen-update-dates-009",
+        "gen-update-dates-010",
+        "gen-update-dates-012",
+        "gen-update-dates-013",
+        "gen-update-dates-014",
+        "gen-update-dates-015",
+        "gen-update-dates-016",
+        "gen-update-dates-018",
+        "gen-update-dates-019",
+        "gen-update-dates-020",
+        "gen-update-dates-021",
+        "gen-update-dates-023",
+        "gen-update-dates-024",
+        "gen-update-dates-025",
+        "gen-update-dates-026",
+        "gen-update-dates-027",
+        "gen-update-dates-028",
+        "gen-update-dates-029",
+        "named-split-parent-match-cascades-date",
+        "named-update-dates-simplefin-pref",
+        "named-update-dates-true"
+      ],
+      "id": "OP-56",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "The update-dates option (sync-update-dates-<account>, updateDates) is not supported: a matched row, and the children of a matched split parent, keep their dates, where the pinned Actual moves them to the download's date when the option is on. Cause: ImportReconcileOptions has no updateDates (ImportReconcileOptions.swift:17-49), BankSyncReconciliation.MatchedUpdate carries no date (BankSyncReconciler.swift:91-103) and makeBankSyncMatchUpdateMessages writes none (BudgetDatabase+BankSync.swift:576)."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "gen-payee-name-002",
+        "gen-payee-name-013",
+        "gen-payee-name-018",
+        "gen-payee-name-022",
+        "gen-payee-name-023",
+        "gen-payee-name-027",
+        "gen-payee-name-029",
+        "gen-payee-name-033",
+        "gen-payee-name-037",
+        "gen-payee-name-039",
+        "gen-payee-name-042",
+        "gen-payee-name-044",
+        "gen-payee-name-046",
+        "named-payee-created-for-blank-match",
+        "named-rule-changes-amount-then-match"
+      ],
+      "id": "OP-57",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A matched row that has no payee does not take a payee that does not exist yet: the pinned Actual creates the payee from the download's name and sets it on the matched row, Actualist leaves the row payee-less and creates no payee. Cause: an update can only carry an existing payee ID (BankSyncReconciler.swift:351-367, MatchedUpdate.payeeID) and the update loop never resolves a payee name (LocalFirstActualStore+ImportReconcile.swift:106-121); only inserts create payees (:176-200)."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "named-offbudget-match-rule-category"
+      ],
+      "id": "OP-58",
+      "opened": "2026-10-11",
+      "summary": "A matched row in an off-budget account never takes the category a rule or download supplies, where the pinned Actual writes it (it strips categories only on inserts). Cause: mergedCategoryID returns the row's own category for off-budget accounts (BankSyncReconciler.swift:370-383). Deliberate: reference/mistakes.md 2026-09-16 'Bank Sync must not categorize off-budget accounts'.",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: off-budget accounts carry no categories, so a matched off-budget row keeps none (2026-09-16 guard)."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "named-opening-balance-pending-skipped",
+        "named-opening-balance-rule-changes-amount"
+      ],
+      "id": "OP-59",
+      "opened": "2026-10-11",
+      "summary": "The first-sync Starting Balance amount is the current balance minus the planned inserts, where the pinned Actual subtracts every raw downloaded transaction, including ones a rule changes and, with import-pending off, pending ones that are skipped. Cause: BankSyncReconciliation.openingBalance subtracts the inserts only (BankSyncReconciler.swift:480-489). Deliberate: reference/mistakes.md 2026-09-06 'Bank Sync forgets deleted bank IDs and balances before reconciliation' (derive opening balance from planned inserts).",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: the Starting Balance plus the rows actually imported equals the bank balance; Actual also subtracts rows a rule drops or pending rows it skips."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "named-opening-balance-date-from-last-row"
+      ],
+      "id": "OP-60",
+      "opened": "2026-10-11",
+      "summary": "The Starting Balance row is dated at the earliest downloaded day, where the pinned Actual uses the date of the last transaction in the download, which differs when the download is listed oldest first or its last row is skipped. Cause: earliestDayID is candidateDayIDs.min() (LocalFirstActualStore+BankSyncPlanning.swift:390).",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: date the Starting Balance on the earliest downloaded day, independent of the bank's row order and of skipped rows."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "gen-imported-id-004",
+        "gen-imported-id-030",
+        "gen-imported-id-032",
+        "gen-imported-id-035",
+        "named-commit",
+        "named-preview",
+        "named-reimport-deleted-option-false",
+        "named-reimport-deleted-simplefin-false"
+      ],
+      "id": "OP-61",
+      "opened": "2026-10-11",
+      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:197-204) fed by bankSyncSuppressedFinancialIDs (LocalFirstActualStore+ImportReconcile.swift:50-58). Deliberate: reference/mistakes.md 2026-09-06 (deleted IDs are used only for exact dedupe, never for updates).",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: leave deleted rows untouched; with reimport-deleted off, both apps ignore the download and the visible result is identical."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "named-split-child-collision-with-parent-claimed"
+      ],
+      "id": "OP-62",
+      "opened": "2026-10-11",
+      "summary": "When a split parent is matched by ID, its children are excluded from fuzzy matching for the whole batch, so a later download with a child's amount is inserted as a new row; the pinned Actual v26.10.0 lets it match the child. Cause: exactMatchedParentIDs and isReserved (BankSyncReconciler.swift:199, :218-221), a port of loot-core 24deae7 (comment at BankSyncReconciler.swift:158-161) that postdates the pin.",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: keep the port of upstream 24deae7 (reserve children of an ID-matched split parent), which landed after v26.10.0. Recheck at the next oracle pin, where it should match."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "named-rule-transfer-payee-matched-plain-row"
+      ],
+      "id": "OP-63",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A rule that sets a transfer payee on a download that matches an existing plain row leaves the row alone (no transfer payee, no paired leg), where the pinned Actual sets the payee and creates the paired transfer leg. Cause: mergedPayeeID refuses a transfer payee for a non-transfer row (BankSyncReconciler.swift:351-367). Deliberate: reference/mistakes.md 2026-09-16 'Bank Sync and Wallet import must create a transfer graph' (do not fill a transfer payee onto an already-matched non-transfer row)."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "named-opening-balance-rule-deletes-row",
+        "named-rule-delete-transaction-commit"
+      ],
+      "id": "OP-64",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A delete-transaction rule action does not execute, so the rule's download is imported (and counted in the opening balance) where the pinned Actual drops it before matching. Same cause as OP-37 in the rules domain: Actual writes the action without a value key and Actualist's RuleAction requires one (RuleRepository.swift:156), decoded with try? at BudgetDatabase+Rules.swift:223-225."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "named-payee-matches-transfer-payee-name"
+      ],
+      "id": "OP-65",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A file-import row with a blank payee text stores no imported payee, where the pinned Actual stores an empty string. Cause: TransactionCSVImportCandidates maps empty text to a nil payee name and copies it into importedPayee (TransactionCSVImportCandidates.swift:36, :47)."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "gen-payee-name-009",
+        "named-rule-imported-payee-simplefin"
+      ],
+      "id": "OP-66",
+      "opened": "2026-10-11",
+      "summary": "A provider payee name with leading or trailing spaces creates a trimmed payee, where the pinned Actual creates the payee with the spaces (the imported payee is trimmed in both). Cause: payee creation trims the name (BudgetDatabase+TransactionCreation.swift:29-35) and prepareDownload trims the mapped name (LocalFirstActualStore+BankSyncPlanning.swift:320-321).",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: create payees with trimmed names."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "gen-multi-013",
+        "gen-multi-029",
+        "gen-multi-044",
+        "gen-multi-045",
+        "gen-multi-052",
+        "gen-multi-055"
+      ],
+      "id": "OP-67",
+      "opened": "2026-10-11",
+      "summary": "When several stored rows are equally distant from a download and equally eligible, Actualist matches the row stored first, where the pinned Actual matches another of them (its candidate order comes from an unordered query and a comparator that returns -1 for equal distances), so a different row is updated. Cause: fuzzyDataset sorts by distance then stored order (BankSyncReconciler.swift:323).",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: keep the deterministic tie-break (first stored row); Actual's choice comes from an unordered query."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "gen-imported-id-008"
+      ],
+      "id": "OP-68",
+      "opened": "2026-10-11",
+      "summary": "When two live rows in one account carry the same provider ID, a download with that ID updates a different one of them: the pinned Actual takes the first row its query returns, Actualist takes the first row in stored order. Cause: idMatch is existing.first (BankSyncReconciler.swift:193-196).",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: keep the deterministic choice (first stored row) when provider IDs repeat; Actual's choice comes from an unordered query."
+    },
+    {
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "domain": "bank-sync-matching",
+      "fixtureCases": [
+        "gen-imported-id-039",
+        "named-reimport-deleted-pref-false-csv"
+      ],
+      "id": "OP-69",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "File import ignores the account's sync-reimport-deleted preference: a deleted row's ID is re-imported as a new row, where the pinned Actual (no reimportDeleted option) reads the preference and, when it is off, matches and rewrites the deleted row. Cause: ImportReconcileOptions.csv fixes reimportDeleted to true (ImportReconcileOptions.swift:39-48), chosen as the CSV default in main-to-dev D5."
+    },
+    {
+      "id": "OP-70",
+      "domain": "transaction-commands",
+      "cases": [
+        "TransactionCommandOracleReplayTests/replaysTransactionCommandCase"
+      ],
+      "fixtureCases": [
+        "D2-split-error-clone"
+      ],
+      "summary": "Duplicating a split whose children do not add up to the parent is refused, where the pinned Actual clones the parent with its split error and the child. Cause: TransactionDuplicatePlanner.swift:290-324 throws malformedSplit for a family that fails the split invariants; BudgetDatabase+TransactionDuplicate.swift reports it as 'cannot be duplicated'.",
+      "opened": "2026-10-11",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11 (ratified contract): a malformed split is never duplicated (admission, D2 split error); Actual clones it."
+    },
+    {
+      "id": "OP-71",
+      "domain": "transaction-commands",
+      "cases": [
+        "TransactionCommandOracleReplayTests/replaysTransactionCommandCase"
+      ],
+      "fixtureCases": [
+        "M2-selected-child-vs-simple",
+        "M2-selected-children-same-parent"
+      ],
+      "summary": "Merging a selected split child is refused (selectedChild; two children of one family overlap), where the pinned Actual keeps or drops the child alone and tombstones the other row. Cause: TransactionMergePlanner.swift:34 and :270.",
+      "opened": "2026-10-11",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11 (ratified contract): all selected-child shapes are blocked in a manual merge (admission, C5: the oracle established no compatible family-root interpretation)."
+    },
+    {
+      "id": "OP-72",
+      "domain": "transaction-commands",
+      "cases": [
+        "TransactionCommandOracleReplayTests/replaysTransactionCommandCase"
+      ],
+      "fixtureCases": [
+        "M2-split-zero-children",
+        "M2-conflicting-split-families"
+      ],
+      "summary": "Merging a split with no children, or a family whose children do not add up (split error), is refused, where the pinned Actual merges them. Cause: BudgetDatabase+TransactionBatchSnapshots.swift:53 (no live entries) and TransactionMergePlanner.swift:289 (splitHasError).",
+      "opened": "2026-10-11",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11 (ratified contract): zero-child, error and malformed split sources are blocked (admission, C5)."
+    },
+    {
+      "id": "OP-73",
+      "domain": "transaction-commands",
+      "cases": [
+        "TransactionCommandOracleReplayTests/replaysTransactionCommandCase"
+      ],
+      "fixtureCases": [
+        "M3-partial-transfer-pair",
+        "M3-malformed-transfer-pair"
+      ],
+      "summary": "Merging a transfer whose peer is missing, or a pair that does not link back, is refused, where the pinned Actual merges them (and for a missing peer tombstones the row). Cause: BudgetDatabase+TransactionBatchSnapshots.swift:79-88 marks the graph invalid.",
+      "opened": "2026-10-11",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11 (ratified contract): missing or nonreciprocal transfers are blocked; Actualist never creates a skeletal peer or repairs a backlink (admission, C5)."
+    },
+    {
+      "id": "OP-74",
+      "domain": "transaction-commands",
+      "cases": [
+        "TransactionCommandOracleReplayTests/replaysTransactionCommandCase"
+      ],
+      "fixtureCases": [
+        "M2-keep-split-drop-simple"
+      ],
+      "summary": "Keeping a split parent and dropping a simple row is refused, where the pinned Actual merges them and gives the parent the simple row's payee and category. Cause: TransactionMergePlanner.swift:441 blocks a retained split parent that would gain a category or payee.",
+      "opened": "2026-10-11",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11 (ratified contract): the observed invalid after-graph where a retained split parent gains a category or payee from a simple row is blocked (admission, C5)."
+    },
+    {
+      "id": "OP-75",
+      "domain": "transaction-commands",
+      "cases": [
+        "TransactionCommandOracleReplayTests/replaysTransactionCommandCase"
+      ],
+      "fixtureCases": [
+        "M4-atomic-reject-invalid-second-pair"
+      ],
+      "summary": "A merge that is refused leaves every row untouched, where the pinned Actual's handler has already written four transferred_id = null messages (all four rows of both pairs) before it refuses. Both refuse. Cause: BudgetDatabase+TransactionMerge.swift plans and validates the whole graph before the single atomic commit.",
+      "opened": "2026-10-11",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11 (ratified contract): the merge commits the full graph atomically and never emits pre-validation messages (admission, C5)."
+    },
+    {
+      "id": "OP-76",
+      "domain": "transaction-commands",
+      "cases": [
+        "TransactionCommandOracleReplayTests/replaysTransactionCommandCase"
+      ],
+      "fixtureCases": [
+        "M4-undo-conflict-after-merge"
+      ],
+      "summary": "Undo of a merge is blocked after a later edit to a merged row (the note changed), where the pinned Actual's in-memory undo applies it and overwrites the edit. Cause: BudgetDatabase+ActionLog.swift:525-533 compares every live row with the recorded after-state and returns transactionCommandChanged.",
+      "opened": "2026-10-11",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11 (ratified contract): one full-graph, conflict-safe Undo is mandatory; every live row must match the recorded after-state or Undo blocks before writing (admission, C5)."
+    },
+    {
+      "id": "OP-77",
+      "domain": "transaction-commands",
+      "cases": [
+        "TransactionCommandOracleReplayTests/replaysTransactionCommandCase"
+      ],
+      "fixtureCases": [
+        "M1-imported-payee-over-manual"
+      ],
+      "summary": "An imported payee does not decide which row a merge keeps: with one imported-payee row and one manual row, Actualist keeps the manual one, where the pinned Actual keeps the imported-payee row (admission C5: imported ID, then imported payee, then earlier date). Cause: the snapshot reads the imported payee from a column named imported_payee (BudgetDatabase+TransactionBatchSnapshots.swift:186), but an Actual budget stores it in imported_description, so chooseKeepDrop's imported-payee tests (TransactionMergePlanner.swift:505-510) never see it. The imported-ID rule (financial_id) works.",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25"
+    },
+    {
+      "id": "OP-78",
+      "domain": "transaction-queries",
+      "cases": [
+        "TransactionQueryOracleReplayTests/assertReplay"
+      ],
+      "fixtureCases": [
+        "q3-free-text-grouped-versus-physical"
+      ],
+      "summary": "Free-text search is flat across split children: searching text that only a child's note contains returns just that child, with no parent and no sibling context, where the pinned Actual's grouped account query returns the parent family with the parent and sibling as unmatched context (rootIDs [parent], 3 displayed, 2 context). The individually matching ids agree. Cause: fetchTransactionQueryPage routes any text query to flatTransactionQuerySelection (BudgetDatabase+TransactionQuery.swift:122-131). The grouped read fetchTransactionPage(matching:splits:.grouped) does return the family (split-mode case child-note-search matches).",
+      "opened": "2026-10-11",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11 (ratified contract, Q3): free-text search is flat across split children in Actualist; Actual groups the match to the parent."
+    },
+    {
+      "id": "OP-79",
+      "domain": "transaction-queries",
+      "cases": [
+        "TransactionQueryOracleReplayTests/assertReplay"
+      ],
+      "fixtureCases": [
+        "dead-parent-excludes-orphan"
+      ],
+      "summary": "A deleted parent hides its orphan child in the all-rows read, and so does a child whose parent row is missing: Actualist returns [simple], where the pinned Actual's splits: all returns [simple, orphan, missing-parent-child] (Actual applies its alive filter only to inline and none; inline, none, grouped and the account balance agree). Cause: liveEffectivePredicate always includes alivePredicate (BudgetDatabase+TransactionSplitQuery.swift:80-93) and fetchTransactionPage seeds it for every mode (BudgetDatabase+TransactionReads.swift:127). TransactionSplitQueryTests.deadParentExcludesOrphanFromLiveReadsAndBalances hard-codes the Actualist value.",
+      "opened": "2026-10-11",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: keep orphaned split children (deleted or missing parent) hidden in every read, including the all-rows read used by feed search. They are damaged data; Actual's own fix is Repair transactions in the web app, which deletes them, and those deletions sync."
     }
   ]
 }

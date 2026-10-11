@@ -1,0 +1,333 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/transaction-query-parity/generate.mjs
+// and removed after the run. Each case seeds a synthetic budget from the plan's
+// world, then runs Actual's own filter handlers, condition compiler and
+// transaction query executor over it.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+
+import { aqlQuery } from '#server/aql';
+import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
+import { handlers } from '#server/main';
+import { runHandler } from '#server/mutators';
+import { setSyncingMode } from '#server/sync';
+import { deserializeValue } from '#server/sync/serialization';
+import { q } from '#shared/query';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const contractPath = __CONTRACT_PATH__;
+
+// Filter ids come from uuid v4; a counter reset at the start of every case keeps
+// them stable, and the output renames them uuid-<n> by first appearance.
+const uuidState = vi.hoisted(() => ({ next: 1 }));
+vi.mock('uuid', async importOriginal => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    v4: () => `00000000-0000-4000-8000-${String(uuidState.next++).padStart(12, '0')}`,
+  };
+});
+
+const MINTED = /00000000-0000-4000-8000-\d{12}/g;
+
+function normalizeMintedIDs(value) {
+  const names = new Map();
+  return JSON.parse(
+    JSON.stringify(value).replace(MINTED, minted => {
+      if (!names.has(minted)) names.set(minted, `uuid-${names.size + 1}`);
+      return names.get(minted);
+    }),
+  );
+}
+
+function message(caught) {
+  return caught instanceof Error ? `${caught.name}: ${caught.message}` : String(caught);
+}
+
+// ---------------------------------------------------------------- worlds
+
+const WORLD_TABLES = {
+  accounts: 'id, name, offbudget, closed, sort_order, tombstone',
+  payees: 'id, name, transfer_acct, favorite, learn_categories, tombstone',
+  payee_mapping: 'id, targetId',
+  category_groups: 'id, name, is_income, sort_order, hidden, tombstone',
+  categories: 'id, name, is_income, cat_group, sort_order, hidden, tombstone',
+  category_mapping: 'id, transferId',
+  transactions:
+    'id, isParent, isChild, parent_id, acct, category, amount, description, notes, date, sort_order, tombstone, cleared, reconciled, starting_balance_flag',
+};
+
+async function dumpWorld() {
+  const dump = {};
+  for (const [table, columns] of Object.entries(WORLD_TABLES)) {
+    dump[table] = await db.all(`SELECT ${columns} FROM ${table} ORDER BY id`);
+  }
+  return dump;
+}
+
+async function seedWorld(world) {
+  await global.emptyDatabase()();
+  await loadMappings();
+  for (const account of world.accounts) {
+    db.runQuery(
+      'INSERT INTO accounts (id, name, offbudget, closed, sort_order, tombstone) VALUES (?, ?, ?, 0, 0, 0)',
+      [account.id, account.name, account.offbudget ? 1 : 0],
+    );
+  }
+  for (const payee of world.payees) {
+    db.runQuery(
+      'INSERT INTO payees (id, name, transfer_acct, favorite, learn_categories, tombstone) VALUES (?, ?, NULL, 0, 0, 0)',
+      [payee.id, payee.name],
+    );
+    db.runQuery('INSERT INTO payee_mapping (id, targetId) VALUES (?, ?)', [payee.id, payee.id]);
+  }
+  for (const mapping of world.payeeMappings) {
+    db.runQuery('INSERT INTO payee_mapping (id, targetId) VALUES (?, ?)', [mapping.id, mapping.targetID]);
+  }
+  db.runQuery(
+    "INSERT INTO category_groups (id, name, is_income, sort_order, hidden, tombstone) VALUES ('category-group', 'Synthetic', 0, 0, 0, 0)",
+  );
+  for (const category of world.categories) {
+    db.runQuery(
+      "INSERT INTO categories (id, name, is_income, cat_group, sort_order, hidden, tombstone) VALUES (?, ?, 0, 'category-group', 0, 0, 0)",
+      [category.id, category.name],
+    );
+    db.runQuery('INSERT INTO category_mapping (id, transferId) VALUES (?, ?)', [category.id, category.id]);
+  }
+  for (const mapping of world.categoryMappings) {
+    db.runQuery('INSERT INTO category_mapping (id, transferId) VALUES (?, ?)', [mapping.id, mapping.targetID]);
+  }
+  for (const row of world.transactions) {
+    db.runQuery(
+      `INSERT INTO transactions
+         (id, isParent, isChild, parent_id, acct, category, amount, description,
+          notes, date, sort_order, tombstone, cleared, reconciled, starting_balance_flag)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`,
+      [
+        row.id,
+        row.isParent ? 1 : 0,
+        row.isChild ? 1 : 0,
+        row.parentID,
+        row.account,
+        row.category,
+        row.amount,
+        row.payee,
+        row.notes ?? null,
+        row.date,
+        row.sortOrder,
+        row.tombstone ? 1 : 0,
+        row.startingBalance ? 1 : 0,
+      ],
+    );
+  }
+  await loadMappings();
+}
+
+// ---------------------------------------------------------------- queries
+
+async function compileConditions(conditions) {
+  return runHandler(
+    handlers['make-filters-from-conditions'],
+    { applySpecialCases: true, conditions },
+    { name: 'make-filters-from-conditions' },
+  );
+}
+
+// The shape the desktop client builds for the transaction search box.
+function freeTextFilter(search) {
+  const escaped = search.replace(/[\\%?]/g, '\\$&');
+  return {
+    $or: {
+      'payee.name': { $like: `%${escaped}%` },
+      'payee.transfer_acct.name': { $like: `%${escaped}%` },
+      notes: { $like: `%${escaped}%` },
+      'category.name': { $like: `%${escaped}%` },
+      'account.name': { $like: `%${escaped}%` },
+      $or: [],
+    },
+  };
+}
+
+async function queryRows(filters, splits, order) {
+  let query = q('transactions').filter({ $and: filters }).options({ splits });
+  if (order) query = query.orderBy(order);
+  const { data } = await aqlQuery(query.select('*'));
+  return data;
+}
+
+function flatten(rows) {
+  return rows.flatMap(row => [row.id, ...(row.subtransactions ? flatten(row.subtransactions) : [])]);
+}
+
+function families(rows) {
+  return rows
+    .filter(row => Array.isArray(row.subtransactions))
+    .map(row => ({
+      id: row.id,
+      childIDs: row.subtransactions.map(child => child.id),
+      unmatchedIDs: [row, ...row.subtransactions].filter(member => member._unmatched === true).map(member => member.id),
+    }));
+}
+
+// Physical matches (splits: all) against the grouped result for one filter list.
+async function familyResults(filters) {
+  const physical = await queryRows(filters, 'all');
+  const grouped = await queryRows(filters, 'grouped');
+  const physicalIDs = flatten(physical).sort();
+  const displayedIDs = flatten(grouped).sort();
+  return {
+    physical: { ids: physicalIDs },
+    grouped: {
+      rootIDs: grouped.map(row => row.id).sort(),
+      displayedIDs,
+      contextIDs: displayedIDs.filter(id => !physicalIDs.includes(id)),
+      unmatchedIDs: grouped
+        .flatMap(row => [row, ...(row.subtransactions ?? [])])
+        .filter(row => row._unmatched === true)
+        .map(row => row.id)
+        .sort(),
+    },
+  };
+}
+
+// ---------------------------------------------------------------- CRDT and filters
+
+async function crdtMarker() {
+  const row = await db.first('SELECT MAX(id) AS maximum FROM messages_crdt');
+  return row?.maximum ?? 0;
+}
+
+async function crdtMessagesSince(marker) {
+  const rows = await db.all(
+    `SELECT dataset, row, column, CAST(value AS TEXT) AS serialized_value
+       FROM messages_crdt WHERE id > ? ORDER BY id`,
+    [marker],
+  );
+  return rows.map(row => ({
+    dataset: row.dataset,
+    row: row.row,
+    column: row.column,
+    value: deserializeValue(row.serialized_value),
+  }));
+}
+
+async function filterRows() {
+  const rows = await db.all(
+    'SELECT id, name, conditions, conditions_op, tombstone FROM transaction_filters ORDER BY name, id',
+  );
+  return rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    conditions: JSON.parse(row.conditions),
+    conditionsOp: row.conditions_op,
+    tombstone: row.tombstone,
+  }));
+}
+
+async function createFilter(filters, state) {
+  const marker = await crdtMarker();
+  let outcome = 'created';
+  let error = null;
+  let id = null;
+  try {
+    id = await runHandler(handlers['filter-create'], { filters, state }, { name: 'filter-create' });
+  } catch (caught) {
+    error = message(caught);
+    if (error.includes('Duplicate filter warning')) outcome = 'duplicate-condition';
+    else if (error.includes('already a filter named')) outcome = 'duplicate-name';
+    else outcome = 'other-error';
+  }
+  const rows = await filterRows();
+  return {
+    outcome,
+    error,
+    id,
+    row: id === null ? null : (rows.find(row => row.id === id) ?? null),
+    rows,
+    messages: await crdtMessagesSince(marker),
+  };
+}
+
+// ---------------------------------------------------------------- cases
+
+async function runCase(planCase) {
+  const record = {
+    id: planCase.id,
+    gate: planCase.gate,
+    family: planCase.family,
+    source: planCase.source,
+    description: planCase.description,
+    seed: planCase.seed,
+    oracleOnly: planCase.oracleOnly,
+    world: planCase.world,
+    kind: planCase.kind,
+  };
+  if (planCase.kind === 'condition') {
+    const state = { name: planCase.id, conditions: [planCase.condition], conditionsOp: planCase.conditionsOp };
+    const compiled = await compileConditions([planCase.condition]);
+    const filter = await createFilter([], state);
+    Object.assign(record, {
+      condition: planCase.condition,
+      conditionsOp: planCase.conditionsOp,
+      compiled,
+      ...(await familyResults(compiled.filters)),
+      filter,
+    });
+  } else if (planCase.kind === 'search') {
+    const compiled = { errors: [], filters: [freeTextFilter(planCase.search)] };
+    Object.assign(record, { search: planCase.search, compiled, ...(await familyResults(compiled.filters)) });
+  } else if (planCase.kind === 'filter-create') {
+    const { id, ...baseline } = planCase.baseline;
+    db.runQuery(
+      'INSERT INTO transaction_filters (id, name, conditions, conditions_op, tombstone) VALUES (?, ?, ?, ?, 0)',
+      [id, baseline.name, JSON.stringify(baseline.conditions), baseline.conditionsOp],
+    );
+    const seededFilters = await filterRows();
+    const filter = await createFilter([{ id, ...baseline, tombstone: false }], planCase.candidate);
+    Object.assign(record, { baseline: planCase.baseline, candidate: planCase.candidate, seededFilters, filter });
+  } else if (planCase.kind === 'split-modes') {
+    const filters = [];
+    if (planCase.account !== null) filters.push({ account: planCase.account });
+    if (planCase.search !== null) filters.push(freeTextFilter(planCase.search));
+    const results = {};
+    for (const mode of planCase.modes) {
+      const rows = await queryRows(filters, mode, planCase.order);
+      results[mode] = { ids: rows.map(row => row.id) };
+      if (mode === 'grouped') results[mode].families = families(rows);
+    }
+    Object.assign(record, { account: planCase.account, search: planCase.search, order: planCase.order, results });
+    if (planCase.balance) {
+      const { data } = await aqlQuery(
+        q('transactions')
+          .filter({ account: planCase.account })
+          .options({ splits: 'inline' })
+          .calculate({ $sum: '$amount' }),
+      );
+      record.balances = { [planCase.account]: data };
+    }
+  } else {
+    throw new Error(`Unknown case kind ${planCase.kind}`);
+  }
+  return record;
+}
+
+test('transaction query parity oracle contract', async () => {
+  const records = [];
+  const worlds = {};
+  try {
+    setSyncingMode('offline');
+    for (const planCase of plan.cases) {
+      uuidState.next = 1;
+      await seedWorld(plan.worlds[planCase.world]);
+      const dump = await dumpWorld();
+      if (!(planCase.world in worlds)) worlds[planCase.world] = dump;
+      else expect(dump).toEqual(worlds[planCase.world]);
+      records.push(normalizeMintedIDs(await runCase(planCase)));
+    }
+  } finally {
+    setSyncingMode('disabled');
+  }
+  expect(records.length).toBe(plan.cases.length);
+  writeFileSync(contractPath, JSON.stringify({ worlds, records }));
+}, 600000);

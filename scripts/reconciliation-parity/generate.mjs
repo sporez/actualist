@@ -30,12 +30,16 @@ const sourceFiles = [
 ];
 // Sources behind evidence that is not in the reviewed contract list above:
 // the Done stamp site (Account.tsx, not exported, so only source-guarded) and
-// the loot-core rules engine that produced the D3 rules-run outcome.
+// the loot-core rules engine that produced the D3 rules-run outcome, and the
+// loot-core handlers behind the real-execution unlock cases.
 const evidenceSourceFiles = [
   'packages/desktop-client/src/components/accounts/Account.tsx',
   'packages/loot-core/src/server/transactions/transaction-rules.ts',
   'packages/loot-core/src/server/rules/rule.ts',
   'packages/loot-core/src/server/rules/action.ts',
+  // The unlock-* cases run the query and batch-update handlers on real rows.
+  'packages/loot-core/src/server/main.ts',
+  'packages/loot-core/src/server/transactions/app.ts',
 ];
 const DONE_STAMP = /await reconciliation\.finishReconciliation\(\s*account\.id,\s*reconcileAmount,\s*\(\) =>\s*this\.lockTransactions\(\),\s*\);\s*const lastReconciled = new Date\(\)\.getTime\(\)\.toString\(\);\s*this\.props\.onUpdateAccount\(\{ \.\.\.account, last_reconciled: lastReconciled \}\);/;
 
@@ -92,18 +96,34 @@ if (!existsSync(yarnPath)) {
 }
 
 // Stage 1 (loot-core): run Actual's real rules engine on the adjustment that
-// the rules-run call receives, with a rule that clears its notes.
+// the rules-run call receives, with a rule that clears its notes, and run the
+// unlock call sequence on real rows (the four unlock-* cases).
 const coreRunnerRelative = 'packages/loot-core/src/server/transactions/__actualist_reconciliation_rules.test.ts';
 const coreRunnerPath = join(oracleRoot, coreRunnerRelative);
 const coreOutputPath = join(oracleRoot, '.actualist-reconciliation-rules.json');
 if (existsSync(coreRunnerPath)) throw new Error(`Refusing to overwrite ${coreRunnerRelative}`);
 
 const coreRunner = String.raw`import { writeFileSync } from 'node:fs';
-import { beforeEach, expect, test } from 'vitest';
+import { afterAll, beforeEach, expect, test } from 'vitest';
 
 import { currentDay } from '../../shared/months';
-import { realizeTempTransactions } from '../../shared/transactions';
+import { q } from '../../shared/query';
+import {
+  realizeTempTransactions,
+  ungroupTransactions,
+  updateTransaction,
+} from '../../shared/transactions';
+import * as db from '../db';
+import { handlers } from '../main';
+import { runHandler } from '../mutators';
 import { insertRule, loadRules, resetState, runRules } from './transaction-rules';
+
+const output: Record<string, unknown> = {};
+afterAll(() => {
+  const outputPath = process.env.ACTUALIST_RECONCILIATION_RULES_OUTPUT;
+  expect(outputPath).toBeTruthy();
+  writeFileSync(outputPath!, JSON.stringify(output, null, 2) + '\n');
+});
 
 const rule = {
   stage: 'pre',
@@ -126,8 +146,6 @@ beforeEach(async () => {
 });
 
 test('loot-core rules engine output for an adjustment whose rule clears notes', async () => {
-  const outputPath = process.env.ACTUALIST_RECONCILIATION_RULES_OUTPUT;
-  expect(outputPath).toBeTruthy();
   await insertRule(rule);
   await loadRules();
   const [realized] = realizeTempTransactions([
@@ -141,15 +159,100 @@ test('loot-core rules engine output for an adjustment whose rule clears notes', 
       notes: 'Reconciliation balance adjustment',
     },
   ]);
-  const output = await runRules(JSON.parse(JSON.stringify(realized)));
-  writeFileSync(
-    outputPath!,
-    JSON.stringify({ rule, input: normalize(realized), output: normalize(output) }, null, 2) + '\n',
+  const ruleOutput = await runRules(JSON.parse(JSON.stringify(realized)));
+  Object.assign(output, { rule, input: normalize(realized), output: normalize(ruleOutput) });
+});
+
+// Real execution of the desktop unlockTransaction call sequence
+// (packages/desktop-client/src/accounts/reconciliation.ts). That function is not
+// importable from loot-core, so the sequence is reproduced here: the grouped query
+// goes through the 'query' handler the client's send('query', ...) reaches, then
+// ungroupTransactions, updateTransaction and the real transactions-batch-update
+// handler run unchanged. Only this call order is harness glue.
+const row = (overrides: Record<string, unknown>) => ({
+  account: 'checking', date: '2026-09-14', amount: -2500, category: null, payee: null,
+  notes: null, cleared: true, reconciled: false, is_parent: false, is_child: false,
+  ...overrides,
+});
+const family = (parentReconciled: boolean) => [
+  row({ id: 'parent', amount: -5000, is_parent: true, reconciled: parentReconciled }),
+  row({ id: 'child-a', amount: -2000, is_child: true, parent_id: 'parent', reconciled: true }),
+  row({ id: 'child-b', amount: -3000, is_child: true, parent_id: 'parent', reconciled: true }),
+];
+const unlockPlans = [
+  { id: 'unlock-split-member', transactionId: 'child-a', rows: family(true) },
+  { id: 'unlock-split-parent', transactionId: 'parent', rows: family(true) },
+  { id: 'unlock-split-member-unreconciled-parent', transactionId: 'child-a', rows: family(false) },
+  { id: 'unlock-simple-row', transactionId: 'simple', rows: [row({ id: 'simple', reconciled: true })] },
+];
+const reconciledRows = async () =>
+  Object.fromEntries(
+    (await db.all('SELECT id, reconciled FROM transactions ORDER BY id')).map(
+      (entry: any) => [entry.id, entry.reconciled === 1],
+    ),
   );
+// Grouped form for seeding a replay: each parent carries its children.
+const grouped = (rows: any[]) =>
+  rows.filter(entry => !entry.is_child).map(entry => ({
+    ...entry,
+    ...(entry.is_parent
+      ? { subtransactions: rows.filter(child => child.parent_id === entry.id) }
+      : {}),
+  }));
+
+test('unlockTransaction call sequence on real rows', async () => {
+  const unlock: unknown[] = [];
+  for (const plan of unlockPlans) {
+    await global.emptyDatabase()();
+    resetState();
+    await db.insertAccount({ id: 'checking', name: 'Checking' });
+    for (const entry of plan.rows) await db.insertTransaction(entry as any);
+    const before = await reconciledRows();
+
+    const query = q('transactions')
+      .filter({ id: plan.transactionId })
+      .select('*')
+      .options({ splits: 'grouped' });
+    const { data } = await handlers['query'](query.serialize());
+    const transactions = ungroupTransactions(data);
+    const transaction = transactions.find(entry => entry.id === plan.transactionId);
+    let sent: unknown = null;
+    if (transaction) {
+      const { diff } = updateTransaction(transactions, { ...transaction, reconciled: false });
+      sent = JSON.parse(JSON.stringify(diff.updated));
+      await runHandler(handlers['transactions-batch-update'], { updated: diff.updated }, {
+        name: 'transactions-batch-update',
+      });
+    }
+    const after = await reconciledRows();
+    unlock.push({
+      id: plan.id,
+      input: {
+        transactionId: plan.transactionId,
+        rows: grouped(plan.rows),
+        groupedQueryResult: transactions.map(entry => ({
+          id: entry.id,
+          is_parent: entry.is_parent ?? false,
+          is_child: entry.is_child ?? false,
+          parent_id: entry.parent_id ?? null,
+          reconciled: entry.reconciled ?? null,
+        })),
+      },
+      // Recorded as sent: the fields are not projected, so a missing field stays visible.
+      value: sent,
+      readback: {
+        before,
+        after,
+        changed: Object.keys(after).filter(id => after[id] !== before[id]),
+      },
+    });
+  }
+  output.unlock = unlock;
 });
 `;
 
 let coreRules;
+let coreUnlock;
 try {
   writeFileSync(coreRunnerPath, coreRunner);
   rmSync(coreOutputPath, { force: true });
@@ -157,7 +260,7 @@ try {
     yarnPath, 'workspace', '@actual-app/core', 'vitest', '--run',
     'src/server/transactions/__actualist_reconciliation_rules.test.ts', '--reporter=dot',
   ], { env: { ...process.env, ACTUALIST_RECONCILIATION_RULES_OUTPUT: coreOutputPath }, stdio: 'pipe' });
-  coreRules = JSON.parse(readFileSync(coreOutputPath, 'utf8'));
+  ({ unlock: coreUnlock, ...coreRules } = JSON.parse(readFileSync(coreOutputPath, 'utf8')));
 } finally {
   rmSync(coreRunnerPath, { force: true });
   rmSync(coreOutputPath, { force: true });
@@ -417,24 +520,6 @@ test('adjustment with a rule that clears notes replays the loot-core rules outpu
   });
 });
 
-test('unlock of a split family member', async () => {
-  const rows = [
-    transaction({ id: 'parent', amount: -5000, is_parent: true, reconciled: true, subtransactions: [
-      transaction({ id: 'child-a', amount: -2000, is_child: true, parent_id: 'parent', reconciled: true }),
-      transaction({ id: 'child-b', amount: -3000, is_child: true, parent_id: 'parent', reconciled: true }),
-    ] }),
-  ];
-  mocks.aqlQuery.mockResolvedValueOnce({ data: copy(rows) });
-  await unlockTransaction('child-a');
-  const batch = batchOf();
-  cases.push({
-    id: 'unlock-split-member',
-    input: { transactionId: 'child-a', rows },
-    // Recorded as sent: the fields are not projected, so a missing field stays visible.
-    value: copy(batch.updated),
-  });
-});
-
 afterAll(() => {
   writeFileSync('${temporaryOutput}', JSON.stringify({
     schemaVersion: ${SCHEMA_VERSION},
@@ -459,10 +544,16 @@ try {
 }
 assertPinnedOracle(oracleRoot, 'after generating');
 
-const EXPECTED_CASES = 9;
+const EXPECTED_CASES = 8;
 if (!Array.isArray(generated.cases) || generated.cases.length !== EXPECTED_CASES) {
   throw new Error(`Oracle did not produce ${EXPECTED_CASES} reviewed cases`);
 }
+// The unlock cases come from the loot-core stage (real rows, real grouped query).
+const EXPECTED_UNLOCK_CASES = 4;
+if (!Array.isArray(coreUnlock) || coreUnlock.length !== EXPECTED_UNLOCK_CASES) {
+  throw new Error(`Core stage did not produce ${EXPECTED_UNLOCK_CASES} unlock cases`);
+}
+generated.cases.push(...coreUnlock);
 
 // D2 is not run: onDoneReconciling lives on the unexported AccountInternal
 // class. Record the Done stamp only after the source guard matches.

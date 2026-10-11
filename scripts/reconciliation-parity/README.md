@@ -4,10 +4,11 @@
 Actual's pinned reconciliation code, run under vitest in the oracle checkout.
 `reconciliation-manifest.json` records the pinned release, source and helper
 hashes, the fixture hash, and the case count. `reconciliation-contract.json`
-holds nine reviewed cases: `cleared-balance`, `finish`,
+holds twelve reviewed cases: `cleared-balance`, `finish`,
 `adjustment-rule-projection`, `adjustment-rule-delete`, `lock`, `unlock`,
-`done-nonzero-difference`, `adjustment-rule-clears-notes`, and
-`unlock-split-member`.
+`done-nonzero-difference`, `adjustment-rule-clears-notes`, and four real-row
+unlock cases: `unlock-split-member`, `unlock-split-parent`,
+`unlock-split-member-unreconciled-parent` and `unlock-simple-row`.
 
 Regenerate against a clean checkout of the pinned Actual tag (with
 `yarn install` done):
@@ -35,8 +36,9 @@ production `BudgetDatabase` writes (see Swift replay below).
 
 ## How each case is produced
 
-The desktop-client functions in `reconciliation.ts` run under vitest with
-`@actual-app/core` and the AQL and send layers mocked. Each case's `input` is
+Except for the four `unlock-*` cases below, the desktop-client functions in
+`reconciliation.ts` run under vitest with `@actual-app/core` and the AQL and
+send layers mocked. Each case's `input` is
 the scripted data the mocks returned, so a consumer can seed an equivalent
 database. The `value` is what the oracle did with that input.
 
@@ -65,17 +67,47 @@ Two evidence levels exist, and the fixture labels which is which:
 that `null`. It does not restore the default note. Swift restores the default
 note (`BudgetDatabase+Reconciliation.swift`). This is registered as OP-17.
 
-`unlock-split-member` uses a scripted grouped parent with two reconciled
-children, and the scripted grouped query is assumed to return the full family
-for a child id. The `value` is the batch the oracle sent, unprojected: no field
-is dropped or defaulted. That batch records no `reconciled` write for the
-parent or either child. `makeChild` takes `reconciled` from the parent rather
-than from the child data, so unlocking `child-a` through the family path never
-emits `reconciled: false`. Swift unlocks each reconciled family row and writes
-`reconciled = false` to all three (`BudgetDatabase+Reconciliation.swift`). This
-is registered as OP-19. Whether unlocking a split member should unlock its
-family is a product decision. The evidence rests on the scripted query shape,
-so a real query that returns the family differently could change the result.
+## Real-row unlock cases
+
+The four `unlock-*` cases do not script the query. They run in the loot-core
+stage on real rows in loot-core's in-memory database, reproducing the call
+sequence of the desktop `unlockTransaction`
+(`packages/desktop-client/src/accounts/reconciliation.ts`, which cannot be
+imported from loot-core):
+
+1. Seed the rows with upstream's `db.insertAccount` and `db.insertTransaction`.
+2. Run `q('transactions').filter({ id }).select('*').options({ splits: 'grouped' })`
+   through the real `query` handler, the handler the client's `send('query', …)`
+   reaches (upstream code).
+3. `ungroupTransactions`, then `updateTransaction(transactions, { ...transaction,
+   reconciled: false })` (upstream code, `shared/transactions.ts`).
+4. Send `{ updated: diff.updated }` to the real `transactions-batch-update`
+   handler (upstream code) and read every row's `reconciled` back from SQLite.
+
+Harness glue is the seed data (step 1) and the code that calls steps 2–4 in the
+desktop function's order, with the find-by-id early return, in place of its
+`send` transport. The desktop function itself is not run.
+
+Each case records `input.rows` (the seeded rows, grouped for seeding),
+`input.groupedQueryResult` (what the real query returned), `value` (the
+`updated` batch as sent, unprojected) and `readback` (`before`, `after` and the
+`changed` ids of every row's `reconciled`). The seeded family is a parent
+(-5000) with children `child-a` (-2000) and `child-b` (-3000).
+
+| Case | Unlocks | Query returned | Sent | `reconciled` changed |
+| --- | --- | --- | --- | --- |
+| `unlock-split-member` | `child-a`, reconciled parent | the whole family | nothing | none |
+| `unlock-split-parent` | `parent` | the whole family | parent and both children | all three |
+| `unlock-split-member-unreconciled-parent` | `child-a`, unreconciled parent | the whole family | both children | both children |
+| `unlock-simple-row` | a simple row | that row | that row | that row |
+
+So in Actual, unlocking a child of a reconciled parent is a no-op: the grouped
+query returns the family, but `makeChild` copies the parent's `reconciled`, so
+the update carries no change. Unlocking the parent unlocks the family. Swift
+unlocks each reconciled family row and writes `reconciled = false` to all three
+(`BudgetDatabase+Reconciliation.swift`). This is registered as OP-19 and is
+intended (user decision 2026-10-11): unlocking any part of a split unlocks the
+family.
 
 ## Oracle-only cases
 
@@ -96,7 +128,7 @@ expected `null` cell is dropped when the seeded row already holds null or has no
 value for that column, because that write changes nothing and no outbox message
 records it. A null written over a non-null seeded value stays required. The rule
 applies in `ReconciliationOracleReplaySupport.swift` (`expectedRowCells`) to
-`lock`, `unlock`, and `unlock-split-member`.
+`lock`, `unlock` and the `unlock-*` cases.
 
 ## Swift replay
 
@@ -140,7 +172,8 @@ for seeding a database; the oracle does not produce them.
 ## Manifest
 
 `sourceFiles` holds the nine reviewed contract sources and stays at nine (the
-Swift consumer asserts this count). `evidenceSourceFiles` holds the four sources
+Swift consumer asserts this count). `evidenceSourceFiles` holds the six sources
 behind evidence that is not in the contract list: `Account.tsx` (the Done stamp
-site) and the loot-core rules files (`transaction-rules.ts`, `rule.ts`,
-`action.ts`).
+site), the loot-core rules files (`transaction-rules.ts`, `rule.ts`,
+`action.ts`) and the handlers behind the real unlock cases (`server/main.ts`,
+`server/transactions/app.ts`).

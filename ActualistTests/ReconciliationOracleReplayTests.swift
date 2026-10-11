@@ -15,6 +15,9 @@ struct ReconciliationOracleReplayTests {
         "lock",
         "unlock",
         "unlock-split-member",
+        "unlock-split-parent",
+        "unlock-split-member-unreconciled-parent",
+        "unlock-simple-row",
         "adjustment-rule-delete",
         "adjustment-rule-clears-notes",
     ]
@@ -24,7 +27,7 @@ struct ReconciliationOracleReplayTests {
         "finish": ["nonzeroDifferenceError"],
         "adjustment-rule-clears-notes": ["added[0].notes"],
         "adjustment-rule-delete": ["deleted", "deletedCount"],
-        "unlock-split-member": ["[0].reconciled", "[1].reconciled", "[2].reconciled"],
+        "unlock-split-member": ["messages", "after.child-a", "after.child-b", "after.parent"],
     ]
 
     @Test(arguments: replayedCaseIDs)
@@ -35,11 +38,13 @@ struct ReconciliationOracleReplayTests {
         let actual = try await ReconciliationOracleReplay.replay(
             caseID: caseID,
             input: input,
+            readback: try cases.entry(caseID)["readback"] as? [String: Any],
             makeFixture: { try support.makeSQLiteFixture(extraSQL: $0) }
         )
-        let expected = ReconciliationOracleReplay.expectedValue(
+        let expected = try ReconciliationOracleReplay.expectedValue(
             caseID,
             input: input,
+            readback: try cases.entry(caseID)["readback"] as? [String: Any],
             try cases.expected(caseID)
         )
         var comparison = OracleComparison()
@@ -63,7 +68,7 @@ struct ReconciliationOracleReplayTests {
                 #expect(divergence.known.isEmpty, Comment(rawValue: OracleComparison.report(caseID, divergence.known)))
             }
         case "unlock-split-member":
-            withKnownIssue("OP-19: unlocking a split member writes reconciled to family rows the fixture leaves untouched") {
+            withKnownIssue("OP-19: unlocking a split member unlocks the whole family, where Actual's child unlock is a no-op") {
                 #expect(divergence.known.isEmpty, Comment(rawValue: OracleComparison.report(caseID, divergence.known)))
             }
         default:

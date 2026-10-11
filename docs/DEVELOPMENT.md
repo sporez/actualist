@@ -196,8 +196,7 @@ Each harness has:
 2. Update `config/parity/oracle-pin.json`, then `git mv` the fixture folder to
    the new name so the regenerated diff stays reviewable.
 3. Run each harness's `generate` command from `config/parity/domains.json`.
-   The transaction command and query runners need a new run label (see their
-   READMEs), and the csv-export-interop source-freeze hashes need recomputing.
+   The csv-export-interop source-freeze hashes need recomputing.
 4. If an upstream source a generator reads has moved, update its source list.
 5. Run `scripts/check.sh`, then `scripts/parity.sh verify <domain>` for each
    covered or partial domain.

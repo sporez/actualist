@@ -1,128 +1,112 @@
-# Transaction duplicate and merge parity matrix
+# Transaction duplicate and merge parity harness
 
-This directory holds an executable synthetic C4/C5 capture harness for Actual
-v26.10.0. It intentionally has no expected handler outcomes: no gate is
-converted into production semantics until the coordinator reviews runtime
-observations and records the product decisions. Matrix `expectedObservation`
-text is limited to source-defined capture intent, not an admitted product
-policy.
+Generates the transaction-command fixture from Actual's own handlers at the
+pinned release (`config/parity/oracle-pin.json`, v26.10.0). This directory holds
+only the generator side. `TransactionCommandOracleReplayTests` replays every case
+through the database review, commit and undo path.
 
-`matrix.json` has 39 stable cases covering D1/D2 duplicate source graphs and
-M1–M4 merge inputs. `transaction-command-parity.test.ts` seeds named graph
-fixtures and calls Actual's real `transactions-batch-update` duplicate handler
-or `transactions-merge` handler. It records per case: input/selected IDs,
-before/after physical SQLite rows and reference rows, returned result or handler
-refusal, forward CRDT messages, then the result of one actual upstream undo and
-its row/reference/message effects. Handler refusals are captured as observations,
-not treated as expected answers. Setup/capture failures identify the case and
-fail the invocation.
-The first setup/capture failure is durably recorded, stops the internal case
-loop immediately, and fails the single Vitest test; Actual handler refusals are
-recorded as normal per-case observations and do not stop the loop.
-Do not exercise Actualist persistence, a server, a real budget, or user data.
+- `generate.mjs`: runs the matrix inside the oracle checkout under vitest and
+  writes the fixture. `--check` regenerates into a temporary directory and diffs
+  against the committed fixture.
+- `verify.mjs`: checks the committed fixture against the manifest and the matrix.
+  Needs no oracle.
+- `matrix.json`: the 39 case IDs (D1/D2 duplicate source graphs, M1–M4 merge
+  inputs), each with its selected row IDs in caller order and a named graph.
+  Pure input, no expectations.
+- `oracle-runner.template`: the vitest test copied into the oracle for one run
+  and removed afterwards. It also holds the 39 graph builders.
+- Fixture: `ActualistTests/Fixtures/ActualCore26_10_0/TransactionCommand/`
+  (`transaction-command-contract.json`, `transaction-command-manifest.json`).
 
-The pinned upstream source (`ACTUALIST_PARITY_ORACLE_ROOT`, checked by
-`scripts/parity/lib/oracle-pin.mjs`) is an immutable provenance input. This lane
-owns a local writable copy, passed as `--writable-clone`, at
-`.artifacts/transaction-command-oracle/actual`; the runner canonicalizes and
-requires the writable checkout to remain below this exact lane-owned artifact
-root. It refuses shared Git identity, dirty source/candidate checkouts, existing
-overlay targets, and spent run labels. It installs signal/EXIT cleanup before
-creating scratch or copying overlays, and tracks the launch race through Bash
-job control's one owned background job. Vitest and descendants share one
-verified process group. On interruption or deadline, cleanup sends TERM then
-CONT to that exact group, waits for quiescence, and sends KILL only to that
-group if TERM grace expires. It retains overlays, scratch, and evidence if
-process-group ownership or quiescence cannot be confirmed. PID/PGID,
-runner/oracle status, launch/signal/TERM/KILL/quiescence/finish times, and
-cleanup status are persisted. Success outcome is written only after group
-quiescence, owned-file cleanup, and a clean checkout check. Evidence is retained
-under `.artifacts/transaction-command-oracle/evidence`.
-Do not invoke the existing transaction-query runner for this matrix: it
-overlays only its own query harness.
-
-Before using outcomes, the coordinator must explicitly decide: child selection
-policy (D1); imported identity/payee, schedule, order, transfer, split error,
-the real duplicate request's omission of category learning, and
-cleared/reconciled handling (D2); caller-order/tie behavior
-(M1); split-child/empty-family and malformed split policy (M2); transfer
-destination, budget category, reconciliation and broken-pair policy (M3); and
-full-graph atomic commit/undo representation (M4).
-
-Historical second bounded invocation (spent; the runner explicitly refuses
-this label even if its evidence directory is moved). It used the former
-`--source-checkout` and `--actual-checkout` flags; the source now comes only from
-`ACTUALIST_PARITY_ORACLE_ROOT` and the writable copy is `--writable-clone`:
-
-```text
-scripts/transaction-command-parity/run-oracle.sh \
-  --source-checkout "$ACTUALIST_PARITY_ORACLE_ROOT" \
-  --actual-checkout "$ACTUALIST_ROOT/.artifacts/transaction-command-oracle/actual" \
-  --evidence "$ACTUALIST_ROOT/.artifacts/transaction-command-oracle/evidence" \
-  --run-label post-correction
+```sh
+ACTUALIST_PARITY_ORACLE_ROOT=<clean checkout of the pinned tag> node scripts/transaction-command-parity/generate.mjs [--check]
+node scripts/transaction-command-parity/verify.mjs
 ```
 
-The runner enforces Node 24.21.x, Yarn 4.17.1, and the Vitest and better-sqlite3
-versions locked in the oracle's `yarn.lock` (5.0.0 and 13.0.3 for v26.10.0), and
-takes the Actual commit, tag, and core version from `config/parity/oracle-pin.json`. The exact underlying Vitest selection is
-`@actual-app/core exec vitest --run
-src/server/transactions/transaction-command-parity.test.ts --reporter=verbose
---bail=1`, with a 180-second process-group ceiling, ten-second TERM grace, and
-ten-second bounded post-KILL quiescence confirmation (at most 200 seconds total
-before evidence retention if a group remains unconfirmed).
+The oracle checkout must be at the pinned commit with a clean tree and
+`yarn install` done. It is checked before and after the run and is never written
+to except for the temporary runner, which is removed in a `finally`. Generation
+takes about 3 seconds. Synthetic data only; nothing touches a server, a real
+budget or Actualist persistence.
 
-The sole authorized `investigation` invocation was spent and stopped on its
-first harness setup/capture failure at `D1-simple-root`:
-`SqliteError: no such column: transfer_id`. The pinned Actual source proves this
-was a harness readback-schema mismatch, not an Actual handler refusal:
-`packages/loot-core/src/server/sql/init.sql` stores the physical column as
-`transactions.transferred_id`, while
-`packages/loot-core/src/server/aql/schema/index.ts` maps public `transfer_id`
-to that physical name. `packages/loot-core/src/mocks/setup.ts` runs the pinned
-migrations after creating the base schema with `init.sql`. The old raw-row SQL
-queried the public alias directly from the physical table. The support reader
-now explicitly aliases physical transaction columns and captures category/payee
-mapping tables plus the seeded category/group reference rows. Seeds remain
-public `TransactionEntity` inputs passed through Actual's `db.insertTransaction`
-schema converter. The original failure evidence is preserved unchanged under
-`.artifacts/transaction-command-oracle/evidence/investigation/`; it records one
-failed setup and 38 pending cases, with no handler result or undo observation.
-The corrected recorder preserves the pre-handler reference snapshot as
-`referencesBefore` and adds `referencesAfterHandler` and `referencesAfterUndo`
-alongside the transaction-row and CRDT snapshots. The existing M4 injected
-conflict only mutates a transaction note, so it does not add a reference-row
-checkpoint.
-The separately authorized `post-correction` invocation exited 1 after capturing
-nine cases. The tenth case, `D2-split-error-clone`, failed because its
-`mismatched-split` graph had no builder. The remaining 29 cases did not run.
-Both failed invocations retain their original evidence; neither establishes
-complete C4/C5 behavior.
+## What a case is
 
-The coordinator's subsequent fixture audit added the missing builder and fixed
-unintended one-child split imbalance, same-parent selection using different
-parents, keep/drop labels using ambiguous tied dates, and an invalid-pair case
-that did not reach its intended paired-amount failure. The malformed reciprocal
-fixture now has an existing peer with a wrong backlink rather than a missing
-peer. Rule rows are included in reference snapshots so learning side effects
-and their undo are observable. The corrected no-learning case records that the
-real desktop duplicate payload omits `learnCategories`, plus rule snapshots and
-change flags before the handler, after the handler, and after undo. It does not
-enable learning in the oracle. The imported-metadata D2 source is reconciled so
-the duplicate path's forced unreconciled output is observable rather than
-indistinguishable from preservation.
+Each case seeds one synthetic graph through upstream's `db.insertTransaction`,
+then calls the real handler:
 
-All 39 input graphs are now constructed and validated before the first handler
-invocation. Validation checks selected IDs, unique row IDs, intended split
-balance, reciprocal transfer pairs, and the named same-parent, keep/drop and
-invalid-pair boundaries. A local pure-fixture check constructed the preceding
-corrected 39-case graph successfully without loading Actual or invoking any
-handler. The approved no-learning rename and reconciled-source change require
-fresh pure-fixture evidence before runtime handoff; the prior audit hashes no
-longer validate this candidate. Fixture construction evidence is never
-compatibility evidence.
+- **Duplicate (D1/D2).** The selected rows are read with a grouped AQL query,
+  realized with `ungroupTransaction`/`realizeTempTransactions` and reset to
+  uncleared and unreconciled, exactly as the desktop client builds them. They
+  go to `transactions-batch-update` as `added` only, so category learning is
+  not requested.
+- **Merge (M1–M4).** The selected IDs, in matrix order, go to
+  `transactions-merge`.
 
-The sole admitted label is `repin-v26.10.0-20261010b` (the Actual v26.10.0 re-pin
-after the spent `repin-v26.10.0-20261010` attempt stopped at setup on a moved
-import); the historical labels remain explicitly spent and every existing evidence
-directory remains a refusal. Authorization of the label is not authorization to execute: the main
-coordinator owns the one-run decision. Do not delete or reuse prior evidence.
+Upstream's undo (`undo()`) then runs once. A handler refusal is recorded as an
+observation (`handler.outcome: "refused"` with its text), never treated as an
+expected answer.
+
+Per case the fixture records:
+
+| Field | Content |
+| --- | --- |
+| `selected` | the selected row IDs in caller order |
+| `input.transactions` | the seeded rows as physical `transactions` columns (`acct`, `isParent`, … aliased to `account`, `is_parent`, …; `category_mapping_id` and `payee_mapping_id` hold the mapped ids), so a replay can insert them into its own starter schema |
+| `handler` | `outcome` `ok` with `result`, or `refused` with `error` |
+| `afterHandler.transactions` | every physical row after the handler, tombstones included |
+| `forwardMessages` | the CRDT messages the handler wrote, in order |
+| `undo` | `outcome`, `error` when it failed, the messages it wrote, and every row afterwards |
+| `conflict` | M4 undo-conflict only: a later note change applied before undo, with its message and the rows after it |
+| `referenceChanges` | only when a checkpoint changed a reference table (duplicates add category and payee mapping rows) |
+| `rules` | the learning case only: rule rows before, after the handler and after undo, with `learnCategoriesRequested: false` |
+
+The accounts, categories, groups, payees, schedules, mappings and rule rows that
+every case starts from are recorded once as top-level `referenceData`.
+
+## Determinism and normalization
+
+- `generatedAt` is not recorded. `TZ` is UTC and `Date.now()` is frozen by
+  loot-core's test setup.
+- Ids Actual mints (`id1`, `id2`, … from the test setup's uuid mock, restarted
+  per case) become `uuid-N` by first appearance in the case. Setup ids are
+  explicit and untouched. A minted id inside longer text fails generation.
+- `sort_order` `123456789` is the frozen `Date.now()` Actual assigns a row that
+  has none. It is recorded but is not a comparable value.
+- Repeated CRDT messages (a handler writing the same cell twice) are kept
+  verbatim and in order; that is what Actual wrote.
+- Amounts and dates are never normalized. Row order is by `id` (an unspecified
+  order in Actual, so a replay compares sorted by `id`); messages keep Actual's
+  write order.
+
+## Ratified contract
+
+The September sprint's admitted contract
+(`reference/plans/done/dev-sprint-2026-09/transaction-commands-implementation-admission.md`)
+is the user's decision, ratified 2026-10-11. Where Actualist deliberately differs
+from this fixture, the difference is intended:
+
+- Duplicating a malformed split is refused (Actual clones it).
+- Merging a selected split child, a zero-child or malformed split, or a broken or
+  partial transfer pair is refused (Actual merges some of these).
+- Undo after a merge is blocked when the rows changed since (Actual's in-memory
+  undo is not conflict-checked).
+- A selected split child duplicates its whole family.
+
+A replay therefore compares the cases the contract accepts and handles the cases
+above as registered divergences, not as fixture edits.
+
+## Gates
+
+The matrix covers the decisions the contract settles: child selection (D1);
+imported identity and payee, schedule, order, transfer, split error, omission of
+category learning, and cleared/reconciled reset (D2); caller-order and tie
+behavior (M1); split-child, empty-family and malformed-split handling (M2);
+transfer destination, budget category, reconciliation and broken-pair handling
+(M3); and full-graph commit and undo (M4). Actual's undo history is in memory
+(`server/undo.ts`); there is no durable transaction action log to compare.
+
+## Manifest
+
+`transaction-command-manifest.json` records the pin, the sha256 of the oracle
+sources used (`sourceFiles`), the generator and helper hashes, `caseCount`,
+`caseIDs`, `normalization`, and `oracleOnly` (empty: every case is replayed).
