@@ -1,0 +1,334 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/template-apply-parity/generate.mjs",
+    "sha256": "19f3912cb992ad22e12eb0313ad6d873de939789559a0a0362cea021726129c8"
+  },
+  "harness": {
+    "path": "scripts/template-apply-parity/harness/template-apply-parity.test.ts",
+    "sha256": "ab05468fe970d20d8f645255a2a9d135f6730f6c633414cae8e7d11bc13648ae"
+  },
+  "helpers": [
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": 20261011,
+  "seedAlgorithm": "mulberry32",
+  "currentMonth": "2026-10",
+  "amountUnits": "integer minor units; note and UI template amounts are display units",
+  "execution": "Actual budget handlers through runHandler and the sheet, in a vitest run on the pinned checkout",
+  "scope": "synthetic local SQLite only; no sync server",
+  "normalization": [
+    "Actual mock uuid tokens (idN) are replaced by first-appearance placeholders per case",
+    "Columns ending in _ts are dropped",
+    "Rows are sorted by primary key",
+    "Values are not rounded or converted; amounts are compared exactly"
+  ],
+  "coverage": {
+    "families": [
+      "fixed",
+      "priority",
+      "schedule",
+      "average-copy",
+      "percent",
+      "remainder",
+      "goal-by",
+      "limit-refill"
+    ],
+    "fundingStates": [
+      "above",
+      "below",
+      "exact",
+      "zero",
+      "negative"
+    ],
+    "operationMonths": [
+      "2026-10",
+      "2026-11",
+      "2026-12",
+      "2027-01"
+    ],
+    "namedCaseIDs": [
+      "tapply-named-ended-schedule",
+      "tapply-named-deleted-category",
+      "tapply-named-priority-clamp",
+      "tapply-named-average-missing-months",
+      "tapply-named-yearly-sinking-fund",
+      "tapply-named-schedule-by-id",
+      "tapply-named-stale-note-goal-def",
+      "tapply-named-tracking-budget",
+      "tapply-named-jpy-currency",
+      "tapply-named-leap-year-periodic",
+      "tapply-named-year-boundary-by",
+      "tapply-named-overwrite-existing-budget",
+      "tapply-named-apply-skips-budgeted",
+      "tapply-named-no-templates",
+      "tapply-named-orphan-goal-reset"
+    ],
+    "generatedCaseCount": 120,
+    "namedCaseCount": 15
+  },
+  "caseCount": 135,
+  "upstreamSources": [
+    {
+      "path": "packages/loot-core/src/server/budget/goal-template.ts",
+      "sha256": "54121dc4e25e33439d5acfffef7a6a6405f17ef537dc3114afa7e49061eaef9d"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/goal-template.pegjs",
+      "sha256": "2c5fa12d17f80935f49e29b12c2bef35b35c349ecfd0268c05ae05b5538e8f02"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/template-notes.ts",
+      "sha256": "2d889727f62f254825c295abc8bf1397be7a1fad834ea18db46b463530edf3ce"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/template-notification.ts",
+      "sha256": "fa3ba8b417b147cf13aa0a39a5e6288cba74d283c91493fa25233f5c3cf592ce"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/category-template-context.ts",
+      "sha256": "332eea3f1a7cafa75a04e944f3dce14c0313f4ce8458a92cf42994b24f72fdcc"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/schedule-template.ts",
+      "sha256": "1514f5e8e73f57da7efd12fc487253469259f0a0bbdd0e4fd518097095dac9fa"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/statements.ts",
+      "sha256": "38657b6caf2e0b79b2572348d6558a5bceb943e81808438e1063d76e02a6f3c0"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/actions.ts",
+      "sha256": "5fa3915814c773ee998e6836e5fe7c5a562cad643b310a1ac74faad662ec3294"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/base.ts",
+      "sha256": "c70cc2d5386bc4628bae805b3a82f860b22747413c795cea7f6a87b8c930838b"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/app.ts",
+      "sha256": "873e61d76d8023410a6a831d1e3e83c0002f9fd987077904afed867b4eb2fc0c"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/envelope.ts",
+      "sha256": "bbd07cf2a56f03b5c14d61a50f0cba764f08370895a4c5c2a9cea825626ccdcd"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/tracking.ts",
+      "sha256": "630feb46acc09301759216838389dd8eb6af53fba22e454d1ef9c6c14e323ad9"
+    },
+    {
+      "path": "packages/loot-core/src/server/schedules/app.ts",
+      "sha256": "9cc505fba24effd2564871da3db9c781df831a138d04bdfbeaf67f338c2e9dc4"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transaction-rules.ts",
+      "sha256": "a6f08970af6f8d190c4c3b1a9ef2fad18c9f7e7211758a38d8bf02b9232c06ea"
+    },
+    {
+      "path": "packages/loot-core/src/shared/schedules.ts",
+      "sha256": "7019c15bffddf1c2d510c135fb5b01ac3220922325a1522d2f398c1ad1f4d1e2"
+    },
+    {
+      "path": "packages/loot-core/src/shared/months.ts",
+      "sha256": "2bec8ac7beca3a9f4bae07d7da1e12ef140c239d481059bf4b9b97617a8fe0a3"
+    },
+    {
+      "path": "packages/loot-core/src/shared/util.ts",
+      "sha256": "f2ba71c3ba432082239dca0a48a79d8b1328ea4d258dfd4aeebb4ac43665c07d"
+    },
+    {
+      "path": "packages/loot-core/src/types/models/templates.ts",
+      "sha256": "d2d4635ef0db471d99bbcf23e09780fda4c1e912797665a42ef7563eb25bdab7"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/setup.ts",
+      "sha256": "1deb435399c7871a57baea5668474ad2e8290d0925f472a1b971a1832ec18b70"
+    },
+    {
+      "path": "packages/loot-core/src/server/main.ts",
+      "sha256": "94eddc57719c9f720f0034ea552ff59c6ba487906de5c20b4d3903585589efa1"
+    },
+    {
+      "path": "packages/loot-core/src/server/mutators.ts",
+      "sha256": "f24756558fd2aadc3cbff1fd23514b5908ef6b319c1ad7d8eefeb5ee649f538f"
+    },
+    {
+      "path": "packages/loot-core/src/server/sheet.ts",
+      "sha256": "f77389f8a6986d196b1199246f94a974ce998d55a743ec62cdd04a4da4332797"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71"
+    },
+    {
+      "path": "packages/loot-core/src/server/sync/index.ts",
+      "sha256": "f597760aed699ff0f696b2ec433c1d59588e7f2dd53f4aa6518713dfd76c99b8"
+    },
+    {
+      "path": "vitest.config.ts",
+      "sha256": "24e3a4b6aa7676bd8d8ac0b1dec1c2f3e6aea2de84ef656372a90093ea38104f"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/TemplateApply/template-apply-contract.json",
+      "sha256": "2cd03621b6b925d993b4e88e27d44e5af327026d4c6b3cd876bcf318b43c64be",
+      "caseCount": 135,
+      "caseIDs": [
+        "tapply-named-ended-schedule",
+        "tapply-named-deleted-category",
+        "tapply-named-priority-clamp",
+        "tapply-named-average-missing-months",
+        "tapply-named-yearly-sinking-fund",
+        "tapply-named-schedule-by-id",
+        "tapply-named-stale-note-goal-def",
+        "tapply-named-tracking-budget",
+        "tapply-named-jpy-currency",
+        "tapply-named-leap-year-periodic",
+        "tapply-named-year-boundary-by",
+        "tapply-named-overwrite-existing-budget",
+        "tapply-named-apply-skips-budgeted",
+        "tapply-named-no-templates",
+        "tapply-named-orphan-goal-reset",
+        "tapply-generated-fixed-above-1",
+        "tapply-generated-fixed-above-2",
+        "tapply-generated-fixed-above-3",
+        "tapply-generated-fixed-below-1",
+        "tapply-generated-fixed-below-2",
+        "tapply-generated-fixed-below-3",
+        "tapply-generated-fixed-exact-1",
+        "tapply-generated-fixed-exact-2",
+        "tapply-generated-fixed-exact-3",
+        "tapply-generated-fixed-zero-1",
+        "tapply-generated-fixed-zero-2",
+        "tapply-generated-fixed-zero-3",
+        "tapply-generated-fixed-negative-1",
+        "tapply-generated-fixed-negative-2",
+        "tapply-generated-fixed-negative-3",
+        "tapply-generated-priority-above-1",
+        "tapply-generated-priority-above-2",
+        "tapply-generated-priority-above-3",
+        "tapply-generated-priority-below-1",
+        "tapply-generated-priority-below-2",
+        "tapply-generated-priority-below-3",
+        "tapply-generated-priority-exact-1",
+        "tapply-generated-priority-exact-2",
+        "tapply-generated-priority-exact-3",
+        "tapply-generated-priority-zero-1",
+        "tapply-generated-priority-zero-2",
+        "tapply-generated-priority-zero-3",
+        "tapply-generated-priority-negative-1",
+        "tapply-generated-priority-negative-2",
+        "tapply-generated-priority-negative-3",
+        "tapply-generated-schedule-above-1",
+        "tapply-generated-schedule-above-2",
+        "tapply-generated-schedule-above-3",
+        "tapply-generated-schedule-below-1",
+        "tapply-generated-schedule-below-2",
+        "tapply-generated-schedule-below-3",
+        "tapply-generated-schedule-exact-1",
+        "tapply-generated-schedule-exact-2",
+        "tapply-generated-schedule-exact-3",
+        "tapply-generated-schedule-zero-1",
+        "tapply-generated-schedule-zero-2",
+        "tapply-generated-schedule-zero-3",
+        "tapply-generated-schedule-negative-1",
+        "tapply-generated-schedule-negative-2",
+        "tapply-generated-schedule-negative-3",
+        "tapply-generated-average-copy-above-1",
+        "tapply-generated-average-copy-above-2",
+        "tapply-generated-average-copy-above-3",
+        "tapply-generated-average-copy-below-1",
+        "tapply-generated-average-copy-below-2",
+        "tapply-generated-average-copy-below-3",
+        "tapply-generated-average-copy-exact-1",
+        "tapply-generated-average-copy-exact-2",
+        "tapply-generated-average-copy-exact-3",
+        "tapply-generated-average-copy-zero-1",
+        "tapply-generated-average-copy-zero-2",
+        "tapply-generated-average-copy-zero-3",
+        "tapply-generated-average-copy-negative-1",
+        "tapply-generated-average-copy-negative-2",
+        "tapply-generated-average-copy-negative-3",
+        "tapply-generated-percent-above-1",
+        "tapply-generated-percent-above-2",
+        "tapply-generated-percent-above-3",
+        "tapply-generated-percent-below-1",
+        "tapply-generated-percent-below-2",
+        "tapply-generated-percent-below-3",
+        "tapply-generated-percent-exact-1",
+        "tapply-generated-percent-exact-2",
+        "tapply-generated-percent-exact-3",
+        "tapply-generated-percent-zero-1",
+        "tapply-generated-percent-zero-2",
+        "tapply-generated-percent-zero-3",
+        "tapply-generated-percent-negative-1",
+        "tapply-generated-percent-negative-2",
+        "tapply-generated-percent-negative-3",
+        "tapply-generated-remainder-above-1",
+        "tapply-generated-remainder-above-2",
+        "tapply-generated-remainder-above-3",
+        "tapply-generated-remainder-below-1",
+        "tapply-generated-remainder-below-2",
+        "tapply-generated-remainder-below-3",
+        "tapply-generated-remainder-exact-1",
+        "tapply-generated-remainder-exact-2",
+        "tapply-generated-remainder-exact-3",
+        "tapply-generated-remainder-zero-1",
+        "tapply-generated-remainder-zero-2",
+        "tapply-generated-remainder-zero-3",
+        "tapply-generated-remainder-negative-1",
+        "tapply-generated-remainder-negative-2",
+        "tapply-generated-remainder-negative-3",
+        "tapply-generated-goal-by-above-1",
+        "tapply-generated-goal-by-above-2",
+        "tapply-generated-goal-by-above-3",
+        "tapply-generated-goal-by-below-1",
+        "tapply-generated-goal-by-below-2",
+        "tapply-generated-goal-by-below-3",
+        "tapply-generated-goal-by-exact-1",
+        "tapply-generated-goal-by-exact-2",
+        "tapply-generated-goal-by-exact-3",
+        "tapply-generated-goal-by-zero-1",
+        "tapply-generated-goal-by-zero-2",
+        "tapply-generated-goal-by-zero-3",
+        "tapply-generated-goal-by-negative-1",
+        "tapply-generated-goal-by-negative-2",
+        "tapply-generated-goal-by-negative-3",
+        "tapply-generated-limit-refill-above-1",
+        "tapply-generated-limit-refill-above-2",
+        "tapply-generated-limit-refill-above-3",
+        "tapply-generated-limit-refill-below-1",
+        "tapply-generated-limit-refill-below-2",
+        "tapply-generated-limit-refill-below-3",
+        "tapply-generated-limit-refill-exact-1",
+        "tapply-generated-limit-refill-exact-2",
+        "tapply-generated-limit-refill-exact-3",
+        "tapply-generated-limit-refill-zero-1",
+        "tapply-generated-limit-refill-zero-2",
+        "tapply-generated-limit-refill-zero-3",
+        "tapply-generated-limit-refill-negative-1",
+        "tapply-generated-limit-refill-negative-2",
+        "tapply-generated-limit-refill-negative-3"
+      ]
+    }
+  ],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}

@@ -201,6 +201,8 @@ enum OracleJSON {
 struct OracleFixtureCases {
     private let cases: [String: [String: Any]]
     private let outputKey: String
+    /// The fixture's shared `syntheticData` object, which every case replays against.
+    let syntheticData: [String: Any]
 
     init(domain: String, fileName: String, outputKey: String) throws {
         let url = try ParityOraclePin.fixtureURL(domain).appending(path: fileName)
@@ -220,6 +222,7 @@ struct OracleFixtureCases {
         }
         self.cases = byID
         self.outputKey = outputKey
+        self.syntheticData = object["syntheticData"] as? [String: Any] ?? [:]
     }
 
     var ids: Set<String> {

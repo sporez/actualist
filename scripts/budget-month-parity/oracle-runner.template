@@ -1,0 +1,230 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/budget-month-parity/generate.mjs
+// and removed after the run. Each case runs the handlers the UI sends against a
+// synthetic in-memory budget and records the CRDT cells written and the sheet state.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+
+import * as budget from '#server/budget/base';
+import * as db from '#server/db';
+import { handlers } from '#server/main';
+import { runHandler } from '#server/mutators';
+import * as sheet from '#server/sheet';
+import { setSyncingMode } from '#server/sync';
+import * as monthUtils from '#shared/months';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const contractPath = __CONTRACT_PATH__;
+
+const ENVELOPE_SUMMARY = [
+  'to-budget', 'available-funds', 'from-last-month', 'total-income', 'total-budgeted',
+  'total-spent', 'total-leftover', 'last-month-overspent', 'buffered', 'buffered-auto',
+  'buffered-selected',
+];
+const TRACKING_SUMMARY = [
+  'total-budget-income', 'total-budgeted', 'total-spent', 'total-income', 'total-leftover',
+  'total-saved', 'real-saved',
+];
+
+// Non-integer money values would break the integer-minor-unit contract.
+const anomalies = [];
+
+// A missing cell reads as null; the fixture records that, it does not hide it.
+function readCell(sheetName, name) {
+  try {
+    const value = sheet.getCell(sheetName, name).value;
+    if (typeof value === 'number' && !Number.isInteger(value)) {
+      anomalies.push(`${sheetName} ${name} = ${value}`);
+    }
+    return typeof value === 'number' || typeof value === 'boolean' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function categoryFields(sheetName, id, budgetType) {
+  if (budgetType === 'tracking') {
+    return {
+      budgeted: readCell(sheetName, 'budget-' + id),
+      spent: readCell(sheetName, 'sum-amount-' + id),
+      leftover: readCell(sheetName, 'leftover-' + id),
+      carryover: readCell(sheetName, 'carryover-' + id),
+      spentWithCarryover: readCell(sheetName, 'spent-with-carryover-' + id),
+    };
+  }
+  return {
+    budgeted: readCell(sheetName, 'budget-' + id),
+    spent: readCell(sheetName, 'sum-amount-' + id),
+    leftover: readCell(sheetName, 'leftover-' + id),
+    leftoverPositive: readCell(sheetName, 'leftover-pos-' + id),
+    carryover: readCell(sheetName, 'carryover-' + id),
+  };
+}
+
+function monthStates(setup, months) {
+  const summaryNames = setup.budgetType === 'tracking' ? TRACKING_SUMMARY : ENVELOPE_SUMMARY;
+  return months.map(month => {
+    const sheetName = monthUtils.sheetForMonth(month);
+    const summary = {};
+    for (const name of summaryNames) summary[name] = readCell(sheetName, name);
+    const categories = {};
+    for (const category of setup.categories) {
+      categories[category.id] = categoryFields(sheetName, category.id, setup.budgetType);
+    }
+    return { month, summary, categories };
+  });
+}
+
+async function resetDatabase() {
+  if (sheet.get()) {
+    await sheet.waitOnSpreadsheet();
+    sheet.unloadSpreadsheet();
+  }
+  setSyncingMode('disabled');
+  await global.emptyDatabase()();
+}
+
+async function setupCase(setup, sheetMonths) {
+  await resetDatabase();
+  for (const group of setup.groups) {
+    await db.insertCategoryGroup({
+      id: group.id, name: group.name, is_income: group.income ? 1 : 0, hidden: group.hidden ? 1 : 0,
+    });
+  }
+  for (const category of setup.categories) {
+    await db.insertCategory({
+      id: category.id,
+      name: category.name,
+      cat_group: category.group,
+      is_income: category.income ? 1 : 0,
+      hidden: category.hidden ? 1 : 0,
+    });
+  }
+  for (const account of setup.accounts) {
+    await db.insertAccount({
+      id: account.id, name: account.name, offbudget: account.offbudget ? 1 : 0,
+    });
+  }
+  for (const transaction of setup.transactions) {
+    await db.insertTransaction({
+      id: transaction.id,
+      account: transaction.account,
+      category: transaction.category,
+      date: transaction.date,
+      amount: transaction.amount,
+      cleared: true,
+    });
+  }
+  if (setup.budgetType !== 'envelope') {
+    db.runQuery(
+      "INSERT OR REPLACE INTO preferences (id, value) VALUES ('budgetType', '" + setup.budgetType + "')",
+    );
+  }
+  const table = setup.budgetType === 'tracking' ? 'reflect_budgets' : 'zero_budgets';
+  for (const budgetRow of setup.budgets) {
+    const dbMonth = parseInt(budgetRow.month.replace('-', ''));
+    await db.insert(table, {
+      id: `${dbMonth}-${budgetRow.category}`,
+      month: dbMonth,
+      category: budgetRow.category,
+      amount: budgetRow.amount,
+      carryover: budgetRow.carryover ? 1 : 0,
+    });
+  }
+  for (const buffer of setup.buffers) {
+    await db.insert('zero_budget_months', { id: buffer.month, buffered: buffer.buffered });
+  }
+
+  await sheet.loadSpreadsheet(db);
+  if (setup.budgetType !== 'envelope') {
+    sheet.get().meta().budgetType = setup.budgetType;
+  }
+  await budget.createBudget(sheetMonths);
+  await sheet.waitOnSpreadsheet();
+  db.runQuery('DELETE FROM messages_crdt');
+  setSyncingMode('offline');
+}
+
+function lastMessageID() {
+  return db.firstSync('SELECT COALESCE(MAX(id), 0) AS id FROM messages_crdt')?.id ?? 0;
+}
+
+// Timestamps are wall-clock plus a random client ID, so they are dropped. Cells are
+// sorted by dataset, row and column; writes to the same cell keep their order.
+async function cellsAfter(id) {
+  const rows = await db.all(
+    'SELECT dataset, row, column, value FROM messages_crdt WHERE id > ? ORDER BY id',
+    [id],
+  );
+  return rows
+    .map(row => ({
+      dataset: row.dataset,
+      row: row.row,
+      column: row.column,
+      serializedValue: row.value,
+    }))
+    .sort((left, right) => compareText(left.dataset, right.dataset)
+      || compareText(left.row, right.row)
+      || compareText(left.column, right.column));
+}
+
+function compareText(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+async function runStep(step, setup, sheetMonths) {
+  const beforeID = lastMessageID();
+  let returned;
+  let error = null;
+  try {
+    returned = await runHandler(handlers[step.handler], step.args, { name: step.handler });
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : String(caught);
+  }
+  await sheet.waitOnSpreadsheet();
+  return {
+    handler: step.handler,
+    affectedFrom: step.affectedFrom,
+    args: step.args,
+    returned: returned ?? null,
+    error,
+    cells: await cellsAfter(beforeID),
+    stateAfter: monthStates(setup, sheetMonths.filter(month => month >= step.affectedFrom)),
+  };
+}
+
+test('budget-month oracle contract', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(`${plan.today}T12:00:00.000Z`));
+  // Under IS_TESTING, monthUtils.currentMonth() ignores the clock and reads this hook;
+  // averages and the carry-in window depend on it.
+  global.currentMonth = plan.today.slice(0, 7);
+  const records = [];
+  try {
+    for (const planCase of plan.cases) {
+      await setupCase(planCase.setup, planCase.sheetMonths);
+      const before = monthStates(planCase.setup, planCase.sheetMonths);
+      const steps = [];
+      for (const step of planCase.steps) {
+        steps.push(await runStep(step, planCase.setup, planCase.sheetMonths));
+      }
+      const expected = monthStates(planCase.setup, planCase.sheetMonths);
+      records.push({
+        id: planCase.id,
+        source: planCase.source,
+        description: planCase.description,
+        seed: planCase.seed,
+        oracleOnly: planCase.oracleOnly,
+        setup: planCase.setup,
+        sheetMonths: planCase.sheetMonths,
+        before,
+        steps,
+        expected,
+      });
+    }
+  } finally {
+    vi.useRealTimers();
+  }
+  expect(anomalies).toEqual([]);
+  writeFileSync(contractPath, JSON.stringify(records));
+}, 1800000);

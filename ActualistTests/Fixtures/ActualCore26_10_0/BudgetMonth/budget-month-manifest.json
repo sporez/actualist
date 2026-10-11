@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/budget-month-parity/generate.mjs",
+    "sha256": "00fc32c21835340ad99d728daacd152185a73c82595ed839015c1860b01b39ae"
+  },
+  "helpers": [
+    {
+      "path": "scripts/budget-month-parity/cases.mjs",
+      "sha256": "ec235b19a9a742a685fd18e1cd7da70bce94c35326e6ea238df3a2d28d05254c"
+    },
+    {
+      "path": "scripts/budget-month-parity/oracle-runner.template",
+      "sha256": "03c86753fc72fa9afd3b2516623e5d6d50a626d46a1f19860c11633e9c73d717"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": 20261011,
+  "today": "2026-10-15",
+  "generatedCaseCount": 60,
+  "namedCaseCount": 26,
+  "caseCount": 86,
+  "amountUnits": "integer minor units",
+  "execution": "Actual core handlers through runHandler on an offline in-memory SQLite database with the spreadsheet loaded; CRDT cells read from messages_crdt after each step",
+  "scope": "synthetic local spreadsheet and CRDT output only; no server round trip",
+  "normalization": [
+    "message timestamps and message ids are dropped",
+    "cells of one step are sorted by dataset, row and column; writes to the same cell keep their write order",
+    "sheet state is read after each step for the months at or after the step affectedFrom month",
+    "a missing cell is recorded as null; the harness never substitutes a zero"
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/budget/actions.ts",
+      "sha256": "5fa3915814c773ee998e6836e5fe7c5a562cad643b310a1ac74faad662ec3294"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/app.ts",
+      "sha256": "873e61d76d8023410a6a831d1e3e83c0002f9fd987077904afed867b4eb2fc0c"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/base.ts",
+      "sha256": "c70cc2d5386bc4628bae805b3a82f860b22747413c795cea7f6a87b8c930838b"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/envelope.ts",
+      "sha256": "bbd07cf2a56f03b5c14d61a50f0cba764f08370895a4c5c2a9cea825626ccdcd"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/tracking.ts",
+      "sha256": "630feb46acc09301759216838389dd8eb6af53fba22e454d1ef9c6c14e323ad9"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/util.ts",
+      "sha256": "8c905d864f676d1ab1a5f16abdcc5da4f4e3f47d119906c65c84f0398c44f185"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71"
+    },
+    {
+      "path": "packages/loot-core/src/server/mutators.ts",
+      "sha256": "f24756558fd2aadc3cbff1fd23514b5908ef6b319c1ad7d8eefeb5ee649f538f"
+    },
+    {
+      "path": "packages/loot-core/src/server/sync/index.ts",
+      "sha256": "f597760aed699ff0f696b2ec433c1d59588e7f2dd53f4aa6518713dfd76c99b8"
+    },
+    {
+      "path": "packages/loot-core/src/platform/server/sqlite/index.ts",
+      "sha256": "2fecae0cd47dd260be771d3a48b8ef5ec48378418c5f8667b8c14d6c95f9dc92"
+    },
+    {
+      "path": "packages/loot-core/src/platform/server/sqlite/index.electron.ts",
+      "sha256": "8fee26e68d2a07d028947d7b54380d03ad088f2d8ff3b606dd34798c84031ab7"
+    },
+    {
+      "path": "packages/loot-core/src/shared/months.ts",
+      "sha256": "2bec8ac7beca3a9f4bae07d7da1e12ef140c239d481059bf4b9b97617a8fe0a3"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/setup.ts",
+      "sha256": "1deb435399c7871a57baea5668474ad2e8290d0925f472a1b971a1832ec18b70"
+    },
+    {
+      "path": "packages/desktop-client/src/components/budget/envelope/budgetsummary/ToBudgetMenu.tsx",
+      "sha256": "7c17f3efa6129d2619d6bc3d7b3e320798d63fd1dda4d5049ecb6c5cdc02ca07"
+    },
+    {
+      "path": "packages/desktop-client/src/components/budget/envelope/BalanceMenu.tsx",
+      "sha256": "684e0b9b08311e38af54a0f09e220176a352112d8e9c82d88af9455823a0af66"
+    },
+    {
+      "path": "packages/desktop-client/src/budget/mutations.ts",
+      "sha256": "e044f65a62975b7cc36c9b2bdd0e3351dd4b07dd3d90548d285769eb759008e2"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/BudgetMonth/budget-month-contract.json",
+      "sha256": "e360855b122c3b2e72c6266d47add988f8112d35a0f8efb2f132826b61ebae43",
+      "caseCount": 86,
+      "caseIDs": [
+        "overspend-resets-without-carryover",
+        "overspend-carries-negative-with-carryover",
+        "positive-balance-carries-without-rollover",
+        "hidden-category-overspent-counts",
+        "hold-reduces-to-budget-and-arrives-next-month",
+        "cover-overspending-from-to-budget",
+        "cover-clamped-to-source-leftover",
+        "cover-partial-amount",
+        "move-creates-overspend",
+        "move-to-to-budget",
+        "transfer-available-clamped-to-to-budget",
+        "assign-overbudgets-and-hold-refused",
+        "income-category-carryover-holds-next-month",
+        "reset-income-carryover-clears-automatic-hold",
+        "rollover-all-expense-equals-per-category-toggles",
+        "year-end-hold-and-overspend-roll-into-january",
+        "leap-day-2028-counts-in-sum",
+        "offbudget-and-uncategorized-excluded",
+        "copy-previous-month",
+        "set-zero",
+        "set-3month-avg",
+        "cover-overbudgeted",
+        "copy-until-year-end",
+        "tracking-assign-to-income-category",
+        "tracking-carryover-chain-no-positive-clamp",
+        "tracking-move-money-oracle-only",
+        "generated-001-2026-11",
+        "generated-002-2027-11",
+        "generated-003-2026-11",
+        "generated-004-2027-11",
+        "generated-005-2026-11",
+        "generated-006-2027-11",
+        "generated-007-2026-11",
+        "generated-008-2027-11",
+        "generated-009-2026-11",
+        "generated-010-2027-11",
+        "generated-011-2026-11",
+        "generated-012-2027-11",
+        "generated-013-2026-11",
+        "generated-014-2027-11",
+        "generated-015-2026-11",
+        "generated-016-2027-11",
+        "generated-017-2026-11",
+        "generated-018-2027-11",
+        "generated-019-2026-11",
+        "generated-020-2027-11",
+        "generated-021-2026-11",
+        "generated-022-2027-11",
+        "generated-023-2026-11",
+        "generated-024-2027-11",
+        "generated-025-2026-11",
+        "generated-026-2027-11",
+        "generated-027-2026-11",
+        "generated-028-2027-11",
+        "generated-029-2026-11",
+        "generated-030-2027-11",
+        "generated-031-2026-11",
+        "generated-032-2027-11",
+        "generated-033-2026-11",
+        "generated-034-2027-11",
+        "generated-035-2026-11",
+        "generated-036-2027-11",
+        "generated-037-2026-11",
+        "generated-038-2027-11",
+        "generated-039-2026-11",
+        "generated-040-2027-11",
+        "generated-041-2026-11",
+        "generated-042-2027-11",
+        "generated-043-2026-11",
+        "generated-044-2027-11",
+        "generated-045-2026-11",
+        "generated-046-2027-11",
+        "generated-047-2026-11",
+        "generated-048-2027-11",
+        "generated-049-2026-11",
+        "generated-050-2027-11",
+        "generated-051-2026-11",
+        "generated-052-2027-11",
+        "generated-053-2026-11",
+        "generated-054-2027-11",
+        "generated-055-2026-11",
+        "generated-056-2027-11",
+        "generated-057-2026-11",
+        "generated-058-2027-11",
+        "generated-059-2026-11",
+        "generated-060-2027-11"
+      ]
+    }
+  ],
+  "oracleOnly": [
+    {
+      "id": "copy-previous-month",
+      "reason": "Actualist has no copy-previous-month action. The oracle pins the copy of expense budgets from the previous month."
+    },
+    {
+      "id": "set-zero",
+      "reason": "Actualist has no set-zero action. The oracle pins zeroing every budget row for the month."
+    },
+    {
+      "id": "set-3month-avg",
+      "reason": "Actualist has no three-month average action. The oracle pins the averaging and sign rule for expense categories."
+    },
+    {
+      "id": "cover-overbudgeted",
+      "reason": "Actualist has no cover-overbudgeted action; its overspending cover covers a category, not the To Budget overage."
+    },
+    {
+      "id": "copy-until-year-end",
+      "reason": "Actualist has no copy-until-year-end action."
+    },
+    {
+      "id": "tracking-move-money-oracle-only",
+      "reason": "Actualist refuses move-money on tracking budgets (BudgetActionEligibility); the oracle pins what Actual writes instead."
+    }
+  ],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}

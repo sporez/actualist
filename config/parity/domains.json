@@ -54,10 +54,17 @@
     {
       "id": "apply-templates",
       "title": "Apply Templates engine and preview",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/template-apply-parity",
+        "generate": "node scripts/template-apply-parity/generate.mjs",
+        "verify": "node scripts/template-apply-parity/verify.mjs",
+        "check": "node scripts/template-apply-parity/generate.mjs --check"
+      },
+      "fixture": "TemplateApply",
+      "oracleSuites": [
+        "TemplateApplyOracleReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetTemplateEngine*.swift",
         "Actualist/LocalFirst/Database/BudgetTemplateCalendar.swift",
@@ -69,15 +76,22 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+TemplateNoteSync.swift",
         "Actualist/LocalFirst/BudgetTemplatePreview.swift"
       ],
-      "notes": "Phase 3. BudgetTemplateEngineParityTests is hand-written, not oracle evidence."
+      "notes": "TemplateApplyOracleReplayTests replays all 135 cases: test A from the fixture input as-is, test B with stored definitions seeded from the oracle to isolate engine math. BudgetTemplateEngineParityTests is hand-written, not oracle evidence."
     },
     {
       "id": "budget-month",
       "title": "Envelope month math and budget writes (To Budget, carryover, assign, move, cover)",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/budget-month-parity",
+        "generate": "node scripts/budget-month-parity/generate.mjs",
+        "verify": "node scripts/budget-month-parity/verify.mjs",
+        "check": "node scripts/budget-month-parity/generate.mjs --check"
+      },
+      "fixture": "BudgetMonth",
+      "oracleSuites": [
+        "BudgetMonthOracleReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+BudgetReads.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+BudgetWrites.swift",
@@ -86,7 +100,7 @@
         "Actualist/LocalFirst/Database/BudgetFinancialCalculation.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+AssignMove.swift"
       ],
-      "notes": "Phase 3."
+      "notes": "BudgetMonthOracleReplayTests replays 80 of 86 cases through production writes and reads, with strict internal envelope-identity checks; 6 cases are actions Actualist lacks (oracle-only). Downstream summary rows after a case's first divergent step are attributed by co-occurrence; a counterfactual check is a planned follow-up."
     },
     {
       "id": "tracking",

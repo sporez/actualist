@@ -18,7 +18,7 @@ enum HoldOracleReplay {
         let actual: [String: OracleValue]
     }
 
-    private struct CellWrite {
+    struct CellWrite {
         let dataset: String
         let row: String
         let column: String
@@ -249,7 +249,7 @@ enum HoldOracleReplay {
 
     /// Cells keyed `cell.<dataset>/<row>/<column>`. Values for one key are sorted and joined, so a key
     /// written twice compares as a set.
-    private static func cellValues(_ writes: [CellWrite], prefix: String) -> [String: OracleValue] {
+    static func cellValues(_ writes: [CellWrite], prefix: String) -> [String: OracleValue] {
         var values: [String: OracleValue] = [:]
         for (key, group) in Dictionary(grouping: writes, by: \.key) {
             values["\(prefix)cell.\(key)"] = .string(group.map(\.serialized).sorted().joined(separator: "|"))
