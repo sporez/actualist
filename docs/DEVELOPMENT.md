@@ -158,15 +158,22 @@ When an oracle test finds that Actualist differs from Actual and the fix is not
 done yet:
 
 1. Add an entry to `config/parity/known-divergences.json` with its `OP-nn`, domain,
-   test cases, summary, opened date and review-by date.
+   test cases, summary, opened date and review-by date. When one parameterized
+   test carries several divergences, each entry also lists its `fixtureCases`.
+   These are the fixture case IDs it covers, and two entries can't claim the
+   same one.
 2. Wrap that case's comparison in `withKnownIssue("OP-nn: ...")`.
    `isIntermittent` is not allowed. When the fix lands the test fails until the
    marker and the entry are removed together.
 
+When the maintainer decides to keep a difference, its entry gets
+`"status": "intended"`, a `decided` date and a `reason`, and keeps its marker. If
+Actualist's behavior later changes, the test goes red.
+
 `scripts/lint-known-divergences.sh`, run by `scripts/check.sh`, enforces this
-and lists open entries. `scripts/parity.sh gate <range>` fails while an open
+and lists open and intended entries. `scripts/parity.sh gate <range>` fails while an open
 entry sits in a domain the range touches, unless it is acknowledged with
-`--ack OP-nn`. The TestFlight release script and the dev-to-main merge use it.
+`--ack OP-nn`; intended entries never block. The TestFlight release script and the dev-to-main merge use it.
 
 ### Adding a harness
 

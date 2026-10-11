@@ -800,7 +800,9 @@ tree or range touches.
   may keep a test green only as `withKnownIssue("OP-nn: ...")` around that one
   case's comparison, with a matching entry in
   `config/parity/known-divergences.json`. Never use `isIntermittent`. The fix
-  removes the marker and the entry in the same commit.
+  removes the marker and the entry in the same commit. A difference the user
+  decides to keep stays marked, with `"status": "intended"`, a decided date and
+  the reason. Intended entries never block a release or merge.
 - Without `ACTUALIST_PARITY_ORACLE_ROOT`, `verify` skips the
   regenerate-and-diff step. Report that skip; it is not a fresh-oracle pass.
 

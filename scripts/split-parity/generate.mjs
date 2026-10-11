@@ -17,6 +17,9 @@ import {
 import { compareWithCommitted } from '../parity/lib/fixture-diff.mjs';
 
 const FIXTURE_SCHEMA_VERSION = 1;
+const ID_NORMALIZATION = 'Ids the oracle generates (uuid mock id<N>, or tempid<N> under a temp parent) become <generated-{parent|child|row}-N>, numbered per case in first-encounter order. Explicit ids are kept.';
+const GENERATED_ID = /^(temp)?id\d+$/;
+const ID_KEYS = new Set(['id', 'parentID', 'parent_id']);
 
 const sourceFiles = [
   'packages/loot-core/src/shared/transactions.ts',
@@ -94,6 +97,8 @@ if (existsSync(runnerPath)) {
   throw new Error(`Refusing to overwrite existing oracle runner: ${runnerPath}`);
 }
 
+// Every case records `input`: the arguments the oracle received, copied before
+// the call so an in-place mutation by the oracle cannot change the record.
 const runner = String.raw`import { writeFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 
@@ -113,6 +118,8 @@ const oracle = {
   commit: '${oraclePin.commit}',
   packageVersion: '${oraclePin.packageVersion}',
 };
+
+const copy = value => JSON.parse(JSON.stringify(value));
 
 const baseParent = {
   id: 'parent-1',
@@ -169,58 +176,86 @@ function familyFromRows(rows, parentID = 'parent-1') {
   };
 }
 
-function ruleResult(actions, transaction = baseParent) {
+const ruleConditions = [{ op: 'is', field: 'imported_payee', value: 'actualist-oracle' }];
+
+function ruleCase(id, actions, transaction, extra = {}) {
+  const input = {
+    transaction: { ...copy(transaction), imported_payee: 'actualist-oracle' },
+    conditionsOp: 'and',
+    conditions: ruleConditions,
+    actions,
+  };
   const rule = new Rule({
     conditionsOp: 'and',
-    conditions: [{ op: 'is', field: 'imported_payee', value: 'actualist-oracle' }],
-    actions,
+    conditions: copy(ruleConditions),
+    actions: copy(actions),
   });
-  return selectedFamily(rule.apply({
-    ...transaction,
-    imported_payee: 'actualist-oracle',
-  }));
+  return {
+    id,
+    ...extra,
+    input,
+    expected: selectedFamily(rule.apply(copy(input.transaction))),
+  };
 }
 
-const inheritedChild = makeChild(baseParent, {
-  id: 'child-inherited',
-  amount: -4000,
-  sort_order: -1,
-});
-const overriddenChild = makeChild(baseParent, {
+const inheritedData = { id: 'child-inherited', amount: -4000, sort_order: -1 };
+const overriddenData = {
   id: 'child-overrides',
   amount: 1000,
   category: null,
   payee: null,
   notes: 'child note',
   sort_order: -2,
-});
+};
+const inheritedChild = makeChild(baseParent, copy(inheritedData));
+const overriddenChild = makeChild(baseParent, copy(overriddenData));
 
-const exactParent = recalculateSplit({
-  ...baseParent,
+const exactInput = {
+  ...copy(baseParent),
   is_parent: true,
   payee: null,
   subtransactions: [
     makeChild(baseParent, { id: 'child-1', amount: -6000, sort_order: -1 }),
     makeChild(baseParent, { id: 'child-2', amount: -4000, sort_order: -2 }),
   ],
-});
-const mismatchedParent = recalculateSplit({
-  ...exactParent,
+};
+const exactParent = recalculateSplit(copy(exactInput));
+const mismatchInput = {
+  ...copy(exactParent),
   subtransactions: [
     makeChild(baseParent, { id: 'child-1', amount: -4000, sort_order: -1 }),
     makeChild(baseParent, { id: 'child-2', amount: -5000, sort_order: -2 }),
   ],
-});
-const mixedSignParent = recalculateSplit({
-  ...exactParent,
+};
+const mismatchedParent = recalculateSplit(copy(mismatchInput));
+const mixedInput = {
+  ...copy(exactParent),
   subtransactions: [
     makeChild(baseParent, { id: 'child-1', amount: -11000, sort_order: -1 }),
     makeChild(baseParent, { id: 'child-2', amount: 1000, sort_order: -2 }),
     makeChild(baseParent, { id: 'child-3', amount: 0, sort_order: -3 }),
   ],
-});
+};
+const mixedSignParent = recalculateSplit(copy(mixedInput));
 
-const splitConversion = splitTransaction([baseParent], baseParent.id, parent => [
+// Records the children the callback creates, so the input is exactly what the
+// oracle's split conversion received.
+function splitWith(createChildren) {
+  const input = {
+    operation: 'splitTransaction',
+    transactions: [baseParent],
+    id: baseParent.id,
+    children: null,
+  };
+  const result = splitTransaction([copy(baseParent)], baseParent.id, parent => {
+    const children = createChildren(parent);
+    input.children = copy(children);
+    return children;
+  });
+  return { input, result };
+}
+
+const splitConversion = splitWith(parent => [
   makeChild(parent, {
     id: 'child-1',
     amount: -6000,
@@ -236,8 +271,16 @@ const splitConversion = splitTransaction([baseParent], baseParent.id, parent => 
     sort_order: -2,
   }),
 ]);
+const zeroSortOrderSplit = splitWith(parent => [
+  makeChild(parent, {
+    id: 'child-1',
+    amount: -10000,
+    category: 'groceries',
+    sort_order: 0,
+  }),
+]);
 
-const updateConversion = updateTransaction([baseParent], {
+const updateConversionInput = {
   id: baseParent.id,
   subtransactions: [
     {
@@ -255,7 +298,13 @@ const updateConversion = updateTransaction([baseParent], {
       sort_order: -2,
     },
   ],
-});
+};
+const updateConversion = updateTransaction(copy([baseParent]), copy(updateConversionInput));
+const updateConversionOperation = {
+  operation: 'updateTransaction',
+  transactions: [baseParent],
+  transaction: updateConversionInput,
+};
 
 const updateSource = [
   exactParent,
@@ -274,11 +323,19 @@ const updateSource = [
     sort_order: -2,
   }),
 ];
-const parentPayeeUpdate = updateTransaction(updateSource, {
-  ...exactParent,
-  payee: 'tea',
-});
-const childDelete = deleteTransaction(updateSource, 'child-1');
+const parentPayeeInput = { ...copy(exactParent), payee: 'tea' };
+const parentPayeeUpdate = updateTransaction(copy(updateSource), copy(parentPayeeInput));
+const parentPayeeOperation = {
+  operation: 'updateTransaction',
+  transactions: updateSource,
+  transaction: parentPayeeInput,
+};
+const childDelete = deleteTransaction(copy(updateSource), 'child-1');
+const childDeleteOperation = {
+  operation: 'deleteTransaction',
+  transactions: updateSource,
+  id: 'child-1',
+};
 const oneChildSource = [
   exactParent,
   makeChild(exactParent, {
@@ -288,23 +345,42 @@ const oneChildSource = [
     sort_order: -1,
   }),
 ];
-const finalChildDelete = deleteTransaction(oneChildSource, 'only-child');
-const detachChildren = makeAsNonChildTransactions(
-  [updateSource[1]],
-  updateSource,
-);
+const finalChildDelete = deleteTransaction(copy(oneChildSource), 'only-child');
+const finalChildDeleteOperation = {
+  operation: 'deleteTransaction',
+  transactions: oneChildSource,
+  id: 'only-child',
+};
+const detachChildren = makeAsNonChildTransactions(copy([updateSource[1]]), copy(updateSource));
+const detachOperation = {
+  operation: 'makeAsNonChildTransactions',
+  transactions: [updateSource[1]],
+  allTransactions: updateSource,
+};
 
 const familyTransformations = {
   schemaVersion: ${FIXTURE_SCHEMA_VERSION},
   oracle,
   amountUnits: 'integer minor units',
+  idNormalization: '${ID_NORMALIZATION}',
   cases: [
     {
       id: 'make-child-inheritance-and-null-overrides',
+      input: {
+        operation: 'makeChild',
+        parent: baseParent,
+        data: [inheritedData, overriddenData],
+      },
       expected: [selected(inheritedChild), selected(overriddenChild)],
     },
     {
       id: 'recalculate-exact-mismatch-and-mixed-sign',
+      input: {
+        operation: 'recalculateSplit',
+        exact: exactInput,
+        mismatch: mismatchInput,
+        mixedSign: mixedInput,
+      },
       expected: {
         exact: selectedFamily(exactParent),
         mismatch: selectedFamily(mismatchedParent),
@@ -313,10 +389,17 @@ const familyTransformations = {
     },
     {
       id: 'low-level-split-conversion-nulls-parent-payee-and-starts-with-error',
-      expected: familyFromRows(splitConversion.data),
+      input: splitConversion.input,
+      expected: familyFromRows(splitConversion.result.data),
+    },
+    {
+      id: 'split-conversion-zero-sort-order',
+      input: zeroSortOrderSplit.input,
+      expected: familyFromRows(zeroSortOrderSplit.result.data),
     },
     {
       id: 'update-conversion-materializes-exact-family',
+      input: updateConversionOperation,
       expected: {
         result: familyFromRows(updateConversion.data),
         diff: updateConversion.diff,
@@ -324,6 +407,7 @@ const familyTransformations = {
     },
     {
       id: 'parent-payee-update-preserves-child-override',
+      input: parentPayeeOperation,
       expected: {
         result: familyFromRows(parentPayeeUpdate.data),
         diff: parentPayeeUpdate.diff,
@@ -331,6 +415,7 @@ const familyTransformations = {
     },
     {
       id: 'child-delete-recalculates-parent-error',
+      input: childDeleteOperation,
       expected: {
         result: familyFromRows(childDelete.data),
         diff: childDelete.diff,
@@ -338,6 +423,7 @@ const familyTransformations = {
     },
     {
       id: 'final-child-delete-collapses-parent',
+      input: finalChildDeleteOperation,
       expected: {
         result: familyFromRows(finalChildDelete.data),
         diff: finalChildDelete.diff,
@@ -345,133 +431,153 @@ const familyTransformations = {
     },
     {
       id: 'detach-child-preserves-nonchild-fields',
+      input: detachOperation,
       expected: detachChildren,
     },
   ],
 };
+
+const RULE_ACTIONS_WHOLE = [
+  { op: 'append-notes', value: ' whole', options: { splitIndex: 0 } },
+  { op: 'set-split-amount', value: -4000, options: { splitIndex: 1, method: 'fixed-amount' } },
+  { op: 'set', field: 'category', value: 'groceries', options: { splitIndex: 1 } },
+  { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
+  { op: 'set', field: 'category', value: null, options: { splitIndex: 2 } },
+];
 
 const splitRuleCases = {
   schemaVersion: ${FIXTURE_SCHEMA_VERSION},
   oracle,
   amountUnits: 'integer minor units',
   rounding: 'JavaScript Math.round: ties toward positive infinity',
+  idNormalization: '${ID_NORMALIZATION}',
   cases: [
-    {
-      id: 'index-zero-whole-transaction-and-one-based-children',
-      actions: [
-        { op: 'append-notes', value: ' whole', options: { splitIndex: 0 } },
-        { op: 'set-split-amount', value: -4000, options: { splitIndex: 1, method: 'fixed-amount' } },
-        { op: 'set', field: 'category', value: 'groceries', options: { splitIndex: 1 } },
+    ruleCase(
+      'index-zero-whole-transaction-and-one-based-children',
+      RULE_ACTIONS_WHOLE,
+      baseParent,
+      { actions: RULE_ACTIONS_WHOLE },
+    ),
+    ruleCase(
+      'negative-half-percent-rounding',
+      [
+        { op: 'set-split-amount', value: 50, options: { splitIndex: 1, method: 'fixed-percent' } },
         { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
-        { op: 'set', field: 'category', value: null, options: { splitIndex: 2 } },
       ],
-      expected: ruleResult([
-        { op: 'append-notes', value: ' whole', options: { splitIndex: 0 } },
-        { op: 'set-split-amount', value: -4000, options: { splitIndex: 1, method: 'fixed-amount' } },
-        { op: 'set', field: 'category', value: 'groceries', options: { splitIndex: 1 } },
+      { ...baseParent, amount: -5 },
+      { parentAmount: -5 },
+    ),
+    ruleCase(
+      'positive-half-percent-rounding',
+      [
+        { op: 'set-split-amount', value: 50, options: { splitIndex: 1, method: 'fixed-percent' } },
         { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
-        { op: 'set', field: 'category', value: null, options: { splitIndex: 2 } },
-      ]),
-    },
-    {
-      id: 'negative-half-percent-rounding',
-      parentAmount: -5,
-      expected: ruleResult(
-        [
-          { op: 'set-split-amount', value: 50, options: { splitIndex: 1, method: 'fixed-percent' } },
-          { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
-        ],
-        { ...baseParent, amount: -5 },
-      ),
-    },
-    {
-      id: 'positive-half-percent-rounding',
-      parentAmount: 5,
-      expected: ruleResult(
-        [
-          { op: 'set-split-amount', value: 50, options: { splitIndex: 1, method: 'fixed-percent' } },
-          { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
-        ],
-        { ...baseParent, amount: 5 },
-      ),
-    },
-    {
-      id: 'multiple-negative-remainders-adjust-highest-index',
-      parentAmount: -5,
-      expected: ruleResult(
-        [
-          { op: 'set-split-amount', value: 0, options: { splitIndex: 1, method: 'remainder' } },
-          { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
-        ],
-        { ...baseParent, amount: -5 },
-      ),
-    },
-    {
-      id: 'fixed-before-percent-before-remainder',
-      parentAmount: 50,
-      expected: ruleResult(
-        [
-          { op: 'set-split-amount', value: 100, options: { splitIndex: 1, method: 'fixed-amount' } },
-          { op: 'set-split-amount', value: 50, options: { splitIndex: 2, method: 'fixed-percent' } },
-          { op: 'set-split-amount', value: 0, options: { splitIndex: 3, method: 'remainder' } },
-        ],
-        { ...baseParent, amount: 50 },
-      ),
-    },
-    {
-      id: 'formula-and-remainder',
-      parentAmount: 100000,
-      expected: ruleResult(
-        [
-          { op: 'set-split-amount', value: 0, options: { splitIndex: 1, method: 'formula', formula: '=300' } },
-          { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
-        ],
-        { ...baseParent, amount: 100000 },
-      ),
-    },
-    {
-      id: 'effective-child-input-is-not-split',
-      expected: ruleResult(
-        [
-          { op: 'set-split-amount', value: -4000, options: { splitIndex: 1, method: 'fixed-amount' } },
-          { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
-        ],
-        makeChild(baseParent, { id: 'existing-child', amount: -10000 }),
-      ),
-    },
+      ],
+      { ...baseParent, amount: 5 },
+      { parentAmount: 5 },
+    ),
+    ruleCase(
+      'multiple-negative-remainders-adjust-highest-index',
+      [
+        { op: 'set-split-amount', value: 0, options: { splitIndex: 1, method: 'remainder' } },
+        { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
+      ],
+      { ...baseParent, amount: -5 },
+      { parentAmount: -5 },
+    ),
+    ruleCase(
+      'fixed-before-percent-before-remainder',
+      [
+        { op: 'set-split-amount', value: 100, options: { splitIndex: 1, method: 'fixed-amount' } },
+        { op: 'set-split-amount', value: 50, options: { splitIndex: 2, method: 'fixed-percent' } },
+        { op: 'set-split-amount', value: 0, options: { splitIndex: 3, method: 'remainder' } },
+      ],
+      { ...baseParent, amount: 50 },
+      { parentAmount: 50 },
+    ),
+    ruleCase(
+      'formula-and-remainder',
+      [
+        { op: 'set-split-amount', value: 0, options: { splitIndex: 1, method: 'formula', formula: '=300' } },
+        { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
+      ],
+      { ...baseParent, amount: 100000 },
+      { parentAmount: 100000 },
+    ),
+    ruleCase(
+      'effective-child-input-is-not-split',
+      [
+        { op: 'set-split-amount', value: -4000, options: { splitIndex: 1, method: 'fixed-amount' } },
+        { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'remainder' } },
+      ],
+      makeChild(baseParent, { id: 'existing-child', amount: -10000 }),
+    ),
   ],
 };
 
-const childAmountUpdate = updateTransaction(updateSource, {
-  ...updateSource[1],
-  amount: -7000,
-});
-const parentDateAccountCleared = updateTransaction(updateSource, {
-  ...exactParent,
+const childAmountInput = { ...copy(updateSource[1]), amount: -7000 };
+const childAmountUpdate = updateTransaction(copy(updateSource), copy(childAmountInput));
+const childAmountOperation = {
+  operation: 'updateTransaction',
+  transactions: updateSource,
+  transaction: childAmountInput,
+};
+const childZeroAmountInput = { ...copy(updateSource[2]), amount: 0 };
+const childZeroAmountUpdate = updateTransaction(copy(updateSource), copy(childZeroAmountInput));
+const childZeroAmountOperation = {
+  operation: 'updateTransaction',
+  transactions: updateSource,
+  transaction: childZeroAmountInput,
+};
+const parentDateInput = {
+  ...copy(exactParent),
   date: '2026-08-20',
   account: 'savings',
   cleared: false,
-});
-const addedChild = addSplitTransaction(updateSource, 'parent-1');
+};
+const parentDateAccountCleared = updateTransaction(copy(updateSource), copy(parentDateInput));
+const parentDateOperation = {
+  operation: 'updateTransaction',
+  transactions: updateSource,
+  transaction: parentDateInput,
+};
+const addedChild = addSplitTransaction(copy(updateSource), 'parent-1');
+const addedChildOperation = {
+  operation: 'addSplitTransaction',
+  transactions: updateSource,
+  id: 'parent-1',
+};
 
 const mutationCases = {
   schemaVersion: ${FIXTURE_SCHEMA_VERSION},
   oracle,
   amountUnits: 'integer minor units',
+  idNormalization: '${ID_NORMALIZATION}',
   cases: [
     {
       id: 'add-child-appends-zero-remainder',
+      input: addedChildOperation,
       expected: familyFromRows(addedChild.data),
     },
     {
       id: 'child-amount-update-recalculates-error',
+      input: childAmountOperation,
       expected: {
         result: familyFromRows(childAmountUpdate.data),
         diff: childAmountUpdate.diff,
       },
     },
     {
+      id: 'child-amount-changed-to-zero',
+      input: childZeroAmountOperation,
+      expected: {
+        result: familyFromRows(childZeroAmountUpdate.data),
+        diff: childZeroAmountUpdate.diff,
+      },
+    },
+    {
       id: 'parent-date-account-cleared-propagate',
+      input: parentDateOperation,
       expected: {
         result: familyFromRows(parentDateAccountCleared.data),
         diff: parentDateAccountCleared.diff,
@@ -479,6 +585,7 @@ const mutationCases = {
     },
     {
       id: 'update-conversion-materializes-exact-family',
+      input: updateConversionOperation,
       expected: {
         result: familyFromRows(updateConversion.data),
         diff: updateConversion.diff,
@@ -486,6 +593,7 @@ const mutationCases = {
     },
     {
       id: 'parent-payee-update-preserves-child-override',
+      input: parentPayeeOperation,
       expected: {
         result: familyFromRows(parentPayeeUpdate.data),
         diff: parentPayeeUpdate.diff,
@@ -493,6 +601,7 @@ const mutationCases = {
     },
     {
       id: 'child-delete-recalculates-parent-error',
+      input: childDeleteOperation,
       expected: {
         result: familyFromRows(childDelete.data),
         diff: childDelete.diff,
@@ -500,6 +609,7 @@ const mutationCases = {
     },
     {
       id: 'final-child-delete-collapses-parent',
+      input: finalChildDeleteOperation,
       expected: {
         result: familyFromRows(finalChildDelete.data),
         diff: finalChildDelete.diff,
@@ -507,6 +617,7 @@ const mutationCases = {
     },
     {
       id: 'detach-child-preserves-nonchild-fields',
+      input: detachOperation,
       expected: detachChildren,
     },
   ],
@@ -523,6 +634,42 @@ describe('Actualist split oracle export', () => {
   });
 });
 `;
+
+// The oracle generates ids with its uuid mock (id<N>). Replace them per case
+// with role-based placeholders so the fixture does not depend on call order.
+function normalizeGeneratedIDs(caseValue) {
+  const placeholders = new Map();
+  const counts = { parent: 0, child: 0, row: 0 };
+  const placeholderFor = (id, role) => {
+    if (!placeholders.has(id)) {
+      counts[role] += 1;
+      placeholders.set(id, `<generated-${role}-${counts[role]}>`);
+    }
+    return placeholders.get(id);
+  };
+  const walk = value => {
+    if (Array.isArray(value)) return value.map(walk);
+    if (value === null || typeof value !== 'object') return value;
+    const role = value.isParent === true || value.is_parent === true
+      ? 'parent'
+      : value.isChild === true || value.is_child === true
+        ? 'child'
+        : 'row';
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => {
+        if (ID_KEYS.has(key) && typeof item === 'string' && GENERATED_ID.test(item)) {
+          return [key, placeholderFor(item, key === 'id' ? role : 'parent')];
+        }
+        return [key, walk(item)];
+      }),
+    );
+  };
+  return walk(caseValue);
+}
+
+function normalizeFixture(fixture) {
+  return { ...fixture, cases: fixture.cases.map(normalizeGeneratedIDs) };
+}
 
 mkdirSync(outputDirectory, { recursive: true });
 let generated;
@@ -557,20 +704,51 @@ try {
 assertPinnedOracle(oracleRoot, 'after generating');
 
 const fixtures = [
-  ['family-transformations.json', generated.familyTransformations],
-  ['split-rule-cases.json', generated.splitRuleCases],
-  ['mutation-cases.json', generated.mutationCases],
+  ['family-transformations.json', normalizeFixture(generated.familyTransformations)],
+  ['split-rule-cases.json', normalizeFixture(generated.splitRuleCases)],
+  ['mutation-cases.json', normalizeFixture(generated.mutationCases)],
 ];
 for (const [name, value] of fixtures) {
   writeFileSync(join(outputDirectory, name), JSON.stringify(value, null, 2) + '\n');
 }
-const fixtureEntries = fixtures.map(([name]) => {
+// Oracle cases Actualist does not replay, per fixture file. Each reason is a product or coverage fact.
+const updateConversionReason =
+  'adapter input-shape: child payloads omit payee; SplitTransactionRecord cannot express an omitted payee, and conversion treats nil as an explicit null.';
+const splitOracleOnly = {
+  'family-transformations.json': [
+    {
+      id: 'detach-child-preserves-nonchild-fields',
+      reason: 'no production path (makeAsNonChildTransactions has no Actualist counterpart).',
+    },
+    { id: 'update-conversion-materializes-exact-family', reason: updateConversionReason },
+  ],
+  'split-rule-cases.json': [],
+  'mutation-cases.json': [
+    {
+      id: 'detach-child-preserves-nonchild-fields',
+      reason: 'no production path (makeAsNonChildTransactions has no Actualist counterpart).',
+    },
+    { id: 'update-conversion-materializes-exact-family', reason: updateConversionReason },
+  ],
+};
+const fixtureEntries = fixtures.map(([name, value]) => {
   const path = join(defaultOutput, name);
-  const value = JSON.parse(readFileSync(join(outputDirectory, name), 'utf8'));
+  const caseIDs = value.cases.map(testCase => testCase.id);
+  const oracleOnly = splitOracleOnly[name];
+  const oracleOnlyIDs = oracleOnly.map(entry => entry.id);
+  if (
+    new Set(caseIDs).size !== caseIDs.length ||
+    new Set(oracleOnlyIDs).size !== oracleOnlyIDs.length ||
+    oracleOnly.some(entry => !caseIDs.includes(entry.id) || entry.reason.trim() === '')
+  ) {
+    throw new Error(`Split oracle-only entries are invalid for ${name}`);
+  }
   return {
     path: relative(repositoryRoot, path),
     sha256: sha256(readFileSync(join(outputDirectory, name))),
     caseCount: value.cases.length,
+    caseIDs,
+    oracleOnly,
   };
 });
 

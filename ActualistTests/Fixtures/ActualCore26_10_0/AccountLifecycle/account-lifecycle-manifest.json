@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-11T01:56:55.337Z",
+  "generatedAt": "2026-10-11T02:42:42.879Z",
   "seed": null,
   "actual": {
     "tag": "v26.10.0",
@@ -35,9 +35,9 @@
   },
   "generator": {
     "path": "scripts/account-lifecycle-parity/generate.mjs",
-    "sha256": "45a6430398e398983694adf41c2fdc3c2894fd9e31916ea66681151953d4aa8a",
+    "sha256": "a863ba21dbc49f01d720587842718e7e57ed938a676bb7f0653d99c7b5d51db7",
     "manifestSchemaPath": "scripts/account-lifecycle-parity/manifest.schema.json",
-    "manifestSchemaSha256": "9d20920d0e2c140a9232d4f9e6a8f9b20f1aa5fd10bf4dbf1a6d661e7ffd5f6f"
+    "manifestSchemaSha256": "999b77ab5d05cdf7f04041e2cff8ecce7ce9f144fe7b4f4b26a748a2f384d7d2"
   },
   "harnessFiles": [
     {
@@ -599,6 +599,32 @@
         "automatic service posts the scheduled transaction after reopen"
       ],
       "outputPointer": "account-lifecycle-oracle.json#/cases/21"
+    }
+  ],
+  "oracleOnly": [
+    {
+      "id": "forced-delete-simple",
+      "reason": "Actualist has no forced delete for an account that still has transactions; product decision open."
+    },
+    {
+      "id": "forced-delete-split-transfer-graph",
+      "reason": "Actualist has no forced delete for an account that still has transactions; product decision open."
+    },
+    {
+      "id": "unlink-gocardless-last-reference",
+      "reason": "Actualist unlinks SimpleFIN accounts only; GoCardless is not supported."
+    },
+    {
+      "id": "unlink-gocardless-shared-bank",
+      "reason": "Actualist unlinks SimpleFIN accounts only; GoCardless is not supported."
+    },
+    {
+      "id": "unlink-gocardless-without-token",
+      "reason": "Actualist unlinks SimpleFIN accounts only; GoCardless is not supported."
+    },
+    {
+      "id": "unlink-gocardless-remote-failure",
+      "reason": "Actualist unlinks SimpleFIN accounts only; GoCardless is not supported."
     }
   ]
 }

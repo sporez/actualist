@@ -66,6 +66,14 @@ for (const source of manifest.sourceFiles) {
     fail(`invalid source entry: ${JSON.stringify(source)}`);
   }
 }
+if (!Array.isArray(manifest.evidenceSourceFiles) || manifest.evidenceSourceFiles.length !== 4) {
+  fail('evidence source hash list is incomplete');
+}
+for (const source of manifest.evidenceSourceFiles) {
+  if (typeof source.path !== 'string' || !/^[a-f0-9]{64}$/.test(source.sha256 ?? '')) {
+    fail(`invalid evidence source entry: ${JSON.stringify(source)}`);
+  }
+}
 const fixturePath = resolve(root, manifest.fixture?.path ?? '');
 if (!fixturePath.startsWith(fixtureRoot + '/')) fail('fixture path escapes pinned directory');
 const data = readFileSync(fixturePath);
@@ -82,8 +90,26 @@ const caseIDs = new Set(fixture.cases.map(value => value.id));
 for (const id of [
   'cleared-balance', 'finish', 'adjustment-rule-projection',
   'adjustment-rule-delete', 'lock', 'unlock',
+  'done-nonzero-difference', 'adjustment-rule-clears-notes', 'unlock-split-member',
 ]) {
   if (!caseIDs.has(id)) fail(`missing reviewed case: ${id}`);
 }
 if (caseIDs.size !== fixture.cases.length) fail('duplicate fixture case ids');
+for (const value of fixture.cases) {
+  if (value.input === null || typeof value.input !== 'object') {
+    fail(`case ${value.id} does not record its input`);
+  }
+}
+// Oracle uuid-mock ids and uuid-v4 values must not survive normalization.
+if (/"(id|parentID|parent_id)":\s*"(temp)?id\d+"|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.test(data.toString('utf8'))) {
+  fail('un-normalized generated id in the reconciliation fixture');
+}
+const done = fixture.cases.find(value => value.id === 'done-nonzero-difference');
+if (done?.value?.lastReconciledStamp?.evidence !== 'source-guard, not executed') {
+  fail('done-nonzero-difference must label its Done stamp as source-guard evidence');
+}
+const rulesCase = fixture.cases.find(value => value.id === 'adjustment-rule-clears-notes');
+if (!rulesCase?.input?.ruleEngineOutput || !('notes' in rulesCase.input.ruleEngineOutput)) {
+  fail('adjustment-rule-clears-notes must record the loot-core rules output');
+}
 console.log(`Reconciliation parity fixture verified (${manifest.actual.tag}, ${fixture.cases.length} cases).`);

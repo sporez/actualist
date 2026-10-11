@@ -10,6 +10,10 @@ const testsRoot = join(repositoryRoot, 'ActualistTests');
 const ID_PATTERN = /^OP-\d{2,}$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+export function isOpen(entry) {
+  return (entry.status ?? 'open') === 'open';
+}
+
 export function loadRegistry() {
   const registry = JSON.parse(readFileSync(registryPath, 'utf8'));
   if (!Array.isArray(registry.divergences)) {
@@ -139,7 +143,9 @@ export function findMarkers() {
   return { markers, problems };
 }
 
-export function lint({ domainIds = null, today = new Date().toISOString().slice(0, 10) } = {}) {
+// `fixtureCaseIds(domain)` returns the set of case ID strings found in that
+// domain's fixture files, or null when the domain has no fixture to check.
+export function lint({ domainIds = null, fixtureCaseIds = null, today = new Date().toISOString().slice(0, 10) } = {}) {
   const errors = [];
   const warnings = [];
   const registry = loadRegistry();
@@ -154,8 +160,17 @@ export function lint({ domainIds = null, today = new Date().toISOString().slice(
     if (!Array.isArray(entry.cases) || entry.cases.length === 0) errors.push(`${where}: no cases`);
     if (!entry.summary) errors.push(`${where}: missing summary`);
     if (!DATE_PATTERN.test(entry.opened ?? '')) errors.push(`${where}: opened must be YYYY-MM-DD`);
-    if (!DATE_PATTERN.test(entry.reviewBy ?? '')) errors.push(`${where}: reviewBy must be YYYY-MM-DD`);
-    else if (entry.reviewBy < today) warnings.push(`${entry.id} is past its review-by date ${entry.reviewBy}: ${entry.summary}`);
+    const status = entry.status ?? 'open';
+    if (status === 'intended') {
+      // A user-decided intended difference: still marked and linted, never gating, no review date.
+      if (!DATE_PATTERN.test(entry.decided ?? '')) errors.push(`${where}: intended entries need decided YYYY-MM-DD`);
+      if (!entry.reason) errors.push(`${where}: intended entries need a reason`);
+    } else if (status === 'open') {
+      if (!DATE_PATTERN.test(entry.reviewBy ?? '')) errors.push(`${where}: reviewBy must be YYYY-MM-DD`);
+      else if (entry.reviewBy < today) warnings.push(`${entry.id} is past its review-by date ${entry.reviewBy}: ${entry.summary}`);
+    } else {
+      errors.push(`${where}: status must be open or intended`);
+    }
   }
 
   const { markers, problems } = findMarkers();
@@ -174,6 +189,40 @@ export function lint({ domainIds = null, today = new Date().toISOString().slice(
     if (!referenced.has(marker.id)) referenced.set(marker.id, new Set());
     referenced.get(marker.id).add(marker.testCase);
   }
+  // A parameterized test can carry several divergences; each entry then names
+  // the fixture case IDs it covers, and the marker's file must name them.
+  const entriesByTest = new Map();
+  for (const entry of registry) {
+    for (const testCase of entry.cases ?? []) {
+      if (!entriesByTest.has(testCase)) entriesByTest.set(testCase, []);
+      entriesByTest.get(testCase).push(entry);
+    }
+  }
+  const markerFiles = new Map();
+  for (const marker of markers) {
+    if (!marker.id) continue;
+    if (!markerFiles.has(marker.id)) markerFiles.set(marker.id, new Set());
+    markerFiles.get(marker.id).add(marker.file);
+  }
+  for (const [testCase, entries] of entriesByTest) {
+    for (const entry of entries) {
+      const fixtureCases = entry.fixtureCases ?? [];
+      if (entries.length > 1 && fixtureCases.length === 0) {
+        errors.push(`registry ${entry.id}: ${testCase} carries several divergences; list this entry's fixtureCases`);
+      }
+      for (const fixtureCase of fixtureCases) {
+        if (fixtureCaseIds && entry.domain && !(fixtureCaseIds(entry.domain) ?? new Set([fixtureCase])).has(fixtureCase)) {
+          errors.push(`registry ${entry.id}: fixture case ${fixtureCase} is not in the ${entry.domain} fixture`);
+        }
+        const files = [...(markerFiles.get(entry.id) ?? [])];
+        const named = files.some((file) => readFileSync(join(repositoryRoot, file), 'utf8').includes(`"${fixtureCase}"`));
+        if (files.length && !named) {
+          errors.push(`registry ${entry.id}: no marker file names fixture case "${fixtureCase}"`);
+        }
+      }
+    }
+  }
+
   for (const entry of registry) {
     const used = referenced.get(entry.id);
     if (!used) {

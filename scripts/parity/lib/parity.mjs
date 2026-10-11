@@ -1,8 +1,10 @@
 // Implementation of scripts/parity.sh. See `scripts/parity.sh help`.
 import { spawnSync } from 'node:child_process';
-import { repositoryRoot, hasOracleRoot, ORACLE_ROOT_VARIABLE, oraclePin } from './oracle-pin.mjs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { repositoryRoot, hasOracleRoot, ORACLE_ROOT_VARIABLE, oraclePin, pinnedFixtureDirectory } from './oracle-pin.mjs';
 import { changedFiles, loadDomains, touchedDomains, validateDomains } from './domains.mjs';
-import { lint, loadRegistry } from './known-divergences.mjs';
+import { isOpen, lint, loadRegistry } from './known-divergences.mjs';
 
 const USAGE = `Usage: scripts/parity.sh [--dry-run] <command>
 
@@ -52,12 +54,15 @@ function status() {
   const open = openByDomain();
   console.log(`Oracle pin: Actual ${oraclePin.tag} (${oraclePin.commit})`);
   for (const domain of domains) {
-    const divergences = (open.get(domain.id) ?? []).map((entry) => entry.id);
+    const entries = open.get(domain.id) ?? [];
+    const divergences = entries.filter(isOpen).map((entry) => entry.id);
+    const intended = entries.filter((entry) => !isOpen(entry)).map((entry) => entry.id);
     const harness = domain.harness?.dir ?? 'no harness';
     const suites = (domain.oracleSuites ?? []).length;
     console.log(
       `${domain.status.padEnd(9)} ${domain.id.padEnd(22)} ${harness}; ${suites} oracle suite(s)` +
-        (divergences.length ? `; open: ${divergences.join(', ')}` : ''),
+        (divergences.length ? `; open: ${divergences.join(', ')}` : '') +
+        (intended.length ? `; intended: ${intended.join(', ')}` : ''),
     );
   }
   const errors = validateDomains(domains);
@@ -84,7 +89,7 @@ function touched(range) {
       console.log(`    run: scripts/parity.sh verify ${domain.id}`);
     }
     for (const entry of open.get(domain.id) ?? []) {
-      console.log(`    open divergence ${entry.id}: ${entry.summary}`);
+      console.log(`    ${isOpen(entry) ? 'open divergence' : 'intended difference'} ${entry.id}: ${entry.summary}`);
     }
   }
   return 0;
@@ -133,7 +138,10 @@ function verify(id, { dryRun }) {
   console.log(`\nparity verify ${domain.id}:`);
   for (const step of steps) console.log(`- ${step}`);
   for (const entry of openByDomain().get(domain.id) ?? []) {
-    console.log(`- open divergence ${entry.id} (expected failure, review by ${entry.reviewBy}): ${entry.summary}`);
+    const label = isOpen(entry)
+      ? `open divergence ${entry.id} (expected failure, review by ${entry.reviewBy})`
+      : `intended difference ${entry.id} (expected failure, decided ${entry.decided})`;
+    console.log(`- ${label}: ${entry.summary}`);
   }
   return failed ? 1 : 0;
 }
@@ -147,13 +155,44 @@ function verifyHashes({ dryRun }) {
   return failed ? 1 : 0;
 }
 
+// Every string value in a domain's fixture JSON, so registry fixtureCases can be
+// checked against real case IDs.
+function fixtureStrings(domains) {
+  const cache = new Map();
+  return (domainId) => {
+    if (cache.has(domainId)) return cache.get(domainId);
+    const domain = domains.find((candidate) => candidate.id === domainId);
+    const directory = domain?.fixture ? pinnedFixtureDirectory(domain.fixture) : null;
+    let strings = null;
+    if (directory && existsSync(directory)) {
+      strings = new Set();
+      const collect = (value) => {
+        if (typeof value === 'string') strings.add(value);
+        else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+      };
+      for (const name of readdirSync(directory).filter((file) => file.endsWith('.json'))) {
+        collect(JSON.parse(readFileSync(join(directory, name), 'utf8')));
+      }
+    }
+    cache.set(domainId, strings);
+    return strings;
+  };
+}
+
 function divergences() {
-  const domainIds = new Set(loadDomains().map((domain) => domain.id));
-  const { registry, errors, warnings } = lint({ domainIds });
+  const domains = loadDomains();
+  const domainIds = new Set(domains.map((domain) => domain.id));
+  const { registry, errors, warnings } = lint({ domainIds, fixtureCaseIds: fixtureStrings(domains) });
   for (const error of errors) console.error(`error: ${error}`);
+  const openEntries = registry.filter(isOpen);
+  const intendedEntries = registry.filter((entry) => !isOpen(entry));
   console.log(
-    `Open known divergences: ${registry.length}` +
-      (registry.length ? ` (${registry.map((entry) => entry.id).join(', ')})` : ''),
+    `Open known divergences: ${openEntries.length}` +
+      (openEntries.length ? ` (${openEntries.map((entry) => entry.id).join(', ')})` : ''),
+  );
+  console.log(
+    `Intended differences: ${intendedEntries.length}` +
+      (intendedEntries.length ? ` (${intendedEntries.map((entry) => entry.id).join(', ')})` : ''),
   );
   for (const warning of warnings) console.log(`warning: ${warning}`);
   return errors.length ? 1 : 0;
@@ -172,7 +211,7 @@ function gate(args) {
       return 2;
     }
   }
-  const registry = loadRegistry();
+  const registry = loadRegistry().filter(isOpen);
   const touchedIds = range
     ? new Set(touchedDomains(loadDomains(), changedFiles(range)).map(({ domain }) => domain.id))
     : null;

@@ -26,13 +26,88 @@ node scripts/split-parity/verify.mjs
 ```
 
 Consumer suites: `SplitTransactionFamilyTests`, `RuleSplitActionExecutorTests`,
-and `ActualCoreSplitOracleFixtureTests`.
+`ActualCoreSplitOracleFixtureTests`, and `SplitOracleReplayTests`, which replays
+each replayed case through the production split path (see Swift replay below).
 
-Conventions:
+## Inputs
+
+Every case records `input`: the exact arguments the oracle received. Each
+oracle call receives a JSON copy, and the original is recorded, so an in-place
+mutation by the oracle cannot change the record. Split conversions record the
+children the callback created. Rule cases record the transaction after the
+`imported_payee` override, plus the conditions and actions.
+
+`expected` holds the oracle's output in the camelCase `selected` shape. Only
+`input` is snake_case, because it preserves key presence (for example, a key
+set to `null` versus a missing key).
+
+## Id normalization
+
+The oracle's uuid mock generates ids of the form `id<N>` (or `tempid<N>` under a
+temp parent). Each case rewrites them to `<generated-{parent|child|row}-N>`,
+numbered in first-encounter order within that case. Role comes from the
+`isParent`/`is_parent` and `isChild`/`is_child` flags on the same object. The
+rewrite covers `id`, `parentID`, and `parent_id` in both `input` and `expected`.
+Explicit ids such as `parent-1` and `child-1` are kept.
+
+## Cases
+
+Added with the input recording:
+
+- `split-conversion-zero-sort-order` (family-transformations): a callback child
+  with `sort_order: 0`. The oracle applies `sort_order || -1`
+  (`transactions.ts`), so the result is `-1`, not `0`.
+- `child-amount-changed-to-zero` (mutation-cases): a child amount changed from a
+  nonzero value to `0`. The `diff` records the change, so a consumer that
+  compares against defaults can be checked against it.
+
+These are oracle-observed behaviors. Swift divergences from them are registered
+in `config/parity/known-divergences.json`: `split-conversion-zero-sort-order` is
+OP-15; `child-amount-changed-to-zero`, `final-child-delete-collapses-parent`, and
+`parent-payee-update-preserves-child-override` are OP-14.
+
+## Oracle-only cases
+
+Each file's `manifest.json` entry lists the cases its replay test does not run,
+with the reason. The partition test requires every case to be either replayed or
+listed there.
+
+- `detach-child-preserves-nonchild-fields` (family-transformations and
+  mutation-cases): no production path. `makeAsNonChildTransactions` has no
+  Actualist counterpart.
+- `update-conversion-materializes-exact-family` (family-transformations and
+  mutation-cases): adapter input shape. The child payloads omit `payee`. The
+  oracle inherits the parent's payee for an omitted key. `SplitTransactionRecord`
+  cannot express an omitted payee, and conversion treats a nil payee as an
+  explicit null. This is not registered as a divergence. It is an open question
+  for the user whether a conversion payload should be able to omit a child's
+  payee.
+
+## Swift replay
+
+`SplitOracleReplayTests` runs each replayed case through `SplitOracleReplay`
+(`ActualistTests/SplitOracleReplaySupport.swift`) and compares the whole
+normalized output, not a subset.
+
+- Rows are the top-level transaction list. A parent's embedded
+  `subtransactions` are not rows, so a child counts only where it is listed at
+  top level. Only `final-child-delete-collapses-parent` has embedded children
+  that are not also top-level, and the embedded ones are dropped from the rows.
+- A partial update payload is merged over the stored row with the same id. Keys
+  the payload omits keep their stored values. The stored embedded children are
+  dropped, so the payload's own `subtransactions` decide the family.
+- Generated ids are `gen-N` on the Swift side. A `<generated-…>` placeholder in
+  the expected output binds one-to-one to the first actual id it meets
+  (`OracleComparison`). Explicit ids such as `parent-1` are compared as written.
+- Amounts are never normalized.
+
+## Conventions
 
 - Amounts are integer minor units. Percent rounding uses JavaScript
   `Math.round`, so ties go toward positive infinity.
 - Synthetic transaction dates are fixed (`2026-08-15`, `2026-08-20`), so output
   does not depend on the current day.
 - `grouped-query-cases.json` in this folder is hand-written, not generator-owned,
-  and is not covered by `--check`.
+  and is not covered by `--check`. Its expected values are not produced by
+  running the oracle, which the AGENTS.md rule for oracle fixtures requires.
+  Bringing it under the generator is a separate change.

@@ -16,7 +16,8 @@
     "sourceFiles",
     "dependencies",
     "fixture",
-    "cases"
+    "cases",
+    "oracleOnly"
   ],
   "properties": {
     "schemaVersion": { "const": 1 },
@@ -227,6 +228,18 @@
             "type": "string",
             "pattern": "^account-lifecycle-oracle\\.json#/cases/"
           }
+        }
+      }
+    },
+    "oracleOnly": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "reason"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 }
         }
       }
     }

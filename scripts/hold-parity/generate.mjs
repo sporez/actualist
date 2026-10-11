@@ -18,11 +18,14 @@ import { compareWithCommitted } from '../parity/lib/fixture-diff.mjs';
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repositoryRoot = resolve(dirname(scriptPath), '..', '..');
-const helperPath = join(repositoryRoot, 'scripts/parity/lib/oracle-pin.mjs');
+const helperPaths = ['scripts/parity/lib/oracle-pin.mjs', 'scripts/parity/lib/fixture-diff.mjs'];
 const EXPECTED_TAG = oraclePin.tag;
 const EXPECTED_COMMIT = oraclePin.commit;
 const EXPECTED_VERSION = oraclePin.packageVersion;
 const SCHEMA_VERSION = 1;
+const EXPECTED_CASE_COUNT = 16;
+const contractName = 'hold-contract.json';
+const manifestName = 'hold-manifest.json';
 const expectedSourceHashes = {
   'packages/loot-core/src/server/budget/actions.ts':
     '5fa3915814c773ee998e6836e5fe7c5a562cad643b310a1ac74faad662ec3294',
@@ -96,17 +99,17 @@ for (const [path, expectedHash] of Object.entries(expectedSourceHashes)) {
 const runnerRelative = 'packages/loot-core/src/server/budget/__actualist_hold_oracle.test.ts';
 const runnerPath = join(checkout, runnerRelative);
 const temporaryContract = join(checkout, '.actualist-hold-oracle.json');
-const temporaryDatabase = join(checkout, '.actualist-hold-baseline.sqlite');
 const temporaryDataDirectory = join(checkout, '.actualist-hold-oracle-data');
 if (existsSync(runnerPath)) throw new Error(`Refusing to overwrite ${runnerRelative}`);
 
+// Each case records its seeded inputs, the handler calls the UI would make, the
+// CRDT cells Actual wrote (without timestamps), and every month's sheet state
+// after each step, so a Swift replay can seed the same inputs and compare outputs.
 const runner = String.raw`// @ts-strict-ignore
 import { writeFileSync } from 'node:fs';
 import { Timestamp } from '@actual-app/crdt';
 import { expect, test } from 'vitest';
 
-import * as sqlite from '#platform/server/sqlite';
-import * as actions from '#server/budget/actions';
 import * as budget from '#server/budget/base';
 import * as db from '#server/db';
 import { handlers } from '#server/main';
@@ -115,16 +118,75 @@ import * as sheet from '#server/sheet';
 import { applyMessages, setSyncingMode } from '#server/sync';
 import * as monthUtils from '#shared/months';
 
-type Cell = {
-  timestamp: string;
-  dataset: string;
-  row: string;
-  column: string;
-  serializedValue: string;
+const months = [
+  '2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11', '2026-12', '2027-01', '2027-02',
+];
+const DEFAULT_SETUP = {
+  budgetType: 'envelope',
+  juneIncome: 0,
+  julyIncome: 200000,
+  julyGroceriesBudget: 50000,
+  julyManualBuffer: 0,
+  julyIncomeCarryover: false,
+  augustIncome: 0,
+  augustIncomeCarryover: false,
 };
+const STATE_CELLS = [
+  ['toBudget', 'to-budget'],
+  ['availableFunds', 'available-funds'],
+  ['fromLastMonth', 'from-last-month'],
+  ['totalIncome', 'total-income'],
+  ['totalBudgeted', 'total-budgeted'],
+  ['manualHeldAmount', 'buffered'],
+  ['automaticHeldAmount', 'buffered-auto'],
+  ['heldAmount', 'buffered-selected'],
+  ['groceriesBudgeted', 'budget-groceries'],
+  ['groceriesSpent', 'sum-amount-groceries'],
+  ['groceriesLeftover', 'leftover-groceries'],
+  ['salaryCarryover', 'carryover-salary'],
+];
+const cases = [];
 
-const months = ['2026-06', '2026-07', '2026-08', '2027-01', '2027-02'];
-const cases: Array<{ id: string; value: unknown }> = [];
+function readCell(sheetName, name) {
+  try {
+    const value = sheet.getCell(sheetName, name).value;
+    return typeof value === 'number' || typeof value === 'boolean' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function monthStates() {
+  return months.map(month => {
+    const sheetName = monthUtils.sheetForMonth(month);
+    const state = { month };
+    for (const [key, cell] of STATE_CELLS) {
+      state[key] = readCell(sheetName, cell);
+    }
+    return state;
+  });
+}
+
+function stateOf(states, month) {
+  return states.find(state => state.month === month);
+}
+
+function finalState(results, month) {
+  return stateOf(results[results.length - 1].stateAfter, month);
+}
+
+// Null means Actual created no such cell for that month; the hold fields must always exist.
+const CORE_STATE_KEYS = [
+  'toBudget', 'availableFunds', 'fromLastMonth', 'totalIncome', 'totalBudgeted',
+  'manualHeldAmount', 'automaticHeldAmount', 'heldAmount',
+];
+function expectNoNullState(states) {
+  for (const state of states) {
+    for (const key of CORE_STATE_KEYS) {
+      expect(state[key], state.month + ' ' + key).not.toBeNull();
+    }
+  }
+}
 
 async function resetDatabase() {
   if (sheet.get()) {
@@ -135,14 +197,8 @@ async function resetDatabase() {
   await global.emptyDatabase()();
 }
 
-async function setupBudget({
-  incomeAmount = 200_000,
-  expenseBudget = 50_000,
-  manualBuffer = 0,
-  julyCarryover = false,
-  augustCarryover = false,
-  augustIncome = 0,
-} = {}) {
+async function setupBudget(overrides = {}) {
+  const setup = { ...DEFAULT_SETUP, ...overrides };
   await resetDatabase();
   await db.insertAccount({ id: 'checking', name: 'Synthetic Checking', offbudget: 0 });
   await db.insertCategoryGroup({ id: 'income-group', name: 'Synthetic Income', is_income: 1 });
@@ -153,66 +209,64 @@ async function setupBudget({
   await db.insertCategory({
     id: 'groceries', name: 'Synthetic Groceries', cat_group: 'expense-group', is_income: 0,
   });
-  await db.insertTransaction({
-    id: 'income-july', account: 'checking', date: '2026-07-01',
-    amount: incomeAmount, category: 'salary', cleared: true,
-  });
-  if (augustIncome !== 0) {
-    await db.insertTransaction({
-      id: 'income-august', account: 'checking', date: '2026-08-01',
-      amount: augustIncome, category: 'salary', cleared: true,
-    });
+  for (const [id, date, amount] of [
+    ['income-june', '2026-06-01', setup.juneIncome],
+    ['income-july', '2026-07-01', setup.julyIncome],
+    ['income-august', '2026-08-01', setup.augustIncome],
+  ]) {
+    if (amount !== 0) {
+      await db.insertTransaction({
+        id, account: 'checking', date, amount, category: 'salary', cleared: true,
+      });
+    }
   }
-  if (expenseBudget !== 0) {
+  if (setup.budgetType !== 'envelope') {
+    db.runQuery(
+      "INSERT OR REPLACE INTO preferences (id, value) VALUES ('budgetType', '" + setup.budgetType + "')",
+    );
+  }
+  if (setup.julyGroceriesBudget !== 0) {
     await db.insert('zero_budgets', {
       id: '202607-groceries', month: 202607, category: 'groceries',
-      amount: expenseBudget, carryover: 0,
+      amount: setup.julyGroceriesBudget, carryover: 0,
     });
   }
-  if (julyCarryover) {
+  if (setup.julyIncomeCarryover) {
     await db.insert('zero_budgets', {
       id: '202607-salary', month: 202607, category: 'salary', amount: 0, carryover: 1,
     });
   }
-  if (augustCarryover) {
+  if (setup.augustIncomeCarryover) {
     await db.insert('zero_budgets', {
       id: '202608-salary', month: 202608, category: 'salary', amount: 0, carryover: 1,
     });
   }
-  if (manualBuffer !== 0) {
-    await db.insert('zero_budget_months', { id: '2026-07', buffered: manualBuffer });
+  if (setup.julyManualBuffer !== 0) {
+    await db.insert('zero_budget_months', { id: '2026-07', buffered: setup.julyManualBuffer });
   }
 
   await sheet.loadSpreadsheet(db);
+  if (setup.budgetType !== 'envelope') {
+    sheet.get().meta().budgetType = setup.budgetType;
+  }
   await budget.createBudget(months);
   await sheet.waitOnSpreadsheet();
   db.runQuery('DELETE FROM messages_crdt');
   setSyncingMode('offline');
-}
-
-async function state(month: string) {
-  const sheetName = monthUtils.sheetForMonth(month);
-  return {
-    month,
-    toBudget: await actions.getSheetValue(sheetName, 'to-budget'),
-    manualHeldAmount: await actions.getSheetValue(sheetName, 'buffered'),
-    automaticHeldAmount: await actions.getSheetValue(sheetName, 'buffered-auto'),
-    heldAmount: await actions.getSheetValue(sheetName, 'buffered-selected'),
-  };
+  return setup;
 }
 
 function lastMessageID() {
-  return db.firstSync<{ id: number }>(
-    'SELECT COALESCE(MAX(id), 0) AS id FROM messages_crdt',
-  )?.id ?? 0;
+  return db.firstSync('SELECT COALESCE(MAX(id), 0) AS id FROM messages_crdt')?.id ?? 0;
 }
 
-async function cellsAfter(id: number): Promise<Cell[]> {
-  const rows = await db.all<{
-    timestamp: string; dataset: string; row: string; column: string; value: string;
-  }>('SELECT timestamp, dataset, row, column, value FROM messages_crdt WHERE id > ? ORDER BY id', [id]);
+// Timestamps are wall-clock plus a random client ID, so produced cells omit them.
+async function cellsAfter(id) {
+  const rows = await db.all(
+    'SELECT dataset, row, column, value FROM messages_crdt WHERE id > ? ORDER BY id',
+    [id],
+  );
   return rows.map(row => ({
-    timestamp: row.timestamp,
     dataset: row.dataset,
     row: row.row,
     column: row.column,
@@ -220,98 +274,229 @@ async function cellsAfter(id: number): Promise<Cell[]> {
   }));
 }
 
-async function runAction(name: string, args: Record<string, unknown>) {
+async function runStep(handler, args) {
   const beforeID = lastMessageID();
-  const result = await runHandler(handlers[name], args, { name });
+  let returned;
+  let error = null;
+  try {
+    returned = await runHandler(handlers[handler], args, { name: handler });
+  } catch (caught) {
+    error = caught instanceof Error ? caught.message : String(caught);
+  }
   await sheet.waitOnSpreadsheet();
-  return { result, cells: await cellsAfter(beforeID) };
-}
-
-async function pwaHold(month: string, amount: number) {
-  const before = await state(month);
-  // ToBudgetMenu dispatches this reset when the Hold flow is opened, while the
-  // Hold form later invokes the hold handler with the submitted amount.
-  const reset = await runAction('budget/reset-income-carryover', { month });
-  const hold = await runAction('budget/hold-for-next-month', { month, amount });
   return {
-    requestedAmount: amount,
-    before,
-    actions: [
-      { name: 'budget/reset-income-carryover', ...reset },
-      { name: 'budget/hold-for-next-month', ...hold },
-    ],
-    cells: [...reset.cells, ...hold.cells],
-    after: await state(month),
+    handler,
+    args,
+    returned: returned ?? null,
+    error,
+    cells: await cellsAfter(beforeID),
+    stateAfter: monthStates(),
   };
 }
 
+// ToBudgetMenu sends reset-income-carryover when Hold is chosen; the hold form then sends the amount.
+function uiHold(month, amount) {
+  return [
+    { handler: 'budget/reset-income-carryover', args: { month } },
+    { handler: 'budget/hold-for-next-month', args: { month, amount } },
+  ];
+}
+
+async function runCase({ id, description, setup: overrides = {}, steps, uiReachable = true }) {
+  const setup = await setupBudget(overrides);
+  const before = monthStates();
+  const results = [];
+  for (const step of steps) {
+    results.push(await runStep(step.handler, step.args));
+  }
+  if (setup.budgetType === 'envelope') {
+    expectNoNullState(before);
+    for (const result of results) expectNoNullState(result.stateAfter);
+  }
+  cases.push({ id, description, uiReachable, setup, before, steps: results });
+  return results;
+}
+
+function encodeValue(value) {
+  if (value === null) return '0:';
+  return typeof value === 'number' ? 'N:' + value : 'S:' + value;
+}
+
 test('Actual ${EXPECTED_VERSION} hold contract', async () => {
-  await setupBudget();
-  const baseline = await state('2026-07');
-  expect(baseline).toEqual({
-    month: '2026-07', toBudget: 150_000, manualHeldAmount: 0,
-    automaticHeldAmount: 0, heldAmount: 0,
+  const partial = await runCase({
+    id: 'hold-partial-then-repeat-adds',
+    description: 'Holds of 40000 then 20000 in July accumulate in the manual hold.',
+    steps: [...uiHold('2026-07', 40000), ...uiHold('2026-07', 20000)],
   });
-  const exported = await sqlite.exportDatabase(db.getDatabase());
-  writeFileSync(
-    '${temporaryDatabase}',
-    typeof exported === 'string' ? Buffer.from(exported, 'binary') : exported,
-  );
-
-  const partial = await pwaHold('2026-07', 40_000);
-  const repeated = await pwaHold('2026-07', 20_000);
-  expect(partial.after).toMatchObject({ toBudget: 110_000, heldAmount: 40_000 });
-  expect(repeated.after).toMatchObject({ toBudget: 90_000, heldAmount: 60_000 });
-  cases.push({ id: 'partial-and-repeated-hold', value: { steps: [partial, repeated] } });
-
-  await setupBudget();
-  const all = await pwaHold('2026-07', 150_000);
-  expect(all.after).toMatchObject({ toBudget: 0, heldAmount: 150_000 });
-  cases.push({ id: 'all-available-hold', value: all });
-
-  await setupBudget();
-  const clamped = await pwaHold('2026-07', 200_000);
-  expect(clamped.after).toMatchObject({ toBudget: 0, heldAmount: 150_000 });
-  cases.push({ id: 'oversized-hold-clamps-to-available', value: clamped });
-
-  await setupBudget({
-    incomeAmount: 100_000, expenseBudget: 0, manualBuffer: 20_000,
-    julyCarryover: true, augustCarryover: true, augustIncome: 25_000,
+  expect(partial[1].returned).toBe(true);
+  expect(finalState(partial, '2026-07')).toMatchObject({
+    toBudget: 90000, manualHeldAmount: 60000, heldAmount: 60000,
   });
-  const mixedBefore = await state('2026-07');
-  const resetManual = await runAction('budget/reset-hold', { month: '2026-07' });
-  const afterManualReset = await state('2026-07');
-  const resetAutomatic = await runAction('budget/reset-income-carryover', { month: '2026-07' });
-  const afterAutomaticReset = await state('2026-07');
-  const futureAfterReset = await state('2026-08');
-  expect(mixedBefore).toMatchObject({ manualHeldAmount: 20_000, automaticHeldAmount: 100_000, heldAmount: 20_000 });
-  expect(afterManualReset).toMatchObject({ manualHeldAmount: 0, automaticHeldAmount: 100_000, heldAmount: 100_000 });
-  expect(afterAutomaticReset).toMatchObject({ manualHeldAmount: 0, automaticHeldAmount: 0, heldAmount: 0 });
-  expect(futureAfterReset).toMatchObject({ automaticHeldAmount: 25_000, heldAmount: 25_000 });
-  cases.push({
-    id: 'manual-reset-reveals-auto-then-selected-auto-reset-preserves-future',
-    value: {
-      before: mixedBefore,
-      resetManual: { ...resetManual, after: afterManualReset },
-      resetAutomatic: { ...resetAutomatic, after: afterAutomaticReset },
-      futureAfterReset,
+
+  const all = await runCase({
+    id: 'hold-full-available-to-budget',
+    description: 'Holding the whole July To Budget leaves nothing to budget.',
+    steps: uiHold('2026-07', 150000),
+  });
+  expect(all[1].returned).toBe(true);
+  expect(finalState(all, '2026-07')).toMatchObject({ toBudget: 0, heldAmount: 150000 });
+
+  const clamped = await runCase({
+    id: 'hold-more-than-available-clamps',
+    description: 'A hold larger than July To Budget is clamped to To Budget.',
+    steps: uiHold('2026-07', 200000),
+  });
+  expect(finalState(clamped, '2026-07')).toMatchObject({ toBudget: 0, heldAmount: 150000 });
+
+  const repeatClamped = await runCase({
+    id: 'hold-repeat-clamps-to-remaining-to-budget',
+    description: 'A second hold in July is clamped to the To Budget left after the first.',
+    steps: [...uiHold('2026-07', 100000), ...uiHold('2026-07', 200000)],
+  });
+  expect(finalState(repeatClamped, '2026-07')).toMatchObject({
+    toBudget: 0, manualHeldAmount: 150000, heldAmount: 150000,
+  });
+
+  const released = await runCase({
+    id: 'release-hold-restores-to-budget',
+    description: 'Resetting the manual hold returns the held amount to July To Budget.',
+    steps: [...uiHold('2026-07', 40000), { handler: 'budget/reset-hold', args: { month: '2026-07' } }],
+  });
+  expect(released[2].returned).toBe(null);
+  expect(finalState(released, '2026-07')).toMatchObject({
+    toBudget: 150000, manualHeldAmount: 0, heldAmount: 0,
+  });
+
+  const releaseWithoutRow = await runCase({
+    id: 'release-without-stored-hold-row-writes-zero-hold',
+    description: 'A direct reset-hold with no stored hold row writes a zero manual hold. The menu offers reset only when a manual hold is set.',
+    steps: [{ handler: 'budget/reset-hold', args: { month: '2026-07' } }],
+    uiReachable: false,
+  });
+  expect(releaseWithoutRow[0].cells.some(
+    cell => cell.dataset === 'zero_budget_months' && cell.column === 'buffered',
+  )).toBe(true);
+  expect(finalState(releaseWithoutRow, '2026-07')).toMatchObject({ toBudget: 150000, heldAmount: 0 });
+
+  const restarted = await runCase({
+    id: 'hold-after-release-starts-from-zero',
+    description: 'After a release, a new hold starts from a zero manual hold.',
+    steps: [
+      ...uiHold('2026-07', 40000),
+      { handler: 'budget/reset-hold', args: { month: '2026-07' } },
+      ...uiHold('2026-07', 20000),
+    ],
+  });
+  expect(finalState(restarted, '2026-07')).toMatchObject({
+    toBudget: 130000, manualHeldAmount: 20000, heldAmount: 20000,
+  });
+
+  const rolled = await runCase({
+    id: 'hold-rolls-into-next-month-available',
+    description: 'Money held in July returns as August from-last-month and To Budget.',
+    steps: uiHold('2026-07', 40000),
+  });
+  expect(finalState(rolled, '2026-07')).toMatchObject({ toBudget: 110000, heldAmount: 40000 });
+  expect(finalState(rolled, '2026-08')).toMatchObject({
+    fromLastMonth: 150000, toBudget: 150000, heldAmount: 0,
+  });
+
+  const yearEnd = await runCase({
+    id: 'hold-across-year-boundary-rolls-into-january',
+    description: 'A December hold returns through the 2026-12 to 2027-01 sheet link.',
+    steps: uiHold('2026-12', 40000),
+  });
+  expect(finalState(yearEnd, '2026-12')).toMatchObject({ toBudget: 110000, heldAmount: 40000 });
+  expect(finalState(yearEnd, '2027-01')).toMatchObject({
+    fromLastMonth: 150000, toBudget: 150000, heldAmount: 0,
+  });
+
+  const zeroToBudget = await runCase({
+    id: 'hold-noop-when-to-budget-is-zero',
+    description: 'With no July To Budget, a direct hold call returns false and writes no hold cells. The menu hides Hold when To Budget is not positive.',
+    setup: { julyIncome: 0, julyGroceriesBudget: 0 },
+    steps: uiHold('2026-07', 10000),
+    uiReachable: false,
+  });
+  expect(zeroToBudget[1].returned).toBe(false);
+  expect(zeroToBudget[1].cells).toEqual([]);
+  expect(finalState(zeroToBudget, '2026-07')).toMatchObject({ toBudget: 0, heldAmount: 0 });
+
+  const negativeToBudget = await runCase({
+    id: 'hold-noop-when-to-budget-is-negative',
+    description: 'With negative July To Budget, a direct hold call returns false and writes no hold cells. The menu hides Hold when To Budget is not positive.',
+    setup: { julyIncome: 100000, julyGroceriesBudget: 150000 },
+    steps: uiHold('2026-07', 10000),
+    uiReachable: false,
+  });
+  expect(negativeToBudget[1].returned).toBe(false);
+  expect(negativeToBudget[1].cells).toEqual([]);
+  expect(finalState(negativeToBudget, '2026-07')).toMatchObject({ toBudget: -50000, heldAmount: 0 });
+
+  const releasedAutomatic = await runCase({
+    id: 'release-manual-hold-reveals-automatic-income-hold',
+    description: 'Releasing a manual hold reveals the income-carryover hold, which the next reset clears.',
+    setup: {
+      julyIncome: 100000,
+      julyGroceriesBudget: 0,
+      julyManualBuffer: 20000,
+      julyIncomeCarryover: true,
+      augustIncomeCarryover: true,
+      augustIncome: 25000,
     },
+    steps: [
+      { handler: 'budget/reset-hold', args: { month: '2026-07' } },
+      { handler: 'budget/reset-income-carryover', args: { month: '2026-07' } },
+    ],
+  });
+  expect(stateOf(releasedAutomatic[0].stateAfter, '2026-07')).toMatchObject({
+    manualHeldAmount: 0, automaticHeldAmount: 100000, heldAmount: 100000, toBudget: 0,
+  });
+  expect(finalState(releasedAutomatic, '2026-07')).toMatchObject({
+    manualHeldAmount: 0, automaticHeldAmount: 0, heldAmount: 0, toBudget: 100000,
+  });
+  expect(finalState(releasedAutomatic, '2026-08')).toMatchObject({
+    automaticHeldAmount: 25000, heldAmount: 25000,
   });
 
-  await setupBudget();
-  const beforeStoredRows = db.firstSync<{ count: number }>(
-    "SELECT COUNT(*) AS count FROM zero_budget_months WHERE id = '2027-01'",
-  )?.count ?? -1;
-  const future = await pwaHold('2027-01', 1_000);
-  expect(beforeStoredRows).toBe(0);
-  expect(future.after).toMatchObject({ manualHeldAmount: 1_000, heldAmount: 1_000 });
-  cases.push({ id: 'future-created-sheet-without-stored-month-row', value: { beforeStoredRows, ...future } });
+  const replacedAutomatic = await runCase({
+    id: 'hold-handler-replaces-automatic-income-hold-when-called-directly',
+    description: 'Calling the hold handler without the menu reset replaces an active automatic hold with the manual amount.',
+    setup: { juneIncome: 50000, julyIncome: 100000, julyGroceriesBudget: 0, julyIncomeCarryover: true },
+    steps: [{ handler: 'budget/hold-for-next-month', args: { month: '2026-07', amount: 30000 } }],
+    uiReachable: false,
+  });
+  expect(replacedAutomatic[0].returned).toBe(true);
+  expect(finalState(replacedAutomatic, '2026-07')).toMatchObject({
+    manualHeldAmount: 30000, automaticHeldAmount: 100000, heldAmount: 30000, toBudget: 120000,
+  });
 
-  await setupBudget();
-  const actualistCells = [
+  await runCase({
+    id: 'hold-in-tracking-budget-is-not-offered',
+    description: 'Tracking budgets have no Hold menu item. The handler result is recorded as the direct-call outcome.',
+    setup: { budgetType: 'tracking' },
+    steps: uiHold('2026-07', 40000),
+    uiReachable: false,
+  });
+
+  const future = await runCase({
+    id: 'hold-in-future-month-creates-stored-row',
+    description: 'A hold in January 2027 with no stored month row creates the row.',
+    steps: uiHold('2027-01', 1000),
+  });
+  expect(future[1].cells.some(
+    cell => cell.dataset === 'zero_budget_months' && cell.row === '2027-01',
+  )).toBe(true);
+  expect(finalState(future, '2027-01')).toMatchObject({
+    fromLastMonth: 150000, manualHeldAmount: 1000, heldAmount: 1000, toBudget: 149000,
+  });
+
+  const replaySetup = await setupBudget();
+  const replayBefore = monthStates();
+  const replayCells = [
     {
       timestamp: Timestamp.parse('2026-09-26T12:00:00.000Z-0000-61637475616c6973'),
-      dataset: 'zero_budget_months', row: '2026-07', column: 'buffered', value: 45_000,
+      dataset: 'zero_budget_months', row: '2026-07', column: 'buffered', value: 45000,
     },
     {
       timestamp: Timestamp.parse('2026-09-26T12:00:00.000Z-0001-61637475616c6973'),
@@ -326,31 +511,32 @@ test('Actual ${EXPECTED_VERSION} hold contract', async () => {
       dataset: 'zero_budgets', row: '202607-salary', column: 'carryover', value: 0,
     },
   ];
-  await applyMessages(actualistCells);
+  await applyMessages(replayCells);
   await sheet.waitOnSpreadsheet();
-  const replayAfter = await state('2026-07');
-  expect(replayAfter).toMatchObject({ toBudget: 105_000, manualHeldAmount: 45_000, heldAmount: 45_000 });
+  const replayAfter = monthStates();
+  expect(stateOf(replayAfter, '2026-07')).toMatchObject({
+    toBudget: 105000, manualHeldAmount: 45000, heldAmount: 45000,
+  });
   cases.push({
-    id: 'actualist-compatible-crdt-replays-into-second-actual-peer',
-    value: {
-      cells: actualistCells.map(cell => ({
-        timestamp: cell.timestamp.toString(), dataset: cell.dataset, row: cell.row,
+    id: 'actualist-compatible-crdt-replays-into-actual-peer',
+    description: 'Actualist-shaped CRDT cells for a manual hold and income carryover reset apply to Actual core.',
+    uiReachable: true,
+    setup: replaySetup,
+    before: replayBefore,
+    steps: [{
+      kind: 'apply-messages',
+      cells: replayCells.map(cell => ({
+        timestamp: cell.timestamp.toString(),
+        dataset: cell.dataset,
+        row: cell.row,
         column: cell.column,
-        serializedValue: cell.value === null
-          ? '0:'
-          : typeof cell.value === 'number'
-            ? 'N:' + cell.value
-            : 'S:' + cell.value,
+        serializedValue: encodeValue(cell.value),
       })),
-      after: replayAfter,
-    },
+      stateAfter: replayAfter,
+    }],
   });
 
-  const sourceCells = cases.flatMap(entry => {
-    const json = JSON.stringify(entry.value);
-    return json.includes('serializedValue') ? [entry.id] : [];
-  });
-  expect(sourceCells.length).toBe(cases.length);
+  expect(cases.length).toBe(${EXPECTED_CASE_COUNT});
   writeFileSync('${temporaryContract}', JSON.stringify({
     schemaVersion: ${SCHEMA_VERSION},
     oracle: { tag: '${EXPECTED_TAG}', commit: '${EXPECTED_COMMIT}', packageVersion: '${EXPECTED_VERSION}' },
@@ -360,18 +546,12 @@ test('Actual ${EXPECTED_VERSION} hold contract', async () => {
       categoryIDs: ['salary', 'groceries'],
       months,
     },
-    baseline: {
-      databaseFile: 'hold-baseline.sqlite',
-      month: '2026-07',
-      state: baseline,
-    },
     cases,
   }, null, 2) + '\n');
 });
 `;
 
 let contractData;
-let databaseData;
 try {
   mkdirSync(temporaryDataDirectory, { recursive: true });
   writeFileSync(runnerPath, runner);
@@ -380,31 +560,46 @@ try {
     'vitest', '--run', runnerRelative.replace('packages/loot-core/', ''),
   ], checkout, { ...process.env, ACTUAL_DATA_DIR: temporaryDataDirectory });
   contractData = readFileSync(temporaryContract);
-  databaseData = readFileSync(temporaryDatabase);
 } finally {
   rmSync(runnerPath, { force: true });
   rmSync(temporaryContract, { force: true });
-  rmSync(temporaryDatabase, { force: true });
   rmSync(temporaryDataDirectory, { force: true, recursive: true });
 }
 assertPinnedOracle(checkout, 'after generating');
 
 const contract = JSON.parse(contractData.toString('utf8'));
-if (!Array.isArray(contract.cases) || contract.cases.length !== 6) {
-  throw new Error('Oracle did not produce six reviewed hold cases');
+if (!Array.isArray(contract.cases) || contract.cases.length !== EXPECTED_CASE_COUNT) {
+  throw new Error(`Oracle did not produce ${EXPECTED_CASE_COUNT} reviewed hold cases`);
 }
-if (databaseData.subarray(0, 16).toString('utf8') !== 'SQLite format 3\u0000') {
-  throw new Error('Oracle did not produce a SQLite baseline database');
+
+// Oracle cases Actualist does not replay. Each reason is a coverage fact, not a divergence.
+const oracleOnly = [
+  {
+    id: 'hold-handler-replaces-automatic-income-hold-when-called-directly',
+    reason:
+      "not reachable from either app's UI; Actualist refuses at the API (disable the automatic hold first) while Actual replaces the hold (README difference 2).",
+  },
+  {
+    id: 'hold-in-tracking-budget-is-not-offered',
+    reason:
+      "not reachable from either app's UI; Actualist refuses at the API as an unsupported action while Actual writes reflect_budgets (README difference 4).",
+  },
+];
+const caseIDs = contract.cases.map(testCase => testCase.id);
+const oracleOnlyIDs = oracleOnly.map(entry => entry.id);
+if (
+  new Set(caseIDs).size !== caseIDs.length ||
+  new Set(oracleOnlyIDs).size !== oracleOnlyIDs.length ||
+  oracleOnly.some(entry => !caseIDs.includes(entry.id) || entry.reason.trim() === '')
+) {
+  throw new Error('Hold oracle-only entries are invalid');
 }
 
 // Manifest paths name the pinned fixture location, never the temporary --check directory.
 const fixtureDirectory = pinnedFixtureDirectory('Holds');
 const logicalPath = name => relative(repositoryRoot, join(fixtureDirectory, name));
-const contractName = 'hold-contract.json';
-const databaseName = 'hold-baseline.sqlite';
 mkdirSync(outputRoot, { recursive: true });
 writeFileSync(join(outputRoot, contractName), contractData);
-writeFileSync(join(outputRoot, databaseName), databaseData);
 
 const manifestText = JSON.stringify({
   schemaVersion: SCHEMA_VERSION,
@@ -413,36 +608,33 @@ const manifestText = JSON.stringify({
     command: `${ORACLE_ROOT_VARIABLE}=<pinned-actual> node scripts/hold-parity/generate.mjs`,
     sha256: sha256(readFileSync(scriptPath)),
   },
-  helpers: [{ path: relative(repositoryRoot, helperPath), sha256: sha256(readFileSync(helperPath)) }],
+  helpers: helperPaths.map(path => ({ path, sha256: sha256(readFileSync(join(repositoryRoot, path))) })),
   seed: null,
   amountUnits: 'integer minor units',
-  execution: 'Actual core handlers through runHandler/runMutator with offline CRDT persistence',
+  execution: 'Actual core handlers through runHandler and applyMessages with offline CRDT persistence',
   scope: 'synthetic local SQLite and CRDT replay only; no live server roundtrip',
+  caseCount: contract.cases.length,
   sourceFiles: Object.entries(expectedSourceHashes).map(([path, expectedHash]) => ({
     path,
     sha256: expectedHash,
   })),
-  artifacts: [
-    {
-      path: logicalPath(contractName),
-      sha256: sha256(contractData),
-      caseCount: contract.cases.length,
-    },
-    {
-      path: logicalPath(databaseName),
-      sha256: sha256(databaseData),
-    },
-  ],
+  fixtures: [{
+    path: logicalPath(contractName),
+    sha256: sha256(contractData),
+    caseCount: contract.cases.length,
+    caseIDs,
+  }],
+  oracleOnly,
   privacy: {
     syntheticOnly: true,
     containsServerCredentials: false,
     containsPersonalFinancialData: false,
   },
 }, null, 2) + '\n';
-writeFileSync(join(outputRoot, 'hold-manifest.json'), manifestText);
+writeFileSync(join(outputRoot, manifestName), manifestText);
 
 if (checking) {
-  const failures = compareWithCommitted(fixtureDirectory, outputRoot, [contractName, databaseName, 'hold-manifest.json']);
+  const failures = compareWithCommitted(fixtureDirectory, outputRoot, [contractName, manifestName]);
   rmSync(outputRoot, { recursive: true, force: true });
   if (failures.length > 0) {
     for (const failure of failures) console.error(`hold parity drift: ${failure}`);

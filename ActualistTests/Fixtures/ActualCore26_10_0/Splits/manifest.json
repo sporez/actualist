@@ -7,7 +7,7 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/split-parity/generate.mjs",
-    "sha256": "5034356ea7dbc0a787ae6d5145b3eef055dd11819450e23b86a6a1eb59bc2551"
+    "sha256": "a4ad00cf4042ac334452e338617c88385b5c25bf2fa95e9f9ff530993768db5a"
   },
   "helpers": [
     {
@@ -16,7 +16,7 @@
     }
   ],
   "seed": null,
-  "caseCount": 23,
+  "caseCount": 25,
   "amountUnits": "integer minor units",
   "rounding": "JavaScript Math.round: ties toward positive infinity",
   "sourceFiles": [
@@ -76,18 +76,70 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_10_0/Splits/family-transformations.json",
-      "sha256": "51ee80d99e0b13733f32434f3d3b7428250806e68078d2b0efcc30314e4f00d6",
-      "caseCount": 8
+      "sha256": "c89bb29045959f809746dbdb286f49be592f4521beaf9a165ca4105631605e6e",
+      "caseCount": 9,
+      "caseIDs": [
+        "make-child-inheritance-and-null-overrides",
+        "recalculate-exact-mismatch-and-mixed-sign",
+        "low-level-split-conversion-nulls-parent-payee-and-starts-with-error",
+        "split-conversion-zero-sort-order",
+        "update-conversion-materializes-exact-family",
+        "parent-payee-update-preserves-child-override",
+        "child-delete-recalculates-parent-error",
+        "final-child-delete-collapses-parent",
+        "detach-child-preserves-nonchild-fields"
+      ],
+      "oracleOnly": [
+        {
+          "id": "detach-child-preserves-nonchild-fields",
+          "reason": "no production path (makeAsNonChildTransactions has no Actualist counterpart)."
+        },
+        {
+          "id": "update-conversion-materializes-exact-family",
+          "reason": "adapter input-shape: child payloads omit payee; SplitTransactionRecord cannot express an omitted payee, and conversion treats nil as an explicit null."
+        }
+      ]
     },
     {
       "path": "ActualistTests/Fixtures/ActualCore26_10_0/Splits/split-rule-cases.json",
-      "sha256": "62808cf1860adda00af88ad3e6b5878a8542ea36423771a3afd710bc288220d9",
-      "caseCount": 7
+      "sha256": "87d1e106eb047fa280a64e53b5d3760ba04d22d0d65b23a19b13c00be99428b6",
+      "caseCount": 7,
+      "caseIDs": [
+        "index-zero-whole-transaction-and-one-based-children",
+        "negative-half-percent-rounding",
+        "positive-half-percent-rounding",
+        "multiple-negative-remainders-adjust-highest-index",
+        "fixed-before-percent-before-remainder",
+        "formula-and-remainder",
+        "effective-child-input-is-not-split"
+      ],
+      "oracleOnly": []
     },
     {
       "path": "ActualistTests/Fixtures/ActualCore26_10_0/Splits/mutation-cases.json",
-      "sha256": "7ec9427ff6405f487065db64e34ea5c4cfa56308f2ee734470ee369302e4807b",
-      "caseCount": 8
+      "sha256": "8907f18f36e9e3c6d47ec2b269b05aeb31663172f77b24e05a204daecba0a755",
+      "caseCount": 9,
+      "caseIDs": [
+        "add-child-appends-zero-remainder",
+        "child-amount-update-recalculates-error",
+        "child-amount-changed-to-zero",
+        "parent-date-account-cleared-propagate",
+        "update-conversion-materializes-exact-family",
+        "parent-payee-update-preserves-child-override",
+        "child-delete-recalculates-parent-error",
+        "final-child-delete-collapses-parent",
+        "detach-child-preserves-nonchild-fields"
+      ],
+      "oracleOnly": [
+        {
+          "id": "detach-child-preserves-nonchild-fields",
+          "reason": "no production path (makeAsNonChildTransactions has no Actualist counterpart)."
+        },
+        {
+          "id": "update-conversion-materializes-exact-family",
+          "reason": "adapter input-shape: child payloads omit payee; SplitTransactionRecord cannot express an omitted payee, and conversion treats nil as an explicit null."
+        }
+      ]
     }
   ]
 }

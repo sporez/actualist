@@ -103,6 +103,9 @@ if (!Array.isArray(manifest.fixtures) || manifest.fixtures.length !== 3) {
   fail('expected the reviewed family, split-rule, and mutation fixtures');
 }
 let totalCases = 0;
+const allCaseIDs = new Set();
+// Oracle uuid-mock ids (id<N>, tempid<N>) as quoted JSON id-like values.
+const GENERATED_ID_PATTERN = /"(id|parentID|parent_id)":\s*"(temp)?id\d+"/;
 for (const fixture of manifest.fixtures) {
   const path = resolve(root, fixture.path ?? '');
   if (!path.startsWith(fixtureRoot + '/')) {
@@ -133,9 +136,27 @@ for (const fixture of manifest.fixtures) {
   if (ids.size !== parsed.cases.length || ids.has(undefined)) {
     fail(`case ids are missing or duplicated in ${fixture.path}`);
   }
+  if (typeof parsed.idNormalization !== 'string') {
+    fail(`idNormalization is not recorded in ${fixture.path}`);
+  }
+  for (const value of parsed.cases) {
+    if (value.input === null || typeof value.input !== 'object') {
+      fail(`case ${value.id} in ${fixture.path} does not record its input`);
+    }
+    allCaseIDs.add(value.id);
+  }
+  if (GENERATED_ID_PATTERN.test(data.toString('utf8'))) {
+    fail(`un-normalized generated id in ${fixture.path}`);
+  }
   totalCases += fixture.caseCount;
 }
 if (manifest.caseCount !== totalCases) fail(`manifest caseCount ${manifest.caseCount} is not ${totalCases}`);
+for (const required of [
+  'split-conversion-zero-sort-order',
+  'child-amount-changed-to-zero',
+]) {
+  if (!allCaseIDs.has(required)) fail(`missing reviewed case: ${required}`);
+}
 
 console.log(
   `Split parity fixtures verified (${manifest.actual.tag}, ${totalCases} cases).`,

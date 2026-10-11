@@ -4,7 +4,9 @@
     {
       "id": "OP-01",
       "domain": "new-budget-schema",
-      "cases": ["NewBudgetStarterSchemaTests/seededTableInfoEqualsPinnedUpstreamSchema"],
+      "cases": [
+        "NewBudgetStarterSchemaTests/seededTableInfoEqualsPinnedUpstreamSchema"
+      ],
       "summary": "Create New Budget seeds the previous release's schema without messages_pending; the pinned Actual creates it through migration 1788468782000.",
       "opened": "2026-10-10",
       "reviewBy": "2026-10-24"
@@ -12,10 +14,205 @@
     {
       "id": "OP-02",
       "domain": "new-budget-schema",
-      "cases": ["NewBudgetStarterSchemaTests/migrationIDsEqualUpstreamListAndAreAllApplied"],
+      "cases": [
+        "NewBudgetStarterSchemaTests/migrationIDsEqualUpstreamListAndAreAllApplied"
+      ],
       "summary": "PortableBudgetSchema.knownMigrationIDs lacks 1788468782000, so a new budget does not record it and Import Budget refuses archives from the pinned Actual; Actual records and accepts it.",
       "opened": "2026-10-10",
       "reviewBy": "2026-10-24"
+    },
+    {
+      "id": "OP-10",
+      "domain": "account-lifecycle",
+      "cases": [
+        "AccountLifecycleOracleFixtureTests/replaysOracleCase"
+      ],
+      "fixtureCases": [
+        "close-positive-on-to-on-history",
+        "close-negative-on-to-on",
+        "close-on-to-off-hidden-category",
+        "close-off-to-on",
+        "close-off-to-off",
+        "close-split-balance"
+      ],
+      "summary": "An account close's transfer legs write isParent, parent_id, isChild, tombstone, error, and a null category cell that the pinned Actual does not emit; every oracle message is present. Causes: BudgetDatabase+TransactionCreation.swift:286-345 writes these cells unconditionally; BudgetDatabase+AccountLifecycleClose.swift:168 and :186 use it for both legs.",
+      "opened": "2026-10-10",
+      "reviewBy": "2026-10-24"
+    },
+    {
+      "id": "OP-11",
+      "domain": "account-lifecycle",
+      "cases": [
+        "AccountLifecycleOracleFixtureTests/replaysOracleCase"
+      ],
+      "fixtureCases": [
+        "rename-handler-input-boundary"
+      ],
+      "summary": "Rename refuses an exact duplicate of another account's name; the pinned Actual's handler accepts duplicates (its desktop UI validates separately). Cause: BudgetDatabase+AccountLifecycleWrites.swift:80 (duplicateName). Decision 2026-10-11: fix to match Actual.",
+      "opened": "2026-10-10",
+      "reviewBy": "2026-10-24"
+    },
+    {
+      "id": "OP-22",
+      "domain": "account-lifecycle",
+      "status": "intended",
+      "cases": [
+        "AccountLifecycleOracleFixtureTests/replaysOracleCase"
+      ],
+      "fixtureCases": [
+        "rename-handler-input-boundary"
+      ],
+      "summary": "Rename trims outer whitespace and writes nothing when the trimmed name is unchanged; the pinned Actual's handler writes every submitted value. Cause: BudgetDatabase+AccountLifecycleWrites.swift:66 (trim) and :72 (no change).",
+      "opened": "2026-10-11",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: trimming and skipping an unchanged rename are harmless and intended."
+    },
+    {
+      "id": "OP-12",
+      "domain": "account-lifecycle",
+      "cases": [
+        "AccountLifecycleOracleFixtureTests/replaysOracleCase"
+      ],
+      "fixtureCases": [
+        "reopen-repeat-history"
+      ],
+      "summary": "Reopening an account that is already open writes nothing; the pinned Actual emits another closed = 0 cell. Cause: BudgetDatabase+AccountLifecycleWrites.swift:100 returns noChange when the account is already open.",
+      "opened": "2026-10-10",
+      "reviewBy": "2026-10-24"
+    },
+    {
+      "id": "OP-13",
+      "domain": "account-lifecycle",
+      "cases": [
+        "AccountLifecycleOracleFixtureTests/replaysOracleCase"
+      ],
+      "fixtureCases": [
+        "schedule-close-reopen-eligibility"
+      ],
+      "summary": "A due scheduled transaction posted after close or reopen omits the sort_order and reconciled cells that the pinned Actual writes, and writes default-valued description, category, notes, tombstone, isParent, and parent_id cells it does not. Causes: BudgetDatabase+ScheduleAdvancement.swift:204-214 builds the draft without sortOrder or reconciled; BudgetDatabase+TransactionCreation.swift:246-253 writes sort_order only when present; createSimpleTransactionMessages (TransactionGraphPlanning.swift:101) writes no reconciled cell.",
+      "opened": "2026-10-10",
+      "reviewBy": "2026-10-24"
+    },
+    {
+      "id": "OP-14",
+      "domain": "splits",
+      "cases": [
+        "SplitOracleReplayTests/replaysFamilyTransformation",
+        "SplitOracleReplayTests/replaysSplitMutation"
+      ],
+      "fixtureCases": [
+        "child-amount-changed-to-zero",
+        "final-child-delete-collapses-parent",
+        "parent-payee-update-preserves-child-override"
+      ],
+      "summary": "Split diffs drop cells changed to null, 0, or false, and can emit an update with no cells. SplitTransactionFamily.swift changedValues (557-586) keeps only non-default values, so a child amount changed to 0 is missing from diff.updated, a final-child delete drops is_parent = false, and a child whose notes became null yields an empty update entry. The pinned Actual's getChangedValues (packages/loot-core/src/shared/util.ts) emits every changed key of the new object. Writes are computed from stored rows, so no sync defect follows from the diff shape.",
+      "opened": "2026-10-10",
+      "reviewBy": "2026-10-24"
+    },
+    {
+      "id": "OP-15",
+      "domain": "splits",
+      "cases": [
+        "SplitOracleReplayTests/replaysFamilyTransformation"
+      ],
+      "fixtureCases": [
+        "split-conversion-zero-sort-order"
+      ],
+      "summary": "Split conversion stores a zero sort order as 0 where the pinned Actual stores -1. The pinned Actual uses sort_order || -1 (packages/loot-core/src/shared/transactions.ts:387, where 0 is falsy); SplitTransactionFamily.swift:349 uses child.sortOrder ?? -1, which keeps 0. Affects family.children[0].sortOrder and rows[1].sortOrder.",
+      "opened": "2026-10-10",
+      "reviewBy": "2026-10-24"
+    },
+    {
+      "id": "OP-16",
+      "domain": "reconciliation",
+      "cases": [
+        "ReconciliationOracleReplayTests/replaysReconciliationCase"
+      ],
+      "fixtureCases": [
+        "finish"
+      ],
+      "summary": "Finishing reconciliation with a nonzero difference throws balanceChanged, where the pinned Actual records no error and locks zero transactions (nonzeroDifferenceLocks 0). Cause: BudgetDatabase+Reconciliation.swift:221-222 guards on canLockTransactions and throws. Expected output: reconciliation-contract.json, case finish.",
+      "opened": "2026-10-10",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: telling the user the balance changed under them is safer than finishing silently."
+    },
+    {
+      "id": "OP-17",
+      "domain": "reconciliation",
+      "cases": [
+        "ReconciliationOracleReplayTests/replaysReconciliationCase"
+      ],
+      "fixtureCases": [
+        "adjustment-rule-clears-notes"
+      ],
+      "summary": "A balance adjustment whose rule clears notes still records the default note 'Reconciliation balance adjustment', where the pinned Actual leaves notes null. Cause: BudgetDatabase+Reconciliation.swift:140-141 restores the default note when the draft and preview notes are both nil.",
+      "opened": "2026-10-10",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: the adjustment always carries its default note, even over a rule that clears notes."
+    },
+    {
+      "id": "OP-18",
+      "domain": "reconciliation",
+      "cases": [
+        "ReconciliationOracleReplayTests/replaysReconciliationCase"
+      ],
+      "fixtureCases": [
+        "adjustment-rule-delete"
+      ],
+      "summary": "A balance adjustment whose rule deletes it writes no tombstone, where the pinned Actual's expected output records one deleted row. Cause: BudgetDatabase+Reconciliation.swift:130-135 returns committed false when the rule preview deletes the transaction. The delete rule is authored by the replay adapter (ReconciliationOracleReplaySupport.swift), so the expected deletion is a scripted outcome; see the README.",
+      "opened": "2026-10-10",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: writing nothing is cleaner than a create plus tombstone; the end state is identical and adjustment rows carry no imported ID, so nothing dedupes against them."
+    },
+    {
+      "id": "OP-19",
+      "domain": "reconciliation",
+      "cases": [
+        "ReconciliationOracleReplayTests/replaysReconciliationCase"
+      ],
+      "fixtureCases": [
+        "unlock-split-member"
+      ],
+      "summary": "Unlocking a split member writes reconciled = false to each reconciled family row (parent and both children), where the fixture's expected rows record no reconciled write. Cause: BudgetDatabase+Reconciliation.swift:290-306 unlocks every reconciled row of the family. Whether the family should unlock together is a product decision.",
+      "opened": "2026-10-10",
+      "reviewBy": "2026-10-24"
+    },
+    {
+      "id": "OP-20",
+      "domain": "holds",
+      "cases": [
+        "HoldOracleReplayTests/replaysHoldCase"
+      ],
+      "fixtureCases": [
+        "hold-partial-then-repeat-adds",
+        "hold-full-available-to-budget",
+        "hold-more-than-available-clamps",
+        "hold-repeat-clamps-to-remaining-to-budget",
+        "release-hold-restores-to-budget",
+        "hold-after-release-starts-from-zero",
+        "hold-rolls-into-next-month-available",
+        "hold-across-year-boundary-rolls-into-january",
+        "hold-in-future-month-creates-stored-row"
+      ],
+      "summary": "A new income-carryover row's month identity is written as a number (N:202607), where the pinned Actual writes text (S:202607). Observable hold state matches under SQLite integer affinity. Cause: BudgetDatabase+BudgetWrites.swift:398-399 writes month as .int in budgetRowIdentityMessages, called from BudgetDatabase+HoldWrites.swift:122-124. The pinned Actual passes dbMonth(month).toString() in packages/loot-core/src/server/budget/actions.ts resetIncomeCarryover.",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25"
+    },
+    {
+      "id": "OP-21",
+      "domain": "holds",
+      "cases": [
+        "HoldOracleReplayTests/replaysHoldCase"
+      ],
+      "fixtureCases": [
+        "release-without-stored-hold-row-writes-zero-hold"
+      ],
+      "summary": "API-level only; the menu never sends this reset. A reset-hold with no stored hold writes the income carryover rows, where the pinned Actual writes zero_budget_months buffered = 0. Cause: BudgetDatabase+HoldWrites.swift:44-55 runs resetIncomeCarryoverMessages when manualHeldAmount is 0 and writes the buffer only when it is nonzero.",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25"
     }
   ]
 }

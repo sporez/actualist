@@ -127,6 +127,36 @@ const ownershipRecord = join(
   '.actualist-account-lifecycle-process.json',
 );
 const stagingOutput = `${outputRoot}.staging-${process.pid}`;
+// Oracle cases Actualist does not replay. Each reason is a product fact, not a divergence.
+const oracleOnly = [
+  {
+    id: 'forced-delete-simple',
+    reason:
+      'Actualist has no forced delete for an account that still has transactions; product decision open.',
+  },
+  {
+    id: 'forced-delete-split-transfer-graph',
+    reason:
+      'Actualist has no forced delete for an account that still has transactions; product decision open.',
+  },
+  {
+    id: 'unlink-gocardless-last-reference',
+    reason: 'Actualist unlinks SimpleFIN accounts only; GoCardless is not supported.',
+  },
+  {
+    id: 'unlink-gocardless-shared-bank',
+    reason: 'Actualist unlinks SimpleFIN accounts only; GoCardless is not supported.',
+  },
+  {
+    id: 'unlink-gocardless-without-token',
+    reason: 'Actualist unlinks SimpleFIN accounts only; GoCardless is not supported.',
+  },
+  {
+    id: 'unlink-gocardless-remote-failure',
+    reason: 'Actualist unlinks SimpleFIN accounts only; GoCardless is not supported.',
+  },
+];
+
 const evidenceStaging = `${evidenceRoot}.staging-${process.pid}-${invocationID}`;
 let ownedOracleProcessGroupMayRemain = false;
 
@@ -719,6 +749,13 @@ function validateManifestShape(manifest) {
   ) {
     throw new Error('Manifest case IDs mismatch');
   }
+  const oracleOnlyIDs = manifest.oracleOnly.map(entry => entry.id);
+  if (
+    new Set(oracleOnlyIDs).size !== oracleOnlyIDs.length ||
+    oracleOnlyIDs.some(id => !expectedCaseIDs.includes(id))
+  ) {
+    throw new Error('Manifest oracle-only case IDs mismatch');
+  }
   const dependencyFiles = [
     manifest.dependencies.lockfile,
     manifest.dependencies.yarnConfiguration,
@@ -1029,6 +1066,7 @@ try {
       assertions: value.assertions,
       outputPointer: `${fixtureName}#/cases/${index}`,
     })),
+    oracleOnly,
   };
   validateManifestShape(manifest);
   writeFileSync(

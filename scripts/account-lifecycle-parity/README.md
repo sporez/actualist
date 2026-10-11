@@ -189,10 +189,93 @@ across all of these groups:
 - rename, reopen, empty/zero/nonzero close undo boundaries, including proof
   that local provider unlink is outside the close undo group.
 
-Every case asserts normalized raw CRDT cells and selected relational rows. The
+Every case records normalized raw CRDT cells and selected relational rows. The
 fixture stores synthetic IDs and amounts only. CRDT timestamps and SQLite
-message IDs are deliberately omitted because they are transport ordering noise;
-the remaining message order is preserved.
+message IDs are deliberately omitted because they are transport ordering noise.
+The oracle's raw CRDT emission order is recorded in the fixture but is not
+compared; see the Actualist replay comparison below.
+
+## Actualist replay comparison
+
+`ActualistTests/AccountLifecycleOracleFixtureTests.swift` replays each of the 16
+oracle cases Actualist supports through production `BudgetDatabase` on a fresh
+SQLite file seeded from the oracle's synthetic inputs, then compares the result
+with the committed observation. Scenarios live in
+`AccountLifecycleOracleScenarios.swift`; comparison, normalization, and seeds
+live in `AccountLifecycleOracleSupport.swift`.
+
+Production entry point per case:
+
+| Cases | Production entry point |
+| --- | --- |
+| `rename-open-history`, `rename-closed`, `rename-handler-input-boundary` | `commitAccountLifecycleMutation(.rename(...))`; the boundary case submits four names and catches the refused duplicate |
+| `reopen-repeat-history` | `commitAccountLifecycleMutation(.reopen(...))`, twice |
+| `close-empty-history`, `close-zero`, `close-positive-on-to-on-history`, `close-negative-on-to-on`, `close-on-to-off-hidden-category`, `close-off-to-on`, `close-off-to-off`, `close-self-transfer-refusal`, `close-split-balance`, `close-unlink-undo-boundary` | `accountLifecycleReview(request:localDay:)`, then `commitAccountLifecycleReview(_:now:localDay:transferIDs:)` only when the review has no blockers |
+| `unlink-simplefin` | `makeBankSyncUnlinkMessages(accountID:builder:)`, then `commitLocalSyncMessagesAndEnqueue(_:now:)` |
+| `schedule-close-reopen-eligibility` | close as above, `advanceSchedules(budgetID:today:now:)`, reopen, `advanceSchedules` |
+
+Normalization rules. These are the only transformations applied to either side:
+
+1. Message order is not compared. Both message lists are sorted by canonical
+   form and compared as multisets, so a missing or extra message fails.
+2. CRDT timestamps and message IDs are dropped. Only dataset, row, column, and
+   value are kept.
+3. Row IDs: the transfer legs use the injected IDs `id2` (source) and `id3`
+   (destination). The production-generated UUID of the posted scheduled
+   transaction is aliased to `id4`.
+4. The clock is the fixed `now` and local day (2026-09-27) the oracle uses.
+5. Values: production's typed serialization (`0:` null, `N:` number, `S:`
+   string) is parsed into the oracle's JSON-like values. Booleans are compared
+   as the oracle's `0`/`1` numbers. Numbers are compared exactly, never rounded
+   or scaled.
+6. Row snapshots are matched by `id`. Every field the oracle records must be
+   present and equal; extra replay columns are ignored.
+7. Before each forced schedule run, the local `metadata.json` day marker is
+   deleted (`clearScheduleDayMarker`), matching the oracle's force-run.
+8. Seed schema defaults (`isParent`, `isChild`, `tombstone`,
+   `starting_balance_flag`, and `reconciled` default `0`; `cleared` defaults
+   `1`) mirror Actualist's starter schema. Seeds use only the oracle's synthetic
+   names and values.
+
+Not replayed:
+
+- `undoMessages` and `afterUndo`. History undo is not offered for account
+  actions (`Actualist/LocalFirst/ActionLog/BudgetActionUndo.swift:366-367`).
+- `remoteCalls`. They record the oracle's mocked transport and are kept only in
+  the fixture; Actualist's replay has no transport seam.
+
+Known divergences. Four groups of production behavior differ from the pinned
+oracle and are registered as `OP-10` through `OP-13` in
+`config/parity/known-divergences.json`. Message arrays are compared as
+multisets. Each divergence wraps only its own "has extras" or "has gaps" check
+in `withKnownIssue`; the cells it may touch are checked strictly first, so any
+other missing message, extra cell, or state mismatch fails.
+
+- `OP-10` (transfer legs): the extras may only be default cells — `isParent`,
+  `isChild`, `tombstone` = 0; `parent_id`, `error`, `category` = null. Missing
+  messages fail strictly.
+- `OP-11` (rename) and `OP-12` (reopen): the case's whole message array for the
+  divergent path is wrapped.
+- `OP-13` (scheduled post): the only allowed gaps are the missing `sort_order`
+  and `reconciled` cells and the scheduled row's `sort_order`. The only allowed
+  extras are default `description`, `category`, `notes` = null; `tombstone`,
+  `isParent` = 0; `parent_id` = null.
+
+Oracle-only cases. These six are listed in the manifest's `oracleOnly` field
+with a reason each. They are not registered as divergences:
+
+| Case | Reason |
+| --- | --- |
+| `forced-delete-simple` | Actualist has no forced delete for an account that still has transactions; product decision open. |
+| `forced-delete-split-transfer-graph` | Actualist has no forced delete for an account that still has transactions; product decision open. |
+| `unlink-gocardless-last-reference` | Actualist unlinks SimpleFIN accounts only; GoCardless is not supported. |
+| `unlink-gocardless-shared-bank` | Actualist unlinks SimpleFIN accounts only; GoCardless is not supported. |
+| `unlink-gocardless-without-token` | Actualist unlinks SimpleFIN accounts only; GoCardless is not supported. |
+| `unlink-gocardless-remote-failure` | Actualist unlinks SimpleFIN accounts only; GoCardless is not supported. |
+
+The test asserts that the replayed cases and the oracle-only list partition all
+22 oracle case IDs, and that the committed manifest's provenance matches the
+pinned Actual.
 
 ## Stop conditions and correction budget
 

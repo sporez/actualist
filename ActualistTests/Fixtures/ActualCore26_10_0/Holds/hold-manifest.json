@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/hold-parity/generate.mjs",
+    "sha256": "f757b5e08329cf0435bea9fef7f266916363328742075604d1e1b9362d8b944a"
+  },
+  "helpers": [
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": null,
+  "amountUnits": "integer minor units",
+  "execution": "Actual core handlers through runHandler and applyMessages with offline CRDT persistence",
+  "scope": "synthetic local SQLite and CRDT replay only; no live server roundtrip",
+  "caseCount": 16,
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/budget/actions.ts",
+      "sha256": "5fa3915814c773ee998e6836e5fe7c5a562cad643b310a1ac74faad662ec3294"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/app.ts",
+      "sha256": "873e61d76d8023410a6a831d1e3e83c0002f9fd987077904afed867b4eb2fc0c"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/base.ts",
+      "sha256": "c70cc2d5386bc4628bae805b3a82f860b22747413c795cea7f6a87b8c930838b"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/envelope.ts",
+      "sha256": "bbd07cf2a56f03b5c14d61a50f0cba764f08370895a4c5c2a9cea825626ccdcd"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71"
+    },
+    {
+      "path": "packages/loot-core/src/server/mutators.ts",
+      "sha256": "f24756558fd2aadc3cbff1fd23514b5908ef6b319c1ad7d8eefeb5ee649f538f"
+    },
+    {
+      "path": "packages/loot-core/src/server/sync/index.ts",
+      "sha256": "f597760aed699ff0f696b2ec433c1d59588e7f2dd53f4aa6518713dfd76c99b8"
+    },
+    {
+      "path": "packages/loot-core/src/platform/server/sqlite/index.ts",
+      "sha256": "2fecae0cd47dd260be771d3a48b8ef5ec48378418c5f8667b8c14d6c95f9dc92"
+    },
+    {
+      "path": "packages/loot-core/src/platform/server/sqlite/index.electron.ts",
+      "sha256": "8fee26e68d2a07d028947d7b54380d03ad088f2d8ff3b606dd34798c84031ab7"
+    },
+    {
+      "path": "packages/desktop-client/src/components/budget/envelope/budgetsummary/ToBudgetMenu.tsx",
+      "sha256": "7c17f3efa6129d2619d6bc3d7b3e320798d63fd1dda4d5049ecb6c5cdc02ca07"
+    },
+    {
+      "path": "packages/desktop-client/src/budget/mutations.ts",
+      "sha256": "e044f65a62975b7cc36c9b2bdd0e3351dd4b07dd3d90548d285769eb759008e2"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/Holds/hold-contract.json",
+      "sha256": "943c94feb42af8ee794fa4ea7669eb11f76ec5325af051d45ce0cd3bc156498e",
+      "caseCount": 16,
+      "caseIDs": [
+        "hold-partial-then-repeat-adds",
+        "hold-full-available-to-budget",
+        "hold-more-than-available-clamps",
+        "hold-repeat-clamps-to-remaining-to-budget",
+        "release-hold-restores-to-budget",
+        "release-without-stored-hold-row-writes-zero-hold",
+        "hold-after-release-starts-from-zero",
+        "hold-rolls-into-next-month-available",
+        "hold-across-year-boundary-rolls-into-january",
+        "hold-noop-when-to-budget-is-zero",
+        "hold-noop-when-to-budget-is-negative",
+        "release-manual-hold-reveals-automatic-income-hold",
+        "hold-handler-replaces-automatic-income-hold-when-called-directly",
+        "hold-in-tracking-budget-is-not-offered",
+        "hold-in-future-month-creates-stored-row",
+        "actualist-compatible-crdt-replays-into-actual-peer"
+      ]
+    }
+  ],
+  "oracleOnly": [
+    {
+      "id": "hold-handler-replaces-automatic-income-hold-when-called-directly",
+      "reason": "not reachable from either app's UI; Actualist refuses at the API (disable the automatic hold first) while Actual replaces the hold (README difference 2)."
+    },
+    {
+      "id": "hold-in-tracking-budget-is-not-offered",
+      "reason": "not reachable from either app's UI; Actualist refuses at the API as an unsupported action while Actual writes reflect_budgets (README difference 4)."
+    }
+  ],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}

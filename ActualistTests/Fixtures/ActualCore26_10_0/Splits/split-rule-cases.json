@@ -7,6 +7,7 @@
   },
   "amountUnits": "integer minor units",
   "rounding": "JavaScript Math.round: ties toward positive infinity",
+  "idNormalization": "Ids the oracle generates (uuid mock id<N>, or tempid<N> under a temp parent) become <generated-{parent|child|row}-N>, numbered per case in first-encounter order. Explicit ids are kept.",
   "cases": [
     {
       "id": "index-zero-whole-transaction-and-one-based-children",
@@ -51,6 +52,71 @@
           }
         }
       ],
+      "input": {
+        "transaction": {
+          "id": "parent-1",
+          "amount": -10000,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": "coffee",
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "starting_balance_flag": false,
+          "sort_order": 100,
+          "imported_payee": "actualist-oracle"
+        },
+        "conditionsOp": "and",
+        "conditions": [
+          {
+            "op": "is",
+            "field": "imported_payee",
+            "value": "actualist-oracle"
+          }
+        ],
+        "actions": [
+          {
+            "op": "append-notes",
+            "value": " whole",
+            "options": {
+              "splitIndex": 0
+            }
+          },
+          {
+            "op": "set-split-amount",
+            "value": -4000,
+            "options": {
+              "splitIndex": 1,
+              "method": "fixed-amount"
+            }
+          },
+          {
+            "op": "set",
+            "field": "category",
+            "value": "groceries",
+            "options": {
+              "splitIndex": 1
+            }
+          },
+          {
+            "op": "set-split-amount",
+            "value": 0,
+            "options": {
+              "splitIndex": 2,
+              "method": "remainder"
+            }
+          },
+          {
+            "op": "set",
+            "field": "category",
+            "value": null,
+            "options": {
+              "splitIndex": 2
+            }
+          }
+        ]
+      },
       "expected": {
         "parent": {
           "id": "parent-1",
@@ -72,7 +138,7 @@
         },
         "children": [
           {
-            "id": "id2",
+            "id": "<generated-child-1>",
             "amount": -4000,
             "account": "checking",
             "date": "2026-08-15",
@@ -90,7 +156,7 @@
             "deleted": false
           },
           {
-            "id": "id3",
+            "id": "<generated-child-2>",
             "amount": -6000,
             "account": "checking",
             "date": "2026-08-15",
@@ -113,6 +179,48 @@
     {
       "id": "negative-half-percent-rounding",
       "parentAmount": -5,
+      "input": {
+        "transaction": {
+          "id": "parent-1",
+          "amount": -5,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": "coffee",
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "starting_balance_flag": false,
+          "sort_order": 100,
+          "imported_payee": "actualist-oracle"
+        },
+        "conditionsOp": "and",
+        "conditions": [
+          {
+            "op": "is",
+            "field": "imported_payee",
+            "value": "actualist-oracle"
+          }
+        ],
+        "actions": [
+          {
+            "op": "set-split-amount",
+            "value": 50,
+            "options": {
+              "splitIndex": 1,
+              "method": "fixed-percent"
+            }
+          },
+          {
+            "op": "set-split-amount",
+            "value": 0,
+            "options": {
+              "splitIndex": 2,
+              "method": "remainder"
+            }
+          }
+        ]
+      },
       "expected": {
         "parent": {
           "id": "parent-1",
@@ -134,7 +242,7 @@
         },
         "children": [
           {
-            "id": "id5",
+            "id": "<generated-child-1>",
             "amount": -2,
             "account": "checking",
             "date": "2026-08-15",
@@ -152,7 +260,7 @@
             "deleted": false
           },
           {
-            "id": "id6",
+            "id": "<generated-child-2>",
             "amount": -3,
             "account": "checking",
             "date": "2026-08-15",
@@ -175,6 +283,48 @@
     {
       "id": "positive-half-percent-rounding",
       "parentAmount": 5,
+      "input": {
+        "transaction": {
+          "id": "parent-1",
+          "amount": 5,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": "coffee",
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "starting_balance_flag": false,
+          "sort_order": 100,
+          "imported_payee": "actualist-oracle"
+        },
+        "conditionsOp": "and",
+        "conditions": [
+          {
+            "op": "is",
+            "field": "imported_payee",
+            "value": "actualist-oracle"
+          }
+        ],
+        "actions": [
+          {
+            "op": "set-split-amount",
+            "value": 50,
+            "options": {
+              "splitIndex": 1,
+              "method": "fixed-percent"
+            }
+          },
+          {
+            "op": "set-split-amount",
+            "value": 0,
+            "options": {
+              "splitIndex": 2,
+              "method": "remainder"
+            }
+          }
+        ]
+      },
       "expected": {
         "parent": {
           "id": "parent-1",
@@ -196,7 +346,7 @@
         },
         "children": [
           {
-            "id": "id8",
+            "id": "<generated-child-1>",
             "amount": 3,
             "account": "checking",
             "date": "2026-08-15",
@@ -214,7 +364,7 @@
             "deleted": false
           },
           {
-            "id": "id9",
+            "id": "<generated-child-2>",
             "amount": 2,
             "account": "checking",
             "date": "2026-08-15",
@@ -237,6 +387,48 @@
     {
       "id": "multiple-negative-remainders-adjust-highest-index",
       "parentAmount": -5,
+      "input": {
+        "transaction": {
+          "id": "parent-1",
+          "amount": -5,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": "coffee",
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "starting_balance_flag": false,
+          "sort_order": 100,
+          "imported_payee": "actualist-oracle"
+        },
+        "conditionsOp": "and",
+        "conditions": [
+          {
+            "op": "is",
+            "field": "imported_payee",
+            "value": "actualist-oracle"
+          }
+        ],
+        "actions": [
+          {
+            "op": "set-split-amount",
+            "value": 0,
+            "options": {
+              "splitIndex": 1,
+              "method": "remainder"
+            }
+          },
+          {
+            "op": "set-split-amount",
+            "value": 0,
+            "options": {
+              "splitIndex": 2,
+              "method": "remainder"
+            }
+          }
+        ]
+      },
       "expected": {
         "parent": {
           "id": "parent-1",
@@ -258,7 +450,7 @@
         },
         "children": [
           {
-            "id": "id11",
+            "id": "<generated-child-1>",
             "amount": -2,
             "account": "checking",
             "date": "2026-08-15",
@@ -276,7 +468,7 @@
             "deleted": false
           },
           {
-            "id": "id12",
+            "id": "<generated-child-2>",
             "amount": -3,
             "account": "checking",
             "date": "2026-08-15",
@@ -299,6 +491,56 @@
     {
       "id": "fixed-before-percent-before-remainder",
       "parentAmount": 50,
+      "input": {
+        "transaction": {
+          "id": "parent-1",
+          "amount": 50,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": "coffee",
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "starting_balance_flag": false,
+          "sort_order": 100,
+          "imported_payee": "actualist-oracle"
+        },
+        "conditionsOp": "and",
+        "conditions": [
+          {
+            "op": "is",
+            "field": "imported_payee",
+            "value": "actualist-oracle"
+          }
+        ],
+        "actions": [
+          {
+            "op": "set-split-amount",
+            "value": 100,
+            "options": {
+              "splitIndex": 1,
+              "method": "fixed-amount"
+            }
+          },
+          {
+            "op": "set-split-amount",
+            "value": 50,
+            "options": {
+              "splitIndex": 2,
+              "method": "fixed-percent"
+            }
+          },
+          {
+            "op": "set-split-amount",
+            "value": 0,
+            "options": {
+              "splitIndex": 3,
+              "method": "remainder"
+            }
+          }
+        ]
+      },
       "expected": {
         "parent": {
           "id": "parent-1",
@@ -320,7 +562,7 @@
         },
         "children": [
           {
-            "id": "id14",
+            "id": "<generated-child-1>",
             "amount": 100,
             "account": "checking",
             "date": "2026-08-15",
@@ -338,7 +580,7 @@
             "deleted": false
           },
           {
-            "id": "id15",
+            "id": "<generated-child-2>",
             "amount": -25,
             "account": "checking",
             "date": "2026-08-15",
@@ -356,7 +598,7 @@
             "deleted": false
           },
           {
-            "id": "id16",
+            "id": "<generated-child-3>",
             "amount": -25,
             "account": "checking",
             "date": "2026-08-15",
@@ -379,6 +621,49 @@
     {
       "id": "formula-and-remainder",
       "parentAmount": 100000,
+      "input": {
+        "transaction": {
+          "id": "parent-1",
+          "amount": 100000,
+          "account": "checking",
+          "date": "2026-08-15",
+          "category": "groceries",
+          "payee": "coffee",
+          "notes": "parent note",
+          "cleared": true,
+          "reconciled": false,
+          "starting_balance_flag": false,
+          "sort_order": 100,
+          "imported_payee": "actualist-oracle"
+        },
+        "conditionsOp": "and",
+        "conditions": [
+          {
+            "op": "is",
+            "field": "imported_payee",
+            "value": "actualist-oracle"
+          }
+        ],
+        "actions": [
+          {
+            "op": "set-split-amount",
+            "value": 0,
+            "options": {
+              "splitIndex": 1,
+              "method": "formula",
+              "formula": "=300"
+            }
+          },
+          {
+            "op": "set-split-amount",
+            "value": 0,
+            "options": {
+              "splitIndex": 2,
+              "method": "remainder"
+            }
+          }
+        ]
+      },
       "expected": {
         "parent": {
           "id": "parent-1",
@@ -400,7 +685,7 @@
         },
         "children": [
           {
-            "id": "id18",
+            "id": "<generated-child-1>",
             "amount": 30000,
             "account": "checking",
             "date": "2026-08-15",
@@ -418,7 +703,7 @@
             "deleted": false
           },
           {
-            "id": "id19",
+            "id": "<generated-child-2>",
             "amount": 70000,
             "account": "checking",
             "date": "2026-08-15",
@@ -440,6 +725,50 @@
     },
     {
       "id": "effective-child-input-is-not-split",
+      "input": {
+        "transaction": {
+          "amount": -10000,
+          "id": "existing-child",
+          "category": "groceries",
+          "payee": "coffee",
+          "account": "checking",
+          "date": "2026-08-15",
+          "cleared": true,
+          "reconciled": false,
+          "starting_balance_flag": false,
+          "sort_order": 100,
+          "is_child": true,
+          "parent_id": "parent-1",
+          "error": null,
+          "imported_payee": "actualist-oracle"
+        },
+        "conditionsOp": "and",
+        "conditions": [
+          {
+            "op": "is",
+            "field": "imported_payee",
+            "value": "actualist-oracle"
+          }
+        ],
+        "actions": [
+          {
+            "op": "set-split-amount",
+            "value": -4000,
+            "options": {
+              "splitIndex": 1,
+              "method": "fixed-amount"
+            }
+          },
+          {
+            "op": "set-split-amount",
+            "value": 0,
+            "options": {
+              "splitIndex": 2,
+              "method": "remainder"
+            }
+          }
+        ]
+      },
       "expected": {
         "parent": {
           "id": "existing-child",

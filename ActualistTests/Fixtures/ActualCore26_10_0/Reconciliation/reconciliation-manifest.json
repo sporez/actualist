@@ -7,7 +7,7 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/reconciliation-parity/generate.mjs",
-    "sha256": "adfad3f1a802a51ea79d43d3e139d5ecb994136fdcb6c83b905c7e7d818a1daf"
+    "sha256": "345e66f70c43dcba800210ac41d5b42b0ce5d9348f448aa86eca80e8d3ea7703"
   },
   "helpers": [
     {
@@ -56,11 +56,50 @@
       "sha256": "f8869a70b722beec361f1309e7a92f9b982b480314ae63c3b97ae161be93d375"
     }
   ],
+  "evidenceSourceFiles": [
+    {
+      "path": "packages/desktop-client/src/components/accounts/Account.tsx",
+      "sha256": "43e3f7311e7cc34e3c07c685e2bcbb8d090df4f269b3b3c1025e75007b81f970"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transaction-rules.ts",
+      "sha256": "a6f08970af6f8d190c4c3b1a9ef2fad18c9f7e7211758a38d8bf02b9232c06ea"
+    },
+    {
+      "path": "packages/loot-core/src/server/rules/rule.ts",
+      "sha256": "83aed782d93ce41dd406373668b182da05f4896750a0a12341aa8dcc647f44c7"
+    },
+    {
+      "path": "packages/loot-core/src/server/rules/action.ts",
+      "sha256": "12cbd130c59634b2f711a7068c05e9de4dcef5dd71efe3601c3d64ad2bb68976"
+    }
+  ],
   "fixture": {
     "path": "ActualistTests/Fixtures/ActualCore26_10_0/Reconciliation/reconciliation-contract.json",
-    "sha256": "0788504e1bafd9974fda33b859ff4450e4e39488dfadf8c72a27105683082240",
-    "caseCount": 6
+    "sha256": "31e8a3e6d6b8f1ec34292711f9c9bee4654a29131fdbf82781ba3fce324f11d0",
+    "caseCount": 9,
+    "caseIDs": [
+      "cleared-balance",
+      "finish",
+      "adjustment-rule-projection",
+      "adjustment-rule-delete",
+      "lock",
+      "unlock",
+      "done-nonzero-difference",
+      "adjustment-rule-clears-notes",
+      "unlock-split-member"
+    ]
   },
-  "caseCount": 6,
+  "oracleOnly": [
+    {
+      "id": "adjustment-rule-projection",
+      "reason": "expected output comes from a scripted rules-run outcome; no production rules seed reproduces it without a seam (real-rules coverage: adjustment-rule-clears-notes; Phase 4 rules harness)."
+    },
+    {
+      "id": "done-nonzero-difference",
+      "reason": "source-guard only, the oracle client stamp rule is not executed."
+    }
+  ],
+  "caseCount": 9,
   "contractSourceSha256": "da00774e458201d7e97aeeb51f7090fdceb52c47acb270fea4c923b767019c01"
 }
