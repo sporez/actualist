@@ -850,6 +850,282 @@
       "opened": "2026-10-11",
       "reviewBy": "2026-10-25",
       "summary": "The exposed month value lastMonthOverspent is 0 in every month, where the pinned Actual exposes last month's overspend as a negative number when nonzero. Not displayed anywhere: no screen or widget reads the field, and To Budget is correct (it takes the carry-in from envelopeCarryIn). Cause: BudgetDatabase+BudgetReads.swift:53 hard-codes 0, while BudgetDatabase+EnvelopeCarryIn.swift:31-40 computes the value and discards it."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "gen-action-set-account",
+        "gen-action-set-account-offbudget",
+        "set-account-and-date-and-amount"
+      ],
+      "id": "OP-36",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A set-account action is not recognised, so the whole rule is skipped: Actual stores the field as acct, and Actualist only accepts account. The rule's other actions are lost, and later rules that read the account see the old one. Cause: RuleAction.editorField/canRoundTripAndEvaluate (RuleRepository.swift:382-401) map only description to payee, so RuleConditionEvaluator.apply's account branch (RuleConditionEvaluator.swift:303) is unreachable for acct; conditions do map acct via RulePresentation.presentationField."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "delete-transaction-then-later-rules",
+        "gen-action-delete-transaction"
+      ],
+      "id": "OP-37",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A delete-transaction action does not execute: Actual writes it as {op} with no value key, and Actualist's RuleAction requires one, so the rule fails to decode and the whole rule is skipped. Cause: RuleRepository.swift:156 (non-optional value in a synthesized Decodable), decoded with try? at BudgetDatabase+Rules.swift:223-225."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "gen-action-clear-notes-empty",
+        "notes-set-null-and-empty"
+      ],
+      "id": "OP-38",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A set-notes action with an empty string stores nil, where the pinned Actual stores an empty string. Cause: stringOrNil (RuleConditionEvaluator.swift:341-344) maps empty to nil for every set action's text value."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "date-recurring-schedule-style-value",
+        "gen-cond-date-is-recur-1",
+        "gen-cond-date-is-recur-2",
+        "gen-cond-date-is-recur-biweekly-1",
+        "gen-cond-date-is-recur-biweekly-2",
+        "gen-cond-date-is-recur-ended-1",
+        "gen-cond-date-is-recur-ended-2",
+        "gen-cond-date-is-recur-skip-weekend-1",
+        "gen-cond-date-is-recur-skip-weekend-2",
+        "gen-cond-date-isapprox-recur-2",
+        "schedule-attached-runs-its-rule-regardless-of-conditions",
+        "schedule-rule-links-by-conditions"
+      ],
+      "id": "OP-39",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A date condition with a recurrence value (schedule-style frequency, interval, weekend skip, end) never matches, where the pinned Actual matches the dates the recurrence occurs on, including the schedule rules that use them. Cause: compareDate (RuleConditionEvaluator.swift:234-236) requires both values to be strings, so an object value returns false."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "gen-cond-payee-contains-id-1",
+        "gen-cond-payee-contains-id-2",
+        "gen-cond-payee-matches-id-1",
+        "gen-cond-payee-matches-id-2"
+      ],
+      "id": "OP-40",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "contains, doesNotContain and matches on a payee condition compare the payee's display name, where the pinned runRules compares the payee id string (the name only matches in Actual's query path). Cause: RuleConditionEvaluator.swift:135-148 swaps the actual value to the name for id-typed fields."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "index-excludes-or-rule-with-two-indexed-conditions"
+      ],
+      "id": "OP-41",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "Every ranked rule is a candidate, where the pinned Actual skips a rule that has both a payee and an imported-payee is, isNot, oneOf or notOneOf condition when neither index lists it. An or rule of two isNot conditions therefore runs in Actualist and is skipped in Actual. Cause: RuleConditionEvaluator.applying (RuleConditionEvaluator.swift:57) loops over all rules; Actualist has no equivalent of RuleIndexer."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "payee-set-then-later-payee-rules"
+      ],
+      "id": "OP-42",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "payee_name is refreshed when a rule sets the payee, so a later payee_name condition sees the new payee's name, where the pinned runRules computes payee_name once before any rule runs. Cause: RuleConditionEvaluator.apply (RuleConditionEvaluator.swift:323-324) rewrites payeeName."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "split-amount-formula-literal-and-balance-of",
+        "split-fixed-and-remainder-interaction"
+      ],
+      "id": "OP-43",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A rule that creates splits leaves the parent's payee as it was, where the pinned Actual clears the parent's payee (the children carry the payee). The preview cannot express clearing a payee at all: it reports nil for both unchanged and cleared. Cause: RuleSplitActionExecutor.swift:338-339 writes the parent record's payee back unchanged, and BudgetDatabase+Rules.swift:107 maps a cleared payee to nil."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "transfer-and-parent-conditions-in-run-rules"
+      ],
+      "id": "OP-44",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "transfer and parent conditions are evaluated against the draft's transfer and parent state, where the pinned runRules reads fields it never populates, so they match only when the input carries them. Cause: RuleConditionEvaluator.swift:121-122 with isTransfer/isParent set at BudgetDatabase+Rules.swift:635-636."
+    },
+    {
+      "cases": [
+        "RuleOracleReplayTests/replaysRuleCase"
+      ],
+      "domain": "rules",
+      "fixtureCases": [
+        "schedule-rule-with-plain-conditions-active-and-completed"
+      ],
+      "id": "OP-45",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A rule linked to a completed schedule is skipped, where the pinned Actual still runs it (it is an ordinary rule once loaded). Cause: RuleConditionEvaluator.applying skips rule.isCompletedScheduleRule (RuleConditionEvaluator.swift:59)."
+    },
+    {
+      "cases": [
+        "ScheduleOracleReplayTests/replaysStatusCase"
+      ],
+      "domain": "schedules",
+      "fixtureCases": [
+        "status-2026-03-08-1-month",
+        "status-2026-03-08-1-year",
+        "status-2026-03-08-12-month",
+        "status-2026-10-11-1-month",
+        "status-2026-10-11-1-year",
+        "status-2026-10-11-12-month",
+        "status-2026-12-31-1-month",
+        "status-2026-12-31-1-year",
+        "status-2026-12-31-12-month",
+        "status-2028-02-29-1-month",
+        "status-2028-02-29-1-year",
+        "status-2028-02-29-12-month"
+      ],
+      "id": "OP-46",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A month or year upcoming length (for example \"1-month\") counts the days from today's date to the same date months later, where the pinned Actual counts whole months from the first of the month (on 2026-10-11 \"1-month\" is 32 days in Actual and 42 in Actualist), so schedules near the edge of the window get a different upcoming/scheduled status. Cause: ScheduleUpcomingLength.swift:36-41 adds the months to today's date, where getUpcomingDays adds them to a month string and counts calendar days from the month start."
+    },
+    {
+      "cases": [
+        "ScheduleOracleReplayTests/replaysRecurrenceCase"
+      ],
+      "domain": "schedules",
+      "fixtureCases": [
+        "gen-recur-015-monthly-1-p3-before",
+        "gen-recur-032-monthly-1-p3-before-after_n_occurrences",
+        "gen-recur-042-daily-1-before"
+      ],
+      "id": "OP-47",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "Skipping a schedule that moves weekend dates before, from a Friday next date, starts the search the day after the following Monday, so an occurrence that falls on that Monday is passed over (the pinned getNextDateAfter returns it). Cause: ScheduleRuleMutation.nextDateAfterSkip (ScheduleRuleMutation.swift:186-196) moves the start to Monday and then adds a day."
+    },
+    {
+      "cases": [
+        "ScheduleOracleStatefulReplayTests/replaysScheduleSteps"
+      ],
+      "domain": "schedules",
+      "fixtureCases": [
+        "advance-weekend-before-catchup",
+        "gen-state-006",
+        "gen-state-012",
+        "gen-state-016"
+      ],
+      "id": "OP-48",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "Automatic advancement of a schedule that moves weekend dates before never leaves a Friday that stands in for a Saturday or Sunday occurrence: the next date stays on that Friday while the pinned advancement moves to the next date after it, so later occurrences are never posted. Cause: advancedRecurringDayID (BudgetDatabase+ScheduleAdvancement.swift:286-294) searches from the day after the Friday, whose occurrence maps back to the same Friday, so advanced == effective at :258 and the date is left unchanged; Actual's getNextDateAfter retries past such occurrences."
+    },
+    {
+      "cases": [
+        "ScheduleOracleStatefulReplayTests/replaysScheduleSteps"
+      ],
+      "domain": "schedules",
+      "fixtureCases": [
+        "advance-paid-recurring-no-post"
+      ],
+      "id": "OP-49",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A paid recurring schedule that does not post transactions moves to the occurrence right after the paid one, where the pinned Actual recomputes its next date from today and so passes over every missed occurrence in between. Cause: ScheduleOccurrencePlanner.swift:42-44 returns advanceRecurring for that branch, and advanceRecurringOccurrence (BudgetDatabase+ScheduleAdvancement.swift:229-298) moves one occurrence from the day after the current date; Actual calls setNextDate without advance there."
+    },
+    {
+      "cases": [
+        "ScheduleOracleStatefulReplayTests/replaysScheduleCreation",
+        "ScheduleOracleStatefulReplayTests/replaysScheduleSteps"
+      ],
+      "domain": "schedules",
+      "fixtureCases": [
+        "advance-approx-amount"
+      ],
+      "id": "OP-50",
+      "opened": "2026-10-11",
+      "reviewBy": "2026-10-25",
+      "summary": "A schedule whose amount is a between range stored high to low (for example -10,001 and -200.00 as num1 and num2) is treated as unsupported, so automatic posting refuses it, where the pinned Actual posts the rounded average of the two values. Creating such a schedule is refused too. Cause: ScheduleRuleProjection.amount(from:) requires lower <= upper (ScheduleRuleProjection.swift:232) and ScheduleRuleMutation.amountValue rejects the range at :308."
+    },
+    {
+      "cases": [
+        "ScheduleOracleStatefulReplayTests/replaysScheduleSteps"
+      ],
+      "domain": "schedules",
+      "fixtureCases": [
+        "skip-one-time"
+      ],
+      "id": "OP-51",
+      "opened": "2026-10-11",
+      "summary": "Skipping the next date of a one-time schedule is refused with an unsupported-capability error, where the pinned Actual accepts the skip and leaves the schedule unchanged. The stored result is the same. Cause: canSkip requires a recurrence (ScheduleRuleProjection.swift:105) and prepareScheduleSkip throws at BudgetDatabase+ScheduleWrites.swift:310-312.",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: Actualist hides Skip Next Date for one-time schedules, so the refusal is unreachable from the UI and the saved data is identical; Actual's menu offers a skip that does nothing."
+    },
+    {
+      "cases": [
+        "ScheduleOracleStatefulReplayTests/replaysScheduleCreation"
+      ],
+      "domain": "schedules",
+      "fixtureCases": [
+        "create-negative-offset-timezone"
+      ],
+      "id": "OP-52",
+      "opened": "2026-10-11",
+      "summary": "A schedule created on a day gets its first next date from that day, where the pinned Actual searches from the day before in a time zone behind UTC (a daily-every-3-days schedule from 2026-10-01 created on 2026-10-11 in America/New_York starts on 2026-10-10 in Actual and 2026-10-13 in Actualist). Cause: Actual's createSchedule calls getNextDate with the default start new Date(currentDay()), which parses the day as UTC midnight; Actualist's ScheduleRuleMutation.initialNextDate (ScheduleRuleMutation.swift:172) starts at the given day. Not the cause of OP-13.",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: keep the local creation day. Actual's UTC parse of the creation day looks like an upstream bug that can start a new schedule a day early west of UTC; both apps read the stored next date afterwards."
+    },
+    {
+      "cases": [
+        "ScheduleOracleStatefulReplayTests/replaysScheduleCreation"
+      ],
+      "domain": "schedules",
+      "fixtureCases": [
+        "advance-closed-account-skipped"
+      ],
+      "id": "OP-53",
+      "opened": "2026-10-11",
+      "summary": "Creating a schedule on a closed account is refused (\"Choose an available, open account for this schedule.\"), where the pinned Actual's createSchedule accepts any account in the rule. Actual's own editor does not offer closed accounts, so this is an API-level difference. Cause: validateScheduleAccount rejects a closed or deleted account (BudgetDatabase+ScheduleWrites.swift:412-420).",
+      "status": "intended",
+      "decided": "2026-10-11",
+      "reason": "User decision 2026-10-11: keep refusing closed accounts at create. Neither app's editor offers a closed account, and advancement of an existing schedule on a closed account already matches Actual."
     }
   ]
 }

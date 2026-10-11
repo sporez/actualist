@@ -1,0 +1,394 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/schedule-parity/generate.mjs
+// and removed after the run. Pure cases call Actual's schedule functions directly;
+// stateful cases run Actual's schedule handlers on an in-memory budget.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+
+import { aqlQuery } from '#server/aql';
+import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
+import { handlers } from '#server/main';
+import { runHandler } from '#server/mutators';
+import { Condition } from '#server/rules';
+import {
+  advanceSchedulesService,
+  app as schedulesApp,
+  createSchedule,
+  setNextDate,
+  skipNextDate,
+  updateSchedule,
+} from '#server/schedules/app';
+import { loadRules, resetState } from '#server/transactions/transaction-rules';
+import * as monthUtils from '#shared/months';
+import { q } from '#shared/query';
+import {
+  computeSchedulePreviewTransactions,
+  DEFAULT_UPCOMING_SCHEDULE_DAYS,
+  getDateWithSkippedWeekend,
+  getHasTransactionsQuery,
+  getNextDate,
+  getNextDateAfter,
+  getStatus,
+  getUpcomingDays,
+  scheduleIsRecurring,
+} from '#shared/schedules';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const contractPath = __CONTRACT_PATH__;
+
+let tick = 0;
+
+// Local noon of the day plus a growing offset in seconds, so every write has a
+// later timestamp than the one before (next-date resolution compares them).
+function setClock(dayID) {
+  const [year, month, day] = dayID.split('-').map(Number);
+  tick += 1;
+  vi.setSystemTime(new Date(year, month - 1, day, 12, 0, tick));
+}
+
+function dayOf(date) {
+  return monthUtils.dayFromDate(date);
+}
+
+function message(caught) {
+  return caught instanceof Error ? caught.message : String(caught);
+}
+
+function attempt(work) {
+  try {
+    return { value: work(), error: null };
+  } catch (caught) {
+    return { value: null, error: message(caught) };
+  }
+}
+
+// ---------------------------------------------------------------- recurrence
+
+async function recurrenceRecord(planCase) {
+  const cond = planCase.condition;
+  const parsed = attempt(() => new Condition(cond.op, 'date', cond.value, null).getValue());
+  const queries = [];
+  for (const from of planCase.froms) {
+    setClock(from);
+    const start = monthUtils.parseDate(from);
+    const query = { from };
+    query.nextDate = attempt(() => getNextDate(cond, start));
+    query.nextDateNoSkipWeekend = attempt(() => getNextDate(cond, start, true));
+    query.nextDateAfter = attempt(() => getNextDateAfter(cond, from));
+    query.occurrences = { raw: [], adjusted: [], error: null };
+    if (parsed.value?.type === 'recur') {
+      const schedule = parsed.value.schedule;
+      try {
+        const dates = schedule.occurrences({ start, take: plan.occurrenceCount }).toArray();
+        query.occurrences.raw = dates.map(entry => dayOf(entry.date));
+        query.occurrences.adjusted = dates.map(entry =>
+          dayOf(
+            schedule.data.skipWeekend
+              ? getDateWithSkippedWeekend(entry.date, schedule.data.weekendSolve)
+              : entry.date,
+          ),
+        );
+      } catch (caught) {
+        query.occurrences.error = message(caught);
+      }
+    }
+    query.upcoming = { value: null, error: null };
+    if (cond.value && typeof cond.value === 'object') {
+      try {
+        query.upcoming.value = await runHandler(
+          handlers['schedule/get-upcoming-dates'],
+          { config: cond.value, count: plan.occurrenceCount },
+          { name: 'schedule/get-upcoming-dates' },
+        );
+      } catch (caught) {
+        query.upcoming.error = message(caught);
+      }
+    }
+    queries.push(query);
+  }
+  return { isRecurring: parsed.value ? scheduleIsRecurring(cond) : null, parseError: parsed.error, queries };
+}
+
+// -------------------------------------------------------------------- status
+
+function statusRecord(planCase) {
+  setClock(planCase.today);
+  const upcomingDays = attempt(() =>
+    planCase.upcomingLength == null ? getUpcomingDays() : getUpcomingDays(planCase.upcomingLength),
+  );
+  const rows = planCase.rows.map(row => {
+    const outcome = attempt(() =>
+      planCase.upcomingLength == null
+        ? getStatus(row.nextDate, row.completed, row.hasTrans)
+        : getStatus(row.nextDate, row.completed, row.hasTrans, planCase.upcomingLength),
+    );
+    return { ...row, status: outcome.value, error: outcome.error };
+  });
+  return { today: planCase.today, upcomingLength: planCase.upcomingLength, upcomingDays, rows };
+}
+
+// ------------------------------------------------------------------ stateful
+
+async function resetDatabase() {
+  await global.emptyDatabase()();
+  await loadMappings();
+  resetState();
+  await loadRules();
+  global.resetRandomId();
+  tick = 0;
+}
+
+function scheduleConditions(entry, accountIDs, payeeIDs) {
+  const conditions = [];
+  if (entry.payeeKey != null) {
+    conditions.push({ op: 'is', field: 'payee', value: payeeIDs[entry.payeeKey] });
+  }
+  conditions.push({ op: 'is', field: 'account', value: accountIDs[entry.accountKey] });
+  conditions.push({ op: entry.amountOp, field: 'amount', value: entry.amount });
+  conditions.push({ op: entry.dateOp, field: 'date', value: entry.date });
+  return conditions;
+}
+
+function dropTimestamps(row) {
+  const kept = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (!key.endsWith('_ts')) kept[key] = value;
+  }
+  return kept;
+}
+
+function parseJSON(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+async function snapshot(planCase, scheduleIDs) {
+  const schedules = (await db.all('SELECT * FROM schedules ORDER BY id')).map(dropTimestamps);
+  const nextDates = (await db.all('SELECT * FROM schedules_next_date ORDER BY schedule_id')).map(row => ({
+    ...dropTimestamps(row),
+    localIsEffective: row.local_next_date_ts === row.base_next_date_ts,
+  }));
+  const paths = await db.all('SELECT * FROM schedules_json_paths ORDER BY schedule_id');
+  const rules = (await db.all('SELECT * FROM rules WHERE tombstone = 0 ORDER BY id')).map(row => ({
+    ...dropTimestamps(row),
+    conditions: parseJSON(row.conditions),
+    actions: parseJSON(row.actions),
+  }));
+  const transactions = (await db.all('SELECT * FROM transactions ORDER BY date, id')).map(dropTimestamps);
+
+  const { data: views } = await aqlQuery(q('schedules').select('*'));
+  const { data: hasTransData } = await aqlQuery(getHasTransactionsQuery(views));
+  const hasTrans = new Set(hasTransData.filter(Boolean).map(row => row.schedule));
+  const { data: preference } = await aqlQuery(
+    q('preferences').filter({ id: 'upcomingScheduledTransactionLength' }).select('value'),
+  );
+  const upcomingLength = preference[0]?.value ?? DEFAULT_UPCOMING_SCHEDULE_DAYS;
+  const statuses = new Map();
+  const effective = views.map(view => {
+    const status = getStatus(
+      view.next_date,
+      view.completed,
+      hasTrans.has(view.id),
+      view.custom_upcoming_length ?? upcomingLength,
+    );
+    statuses.set(view.id, status);
+    return {
+      id: view.id,
+      nextDate: view.next_date,
+      completed: view.completed,
+      hasTransaction: hasTrans.has(view.id),
+      status,
+    };
+  });
+  const preview = computeSchedulePreviewTransactions(views, statuses, upcomingLength).map(entry => ({
+    id: entry.id,
+    date: entry.date,
+    amount: entry.amount,
+    schedule: entry.schedule,
+    forceUpcoming: entry.forceUpcoming,
+  }));
+  return { schedules, nextDates, paths, rules, transactions, effective, preview };
+}
+
+async function runStep(step, planCase, ids) {
+  setClock(step.today);
+  const scheduleID = step.schedule ? ids.schedules[step.schedule] : null;
+  let returned = null;
+  let error = null;
+  try {
+    switch (step.op) {
+      case 'advance':
+        await advanceSchedulesService(step.syncSuccess);
+        break;
+      case 'skip':
+        returned = (await skipNextDate({ id: scheduleID })) ?? null;
+        break;
+      case 'setNextDate':
+        returned = (await setNextDate({ id: scheduleID, advance: step.advance, reset: step.reset })) ?? null;
+        break;
+      case 'update': {
+        const entry = planCase.setup.schedules.find(candidate => candidate.key === step.schedule);
+        const conditions = [];
+        if (step.date !== undefined) conditions.push({ op: entry.dateOp, field: 'date', value: step.date });
+        if (step.amount !== undefined) conditions.push({ op: entry.amountOp, field: 'amount', value: step.amount });
+        await updateSchedule({
+          schedule: { id: scheduleID },
+          conditions: conditions.length > 0 ? conditions : undefined,
+          resetNextDate: step.resetNextDate,
+        });
+        break;
+      }
+      case 'payNextDate': {
+        const entry = planCase.setup.schedules.find(candidate => candidate.key === step.schedule);
+        const { data } = await aqlQuery(q('schedules').filter({ id: scheduleID }).select(['next_date']));
+        const date = monthUtils.addDays(data[0].next_date, step.offsetDays);
+        await db.insertTransaction({
+          account: ids.accounts[entry.accountKey],
+          amount: typeof entry.amount === 'number' ? entry.amount : Math.round((entry.amount.num1 + entry.amount.num2) / 2),
+          date,
+          schedule: scheduleID,
+        });
+        break;
+      }
+      case 'post':
+        await runHandler(
+          handlers['schedule/post-transaction'],
+          { id: scheduleID, today: step.todayDate },
+          { name: 'schedule/post-transaction' },
+        );
+        break;
+      default:
+        throw new Error(`Unknown step ${step.op}`);
+    }
+  } catch (caught) {
+    error = message(caught);
+  }
+  return {
+    op: step.op,
+    today: step.today,
+    schedule: step.schedule ?? null,
+    args: step,
+    returned,
+    error,
+    after: await snapshot(planCase, ids.schedules),
+  };
+}
+
+async function statefulRecord(planCase) {
+  await resetDatabase();
+  schedulesApp.startServices();
+  const ids = { accounts: {}, payees: {}, schedules: {} };
+  try {
+    setClock(planCase.setup.schedules.map(entry => entry.createdOn).sort()[0]);
+    for (const account of planCase.setup.accounts) {
+      ids.accounts[account.key] = await db.insertAccount({
+        name: account.name,
+        offbudget: account.offbudget ? 1 : 0,
+        closed: account.closed ? 1 : 0,
+      });
+    }
+    for (const payee of planCase.setup.payees) {
+      ids.payees[payee.key] = await db.insertPayee({ name: payee.name });
+    }
+    if (planCase.setup.upcomingLength != null) {
+      db.runQuery('INSERT OR REPLACE INTO preferences (id, value) VALUES (?, ?)', [
+        'upcomingScheduledTransactionLength',
+        planCase.setup.upcomingLength,
+      ]);
+    }
+    const ordered = [...planCase.setup.schedules].sort((left, right) => left.createdOn.localeCompare(right.createdOn));
+    for (const entry of ordered) {
+      setClock(entry.createdOn);
+      const id = `schedule-${entry.key}`;
+      ids.schedules[entry.key] = id;
+      await createSchedule({
+        schedule: {
+          id,
+          name: entry.name,
+          posts_transaction: entry.postsTransaction,
+          completed: entry.completed,
+          custom_upcoming_length: entry.customUpcomingLength,
+        },
+        conditions: scheduleConditions(entry, ids.accounts, ids.payees),
+      });
+    }
+    for (const transaction of planCase.setup.transactions) {
+      await db.insertTransaction({
+        account: ids.accounts[transaction.accountKey],
+        amount: transaction.amount,
+        date: transaction.date,
+        schedule: transaction.scheduleKey ? ids.schedules[transaction.scheduleKey] : null,
+      });
+    }
+    setClock(planCase.steps[0].today);
+    const before = await snapshot(planCase, ids.schedules);
+    const steps = [];
+    for (const step of planCase.steps) steps.push(await runStep(step, planCase, ids));
+    return { before, steps };
+  } finally {
+    await schedulesApp.stopServices();
+  }
+}
+
+// ------------------------------------------------------------- normalization
+
+// Mock UUIDs look like id123. They are renumbered uuid-N in order of first
+// appearance within a case. Nothing else is rewritten.
+function normalize(record) {
+  const numbers = new Map();
+  const rename = text =>
+    text.replace(/\bid\d+\b/g, found => {
+      if (!numbers.has(found)) numbers.set(found, `uuid-${numbers.size + 1}`);
+      return numbers.get(found);
+    });
+  const walk = value => {
+    if (typeof value === 'string') return rename(value);
+    if (Array.isArray(value)) return value.map(walk);
+    if (value !== null && typeof value === 'object') {
+      const copy = {};
+      for (const [key, inner] of Object.entries(value)) copy[rename(key)] = walk(inner);
+      return copy;
+    }
+    return value;
+  };
+  return walk(record);
+}
+
+test('schedule oracle contract', async () => {
+  expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(plan.timeZone);
+  vi.useFakeTimers({ toFake: ['Date'] });
+  // Actual's test setup pins currentDay() to 2017-01-01 through this flag. Turning it off
+  // restores the production rule: today is the local date of the (fake) clock.
+  const wasTesting = global.IS_TESTING;
+  global.IS_TESTING = false;
+  const records = [];
+  try {
+    for (const planCase of plan.cases) {
+      const header = {
+        id: planCase.id,
+        family: planCase.family,
+        source: planCase.source,
+        description: planCase.description,
+        seed: planCase.seed,
+        oracleOnly: planCase.oracleOnly,
+      };
+      let body;
+      if (planCase.family === 'recurrence') {
+        body = { condition: planCase.condition, ...(await recurrenceRecord(planCase)) };
+      } else if (planCase.family === 'status') {
+        body = statusRecord(planCase);
+      } else {
+        body = { setup: planCase.setup, ...(await statefulRecord(planCase)) };
+      }
+      records.push(normalize({ ...header, ...body }));
+    }
+  } finally {
+    global.IS_TESTING = wasTesting;
+    vi.useRealTimers();
+  }
+  writeFileSync(contractPath, JSON.stringify(records));
+}, 1800000);

@@ -1,0 +1,219 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/rule-parity/generate.mjs and
+// removed after the run. Each case builds a synthetic budget through upstream's
+// own db and schedule functions, loads the rules the way budget load does, and
+// records what runRules returns for each input transaction.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+
+import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
+import { Rule } from '#server/rules';
+import { createSchedule } from '#server/schedules/app';
+import { setSyncingMode } from '#server/sync';
+import {
+  insertRule,
+  loadRules,
+  resetState,
+  runRules,
+} from '#server/transactions/transaction-rules';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const contractPath = __CONTRACT_PATH__;
+
+// Under IS_TESTING currentDay() is a constant; rule templates and formulas read it
+// as `today`, so the fixed day comes from the plan.
+vi.mock('#shared/months', async importOriginal => {
+  const original = await importOriginal();
+  return { ...original, currentDay: () => globalThis.__ruleParityToday };
+});
+
+const DUMP_TABLES = [
+  'accounts',
+  'category_groups',
+  'categories',
+  'payees',
+  'transactions',
+  'schedules',
+  'rules',
+];
+const DUMP_EXCLUDED_COLUMNS = /_ts$/;
+// Joined lookups attached for condition evaluation; not part of the transaction.
+const INTERNAL_OUTPUT_FIELDS = ['_account', '_account_name', '_category_name'];
+
+async function dumpTables() {
+  const tables = {};
+  for (const table of DUMP_TABLES) {
+    const info = await db.all(`PRAGMA table_info(${table})`);
+    if (info.length === 0) throw new Error(`Missing table ${table}`);
+    const columns = info.map(column => column.name).filter(name => !DUMP_EXCLUDED_COLUMNS.test(name));
+    const keys = info
+      .filter(column => column.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map(column => column.name);
+    const rows = await db.all(`SELECT ${columns.join(', ')} FROM ${table}`);
+    const sortValue = row => keys.map(key => String(row[key] ?? '')).join('\u0000');
+    rows.sort((a, b) => (sortValue(a) < sortValue(b) ? -1 : sortValue(a) > sortValue(b) ? 1 : 0));
+    tables[table] = rows.map(row => Object.fromEntries(columns.map(column => [column, row[column] ?? null])));
+  }
+  return tables;
+}
+
+async function resetDatabase() {
+  setSyncingMode('disabled');
+  await global.emptyDatabase()();
+  resetState();
+  await loadMappings();
+}
+
+async function seedCase(setup, rules) {
+  await resetDatabase();
+  for (const account of setup.accounts) {
+    await db.insertAccount({
+      id: account.id,
+      name: account.name,
+      offbudget: account.offbudget ? 1 : 0,
+      closed: account.closed ? 1 : 0,
+    });
+  }
+  for (const group of setup.groups) {
+    await db.insertCategoryGroup({ id: group.id, name: group.name, is_income: group.income ? 1 : 0 });
+  }
+  for (const category of setup.categories) {
+    await db.insertCategory({
+      id: category.id,
+      name: category.name,
+      cat_group: category.group,
+      is_income: category.income ? 1 : 0,
+    });
+  }
+  for (const payee of setup.payees) {
+    await db.insertPayee({ id: payee.id, name: payee.name, transfer_acct: payee.transferAccount ?? null });
+  }
+  for (const transaction of setup.transactions) {
+    await db.insertTransaction({
+      id: transaction.id,
+      account: transaction.account,
+      date: transaction.date,
+      amount: transaction.amount,
+      payee: transaction.payee ?? null,
+      category: transaction.category ?? null,
+      cleared: true,
+    });
+  }
+  for (const schedule of setup.schedules) {
+    await createSchedule({
+      schedule: { id: schedule.id, name: schedule.name, completed: schedule.completed ? 1 : 0 },
+      conditions: schedule.conditions,
+    });
+    // createSchedule mints the linked rule's id; pin it so rule ranking ties are stable.
+    const row = await db.first('SELECT rule FROM schedules WHERE id = ?', [schedule.id]);
+    db.runQuery('UPDATE rules SET id = ? WHERE id = ?', [schedule.ruleID, row.rule]);
+    db.runQuery('UPDATE schedules SET rule = ? WHERE id = ?', [schedule.ruleID, schedule.id]);
+  }
+  for (const rule of rules) {
+    await insertRule({
+      id: rule.id,
+      stage: rule.stage,
+      conditionsOp: rule.conditionsOp,
+      conditions: rule.conditions,
+      actions: rule.actions,
+    });
+  }
+  // Budget load rebuilds the in-memory rules and their indexers from the table.
+  await loadRules();
+  // Ids minted from here on (new payees, split children) restart at id1.
+  global.resetRandomId();
+}
+
+// Ids minted during a case are renamed uuid-N by first appearance; setup ids are explicit.
+function normalizeMintedIds(runs) {
+  const names = new Map();
+  const visit = node => {
+    if (typeof node === 'string' && /^id\d+$/.test(node)) {
+      if (!names.has(node)) names.set(node, `uuid-${names.size + 1}`);
+      return names.get(node);
+    }
+    if (Array.isArray(node)) return node.map(visit);
+    if (node !== null && typeof node === 'object') {
+      return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, visit(value)]));
+    }
+    return node;
+  };
+  return runs.map(visit);
+}
+
+function publicOutput(result) {
+  const output = { ...result };
+  for (const field of INTERNAL_OUTPUT_FIELDS) delete output[field];
+  return output;
+}
+
+test('rule parity oracle contract', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(`${plan.today}T12:00:00.000Z`));
+  globalThis.__ruleParityToday = plan.today;
+  global.currentMonth = plan.today.slice(0, 7);
+
+  const evaluated = [];
+  const applied = [];
+  const evalOriginal = Rule.prototype.evalConditions;
+  const execOriginal = Rule.prototype.execActions;
+  Rule.prototype.evalConditions = function (object) {
+    const matched = evalOriginal.call(this, object);
+    evaluated.push({ rule: this.id, matched });
+    return matched;
+  };
+  Rule.prototype.execActions = function (object) {
+    applied.push(this.id);
+    return execOriginal.call(this, object);
+  };
+
+  const records = [];
+  try {
+    for (const planCase of plan.cases) {
+      await seedCase(planCase.setup, planCase.rules);
+      const input = await dumpTables();
+      const runs = [];
+      for (const run of planCase.inputs) {
+        evaluated.length = 0;
+        applied.length = 0;
+        const payeesBefore = new Set((await db.all('SELECT id FROM payees')).map(row => row.id));
+        let output = null;
+        let error = null;
+        try {
+          output = publicOutput(await runRules({ ...run.transaction }));
+        } catch (caught) {
+          error = caught instanceof Error ? caught.message : String(caught);
+        }
+        const payeesAfter = await db.all('SELECT id, name, transfer_acct FROM payees ORDER BY id');
+        runs.push({
+          label: run.label,
+          transaction: run.transaction,
+          output,
+          error,
+          evaluated: evaluated.map(entry => ({ ...entry })),
+          applied: [...applied],
+          createdPayees: payeesAfter.filter(row => !payeesBefore.has(row.id)),
+        });
+      }
+      records.push({
+        id: planCase.id,
+        source: planCase.source,
+        description: planCase.description,
+        seed: planCase.seed,
+        oracleOnly: planCase.oracleOnly,
+        setup: planCase.setup,
+        rules: planCase.rules,
+        input,
+        runs: normalizeMintedIds(runs),
+      });
+    }
+  } finally {
+    Rule.prototype.evalConditions = evalOriginal;
+    Rule.prototype.execActions = execOriginal;
+    vi.useRealTimers();
+  }
+  expect(records.length).toBe(plan.cases.length);
+  writeFileSync(contractPath, JSON.stringify(records));
+}, 1800000);

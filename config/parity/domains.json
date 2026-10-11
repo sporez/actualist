@@ -296,10 +296,17 @@
     {
       "id": "rules",
       "title": "Rules engine: conditions, actions, ranking, formulas",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/rule-parity",
+        "generate": "node scripts/rule-parity/generate.mjs",
+        "verify": "node scripts/rule-parity/verify.mjs",
+        "check": "node scripts/rule-parity/generate.mjs --check"
+      },
+      "fixture": "Rules",
+      "oracleSuites": [
+        "RuleOracleReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+Rules.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+RuleBalanceOf.swift",
@@ -308,23 +315,35 @@
         "Actualist/LocalFirst/Database/RuleRanking.swift",
         "Actualist/LocalFirst/Database/RuleRegexCache.swift",
         "Actualist/LocalFirst/Database/RuleScheduleIndex.swift",
-        "Actualist/LocalFirst/Database/RuleSplitActionExecutor.swift"
+        "Actualist/LocalFirst/Database/RuleSplitActionExecutor.swift",
+        "Actualist/Repositories/RuleRepository.swift"
       ],
-      "notes": "Phase 4. Split actions are covered through the splits domain."
+      "notes": "RuleOracleReplayTests replays 245 of 269 cases through previewRules (America/New_York). 24 are oracle-only: Handlebars and non-split formula set actions, payee creation by name, reconciled and imported_payee writes, rule errors. Split actions are covered through the splits domain."
     },
     {
       "id": "schedules",
       "title": "Schedule next date, occurrences, posting and advancement",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/schedule-parity",
+        "generate": "node scripts/schedule-parity/generate.mjs",
+        "verify": "node scripts/schedule-parity/verify.mjs",
+        "check": "node scripts/schedule-parity/generate.mjs --check"
+      },
+      "fixture": "Schedules",
+      "oracleSuites": [
+        "ScheduleOracleReplayTests",
+        "ScheduleOracleStatefulReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+Schedule*.swift",
         "Actualist/LocalFirst/Database/Schedule*.swift",
-        "Actualist/Shared/ScheduleOccurrencePlanner.swift"
+        "Actualist/Shared/ScheduleOccurrencePlanner.swift",
+        "Actualist/Shared/ActualScheduleRecurrence.swift",
+        "Actualist/Shared/ScheduleUpcomingLength.swift",
+        "Actualist/Repositories/ScheduleModels.swift"
       ],
-      "notes": "Phase 4."
+      "notes": "253 cases (recurrence, status, stateful). ScheduleOracleReplayTests replays recurrence and status through ScheduleRuleProjection/ScheduleRuleMutation and ScheduleStatus.resolve; ScheduleOracleStatefulReplayTests replays create, advance, skip, update and post through BudgetDatabase. Oracle-only: advance-sync-failed, set-next-date-plain. Occurrence lists, upcoming dates and preview are oracle-only fields."
     },
     {
       "id": "bank-sync-matching",
