@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "actual": {
-    "tag": "v26.8.1",
-    "commit": "063df03763ca772b51f6264752b88ddec22cfb8a",
-    "packageVersion": "26.8.1"
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
   },
   "generator": {
-    "command": "scripts/split-parity/generate.mjs --actual-checkout <actual-v26.8.1>",
-    "sha256": "4f6d0e9988a8fc31d2e1216b951956c3d76d3216e5f1804a75a5eb48a025c856"
+    "command": "scripts/split-parity/generate.mjs --actual-checkout <pinned-actual>",
+    "sha256": "8e008e324e7e8518819a863fe5cc2f8a75f5cef0a97f4c9310cbdb9ac7090f03"
   },
   "amountUnits": "integer minor units",
   "rounding": "JavaScript Math.round: ties toward positive infinity",
@@ -22,15 +22,15 @@
     },
     {
       "path": "packages/loot-core/src/server/aql/schema/index.ts",
-      "sha256": "967df424f9f0907f4a772f329f6f92433c063be2f64cd01a1f22e6137da3e05e"
+      "sha256": "0ca5282bb17655bbb27f876c5883a2af7f2fc2801e27ddae79606db833190366"
     },
     {
       "path": "packages/loot-core/src/server/aql/schema/executors.ts",
-      "sha256": "9c37d1dc346a7f328e6c1004e6f38afbb201a24ca459cfaa4d050339cc32a394"
+      "sha256": "f8869a70b722beec361f1309e7a92f9b982b480314ae63c3b97ae161be93d375"
     },
     {
       "path": "packages/loot-core/src/server/transactions/index.ts",
-      "sha256": "8ad3ce105e7c772ded42d420c1cc0c765407e6b9b2da2c854972ccfdcdc12551"
+      "sha256": "2c32a9e4a3f54da01dd54d9a141abaef9f3740daa6900640f804da17db9e6c02"
     },
     {
       "path": "packages/loot-core/src/server/transactions/transfer.ts",
@@ -38,11 +38,11 @@
     },
     {
       "path": "packages/loot-core/src/server/transactions/transaction-rules.ts",
-      "sha256": "692506c50b5e7498f1f0bba72b3d2279277aecfc6858ac9ed8aa4f4eb5590529"
+      "sha256": "a6f08970af6f8d190c4c3b1a9ef2fad18c9f7e7211758a38d8bf02b9232c06ea"
     },
     {
       "path": "packages/loot-core/src/server/transactions/transaction-rules.test.ts",
-      "sha256": "c06d7a6368c3462e0643b6455219edc139deb1e609536ce5c95ffa9ce88a2f1d"
+      "sha256": "b25c9d73acb194f12a27989bedb75a498fcc116df545fe93440c6ff8f8ba6cf2"
     },
     {
       "path": "packages/loot-core/src/server/transactions/__snapshots__/transaction-rules.test.ts.snap",
@@ -54,31 +54,31 @@
     },
     {
       "path": "packages/loot-core/src/server/rules/rule.ts",
-      "sha256": "fcc0a7741dcf5305b00a4485d49464f0559464794c710d7d02f315a626918853"
+      "sha256": "83aed782d93ce41dd406373668b182da05f4896750a0a12341aa8dcc647f44c7"
     },
     {
       "path": "packages/loot-core/src/server/rules/action.ts",
-      "sha256": "84b0a89c4e2b12801d2caee49d09739cca7837eea8a82f57a088922a59feafce"
+      "sha256": "12cbd130c59634b2f711a7068c05e9de4dcef5dd71efe3601c3d64ad2bb68976"
     },
     {
       "path": "packages/loot-core/src/server/rules/index.test.ts",
-      "sha256": "ca1a92fbaa3574f4b2226ae2892c62aa16426e3ce74f43e3d5a31c4c34311274"
+      "sha256": "e4e2435c71ddcc6e1c48110a6ef7832d8ba87b4223d6a7fa71b16ab6c70ae7aa"
     }
   ],
   "fixtures": [
     {
-      "path": "ActualistTests/Fixtures/ActualCore26_8_1/Splits/family-transformations.json",
-      "sha256": "0eb57cffcaae1de6a02434096d24efa7de6b57fedaff4017e5453a2588a437e3",
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/Splits/family-transformations.json",
+      "sha256": "51ee80d99e0b13733f32434f3d3b7428250806e68078d2b0efcc30314e4f00d6",
       "caseCount": 8
     },
     {
-      "path": "ActualistTests/Fixtures/ActualCore26_8_1/Splits/split-rule-cases.json",
-      "sha256": "5f3b96f673ca908fbb3de61a82032e2c7da711c5c0fa75667da6cc7f890a3080",
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/Splits/split-rule-cases.json",
+      "sha256": "62808cf1860adda00af88ad3e6b5878a8542ea36423771a3afd710bc288220d9",
       "caseCount": 7
     },
     {
-      "path": "ActualistTests/Fixtures/ActualCore26_8_1/Splits/mutation-cases.json",
-      "sha256": "84819843d31986678d24fb9d76082c377ef6cba7015022e7452c9c4f5c009c8f",
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/Splits/mutation-cases.json",
+      "sha256": "7ec9427ff6405f487065db64e34ea5c4cfa56308f2ee734470ee369302e4807b",
       "caseCount": 8
     }
   ]

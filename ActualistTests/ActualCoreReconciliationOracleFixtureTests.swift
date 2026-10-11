@@ -5,6 +5,7 @@ import Testing
 
 struct ActualCoreReconciliationOracleFixtureTests {
     @Test func manifestPinsActualSourcesGeneratorAndFixture() throws {
+        let pin = try ParityOraclePin.load()
         let manifest = try decode(
             ReconciliationManifest.self,
             from: fixtureDirectory.appending(path: "reconciliation-manifest.json")
@@ -14,9 +15,9 @@ struct ActualCoreReconciliationOracleFixtureTests {
         let fixture = try JSONDecoder().decode(ReconciliationFixture.self, from: fixtureData)
 
         #expect(manifest.schemaVersion == 1)
-        #expect(manifest.actual.tag == "v26.9.0")
-        #expect(manifest.actual.commit == "59fe126f637d858c061e1eeedbef5436c8f2225a")
-        #expect(manifest.actual.packageVersion == "26.9.0")
+        #expect(manifest.actual.tag == pin.tag)
+        #expect(manifest.actual.commit == pin.commit)
+        #expect(manifest.actual.packageVersion == pin.packageVersion)
         #expect(manifest.amountUnits == "integer minor units")
         #expect(manifest.lastReconciledStorage == "new Date().getTime().toString() milliseconds")
         #expect(manifest.sourceFiles.count == 9)
@@ -69,7 +70,9 @@ struct ActualCoreReconciliationOracleFixtureTests {
     }
 
     private var fixtureDirectory: URL {
-        repositoryRoot.appending(path: "ActualistTests/Fixtures/ActualCore26_9_0/Reconciliation")
+        get throws {
+            try ParityOraclePin.fixtureURL("Reconciliation")
+        }
     }
 
     private func decode<Value: Decodable>(_ type: Value.Type, from url: URL) throws -> Value {

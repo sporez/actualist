@@ -61,13 +61,16 @@ else
   echo "skip: not a git work tree"
 fi
 
-section "Actual 26.8.1 split oracle"
+section "Parity oracle pin"
+node "$ROOT/scripts/parity/lib/oracle-pin.mjs" tag || status=1
+
+section "Split oracle"
 node "$ROOT/scripts/split-parity/verify.mjs" || status=1
 
-section "Actual 26.8.1 template editor oracle"
+section "Template editor oracle"
 node "$ROOT/scripts/template-parity/verify.mjs" || status=1
 
-section "Actual 26.9.0 reconciliation oracle"
+section "Reconciliation oracle"
 node "$ROOT/scripts/reconciliation-parity/verify.mjs" || status=1
 
 section "Xcode synchronized groups"

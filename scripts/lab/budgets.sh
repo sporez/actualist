@@ -20,7 +20,7 @@ fi
 : "${ACTUAL_LAB_URL:?set ACTUAL_LAB_URL (or scripts/lib/lab.env); see scripts/lab/README.md}"
 : "${ACTUAL_LAB_PASSWORD:?set ACTUAL_LAB_PASSWORD (or scripts/lib/lab.env)}"
 : "${ACTUAL_UPSTREAM_DIR:?set ACTUAL_UPSTREAM_DIR (or scripts/lib/lab.env) to the pinned Actual checkout; see scripts/lab/README.md}"
-EXPECTED_SHA='59fe126f637d858c061e1eeedbef5436c8f2225a'
+EXPECTED_SHA="$(node "$ROOT/scripts/parity/lib/oracle-pin.mjs" commit)"
 
 usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || usage

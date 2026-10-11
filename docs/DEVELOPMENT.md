@@ -107,6 +107,48 @@ Helpers use the configured simulator UDID and `.derivedData`.
 Detailed agent verification rules live in
 [AGENTS.md](../AGENTS.md#testing-scope-and-reuse).
 
+## Parity oracles
+
+The parity harnesses under `scripts/*-parity/` and `scripts/parity/` run real
+Actual code to produce the expected values in the oracle fixtures. Every
+harness reads the pinned Actual release from `config/parity/oracle-pin.json`
+(tag, full commit, package version, and fixture folder). No harness keeps its
+own copy of the pin. Generated fixtures live in one folder per pin, such as
+`ActualistTests/Fixtures/ActualCore26_10_0/`. Expected values in them are
+never edited by hand.
+
+Each generator needs a clean checkout of the pinned tag with
+`yarn install` done, and refuses any other commit. Generators that write into
+the checkout need their own clone.
+
+To move to a new Actual release:
+
+1. Clone Actual at the new tag outside this repository and run
+   `yarn install --immutable`.
+2. Update `config/parity/oracle-pin.json`. Then `git mv` the fixture folder
+   to the new folder name so the regenerated diff stays reviewable.
+3. Regenerate every harness against the checkout:
+
+   ```sh
+   node scripts/split-parity/generate.mjs --actual-checkout <actual>
+   node scripts/template-parity/generate.mjs <actual>
+   node scripts/reconciliation-parity/generate.mjs --actual-checkout <actual>
+   node scripts/tracking-parity/generate.mjs <actual>
+   node scripts/account-lifecycle-parity/generate.mjs --actual-checkout <actual> --evidence <dir>
+   ACTUAL_UPSTREAM_DIR=<actual> scripts/parity/new-budget-schema/run.sh generate
+   ```
+
+   Then re-run the transaction command and query runners (each README names a
+   new single-use run label). Also recompute the csv-export-interop
+   `source-freeze.sha256` entries.
+4. If an upstream source file a generator reads has moved, update the
+   generator's source list. Keep each recorded hash list exact.
+5. Run `scripts/check.sh` for the hash checks. Then run the oracle suites
+   named in each harness README with `scripts/test.sh unit <Suite>...`.
+6. Review every changed expected value. Each one is either an upstream change
+   that Actualist already matches, or a divergence to record as a finding and
+   fix separately. Map any changed case IDs; never drop them.
+
 ## Code basics
 
 Keep reads and writes behind `LocalFirstActualStore`, financial logic outside

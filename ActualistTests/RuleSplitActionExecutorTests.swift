@@ -261,10 +261,9 @@ struct RuleSplitActionExecutorTests {
     }
 
     private var fixtureURL: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appending(path: "ActualistTests/Fixtures/ActualCore26_8_1/Splits/split-rule-cases.json")
+        get throws {
+            try ParityOraclePin.fixtureURL("Splits").appending(path: "split-rule-cases.json")
+        }
     }
 
     private func decode<Value: Decodable>(_ type: Value.Type, from url: URL) throws -> Value {

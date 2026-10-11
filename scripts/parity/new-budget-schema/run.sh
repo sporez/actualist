@@ -4,15 +4,16 @@
 #   run.sh emit-swift          write Actualist/.../ActualStarterSchema.swift from schema.sql
 #   run.sh check <db.sqlite> [metadata.json] [result.json]
 # Needs ACTUAL_UPSTREAM_DIR (pinned checkout, read-only) and node v24.21.0.
+# The pinned release is config/parity/oracle-pin.json.
 set -euo pipefail
 
 # /bin/pwd returns the on-disk case; bash's builtin keeps a mistyped one (cc vs CC),
 # and vitest then matches no test file.
 HERE="$(cd "$(dirname "$0")" && /bin/pwd -P)"
 REPO="$(cd "$HERE/../../.." && pwd)"
-: "${ACTUAL_UPSTREAM_DIR:?set to the pinned Actual v26.9.0 checkout}"
+: "${ACTUAL_UPSTREAM_DIR:?set to the pinned Actual checkout (config/parity/oracle-pin.json)}"
 OUT="${NEWBUDGET_OUT_DIR:-$REPO/.artifacts/audit-remediation-2026-10/newbudget-schema}"
-EXPECTED_SHA='59fe126f637d858c061e1eeedbef5436c8f2225a'
+EXPECTED_SHA="$(node "$REPO/scripts/parity/lib/oracle-pin.mjs" commit)"
 mkdir -p "$OUT"
 
 test "$(git -C "$ACTUAL_UPSTREAM_DIR" rev-parse HEAD)" = "$EXPECTED_SHA"

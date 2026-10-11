@@ -1,8 +1,8 @@
 {
   "source": {
     "product": "Actual",
-    "version": "26.9.0",
-    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
+    "version": "26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
     "contract": "packages/loot-core/src/server/transactions/import/parse-file.ts"
   },
   "scope": "Synthetic parser inputs only; parser behavior is not a reviewed import/apply contract.",

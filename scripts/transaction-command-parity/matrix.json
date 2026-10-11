@@ -1,10 +1,5 @@
 {
   "schemaVersion": 1,
-  "oracle": {
-    "tag": "v26.9.0",
-    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
-    "packageVersion": "26.9.0"
-  },
   "syntheticOnly": true,
   "units": "Actual integer minor units",
   "cases": [

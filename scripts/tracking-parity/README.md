@@ -1,7 +1,7 @@
 # Tracking fixtures
 
-Regenerate the synthetic fixtures from an Actual checkout whose HEAD is pinned
-to v26.9.0 commit `59fe126f637d858c061e1eeedbef5436c8f2225a`:
+Regenerate the synthetic fixtures from an Actual checkout whose HEAD is the
+release pinned in `config/parity/oracle-pin.json` (tag and commit):
 
 ```sh
 node scripts/tracking-parity/generate.mjs /path/to/actual

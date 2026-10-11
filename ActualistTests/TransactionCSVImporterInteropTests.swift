@@ -26,6 +26,7 @@ struct TransactionCSVImporterInteropTests {
 
         #expect(export.exportedFamilyCount == 7)
         #expect(export.exportedRowCount == cases.count)
+        let pin = try ParityOraclePin.load()
 
         let manifest = Manifest(
             schema: 1,
@@ -35,8 +36,8 @@ struct TransactionCSVImporterInteropTests {
                 "Account", "Date", "Payee", "Notes", "Category_Group", "Category", "Amount", "Split_Amount", "Cleared",
             ],
             source: SourceFreeze(
-                actualCommit: "59fe126f637d858c061e1eeedbef5436c8f2225a",
-                actualVersion: "26.9.0",
+                actualCommit: pin.commit,
+                actualVersion: pin.packageVersion,
                 encoderSHA256: configuration.encoderSHA256,
                 fixtureTestSHA256: configuration.testSHA256
             ),

@@ -1,7 +1,7 @@
 # Transaction query and saved-filter parity oracle
 
 This tooling-only overlay answers transaction research gates Q1–Q3 against the
-real pinned Actual Budget v26.9.0 filter handlers, condition-to-AQL compiler, and
+real pinned Actual Budget v26.10.0 filter handlers, condition-to-AQL compiler, and
 transaction query executor. It does not implement Actualist production behavior.
 
 The runner copies the two TypeScript harness files into an **isolated writable,
@@ -49,11 +49,11 @@ common directory.
 
 Required inputs:
 
-- read-only source and writable clone both at Actual tag `v26.9.0`, commit
-  `59fe126f637d858c061e1eeedbef5436c8f2225a`;
-- `@actual-app/core` version `26.9.0`;
-- Node `24.21.x`, repository Yarn `4.17.1`, and installed Vitest;
-- existing `node_modules/.yarn-state.yml` and `better-sqlite3` `12.11.1` native
+- read-only source and writable clone both at the pinned Actual tag and commit in
+  `config/parity/oracle-pin.json` (`v26.10.0`, `2bebdbaa…`);
+- `@actual-app/core` version `26.10.0`;
+- Node `24.21.x`, repository Yarn `4.17.1`, and installed Vitest `5.0.0`;
+- existing `node_modules/.yarn-state.yml` and `better-sqlite3` `13.0.3` native
   binary in the writable clone.
 
 The runner never installs dependencies, contacts a server, or reads credentials.
@@ -100,8 +100,9 @@ logs, provenance, command, and exit evidence while removing only the confirmed
 owned scratch directory. Unconfirmed termination or ownership retains the
 scratch directory and records why.
 
-Run-label directories are single-use (`investigation` or `post-correction`),
-including a preflight failure. The evidence
+Run-label directories are single-use (the admitted label is
+`repin-v26.10.0-20261010`; the earlier `investigation` and `post-correction`
+labels are spent), including a preflight failure. The evidence
 root must contain a `.artifacts` path segment and must be outside the source and
 writable Actual checkouts. It may be inside the Actualist checkout that owns the
 script. The runner also rejects wrong refs,

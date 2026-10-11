@@ -12,8 +12,8 @@ Shell and Node (`run.sh`):
 - `ACTUAL_LAB_PASSWORD`: its password.
 - `ACTUAL_LAB_HANDOFF_DIR`: scratch folder shared between Node and the Swift
   tests (file IDs, ids, counts; no credentials). Keep it under `.artifacts/`.
-- `ACTUAL_UPSTREAM_DIR`: the pinned, read-only Actual v26.9.0 checkout
-  (`59fe126f`) with `node_modules`. `run.sh` refuses to run unless HEAD matches
+- `ACTUAL_UPSTREAM_DIR`: the pinned, read-only Actual checkout (tag and commit
+  in `config/parity/oracle-pin.json`) with `node_modules`. `run.sh` refuses to run unless HEAD matches
   and `git status` is clean, and re-checks afterwards.
 
 Swift tests (`ActualistTests/LiveLabInteropTests.swift`): the same three

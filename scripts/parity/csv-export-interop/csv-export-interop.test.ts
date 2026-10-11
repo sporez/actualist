@@ -35,7 +35,9 @@ type Manifest = {
   cases: ManifestCase[];
 };
 
-const expectedActualCommit = '59fe126f637d858c061e1eeedbef5436c8f2225a';
+// The runner passes the pin record's commit through env after verifying the pinned checkout against it.
+const expectedActualCommit = process.env.ACTUALIST_CSV_INTEROP_EXPECTED_COMMIT ?? '';
+assert.match(expectedActualCommit, /^[0-9a-f]{40}$/, 'Missing ACTUALIST_CSV_INTEROP_EXPECTED_COMMIT');
 const expectedNodeVersion = '24.21.0';
 const fixtureDirectory = requiredDirectory('ACTUALIST_CSV_INTEROP_FIXTURE_DIR');
 const evidenceDirectory = requiredDirectory('ACTUALIST_CSV_INTEROP_EVIDENCE_DIR');

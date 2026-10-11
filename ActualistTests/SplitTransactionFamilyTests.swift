@@ -464,10 +464,7 @@ struct SplitTransactionFamilyTests {
     }
 
     private func splitFixture(_ name: String) throws -> FamilyFixture {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appending(path: "ActualistTests/Fixtures/ActualCore26_8_1/Splits/\(name)")
+        let url = try ParityOraclePin.fixtureURL("Splits").appending(path: name)
         let data = try Data(contentsOf: url)
         return try FamilyFixture(data: data)
     }

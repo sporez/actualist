@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "oracle": {
-    "tag": "v26.8.1",
-    "commit": "063df03763ca772b51f6264752b88ddec22cfb8a",
-    "packageVersion": "26.8.1"
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
   },
   "amountUnits": "integer minor units",
   "notes": "Expected ids encode Actual AQL v_transactions_internal / v_transactions_internal_alive and executors.ts split modes. Not generator-owned; identity matches the pinned oracle.",

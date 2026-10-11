@@ -3,9 +3,8 @@ import Testing
 
 struct AccountLifecycleOracleFixtureTests {
     @Test func promotedFixturePinsActualVersionProvenanceAndAllCases() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .appending(path: "Fixtures/ActualCore26_9_0/AccountLifecycle")
+        let pin = try ParityOraclePin.load()
+        let root = try ParityOraclePin.fixtureURL("AccountLifecycle")
         let manifest = try JSONSerialization.jsonObject(
             with: Data(contentsOf: root.appending(path: "account-lifecycle-manifest.json"))
         ) as? [String: Any]
@@ -15,8 +14,8 @@ struct AccountLifecycleOracleFixtureTests {
         ) as? [String: Any]
         let cases = fixture?["cases"] as? [[String: Any]] ?? []
 
-        #expect(actual?["tag"] as? String == "v26.9.0")
-        #expect(actual?["commit"] as? String == "59fe126f637d858c061e1eeedbef5436c8f2225a")
+        #expect(actual?["tag"] as? String == pin.tag)
+        #expect(actual?["commit"] as? String == pin.commit)
         #expect(cases.count == 22)
         #expect(Set(cases.compactMap { $0["id"] as? String }).isSuperset(of: [
             "close-empty-history",

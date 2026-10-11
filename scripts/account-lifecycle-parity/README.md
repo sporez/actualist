@@ -1,7 +1,7 @@
 # Account lifecycle parity oracle
 
 This tool overlays a focused Vitest harness into an **isolated** checkout of
-Actual Budget v26.9.0, executes the real loot-core account handlers against the
+the Actual Budget release pinned in `config/parity/oracle-pin.json`, executes the real loot-core account handlers against the
 normal in-memory SQLite test database, and promotes normalized CRDT/domain
 evidence into Actualist's fixture directory.
 
@@ -33,12 +33,11 @@ source.
 
 Required inputs:
 
-- Actual `v26.9.0` at commit
-  `59fe126f637d858c061e1eeedbef5436c8f2225a`;
+- the Actual tag and commit recorded in `config/parity/oracle-pin.json`;
 - Node 24.x (the prepared checkout used Node 24.21.x);
 - the repository-pinned Yarn `4.17.1` release;
 - a completed focused `@actual-app/core` dependency setup, including root
-  `node_modules/.yarn-state.yml` and the resolved `better-sqlite3` 12.11.1
+  `node_modules/.yarn-state.yml` and the resolved `better-sqlite3` 13.0.3
   native binary;
 - a clean tracked Actual checkout. The generator refuses tracked changes and
   refuses to overwrite an unowned harness overlay.
@@ -47,8 +46,8 @@ Reuse the coordinator's approved immutable dependency-ready setup when
 preparing the isolated checkout; this tool never runs an install. It verifies
 and records hashes for `yarn.lock`, `.yarnrc.yml`,
 `node_modules/.yarn-state.yml`, the resolved `better-sqlite3` package manifest
-and entry point, and the native addon selected by the package's installed
-`bindings` resolver. These hashes identify the available install used by the
+and entry point, and the prebuilt native addon that the package's own loader
+(`lib/binding.js`, `getPrebuildPath()`) selects. These hashes identify the available install used by the
 run; they do not claim a byte-for-byte audit of every transitive dependency.
 
 The generator creates only these temporary untracked files in the isolated
@@ -97,7 +96,7 @@ From the Actualist repository root:
 
 ```sh
 node scripts/account-lifecycle-parity/generate.mjs \
-  --actual-checkout /absolute/path/to/isolated-actual-v26.9.0 \
+  --actual-checkout /absolute/path/to/isolated-actual-checkout \
   --evidence /absolute/path/to/actualist-artifacts/account-lifecycle-run-001
 ```
 
@@ -106,12 +105,12 @@ checkout root. The equivalent normalized command is:
 
 ```sh
 TZ=UTC \
-ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT='/absolute/path/to/isolated-actual-v26.9.0/.actualist-account-lifecycle-oracle.json' \
+ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT='/absolute/path/to/isolated-actual-checkout/.actualist-account-lifecycle-oracle.json' \
 node .yarn/releases/yarn-4.17.1.cjs workspace @actual-app/core run test:node \
   src/server/accounts/account-lifecycle-parity.test.ts \
   --bail=1 \
   --reporter=json \
-  --outputFile='/absolute/path/to/isolated-actual-v26.9.0/.actualist-account-lifecycle-vitest-<invocation-id>.json'
+  --outputFile='/absolute/path/to/isolated-actual-checkout/.actualist-account-lifecycle-vitest-<invocation-id>.json'
 ```
 
 Both output paths passed to Vitest are absolute. `TZ=UTC` pins fixture dates;
@@ -135,7 +134,7 @@ owned process group is gone.
 The intended generated files are:
 
 ```text
-ActualistTests/Fixtures/ActualCore26_9_0/AccountLifecycle/
+ActualistTests/Fixtures/<fixtureDirectory>/AccountLifecycle/
   account-lifecycle-oracle.json
   account-lifecycle-manifest.json
 ```
@@ -185,7 +184,7 @@ the remaining message order is preserved.
 The generator stops without promoting fixtures if any of these occurs:
 
 - the commit, tag, package version, Node major, or Yarn version differs;
-- dependency setup evidence or the resolved native SQLite 12.11.1 binary is
+- dependency setup evidence or the resolved native SQLite 13.0.3 binary is
   absent;
 - pinned source or harness files are missing;
 - the isolated checkout has tracked changes;

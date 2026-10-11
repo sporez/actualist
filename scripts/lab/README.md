@@ -24,8 +24,8 @@ Nothing secret or address-like is tracked.
 - `ACTUAL_LAB_URL` (required) and `ACTUAL_LAB_PASSWORD`: environment variables,
   or put them in the gitignored `scripts/lib/lab.env` (copy
   `scripts/lib/lab.example.env`). The environment wins over the file.
-- `ACTUAL_UPSTREAM_DIR`: the pinned, read-only Actual v26.9.0 checkout (`59fe126f`)
-  with `node_modules`. The script refuses to run unless HEAD matches and
+- `ACTUAL_UPSTREAM_DIR`: the pinned, read-only Actual checkout (tag and commit in
+  `config/parity/oracle-pin.json`) with `node_modules`. The script refuses to run unless HEAD matches and
   `git status` is clean, and checks again afterwards. Nothing is installed into
   it. Required; set it in the environment or in `scripts/lib/lab.env`.
 

@@ -2,13 +2,14 @@
 
 set -euo pipefail
 
-EXPECTED_COMMIT='59fe126f637d858c061e1eeedbef5436c8f2225a'
-EXPECTED_TAG='v26.9.0'
-EXPECTED_VERSION='26.9.0'
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+actualist_root=$(cd "$script_dir/../.." && pwd -P)
+# The pin record is the single source of the Actual release; both checkouts are verified against it below.
+EXPECTED_COMMIT=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" commit)
+EXPECTED_TAG=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" tag)
+EXPECTED_VERSION=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" packageVersion)
 EXPECTED_NODE_PREFIX='v24.21.'
 EXPECTED_YARN='4.17.1'
-EXPECTED_VITEST='4.1.10'
-EXPECTED_BETTER_SQLITE3='12.11.1'
 CEILING_SECONDS=180
 GRACE_SECONDS=10
 KILL_CONFIRM_SECONDS=10
@@ -16,10 +17,10 @@ KILL_CONFIRM_SECONDS=10
 usage() {
   cat >&2 <<'EOF'
 Usage: scripts/transaction-command-parity/run-oracle.sh \
-  --source-checkout <read-only-pinned-actual-v26.9.0> \
+  --source-checkout <read-only-pinned-actual-v26.10.0> \
   --actual-checkout <owned-writable-copy-under-this-lane-artifact-root> \
   --evidence <this-checkout>/.artifacts/transaction-command-oracle/evidence \
-  --run-label policy-admission-20260929
+  --run-label repin-v26.10.0-20261010
 EOF
   exit 64
 }
@@ -39,16 +40,14 @@ while (($# > 0)); do
 done
 [[ -n "$source_checkout" && -n "$actual_checkout" && -n "$evidence_root" && -n "$run_label" ]] || usage
 case "$run_label" in
-  investigation|post-correction)
+  investigation|post-correction|repin-v26.10.0-20261010)
     echo "command oracle: run label already spent: $run_label" >&2
     exit 65
     ;;
-  policy-admission-20260929) ;;
+  repin-v26.10.0-20261010b) ;;
   *) usage ;;
 esac
 
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
-actualist_root=$(cd "$script_dir/../.." && pwd -P)
 owned_root_path="$actualist_root/.artifacts/transaction-command-oracle"
 [[ -d "$owned_root_path" ]] || { echo 'command oracle: lane-owned artifact root is missing' >&2; exit 66; }
 owned_root=$(cd "$owned_root_path" && pwd -P)
@@ -105,6 +104,15 @@ for dependency in "$yarn_path" "$vitest_path" "$actual_checkout/node_modules/.ya
   [[ -e "$dependency" ]] || { echo "command oracle: missing dependency $dependency" >&2; exit 66; }
 done
 [[ -x "$vitest_path" ]] || { echo 'command oracle: Vitest is not executable' >&2; exit 66; }
+# Exact resolved version from the oracle's lockfile, not the declared range.
+lock_version() {
+  awk -v name="$1" 'index($0, "\"" name "@npm:") == 1 { found = 1; next } found && /^  version: / { print $2; exit }' "$2"
+}
+EXPECTED_VITEST=$(lock_version vitest "$actual_checkout/yarn.lock")
+EXPECTED_BETTER_SQLITE3=$(lock_version better-sqlite3 "$actual_checkout/yarn.lock")
+[[ "$EXPECTED_VITEST" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$EXPECTED_BETTER_SQLITE3" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  echo "command oracle: could not read Vitest and better-sqlite3 versions from yarn.lock" >&2; exit 66;
+}
 node_version=$("$node_path" --version)
 yarn_version=$("$node_path" "$yarn_path" --version)
 core_version=$("$node_path" -p "require('$actual_checkout/packages/loot-core/package.json').version")

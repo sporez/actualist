@@ -2,12 +2,14 @@
 
 set -e -u -o pipefail
 
-EXPECTED_COMMIT='59fe126f637d858c061e1eeedbef5436c8f2225a'
-EXPECTED_TAG='v26.9.0'
-EXPECTED_VERSION='26.9.0'
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+actualist_root=$(cd "$script_dir/../.." && pwd -P)
+# The pin record is the single source of the Actual release; both checkouts are verified against it below.
+EXPECTED_COMMIT=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" commit)
+EXPECTED_TAG=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" tag)
+EXPECTED_VERSION=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" packageVersion)
 EXPECTED_NODE_PREFIX='v24.21.'
 EXPECTED_YARN='4.17.1'
-EXPECTED_BETTER_SQLITE3='12.11.1'
 ORACLE_TZ='UTC'
 CEILING_SECONDS=180
 TERMINATION_GRACE_SECONDS=10
@@ -15,10 +17,10 @@ TERMINATION_GRACE_SECONDS=10
 usage() {
   cat >&2 <<'EOF'
 Usage: scripts/transaction-query-parity/run-oracle.sh \
-  --source-checkout <read-only-pinned-actual-v26.9.0-source> \
+  --source-checkout <read-only-pinned-actual-v26.10.0-source> \
   --actual-checkout <writable-distinct-dependency-ready-clone> \
   --evidence <evidence-root-under-.artifacts> \
-  --run-label <investigation|post-correction>
+  --run-label repin-v26.10.0-20261010
 EOF
   exit 64
 }
@@ -53,10 +55,8 @@ done
 
 [[ -n "$source_checkout" && -n "$actual_checkout" ]] || usage
 [[ -n "$evidence_root" && -n "$run_label" ]] || usage
-[[ "$run_label" == 'investigation' || "$run_label" == 'post-correction' ]] || usage
+[[ "$run_label" == 'repin-v26.10.0-20261010' ]] || usage
 
-script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
-actualist_root=$(cd "$script_dir/../.." && pwd -P)
 source_checkout=$(cd "$source_checkout" && pwd -P)
 actual_checkout=$(cd "$actual_checkout" && pwd -P)
 python_path=$(command -v python3)
@@ -164,6 +164,17 @@ done
   exit 66
 }
 
+# Exact resolved version from the oracle's lockfile, not the declared range.
+lock_version() {
+  awk -v name="$1" 'index($0, "\"" name "@npm:") == 1 { found = 1; next } found && /^  version: / { print $2; exit }' "$2"
+}
+EXPECTED_VITEST=$(lock_version vitest "$yarn_lock_path")
+EXPECTED_BETTER_SQLITE3=$(lock_version better-sqlite3 "$yarn_lock_path")
+[[ "$EXPECTED_VITEST" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$EXPECTED_BETTER_SQLITE3" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+  echo 'transaction query parity oracle: could not read Vitest and better-sqlite3 versions from yarn.lock' >&2
+  exit 66
+}
+
 vitest_real_path=$("$python_path" -c \
   'import os, sys; print(os.path.realpath(sys.argv[1]))' "$vitest_path")
 observed_commit=$(git -C "$actual_checkout" rev-parse HEAD)
@@ -197,6 +208,10 @@ if [[ "$observed_node" != "$EXPECTED_NODE_PREFIX"* ]]; then
 fi
 if [[ "$observed_yarn" != "$EXPECTED_YARN" ]]; then
   echo "transaction query parity oracle: expected Yarn $EXPECTED_YARN, found $observed_yarn" >&2
+  exit 66
+fi
+if [[ "$observed_vitest" != "$EXPECTED_VITEST" ]]; then
+  echo "transaction query parity oracle: expected Vitest $EXPECTED_VITEST, found $observed_vitest" >&2
   exit 66
 fi
 if [[ "$observed_better" != "$EXPECTED_BETTER_SQLITE3" ]]; then

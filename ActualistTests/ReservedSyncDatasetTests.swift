@@ -10,18 +10,19 @@ struct ReservedSyncDatasetTests {
     private let support = LocalFirstActualStoreTests()
 
     private static let reservedUpstreamTables: Set<String> = [
-        "__meta__", "__migrations__", "kvcache", "kvcache_key", "messages_clock", "messages_crdt"
+        "__meta__", "__migrations__", "kvcache", "kvcache_key", "messages_clock", "messages_crdt",
+        // Upstream's NON_SYNCED_TABLES in loot-core server/migrate/additive-migrations.test.ts.
+        "messages_pending"
     ]
 
     nonisolated private static func upstreamTables() throws -> [String] {
         struct Column: Decodable {}
-        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .appending(path: "Fixtures/ActualCore26_9_0/NewBudget/starter-schema.json")
+        let url = try ParityOraclePin.fixtureURL("NewBudget").appending(path: "starter-schema.json")
         let tables = try JSONDecoder().decode([String: [Column]].self, from: Data(contentsOf: url))
         return tables.keys.sorted()
     }
 
-    /// Every pinned upstream table except the six bookkeeping ones is a sync dataset.
+    /// Every pinned upstream table except the bookkeeping ones is a sync dataset.
     @Test(arguments: try! ReservedSyncDatasetTests.upstreamTables())
     func upstreamDatasetPolicy(_ table: String) {
         #expect(ActualSyncDatasetPolicy.isReserved(table) == Self.reservedUpstreamTables.contains(table))

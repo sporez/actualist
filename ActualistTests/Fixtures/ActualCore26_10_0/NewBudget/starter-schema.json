@@ -747,6 +747,43 @@
       "pk": 0
     }
   ],
+  "messages_pending": [
+    {
+      "name": "dataset",
+      "type": "TEXT",
+      "notnull": 1,
+      "dflt_value": null,
+      "pk": 1
+    },
+    {
+      "name": "row",
+      "type": "TEXT",
+      "notnull": 1,
+      "dflt_value": null,
+      "pk": 2
+    },
+    {
+      "name": "column",
+      "type": "TEXT",
+      "notnull": 1,
+      "dflt_value": null,
+      "pk": 3
+    },
+    {
+      "name": "timestamp",
+      "type": "TEXT",
+      "notnull": 1,
+      "dflt_value": null,
+      "pk": 0
+    },
+    {
+      "name": "value",
+      "type": "TEXT",
+      "notnull": 1,
+      "dflt_value": null,
+      "pk": 0
+    }
+  ],
   "notes": [
     {
       "name": "id",

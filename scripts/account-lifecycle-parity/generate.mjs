@@ -18,13 +18,14 @@ import {
 } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
 
-const EXPECTED_TAG = 'v26.9.0';
-const EXPECTED_COMMIT = '59fe126f637d858c061e1eeedbef5436c8f2225a';
-const EXPECTED_VERSION = '26.9.0';
+const EXPECTED_TAG = oraclePin.tag;
+const EXPECTED_COMMIT = oraclePin.commit;
+const EXPECTED_VERSION = oraclePin.packageVersion;
 const EXPECTED_NODE_MAJOR = 24;
 const EXPECTED_YARN_VERSION = '4.17.1';
-const EXPECTED_BETTER_SQLITE3_VERSION = '12.11.1';
+const EXPECTED_BETTER_SQLITE3_VERSION = '13.0.3';
 const SCHEMA_VERSION = 1;
 const ORACLE_TIMEOUT_MILLISECONDS = 180_000;
 const TERMINATION_GRACE_MILLISECONDS = 5_000;
@@ -39,11 +40,7 @@ if (!checkoutArgument || !evidenceArgument) usage();
 const checkout = resolve(checkoutArgument);
 const evidenceRoot = resolve(evidenceArgument);
 const outputRoot = resolve(
-  argument('--output') ??
-    join(
-      repositoryRoot,
-      'ActualistTests/Fixtures/ActualCore26_9_0/AccountLifecycle',
-    ),
+  argument('--output') ?? pinnedFixtureDirectory('AccountLifecycle'),
 );
 
 const harnessFiles = [
@@ -718,7 +715,7 @@ function validateManifestShape(manifest) {
   if (
     JSON.stringify(dependencyFiles.slice(0, -1).map(file => file.path)) !==
       JSON.stringify(expectedDependencyPaths) ||
-    !/^node_modules\/better-sqlite3\/.+\/better_sqlite3\.node$/.test(
+    !/^node_modules\/better-sqlite3\/prebuilds\/[a-z0-9-]+\.node$/.test(
       dependencyFiles.at(-1).path,
     )
   ) {
@@ -873,18 +870,15 @@ if (
     'The @actual-app/core resolver does not select the recorded better-sqlite3 install',
   );
 }
+// better-sqlite3 13 selects its prebuilt addon in lib/binding.js, the same
+// function its default loader uses; it no longer goes through `bindings`.
 const nativePackageRequire = createRequire(nativeEntryPath);
-const resolveNativeBinding = nativePackageRequire('bindings');
-const resolvedNativeBinaryPath = resolveNativeBinding({
-  bindings: 'better_sqlite3.node',
-  module_root: dependencyPaths.nativePackageRoot,
-  path: true,
-});
+const resolvedNativeBinaryPath = nativePackageRequire('./binding.js').getPrebuildPath();
 if (
   typeof resolvedNativeBinaryPath !== 'string' ||
   !existsSync(resolvedNativeBinaryPath)
 ) {
-  throw new Error('bindings did not resolve an available native SQLite binary');
+  throw new Error('better-sqlite3 did not select an available prebuilt native SQLite binary');
 }
 const nativePackageRealPath = realpathSync(dependencyPaths.nativePackageRoot);
 const nativeBinaryRealPath = realpathSync(resolvedNativeBinaryPath);

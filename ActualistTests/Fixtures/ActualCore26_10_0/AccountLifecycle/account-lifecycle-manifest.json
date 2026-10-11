@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-27T19:12:54.491Z",
+  "generatedAt": "2026-10-10T23:34:05.453Z",
   "actual": {
-    "tag": "v26.9.0",
-    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
-    "packageVersion": "26.9.0"
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
   },
   "toolchain": {
     "node": "v24.21.0",
@@ -34,9 +34,9 @@
   },
   "generator": {
     "path": "scripts/account-lifecycle-parity/generate.mjs",
-    "sha256": "8dfdf3cb40efcbc7b4665436bde97e0789f973f45229ffabc18690f5adeb39c9",
+    "sha256": "afb9715adbe61f82d0c688562cf84941ad876fa21c279895f70a483914a27869",
     "manifestSchemaPath": "scripts/account-lifecycle-parity/manifest.schema.json",
-    "manifestSchemaSha256": "e784898632a9fe4dbec5607d854788235c227dac4c547c408fa03c6bca257925"
+    "manifestSchemaSha256": "4d0a494ab6ae3dab77f0dc83b094ce476a8bb3e7fef60b4581062d426c6fb89c"
   },
   "harnessFiles": [
     {
@@ -45,13 +45,13 @@
     },
     {
       "path": "scripts/account-lifecycle-parity/harness/account-lifecycle-parity-support.ts",
-      "sha256": "db0de6d121e834998da2fb223a3b83a5abf3c75d2594f9e99231170635888d32"
+      "sha256": "5faaf20784bbab518f2c15bb4a588bea895745f2ce5721b0df1bdd227d5f3d44"
     }
   ],
   "sourceFiles": [
     {
       "path": "packages/loot-core/package.json",
-      "sha256": "4d389497f25f389c33d94567949eb59184f072302dff2937e718fd8317898a56"
+      "sha256": "f643dfe5b2a7749f6cd220ba65c0139447b9192ed78f8949f425b2776ddd526f"
     },
     {
       "path": "packages/loot-core/src/mocks/setup.ts",
@@ -59,11 +59,11 @@
     },
     {
       "path": "packages/loot-core/src/server/accounts/app.ts",
-      "sha256": "83d3b730b8155abbb653a64b8f92abe05d978cf3865a1ff7ba69bccf85971b0e"
+      "sha256": "fe9e1d2150e63bd6f55443e38ecc4e2a0a2e708eec3aa631dd922784258ebc70"
     },
     {
       "path": "packages/loot-core/src/server/db/index.ts",
-      "sha256": "18513a21d4990088f3e1a70de55f849756adcdc65334fdffa802c76e812e280f"
+      "sha256": "0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71"
     },
     {
       "path": "packages/loot-core/src/server/db/mappings.ts",
@@ -79,11 +79,11 @@
     },
     {
       "path": "packages/loot-core/src/server/schedules/app.ts",
-      "sha256": "f07d7134c203c72c2881826cd43c2c42ea6ab7090f70c7dcf44bbb7af45f352e"
+      "sha256": "9cc505fba24effd2564871da3db9c781df831a138d04bdfbeaf67f338c2e9dc4"
     },
     {
       "path": "packages/loot-core/src/server/sync/index.ts",
-      "sha256": "d1e9cba5cbb714b767f3aa8fd9583c597c8f5f1f71e12646d5ec3568e7c504a2"
+      "sha256": "f597760aed699ff0f696b2ec433c1d59588e7f2dd53f4aa6518713dfd76c99b8"
     },
     {
       "path": "packages/loot-core/src/server/transactions/app.ts",
@@ -91,7 +91,7 @@
     },
     {
       "path": "packages/loot-core/src/server/transactions/index.ts",
-      "sha256": "8ad3ce105e7c772ded42d420c1cc0c765407e6b9b2da2c854972ccfdcdc12551"
+      "sha256": "2c32a9e4a3f54da01dd54d9a141abaef9f3740daa6900640f804da17db9e6c02"
     },
     {
       "path": "packages/loot-core/src/server/transactions/transfer.ts",
@@ -113,7 +113,7 @@
   "dependencies": {
     "lockfile": {
       "path": "yarn.lock",
-      "sha256": "88434e0e9b17c4009e2623eebae4b358f2927cbf644d299ace7ce113d74c6fa0"
+      "sha256": "0326284066b6f9f9297c671eb792b034f4435cb26c8b5bfbc89fb7fa5aebb5f9"
     },
     "yarnConfiguration": {
       "path": ".yarnrc.yml",
@@ -121,29 +121,29 @@
     },
     "installState": {
       "path": "node_modules/.yarn-state.yml",
-      "sha256": "de160c3fe5e928826d188a704dc99894b8ef458a3f376dde81aef60a0cab87c2"
+      "sha256": "214cbf5b400d605fa767fb8ba2d7edd177e6484a341be30283795bcd1b55dc6b"
     },
     "nativeSQLite": {
       "packageName": "better-sqlite3",
-      "version": "12.11.1",
+      "version": "13.0.3",
       "platform": "darwin",
       "architecture": "arm64",
       "packageManifest": {
         "path": "node_modules/better-sqlite3/package.json",
-        "sha256": "4665126292eff5dffe6c0ffabf98c4de18e479aa0b53edd775028eb567b3ecc1"
+        "sha256": "6c9ea355190dfce3646ad4d2a31c9506de36d884a6461b3655a2a0c4ba3d1695"
       },
       "resolvedEntry": {
         "path": "node_modules/better-sqlite3/lib/index.js",
-        "sha256": "82db11c4ee43a41d859988c5db42c3771dff565371f94bacbd1e4d8d6ceb47cd"
+        "sha256": "0d56e190de8623278641b613433e89c4af2e5c90092c9c6e425f873d7fbc7ccf"
       },
       "binary": {
-        "path": "node_modules/better-sqlite3/build/Release/better_sqlite3.node",
-        "sha256": "c6fac315df023cf5efec45a3511e6515c6b0f7461a4a284b1b7a79c7ef8febe7"
+        "path": "node_modules/better-sqlite3/prebuilds/darwin-arm64.node",
+        "sha256": "98e0e8acd01c632fe5615243e1296af0372826f8783b18fc31c506f73c47459c"
       }
     }
   },
   "fixture": {
-    "path": "ActualistTests/Fixtures/ActualCore26_9_0/AccountLifecycle/account-lifecycle-oracle.json",
+    "path": "ActualistTests/Fixtures/ActualCore26_10_0/AccountLifecycle/account-lifecycle-oracle.json",
     "sha256": "e1407a1db647e00c5eaed766da249ec66f655365e5539d62088e7868b887af5c",
     "caseCount": 22,
     "caseIDs": [

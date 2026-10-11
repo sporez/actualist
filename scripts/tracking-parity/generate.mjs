@@ -1,13 +1,15 @@
 import { writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { join } from 'node:path';
 import vm from 'node:vm';
+import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
 
 const root = process.argv[2];
 if (!root) throw new Error('Usage: node scripts/tracking-parity/generate.mjs <Actual checkout>');
-const commit = '59fe126f637d858c061e1eeedbef5436c8f2225a';
+const commit = oraclePin.commit;
 if (execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== commit) {
-  throw new Error('Expected pinned Actual 26.9.0 checkout');
+  throw new Error(`Expected pinned Actual ${oraclePin.tag} checkout`);
 }
 const path = 'packages/loot-core/src/server/budget/tracking.ts';
 const source = execFileSync('git', ['-C', root, 'show', `${commit}:${path}`], { encoding: 'utf8' });
@@ -46,5 +48,5 @@ context.createSummary([{ id: 'income', is_income: true }, { id: 'expense' }, { i
 const result = { commit, source: path, sha256: createHash('sha256').update(source).digest('hex'), cases,
   groupDependencies, expenseDependencies: cells.get('total-budgeted').dependencies,
   projectedSavings: cells.get('total-saved').run(1500, 500), actualSavings: cells.get('real-saved').run(1200, -300) };
-writeFileSync('ActualistTests/Fixtures/ActualCore26_9_0/Tracking/contract.json', JSON.stringify(result, null, 2) + '\n');
+writeFileSync(join(pinnedFixtureDirectory('Tracking'), 'contract.json'), JSON.stringify(result, null, 2) + '\n');
 console.log(`Generated ${cases.length} upstream recurrence cases`);

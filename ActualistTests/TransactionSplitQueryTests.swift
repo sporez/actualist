@@ -5,15 +5,13 @@ import Testing
 
 struct TransactionSplitQueryTests {
     @Test func groupedQueryFixturePinsOracleIdentityAndCaseIds() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appending(path: "ActualistTests/Fixtures/ActualCore26_8_1/Splits/grouped-query-cases.json")
+        let pin = try ParityOraclePin.load()
+        let url = try ParityOraclePin.fixtureURL("Splits").appending(path: "grouped-query-cases.json")
         let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
         let oracle = object?["oracle"] as? [String: Any]
         let cases = object?["cases"] as? [[String: Any]] ?? []
-        #expect(oracle?["tag"] as? String == "v26.8.1")
-        #expect(oracle?["commit"] as? String == "063df03763ca772b51f6264752b88ddec22cfb8a")
+        #expect(oracle?["tag"] as? String == pin.tag)
+        #expect(oracle?["commit"] as? String == pin.commit)
         #expect(Set(cases.compactMap { $0["id"] as? String }) == [
             "split-modes-two-child-family",
             "child-note-search",

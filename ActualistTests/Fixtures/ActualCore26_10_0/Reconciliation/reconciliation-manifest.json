@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "actual": {
-    "tag": "v26.9.0",
-    "commit": "59fe126f637d858c061e1eeedbef5436c8f2225a",
-    "packageVersion": "26.9.0"
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
   },
   "generator": {
-    "command": "scripts/reconciliation-parity/generate.mjs --actual-checkout <actual-v26.9.0>",
-    "sha256": "2cd80fc9c8814110d8faf55fbf15e6067170f1a4a5163954409f161f4b4a0284"
+    "command": "scripts/reconciliation-parity/generate.mjs --actual-checkout <pinned-actual>",
+    "sha256": "5833b24c39c3c5fae9b301d452aa2322b20c17416677817ad2e5905233a56037"
   },
   "amountUnits": "integer minor units",
   "lastReconciledStorage": "new Date().getTime().toString() milliseconds",
@@ -50,8 +50,8 @@
     }
   ],
   "fixture": {
-    "path": "ActualistTests/Fixtures/ActualCore26_9_0/Reconciliation/reconciliation-contract.json",
-    "sha256": "56d21db439282bef0fc15ad257b513e2fa62f46fc47ddd444acc0ba44518a401",
+    "path": "ActualistTests/Fixtures/ActualCore26_10_0/Reconciliation/reconciliation-contract.json",
+    "sha256": "bde60127d8ab11f7185c65dc11c2eb325461c4a1a241851fd9063b510e41bade",
     "caseCount": 6
   },
   "contractSourceSha256": "da00774e458201d7e97aeeb51f7090fdceb52c47acb270fea4c923b767019c01"

@@ -4,15 +4,16 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
 
 const expected = {
   schemaVersion: 1,
-  tag: 'v26.9.0',
-  commit: '59fe126f637d858c061e1eeedbef5436c8f2225a',
-  packageVersion: '26.9.0',
+  tag: oraclePin.tag,
+  commit: oraclePin.commit,
+  packageVersion: oraclePin.packageVersion,
 };
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const fixtureRoot = join(root, 'ActualistTests/Fixtures/ActualCore26_9_0/Reconciliation');
+const fixtureRoot = pinnedFixtureDirectory('Reconciliation');
 const manifestPath = join(fixtureRoot, 'reconciliation-manifest.json');
 
 function sha256(data) {
@@ -21,7 +22,7 @@ function sha256(data) {
 
 function fail(message) {
   console.error(`reconciliation parity fixture error: ${message}`);
-  console.error('Regenerate with scripts/reconciliation-parity/generate.mjs --actual-checkout <pinned-actual-v26.9.0>.');
+  console.error('Regenerate with scripts/reconciliation-parity/generate.mjs --actual-checkout <pinned-actual>.');
   process.exit(1);
 }
 

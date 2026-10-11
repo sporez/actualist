@@ -20,16 +20,16 @@ struct TrackingBudgetOracle: Decodable {
     let actualSavings: Int
 
     static func load() throws -> Self {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        return try JSONDecoder().decode(Self.self, from: Data(contentsOf:
-            root.appending(path: "Fixtures/ActualCore26_9_0/Tracking/contract.json")))
+        try JSONDecoder().decode(Self.self, from: Data(contentsOf:
+            ParityOraclePin.fixtureURL("Tracking").appending(path: "contract.json")))
     }
 }
 
 struct TrackingBudgetContractTests {
     @Test func pinnedOracleCoversSignsAndHiddenDependencies() throws {
         let oracle = try TrackingBudgetOracle.load()
-        #expect(oracle.commit == "59fe126f637d858c061e1eeedbef5436c8f2225a")
+        let pin = try ParityOraclePin.load()
+        #expect(oracle.commit == pin.commit)
         #expect(oracle.cases.count == 36)
         #expect(oracle.groupDependencies == ["budget-visible"])
         #expect(oracle.expenseDependencies == ["group-budget-expense"])

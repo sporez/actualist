@@ -7,9 +7,9 @@ set -euo pipefail
 # /bin/pwd returns the on-disk case; bash's builtin keeps a mistyped one (cc vs CC),
 # and vitest then matches no test file.
 HERE="$(cd "$(dirname "$0")" && /bin/pwd -P)"
-: "${ACTUAL_UPSTREAM_DIR:?set to the pinned Actual v26.9.0 checkout}"
+: "${ACTUAL_UPSTREAM_DIR:?set to the pinned Actual checkout (config/parity/oracle-pin.json)}"
 : "${ACTUAL_LAB_URL:?}" "${ACTUAL_LAB_PASSWORD:?}" "${ACTUAL_LAB_HANDOFF_DIR:?}"
-EXPECTED_SHA='59fe126f637d858c061e1eeedbef5436c8f2225a'
+EXPECTED_SHA="$(node "$HERE/../lib/oracle-pin.mjs" commit)"
 test "$(git -C "$ACTUAL_UPSTREAM_DIR" rev-parse HEAD)" = "$EXPECTED_SHA"
 test -z "$(git -C "$ACTUAL_UPSTREAM_DIR" status --short)"
 mkdir -p "$ACTUAL_LAB_HANDOFF_DIR"

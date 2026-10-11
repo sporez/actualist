@@ -5,10 +5,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
 
-const EXPECTED_TAG = 'v26.8.1';
-const EXPECTED_COMMIT = '063df03763ca772b51f6264752b88ddec22cfb8a';
-const EXPECTED_VERSION = '26.8.1';
 const FIXTURE_SCHEMA_VERSION = 1;
 
 const sourceFiles = [
@@ -29,10 +27,7 @@ const sourceFiles = [
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repositoryRoot = resolve(dirname(scriptPath), '..', '..');
-const defaultOutput = join(
-  repositoryRoot,
-  'ActualistTests/Fixtures/ActualCore26_8_1/Splits',
-);
+const defaultOutput = pinnedFixtureDirectory('Splits');
 
 function usage() {
   console.error(
@@ -73,18 +68,18 @@ if (!existsSync(join(checkout, '.git'))) {
   throw new Error(`Actual checkout is not a git worktree: ${checkout}`);
 }
 const commit = run('git', ['rev-parse', 'HEAD']);
-if (commit !== EXPECTED_COMMIT) {
-  throw new Error(`Expected Actual ${EXPECTED_COMMIT}, found ${commit}`);
+if (commit !== oraclePin.commit) {
+  throw new Error(`Expected Actual ${oraclePin.commit}, found ${commit}`);
 }
 const exactTag = run('git', ['describe', '--tags', '--exact-match', 'HEAD']);
-if (exactTag !== EXPECTED_TAG) {
-  throw new Error(`Expected Actual tag ${EXPECTED_TAG}, found ${exactTag}`);
+if (exactTag !== oraclePin.tag) {
+  throw new Error(`Expected Actual tag ${oraclePin.tag}, found ${exactTag}`);
 }
 const packageJSON = JSON.parse(
   readFileSync(join(checkout, 'packages/loot-core/package.json'), 'utf8'),
 );
-if (packageJSON.version !== EXPECTED_VERSION) {
-  throw new Error(`Expected @actual-app/core ${EXPECTED_VERSION}, found ${packageJSON.version}`);
+if (packageJSON.version !== oraclePin.packageVersion) {
+  throw new Error(`Expected @actual-app/core ${oraclePin.packageVersion}, found ${packageJSON.version}`);
 }
 for (const path of sourceFiles) {
   if (!existsSync(join(checkout, path))) {
@@ -114,9 +109,9 @@ import {
 } from './shared/transactions';
 
 const oracle = {
-  tag: '${EXPECTED_TAG}',
-  commit: '${EXPECTED_COMMIT}',
-  packageVersion: '${EXPECTED_VERSION}',
+  tag: '${oraclePin.tag}',
+  commit: '${oraclePin.commit}',
+  packageVersion: '${oraclePin.packageVersion}',
 };
 
 const baseParent = {
@@ -566,12 +561,12 @@ try {
   const manifest = {
     schemaVersion: FIXTURE_SCHEMA_VERSION,
     actual: {
-      tag: EXPECTED_TAG,
-      commit: EXPECTED_COMMIT,
-      packageVersion: EXPECTED_VERSION,
+      tag: oraclePin.tag,
+      commit: oraclePin.commit,
+      packageVersion: oraclePin.packageVersion,
     },
     generator: {
-      command: 'scripts/split-parity/generate.mjs --actual-checkout <actual-v26.8.1>',
+      command: 'scripts/split-parity/generate.mjs --actual-checkout <pinned-actual>',
       sha256: sha256(readFileSync(scriptPath)),
     },
     amountUnits: 'integer minor units',

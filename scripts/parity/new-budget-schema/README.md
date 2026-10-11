@@ -7,8 +7,8 @@ by a throwing stub in `no-network-setup.mjs`).
 
 ## Requirements
 
-- `ACTUAL_UPSTREAM_DIR`: the pinned Actual v26.9.0 checkout
-  (`59fe126f637d858c061e1eeedbef5436c8f2225a`) with `node_modules` installed.
+- `ACTUAL_UPSTREAM_DIR`: the pinned Actual checkout (tag and commit in
+  `config/parity/oracle-pin.json`) with `node_modules` installed.
   It is read-only here. `run.sh` refuses to run unless HEAD matches the pin and
   `git status --short` is empty, and re-checks after the run. Nothing is
   installed or written there.
@@ -36,6 +36,10 @@ migrations. `dump.py` then writes to the output folder:
   `__meta__` view-hash row and the `messages_clock` row; ids from the JS
   migrations are random UUIDs and change per run).
 - `starter-schema.json`: per-table `PRAGMA table_info`, tables sorted by name.
+
+The two files the Swift tests read, `starter-schema.json` and `migrations.txt`,
+are copied into `NewBudget/` under the pinned fixture directory
+(`fixtureDirectory` in `config/parity/oracle-pin.json`).
 
 `replay.py <out-dir> <db>` rebuilds a database from those files alone (proof
 that the dump is sufficient).

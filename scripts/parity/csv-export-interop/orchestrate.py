@@ -31,10 +31,10 @@ NODE = _required_path("ACTUALIST_PARITY_NODE")
 PROTECTED_CHECKOUT = Path(os.environ.get("ACTUALIST_PARITY_PROTECTED_CHECKOUT") or PINNED.parents[2])
 YARN_CACHE = Path.home() / ".yarn/berry/cache"
 SANDBOX_PARAMS = ["-D", f"PROTECTED_CHECKOUT={PROTECTED_CHECKOUT}", "-D", f"YARN_CACHE={YARN_CACHE}"]
-EXPECTED_ACTUAL_COMMIT = "59fe126f637d858c061e1eeedbef5436c8f2225a"
+EXPECTED_ACTUAL_COMMIT = json.loads((ROOT / "config/parity/oracle-pin.json").read_text())["commit"]
 EXPECTED_NODE_SHA256 = "e4b5a3af0e05c75de2eae013904145f40fe7fc2a6e6f17510128bf45cca4e79b"
 EXPECTED_YARN_SHA256 = "471ffb15e0523663865bbf46a69e7d157ecf532412eb436c48dfab6e3f2abe88"
-EXPECTED_VITEST_PACKAGE_SHA256 = "caa41f04799bd42f3cfd100c4282e630d77ffc7deb1e7e4927794fcb7f137f34"
+EXPECTED_VITEST_PACKAGE_SHA256 = "a4f269c689b346c33446feaa8adea6bc1c1bd35a21e12c9ffac74198687b0fbc"
 OWNED_ROOT = ROOT / ".artifacts/csv-export-interop"
 PROFILE = HARNESS / "readonly-inputs.sb"
 SUPERVISOR = HARNESS / "supervise.py"
@@ -215,6 +215,18 @@ def hash_file(path):
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def locked_version(lock_path, name):
+    # Exact resolved version from the oracle's lockfile, not the declared range.
+    prefix = f'"{name}@npm:'
+    found = False
+    for line in lock_path.read_text().splitlines():
+        if line.startswith(prefix):
+            found = True
+        elif found and line.startswith("  version: "):
+            return line.split(": ", 1)[1].strip()
+    raise RunFailure(f"{name} is missing from the pinned yarn.lock")
 
 
 def verify_pinned_checkout(deadline, log_path):
@@ -436,7 +448,7 @@ def main():
             "writableCOWOverlay": str(overlay),
             "node": {"path": str(NODE), "version": "24.21.0", "sha256": EXPECTED_NODE_SHA256},
             "yarn": {"version": "4.17.1", "sha256": EXPECTED_YARN_SHA256},
-            "vitest": {"version": "4.1.10", "packageSHA256": EXPECTED_VITEST_PACKAGE_SHA256},
+            "vitest": {"version": locked_version(PINNED / "yarn.lock", "vitest"), "packageSHA256": EXPECTED_VITEST_PACKAGE_SHA256},
             "sourceFreezeSHA256": freeze_hash,
             "scheme": "Actualist Dev",
             "derivedData": str(ROOT / ".derivedData"),
@@ -500,6 +512,7 @@ def main():
             "ACTUALIST_CSV_INTEROP_EVIDENCE_DIR": str(output / "evidence"),
             "ACTUALIST_CSV_INTEROP_ACTUAL_OVERLAY": str(overlay),
             "ACTUALIST_CSV_INTEROP_OVERLAY_HARNESS": str(output / "overlay-harness"),
+            "ACTUALIST_CSV_INTEROP_EXPECTED_COMMIT": EXPECTED_ACTUAL_COMMIT,
         }
         node_command = [
             "/usr/bin/sandbox-exec", *SANDBOX_PARAMS, "-f", str(PROFILE), str(NODE),

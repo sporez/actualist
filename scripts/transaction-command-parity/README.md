@@ -1,7 +1,7 @@
 # Transaction duplicate and merge parity matrix
 
 This directory holds an executable synthetic C4/C5 capture harness for Actual
-v26.9.0. It intentionally has no expected handler outcomes: no gate is
+v26.10.0. It intentionally has no expected handler outcomes: no gate is
 converted into production semantics until the coordinator reviews runtime
 observations and records the product decisions. Matrix `expectedObservation`
 text is limited to source-defined capture intent, not an admitted product
@@ -59,8 +59,9 @@ scripts/transaction-command-parity/run-oracle.sh \
   --run-label post-correction
 ```
 
-The runner enforces Node 24.21.x, Yarn 4.17.1, Vitest 4.1.10, better-sqlite3
-12.11.1, and Actual core 26.9.0. The exact underlying Vitest selection is
+The runner enforces Node 24.21.x, Yarn 4.17.1, and the Vitest and better-sqlite3
+versions locked in the oracle's `yarn.lock` (5.0.0 and 13.0.3 for v26.10.0), and
+takes the Actual commit, tag, and core version from `config/parity/oracle-pin.json`. The exact underlying Vitest selection is
 `@actual-app/core exec vitest --run
 src/server/transactions/transaction-command-parity.test.ts --reporter=verbose
 --bail=1`, with a 180-second process-group ceiling, ten-second TERM grace, and
@@ -117,7 +118,8 @@ fresh pure-fixture evidence before runtime handoff; the prior audit hashes no
 longer validate this candidate. Fixture construction evidence is never
 compatibility evidence.
 
-The sole newly admitted label is `policy-admission-20260929`; the historical
-labels remain explicitly spent and every existing evidence directory remains a
-refusal. Authorization of the label is not authorization to execute: the main
+The sole admitted label is `repin-v26.10.0-20261010b` (the Actual v26.10.0 re-pin
+after the spent `repin-v26.10.0-20261010` attempt stopped at setup on a moved
+import); the historical labels remain explicitly spent and every existing evidence
+directory remains a refusal. Authorization of the label is not authorization to execute: the main
 coordinator owns the one-run decision. Do not delete or reuse prior evidence.

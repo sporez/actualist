@@ -2,8 +2,14 @@ import Foundation
 import Testing
 @testable import Actualist
 
-@Suite("Template editor Actual 26.8.1 oracle")
+@Suite("Template editor Actual oracle")
 struct BudgetTemplateEditorOracleTests {
+    private struct Manifest: Decodable {
+        let tag: String
+        let commit: String
+        let packageVersion: String
+    }
+
     private struct Fixtures: Decodable {
         struct Normalization: Decodable { let id: String; let input: String; let expected: String }
         struct Transition: Decodable { let id: String; let input: String; let expected: String; let kind: String }
@@ -12,6 +18,16 @@ struct BudgetTemplateEditorOracleTests {
         let normalizations: [Normalization]
         let transitions: [Transition]
         let validations: [Validation]
+    }
+
+    @Test func manifestPinsOracleIdentity() throws {
+        let pin = try ParityOraclePin.load()
+        let path = try ParityOraclePin.fixtureURL("Templates").appending(path: "template-editor-manifest.json")
+        let manifest = try JSONDecoder().decode(Manifest.self, from: Data(contentsOf: path))
+
+        #expect(manifest.tag == pin.tag)
+        #expect(manifest.commit == pin.commit)
+        #expect(manifest.packageVersion == pin.packageVersion)
     }
 
     @Test func normalizationMatchesPinnedMigrationIncludingNotesAndZeroCaps() throws {
@@ -72,8 +88,7 @@ struct BudgetTemplateEditorOracleTests {
     }
 
     private func fixtures() throws -> Fixtures {
-        let path = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .appending(path: "Fixtures/ActualCore26_8_1/Templates/editor-cases.json")
+        let path = try ParityOraclePin.fixtureURL("Templates").appending(path: "editor-cases.json")
         return try JSONDecoder().decode(Fixtures.self, from: Data(contentsOf: path))
     }
 }

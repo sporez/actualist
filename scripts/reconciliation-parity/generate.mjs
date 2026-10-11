@@ -5,10 +5,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
 
-const EXPECTED_TAG = 'v26.9.0';
-const EXPECTED_COMMIT = '59fe126f637d858c061e1eeedbef5436c8f2225a';
-const EXPECTED_VERSION = '26.9.0';
 const SCHEMA_VERSION = 1;
 const sourceFiles = [
   'packages/desktop-client/src/accounts/reconciliation.ts',
@@ -24,9 +22,7 @@ const sourceFiles = [
 
 const scriptPath = fileURLToPath(import.meta.url);
 const root = resolve(dirname(scriptPath), '..', '..');
-const outputRoot = resolve(
-  argument('--output') ?? join(root, 'ActualistTests/Fixtures/ActualCore26_9_0/Reconciliation'),
-);
+const outputRoot = resolve(argument('--output') ?? pinnedFixtureDirectory('Reconciliation'));
 const checkoutArgument = argument('--actual-checkout');
 if (!checkoutArgument) usage();
 const checkout = resolve(checkoutArgument);
@@ -61,14 +57,14 @@ if (!existsSync(join(checkout, '.git'))) {
   throw new Error(`Actual checkout is not a git worktree: ${checkout}`);
 }
 const commit = run('git', ['rev-parse', 'HEAD']);
-if (commit !== EXPECTED_COMMIT) throw new Error(`Expected ${EXPECTED_COMMIT}, found ${commit}`);
+if (commit !== oraclePin.commit) throw new Error(`Expected ${oraclePin.commit}, found ${commit}`);
 const tag = run('git', ['describe', '--tags', '--exact-match', 'HEAD']);
-if (tag !== EXPECTED_TAG) throw new Error(`Expected ${EXPECTED_TAG}, found ${tag}`);
+if (tag !== oraclePin.tag) throw new Error(`Expected ${oraclePin.tag}, found ${tag}`);
 const packageVersion = JSON.parse(
   readFileSync(join(checkout, 'packages/desktop-client/package.json'), 'utf8'),
 ).version;
-if (packageVersion !== EXPECTED_VERSION) {
-  throw new Error(`Expected @actual-app/web ${EXPECTED_VERSION}, found ${packageVersion}`);
+if (packageVersion !== oraclePin.packageVersion) {
+  throw new Error(`Expected @actual-app/web ${oraclePin.packageVersion}, found ${packageVersion}`);
 }
 for (const path of sourceFiles) {
   if (!existsSync(join(checkout, path))) throw new Error(`Pinned source is missing: ${path}`);
@@ -210,7 +206,7 @@ test('unlock clears reconciled and preserves cleared', async () => {
 afterAll(() => {
   writeFileSync('${temporaryOutput}', JSON.stringify({
     schemaVersion: ${SCHEMA_VERSION},
-    oracle: { tag: '${EXPECTED_TAG}', commit: '${EXPECTED_COMMIT}', packageVersion: '${EXPECTED_VERSION}' },
+    oracle: { tag: '${oraclePin.tag}', commit: '${oraclePin.commit}', packageVersion: '${oraclePin.packageVersion}' },
     cases,
   }, null, 2) + '\n');
 });
@@ -240,7 +236,7 @@ try {
     schemaVersion: SCHEMA_VERSION,
     actual: { tag, commit, packageVersion },
     generator: {
-      command: 'scripts/reconciliation-parity/generate.mjs --actual-checkout <actual-v26.9.0>',
+      command: 'scripts/reconciliation-parity/generate.mjs --actual-checkout <pinned-actual>',
       sha256: sha256(readFileSync(scriptPath)),
     },
     amountUnits: 'integer minor units',

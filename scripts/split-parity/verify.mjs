@@ -4,16 +4,17 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
 
 const EXPECTED = {
   schemaVersion: 1,
-  tag: 'v26.8.1',
-  commit: '063df03763ca772b51f6264752b88ddec22cfb8a',
-  packageVersion: '26.8.1',
+  tag: oraclePin.tag,
+  commit: oraclePin.commit,
+  packageVersion: oraclePin.packageVersion,
 };
 const scriptPath = fileURLToPath(import.meta.url);
 const root = resolve(dirname(scriptPath), '..', '..');
-const fixtureRoot = join(root, 'ActualistTests/Fixtures/ActualCore26_8_1/Splits');
+const fixtureRoot = pinnedFixtureDirectory('Splits');
 const manifestPath = join(fixtureRoot, 'manifest.json');
 
 function sha256(data) {
@@ -23,7 +24,7 @@ function sha256(data) {
 function fail(message) {
   console.error(`split parity fixture error: ${message}`);
   console.error(
-    'Regenerate with scripts/split-parity/generate.mjs --actual-checkout <pinned-actual-v26.8.1>.',
+    'Regenerate with scripts/split-parity/generate.mjs --actual-checkout <pinned-actual>.',
   );
   process.exit(1);
 }

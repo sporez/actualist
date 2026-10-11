@@ -1,7 +1,8 @@
 {
   "schemaVersion": 1,
-  "tag": "v26.8.1",
-  "commit": "063df03763ca772b51f6264752b88ddec22cfb8a",
+  "tag": "v26.10.0",
+  "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+  "packageVersion": "26.10.0",
   "sourceFiles": [
     {
       "path": "packages/desktop-client/src/components/modals/BudgetAutomationsModal/migrateTemplatesToAutomations.ts",
@@ -28,7 +29,7 @@
       "sha256": "332eea3f1a7cafa75a04e944f3dce14c0313f4ce8458a92cf42994b24f72fdcc"
     }
   ],
-  "generatorSHA256": "ef4bec47a4212ce6fed28565c3994aa486b0f5f92a03ff9b281bb3d6ff0a10ac",
+  "generatorSHA256": "7d8e455254f83338820ac2f49f853e9a395925a4f821a695188af29a565ad811",
   "fixtureSHA256": "89097d51e49ab912b3438bfb673136f94f68de0a0d042a5fdc9d64ddad42cad2",
   "caseCount": 44,
   "oracleScope": "Pinned unmodified reducer, migration and validation bodies. Synthetic UTC-noon calendar adapters; no schedule hydration or engine oracle execution. Note restoration follows AutomationEditorPane.dispatch. Preview/Apply and currency parity are tested separately through SQLite.",

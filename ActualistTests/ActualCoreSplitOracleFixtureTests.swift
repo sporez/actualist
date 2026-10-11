@@ -5,12 +5,13 @@ import Testing
 
 struct ActualCoreSplitOracleFixtureTests {
     @Test func manifestPinsActualAndEveryCommittedFixtureHash() throws {
+        let pin = try ParityOraclePin.load()
         let manifest = try decode(Manifest.self, from: fixtureDirectory.appending(path: "manifest.json"))
 
         #expect(manifest.schemaVersion == 1)
-        #expect(manifest.actual.tag == "v26.8.1")
-        #expect(manifest.actual.commit == "063df03763ca772b51f6264752b88ddec22cfb8a")
-        #expect(manifest.actual.packageVersion == "26.8.1")
+        #expect(manifest.actual.tag == pin.tag)
+        #expect(manifest.actual.commit == pin.commit)
+        #expect(manifest.actual.packageVersion == pin.packageVersion)
         #expect(manifest.amountUnits == "integer minor units")
         #expect(manifest.rounding == "JavaScript Math.round: ties toward positive infinity")
         #expect(manifest.sourceFiles.count >= 10)
@@ -58,7 +59,9 @@ struct ActualCoreSplitOracleFixtureTests {
     }
 
     private var fixtureDirectory: URL {
-        repositoryRoot.appending(path: "ActualistTests/Fixtures/ActualCore26_8_1/Splits")
+        get throws {
+            try ParityOraclePin.fixtureURL("Splits")
+        }
     }
 
     private func decode<Value: Decodable>(_ type: Value.Type, from url: URL) throws -> Value {

@@ -9,11 +9,29 @@ import {
 import { dirname } from 'node:path';
 
 import * as db from '#server/db';
-import { deserializeValue } from '#server/sync';
+import { deserializeValue } from '#server/sync/serialization';
 
-export const EXPECTED_ACTUAL_COMMIT =
-  '59fe126f637d858c061e1eeedbef5436c8f2225a';
 export const EXPECTED_CASE_COUNT = 39;
+
+// The runner passes the pin record through env after verifying both checkouts against it.
+function expectedPin(): { commit: string; tag: string; version: string } {
+  const commit = requiredEnv('ACTUAL_TRANSACTION_COMMAND_PARITY_COMMIT');
+  const tag = requiredEnv('ACTUAL_TRANSACTION_COMMAND_PARITY_TAG');
+  const version = requiredEnv('ACTUAL_TRANSACTION_COMMAND_PARITY_VERSION');
+  if (!/^[0-9a-f]{40}$/.test(commit)) {
+    throw new Error('Pinned Actual commit must be a full 40-character sha');
+  }
+  if (tag !== `v${version}`) {
+    throw new Error(`Pinned Actual tag ${tag} does not match core ${version}`);
+  }
+  return { commit, tag, version };
+}
+
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing ${name}`);
+  return value;
+}
 
 export type JSONPrimitive = boolean | null | number | string;
 export type JSONValue =
@@ -175,14 +193,15 @@ export class CommandOracleRecorder {
   }
 
   private validateHarness(): void {
-    if (this.evidence.harness.actualCommit !== EXPECTED_ACTUAL_COMMIT) {
-      throw new Error(`Expected Actual ${EXPECTED_ACTUAL_COMMIT}`);
+    const expected = expectedPin();
+    if (this.evidence.harness.actualCommit !== expected.commit) {
+      throw new Error(`Expected Actual ${expected.commit}, found ${this.evidence.harness.actualCommit}`);
     }
-    if (this.evidence.harness.actualTag !== 'v26.9.0') {
-      throw new Error(`Expected Actual tag v26.9.0, found ${this.evidence.harness.actualTag}`);
+    if (this.evidence.harness.actualTag !== expected.tag) {
+      throw new Error(`Expected Actual tag ${expected.tag}, found ${this.evidence.harness.actualTag}`);
     }
-    if (this.evidence.harness.actualVersion !== '26.9.0') {
-      throw new Error(`Expected core 26.9.0, found ${this.evidence.harness.actualVersion}`);
+    if (this.evidence.harness.actualVersion !== expected.version) {
+      throw new Error(`Expected core ${expected.version}, found ${this.evidence.harness.actualVersion}`);
     }
     if (this.evidence.harness.timezone !== 'UTC') {
       throw new Error(`Expected UTC timezone, found ${this.evidence.harness.timezone}`);

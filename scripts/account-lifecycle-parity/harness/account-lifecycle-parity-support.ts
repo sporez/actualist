@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 
 import * as db from '#server/db';
-import { deserializeValue } from '#server/sync';
+import { deserializeValue } from '#server/sync/serialization';
 
 export const FIXED_DAY = '2026-09-27';
 export const FIXED_DATE_INTEGER = 20260927;

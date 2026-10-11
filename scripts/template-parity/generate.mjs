@@ -3,15 +3,15 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripTypeScriptTypes } from 'node:module';
+import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const destination = resolve(root, 'ActualistTests/Fixtures/ActualCore26_8_1/Templates');
+const destination = pinnedFixtureDirectory('Templates');
 const checkout = process.argv[2];
 if (!checkout) throw new Error('Usage: node scripts/template-parity/generate.mjs <actual-checkout> [--check]');
-const commit = '063df03763ca772b51f6264752b88ddec22cfb8a';
+const commit = oraclePin.commit;
 const paths = {
   migration: 'packages/desktop-client/src/components/modals/BudgetAutomationsModal/migrateTemplatesToAutomations.ts',
   reducer: 'packages/desktop-client/src/components/budget/goals/reducer.ts',
@@ -111,7 +111,7 @@ const fixture = JSON.stringify({ today: '2026-09-04', normalizations, transition
 for (const path of ['packages/desktop-client/src/components/modals/BudgetAutomationsModal/AutomationEditorPane.tsx', 'packages/loot-core/src/types/models/templates.ts', 'packages/loot-core/src/server/budget/category-template-context.ts']) {
   sourceFiles.push({ path, sha256: hash(execFileSync('git', ['show', `${commit}:${path}`], { cwd: checkout })) });
 }
-const manifest = JSON.stringify({ schemaVersion: 1, tag: 'v26.8.1', commit, sourceFiles, generatorSHA256: hash(readFileSync(fileURLToPath(import.meta.url))), fixtureSHA256: hash(fixture), caseCount: normalizations.length + transitions.length + validations.length, oracleScope: 'Pinned unmodified reducer, migration and validation bodies. Synthetic UTC-noon calendar adapters; no schedule hydration or engine oracle execution. Note restoration follows AutomationEditorPane.dispatch. Preview/Apply and currency parity are tested separately through SQLite.', amountUnits: 'JSON display units; previews and Apply integer minor units' }, null, 2) + '\n';
+const manifest = JSON.stringify({ schemaVersion: 1, tag: oraclePin.tag, commit, packageVersion: oraclePin.packageVersion, sourceFiles, generatorSHA256: hash(readFileSync(fileURLToPath(import.meta.url))), fixtureSHA256: hash(fixture), caseCount: normalizations.length + transitions.length + validations.length, oracleScope: 'Pinned unmodified reducer, migration and validation bodies. Synthetic UTC-noon calendar adapters; no schedule hydration or engine oracle execution. Note restoration follows AutomationEditorPane.dispatch. Preview/Apply and currency parity are tested separately through SQLite.', amountUnits: 'JSON display units; previews and Apply integer minor units' }, null, 2) + '\n';
 for (const [name, content] of [['editor-cases.json', fixture], ['template-editor-manifest.json', manifest]]) {
   const path = resolve(destination, name);
   if (process.argv.includes('--check')) {
