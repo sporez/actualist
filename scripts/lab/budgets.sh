@@ -19,22 +19,18 @@ if [ -f "$LAB_ENV" ]; then
 fi
 : "${ACTUAL_LAB_URL:?set ACTUAL_LAB_URL (or scripts/lib/lab.env); see scripts/lab/README.md}"
 : "${ACTUAL_LAB_PASSWORD:?set ACTUAL_LAB_PASSWORD (or scripts/lib/lab.env)}"
-: "${ACTUAL_UPSTREAM_DIR:?set ACTUAL_UPSTREAM_DIR (or scripts/lib/lab.env) to the pinned Actual checkout; see scripts/lab/README.md}"
-EXPECTED_SHA="$(node "$ROOT/scripts/parity/lib/oracle-pin.mjs" commit)"
-
 usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || usage
 CMD="$1"; shift
 
 # Run one node step: lab.test.mjs reads LAB_ARGS (JSON array) and dispatches.
 run_node() {
-  test "$(git -C "$ACTUAL_UPSTREAM_DIR" rev-parse HEAD)" = "$EXPECTED_SHA" \
-    || { echo 'upstream checkout is not at the pinned commit' >&2; exit 96; }
-  test -z "$(git -C "$ACTUAL_UPSTREAM_DIR" status --short)" \
-    || { echo 'upstream checkout is not clean' >&2; exit 96; }
+  # The helper fails unless ACTUALIST_PARITY_ORACLE_ROOT is a clean checkout at the pin.
+  local oracle
+  oracle="$(node "$ROOT/scripts/parity/lib/oracle-pin.mjs" oracle-root)" || exit 96
   local scratch="$ROOT/.artifacts/lab"
   mkdir -p "$scratch"
-  export ACTUAL_UPSTREAM_DIR ACTUAL_LAB_URL ACTUAL_LAB_PASSWORD
+  export ACTUALIST_PARITY_ORACLE_ROOT="$oracle" ACTUAL_LAB_URL ACTUAL_LAB_PASSWORD
   # Outside "test" mode upstream debounces syncs instead of awaiting one per write.
   export NODE_ENV=production
   export LAB_VITE_CACHE_DIR="$scratch/vite-cache"
@@ -42,7 +38,7 @@ run_node() {
   export LAB_ARGS="$1"
   local status=0 log="$scratch/last-run.log"
   set +e
-  node --experimental-vm-modules "$ACTUAL_UPSTREAM_DIR/node_modules/vitest/vitest.mjs" run \
+  node --experimental-vm-modules "$oracle/node_modules/vitest/vitest.mjs" run \
     --configLoader native --config "$HERE/vitest.config.mjs" --reporter=dot 2>&1 \
     | tee "$log" | grep --line-buffered '^LAB| ' | sed -u 's/^LAB| //'
   status=${PIPESTATUS[0]}
@@ -51,8 +47,8 @@ run_node() {
     echo "lab command failed (full log: $log)" >&2
     grep -E 'Error|error|failed' "$log" | grep -v 'source map\|map file\|ENOENT\|    at ' | head -15 >&2
   fi
-  test -z "$(git -C "$ACTUAL_UPSTREAM_DIR" status --short)" \
-    || { echo 'upstream checkout changed' >&2; exit 97; }
+  node "$ROOT/scripts/parity/lib/oracle-pin.mjs" oracle-root >/dev/null \
+    || { echo 'oracle checkout changed during the run' >&2; exit 97; }
   return "$status"
 }
 

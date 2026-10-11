@@ -20,8 +20,12 @@ Glass-aware, and optimized for repeated budget review.
   whitespace, Liquid Glass, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
   `// Invariant:` comment), private identifiers (patterns from an optional
-  gitignored list), TestFlight notes, synchronized-group integrity, and
-  file-size signals. It does not replace tests.
+  gitignored list), TestFlight notes, parity fixture hashes and the
+  known-divergence registry, synchronized-group integrity, and file-size
+  signals. It also reports touched parity domains without failing on them.
+  It does not replace tests.
+- Parity oracles: `scripts/parity.sh` and `config/parity/domains.json`; see
+  Parity Oracles under Testing Scope And Reuse.
 - Architecture guidance: `.agents/skills/actualist-architecture/SKILL.md`.
   Skill-aware clients expose it as `skill://actualist-architecture`.
 - Machine-specific simulator/device configuration: gitignored
@@ -777,6 +781,29 @@ Focused runs need not precede an already sufficient full run. Do not run both
 parallel and serial full suites unless a bounded scheduling/reliability
 investigation explicitly calls for them.
 
+### Parity Oracles
+
+`config/parity/domains.json` maps Actual-compatible behavior to its oracle
+harness and Swift oracle suites. `config/parity/oracle-pin.json` names the
+pinned Actual release. `scripts/parity.sh touched` lists the domains a working
+tree or range touches.
+
+- A change matching a domain's paths requires
+  `scripts/parity.sh verify <domain>`. A hand-written test is not a substitute.
+  The verify run counts toward the verification budget like any focused run.
+- New behavior that Actual also has requires a new oracle case in that
+  domain's generator. Changing an uncovered domain does not require building
+  its harness, but the handoff names the domain as unverified against Actual.
+- Expected values in an oracle fixture come only from running its generator
+  against the pinned Actual. Never edit them by hand.
+- A divergence from Actual is a finding (`OP-nn`), not something to hide. It
+  may keep a test green only as `withKnownIssue("OP-nn: ...")` around that one
+  case's comparison, with a matching entry in
+  `config/parity/known-divergences.json`. Never use `isIntermittent`. The fix
+  removes the marker and the entry in the same commit.
+- Without `ACTUALIST_PARITY_ORACLE_ROOT`, `verify` skips the
+  regenerate-and-diff step. Report that skip; it is not a fresh-oracle pass.
+
 ### Evidence And Reuse
 
 Record enough evidence to establish:
@@ -922,6 +949,8 @@ production-code change, review the completed diff against the architecture gate.
   and that structural edits received the appropriate compile check.
 - Confirm changed `BudgetMonth`, `Account`, and `Transaction` reads/writes
   against SQLite fixtures or a throwaway synced budget.
+- Run `scripts/parity.sh verify` for every touched parity domain, and name
+  touched uncovered domains as unverified against Actual.
 - Verify money formatting/conversion against Actual amount units whenever money
   display, parsing, serialization, or calculations change.
 - Verify relevant sync-token, password, encryption-key, and budget-data

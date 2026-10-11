@@ -1,18 +1,37 @@
-import { writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
-import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
+import {
+  assertPinnedOracle,
+  hasOracleRoot,
+  oraclePin,
+  ORACLE_ROOT_VARIABLE,
+  pinnedFixtureDirectory,
+  pinnedOracleRoot,
+} from '../parity/lib/oracle-pin.mjs';
+import { compareWithCommitted } from '../parity/lib/fixture-diff.mjs';
 
-const root = process.argv[2];
-if (!root) throw new Error('Usage: node scripts/tracking-parity/generate.mjs <Actual checkout>');
-const commit = oraclePin.commit;
-if (execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== commit) {
-  throw new Error(`Expected pinned Actual ${oraclePin.tag} checkout`);
+const scriptPath = fileURLToPath(import.meta.url);
+const repositoryRoot = resolve(dirname(scriptPath), '..', '..');
+const helperPath = join(repositoryRoot, 'scripts/parity/lib/oracle-pin.mjs');
+const defaultOutput = pinnedFixtureDirectory('Tracking');
+const checking = process.argv.includes('--check');
+if (!hasOracleRoot()) {
+  console.error(`Oracle required: set ${ORACLE_ROOT_VARIABLE} to a clean checkout of Actual ${oraclePin.tag}.`);
+  process.exit(2);
 }
+const oracleRoot = pinnedOracleRoot();
+const outputIndex = process.argv.indexOf('--output');
+const outputDirectory = checking
+  ? mkdtempSync(join(tmpdir(), 'actualist-tracking-check-'))
+  : resolve(outputIndex === -1 ? defaultOutput : process.argv[outputIndex + 1]);
+const commit = oraclePin.commit;
 const path = 'packages/loot-core/src/server/budget/tracking.ts';
-const source = execFileSync('git', ['-C', root, 'show', `${commit}:${path}`], { encoding: 'utf8' });
+const source = execFileSync('git', ['-C', oracleRoot, 'show', `${commit}:${path}`], { encoding: 'utf8' });
 // Execute the upstream cell definitions with a minimal spreadsheet registry.
 // Financial callbacks and dependencies are taken verbatim from the pinned source.
 const cells = new Map();
@@ -45,8 +64,42 @@ for (const isIncome of [false, true]) {
 context.createCategoryGroup({ id: 'group', categories: [{ id: 'visible' }, { id: 'hidden', hidden: true }] }, 'current');
 const groupDependencies = cells.get('group-budget-group').dependencies;
 context.createSummary([{ id: 'income', is_income: true }, { id: 'expense' }, { id: 'hidden', hidden: true }], 'current');
-const result = { commit, source: path, sha256: createHash('sha256').update(source).digest('hex'), cases,
+const sourceSha256 = createHash('sha256').update(source).digest('hex');
+const result = { commit, source: path, sha256: sourceSha256, cases,
   groupDependencies, expenseDependencies: cells.get('total-budgeted').dependencies,
   projectedSavings: cells.get('total-saved').run(1500, 500), actualSavings: cells.get('real-saved').run(1200, -300) };
-writeFileSync(join(pinnedFixtureDirectory('Tracking'), 'contract.json'), JSON.stringify(result, null, 2) + '\n');
-console.log(`Generated ${cases.length} upstream recurrence cases`);
+assertPinnedOracle(oracleRoot, 'after generating');
+
+const sha256 = data => createHash('sha256').update(data).digest('hex');
+const contractText = JSON.stringify(result, null, 2) + '\n';
+writeFileSync(join(outputDirectory, 'contract.json'), contractText);
+const manifest = JSON.stringify({
+  schemaVersion: 1,
+  actual: { tag: oraclePin.tag, commit, packageVersion: oraclePin.packageVersion },
+  generator: {
+    command: `${ORACLE_ROOT_VARIABLE}=<pinned-actual> node scripts/tracking-parity/generate.mjs`,
+    sha256: sha256(readFileSync(scriptPath)),
+  },
+  helpers: [{ path: relative(repositoryRoot, helperPath), sha256: sha256(readFileSync(helperPath)) }],
+  seed: null,
+  caseCount: cases.length,
+  sourceFiles: [{ path, sha256: sourceSha256 }],
+  fixtures: [{
+    path: relative(repositoryRoot, join(defaultOutput, 'contract.json')),
+    sha256: sha256(contractText),
+    caseCount: cases.length,
+  }],
+}, null, 2) + '\n';
+writeFileSync(join(outputDirectory, 'tracking-manifest.json'), manifest);
+
+if (checking) {
+  const failures = compareWithCommitted(defaultOutput, outputDirectory, ['contract.json', 'tracking-manifest.json']);
+  rmSync(outputDirectory, { recursive: true, force: true });
+  if (failures.length > 0) {
+    for (const failure of failures) console.error(`tracking parity drift: ${failure}`);
+    process.exit(1);
+  }
+  console.log(`Tracking parity fixtures match a fresh generation (${cases.length} cases).`);
+} else {
+  console.log(`Generated ${cases.length} upstream recurrence cases`);
+}

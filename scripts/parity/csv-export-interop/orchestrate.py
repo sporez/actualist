@@ -31,7 +31,7 @@ NODE = _required_path("ACTUALIST_PARITY_NODE")
 PROTECTED_CHECKOUT = Path(os.environ.get("ACTUALIST_PARITY_PROTECTED_CHECKOUT") or PINNED.parents[2])
 YARN_CACHE = Path.home() / ".yarn/berry/cache"
 SANDBOX_PARAMS = ["-D", f"PROTECTED_CHECKOUT={PROTECTED_CHECKOUT}", "-D", f"YARN_CACHE={YARN_CACHE}"]
-EXPECTED_ACTUAL_COMMIT = json.loads((ROOT / "config/parity/oracle-pin.json").read_text())["commit"]
+ORACLE_PIN_HELPER = ROOT / "scripts/parity/lib/oracle-pin.mjs"
 EXPECTED_NODE_SHA256 = "e4b5a3af0e05c75de2eae013904145f40fe7fc2a6e6f17510128bf45cca4e79b"
 EXPECTED_YARN_SHA256 = "471ffb15e0523663865bbf46a69e7d157ecf532412eb436c48dfab6e3f2abe88"
 EXPECTED_VITEST_PACKAGE_SHA256 = "a4f269c689b346c33446feaa8adea6bc1c1bd35a21e12c9ffac74198687b0fbc"
@@ -229,23 +229,19 @@ def locked_version(lock_path, name):
     raise RunFailure(f"{name} is missing from the pinned yarn.lock")
 
 
-def verify_pinned_checkout(deadline, log_path):
-    env = os.environ.copy()
-    env["GIT_OPTIONAL_LOCKS"] = "0"
-    revision = run_command(
-        ["/usr/bin/git", "--no-optional-locks", "-C", str(PINNED), "rev-parse", "HEAD"],
-        cwd=ROOT, env=env, deadline=deadline, log_path=log_path,
-        label="pinned Actual revision check", capture=True,
+def run_oracle_helper(args, root, deadline, log_path, label):
+    """Run the shared oracle helper against root; oracle-root checks the pin, tag and clean tree."""
+    env = {**os.environ, "GIT_OPTIONAL_LOCKS": "0", "ACTUALIST_PARITY_ORACLE_ROOT": str(root)}
+    return run_command(
+        [str(NODE), str(ORACLE_PIN_HELPER), *args],
+        cwd=ROOT, env=env, deadline=deadline, log_path=log_path, label=label, capture=True,
     ).strip()
-    if revision != EXPECTED_ACTUAL_COMMIT:
-        raise RunFailure(f"pinned Actual revision mismatch: {revision}")
-    status = run_command(
-        ["/usr/bin/git", "--no-optional-locks", "-C", str(PINNED), "status", "--short"],
-        cwd=ROOT, env=env, deadline=deadline, log_path=log_path,
-        label="pinned Actual read-only status check", capture=True,
-    )
-    if status:
-        raise RunFailure("pinned Actual checkout is dirty; refusing the run")
+
+
+def verify_oracle_root(root, deadline, log_path, label):
+    checked = run_oracle_helper(["oracle-root"], root, deadline, log_path, label)
+    if os.path.realpath(checked) != os.path.realpath(root):
+        raise RunFailure(f"{label} resolved {checked}, expected {root}")
 
 
 def run_stage(*, output, identity, overall_deadline, stage_name, cap, termination,
@@ -391,7 +387,8 @@ def main():
             raise RunFailure("pinned Node executable is missing or symlinked")
         if hash_file(NODE) != EXPECTED_NODE_SHA256:
             raise RunFailure("pinned Node executable hash mismatch")
-        verify_pinned_checkout(preparation_deadline, prep_log)
+        verify_oracle_root(PINNED, preparation_deadline, prep_log, "pinned oracle check")
+        actual_commit = run_oracle_helper(["commit"], PINNED, preparation_deadline, prep_log, "pinned commit lookup")
         check_deadline(preparation_deadline, "source freeze", PREPARATION_CLEANUP_SECONDS)
         # The committed freeze names external inputs with @ORACLE_ROOT@ and @NODE@
         # placeholders; render them for this machine before checking.
@@ -417,23 +414,8 @@ def main():
         for filename in ("csv-export-interop.test.ts", "oracle.vitest.config.ts"):
             shutil.copyfile(HARNESS / filename, output / "overlay-harness" / filename)
         verify_output_identity(output, output_identity)
-        verify_pinned_checkout(preparation_deadline, prep_log)
-        overlay_revision = run_command(
-            ["/usr/bin/git", "--no-optional-locks", "-C", str(overlay), "rev-parse", "HEAD"],
-            cwd=ROOT, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
-            deadline=preparation_deadline, log_path=prep_log,
-            label="COW overlay revision check", capture=True,
-        ).strip()
-        if overlay_revision != EXPECTED_ACTUAL_COMMIT:
-            raise RunFailure("COW overlay revision mismatch")
-        overlay_status = run_command(
-            ["/usr/bin/git", "--no-optional-locks", "-C", str(overlay), "status", "--short"],
-            cwd=ROOT, env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
-            deadline=preparation_deadline, log_path=prep_log,
-            label="COW overlay read-only status check", capture=True,
-        )
-        if overlay_status:
-            raise RunFailure("COW overlay is not clean")
+        verify_oracle_root(PINNED, preparation_deadline, prep_log, "pinned oracle recheck")
+        verify_oracle_root(overlay, preparation_deadline, prep_log, "COW overlay oracle check")
         check_deadline(preparation_deadline, "preparation completion")
 
         encoder = ROOT / "Actualist/Shared/TransactionCSVEncoder.swift"
@@ -443,7 +425,7 @@ def main():
         freeze_hash = hash_file(HARNESS / "source-freeze.sha256")
         manifest = {
             "schema": 2,
-            "actualCommit": EXPECTED_ACTUAL_COMMIT,
+            "actualCommit": actual_commit,
             "pinnedReadOnlySource": str(PINNED),
             "writableCOWOverlay": str(overlay),
             "node": {"path": str(NODE), "version": "24.21.0", "sha256": EXPECTED_NODE_SHA256},
@@ -512,7 +494,7 @@ def main():
             "ACTUALIST_CSV_INTEROP_EVIDENCE_DIR": str(output / "evidence"),
             "ACTUALIST_CSV_INTEROP_ACTUAL_OVERLAY": str(overlay),
             "ACTUALIST_CSV_INTEROP_OVERLAY_HARNESS": str(output / "overlay-harness"),
-            "ACTUALIST_CSV_INTEROP_EXPECTED_COMMIT": EXPECTED_ACTUAL_COMMIT,
+            "ACTUALIST_CSV_INTEROP_EXPECTED_COMMIT": actual_commit,
         }
         node_command = [
             "/usr/bin/sandbox-exec", *SANDBOX_PARAMS, "-f", str(PROFILE), str(NODE),
@@ -530,7 +512,7 @@ def main():
         )
         run_receipt.update({"state": "postflight", "nodeOutcome": node_receipt.get("outcome")})
         atomic_json(run_receipt_path, run_receipt)
-        verify_pinned_checkout(overall_deadline - 2.0, output / "logs/preparation.log")
+        verify_oracle_root(PINNED, overall_deadline - 2.0, output / "logs/preparation.log", "post-run oracle check")
         observation = output / "evidence/actual-import-observation.json"
         if observation.is_symlink() or not observation.is_file() or observation.stat().st_size == 0:
             raise RunFailure("Actual observation is missing, empty or symlinked")

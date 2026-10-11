@@ -24,7 +24,7 @@ function sha256(data) {
 function fail(message) {
   console.error(`split parity fixture error: ${message}`);
   console.error(
-    'Regenerate with scripts/split-parity/generate.mjs --actual-checkout <pinned-actual>.',
+    'Regenerate with ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/split-parity/generate.mjs.',
   );
   process.exit(1);
 }
@@ -54,10 +54,24 @@ if (manifest.amountUnits !== 'integer minor units') {
 if (manifest.rounding !== 'JavaScript Math.round: ties toward positive infinity') {
   fail('rounding convention changed without an oracle schema update');
 }
+if (manifest.seed !== null) fail('manifest seed must be null for this deterministic harness');
 
 const generatorPath = join(root, 'scripts/split-parity/generate.mjs');
 if (sha256(readFileSync(generatorPath)) !== manifest.generator?.sha256) {
   fail('generator hash differs from the reviewed manifest');
+}
+if (!Array.isArray(manifest.helpers) || manifest.helpers.length === 0) {
+  fail('manifest does not record the helper scripts it depends on');
+}
+for (const helper of manifest.helpers) {
+  const helperPath = resolve(root, helper.path ?? '');
+  let data;
+  try {
+    data = readFileSync(helperPath);
+  } catch (error) {
+    fail(`cannot read helper ${helper.path}: ${error.message}`);
+  }
+  if (sha256(data) !== helper.sha256) fail(`helper hash differs from the reviewed manifest: ${helper.path}`);
 }
 
 if (!Array.isArray(manifest.sourceFiles) || manifest.sourceFiles.length < 10) {
@@ -88,6 +102,7 @@ for (const required of [
 if (!Array.isArray(manifest.fixtures) || manifest.fixtures.length !== 3) {
   fail('expected the reviewed family, split-rule, and mutation fixtures');
 }
+let totalCases = 0;
 for (const fixture of manifest.fixtures) {
   const path = resolve(root, fixture.path ?? '');
   if (!path.startsWith(fixtureRoot + '/')) {
@@ -118,8 +133,10 @@ for (const fixture of manifest.fixtures) {
   if (ids.size !== parsed.cases.length || ids.has(undefined)) {
     fail(`case ids are missing or duplicated in ${fixture.path}`);
   }
+  totalCases += fixture.caseCount;
 }
+if (manifest.caseCount !== totalCases) fail(`manifest caseCount ${manifest.caseCount} is not ${totalCases}`);
 
 console.log(
-  `Split parity fixtures verified (${manifest.actual.tag}, ${manifest.fixtures.reduce((sum, item) => sum + item.caseCount, 0)} cases).`,
+  `Split parity fixtures verified (${manifest.actual.tag}, ${totalCases} cases).`,
 );

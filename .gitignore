@@ -61,10 +61,12 @@ Local.xcconfig
 scripts/*
 !scripts/check.sh
 !scripts/lint-concurrency-escape-hatches.sh
+!scripts/lint-known-divergences.sh
 !scripts/lint-liquid-glass.sh
 !scripts/lint-private-patterns.sh
 !scripts/lint-reference-links.sh
 !scripts/lint-testflight-notes.sh
+!scripts/parity.sh
 !scripts/run-ios-simulator.sh
 !scripts/test.sh
 # Every oracle/parity harness folder is tracked in full. Excluded: generated

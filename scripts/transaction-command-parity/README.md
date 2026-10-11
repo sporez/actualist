@@ -21,8 +21,9 @@ loop immediately, and fails the single Vitest test; Actual handler refusals are
 recorded as normal per-case observations and do not stop the loop.
 Do not exercise Actualist persistence, a server, a real budget, or user data.
 
-The pinned upstream source and prepared transaction-oracle checkouts are
-immutable provenance inputs. This lane owns a local copy at
+The pinned upstream source (`ACTUALIST_PARITY_ORACLE_ROOT`, checked by
+`scripts/parity/lib/oracle-pin.mjs`) is an immutable provenance input. This lane
+owns a local writable copy, passed as `--writable-clone`, at
 `.artifacts/transaction-command-oracle/actual`; the runner canonicalizes and
 requires the writable checkout to remain below this exact lane-owned artifact
 root. It refuses shared Git identity, dirty source/candidate checkouts, existing
@@ -49,7 +50,9 @@ destination, budget category, reconciliation and broken-pair policy (M3); and
 full-graph atomic commit/undo representation (M4).
 
 Historical second bounded invocation (spent; the runner explicitly refuses
-this label even if its evidence directory is moved):
+this label even if its evidence directory is moved). It used the former
+`--source-checkout` and `--actual-checkout` flags; the source now comes only from
+`ACTUALIST_PARITY_ORACLE_ROOT` and the writable copy is `--writable-clone`:
 
 ```text
 scripts/transaction-command-parity/run-oracle.sh \

@@ -1,0 +1,345 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-11T02:01:06+00:00",
+  "seed": null,
+  "actual": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "oracleSources": [
+    {
+      "path": "packages/loot-core/src/server/budgetfiles/app.ts",
+      "sha256": "24ce95bd253383b621370fcb084306b8e3e926a61efb616329ba7b1278d98f85"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/base.ts",
+      "sha256": "c70cc2d5386bc4628bae805b3a82f860b22747413c795cea7f6a87b8c930838b"
+    },
+    {
+      "path": "packages/loot-core/src/server/update.ts",
+      "sha256": "b8ded503cd5dd52c548d88c2d22ed09b812ab91819100de18aa127aa49f32ac5"
+    },
+    {
+      "path": "packages/loot-core/src/server/migrate/migrations.ts",
+      "sha256": "71839e4e3fc8408783cb2f1a38e792e7c282a7465c06df2bba94cff530fb5fab"
+    },
+    {
+      "path": "packages/loot-core/default-db.sqlite",
+      "sha256": "41f638926c9457a01de4fa21d592196198e928aa1336cd6b9ffccd77d48971b6"
+    },
+    {
+      "path": "packages/loot-core/migrations/1548957970627_remove-db-version.sql",
+      "sha256": "75566e310c4549df79cc1e7899389feae3ac4791f682e4e59b55001b5862e901"
+    },
+    {
+      "path": "packages/loot-core/migrations/1550601598648_payees.sql",
+      "sha256": "586c365eaef01db19345bf6a19430bb0a3a0a42cf219c4be20822ba8acb0bd15"
+    },
+    {
+      "path": "packages/loot-core/migrations/1555786194328_remove_category_group_unique.sql",
+      "sha256": "6afdb7f2a07844ca9263688cf5e601da5e1564a3ed5267545f02a4f40b6d4476"
+    },
+    {
+      "path": "packages/loot-core/migrations/1561751833510_indexes.sql",
+      "sha256": "bd89c7bd8fb82c5fa2662daf5decbfd87bb9538cea826efffab4a3fa44eddc89"
+    },
+    {
+      "path": "packages/loot-core/migrations/1567699552727_budget.sql",
+      "sha256": "1aae0ddff63b14166d6e0f168d351441877bc8e72150e9ec8cedef8b938d9ed4"
+    },
+    {
+      "path": "packages/loot-core/migrations/1582384163573_cleared.sql",
+      "sha256": "083cab3f6f9a286063453100c7d52bab8cb6b7ac16093d42541f9d9614c21bf2"
+    },
+    {
+      "path": "packages/loot-core/migrations/1597756566448_rules.sql",
+      "sha256": "c68499e46db192f7dc60ed42d76cc86e05600594671ecb7a6c7c63c1a0a75174"
+    },
+    {
+      "path": "packages/loot-core/migrations/1608652596043_parent_field.sql",
+      "sha256": "882baf6afadd13374641c0b61b197f67816d83902b9dea245ba9803c01299f8c"
+    },
+    {
+      "path": "packages/loot-core/migrations/1608652596044_trans_views.sql",
+      "sha256": "dfcfc0e5b938492aa5347b2bc54305f86a6d7a4f8e0682276afc7235af54d289"
+    },
+    {
+      "path": "packages/loot-core/migrations/1612625548236_optimize.sql",
+      "sha256": "54a671df6b90586d1bdaeadf362fccb0518111d5ff9aa702df70d9b5d9f56dbe"
+    },
+    {
+      "path": "packages/loot-core/migrations/1614782639336_trans_views2.sql",
+      "sha256": "61c4602fbad55832ddf7f26e54d356f81d6d019984a0efad76059350286413e9"
+    },
+    {
+      "path": "packages/loot-core/migrations/1615745967948_meta.sql",
+      "sha256": "e63d7cc224c316378a2b3581164a486d8d683f018a2c105d4017c87267643713"
+    },
+    {
+      "path": "packages/loot-core/migrations/1616167010796_accounts_order.sql",
+      "sha256": "68bbe2f018b2da2775a56649f4b337dd5238af81912763d4a68e5e74d099c5bd"
+    },
+    {
+      "path": "packages/loot-core/migrations/1618975177358_schedules.sql",
+      "sha256": "dd61d87ab18faaa102e103cf7225eb8b53ed293a04ae86f48cd65af3a27cc768"
+    },
+    {
+      "path": "packages/loot-core/migrations/1632571489012_remove_cache.js",
+      "sha256": "c0695cd40c06bcc18f30550286ec0b767ccba7faa2cae5d7a20ed2866eff587f"
+    },
+    {
+      "path": "packages/loot-core/migrations/1679728867040_rules_conditions.sql",
+      "sha256": "17413daafa800c33c3682828dff4a507087b0eead2ab3fb282515e16ea639e4c"
+    },
+    {
+      "path": "packages/loot-core/migrations/1681115033845_add_schedule_name.sql",
+      "sha256": "489381ca60308fff15412a4ec6ca41bceec4a0c2d1e26ab249f7b0ff62bd8e5f"
+    },
+    {
+      "path": "packages/loot-core/migrations/1682974838138_remove_payee_rules.sql",
+      "sha256": "763455424632da16f6be7db43871e42e69d106a0840a5d38d61f3cb4a1a15f83"
+    },
+    {
+      "path": "packages/loot-core/migrations/1685007876842_add_category_hidden.sql",
+      "sha256": "a7f1b80e4f342593dd7c961bffa5ca23fe59d2f1d694716c8653353aec5a954c"
+    },
+    {
+      "path": "packages/loot-core/migrations/1686139660866_remove_account_type.sql",
+      "sha256": "4456361fae4b67d3243def5cc0650338ee5c9fbebfb977a716c47648e3849d36"
+    },
+    {
+      "path": "packages/loot-core/migrations/1688749527273_transaction_filters.sql",
+      "sha256": "ceb054d06727f4143420dd35653002217640893812146ea14f6c4d825e467e30"
+    },
+    {
+      "path": "packages/loot-core/migrations/1688841238000_add_account_type.sql",
+      "sha256": "265a1475dc01b614943a0b11b6e54d82ce7e53cd796b862f2cce81f0e79190ef"
+    },
+    {
+      "path": "packages/loot-core/migrations/1691233396000_add_schedule_next_date_tombstone.sql",
+      "sha256": "29732bc8279a5d9c111c7b7c4ea7b45b5e2c0f55b59bc4d93a83467d0c657c7c"
+    },
+    {
+      "path": "packages/loot-core/migrations/1694438752000_add_goal_targets.sql",
+      "sha256": "2636f3e7a3d3026fc7c67fab0a0f73cd9a8a14f57dcd4ea7fe762791951c02ac"
+    },
+    {
+      "path": "packages/loot-core/migrations/1697046240000_add_reconciled.sql",
+      "sha256": "24f44f300544351857da9395bbe0ff3b28ab93913fe4d5493f3f7d141665b9ae"
+    },
+    {
+      "path": "packages/loot-core/migrations/1704572023730_add_account_sync_source.sql",
+      "sha256": "a2a942636395d96be80e3c1b915741ae931a152a8f93d7a88f708152ae5ade89"
+    },
+    {
+      "path": "packages/loot-core/migrations/1704572023731_add_missing_goCardless_sync_source.sql",
+      "sha256": "ca03745e86c52850ba1e949555703c5639df443a74864a16e65ea81dfdcd6431"
+    },
+    {
+      "path": "packages/loot-core/migrations/1707267033000_reports.sql",
+      "sha256": "ec40f1db297b92193fa1180680deb9b9f0e104186cc628e8cb5938df24fc7d7a"
+    },
+    {
+      "path": "packages/loot-core/migrations/1712784523000_unhide_input_group.sql",
+      "sha256": "2185eb159c28e269cd0534fd232151102644deccd242736bea23d23f4ea5f942"
+    },
+    {
+      "path": "packages/loot-core/migrations/1716359441000_include_current.sql",
+      "sha256": "0ebb51205c90e85569ed06c6d6e4b47162ef34e6b5da2f73c32da3858442dd63"
+    },
+    {
+      "path": "packages/loot-core/migrations/1720310586000_link_transfer_schedules.sql",
+      "sha256": "a1e3a6a54ea3cd5fed13bdbfce725873bd1a4a24cc6f8abc70ba955f4d8b6ab4"
+    },
+    {
+      "path": "packages/loot-core/migrations/1720664867241_add_payee_favorite.sql",
+      "sha256": "ab21d24c223d4c0257c8d22f0f4d74d585dd7d558e3c7af15973eb31511914e5"
+    },
+    {
+      "path": "packages/loot-core/migrations/1720665000000_goal_context.sql",
+      "sha256": "c4d68449b5b88c4c4ee4ba33d8d8713892b2c7021c0ceff3b626396d2676e5b0"
+    },
+    {
+      "path": "packages/loot-core/migrations/1722717601000_reports_move_selected_categories.js",
+      "sha256": "78518cb0679e0ca1dddda7f14d2d82fd2d911244dd7c78820ed8bc492221e938"
+    },
+    {
+      "path": "packages/loot-core/migrations/1722804019000_create_dashboard_table.js",
+      "sha256": "965a56eb9a6d6b722583a869f4b0dc3cc77fca177e736bd923ad51dafe04a9e5"
+    },
+    {
+      "path": "packages/loot-core/migrations/1723665565000_prefs.js",
+      "sha256": "cc82555f54a6b3d26c23baae0f8ba90f578667d9015dc5a88dd453ae2b6bb0d8"
+    },
+    {
+      "path": "packages/loot-core/migrations/1730744182000_fix_dashboard_table.sql",
+      "sha256": "3db383b10ed9ba43abfb3359a1a6a00cb2c273b8e8686cdd3bfe1755d8cb919d"
+    },
+    {
+      "path": "packages/loot-core/migrations/1736640000000_custom_report_sorting.sql",
+      "sha256": "a60fcd9b4e840c17e2a4a31f30d3ef4bb06bd0b8c0e4af7acba05e768776c9ca"
+    },
+    {
+      "path": "packages/loot-core/migrations/1737158400000_add_learn_categories_to_payees.sql",
+      "sha256": "b0d373722e7f1c347202ce64b7360daa2047e9e6cf58699076d32db98ebfb4c5"
+    },
+    {
+      "path": "packages/loot-core/migrations/1738491452000_sorting_rename.sql",
+      "sha256": "be8434eec826d8482ce8dc937aaa924fb8560d7ee9c6dfd84fd430ca6ab151e2"
+    },
+    {
+      "path": "packages/loot-core/migrations/1739139550000_bank_sync_page.sql",
+      "sha256": "880247b4a518dfcb2fc21ba4af0d280643160b606d90cb52a7d8f26632c46505"
+    },
+    {
+      "path": "packages/loot-core/migrations/1740506588539_add_last_reconciled_at.sql",
+      "sha256": "7e89870f84b4b56af97257448d2fb064ffcae6cbc4c44748b89ffca289a0f76a"
+    },
+    {
+      "path": "packages/loot-core/migrations/1745425408000_update_budgetType_pref.sql",
+      "sha256": "37c59829a0644b94f1df02685d9b8640ec0fa609a9c23899dfcfad000aea8514"
+    },
+    {
+      "path": "packages/loot-core/migrations/1749799110000_add_tags.sql",
+      "sha256": "14c150a64e08fd8150e12c378200092af7b8f4c03069b34360901cb3eb9b7645"
+    },
+    {
+      "path": "packages/loot-core/migrations/1749799110001_tags_tombstone.sql",
+      "sha256": "33c7b597ba290d897bad00b2104e401d380b1bbfafcca1dda7de9f265bf5fa7e"
+    },
+    {
+      "path": "packages/loot-core/migrations/1754611200000_add_category_template_settings.sql",
+      "sha256": "fc95a7ad651687c5e4eec36a89476c8faddc64722b73326e3af80d562bb43f9e"
+    },
+    {
+      "path": "packages/loot-core/migrations/1759260219000_add_trim_interval_report_setting.sql",
+      "sha256": "7b0f3ba004078a0f51a9d18e6e7312f6f54b280216508ae6b1563a44b506ffa7"
+    },
+    {
+      "path": "packages/loot-core/migrations/1759842823172_add_isGlobal_to_preferences.sql",
+      "sha256": "edbfd62ccefd2628c62f27e92caa64894e0e4de3c43baf94424ae3bd1d2d74de"
+    },
+    {
+      "path": "packages/loot-core/migrations/1762178745667_rename_csv_skip_lines_pref.sql",
+      "sha256": "2baf91646869ee97b74e60db0a97df088b799dc395635b62a6ab283d4ae758f2"
+    },
+    {
+      "path": "packages/loot-core/migrations/1765518577215_multiple_dashboards.js",
+      "sha256": "61f48407e23d744dc8738031c1b1d07ea75265461ed976a7a662d1f4095a63fa"
+    },
+    {
+      "path": "packages/loot-core/migrations/1768872504000_add_payee_locations.sql",
+      "sha256": "ebaa4677d62abfd442be138d9cc8778d8fb64132a8ac653f8c3f03a19e9046b5"
+    },
+    {
+      "path": "packages/loot-core/migrations/1769000000000_add_custom_upcoming_length.sql",
+      "sha256": "6868b2ff18e8df85daa317e58cb96e04600a2d215b42334f8681cf2d67e52591"
+    },
+    {
+      "path": "packages/loot-core/migrations/1778510362740_add_cleanup_groups_and_def.sql",
+      "sha256": "b2501d91f82ff56ca1140968c437f1c75ad8bed66b336c0154425b62f2500755"
+    },
+    {
+      "path": "packages/loot-core/migrations/1780099200000_add_show_trend_lines_report_setting.sql",
+      "sha256": "0cd743598eb1d7b85519f537cee8014c1b2a235fe20451897eb4222e308b937f"
+    },
+    {
+      "path": "packages/loot-core/migrations/1780327681000_add_tags_hidden.sql",
+      "sha256": "72174eea71871a9fdd71ecb9780393ae2c3b48419caa23acc68fbe0383245147"
+    },
+    {
+      "path": "packages/loot-core/migrations/1780606215000_add_bank_sync_status.sql",
+      "sha256": "8c80a5ea5649435fbfe89308b0c8a2ff9020553dee676aec1c55f48214497f1d"
+    },
+    {
+      "path": "packages/loot-core/migrations/1780606215001_add_performance_indexes.sql",
+      "sha256": "eb5add27f8bb44c1bd7fe5e14ed20565cd09c7237b03a5f6a7baacb5d7cfdb1f"
+    },
+    {
+      "path": "packages/loot-core/migrations/1783004650757_schedule_sort_order.sql",
+      "sha256": "38cbfbda34ce749f45d145ad8156a054fd20fa477b83c3176127a695315f7687"
+    },
+    {
+      "path": "packages/loot-core/migrations/1787013118115_add_account_groups.sql",
+      "sha256": "08f38e203a543ab2e19913c7f03024cbf13cbb3fe818e1f54adbb59e9cf49ac2"
+    },
+    {
+      "path": "packages/loot-core/migrations/1788468782000_add_messages_pending.js",
+      "sha256": "ffb398fd775b817292bbe5fbd05ec9bf1a19dfc7355f4bb84e46c5121faac433"
+    },
+    {
+      "path": "packages/loot-core/migrations/README.md",
+      "sha256": "6abba167721998c448d32dec47f9d5e605be13adef39aab296dd5bf7a03473a2"
+    }
+  ],
+  "harnessFiles": [
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/run.sh",
+      "sha256": "dadd92e7dcc56efacbe7563fe7e9808f5d933d0dc54e5de8dc716c3d9243f415"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/dump.py",
+      "sha256": "0dc4db93b98adc7f4abe7c371872f2411bbd05dfb6c6588c57824ae70bd51c9e"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/emit_swift.py",
+      "sha256": "dab59fa97452555673a2107d684eb3d9117bee5092e961a3d9690ce1ee8f6979"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/replay.py",
+      "sha256": "2d0fe976611f352a95027e9e9ea62179c53fbd2e392d6255f8ebaf47d44640bd"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/manifest.py",
+      "sha256": "3a60e54a0b604421cbe63bd581fa96bb0daeef477bd5e136d7623ebe60cbac84"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/drift.py",
+      "sha256": "8316222907c1da5a2ca29db19049f64f3f128c393f9d156862a907b8b4c72324"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/verify.mjs",
+      "sha256": "1c4cf89aefe4033f398ecaf2eecca2099d90550239aff924a1e25acca0d4a493"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/generate.test.mjs",
+      "sha256": "4c074c42b625256cb8442a6713bf9fd70f1106e9669a2a3178be33dbdda4356b"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/check.test.mjs",
+      "sha256": "5d27b6f77d2801222a70a5d263754ff91f89ec189260da8f59b91edcdcdfb22b"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/vitest.config.mjs",
+      "sha256": "e8a2f279a006f89396ce4a78952d50c9140edc131d9e0e6b54fc80504cd7c975"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/fs-shim.mjs",
+      "sha256": "c4859e513ee91a2beb337cedcc23b7a768bbcbaa27d6499ff0177034f0a6b4f7"
+    },
+    {
+      "path": "scripts/parity/new-budget-schema/no-network-setup.mjs",
+      "sha256": "e2a9acb342136c1d3d808b0a77947aeecc28767198e27b1d4b1f5a02e3aeee3e"
+    }
+  ],
+  "fixtureFiles": [
+    {
+      "path": "starter-schema.json",
+      "sha256": "ee313c000b8aea35de140c601d2b4b0b038a9287696199d8a187e9cb5b9f46ff"
+    },
+    {
+      "path": "migrations.txt",
+      "sha256": "ce48afd446ef460fa947d767a55448aea921565bac30427c4cacd264a8969a44"
+    }
+  ],
+  "counts": {
+    "tables": 34,
+    "migrations": 60,
+    "caseCount": null
+  }
+}

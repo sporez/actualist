@@ -2,15 +2,34 @@
 // Executes the pinned editor functions with synthetic dates and reference lists.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripTypeScriptTypes } from 'node:module';
-import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
+import {
+  assertPinnedOracle,
+  hasOracleRoot,
+  oraclePin,
+  ORACLE_ROOT_VARIABLE,
+  pinnedFixtureDirectory,
+  pinnedOracleRoot,
+} from '../parity/lib/oracle-pin.mjs';
+import { compareWithCommitted } from '../parity/lib/fixture-diff.mjs';
 
-const destination = pinnedFixtureDirectory('Templates');
-const checkout = process.argv[2];
-if (!checkout) throw new Error('Usage: node scripts/template-parity/generate.mjs <actual-checkout> [--check]');
+const scriptPath = fileURLToPath(import.meta.url);
+const repositoryRoot = resolve(dirname(scriptPath), '..', '..');
+const helperPath = join(repositoryRoot, 'scripts/parity/lib/oracle-pin.mjs');
+const checking = process.argv.includes('--check');
+if (!hasOracleRoot()) {
+  console.error(`Oracle required: set ${ORACLE_ROOT_VARIABLE} to a clean checkout of Actual ${oraclePin.tag}.`);
+  process.exit(2);
+}
+const oracleRoot = pinnedOracleRoot();
+const outputIndex = process.argv.indexOf('--output');
+const destination = checking
+  ? mkdtempSync(join(tmpdir(), 'actualist-template-check-'))
+  : resolve(outputIndex === -1 ? pinnedFixtureDirectory('Templates') : process.argv[outputIndex + 1]);
 const commit = oraclePin.commit;
 const paths = {
   migration: 'packages/desktop-client/src/components/modals/BudgetAutomationsModal/migrateTemplatesToAutomations.ts',
@@ -18,7 +37,7 @@ const paths = {
   validation: 'packages/desktop-client/src/components/budget/goals/validateAutomation.ts',
 };
 const hash = value => createHash('sha256').update(value).digest('hex');
-const sources = Object.fromEntries(Object.entries(paths).map(([name, path]) => [name, execFileSync('git', ['show', `${commit}:${path}`], { cwd: checkout, encoding: 'utf8' })]));
+const sources = Object.fromEntries(Object.entries(paths).map(([name, path]) => [name, execFileSync('git', ['show', `${commit}:${path}`], { cwd: oracleRoot, encoding: 'utf8' })]));
 const sourceFiles = Object.entries(paths).map(([name, path]) => ({ path, sha256: hash(sources[name]) }));
 const fixedDate = '2026-09-04T12:00:00.000Z';
 class OracleDate extends Date { constructor(...args) { super(...(args.length ? args : [fixedDate])); } }
@@ -109,13 +128,22 @@ const validations = validationInputs.map(([id, input]) => {
 const fixture = JSON.stringify({ today: '2026-09-04', normalizations, transitions, validations }, null, 2) + '\n';
 // Also pin the note-preserving wrapper, model contract, and money engine sources.
 for (const path of ['packages/desktop-client/src/components/modals/BudgetAutomationsModal/AutomationEditorPane.tsx', 'packages/loot-core/src/types/models/templates.ts', 'packages/loot-core/src/server/budget/category-template-context.ts']) {
-  sourceFiles.push({ path, sha256: hash(execFileSync('git', ['show', `${commit}:${path}`], { cwd: checkout })) });
+  sourceFiles.push({ path, sha256: hash(execFileSync('git', ['show', `${commit}:${path}`], { cwd: oracleRoot })) });
 }
-const manifest = JSON.stringify({ schemaVersion: 1, tag: oraclePin.tag, commit, packageVersion: oraclePin.packageVersion, sourceFiles, generatorSHA256: hash(readFileSync(fileURLToPath(import.meta.url))), fixtureSHA256: hash(fixture), caseCount: normalizations.length + transitions.length + validations.length, oracleScope: 'Pinned unmodified reducer, migration and validation bodies. Synthetic UTC-noon calendar adapters; no schedule hydration or engine oracle execution. Note restoration follows AutomationEditorPane.dispatch. Preview/Apply and currency parity are tested separately through SQLite.', amountUnits: 'JSON display units; previews and Apply integer minor units' }, null, 2) + '\n';
-for (const [name, content] of [['editor-cases.json', fixture], ['template-editor-manifest.json', manifest]]) {
-  const path = resolve(destination, name);
-  if (process.argv.includes('--check')) {
-    if (readFileSync(path, 'utf8') !== content) throw new Error(`${name} differs from pinned oracle output`);
-  } else writeFileSync(path, content);
+const caseCount = normalizations.length + transitions.length + validations.length;
+const manifest = JSON.stringify({ schemaVersion: 1, tag: oraclePin.tag, commit, packageVersion: oraclePin.packageVersion, sourceFiles, generatorSHA256: hash(readFileSync(scriptPath)), helpers: [{ path: 'scripts/parity/lib/oracle-pin.mjs', sha256: hash(readFileSync(helperPath)) }], seed: null, fixtureSHA256: hash(fixture), caseCount, oracleScope: 'Pinned unmodified reducer, migration and validation bodies. Synthetic UTC-noon calendar adapters; no schedule hydration or engine oracle execution. Note restoration follows AutomationEditorPane.dispatch. Preview/Apply and currency parity are tested separately through SQLite.', amountUnits: 'JSON display units; previews and Apply integer minor units' }, null, 2) + '\n';
+assertPinnedOracle(oracleRoot, 'after generating');
+const outputs = [['editor-cases.json', fixture], ['template-editor-manifest.json', manifest]];
+for (const [name, content] of outputs) writeFileSync(join(destination, name), content);
+
+if (checking) {
+  const failures = compareWithCommitted(pinnedFixtureDirectory('Templates'), destination, outputs.map(([name]) => name));
+  rmSync(destination, { recursive: true, force: true });
+  if (failures.length > 0) {
+    for (const failure of failures) console.error(`template parity drift: ${failure}`);
+    process.exit(1);
+  }
+  console.log(`Template editor oracle: ${caseCount} cases match a fresh generation.`);
+} else {
+  console.log(`Template editor oracle: ${caseCount} cases generated.`);
 }
-console.log(`Template editor oracle: ${normalizations.length + transitions.length + validations.length} cases ${process.argv.includes('--check') ? 'verified' : 'generated'}.`);

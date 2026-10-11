@@ -4,7 +4,8 @@ set -e -u -o pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 actualist_root=$(cd "$script_dir/../.." && pwd -P)
-# The pin record is the single source of the Actual release; both checkouts are verified against it below.
+# The pin record is the single source of the Actual release. The source checkout comes from
+# ACTUALIST_PARITY_ORACLE_ROOT (verified by the helper); the writable clone is verified against the same pin below.
 EXPECTED_COMMIT=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" commit)
 EXPECTED_TAG=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" tag)
 EXPECTED_VERSION=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" packageVersion)
@@ -17,25 +18,20 @@ TERMINATION_GRACE_SECONDS=10
 usage() {
   cat >&2 <<'EOF'
 Usage: scripts/transaction-query-parity/run-oracle.sh \
-  --source-checkout <read-only-pinned-actual-v26.10.0-source> \
-  --actual-checkout <writable-distinct-dependency-ready-clone> \
+  --writable-clone <writable-distinct-dependency-ready-clone> \
   --evidence <evidence-root-under-.artifacts> \
   --run-label repin-v26.10.0-20261010
+ACTUALIST_PARITY_ORACLE_ROOT must name the clean pinned source checkout.
 EOF
   exit 64
 }
 
-source_checkout=''
 actual_checkout=''
 evidence_root=''
 run_label=''
 while (($# > 0)); do
   case "$1" in
-    --source-checkout)
-      source_checkout=${2:-}
-      shift 2
-      ;;
-    --actual-checkout)
+    --writable-clone)
       actual_checkout=${2:-}
       shift 2
       ;;
@@ -53,10 +49,11 @@ while (($# > 0)); do
   esac
 done
 
-[[ -n "$source_checkout" && -n "$actual_checkout" ]] || usage
+[[ -n "$actual_checkout" ]] || usage
 [[ -n "$evidence_root" && -n "$run_label" ]] || usage
 [[ "$run_label" == 'repin-v26.10.0-20261010' ]] || usage
 
+source_checkout=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" oracle-root) || exit 66
 source_checkout=$(cd "$source_checkout" && pwd -P)
 actual_checkout=$(cd "$actual_checkout" && pwd -P)
 python_path=$(command -v python3)
@@ -179,8 +176,6 @@ vitest_real_path=$("$python_path" -c \
   'import os, sys; print(os.path.realpath(sys.argv[1]))' "$vitest_path")
 observed_commit=$(git -C "$actual_checkout" rev-parse HEAD)
 observed_tag=$(git -C "$actual_checkout" describe --tags --exact-match HEAD)
-source_commit=$(git -C "$source_checkout" rev-parse HEAD)
-source_tag=$(git -C "$source_checkout" describe --tags --exact-match HEAD)
 observed_version=$("$node_path" -p "require(process.argv[1]).version" \
   "$actual_checkout/packages/loot-core/package.json")
 observed_node=$("$node_path" --version)
@@ -190,12 +185,12 @@ observed_vitest=$("$node_path" -p "require(process.argv[1]).version" \
 observed_better=$("$node_path" -p "require(process.argv[1]).version" \
   "$better_package")
 
-if [[ "$observed_commit" != "$EXPECTED_COMMIT" || "$source_commit" != "$EXPECTED_COMMIT" ]]; then
-  echo 'transaction query parity oracle: source or writable clone is not at the pinned commit' >&2
+if [[ "$observed_commit" != "$EXPECTED_COMMIT" ]]; then
+  echo 'transaction query parity oracle: writable clone is not at the pinned commit' >&2
   exit 66
 fi
-if [[ "$observed_tag" != "$EXPECTED_TAG" || "$source_tag" != "$EXPECTED_TAG" ]]; then
-  echo 'transaction query parity oracle: source or writable clone is not at the pinned tag' >&2
+if [[ "$observed_tag" != "$EXPECTED_TAG" ]]; then
+  echo 'transaction query parity oracle: writable clone is not at the pinned tag' >&2
   exit 66
 fi
 if [[ "$observed_version" != "$EXPECTED_VERSION" ]]; then
@@ -219,12 +214,9 @@ if [[ "$observed_better" != "$EXPECTED_BETTER_SQLITE3" ]]; then
   exit 66
 fi
 
+# The helper already required the source checkout to be clean; this records it as evidence.
 git -C "$source_checkout" status --short --untracked-files=no > \
   "$run_dir/source-git-status.txt"
-if [[ -s "$run_dir/source-git-status.txt" ]]; then
-  echo 'transaction query parity oracle: shared source has tracked changes' >&2
-  exit 66
-fi
 git -C "$actual_checkout" status --short --untracked-files=all > \
   "$run_dir/pre-overlay-git-status.txt"
 if [[ -s "$run_dir/pre-overlay-git-status.txt" ]]; then

@@ -6,9 +6,16 @@
     "packageVersion": "26.10.0"
   },
   "generator": {
-    "command": "scripts/reconciliation-parity/generate.mjs --actual-checkout <pinned-actual>",
-    "sha256": "5833b24c39c3c5fae9b301d452aa2322b20c17416677817ad2e5905233a56037"
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/reconciliation-parity/generate.mjs",
+    "sha256": "adfad3f1a802a51ea79d43d3e139d5ecb994136fdcb6c83b905c7e7d818a1daf"
   },
+  "helpers": [
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    }
+  ],
+  "seed": null,
   "amountUnits": "integer minor units",
   "lastReconciledStorage": "new Date().getTime().toString() milliseconds",
   "sourceFiles": [
@@ -51,8 +58,9 @@
   ],
   "fixture": {
     "path": "ActualistTests/Fixtures/ActualCore26_10_0/Reconciliation/reconciliation-contract.json",
-    "sha256": "bde60127d8ab11f7185c65dc11c2eb325461c4a1a241851fd9063b510e41bade",
+    "sha256": "0788504e1bafd9974fda33b859ff4450e4e39488dfadf8c72a27105683082240",
     "caseCount": 6
   },
+  "caseCount": 6,
   "contractSourceSha256": "da00774e458201d7e97aeeb51f7090fdceb52c47acb270fea4c923b767019c01"
 }

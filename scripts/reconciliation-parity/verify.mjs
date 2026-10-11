@@ -22,7 +22,9 @@ function sha256(data) {
 
 function fail(message) {
   console.error(`reconciliation parity fixture error: ${message}`);
-  console.error('Regenerate with scripts/reconciliation-parity/generate.mjs --actual-checkout <pinned-actual>.');
+  console.error(
+    'Regenerate with ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/reconciliation-parity/generate.mjs.',
+  );
   process.exit(1);
 }
 
@@ -36,12 +38,26 @@ if (manifest.schemaVersion !== expected.schemaVersion) fail('unexpected manifest
 for (const key of ['tag', 'commit', 'packageVersion']) {
   if (manifest.actual?.[key] !== expected[key]) fail(`unexpected Actual ${key}`);
 }
+if (manifest.seed !== null) fail('manifest seed must be null for this deterministic harness');
 if (manifest.amountUnits !== 'integer minor units') fail('amount units are not explicit');
 if (manifest.lastReconciledStorage !== 'new Date().getTime().toString() milliseconds') {
   fail('last_reconciled storage contract changed');
 }
 const generatorPath = join(root, 'scripts/reconciliation-parity/generate.mjs');
 if (sha256(readFileSync(generatorPath)) !== manifest.generator?.sha256) fail('generator hash mismatch');
+if (!Array.isArray(manifest.helpers) || manifest.helpers.length === 0) {
+  fail('manifest does not record the helper scripts it depends on');
+}
+for (const helper of manifest.helpers) {
+  const helperPath = resolve(root, helper.path ?? '');
+  let data;
+  try {
+    data = readFileSync(helperPath);
+  } catch (error) {
+    fail(`cannot read helper ${helper.path}: ${error.message}`);
+  }
+  if (sha256(data) !== helper.sha256) fail(`helper hash mismatch: ${helper.path}`);
+}
 if (!Array.isArray(manifest.sourceFiles) || manifest.sourceFiles.length !== 9) {
   fail('source hash list is incomplete');
 }
@@ -61,6 +77,7 @@ if (fixture.schemaVersion !== expected.schemaVersion || fixture.oracle?.commit !
 if (!Array.isArray(fixture.cases) || fixture.cases.length !== manifest.fixture?.caseCount) {
   fail('fixture case count mismatch');
 }
+if (manifest.caseCount !== fixture.cases.length) fail('manifest caseCount is not the fixture case count');
 const caseIDs = new Set(fixture.cases.map(value => value.id));
 for (const id of [
   'cleared-balance', 'finish', 'adjustment-rule-projection',

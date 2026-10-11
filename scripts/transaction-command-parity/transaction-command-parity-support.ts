@@ -13,7 +13,7 @@ import { deserializeValue } from '#server/sync/serialization';
 
 export const EXPECTED_CASE_COUNT = 39;
 
-// The runner passes the pin record through env after verifying both checkouts against it.
+// The runner passes the pin record through env after verifying the oracle root and writable clone against it.
 function expectedPin(): { commit: string; tag: string; version: string } {
   const commit = requiredEnv('ACTUAL_TRANSACTION_COMMAND_PARITY_COMMIT');
   const tag = requiredEnv('ACTUAL_TRANSACTION_COMMAND_PARITY_TAG');

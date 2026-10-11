@@ -12,9 +12,10 @@ Shell and Node (`run.sh`):
 - `ACTUAL_LAB_PASSWORD`: its password.
 - `ACTUAL_LAB_HANDOFF_DIR`: scratch folder shared between Node and the Swift
   tests (file IDs, ids, counts; no credentials). Keep it under `.artifacts/`.
-- `ACTUAL_UPSTREAM_DIR`: the pinned, read-only Actual checkout (tag and commit
-  in `config/parity/oracle-pin.json`) with `node_modules`. `run.sh` refuses to run unless HEAD matches
-  and `git status` is clean, and re-checks afterwards.
+- `ACTUALIST_PARITY_ORACLE_ROOT`: the pinned, read-only Actual checkout (tag and
+  commit in `config/parity/oracle-pin.json`) with `node_modules`. `run.sh` refuses
+  to run unless `scripts/parity/lib/oracle-pin.mjs oracle-root` accepts it (HEAD at
+  the pin, pinned tag, clean tree), and checks again afterwards.
 
 Swift tests (`ActualistTests/LiveLabInteropTests.swift`): the same three
 `ACTUAL_LAB_*` names, passed as `TEST_RUNNER_ACTUAL_LAB_URL`,

@@ -9,6 +9,7 @@ import {
   existsSync,
   fsyncSync,
   mkdirSync,
+  mkdtempSync,
   openSync,
   readFileSync,
   realpathSync,
@@ -16,12 +17,19 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
+import {
+  assertPinnedOracle,
+  hasOracleRoot,
+  ORACLE_ROOT_VARIABLE,
+  oraclePin,
+  pinnedFixtureDirectory,
+  pinnedOracleRoot,
+} from '../parity/lib/oracle-pin.mjs';
 
 const EXPECTED_TAG = oraclePin.tag;
-const EXPECTED_COMMIT = oraclePin.commit;
 const EXPECTED_VERSION = oraclePin.packageVersion;
 const EXPECTED_NODE_MAJOR = 24;
 const EXPECTED_YARN_VERSION = '4.17.1';
@@ -34,14 +42,28 @@ const TERMINATION_CONFIRM_MILLISECONDS = 1_000;
 const scriptPath = fileURLToPath(import.meta.url);
 const scriptRoot = dirname(scriptPath);
 const repositoryRoot = resolve(scriptRoot, '..', '..');
-const checkoutArgument = argument('--actual-checkout');
-const evidenceArgument = argument('--evidence');
-if (!checkoutArgument || !evidenceArgument) usage();
-const checkout = resolve(checkoutArgument);
+const checkMode = process.argv.includes('--check');
+if (!hasOracleRoot()) {
+  console.error(
+    `Set ${ORACLE_ROOT_VARIABLE} to a clean checkout of Actual ${EXPECTED_TAG} with dependencies installed.`,
+  );
+  process.exit(2);
+}
+// Check mode regenerates into a fresh scratch directory outside every checkout
+// and compares the result with the committed fixture; it takes no paths.
+const scratchRoot = checkMode
+  ? mkdtempSync(join(tmpdir(), 'account-lifecycle-check-'))
+  : null;
+if (checkMode && (argument('--evidence') || argument('--output'))) usage();
+const evidenceArgument = scratchRoot
+  ? join(scratchRoot, 'evidence')
+  : argument('--evidence');
+if (!evidenceArgument) usage();
+const checkout = pinnedOracleRoot();
 const evidenceRoot = resolve(evidenceArgument);
-const outputRoot = resolve(
-  argument('--output') ?? pinnedFixtureDirectory('AccountLifecycle'),
-);
+const outputRoot = scratchRoot
+  ? join(scratchRoot, 'AccountLifecycle')
+  : resolve(argument('--output') ?? pinnedFixtureDirectory('AccountLifecycle'));
 
 const harnessFiles = [
   'account-lifecycle-parity.test.ts',
@@ -115,7 +137,7 @@ function argument(name) {
 
 function usage() {
   console.error(
-    'Usage: node scripts/account-lifecycle-parity/generate.mjs --actual-checkout <isolated-path> --evidence <unique-path> [--output <path>]',
+    `Usage: ${ORACLE_ROOT_VARIABLE}=<oracle> node scripts/account-lifecycle-parity/generate.mjs (--evidence <unique-path> [--output <path>] | --check)`,
   );
   process.exit(2);
 }
@@ -410,7 +432,7 @@ function hashedPath(path) {
     manifestPath === '..' ||
     manifestPath.startsWith(`..${sep}`)
   ) {
-    throw new Error(`Provenance path is outside the isolated checkout: ${path}`);
+    throw new Error(`Provenance path is outside the oracle checkout: ${path}`);
   }
   return {
     path: manifestPath,
@@ -476,18 +498,18 @@ function preserveRunEvidence({ capture, error, didValidate, testArgv }) {
     actual: { tag, commit, packageVersion },
     toolchain: { node: process.version, yarn: yarnVersion },
     generation: {
-      workingDirectory: '<isolated-actual-checkout>',
+      workingDirectory: '<pinned-oracle-root>',
       argv: [
         'node',
         ...testArgv.map(value =>
           value === `--outputFile=${vitestOutput}`
-            ? '--outputFile=<isolated-actual-checkout>/.actualist-account-lifecycle-vitest-<invocation-id>.json'
+            ? '--outputFile=<pinned-oracle-root>/.actualist-account-lifecycle-vitest-<invocation-id>.json'
             : value,
         ),
       ],
       environment: {
         ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT:
-          '<isolated-actual-checkout>/.actualist-account-lifecycle-oracle.json',
+          '<pinned-oracle-root>/.actualist-account-lifecycle-oracle.json',
         TZ: 'UTC',
       },
       executionCeilingMilliseconds: ORACLE_TIMEOUT_MILLISECONDS,
@@ -732,9 +754,6 @@ function validateManifestShape(manifest) {
   }
 }
 
-if (!existsSync(join(checkout, '.git'))) {
-  throw new Error(`Actual checkout is not a git worktree: ${checkout}`);
-}
 const evidenceParent = dirname(evidenceRoot);
 if (!existsSync(evidenceParent)) {
   throw new Error(`Evidence parent directory does not exist: ${evidenceParent}`);
@@ -744,7 +763,7 @@ if (
   isPathInside(realpathSync(checkout), realpathSync(evidenceParent))
 ) {
   throw new Error(
-    `Evidence destination must be outside the isolated Actual checkout: ${evidenceRoot}`,
+    `Evidence destination must be outside the Actual oracle checkout: ${evidenceRoot}`,
   );
 }
 if (
@@ -769,16 +788,8 @@ if (Number(process.versions.node.split('.')[0]) !== EXPECTED_NODE_MAJOR) {
   );
 }
 
-const commit = run('git', ['rev-parse', 'HEAD']);
-if (commit !== EXPECTED_COMMIT) {
-  throw new Error(`Expected ${EXPECTED_COMMIT}, found ${commit}`);
-}
-const tag = run('git', ['describe', '--tags', '--exact-match', 'HEAD']);
-if (tag !== EXPECTED_TAG) throw new Error(`Expected ${EXPECTED_TAG}, found ${tag}`);
-const trackedStatus = run('git', ['status', '--short', '--untracked-files=no']);
-if (trackedStatus !== '') {
-  throw new Error('Actual oracle checkout has tracked changes; refusing to overlay');
-}
+// pinnedOracleRoot() has already verified the checkout's commit, tag and clean tree.
+const { tag, commit } = oraclePin;
 
 const packageVersion = JSON.parse(
   readFileSync(join(checkout, 'packages/loot-core/package.json'), 'utf8'),
@@ -966,21 +977,22 @@ try {
   const manifest = {
     schemaVersion: SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
+    seed: null,
     actual: { tag, commit, packageVersion },
     toolchain: { node: process.version, yarn: yarnVersion },
     generation: {
-      workingDirectory: '<isolated-actual-checkout>',
+      workingDirectory: '<pinned-oracle-root>',
       argv: [
         'node',
         ...testArgv.map(value =>
           value === `--outputFile=${vitestOutput}`
-            ? '--outputFile=<isolated-actual-checkout>/.actualist-account-lifecycle-vitest-<invocation-id>.json'
+            ? '--outputFile=<pinned-oracle-root>/.actualist-account-lifecycle-vitest-<invocation-id>.json'
             : value,
         ),
       ],
       environment: {
         ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT:
-          '<isolated-actual-checkout>/.actualist-account-lifecycle-oracle.json',
+          '<pinned-oracle-root>/.actualist-account-lifecycle-oracle.json',
         TZ: 'UTC',
       },
       executionCeilingMilliseconds: ORACLE_TIMEOUT_MILLISECONDS,
@@ -1002,7 +1014,11 @@ try {
     sourceFiles: hashedFiles(sourceFiles, checkout),
     dependencies: dependencyProvenance,
     fixture: {
-      path: relative(repositoryRoot, join(outputRoot, fixtureName)),
+      // The canonical committed location, so a scratch regeneration records the same path.
+      path: relative(
+        repositoryRoot,
+        join(pinnedFixtureDirectory('AccountLifecycle'), fixtureName),
+      ),
       sha256: sha256(rawBytes),
       caseCount: parsedRaw.cases.length,
       caseIDs: parsedRaw.cases.map(value => value.id),
@@ -1107,6 +1123,7 @@ if (
     rmSync(vitestOutput, { force: true });
     rmSync(ownershipRecord, { force: true });
     rmSync(stagingOutput, { recursive: true, force: true });
+    assertPinnedOracle(checkout, 'after generating');
     cleanupStatus = 'completed';
   } catch (error) {
     cleanupStatus = 'failed';
@@ -1156,7 +1173,52 @@ if (runError) {
   throw runError;
 }
 
+if (checkMode) {
+  const drift = firstFixtureDrift(
+    outputRoot,
+    pinnedFixtureDirectory('AccountLifecycle'),
+  );
+  if (drift) {
+    console.error(`Account lifecycle fixture drift: ${drift}`);
+    console.error(`Regenerated files and evidence kept in ${scratchRoot}`);
+    process.exit(1);
+  }
+  rmSync(scratchRoot, { recursive: true, force: true });
+  console.log(
+    `Account lifecycle regeneration matches the committed fixture (${EXPECTED_TAG}, ${expectedCaseIDs.length} cases).`,
+  );
+  process.exit(0);
+}
+
 console.log(
   `Generated ${expectedCaseIDs.length} account lifecycle parity cases from ${EXPECTED_TAG}.`,
 );
 console.log(`Oracle evidence preserved at ${evidenceRoot}`);
+
+// The first byte difference between a regenerated fixture file and its committed
+// copy, or null. The manifest's generatedAt timestamp is the only normalized field.
+function firstFixtureDrift(regeneratedDirectory, committedDirectory) {
+  for (const name of ['account-lifecycle-oracle.json', 'account-lifecycle-manifest.json']) {
+    const committedPath = join(committedDirectory, name);
+    if (!existsSync(committedPath)) return `${name}: committed file is missing`;
+    const normalize = text =>
+      name.endsWith('-manifest.json')
+        ? text.replace(/"generatedAt": "[^"]*"/, '"generatedAt": "<normalized>"')
+        : text;
+    const expected = normalize(readFileSync(committedPath, 'utf8')).split('\n');
+    const actual = normalize(
+      readFileSync(join(regeneratedDirectory, name), 'utf8'),
+    ).split('\n');
+    const line = [...Array(Math.max(expected.length, actual.length)).keys()].find(
+      index => expected[index] !== actual[index],
+    );
+    if (line !== undefined) {
+      return [
+        `${name} differs at line ${line + 1}`,
+        `  committed:   ${expected[line] ?? '<end of file>'}`,
+        `  regenerated: ${actual[line] ?? '<end of file>'}`,
+      ].join('\n');
+    }
+  }
+  return null;
+}

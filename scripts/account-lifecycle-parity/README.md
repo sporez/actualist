@@ -1,9 +1,10 @@
 # Account lifecycle parity oracle
 
-This tool overlays a focused Vitest harness into an **isolated** checkout of
-the Actual Budget release pinned in `config/parity/oracle-pin.json`, executes the real loot-core account handlers against the
-normal in-memory SQLite test database, and promotes normalized CRDT/domain
-evidence into Actualist's fixture directory.
+This tool overlays a focused Vitest harness into the Actual Budget oracle
+checkout named by `ACTUALIST_PARITY_ORACLE_ROOT`, pinned in
+`config/parity/oracle-pin.json`. It executes the real loot-core account handlers
+against the normal in-memory SQLite test database and promotes normalized
+CRDT/domain evidence into Actualist's fixture directory.
 
 It is intentionally not a reimplementation of account lifecycle behavior. The
 harness calls `account-update`, `account-reopen`, `account-close`,
@@ -23,13 +24,11 @@ step fails; the harness does not partially mock the cached months module.
 
 ## Ownership and prerequisites
 
-Only the sprint coordinator may run this oracle. The checkout passed to
-`--actual-checkout` must be an isolated disposable clone/worktree under that
-coordinator's sole ownership. Never point the generator at the shared
-read-only source checkout. `--evidence` is also required and must name a unique,
-not-yet-existing directory beneath an existing parent outside every Actual
-checkout. In particular, never write run evidence under the shared upstream
-source.
+`ACTUALIST_PARITY_ORACLE_ROOT` must be a clean checkout of the pinned tag and
+commit. `scripts/parity/lib/oracle-pin.mjs` checks it before the run and again
+after cleanup. `--evidence` is required for a generation run. It must name a
+unique, not-yet-existing directory beneath an existing parent outside the oracle
+checkout.
 
 Required inputs:
 
@@ -39,19 +38,19 @@ Required inputs:
 - a completed focused `@actual-app/core` dependency setup, including root
   `node_modules/.yarn-state.yml` and the resolved `better-sqlite3` 13.0.3
   native binary;
-- a clean tracked Actual checkout. The generator refuses tracked changes and
-  refuses to overwrite an unowned harness overlay.
+- a clean Actual checkout (untracked files included). The generator refuses
+  to overwrite an existing harness overlay.
 
-Reuse the coordinator's approved immutable dependency-ready setup when
-preparing the isolated checkout; this tool never runs an install. It verifies
+The generator never runs an install. It verifies
 and records hashes for `yarn.lock`, `.yarnrc.yml`,
 `node_modules/.yarn-state.yml`, the resolved `better-sqlite3` package manifest
 and entry point, and the prebuilt native addon that the package's own loader
 (`lib/binding.js`, `getPrebuildPath()`) selects. These hashes identify the available install used by the
 run; they do not claim a byte-for-byte audit of every transitive dependency.
 
-The generator creates only these temporary untracked files in the isolated
-Actual checkout and removes them only after their run evidence is archived:
+The generator creates only these temporary untracked files in the oracle
+checkout, removes them after their run evidence is archived, and then checks
+that the checkout is clean again:
 
 ```text
 packages/loot-core/src/server/accounts/account-lifecycle-parity.test.ts
@@ -90,27 +89,42 @@ only: it may contain cases completed before `--bail=1` stopped Vitest and is
 never promoted as a fixture. If evidence archiving or result initialization
 fails, fixture promotion is refused and checkout-local checkpoints are retained.
 
-## Predetermined invocation
+## Commands
 
-From the Actualist repository root:
+From the Actualist repository root, with `ACTUALIST_PARITY_ORACLE_ROOT` set to
+the oracle checkout:
 
 ```sh
+# Regenerate. Writes a fresh fixture and manifest; it never replaces the committed directory.
 node scripts/account-lifecycle-parity/generate.mjs \
-  --actual-checkout /absolute/path/to/isolated-actual-checkout \
-  --evidence /absolute/path/to/actualist-artifacts/account-lifecycle-run-001
+  --evidence /absolute/path/to/new-unique-evidence-dir \
+  --output /absolute/path/to/new-fixture-dir/AccountLifecycle
+
+# Check the committed fixture without an oracle or network.
+node scripts/account-lifecycle-parity/verify.mjs
+
+# Regenerate into a scratch directory and compare with the committed fixture.
+node scripts/account-lifecycle-parity/generate.mjs --check
 ```
 
-The generator performs exactly one runtime command, from the isolated Actual
-checkout root. The equivalent normalized command is:
+`--check` exits 1 on drift, printing the first differing line of each file, and
+exits 2 when `ACTUALIST_PARITY_ORACLE_ROOT` is unset. It takes no `--evidence` or
+`--output`. Its scratch directory is removed only after the comparison passes.
+The only normalized field is the manifest's `generatedAt`. Because the generator
+refuses to replace an existing fixture directory, a regeneration written with
+`--output` is copied into the committed directory after review.
+
+The generator performs exactly one runtime command, from the oracle checkout
+root. The equivalent normalized command is:
 
 ```sh
 TZ=UTC \
-ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT='/absolute/path/to/isolated-actual-checkout/.actualist-account-lifecycle-oracle.json' \
+ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT='/absolute/path/to/oracle/.actualist-account-lifecycle-oracle.json' \
 node .yarn/releases/yarn-4.17.1.cjs workspace @actual-app/core run test:node \
   src/server/accounts/account-lifecycle-parity.test.ts \
   --bail=1 \
   --reporter=json \
-  --outputFile='/absolute/path/to/isolated-actual-checkout/.actualist-account-lifecycle-vitest-<invocation-id>.json'
+  --outputFile='/absolute/path/to/oracle/.actualist-account-lifecycle-vitest-<invocation-id>.json'
 ```
 
 Both output paths passed to Vitest are absolute. `TZ=UTC` pins fixture dates;
@@ -118,11 +132,12 @@ matching Actual's local-calendar close date remains an explicit B2 product gate,
 not a conclusion from this fixture. The exact normalized argv, working
 directory, pinned environment values, 180,000 ms execution ceiling, 5,000 ms
 termination grace, tool versions, dependency identities, source hashes, harness
-hashes, and generation date are written to the generated manifest.
+hashes, and generation date are written to the generated manifest. The manifest
+also records `seed: null`: the harness uses no random seed.
 
 Vitest receives `--bail=1`. The generator owns the child and its descendants as
 one detached POSIX process group and durably records its PID/PGID in the
-isolated checkout. At the three-minute ceiling or a catchable parent interrupt,
+oracle checkout. At the three-minute ceiling or a catchable parent interrupt,
 it sends `SIGTERM` only to that group and waits five seconds. It sends `SIGKILL`
 to that same group only if the recorded child is still active, avoiding a later
 signal after its PGID could be reused. It then waits one second to confirm exit.
@@ -187,24 +202,22 @@ The generator stops without promoting fixtures if any of these occurs:
 - dependency setup evidence or the resolved native SQLite 13.0.3 binary is
   absent;
 - pinned source or harness files are missing;
-- the isolated checkout has tracked changes;
+- the oracle checkout is not at the pinned commit and tag, or has any
+  uncommitted or untracked change (checked before the run and after cleanup);
 - an overlay/output path already exists and is not owned by this invocation;
 - the explicit evidence destination is absent, overlaps the fixture output, is
-  inside the isolated Actual checkout, or already exists;
+  inside the oracle checkout, or already exists;
 - Vitest exits nonzero or its JSON report does not describe a passing run;
 - the three-minute execution ceiling is reached; if process-group exit cannot
-  be confirmed, temporary files are retained for coordinator-owned recovery;
+  be confirmed, temporary files are retained for manual recovery;
 - the raw output schema, case IDs, case count, or synthetic-data declaration
   differs from the reviewed contract;
 - a generated file fails the reviewed manifest invariants or a recorded SHA-256
   does not match;
 - run evidence cannot be archived before cleanup and fixture promotion.
 
-The initial investigation, post-correction run, and explicitly approved extra
-mock-correction run have all been consumed without full-matrix acceptance. The
-calendar correction is source-reviewed only. The user subsequently approved one
-additional invocation using the single-use `calendar-correction-evidence` directory,
-the unchanged 22-case matrix, and the existing execution ceiling. Any further run
-requires another explicit allowance.
-Do not retry unchanged code, broaden to the upstream suite, run another worker's
-checkout, or count source inspection as oracle proof.
+The earlier single-use evidence directories are historical; each generation now
+needs a fresh `--evidence` path. The 2026-10-10 re-pin to v26.10.0 regenerated
+the fixture with the same 22 cases and byte-identical oracle JSON; only the
+manifest's provenance fields changed. Do not retry unchanged code, broaden to
+the upstream suite, or count source inspection as oracle proof.

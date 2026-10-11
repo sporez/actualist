@@ -5,10 +5,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const upstream = process.env.ACTUAL_UPSTREAM_DIR;
+const upstream = process.env.ACTUALIST_PARITY_ORACLE_ROOT;
 const cacheDir = process.env.NEWBUDGET_VITE_CACHE_DIR;
 if (!upstream || !cacheDir) {
-  throw new Error('Set ACTUAL_UPSTREAM_DIR and NEWBUDGET_VITE_CACHE_DIR (use run.sh).');
+  throw new Error('Set ACTUALIST_PARITY_ORACLE_ROOT and NEWBUDGET_VITE_CACHE_DIR (use run.sh).');
 }
 
 const { peggyLoader } = await import(

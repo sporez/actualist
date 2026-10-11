@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
+import {
+  assertPinnedOracle,
+  hasOracleRoot,
+  oraclePin,
+  ORACLE_ROOT_VARIABLE,
+  pinnedFixtureDirectory,
+  pinnedOracleRoot,
+} from '../parity/lib/oracle-pin.mjs';
+import { compareWithCommitted } from '../parity/lib/fixture-diff.mjs';
 
 const FIXTURE_SCHEMA_VERSION = 1;
 
@@ -27,11 +36,13 @@ const sourceFiles = [
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repositoryRoot = resolve(dirname(scriptPath), '..', '..');
+const helperPath = join(repositoryRoot, 'scripts/parity/lib/oracle-pin.mjs');
 const defaultOutput = pinnedFixtureDirectory('Splits');
+const checking = process.argv.includes('--check');
 
-function usage() {
+if (!hasOracleRoot()) {
   console.error(
-    'Usage: scripts/split-parity/generate.mjs --actual-checkout <path> [--output <path>]',
+    `Oracle required: set ${ORACLE_ROOT_VARIABLE} to a clean checkout of Actual ${oraclePin.tag}.`,
   );
   process.exit(2);
 }
@@ -41,10 +52,10 @@ function argument(name) {
   return index === -1 ? null : process.argv[index + 1];
 }
 
-const checkoutArgument = argument('--actual-checkout');
-if (!checkoutArgument) usage();
-const checkout = resolve(checkoutArgument);
-const outputDirectory = resolve(argument('--output') ?? defaultOutput);
+const oracleRoot = pinnedOracleRoot();
+const outputDirectory = checking
+  ? mkdtempSync(join(tmpdir(), 'actualist-split-check-'))
+  : resolve(argument('--output') ?? defaultOutput);
 
 function sha256(data) {
   return createHash('sha256').update(data).digest('hex');
@@ -52,7 +63,7 @@ function sha256(data) {
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
-    cwd: checkout,
+    cwd: oracleRoot,
     encoding: 'utf8',
     ...options,
   });
@@ -64,32 +75,21 @@ function run(command, args, options = {}) {
   return result.stdout.trim();
 }
 
-if (!existsSync(join(checkout, '.git'))) {
-  throw new Error(`Actual checkout is not a git worktree: ${checkout}`);
-}
-const commit = run('git', ['rev-parse', 'HEAD']);
-if (commit !== oraclePin.commit) {
-  throw new Error(`Expected Actual ${oraclePin.commit}, found ${commit}`);
-}
-const exactTag = run('git', ['describe', '--tags', '--exact-match', 'HEAD']);
-if (exactTag !== oraclePin.tag) {
-  throw new Error(`Expected Actual tag ${oraclePin.tag}, found ${exactTag}`);
-}
 const packageJSON = JSON.parse(
-  readFileSync(join(checkout, 'packages/loot-core/package.json'), 'utf8'),
+  readFileSync(join(oracleRoot, 'packages/loot-core/package.json'), 'utf8'),
 );
 if (packageJSON.version !== oraclePin.packageVersion) {
   throw new Error(`Expected @actual-app/core ${oraclePin.packageVersion}, found ${packageJSON.version}`);
 }
 for (const path of sourceFiles) {
-  if (!existsSync(join(checkout, path))) {
+  if (!existsSync(join(oracleRoot, path))) {
     throw new Error(`Pinned Actual source is missing: ${path}`);
   }
 }
 
 const runnerRelativePath = 'packages/loot-core/src/__actualist_split_oracle.test.ts';
-const runnerPath = join(checkout, runnerRelativePath);
-const temporaryOutput = join(checkout, '.actualist-split-oracle-output.json');
+const runnerPath = join(oracleRoot, runnerRelativePath);
+const temporaryOutput = join(oracleRoot, '.actualist-split-oracle-output.json');
 if (existsSync(runnerPath)) {
   throw new Error(`Refusing to overwrite existing oracle runner: ${runnerPath}`);
 }
@@ -525,10 +525,11 @@ describe('Actualist split oracle export', () => {
 `;
 
 mkdirSync(outputDirectory, { recursive: true });
+let generated;
 try {
   writeFileSync(runnerPath, runner);
   rmSync(temporaryOutput, { force: true });
-  const yarnPath = join(checkout, '.yarn/releases/yarn-4.17.1.cjs');
+  const yarnPath = join(oracleRoot, '.yarn/releases/yarn-4.17.1.cjs');
   if (!existsSync(yarnPath)) {
     throw new Error('Install the pinned Actual checkout with Yarn 4.17.1 before generating');
   }
@@ -548,49 +549,71 @@ try {
       stdio: 'pipe',
     },
   );
-  const generated = JSON.parse(readFileSync(temporaryOutput, 'utf8'));
-  const fixtures = [
-    ['family-transformations.json', generated.familyTransformations],
-    ['split-rule-cases.json', generated.splitRuleCases],
-    ['mutation-cases.json', generated.mutationCases],
-  ];
-  for (const [name, value] of fixtures) {
-    writeFileSync(join(outputDirectory, name), JSON.stringify(value, null, 2) + '\n');
-  }
-
-  const manifest = {
-    schemaVersion: FIXTURE_SCHEMA_VERSION,
-    actual: {
-      tag: oraclePin.tag,
-      commit: oraclePin.commit,
-      packageVersion: oraclePin.packageVersion,
-    },
-    generator: {
-      command: 'scripts/split-parity/generate.mjs --actual-checkout <pinned-actual>',
-      sha256: sha256(readFileSync(scriptPath)),
-    },
-    amountUnits: 'integer minor units',
-    rounding: 'JavaScript Math.round: ties toward positive infinity',
-    sourceFiles: sourceFiles.map(path => ({
-      path,
-      sha256: sha256(readFileSync(join(checkout, path))),
-    })),
-    fixtures: fixtures.map(([name]) => {
-      const path = join(outputDirectory, name);
-      const value = JSON.parse(readFileSync(path, 'utf8'));
-      return {
-        path: relative(repositoryRoot, path),
-        sha256: sha256(readFileSync(path)),
-        caseCount: value.cases.length,
-      };
-    }),
-  };
-  writeFileSync(
-    join(outputDirectory, 'manifest.json'),
-    JSON.stringify(manifest, null, 2) + '\n',
-  );
-  console.log(`Generated ${fixtures.length} fixtures in ${relative(repositoryRoot, outputDirectory)}`);
+  generated = JSON.parse(readFileSync(temporaryOutput, 'utf8'));
 } finally {
   rmSync(runnerPath, { force: true });
   rmSync(temporaryOutput, { force: true });
+}
+assertPinnedOracle(oracleRoot, 'after generating');
+
+const fixtures = [
+  ['family-transformations.json', generated.familyTransformations],
+  ['split-rule-cases.json', generated.splitRuleCases],
+  ['mutation-cases.json', generated.mutationCases],
+];
+for (const [name, value] of fixtures) {
+  writeFileSync(join(outputDirectory, name), JSON.stringify(value, null, 2) + '\n');
+}
+const fixtureEntries = fixtures.map(([name]) => {
+  const path = join(defaultOutput, name);
+  const value = JSON.parse(readFileSync(join(outputDirectory, name), 'utf8'));
+  return {
+    path: relative(repositoryRoot, path),
+    sha256: sha256(readFileSync(join(outputDirectory, name))),
+    caseCount: value.cases.length,
+  };
+});
+
+const manifest = {
+  schemaVersion: FIXTURE_SCHEMA_VERSION,
+  actual: {
+    tag: oraclePin.tag,
+    commit: oraclePin.commit,
+    packageVersion: oraclePin.packageVersion,
+  },
+  generator: {
+    command: `${ORACLE_ROOT_VARIABLE}=<pinned-actual> node scripts/split-parity/generate.mjs`,
+    sha256: sha256(readFileSync(scriptPath)),
+  },
+  helpers: [
+    {
+      path: relative(repositoryRoot, helperPath),
+      sha256: sha256(readFileSync(helperPath)),
+    },
+  ],
+  seed: null,
+  caseCount: fixtureEntries.reduce((sum, entry) => sum + entry.caseCount, 0),
+  amountUnits: 'integer minor units',
+  rounding: 'JavaScript Math.round: ties toward positive infinity',
+  sourceFiles: sourceFiles.map(path => ({
+    path,
+    sha256: sha256(readFileSync(join(oracleRoot, path))),
+  })),
+  fixtures: fixtureEntries,
+};
+writeFileSync(join(outputDirectory, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+
+if (checking) {
+  const failures = compareWithCommitted(defaultOutput, outputDirectory, [
+    ...fixtures.map(([name]) => name),
+    'manifest.json',
+  ]);
+  rmSync(outputDirectory, { recursive: true, force: true });
+  if (failures.length > 0) {
+    for (const failure of failures) console.error(`split parity drift: ${failure}`);
+    process.exit(1);
+  }
+  console.log(`Split parity fixtures match a fresh generation (${manifest.caseCount} cases).`);
+} else {
+  console.log(`Generated ${fixtures.length} fixtures in ${relative(repositoryRoot, outputDirectory)}`);
 }

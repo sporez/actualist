@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/tracking-parity/generate.mjs",
+    "sha256": "8c8d91ca08ef5ec15555570b63dc3370f887e10b82919d0c25ed9f57e5afd06f"
+  },
+  "helpers": [
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    }
+  ],
+  "seed": null,
+  "caseCount": 36,
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/budget/tracking.ts",
+      "sha256": "630feb46acc09301759216838389dd8eb6af53fba22e454d1ef9c6c14e323ad9"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/Tracking/contract.json",
+      "sha256": "76500e33df432c6e1ea51069fa2667d43fb96a73d712a047fb152a3b394842a2",
+      "caseCount": 36
+    }
+  ]
+}

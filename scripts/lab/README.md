@@ -24,9 +24,10 @@ Nothing secret or address-like is tracked.
 - `ACTUAL_LAB_URL` (required) and `ACTUAL_LAB_PASSWORD`: environment variables,
   or put them in the gitignored `scripts/lib/lab.env` (copy
   `scripts/lib/lab.example.env`). The environment wins over the file.
-- `ACTUAL_UPSTREAM_DIR`: the pinned, read-only Actual checkout (tag and commit in
-  `config/parity/oracle-pin.json`) with `node_modules`. The script refuses to run unless HEAD matches and
-  `git status` is clean, and checks again afterwards. Nothing is installed into
+- `ACTUALIST_PARITY_ORACLE_ROOT`: the pinned, read-only Actual checkout (tag and
+  commit in `config/parity/oracle-pin.json`) with `node_modules`. The script
+  refuses to run unless `scripts/parity/lib/oracle-pin.mjs oracle-root` accepts
+  it (HEAD at the pin, pinned tag, clean tree), and checks again afterwards. Nothing is installed into
   it. Required; set it in the environment or in `scripts/lib/lab.env`.
 
 The target URL is printed before any write. The script refuses to run without
@@ -83,6 +84,6 @@ sqlite3 .artifacts/lab/dl/db.sqlite 'SELECT COUNT(*) FROM messages_crdt'
   slower.
 - Transfers are written outside upstream's batch wrapper because their
   counterpart rows are created by reading back the inserted rows.
-- Files: `budgets.sh` (entry point, env, upstream checks), `lab.test.mjs`
+- Files: `budgets.sh` (entry point, env, oracle checks), `lab.test.mjs`
   (commands), `profiles.mjs` (shared helpers, basic/pair/large),
   `standard.mjs`, `vitest.config.mjs`.

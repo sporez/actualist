@@ -109,45 +109,94 @@ Detailed agent verification rules live in
 
 ## Parity oracles
 
-The parity harnesses under `scripts/*-parity/` and `scripts/parity/` run real
-Actual code to produce the expected values in the oracle fixtures. Every
-harness reads the pinned Actual release from `config/parity/oracle-pin.json`
-(tag, full commit, package version, and fixture folder). No harness keeps its
-own copy of the pin. Generated fixtures live in one folder per pin, such as
-`ActualistTests/Fixtures/ActualCore26_10_0/`. Expected values in them are
-never edited by hand.
+The parity harnesses run real Actual code to produce the expected values that
+Actualist's oracle tests compare against.
 
-Each generator needs a clean checkout of the pinned tag with
-`yarn install` done, and refuses any other commit. Generators that write into
-the checkout need their own clone.
+- **Pin:** `config/parity/oracle-pin.json` names the pinned Actual release
+  (tag, full commit, package version, fixture folder). No harness keeps its
+  own copy.
+- **Domains:** `config/parity/domains.json` maps each Actual-compatible area to
+  its production paths, harness, fixture folder, Swift oracle suites and
+  coverage status.
+- **Fixtures:** generated fixtures live in one folder per pin, such as
+  `ActualistTests/Fixtures/ActualCore26_10_0/`. Their expected values are never
+  edited by hand.
 
-To move to a new Actual release:
+### Oracle checkout
 
-1. Clone Actual at the new tag outside this repository and run
-   `yarn install --immutable`.
-2. Update `config/parity/oracle-pin.json`. Then `git mv` the fixture folder
-   to the new folder name so the regenerated diff stays reviewable.
-3. Regenerate every harness against the checkout:
+Clone Actual at the pinned tag outside this repository, run
+`yarn install --immutable`, and point the harnesses at it:
 
-   ```sh
-   node scripts/split-parity/generate.mjs --actual-checkout <actual>
-   node scripts/template-parity/generate.mjs <actual>
-   node scripts/reconciliation-parity/generate.mjs --actual-checkout <actual>
-   node scripts/tracking-parity/generate.mjs <actual>
-   node scripts/account-lifecycle-parity/generate.mjs --actual-checkout <actual> --evidence <dir>
-   ACTUAL_UPSTREAM_DIR=<actual> scripts/parity/new-budget-schema/run.sh generate
-   ```
+```sh
+export ACTUALIST_PARITY_ORACLE_ROOT=/path/to/actual
+```
 
-   Then re-run the transaction command and query runners (each README names a
-   new single-use run label). Also recompute the csv-export-interop
-   `source-freeze.sha256` entries.
-4. If an upstream source file a generator reads has moved, update the
-   generator's source list. Keep each recorded hash list exact.
-5. Run `scripts/check.sh` for the hash checks. Then run the oracle suites
-   named in each harness README with `scripts/test.sh unit <Suite>...`.
+Every generator refuses to run unless that checkout is at the pinned commit
+and tag with a clean tree, and checks again afterwards. Generators that write
+into the checkout need their own clone when run in parallel. Nothing in
+`scripts/check.sh` needs the oracle, so a clone without one still passes.
+
+### Everyday use
+
+```sh
+scripts/parity.sh status            # domains, coverage, open divergences
+scripts/parity.sh touched           # domains the working tree touches
+scripts/parity.sh touched main..HEAD
+scripts/parity.sh verify tracking   # hash check, regenerate-and-diff, Swift suites
+scripts/parity.sh --dry-run verify tracking
+```
+
+`verify` runs the domain's fixture hash check. When
+`ACTUALIST_PARITY_ORACLE_ROOT` is set, it then regenerates the fixture into a
+temporary folder and diffs it against the committed copy. Finally it runs the
+domain's Swift oracle suites through `scripts/test.sh`. Without the oracle it
+says the regenerate step was skipped.
+
+### Known divergences
+
+When an oracle test finds that Actualist differs from Actual and the fix is not
+done yet:
+
+1. Add an entry to `config/parity/known-divergences.json` with its `OP-nn`, domain,
+   test cases, summary, opened date and review-by date.
+2. Wrap that case's comparison in `withKnownIssue("OP-nn: ...")`.
+   `isIntermittent` is not allowed. When the fix lands the test fails until the
+   marker and the entry are removed together.
+
+`scripts/lint-known-divergences.sh`, run by `scripts/check.sh`, enforces this
+and lists open entries. `scripts/parity.sh gate <range>` fails while an open
+entry sits in a domain the range touches, unless it is acknowledged with
+`--ack OP-nn`. The TestFlight release script and the dev-to-main merge use it.
+
+### Adding a harness
+
+Each harness has:
+
+- a generator that takes the oracle only from `ACTUALIST_PARITY_ORACLE_ROOT`
+  through `scripts/parity/lib/oracle-pin.mjs`, writes the fixture plus a manifest
+  (pin, oracle source hashes, generator hash, seed, case count, fixture hashes),
+  and supports `--check` (regenerate into a temp folder and diff);
+- a `verify.mjs` that checks the manifest and hashes without the oracle;
+- a README that lists every normalization rule (only IDs, timestamps and
+  ordering Actual leaves unspecified; never amounts);
+- one Swift oracle suite that replays every case through production code and
+  compares the whole normalized output;
+- an entry in `config/parity/domains.json`.
+
+### Moving to a new Actual release
+
+1. Clone Actual at the new tag and run `yarn install --immutable`.
+2. Update `config/parity/oracle-pin.json`, then `git mv` the fixture folder to
+   the new name so the regenerated diff stays reviewable.
+3. Run each harness's `generate` command from `config/parity/domains.json`.
+   The transaction command and query runners need a new run label (see their
+   READMEs), and the csv-export-interop source-freeze hashes need recomputing.
+4. If an upstream source a generator reads has moved, update its source list.
+5. Run `scripts/check.sh`, then `scripts/parity.sh verify <domain>` for each
+   covered or partial domain.
 6. Review every changed expected value. Each one is either an upstream change
-   that Actualist already matches, or a divergence to record as a finding and
-   fix separately. Map any changed case IDs; never drop them.
+   Actualist already matches or a divergence: record it as an `OP-nn` finding
+   and fix it separately. Map changed case IDs; never drop them.
 
 ## Code basics
 

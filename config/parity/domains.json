@@ -1,0 +1,375 @@
+{
+  "schemaVersion": 1,
+  "domains": [
+    {
+      "id": "splits",
+      "title": "Split transactions and split rule actions",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/split-parity",
+        "generate": "node scripts/split-parity/generate.mjs",
+        "verify": "node scripts/split-parity/verify.mjs",
+        "check": "node scripts/split-parity/generate.mjs --check"
+      },
+      "fixture": "Splits",
+      "oracleSuites": ["ActualCoreSplitOracleFixtureTests", "SplitTransactionFamilyTests", "RuleSplitActionExecutorTests", "TransactionSplitQueryTests"],
+      "paths": [
+        "Actualist/LocalFirst/SplitTransactionFamily.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionSplit*.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+SplitDraftIDValidation.swift",
+        "Actualist/LocalFirst/Database/RuleSplitActionExecutor.swift"
+      ],
+      "notes": "TransactionSplitQueryTests checks the hand-maintained grouped-query identities only."
+    },
+    {
+      "id": "template-editor",
+      "title": "Template editor normalization, transitions and validation",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/template-parity",
+        "generate": "node scripts/template-parity/generate.mjs",
+        "verify": "node scripts/template-parity/verify.mjs",
+        "check": "node scripts/template-parity/generate.mjs --check"
+      },
+      "fixture": "Templates",
+      "oracleSuites": ["BudgetTemplateEditorOracleTests"],
+      "paths": [
+        "Actualist/Features/Templates/BudgetTemplateDefinition.swift",
+        "Actualist/Features/Templates/BudgetTemplateDraft.swift",
+        "Actualist/Features/Templates/BudgetTemplateEditorCodec.swift",
+        "Actualist/Features/Templates/BudgetTemplateAuthoringValidation.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateEditor.swift",
+        "Actualist/LocalFirst/Database/BudgetTemplateNoteParser.swift",
+        "Actualist/LocalFirst/BudgetTemplateModels.swift"
+      ]
+    },
+    {
+      "id": "apply-templates",
+      "title": "Apply Templates engine and preview",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetTemplateEngine*.swift",
+        "Actualist/LocalFirst/Database/BudgetTemplateCalendar.swift",
+        "Actualist/LocalFirst/Database/BudgetTemplateNoteParser.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateApply.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TemplatePreview.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateInputs.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateCategoryReads.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateNoteSync.swift",
+        "Actualist/LocalFirst/BudgetTemplatePreview.swift"
+      ],
+      "notes": "Phase 3. BudgetTemplateEngineParityTests is hand-written, not oracle evidence."
+    },
+    {
+      "id": "budget-month",
+      "title": "Envelope month math and budget writes (To Budget, carryover, assign, move, cover)",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+BudgetReads.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+BudgetWrites.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+EnvelopeCarryIn.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+CategoryValueTimeline.swift",
+        "Actualist/LocalFirst/Database/BudgetFinancialCalculation.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+AssignMove.swift"
+      ],
+      "notes": "Phase 3."
+    },
+    {
+      "id": "tracking",
+      "title": "Tracking budget month reads",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/tracking-parity",
+        "generate": "node scripts/tracking-parity/generate.mjs",
+        "verify": "node scripts/tracking-parity/verify.mjs",
+        "check": "node scripts/tracking-parity/generate.mjs --check"
+      },
+      "fixture": "Tracking",
+      "oracleSuites": ["TrackingBudgetContractTests"],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetFinancialCalculation.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+BudgetReads.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+ModeIdentity.swift",
+        "Actualist/Models/TrackingBudgetSummary.swift"
+      ]
+    },
+    {
+      "id": "holds",
+      "title": "Hold for next month and release",
+      "status": "uncovered",
+      "harness": {
+        "dir": "scripts/hold-parity",
+        "generate": "node scripts/hold-parity/generate.mjs",
+        "check": "node scripts/hold-parity/generate.mjs --check"
+      },
+      "fixture": "Holds",
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+EnvelopeHolds.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+HoldWrites.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+HoldReviewGuard.swift"
+      ],
+      "notes": "Generator only; Phase 2 adds the fixture, verify.mjs and the Swift replay."
+    },
+    {
+      "id": "reconciliation",
+      "title": "Account reconciliation and adjustment transactions",
+      "status": "partial",
+      "harness": {
+        "dir": "scripts/reconciliation-parity",
+        "generate": "node scripts/reconciliation-parity/generate.mjs",
+        "verify": "node scripts/reconciliation-parity/verify.mjs",
+        "check": "node scripts/reconciliation-parity/generate.mjs --check"
+      },
+      "fixture": "Reconciliation",
+      "oracleSuites": ["ActualCoreReconciliationOracleFixtureTests"],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+Reconciliation.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+ReconciledMutationGuard.swift",
+        "Actualist/Models/ReconciledTransactionMutation.swift"
+      ],
+      "notes": "Selected-field comparison; Phase 2 adds the full-output replay."
+    },
+    {
+      "id": "account-lifecycle",
+      "title": "Account create, rename, close, reopen and delete",
+      "status": "partial",
+      "harness": {
+        "dir": "scripts/account-lifecycle-parity",
+        "generate": "node scripts/account-lifecycle-parity/generate.mjs",
+        "verify": "node scripts/account-lifecycle-parity/verify.mjs",
+        "check": "node scripts/account-lifecycle-parity/generate.mjs --check"
+      },
+      "fixture": "AccountLifecycle",
+      "oracleSuites": ["AccountLifecycleOracleFixtureTests"],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+AccountLifecycle*.swift"
+      ],
+      "notes": "The Swift test checks provenance and case IDs only; Phase 2 adds the replay."
+    },
+    {
+      "id": "new-budget-schema",
+      "title": "Create New Budget starter schema, migration list and reserved datasets",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/parity/new-budget-schema",
+        "generate": "scripts/parity/new-budget-schema/run.sh generate",
+        "verify": "node scripts/parity/new-budget-schema/verify.mjs",
+        "check": "scripts/parity/new-budget-schema/run.sh drift"
+      },
+      "fixture": "NewBudget",
+      "oracleSuites": ["NewBudgetStarterSchemaTests", "ReservedSyncDatasetTests"],
+      "paths": [
+        "Actualist/LocalFirst/Database/ActualStarterSchema.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+NewBudgetSeed.swift",
+        "Actualist/LocalFirst/Database/PortableBudgetSchema.swift",
+        "Actualist/LocalFirst/Sync/ActualSyncDatasetPolicy.swift"
+      ]
+    },
+    {
+      "id": "portable-archive",
+      "title": "Budget ZIP import and export, portable sync reset",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/PortableBudgetArchive.swift",
+        "Actualist/LocalFirst/PortableExportFiles.swift",
+        "Actualist/LocalFirst/UntrustedZipExtractor.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+PortableImport.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+PortableExport.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift",
+        "Actualist/LocalFirst/Database/PortableBudgetSchema.swift"
+      ],
+      "notes": "Fixtures/Portability/Archive is hand-written, not oracle output. OP-03 lives here."
+    },
+    {
+      "id": "csv-import-export",
+      "title": "Transaction CSV parse, import mapping and export",
+      "status": "partial",
+      "harness": {
+        "dir": "scripts/parity/csv-export-interop"
+      },
+      "fixture": null,
+      "oracleSuites": ["TransactionCSVImporterInteropTests"],
+      "paths": [
+        "Actualist/Shared/TransactionCSV*.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCSV*.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+TransactionCSVImport.swift"
+      ],
+      "notes": "The interop suite is opt-in and skips without its environment. Fixtures/Portability/CSVImport is hand-written."
+    },
+    {
+      "id": "transaction-commands",
+      "title": "Transaction duplicate and merge commands",
+      "status": "partial",
+      "harness": {
+        "dir": "scripts/transaction-command-parity"
+      },
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/TransactionDuplicatePlanner.swift",
+        "Actualist/LocalFirst/Database/TransactionMergePlanner.swift",
+        "Actualist/LocalFirst/Database/TransactionMergePlanModels.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionDuplicate.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionMerge.swift"
+      ],
+      "notes": "Oracle-side only: records Actual's behavior, no Swift replay until Phase 5."
+    },
+    {
+      "id": "transaction-queries",
+      "title": "Transaction filters, conditions and search",
+      "status": "partial",
+      "harness": {
+        "dir": "scripts/transaction-query-parity"
+      },
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionQuery.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionFilters.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionSplitQuery.swift"
+      ],
+      "notes": "Oracle-side only: records Actual's behavior, no Swift replay until Phase 5."
+    },
+    {
+      "id": "transactions",
+      "title": "Transaction create, update, delete, batch and transfers",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCreation.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionUpdates.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionDiffUpdate.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionBatch*.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCategorization.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionGraphPlanning.swift"
+      ]
+    },
+    {
+      "id": "rules",
+      "title": "Rules engine: conditions, actions, ranking, formulas",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+Rules.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+RuleBalanceOf.swift",
+        "Actualist/LocalFirst/Database/RuleConditionEvaluator.swift",
+        "Actualist/LocalFirst/Database/RuleFormulaEvaluator.swift",
+        "Actualist/LocalFirst/Database/RuleRanking.swift",
+        "Actualist/LocalFirst/Database/RuleRegexCache.swift",
+        "Actualist/LocalFirst/Database/RuleScheduleIndex.swift",
+        "Actualist/LocalFirst/Database/RuleSplitActionExecutor.swift"
+      ],
+      "notes": "Phase 4. Split actions are covered through the splits domain."
+    },
+    {
+      "id": "schedules",
+      "title": "Schedule next date, occurrences, posting and advancement",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+Schedule*.swift",
+        "Actualist/LocalFirst/Database/Schedule*.swift",
+        "Actualist/Shared/ScheduleOccurrencePlanner.swift"
+      ],
+      "notes": "Phase 4."
+    },
+    {
+      "id": "bank-sync-matching",
+      "title": "Bank Sync and import matching",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/Shared/BankSyncReconciler.swift",
+        "Actualist/Shared/BankSyncFieldMapping.swift",
+        "Actualist/Shared/ImportReconcileProjection.swift",
+        "Actualist/Shared/ImportReconcileOptions.swift",
+        "Actualist/Shared/ImportPayeeNameNormalization.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+BankSyncPlanning.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+ImportReconcile.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+BankSync.swift"
+      ],
+      "notes": "Phase 5."
+    },
+    {
+      "id": "payees",
+      "title": "Payees: create, merge, rename, transfer payees",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+Payees.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+PayeeCreationPrecondition.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+ReviewPayeeNames.swift"
+      ]
+    },
+    {
+      "id": "categories",
+      "title": "Category lifecycle and visibility",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+CategoryLifecycle*.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+CategoryVisibility.swift"
+      ]
+    },
+    {
+      "id": "account-groups",
+      "title": "Account groups",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+AccountGroup*.swift"
+      ]
+    },
+    {
+      "id": "reports",
+      "title": "Report totals and explorer queries",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetDatabase+Report*.swift",
+        "Actualist/LocalFirst/Database/ReportArithmetic.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+Reports.swift"
+      ]
+    },
+    {
+      "id": "sync-merkle",
+      "title": "Sync merkle trie and CRDT message construction",
+      "status": "uncovered",
+      "harness": null,
+      "fixture": null,
+      "oracleSuites": [],
+      "paths": [
+        "Actualist/LocalFirst/Sync/MerkleTrie.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+Merkle.swift",
+        "Actualist/LocalFirst/Sync/LocalFirstSyncMessageBuilder.swift"
+      ],
+      "notes": "MerkleTrieTests is a hand port of upstream merkle.test.ts, not generated."
+    }
+  ]
+}

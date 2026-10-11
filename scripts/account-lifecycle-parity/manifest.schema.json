@@ -7,6 +7,7 @@
   "required": [
     "schemaVersion",
     "generatedAt",
+    "seed",
     "actual",
     "toolchain",
     "generation",
@@ -20,6 +21,7 @@
   "properties": {
     "schemaVersion": { "const": 1 },
     "generatedAt": { "type": "string", "format": "date-time" },
+    "seed": { "type": "null" },
     "actual": {
       "type": "object",
       "additionalProperties": false,
@@ -51,7 +53,7 @@
         "processOwnership"
       ],
       "properties": {
-        "workingDirectory": { "const": "<isolated-actual-checkout>" },
+        "workingDirectory": { "const": "<pinned-oracle-root>" },
         "argv": {
           "type": "array",
           "minItems": 10,
@@ -67,7 +69,7 @@
             { "const": "--bail=1" },
             { "const": "--reporter=json" },
             {
-              "const": "--outputFile=<isolated-actual-checkout>/.actualist-account-lifecycle-vitest-<invocation-id>.json"
+              "const": "--outputFile=<pinned-oracle-root>/.actualist-account-lifecycle-vitest-<invocation-id>.json"
             }
           ],
           "items": false
@@ -78,7 +80,7 @@
           "required": ["ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT", "TZ"],
           "properties": {
             "ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT": {
-              "const": "<isolated-actual-checkout>/.actualist-account-lifecycle-oracle.json"
+              "const": "<pinned-oracle-root>/.actualist-account-lifecycle-oracle.json"
             },
             "TZ": { "const": "UTC" }
           }

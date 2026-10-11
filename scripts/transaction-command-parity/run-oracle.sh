@@ -4,7 +4,8 @@ set -euo pipefail
 
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 actualist_root=$(cd "$script_dir/../.." && pwd -P)
-# The pin record is the single source of the Actual release; both checkouts are verified against it below.
+# The pin record is the single source of the Actual release. The source checkout comes from
+# ACTUALIST_PARITY_ORACLE_ROOT (verified by the helper); the writable clone is verified against the same pin below.
 EXPECTED_COMMIT=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" commit)
 EXPECTED_TAG=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" tag)
 EXPECTED_VERSION=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" packageVersion)
@@ -17,28 +18,26 @@ KILL_CONFIRM_SECONDS=10
 usage() {
   cat >&2 <<'EOF'
 Usage: scripts/transaction-command-parity/run-oracle.sh \
-  --source-checkout <read-only-pinned-actual-v26.10.0> \
-  --actual-checkout <owned-writable-copy-under-this-lane-artifact-root> \
+  --writable-clone <owned-writable-copy-under-this-lane-artifact-root> \
   --evidence <this-checkout>/.artifacts/transaction-command-oracle/evidence \
   --run-label repin-v26.10.0-20261010
+ACTUALIST_PARITY_ORACLE_ROOT must name the clean pinned source checkout.
 EOF
   exit 64
 }
 
-source_checkout=''
 actual_checkout=''
 evidence_root=''
 run_label=''
 while (($# > 0)); do
   case "$1" in
-    --source-checkout) source_checkout=${2:-}; shift 2 ;;
-    --actual-checkout) actual_checkout=${2:-}; shift 2 ;;
+    --writable-clone) actual_checkout=${2:-}; shift 2 ;;
     --evidence) evidence_root=${2:-}; shift 2 ;;
     --run-label) run_label=${2:-}; shift 2 ;;
     *) usage ;;
   esac
 done
-[[ -n "$source_checkout" && -n "$actual_checkout" && -n "$evidence_root" && -n "$run_label" ]] || usage
+[[ -n "$actual_checkout" && -n "$evidence_root" && -n "$run_label" ]] || usage
 case "$run_label" in
   investigation|post-correction|repin-v26.10.0-20261010)
     echo "command oracle: run label already spent: $run_label" >&2
@@ -51,6 +50,7 @@ esac
 owned_root_path="$actualist_root/.artifacts/transaction-command-oracle"
 [[ -d "$owned_root_path" ]] || { echo 'command oracle: lane-owned artifact root is missing' >&2; exit 66; }
 owned_root=$(cd "$owned_root_path" && pwd -P)
+source_checkout=$(node "$actualist_root/scripts/parity/lib/oracle-pin.mjs" oracle-root) || exit 66
 source_checkout=$(cd "$source_checkout" && pwd -P)
 actual_checkout=$(cd "$actual_checkout" && pwd -P)
 python_path=$(command -v python3)
@@ -85,17 +85,16 @@ source_common=$(common_dir "$source_checkout")
 actual_common=$(common_dir "$actual_checkout")
 [[ "$source_common" != "$actual_common" ]] || { echo 'command oracle: checkouts share Git identity' >&2; exit 66; }
 
-for checkout in "$source_checkout" "$actual_checkout"; do
-  [[ "$(git -C "$checkout" rev-parse HEAD)" == "$EXPECTED_COMMIT" ]] || {
-    echo "command oracle: checkout is not pinned at $EXPECTED_COMMIT: $checkout" >&2; exit 66;
-  }
-  [[ "$(git -C "$checkout" describe --tags --exact-match HEAD)" == "$EXPECTED_TAG" ]] || {
-    echo "command oracle: checkout is not tagged $EXPECTED_TAG: $checkout" >&2; exit 66;
-  }
-  if [[ -n "$(git -C "$checkout" status --porcelain=v1 --untracked-files=all)" ]]; then
-    echo "command oracle: checkout is not clean: $checkout" >&2; exit 66
-  fi
-done
+ORACLE_PIN_MODULE="$actualist_root/scripts/parity/lib/oracle-pin.mjs" WRITABLE_CLONE="$actual_checkout" \
+  node --input-type=module -e "
+import { pathToFileURL } from 'node:url';
+const { assertPinnedOracle } = await import(pathToFileURL(process.env.ORACLE_PIN_MODULE).href);
+try {
+  assertPinnedOracle(process.env.WRITABLE_CLONE, 'writable clone before the run');
+} catch (error) {
+  console.error('command oracle: ' + error.message);
+  process.exit(66);
+}" || exit 66
 
 yarn_path="$actual_checkout/.yarn/releases/yarn-4.17.1.cjs"
 vitest_path="$actual_checkout/node_modules/.bin/vitest"

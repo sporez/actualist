@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-10T23:34:05.453Z",
+  "generatedAt": "2026-10-11T01:56:55.337Z",
+  "seed": null,
   "actual": {
     "tag": "v26.10.0",
     "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
@@ -11,7 +12,7 @@
     "yarn": "4.17.1"
   },
   "generation": {
-    "workingDirectory": "<isolated-actual-checkout>",
+    "workingDirectory": "<pinned-oracle-root>",
     "argv": [
       "node",
       ".yarn/releases/yarn-4.17.1.cjs",
@@ -22,10 +23,10 @@
       "src/server/accounts/account-lifecycle-parity.test.ts",
       "--bail=1",
       "--reporter=json",
-      "--outputFile=<isolated-actual-checkout>/.actualist-account-lifecycle-vitest-<invocation-id>.json"
+      "--outputFile=<pinned-oracle-root>/.actualist-account-lifecycle-vitest-<invocation-id>.json"
     ],
     "environment": {
-      "ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT": "<isolated-actual-checkout>/.actualist-account-lifecycle-oracle.json",
+      "ACTUALIST_ACCOUNT_LIFECYCLE_ORACLE_OUTPUT": "<pinned-oracle-root>/.actualist-account-lifecycle-oracle.json",
       "TZ": "UTC"
     },
     "executionCeilingMilliseconds": 180000,
@@ -34,9 +35,9 @@
   },
   "generator": {
     "path": "scripts/account-lifecycle-parity/generate.mjs",
-    "sha256": "afb9715adbe61f82d0c688562cf84941ad876fa21c279895f70a483914a27869",
+    "sha256": "45a6430398e398983694adf41c2fdc3c2894fd9e31916ea66681151953d4aa8a",
     "manifestSchemaPath": "scripts/account-lifecycle-parity/manifest.schema.json",
-    "manifestSchemaSha256": "4d0a494ab6ae3dab77f0dc83b094ce476a8bb3e7fef60b4581062d426c6fb89c"
+    "manifestSchemaSha256": "9d20920d0e2c140a9232d4f9e6a8f9b20f1aa5fd10bf4dbf1a6d661e7ffd5f6f"
   },
   "harnessFiles": [
     {

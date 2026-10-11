@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Mechanical pre-handoff gate. Cheap on purpose: whitespace, Liquid Glass,
-# concurrency escape hatches, private identifiers, TestFlight notes, pbxproj membership, file-size
-# signals, and reference-doc link integrity. Does not build, test, or archive.
+# concurrency escape hatches, private identifiers, TestFlight notes, parity fixture hashes and
+# known divergences, pbxproj membership, file-size signals, and reference-doc link integrity.
+# Reports touched parity domains without failing on them. Does not build, test, or archive.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -61,17 +62,21 @@ else
   echo "skip: not a git work tree"
 fi
 
-section "Parity oracle pin"
-node "$ROOT/scripts/parity/lib/oracle-pin.mjs" tag || status=1
+section "Parity oracle fixtures"
+# Hash checks only; no oracle checkout or Xcode needed.
+echo "pin: Actual $(node "$ROOT/scripts/parity/lib/oracle-pin.mjs" tag)"
+"$ROOT/scripts/parity.sh" status >/dev/null || { "$ROOT/scripts/parity.sh" status; status=1; }
+"$ROOT/scripts/parity.sh" verify-hashes || status=1
 
-section "Split oracle"
-node "$ROOT/scripts/split-parity/verify.mjs" || status=1
+section "Known divergences"
+"$ROOT/scripts/lint-known-divergences.sh" || status=1
 
-section "Template editor oracle"
-node "$ROOT/scripts/template-parity/verify.mjs" || status=1
-
-section "Reconciliation oracle"
-node "$ROOT/scripts/reconciliation-parity/verify.mjs" || status=1
+section "Parity domains touched (report only)"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  "$ROOT/scripts/parity.sh" touched || true
+else
+  echo "skip: not a git work tree"
+fi
 
 section "Xcode synchronized groups"
 # Sources are auto-registered: Actualist/, ActualistTests/, and

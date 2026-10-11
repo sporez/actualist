@@ -3,7 +3,7 @@
 // packages/api/methods.test.ts and the D0 harness).
 import path from 'node:path';
 
-const upstream = process.env.ACTUAL_UPSTREAM_DIR;
+const upstream = process.env.ACTUALIST_PARITY_ORACLE_ROOT;
 const lootCore = path.join(upstream, 'packages/loot-core');
 
 export * from '#actual-upstream-fs-index-api';

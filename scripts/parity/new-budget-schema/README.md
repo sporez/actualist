@@ -7,20 +7,21 @@ by a throwing stub in `no-network-setup.mjs`).
 
 ## Requirements
 
-- `ACTUAL_UPSTREAM_DIR`: the pinned Actual checkout (tag and commit in
-  `config/parity/oracle-pin.json`) with `node_modules` installed.
-  It is read-only here. `run.sh` refuses to run unless HEAD matches the pin and
-  `git status --short` is empty, and re-checks after the run. Nothing is
+- `ACTUALIST_PARITY_ORACLE_ROOT`: a clean checkout of the pinned Actual release
+  (tag and commit in `config/parity/oracle-pin.json`) with `node_modules`
+  installed. `scripts/parity/lib/oracle-pin.mjs` checks HEAD, the tag and the
+  clean tree before the run and again after it (exit 97 on change). Nothing is
   installed or written there.
 - node `v24.21.0`, `python3`, `sqlite3`.
 
-The Vite cache and every output go to `NEWBUDGET_OUT_DIR`
-(default `<repo>/.artifacts/audit-remediation-2026-10/newbudget-schema`, gitignored).
+Outputs go to `NEWBUDGET_OUT_DIR` (default
+`<repo>/.artifacts/audit-remediation-2026-10/newbudget-schema`, gitignored).
+`drift` uses its own temp folder and removes it after a passing run.
 
 ## Generate
 
 ```sh
-export ACTUAL_UPSTREAM_DIR=/path/to/pinned/actual
+export ACTUALIST_PARITY_ORACLE_ROOT=/path/to/clean/actual-checkout
 scripts/parity/new-budget-schema/run.sh generate
 ```
 
@@ -37,12 +38,37 @@ migrations. `dump.py` then writes to the output folder:
   migrations are random UUIDs and change per run).
 - `starter-schema.json`: per-table `PRAGMA table_info`, tables sorted by name.
 
-The two files the Swift tests read, `starter-schema.json` and `migrations.txt`,
-are copied into `NewBudget/` under the pinned fixture directory
-(`fixtureDirectory` in `config/parity/oracle-pin.json`).
+`manifest.py` then writes `newbudget-manifest.json`: the pinned release, the
+sha256 of each oracle source behind the schema (the create-budget handler,
+`createBudget`, `updateVersion`, `migrate()`, `default-db.sqlite` and every
+file in `packages/loot-core/migrations`), the harness files, and the sha256 of
+`starter-schema.json` and `migrations.txt`. `seed` is `null`: the generator uses
+no random seed.
 
-`replay.py <out-dir> <db>` rebuilds a database from those files alone (proof
-that the dump is sufficient).
+The committed fixtures in the pinned fixture directory (`NewBudget/`) are
+`starter-schema.json`, `migrations.txt` and `newbudget-manifest.json`.
+
+## Drift
+
+```sh
+export ACTUALIST_PARITY_ORACLE_ROOT=/path/to/clean/actual-checkout
+scripts/parity/new-budget-schema/run.sh drift
+```
+
+Regenerates into a temp folder and compares it with the committed fixture:
+`starter-schema.json` and `migrations.txt` byte for byte, and the manifest with
+`generatedAt` removed from both sides. Exit 1 names the drifted files. The temp
+folder is removed only after a passing run, so a failure can be inspected.
+
+## Verify (no oracle, no network)
+
+```sh
+node scripts/parity/new-budget-schema/verify.mjs
+```
+
+Checks the manifest's pin, fixture file hashes, harness file hashes, the
+recorded oracle source list, and the table and migration counts against the
+committed files.
 
 ## Interop check
 
@@ -58,12 +84,17 @@ into the result JSON and exits non-zero on any failure.
 ## Swift source
 
 ```sh
-scripts/parity/new-budget-schema/run.sh emit-swift
+scripts/parity/new-budget-schema/run.sh emit-swift [target.swift]
 ```
 
-Writes `Actualist/LocalFirst/Database/ActualStarterSchema.swift` from
-`schema.sql` and `seed-rows.json` (tables, indexes and the seeded dashboard).
-Never edit that file by hand; regenerate after a new `generate` run.
+Writes the Swift starter-schema source from `schema.sql` and `seed-rows.json`
+(tables, indexes and the seeded dashboard). With no target it writes
+`$NEWBUDGET_OUT_DIR/ActualStarterSchema.swift`; it never writes into the repo by
+default. Copy the output into `Actualist/LocalFirst/Database/ActualStarterSchema.swift`
+deliberately. Never edit that file by hand; regenerate after a new `generate` run.
 To check the Swift seed itself, run the `seedWrittenForUpstreamInterop` test,
 copy the `db.sqlite` it leaves in the test process's temp directory, and pass it
 to `run.sh check`.
+
+`replay.py <out-dir> <db>` rebuilds a database from `schema.sql`, the migration
+ids and the seed rows alone (proof that the dump is sufficient).

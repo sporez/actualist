@@ -29,7 +29,14 @@
       "sha256": "332eea3f1a7cafa75a04e944f3dce14c0313f4ce8458a92cf42994b24f72fdcc"
     }
   ],
-  "generatorSHA256": "7d8e455254f83338820ac2f49f853e9a395925a4f821a695188af29a565ad811",
+  "generatorSHA256": "4a110ec58c3cddcc8dfe86a70f53f2c0753db052767676759cb99e9d5b428652",
+  "helpers": [
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    }
+  ],
+  "seed": null,
   "fixtureSHA256": "89097d51e49ab912b3438bfb673136f94f68de0a0d042a5fdc9d64ddad42cad2",
   "caseCount": 44,
   "oracleScope": "Pinned unmodified reducer, migration and validation bodies. Synthetic UTC-noon calendar adapters; no schedule hydration or engine oracle execution. Note restoration follows AutomationEditorPane.dispatch. Preview/Apply and currency parity are tested separately through SQLite.",

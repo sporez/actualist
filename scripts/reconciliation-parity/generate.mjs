@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
+import {
+  assertPinnedOracle,
+  hasOracleRoot,
+  oraclePin,
+  ORACLE_ROOT_VARIABLE,
+  pinnedFixtureDirectory,
+  pinnedOracleRoot,
+} from '../parity/lib/oracle-pin.mjs';
+import { compareWithCommitted } from '../parity/lib/fixture-diff.mjs';
 
 const SCHEMA_VERSION = 1;
 const sourceFiles = [
@@ -22,28 +31,32 @@ const sourceFiles = [
 
 const scriptPath = fileURLToPath(import.meta.url);
 const root = resolve(dirname(scriptPath), '..', '..');
-const outputRoot = resolve(argument('--output') ?? pinnedFixtureDirectory('Reconciliation'));
-const checkoutArgument = argument('--actual-checkout');
-if (!checkoutArgument) usage();
-const checkout = resolve(checkoutArgument);
+const helperPath = join(root, 'scripts/parity/lib/oracle-pin.mjs');
+const checking = process.argv.includes('--check');
+
+if (!hasOracleRoot()) {
+  console.error(
+    `Oracle required: set ${ORACLE_ROOT_VARIABLE} to a clean checkout of Actual ${oraclePin.tag}.`,
+  );
+  process.exit(2);
+}
 
 function argument(name) {
   const index = process.argv.indexOf(name);
   return index === -1 ? null : process.argv[index + 1];
 }
 
-function usage() {
-  console.error(
-    'Usage: scripts/reconciliation-parity/generate.mjs --actual-checkout <path> [--output <path>]',
-  );
-  process.exit(2);
-}
+const oracleRoot = pinnedOracleRoot();
+const defaultOutput = pinnedFixtureDirectory('Reconciliation');
+const outputRoot = checking
+  ? mkdtempSync(join(tmpdir(), 'actualist-reconciliation-check-'))
+  : resolve(argument('--output') ?? defaultOutput);
 
 function sha256(data) {
   return createHash('sha256').update(data).digest('hex');
 }
 
-function run(command, args, cwd = checkout) {
+function run(command, args, cwd = oracleRoot) {
   const result = spawnSync(command, args, { cwd, encoding: 'utf8' });
   if (result.status !== 0) {
     process.stderr.write(result.stdout ?? '');
@@ -53,26 +66,19 @@ function run(command, args, cwd = checkout) {
   return result.stdout.trim();
 }
 
-if (!existsSync(join(checkout, '.git'))) {
-  throw new Error(`Actual checkout is not a git worktree: ${checkout}`);
-}
-const commit = run('git', ['rev-parse', 'HEAD']);
-if (commit !== oraclePin.commit) throw new Error(`Expected ${oraclePin.commit}, found ${commit}`);
-const tag = run('git', ['describe', '--tags', '--exact-match', 'HEAD']);
-if (tag !== oraclePin.tag) throw new Error(`Expected ${oraclePin.tag}, found ${tag}`);
 const packageVersion = JSON.parse(
-  readFileSync(join(checkout, 'packages/desktop-client/package.json'), 'utf8'),
+  readFileSync(join(oracleRoot, 'packages/desktop-client/package.json'), 'utf8'),
 ).version;
 if (packageVersion !== oraclePin.packageVersion) {
   throw new Error(`Expected @actual-app/web ${oraclePin.packageVersion}, found ${packageVersion}`);
 }
 for (const path of sourceFiles) {
-  if (!existsSync(join(checkout, path))) throw new Error(`Pinned source is missing: ${path}`);
+  if (!existsSync(join(oracleRoot, path))) throw new Error(`Pinned source is missing: ${path}`);
 }
 
 const runnerRelative = 'packages/desktop-client/src/accounts/__actualist_reconciliation_oracle.test.ts';
-const runnerPath = join(checkout, runnerRelative);
-const temporaryOutput = join(checkout, '.actualist-reconciliation-oracle.json');
+const runnerPath = join(oracleRoot, runnerRelative);
+const temporaryOutput = join(oracleRoot, '.actualist-reconciliation-oracle.json');
 if (existsSync(runnerPath)) throw new Error(`Refusing to overwrite ${runnerRelative}`);
 
 const runner = String.raw`import { writeFileSync } from 'node:fs';
@@ -105,7 +111,7 @@ const selected = (value: any, normalizeDate = true): any => ({
   notes: value.notes ?? null, cleared: value.cleared ?? null,
   reconciled: value.reconciled ?? null, tombstone: value.tombstone ?? false,
   isParent: value.is_parent ?? false, isChild: value.is_child ?? false,
-  parentID: value.parent_id ?? null,
+  parentID: value.parent_id ? '<generated>' : null,
   children: (value.subtransactions ?? []).map((child: any) => selected(child, normalizeDate)),
 });
 
@@ -212,46 +218,63 @@ afterAll(() => {
 });
 `;
 
+let generated;
 try {
   writeFileSync(runnerPath, runner);
   run('node', [
     '.yarn/releases/yarn-4.17.1.cjs', 'workspace', '@actual-app/web',
     'vitest', '--run', runnerRelative.replace('packages/desktop-client/', ''),
   ]);
-  const generated = readFileSync(temporaryOutput);
-  const parsed = JSON.parse(generated.toString('utf8'));
-  if (!Array.isArray(parsed.cases) || parsed.cases.length !== 6) {
-    throw new Error('Oracle did not produce six reviewed cases');
-  }
-  mkdirSync(outputRoot, { recursive: true });
-  const fixturePath = join(outputRoot, 'reconciliation-contract.json');
-  writeFileSync(fixturePath, generated);
-
-  const reconciliationSource = readFileSync(join(checkout, sourceFiles[0]), 'utf8');
-  const accountTransactionsSource = readFileSync(join(checkout, sourceFiles[2]), 'utf8');
-  if (!accountTransactionsSource.includes('last_reconciled: new Date().getTime().toString()')) {
-    throw new Error('Actual no longer stores last_reconciled as a millisecond string');
-  }
-  const manifest = {
-    schemaVersion: SCHEMA_VERSION,
-    actual: { tag, commit, packageVersion },
-    generator: {
-      command: 'scripts/reconciliation-parity/generate.mjs --actual-checkout <pinned-actual>',
-      sha256: sha256(readFileSync(scriptPath)),
-    },
-    amountUnits: 'integer minor units',
-    lastReconciledStorage: 'new Date().getTime().toString() milliseconds',
-    sourceFiles: sourceFiles.map(path => ({ path, sha256: sha256(readFileSync(join(checkout, path))) })),
-    fixture: {
-      path: relative(root, fixturePath),
-      sha256: sha256(generated),
-      caseCount: parsed.cases.length,
-    },
-    contractSourceSha256: sha256(reconciliationSource),
-  };
-  writeFileSync(join(outputRoot, 'reconciliation-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-  console.log(`Generated reconciliation parity fixture (${tag}, ${parsed.cases.length} cases).`);
+  generated = readFileSync(temporaryOutput);
 } finally {
   rmSync(runnerPath, { force: true });
   rmSync(temporaryOutput, { force: true });
+}
+assertPinnedOracle(oracleRoot, 'after generating');
+
+const parsed = JSON.parse(generated.toString('utf8'));
+if (!Array.isArray(parsed.cases) || parsed.cases.length !== 6) {
+  throw new Error('Oracle did not produce six reviewed cases');
+}
+mkdirSync(outputRoot, { recursive: true });
+const fixtureName = 'reconciliation-contract.json';
+writeFileSync(join(outputRoot, fixtureName), generated);
+
+const reconciliationSource = readFileSync(join(oracleRoot, sourceFiles[0]), 'utf8');
+const accountTransactionsSource = readFileSync(join(oracleRoot, sourceFiles[2]), 'utf8');
+if (!accountTransactionsSource.includes('last_reconciled: new Date().getTime().toString()')) {
+  throw new Error('Actual no longer stores last_reconciled as a millisecond string');
+}
+const manifest = {
+  schemaVersion: SCHEMA_VERSION,
+  actual: { tag: oraclePin.tag, commit: oraclePin.commit, packageVersion: oraclePin.packageVersion },
+  generator: {
+    command: `${ORACLE_ROOT_VARIABLE}=<pinned-actual> node scripts/reconciliation-parity/generate.mjs`,
+    sha256: sha256(readFileSync(scriptPath)),
+  },
+  helpers: [{ path: relative(root, helperPath), sha256: sha256(readFileSync(helperPath)) }],
+  seed: null,
+  amountUnits: 'integer minor units',
+  lastReconciledStorage: 'new Date().getTime().toString() milliseconds',
+  sourceFiles: sourceFiles.map(path => ({ path, sha256: sha256(readFileSync(join(oracleRoot, path))) })),
+  fixture: {
+    path: relative(root, join(defaultOutput, fixtureName)),
+    sha256: sha256(generated),
+    caseCount: parsed.cases.length,
+  },
+  caseCount: parsed.cases.length,
+  contractSourceSha256: sha256(reconciliationSource),
+};
+writeFileSync(join(outputRoot, 'reconciliation-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+
+if (checking) {
+  const failures = compareWithCommitted(defaultOutput, outputRoot, [fixtureName, 'reconciliation-manifest.json']);
+  rmSync(outputRoot, { recursive: true, force: true });
+  if (failures.length > 0) {
+    for (const failure of failures) console.error(`reconciliation parity drift: ${failure}`);
+    process.exit(1);
+  }
+  console.log(`Reconciliation parity fixture matches a fresh generation (${parsed.cases.length} cases).`);
+} else {
+  console.log(`Generated reconciliation parity fixture (${oraclePin.tag}, ${parsed.cases.length} cases).`);
 }

@@ -49,8 +49,10 @@ common directory.
 
 Required inputs:
 
-- read-only source and writable clone both at the pinned Actual tag and commit in
+- `ACTUALIST_PARITY_ORACLE_ROOT`: the clean, read-only source checkout, checked by
+  `scripts/parity/lib/oracle-pin.mjs oracle-root` at the pinned Actual tag and commit in
   `config/parity/oracle-pin.json` (`v26.10.0`, `2bebdbaa…`);
+- the writable clone at the same pinned tag and commit;
 - `@actual-app/core` version `26.10.0`;
 - Node `24.21.x`, repository Yarn `4.17.1`, and installed Vitest `5.0.0`;
 - existing `node_modules/.yarn-state.yml` and `better-sqlite3` `13.0.3` native
@@ -72,8 +74,7 @@ Prepare a distinct dependency-ready clone first, then run:
 
 ```sh
 scripts/transaction-query-parity/run-oracle.sh \
-  --source-checkout "$ACTUALIST_PARITY_ORACLE_ROOT" \
-  --actual-checkout /absolute/path/to/isolated-dependency-ready-actual \
+  --writable-clone /absolute/path/to/isolated-dependency-ready-actual \
   --evidence "$ACTUALIST_ROOT/.artifacts/parity-sprint-20260927/transaction-query-parity" \
   --run-label investigation
 ```
