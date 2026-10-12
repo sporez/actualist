@@ -13,15 +13,12 @@ extension BudgetDatabase {
                 guard amount > 0, amount <= Money.maximumUserAmountMinorUnits else {
                     throw LocalFirstError.invalidLocalWrite("invalid hold amount")
                 }
-                guard review.toBudget > 0 else {
+                // The hold below disables this month's automatic hold, so the money it was
+                // holding is available to hold, as in Actual's reset-then-hold sequence.
+                guard review.holdableAmount > 0 else {
                     throw LocalFirstError.invalidLocalWrite("no money is available to hold")
                 }
-                // Actual's menu does not offer a manual hold while an automatic
-                // income-carryover hold is active.
-                guard review.automaticHeldAmount == 0 else {
-                    throw LocalFirstError.invalidLocalWrite("disable the automatic hold first")
-                }
-                let delta = min(amount, review.toBudget)
+                let delta = min(amount, review.holdableAmount)
                 let added = review.manualHeldAmount.addingReportingOverflow(delta)
                 guard !added.overflow,
                       added.partialValue >= 0,
@@ -42,19 +39,21 @@ extension BudgetDatabase {
                 ))
                 return messages
             case .reset:
-                if review.manualHeldAmount != 0 {
-                    return [try bufferMessage(
+                // With only an automatic hold, release disables it. Otherwise this is Actual's
+                // reset-hold: the stored hold becomes zero, whether or not one existed.
+                if review.isAutomaticHold {
+                    return try resetIncomeCarryoverMessages(
                         month: review.month,
-                        amount: 0,
                         db: db,
                         builder: &builder
-                    )]
+                    )
                 }
-                return try resetIncomeCarryoverMessages(
+                return [try bufferMessage(
                     month: review.month,
+                    amount: 0,
                     db: db,
                     builder: &builder
-                )
+                )]
             }
         }
     }
@@ -93,7 +92,7 @@ extension BudgetDatabase {
 
     /// Actual resets every live income category for the selected month only.
     /// Existing rows emit only `carryover`; new peer rows also need identity cells.
-    private func resetIncomeCarryoverMessages(
+    func resetIncomeCarryoverMessages(
         month: String,
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
@@ -121,7 +120,7 @@ extension BudgetDatabase {
             if existingRowID == nil {
                 messages += try budgetRowIdentityMessages(
                     table: table, rowID: rowID, monthValue: monthValue,
-                    categoryID: categoryID, builder: &builder
+                    categoryID: categoryID, monthAsText: true, builder: &builder
                 )
             }
             messages.append(try builder.makeMessage(

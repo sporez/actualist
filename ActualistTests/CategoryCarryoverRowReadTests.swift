@@ -5,8 +5,8 @@ import Testing
 
 /// Phase 5.9: "Enable rollover for all" reads the budget rows once. The
 /// per-category, per-month `budgetRowID` lookup is the oracle for which row id
-/// each message targets. The written message set (month, category and
-/// carryover for every month) is unchanged; see the commit body for upstream.
+/// each message targets. A month with a row gets only its carryover cell; a month
+/// without one also gets its month (as text) and category cells, as in Actual.
 @MainActor
 struct CategoryCarryoverRowReadTests {
     private let fixtures = LocalFirstActualStoreTests()
@@ -45,7 +45,7 @@ struct CategoryCarryoverRowReadTests {
                 "\(message.dataset)|\(message.row)|\(message.column)|\(message.serializedValue)"
             }
             #expect(actual.map(key) == expected.map(key), "tracking \(tracking) through \(through)")
-            #expect(actual.count > 200)
+            #expect(actual.count > 100)
         }
         if tracking {
             var builder = LocalFirstSyncMessageBuilder()
@@ -67,7 +67,7 @@ struct CategoryCarryoverRowReadTests {
         )
         try await database.stopStatementTraceForTesting()
         let rowReads = log.count(containing: "FROM \"zero_budgets\"")
-        #expect(messages.count == 5 * 28 * 3)
+        #expect(messages.count >= 5 * 28 && messages.count <= 5 * 28 * 3)
         #expect(rowReads <= 3, "zero_budgets reads \(rowReads)")
     }
 }
@@ -92,23 +92,25 @@ extension BudgetDatabase {
             let categoryIDs = try templateCategoryIDsInBudgetOrder(
                 db: db, includeIncome: false, includeHidden: true
             )
-            let latestStored = try categoryBudgetsByMonth(db: db).keys
-                .compactMap { canonicalMonthID($0).map(monthInt) }.max() ?? 0
+            let latestStored = try fetchAvailableMonths(db: db).last.map(monthInt) ?? 0
             let effectiveThrough = max(throughValue, latestStored)
             var messages: [ActualSyncDecodedMessage] = []
             for categoryID in categoryIDs {
                 var monthValue = startValue
                 while monthValue <= effectiveThrough {
-                    let rowID = try budgetRowID(
+                    let existingRowID = try budgetRowID(
                         table: table, monthValue: monthValue, categoryID: categoryID,
                         columns: columns, db: db
-                    ) ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
-                    messages.append(try builder.makeMessage(
-                        dataset: table.rawValue, row: rowID, column: "month", value: .int(Int64(monthValue))
-                    ))
-                    messages.append(try builder.makeMessage(
-                        dataset: table.rawValue, row: rowID, column: "category", value: .string(categoryID)
-                    ))
+                    )
+                    let rowID = existingRowID ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
+                    if existingRowID == nil {
+                        messages.append(try builder.makeMessage(
+                            dataset: table.rawValue, row: rowID, column: "month", value: .string(String(monthValue))
+                        ))
+                        messages.append(try builder.makeMessage(
+                            dataset: table.rawValue, row: rowID, column: "category", value: .string(categoryID)
+                        ))
+                    }
                     messages.append(try builder.makeMessage(
                         dataset: table.rawValue, row: rowID, column: "carryover", value: .bool(carryover)
                     ))

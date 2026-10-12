@@ -75,13 +75,15 @@ final class OverspentCoverSelectionWorkflow {
                 return BudgetMoveMoneyCommand(
                     fromCategoryID: nil,
                     toCategoryID: option.id,
-                    amount: amount
+                    amount: amount,
+                    kind: .cover
                 )
             case .category(let id, _):
                 return BudgetMoveMoneyCommand(
                     fromCategoryID: id,
                     toCategoryID: option.id,
-                    amount: amount
+                    amount: amount,
+                    kind: .cover
                 )
             }
         }

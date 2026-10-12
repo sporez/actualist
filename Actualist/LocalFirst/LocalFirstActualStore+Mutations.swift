@@ -336,8 +336,9 @@ extension LocalFirstActualStore {
         return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 
-    // Actual applies carryover through the created budget horizon.
-    private static func categoryCarryoverHorizonMonth(
+    // Actual loads budget months through a year past the current month (`createAllBudgets` over
+    // `getBudgetRange`) and applies carryover through them.
+    static func categoryCarryoverHorizonMonth(
         startMonth: String,
         now: Date = Date()
     ) -> String {

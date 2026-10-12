@@ -29,7 +29,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func fetchBudgetMonth(month: String, db: Database) throws -> BudgetMonth {
+    func fetchBudgetMonth(month: String, db: Database) throws -> BudgetMonth {
         let table = try budgetTable(db: db)
         let (categoryValues, previousValues) = try categoryValuesWithPrevious(through: month, db: db)
         let userNoteIDs = try userNoteIDs(inMonth: month, db: db)
@@ -42,15 +42,16 @@ extension BudgetDatabase {
         let availability = table == .tracking ? (toBudget: 0, holdForNextMonth: 0)
             : try envelopeAvailability(month: month, totalBalance: totals.balance, db: db)
         // Tracking budgets have no To Budget, From Last Month or Available Funds.
-        let fromLastMonth = table == .tracking ? 0 : try envelopeCarryIn(
+        let carryIn = table == .tracking ? nil : try envelopeCarryIn(
             month: month, groups: groups, previousValues: previousValues, db: db
-        ).fromLastMonth
+        )
+        let fromLastMonth = carryIn?.fromLastMonth ?? 0
 
         return BudgetMonth(
             month: month,
             incomeAvailable: table == .tracking ? 0
                 : try BudgetTemplateEngine.checkedAdd(totals.income, fromLastMonth),
-            lastMonthOverspent: 0,
+            lastMonthOverspent: carryIn?.lastMonthOverspent ?? 0,
             forNextMonth: availability.holdForNextMonth,
             totalBudgeted: totals.budgeted,
             toBudget: availability.toBudget,

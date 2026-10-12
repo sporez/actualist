@@ -173,7 +173,8 @@ extension LocalFirstActualStoreTests {
         let database = try #require(bundle.store.database)
         let pending = try await database.pendingLocalSyncMessages()
         let timestamps = pending.map(\.message.timestamp)
-        let expectedMessageCount = mutationCount * 3
+        // The groceries row exists, so each assign writes only its amount cell.
+        let expectedMessageCount = mutationCount
         #expect(pending.count == expectedMessageCount)
         #expect(Set(timestamps).count == expectedMessageCount)
         #expect(timestamps == timestamps.sorted())

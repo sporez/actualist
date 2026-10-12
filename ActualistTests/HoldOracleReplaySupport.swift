@@ -74,26 +74,6 @@ enum HoldOracleReplay {
         INSERT INTO category_mapping VALUES ('groceries', 'groceries');
         """
 
-    /// True when the oracle expects a string-typed month identity cell on a budget row (OP-20 territory).
-    static func expectsStringMonthCell(_ expected: [String: OracleValue]) -> Bool {
-        expected.contains { key, value in
-            guard key.contains(".cell."), key.hasSuffix("/month"), case .string(let text) = value else {
-                return false
-            }
-            return text.hasPrefix("S:")
-        }
-    }
-
-    /// OP-20: the oracle writes a budget row's month identity as text (`S:202607`); Actualist writes a number.
-    static func isStringMonthMismatch(_ mismatch: ReplayMismatch) -> Bool {
-        guard mismatch.path.contains(".cell."), mismatch.path.hasSuffix("/month"),
-              mismatch.expected.hasPrefix("\"S:"), mismatch.actual.hasPrefix("\"N:") else {
-            return false
-        }
-        let expectedDigits = mismatch.expected.dropFirst(3).dropLast()
-        return !expectedDigits.isEmpty && expectedDigits == mismatch.actual.dropFirst(3).dropLast()
-    }
-
     static func replay(_ entry: [String: Any]) async throws -> ReplayResult {
         let setup = try OracleJSON.object(entry["setup"], "setup")
         let before = try OracleJSON.objects(entry["before"], "before")

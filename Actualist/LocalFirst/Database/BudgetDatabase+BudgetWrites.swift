@@ -44,6 +44,7 @@ extension BudgetDatabase {
     }
 
     static let maximumCarryoverMonthSpan = 600
+    private static let toBudgetRowCategoryID = "to-budget"
 
     // Actual applies rollover changes through the existing budget horizon.
     func categoryCarryoverMessages(
@@ -147,10 +148,7 @@ extension BudgetDatabase {
         }
         let effectiveThroughMonthValue = min(
             cappedLastMonthValue,
-            max(
-                throughMonthValue,
-                try maxActiveBudgetMonth(table: table, columns: columns, db: db)
-            )
+            max(throughMonthValue, try lastExistingBudgetMonth(db: db))
         )
         let existingRowIDs = try budgetRowIDs(table: table, columns: columns, db: db)
         for categoryID in categoryIDs {
@@ -159,11 +157,14 @@ extension BudgetDatabase {
                 let rowID = existingRowIDs[monthID(monthValue)]?[categoryID]
                     ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
 
-                // A peer may need these columns to create the budget row.
-                messages += try budgetRowIdentityMessages(
-                    table: table, rowID: rowID, monthValue: monthValue,
-                    categoryID: categoryID, builder: &builder
-                )
+                // Actual writes the identity cells only when it inserts the row, and
+                // its carryover insert stores the month as text.
+                if existingRowIDs[monthID(monthValue)]?[categoryID] == nil {
+                    messages += try budgetRowIdentityMessages(
+                        table: table, rowID: rowID, monthValue: monthValue,
+                        categoryID: categoryID, monthAsText: true, builder: &builder
+                    )
+                }
                 messages.append(
                     try builder.makeMessage(
                         dataset: table.rawValue,
@@ -217,6 +218,40 @@ extension BudgetDatabase {
         }
     }
 
+    /// The commands a move commits: covers and moves from To Budget limited to what their source has
+    /// left in `month` (a category's available balance, or To Budget), each leg seeing the legs before it.
+    /// Plain moves pass through unchanged. A cover with nothing to move is dropped.
+    func resolvedMoveMoneyCommands(
+        _ commands: [BudgetMoveMoneyCommand],
+        month: String,
+        db: Database
+    ) throws -> [BudgetMoveMoneyCommand] {
+        guard commands.contains(where: { $0.kind != .move }) else {
+            return commands
+        }
+        let budgetMonth = try fetchBudgetMonth(month: month, db: db)
+        var remaining: [String?: Int] = [nil: budgetMonth.toBudget]
+        for category in budgetMonth.categoryGroups.flatMap(\.categories) {
+            remaining[category.id] = category.balance
+        }
+        var resolved: [BudgetMoveMoneyCommand] = []
+        for command in commands {
+            guard command.kind != .move else {
+                resolved.append(command)
+                continue
+            }
+            guard let capped = command.limited(toSourceAvailable: remaining[command.fromCategoryID] ?? 0) else {
+                continue
+            }
+            remaining[command.fromCategoryID] = try BudgetTemplateEngine.checkedSubtract(
+                remaining[command.fromCategoryID] ?? 0,
+                capped.amount
+            )
+            resolved.append(capped)
+        }
+        return resolved
+    }
+
     /// Reads the live budget rows through `db`, so a Move Money commit built in
     /// its own write transaction starts from the latest assigned amounts.
     func moveMoneyMessages(
@@ -244,7 +279,8 @@ extension BudgetDatabase {
         var affectedCategoryIDs: Set<String> = []
 
         for command in commands {
-            guard command.amount > 0 else {
+            // A transfer-available limited to nothing still writes the destination's row, as Actual does.
+            guard command.amount > 0 || (command.kind == .transferAvailable && command.amount == 0) else {
                 throw LocalFirstError.invalidLocalWrite("missing amount")
             }
             guard command.amount <= BudgetMoveMoneyCommand.maximumAmount else {
@@ -272,6 +308,19 @@ extension BudgetDatabase {
         }
 
         var messages: [ActualSyncDecodedMessage] = []
+        // Actual's transfer-category from To Budget stores the move under a `to-budget` row. Its handler
+        // reads that row's amount from a sheet cell that never exists, so each move writes the negated amount.
+        if let toBudgetLeg = commands.last(where: { $0.fromCategoryID == nil && $0.kind == .move }) {
+            messages.append(contentsOf: try assignCategoryBudgetMessages(
+                categoryID: Self.toBudgetRowCategoryID,
+                budgeted: -toBudgetLeg.amount,
+                monthValue: monthValue,
+                table: table,
+                columns: columns,
+                db: db,
+                builder: &builder
+            ))
+        }
         for categoryID in affectedCategoryIDs.sorted() {
             messages.append(contentsOf: try assignCategoryBudgetMessages(
                 categoryID: categoryID,
@@ -315,19 +364,13 @@ extension BudgetDatabase {
         )
         let rowID = existingRowID ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
         let dataset = table.rawValue
-        // The server may not know about budget rows created only in the imported file.
-        var messages = try budgetRowIdentityMessages(
-            table: table, rowID: rowID, monthValue: monthValue,
-            categoryID: categoryID, builder: &builder
-        )
-        if existingRowID == nil, columns.contains("carryover") {
-            messages.append(
-                try builder.makeMessage(
-                    dataset: dataset,
-                    row: rowID,
-                    column: "carryover",
-                    value: .bool(false)
-                )
+        // Actual's setBudget updates an existing row's amount and inserts a new
+        // row with only its identity cells and amount.
+        var messages: [ActualSyncDecodedMessage] = []
+        if existingRowID == nil {
+            messages += try budgetRowIdentityMessages(
+                table: table, rowID: rowID, monthValue: monthValue,
+                categoryID: categoryID, builder: &builder
             )
         }
         messages.append(
@@ -341,20 +384,10 @@ extension BudgetDatabase {
         return messages
     }
 
-    private func maxActiveBudgetMonth(
-        table: BudgetTable,
-        columns: Set<String>,
-        db: Database
-    ) throws -> Int {
-        guard columns.contains("month") else { return 0 }
-        let predicate = predicateForLiveRows(columns: columns)
-        let rows = try Row.fetchAll(
-            db,
-            sql: "SELECT month FROM \(quotedIdentifier(table.rawValue)) WHERE \(predicate)"
-        )
-        return rows.compactMap { row in
-            canonicalMonthID(flexibleString(row["month"])).map(monthInt)
-        }.max() ?? 0
+    /// The latest month the budget has data for (budget rows or transactions), as
+    /// Actual's created months extend through the budget's latest month.
+    private func lastExistingBudgetMonth(db: Database) throws -> Int {
+        try fetchAvailableMonths(db: db).last.map(monthInt) ?? 0
     }
 
     func budgetRowID(
@@ -382,13 +415,15 @@ extension BudgetDatabase {
         return row == nil ? nil : Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
     }
 
-    /// The `month` and `category` cells that identify a budget row to a peer, in
-    /// that order. The caller appends its own cells after them.
+    /// The `month` and `category` cells that identify a new budget row to a peer, in
+    /// that order. The caller appends its own cells after them. Actual's carryover
+    /// writers store the month as text; its amount writers store a number.
     func budgetRowIdentityMessages(
         table: BudgetTable,
         rowID: String,
         monthValue: Int,
         categoryID: String,
+        monthAsText: Bool = false,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         [
@@ -396,7 +431,7 @@ extension BudgetDatabase {
                 dataset: table.rawValue,
                 row: rowID,
                 column: "month",
-                value: .int(Int64(monthValue))
+                value: monthAsText ? .string(String(monthValue)) : .int(Int64(monthValue))
             ),
             try builder.makeMessage(
                 dataset: table.rawValue,

@@ -28,6 +28,12 @@ struct BudgetHoldReview: Equatable, Sendable {
     let automaticHeldAmount: Int
     let revision: BudgetHoldReviewRevision?
 
+    /// What a manual hold may take: To Budget, plus the money this month's automatic hold is
+    /// holding, which a manual hold replaces. A stored manual hold already outranks the automatic one.
+    var holdableAmount: Int {
+        manualHeldAmount == 0 ? toBudget + max(0, automaticHeldAmount) : toBudget
+    }
+
     var isAutomaticHold: Bool {
         manualHeldAmount == 0 && automaticHeldAmount != 0
     }

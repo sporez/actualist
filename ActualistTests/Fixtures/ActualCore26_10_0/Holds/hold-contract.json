@@ -8151,7 +8151,7 @@
               "dataset": "zero_budgets",
               "row": "202607-salary",
               "column": "month",
-              "serializedValue": "N:202607"
+              "serializedValue": "S:202607"
             },
             {
               "timestamp": "2026-09-26T12:00:00.000Z-0002-61637475616c6973",

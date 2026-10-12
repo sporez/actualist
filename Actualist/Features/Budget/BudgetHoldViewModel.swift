@@ -74,7 +74,7 @@ final class BudgetHoldViewModel {
     var amount: Int? {
         guard let draft else { return nil }
         return BudgetHoldAmountInput.amount(
-            from: draft.text, available: draft.review.toBudget,
+            from: draft.text, available: draft.review.holdableAmount,
             currency: draft.review.currency, locale: locale
         )
     }
@@ -92,14 +92,14 @@ final class BudgetHoldViewModel {
 
     var canEnterHold: Bool {
         guard case .editing(let draft) = state, draft.error == nil else { return false }
-        return draft.review.automaticHeldAmount == 0 && draft.review.toBudget > 0
+        return draft.review.holdableAmount > 0
     }
 
     var holdExplanation: String {
-        if draft?.review.automaticHeldAmount != 0 {
-            return "This month has an automatic income hold. Release the current hold before holding a different amount. Future months’ automatic holds stay enabled."
+        if let review = draft?.review, review.isAutomaticHold {
+            return "This month has an automatic income hold. Holding an amount replaces it for this month. Future months’ automatic holds stay enabled."
         }
-        if (draft?.review.toBudget ?? 0) <= 0 {
+        if (draft?.review.holdableAmount ?? 0) <= 0 {
             return "There is no unassigned money to hold in this month. You can still release an existing hold."
         }
         return "Set aside unassigned money for \(nextMonthName). Bank balances and category assignments won’t change."
@@ -110,12 +110,12 @@ final class BudgetHoldViewModel {
         return draft.review.heldAmount > 0
     }
 
-    var availableText: String { draft.map { $0.review.currency.formatted($0.review.toBudget) } ?? "—" }
+    var availableText: String { draft.map { $0.review.currency.formatted($0.review.holdableAmount) } ?? "—" }
     var heldText: String { draft.map { $0.review.currency.formatted($0.review.heldAmount) } ?? "—" }
 
     var resultingAvailableText: String {
         guard canHold, let draft, let amount else { return "—" }
-        return draft.review.currency.formatted(draft.review.toBudget - amount)
+        return draft.review.currency.formatted(draft.review.holdableAmount - amount)
     }
 
     var resultingHeldText: String {
@@ -153,7 +153,7 @@ final class BudgetHoldViewModel {
     func useAllAvailable() {
         guard canEnterHold, case .editing(var draft) = state else { return }
         draft.text = BudgetHoldAmountInput.text(
-            amount: max(0, draft.review.toBudget), currency: draft.review.currency, locale: locale
+            amount: max(0, draft.review.holdableAmount), currency: draft.review.currency, locale: locale
         )
         state = .editing(draft)
     }
@@ -205,7 +205,7 @@ final class BudgetHoldViewModel {
             state = .editing(Draft(
                 review: review,
                 text: previousText ?? BudgetHoldAmountInput.text(
-                    amount: max(0, review.toBudget), currency: review.currency, locale: locale
+                    amount: max(0, review.holdableAmount), currency: review.currency, locale: locale
                 )
             ))
         } catch {

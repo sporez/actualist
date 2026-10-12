@@ -115,8 +115,8 @@ struct BudgetHoldSheet: View {
 
                 card {
                     amountRow("To Budget", value: model.availableText, id: "budget-hold-current-available",
-                              foreground: (model.draft?.review.toBudget ?? 0) < 0 ? ActualistTheme.danger
-                                : (model.draft?.review.toBudget ?? 0) > 0 ? ActualistTheme.positive : ActualistTheme.secondaryText)
+                              foreground: (model.draft?.review.holdableAmount ?? 0) < 0 ? ActualistTheme.danger
+                                : (model.draft?.review.holdableAmount ?? 0) > 0 ? ActualistTheme.positive : ActualistTheme.secondaryText)
                     Divider()
                     amountRow("Currently Held for \(model.nextMonthName)", value: model.heldText, id: "budget-hold-current-held")
                     if model.hasHeldMoney {

@@ -52,6 +52,8 @@ struct ShortcutBudgetCommandTests {
         )
         #expect(try ShortcutMoney.minorUnits(from: moved.budgeted!) == 8_000)
 
+        // A move from To Budget is limited to what To Budget has, floored at zero.
+        let toBudget = try await session.loadedMonth(preferred: "2026-07").month.toBudget
         let returned = try await ShortcutBudgetCommand.move(
             fromCategoryID: nil,
             toCategoryID: "groceries",
@@ -59,7 +61,7 @@ struct ShortcutBudgetCommandTests {
             month: "2026-07",
             session: session
         )
-        #expect(try ShortcutMoney.minorUnits(from: returned.budgeted!) == 9_000)
+        #expect(try ShortcutMoney.minorUnits(from: returned.budgeted!) == 8_000 + max(min(1_000, toBudget), 0))
     }
 
     @Test func applyTemplateAndCarryoverUseExistingStoreMethods() async throws {

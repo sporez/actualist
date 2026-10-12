@@ -2,9 +2,10 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Exact outbox-message lists for the four writers that create a budget row's
-/// identity cells (`month`, `category`) before their own cells. Pins row
-/// identity, table routing and message order across a shared-helper refactor.
+/// Exact outbox-message lists for the writers that create a budget row. A new row
+/// gets its identity cells (`month`, `category`) before its own cells and an
+/// existing row gets only its own cells, as in Actual. Pins row identity, table
+/// routing, message order and the month cell's type (number for amounts, text for carryover).
 @Suite("Budget row identity messages")
 @MainActor
 struct BudgetRowIdentityMessageTests {
@@ -21,19 +22,15 @@ struct BudgetRowIdentityMessageTests {
         )
     }
 
-    @Test func assignToExistingRowWithoutIdColumnDerivesTheRowIDAndSkipsCarryover() async throws {
+    @Test func assignToExistingRowWithoutIdColumnDerivesTheRowIDAndWritesOnlyTheAmount() async throws {
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database().assignCategoryBudgetMessages(
             categoryID: "groceries", budgeted: 12_345, month: "2026-07", builder: &builder
         )
-        #expect(lines(messages) == [
-            "zero_budgets|202607-groceries|month|N:202607",
-            "zero_budgets|202607-groceries|category|S:groceries",
-            "zero_budgets|202607-groceries|amount|N:12345"
-        ])
+        #expect(lines(messages) == ["zero_budgets|202607-groceries|amount|N:12345"])
     }
 
-    @Test func assignToNewRowAddsIdentityThenCarryoverThenAmount() async throws {
+    @Test func assignToNewRowAddsIdentityThenAmountWithoutCarryover() async throws {
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database().assignCategoryBudgetMessages(
             categoryID: "groceries", budgeted: 12_345, month: "2026-08", builder: &builder
@@ -41,7 +38,6 @@ struct BudgetRowIdentityMessageTests {
         #expect(lines(messages) == [
             "zero_budgets|202608-groceries|month|N:202608",
             "zero_budgets|202608-groceries|category|S:groceries",
-            "zero_budgets|202608-groceries|carryover|N:0",
             "zero_budgets|202608-groceries|amount|N:12345"
         ])
     }
@@ -55,24 +51,18 @@ struct BudgetRowIdentityMessageTests {
         let messages = try await db.assignCategoryBudgetMessages(
             categoryID: "groceries", budgeted: 700, month: "2026-07", builder: &builder
         )
-        #expect(lines(messages) == [
-            "zero_budgets|peer-groceries-jul|month|N:202607",
-            "zero_budgets|peer-groceries-jul|category|S:groceries",
-            "zero_budgets|peer-groceries-jul|amount|N:700"
-        ])
+        #expect(lines(messages) == ["zero_budgets|peer-groceries-jul|amount|N:700"])
     }
 
-    @Test func carryoverWritesIdentityThenCarryoverForEveryMonthInRange() async throws {
+    @Test func carryoverWritesIdentityOnlyForMonthsWithoutARow() async throws {
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await database().categoryCarryoverMessages(
             categoryID: "groceries", carryover: true,
             startMonth: "2026-07", throughMonth: "2026-08", builder: &builder
         )
         #expect(lines(messages) == [
-            "zero_budgets|202607-groceries|month|N:202607",
-            "zero_budgets|202607-groceries|category|S:groceries",
             "zero_budgets|202607-groceries|carryover|N:1",
-            "zero_budgets|202608-groceries|month|N:202608",
+            "zero_budgets|202608-groceries|month|S:202608",
             "zero_budgets|202608-groceries|category|S:groceries",
             "zero_budgets|202608-groceries|carryover|N:1"
         ])
@@ -92,7 +82,6 @@ struct BudgetRowIdentityMessageTests {
         #expect(lines(messages) == [
             "zero_budgets|202608-groceries|month|N:202608",
             "zero_budgets|202608-groceries|category|S:groceries",
-            "zero_budgets|202608-groceries|carryover|N:0",
             "zero_budgets|202608-groceries|amount|N:40000",
             "zero_budgets|202608-groceries|month|N:202608",
             "zero_budgets|202608-groceries|category|S:groceries",
@@ -119,7 +108,7 @@ struct BudgetRowIdentityMessageTests {
         )
         #expect(lines(messages) == [
             "zero_budget_months|2026-07|buffered|N:40000",
-            "zero_budgets|202607-salary|month|N:202607",
+            "zero_budgets|202607-salary|month|S:202607",
             "zero_budgets|202607-salary|category|S:salary",
             "zero_budgets|202607-salary|carryover|N:0"
         ])

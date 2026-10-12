@@ -565,7 +565,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @MainActor
-    @Test func syncAllReviewDoesNotFillTransferPayeeOnMatchedOrdinaryTransaction() async throws {
+    @Test func syncAllReviewFillsTransferPayeeOnMatchedPayeelessTransactionAndPairsTheTransfer() async throws {
         let (bundle, _) = try await makeLinkedCorrectnessStore(
             transaction: correctnessTransaction(),
             additionalFixtureSQL: transferPayeeRuleFixture() + """
@@ -579,17 +579,22 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1"
         )
         let update = try #require(plan.updates.first { $0.existingID == "ordinary" })
-        #expect(update.payeeID == nil)
+        // Actual runs rules on a matched row too, so a payee-less match takes the transfer payee
+        // and becomes a transfer with a paired leg.
+        #expect(update.payeeID == "xfer-checking")
         #expect(update.financialID == "bank-correctness")
-        #expect(!plan.matchDetails.contains { detail in
+        #expect(plan.matchDetails.contains { detail in
             detail.changes.contains { $0.field == .payee }
         })
 
         _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
         let row = try #require(try storedTransactionRow(in: bundle, id: "ordinary"))
-        #expect(row["description"] as String? == nil)
-        #expect(row["transferred_id"] as String? == nil)
+        #expect(row["description"] as String? == "xfer-checking")
         #expect(row["financial_id"] as String? == "bank-correctness")
+        let pairedID = try #require(row["transferred_id"] as String?)
+        let destination = try #require(try storedTransactionRow(in: bundle, id: pairedID))
+        #expect(destination["acct"] as String? == "checking")
+        #expect(destination["transferred_id"] as String? == "ordinary")
     }
 
     @Test func matchUpdateWriterDoesNotWriteCategoryOntoOffBudgetAccount() async throws {

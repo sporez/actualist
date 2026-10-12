@@ -500,7 +500,7 @@ test('Actual ${EXPECTED_VERSION} hold contract', async () => {
     },
     {
       timestamp: Timestamp.parse('2026-09-26T12:00:00.000Z-0001-61637475616c6973'),
-      dataset: 'zero_budgets', row: '202607-salary', column: 'month', value: 202607,
+      dataset: 'zero_budgets', row: '202607-salary', column: 'month', value: '202607',
     },
     {
       timestamp: Timestamp.parse('2026-09-26T12:00:00.000Z-0002-61637475616c6973'),

@@ -27,11 +27,6 @@ struct HoldOracleReplayTests {
         "actualist-compatible-crdt-replays-into-actual-peer",
     ]
 
-    /// Replayed cases whose known OP-21 divergence is the reset-hold with no stored hold.
-    private static let op21CaseIDs: Set<String> = [
-        "release-without-stored-hold-row-writes-zero-hold",
-    ]
-
     @Test
     func manifestPartitionsEveryContractCase() throws {
         let cases = try OracleFixtureCases(domain: "Holds", fileName: Self.fileName, outputKey: "steps")
@@ -47,25 +42,9 @@ struct HoldOracleReplayTests {
         var comparison = OracleComparison()
         comparison.compare(expected: .object(replay.expected), actual: .object(replay.actual))
 
-        let op20 = KnownDivergenceSplit(
-            comparison.mismatches,
-            knownPaths: Set(comparison.mismatches.filter(HoldOracleReplay.isStringMonthMismatch).map(\.path))
+        #expect(
+            comparison.mismatches.isEmpty,
+            Comment(rawValue: OracleComparison.report(caseID, comparison.mismatches))
         )
-        let op21Paths = Self.op21CaseIDs.contains(caseID)
-            ? Set(op20.strict.map(\.path).filter { $0.hasPrefix("action0.cell.") })
-            : []
-        let op21 = KnownDivergenceSplit(op20.strict, knownPaths: op21Paths)
-
-        #expect(op21.strict.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op21.strict)))
-        if HoldOracleReplay.expectsStringMonthCell(replay.expected) {
-            withKnownIssue("OP-20: a new budget row's month identity is written as a number, where the pinned Actual writes text") {
-                #expect(op20.known.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op20.known)))
-            }
-        }
-        if Self.op21CaseIDs.contains(caseID) {
-            withKnownIssue("OP-21: a reset-hold with no stored hold writes the income carryover rows, where the pinned Actual writes buffered = 0") {
-                #expect(op21.known.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op21.known)))
-            }
-        }
     }
 }

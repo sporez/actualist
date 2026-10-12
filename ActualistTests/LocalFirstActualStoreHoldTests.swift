@@ -24,7 +24,7 @@ extension LocalFirstActualStoreTests {
             "zero_budget_months", "zero_budgets", "zero_budgets", "zero_budgets"
         ])
         #expect(firstMessages.map(\.column) == ["buffered", "month", "category", "carryover"])
-        #expect(firstMessages.map(\.serializedValue) == ["N:40000", "N:202607", "S:salary", "N:0"])
+        #expect(firstMessages.map(\.serializedValue) == ["N:40000", "S:202607", "S:salary", "N:0"])
 
         try await apply(.hold(amount: 20_000), review: review, to: database)
         review = try await database.budgetHoldReview(month: "2026-07")
@@ -75,7 +75,39 @@ extension LocalFirstActualStoreTests {
         #expect(carryoverMessages.first?.row == "202607-salary")
     }
 
-    @Test func holdRefusesNoAvailabilityAutomaticHoldAndTrackingMode() async throws {
+    @Test func manualHoldReplacesTheAutomaticHoldAndMayTakeItsMoney() async throws {
+        let url = try makeHoldFixture(extraSQL: """
+            INSERT INTO zero_budgets VALUES (202607, 'salary', 0, 1);
+            """)
+        let database = try BudgetDatabase(databaseURL: url, localNodeID: "hold-auto")
+        let review = try await database.budgetHoldReview(month: "2026-07")
+        #expect(review.isAutomaticHold)
+        #expect(review.holdableAmount == review.toBudget + review.automaticHeldAmount)
+
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetHoldMessages(
+            command: .hold(amount: 30_000), review: review, builder: &builder
+        )
+        #expect(messages.map(\.column) == ["buffered", "carryover"])
+        #expect(messages.first?.serializedValue == "N:30000")
+        #expect(messages.last?.serializedValue == "N:0")
+        try await apply(.hold(amount: 30_000), review: review, to: database)
+        let after = try await database.budgetHoldReview(month: "2026-07")
+        #expect(after.manualHeldAmount == 30_000)
+        #expect(after.automaticHeldAmount == 0)
+    }
+
+    @Test func releaseWithNoStoredOrAutomaticHoldWritesAZeroHold() async throws {
+        let url = try makeHoldFixture(extraSQL: "")
+        let database = try BudgetDatabase(databaseURL: url, localNodeID: "hold-zero")
+        let review = try await database.budgetHoldReview(month: "2026-07")
+        var builder = LocalFirstSyncMessageBuilder()
+        let messages = try await database.budgetHoldMessages(command: .reset, review: review, builder: &builder)
+        #expect(messages.map { "\($0.dataset)|\($0.row)|\($0.column)|\($0.serializedValue)" }
+            == ["zero_budget_months|2026-07|buffered|N:0"])
+    }
+
+    @Test func holdRefusesNoAvailabilityAndTrackingMode() async throws {
         let unavailableURL = try makeSQLiteFixture(extraSQL: """
             CREATE TABLE zero_budget_months (id TEXT PRIMARY KEY, buffered INTEGER);
             """)
@@ -93,18 +125,6 @@ extension LocalFirstActualStoreTests {
             _ = try await unavailable.budgetHoldReview(month: "2026-7")
         }
         #expect(try await unavailable.budgetHoldReview(month: "2027-01").heldAmount == 0)
-
-        let automaticURL = try makeHoldFixture(extraSQL: """
-            INSERT INTO zero_budgets VALUES (202607, 'salary', 0, 1);
-            """)
-        let automatic = try BudgetDatabase(databaseURL: automaticURL, localNodeID: "hold-auto")
-        let automaticReview = try await automatic.budgetHoldReview(month: "2026-07")
-        await #expect(throws: LocalFirstError.self) {
-            var builder = LocalFirstSyncMessageBuilder()
-            _ = try await automatic.budgetHoldMessages(
-                command: .hold(amount: 1), review: automaticReview, builder: &builder
-            )
-        }
 
         let trackingURL = try makeHoldFixture(extraSQL: """
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);

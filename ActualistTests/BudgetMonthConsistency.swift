@@ -11,7 +11,7 @@ import Foundation
 ///
 /// Not checked, because it is not one of Actualist's identities: the exposed `lastMonthOverspent`. To Budget
 /// takes last month's overspend from `envelopeCarryIn`, not from that field, and no screen or widget reads it.
-/// The replay compares it with the oracle instead (OP-35).
+/// The replay compares it with the oracle instead.
 enum BudgetMonthConsistency {
     struct Problem: Equatable {
         let field: String

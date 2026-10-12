@@ -26,13 +26,13 @@ extension BudgetMoveMoneyDraft {
     ) -> BudgetMoveMoneyCommand {
         switch direction {
         case .outOfFocusedCategory:
-            BudgetMoveMoneyCommand(
+            .move(
                 fromCategoryID: focusedCategoryID,
                 toCategoryID: destination.categoryID,
                 amount: amount
             )
         case .intoFocusedCategory:
-            BudgetMoveMoneyCommand(
+            .move(
                 fromCategoryID: destination.categoryID,
                 toCategoryID: focusedCategoryID,
                 amount: amount

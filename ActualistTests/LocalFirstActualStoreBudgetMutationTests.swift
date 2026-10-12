@@ -278,8 +278,9 @@ extension LocalFirstActualStoreTests {
             $0.dataset == "zero_budgets" && $0.row == "202607-utilities"
         }
         #expect(utilities.budgeted == 30_000)
-        #expect(utilityBudgetMessages.map(\.column) == ["month", "category", "amount"])
-        #expect(utilityBudgetMessages.map(\.serializedValue) == ["N:202607", "S:utilities", "N:30000"])
+        // The row exists in the fixture, so only its amount is written.
+        #expect(utilityBudgetMessages.map(\.column) == ["amount"])
+        #expect(utilityBudgetMessages.map(\.serializedValue) == ["N:30000"])
     }
 
     @Test func applyCategoryTemplateSetsPeriodicAmount() async throws {

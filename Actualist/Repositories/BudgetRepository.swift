@@ -277,9 +277,49 @@ struct BudgetMoveMoneyCommand: Hashable, Sendable {
     /// budgeted sums far from `Int` overflow.
     static let maximumAmount = 1_000_000_000_000
 
+    /// How the store treats the amount. A plain move writes it as given. A cover is limited to what
+    /// its source has left, and a move from To Budget into a category (`transferAvailable`) to what
+    /// To Budget has, floored at zero, as Actual's cover and transfer-available handlers are.
+    enum Kind: Hashable, Sendable {
+        case move
+        case cover
+        case transferAvailable
+    }
+
     let fromCategoryID: String?
     let toCategoryID: String?
     let amount: Int
+    var kind: Kind = .move
+
+    /// A move between two categories or into To Budget is a plain move. One that takes from To Budget
+    /// into a category is a transfer-available, limited to what To Budget has at commit.
+    static func move(fromCategoryID: String?, toCategoryID: String?, amount: Int) -> BudgetMoveMoneyCommand {
+        BudgetMoveMoneyCommand(
+            fromCategoryID: fromCategoryID,
+            toCategoryID: toCategoryID,
+            amount: amount,
+            kind: fromCategoryID == nil && toCategoryID != nil ? .transferAvailable : .move
+        )
+    }
+
+    /// The command a move may commit when its source (a category, or To Budget when `fromCategoryID`
+    /// is nil) has `sourceAvailable` left. A cover with nothing to move is nil. A transfer-available
+    /// keeps a zero amount, because Actual still writes the destination's budget row.
+    func limited(toSourceAvailable sourceAvailable: Int) -> BudgetMoveMoneyCommand? {
+        let limitedAmount: Int
+        switch kind {
+        case .move:
+            return self
+        case .cover:
+            limitedAmount = min(amount, sourceAvailable)
+            guard amount > 0, limitedAmount > 0 else { return nil }
+        case .transferAvailable:
+            limitedAmount = max(min(amount, sourceAvailable), 0)
+        }
+        return BudgetMoveMoneyCommand(
+            fromCategoryID: fromCategoryID, toCategoryID: toCategoryID, amount: limitedAmount, kind: kind
+        )
+    }
 }
 
 struct BudgetCategoryOutlineCommand: Hashable, Sendable {

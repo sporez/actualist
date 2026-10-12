@@ -120,29 +120,30 @@ extension LocalFirstActualStore {
         #if DEBUG
         await testSeams?.userActionBeforeCommitHook?()
         #endif
-        let descriptor = BudgetActionDescriptor.move(
-            month: month,
-            legs: commands.map {
-                BudgetMoveLeg(
-                    fromCategoryID: $0.fromCategoryID,
-                    toCategoryID: $0.toCategoryID,
-                    amount: $0.amount
-                )
-            }
-        )
         _ = try await database.commitUserActionPlan(
             source: actionSource,
             expectedMode: mode
         ) { database, db in
             var builder = LocalFirstSyncMessageBuilder()
+            let resolved = try database.resolvedMoveMoneyCommands(commands, month: month, db: db)
             return UserActionPlan(
                 drafts: try database.moveMoneyMessages(
-                    commands: commands,
+                    commands: resolved,
                     month: month,
                     db: db,
                     builder: &builder
                 ),
-                descriptor: descriptor,
+                // A move limited to nothing records no History row; a transfer-available still writes its row.
+                descriptor: resolved.allSatisfy { $0.amount == 0 } ? nil : .move(
+                    month: month,
+                    legs: resolved.filter { $0.amount > 0 }.map {
+                        BudgetMoveLeg(
+                            fromCategoryID: $0.fromCategoryID,
+                            toCategoryID: $0.toCategoryID,
+                            amount: $0.amount
+                        )
+                    }
+                ),
                 outcome: ()
             )
         }

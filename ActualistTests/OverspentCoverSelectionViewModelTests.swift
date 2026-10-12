@@ -126,16 +126,16 @@ struct OverspentCoverSelectionViewModelTests {
 
         let toBudgetCommands = model.overspentCoverCommands(source: .toBudget)
         #expect(toBudgetCommands == [
-            BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "mortgage", amount: 2_500),
-            BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "utilities", amount: 1_000)
+            BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "mortgage", amount: 2_500, kind: .cover),
+            BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "utilities", amount: 1_000, kind: .cover)
         ])
 
         let categoryCommands = model.overspentCoverCommands(
             source: .category(id: "savings", name: "Savings")
         )
         #expect(categoryCommands == [
-            BudgetMoveMoneyCommand(fromCategoryID: "savings", toCategoryID: "mortgage", amount: 2_500),
-            BudgetMoveMoneyCommand(fromCategoryID: "savings", toCategoryID: "utilities", amount: 1_000)
+            BudgetMoveMoneyCommand(fromCategoryID: "savings", toCategoryID: "mortgage", amount: 2_500, kind: .cover),
+            BudgetMoveMoneyCommand(fromCategoryID: "savings", toCategoryID: "utilities", amount: 1_000, kind: .cover)
         ])
     }
 
@@ -176,7 +176,7 @@ struct OverspentCoverSelectionViewModelTests {
         #expect(model.selectedOverspentCategoryIDs.isEmpty)
         let recorded = await repository.recordedMoves()
         #expect(recorded.map(\.command) == [
-            BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "mortgage", amount: 2_500)
+            BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "mortgage", amount: 2_500, kind: .cover)
         ])
         #expect(model.budgetMonth == refreshedMonth)
         #expect(model.overspentCategoryOptions.map(\.id) == ["utilities"])

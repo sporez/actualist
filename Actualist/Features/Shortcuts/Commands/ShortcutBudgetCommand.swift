@@ -60,7 +60,7 @@ enum ShortcutBudgetCommand {
             guard !loaded.isTrackingBudget else { throw ShortcutsError.trackingActionUnsupported }
             let monthID = loaded.selectedMonth
             _ = try await prepared.store.moveMoneyAndRefresh(expectedMode: loaded.modeIdentity,
-                command: BudgetMoveMoneyCommand(
+                command: .move(
                     fromCategoryID: fromCategoryID,
                     toCategoryID: toCategoryID,
                     amount: amountMinorUnits

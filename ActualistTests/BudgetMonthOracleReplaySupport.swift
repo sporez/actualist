@@ -9,10 +9,10 @@ import GRDB
 @MainActor
 enum BudgetMonthOracleReplay {
     /// 2026-10-15T00:00:00Z, the fixture's `today`. Production reads the wall clock for the carryover
-    /// horizon, so the replay computes the same horizon from this fixed date.
+    /// floor, so the replay computes the same floor from this fixed date.
     static let fixtureNow = Date(timeIntervalSince1970: 1_792_022_400)
 
-    /// Summary fields compared. `last-month-overspent` is compared as OP-35 (Actualist exposes 0). Other summary
+    /// Summary fields compared. `last-month-overspent` is compared. Other summary
     /// fields in the fixture (`buffered`, `buffered-auto`) are not compared; see the README.
     private static let comparedSummaryFields: Set<String> = [
         "to-budget", "available-funds", "from-last-month", "buffered-selected",
@@ -103,6 +103,9 @@ enum BudgetMonthOracleReplay {
         let before = try OracleJSON.objects(entry["before"], "before")
         let actions = try plan(try OracleJSON.objects(entry["steps"], "steps"))
         let finalStates = try OracleJSON.objects(entry["expected"], "expected")
+        // The oracle creates exactly its case's months (`createBudget(sheetMonths)`), and a carryover reaches
+        // through the last of them. Production derives that end from the clock and its data.
+        let createdThrough = (entry["sheetMonths"] as? [String])?.last ?? ""
 
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "BudgetMonthOracleReplay-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -132,7 +135,7 @@ enum BudgetMonthOracleReplay {
                 break
             }
             let prefix = "step\(action.stepIndex)."
-            let written = try await write(action, database)
+            let written = try await write(action, database, createdThrough: createdThrough)
             if let refusal = written.refusal {
                 refusals.append("step \(action.stepIndex): \(refusal)")
             }
@@ -194,9 +197,13 @@ enum BudgetMonthOracleReplay {
         }
     }
 
-    private static func write(_ action: Action, _ database: BudgetDatabase) async throws -> Written {
+    private static func write(
+        _ action: Action,
+        _ database: BudgetDatabase,
+        createdThrough: String
+    ) async throws -> Written {
         do {
-            let drafts = try await commit(action.kind, database)
+            let drafts = try await commit(action.kind, database, createdThrough: createdThrough)
             return Written(drafts: drafts, committed: true, refusal: nil)
         } catch let error as LocalFirstError {
             return Written(drafts: [], committed: false, refusal: String(describing: error))
@@ -206,7 +213,11 @@ enum BudgetMonthOracleReplay {
     }
 
     /// Each arm mirrors the store method named in its comment, with the same database seams.
-    private static func commit(_ kind: Kind, _ database: BudgetDatabase) async throws -> [ActualSyncDecodedMessage] {
+    private static func commit(
+        _ kind: Kind,
+        _ database: BudgetDatabase,
+        createdThrough: String
+    ) async throws -> [ActualSyncDecodedMessage] {
         let mode = try await database.requireBudgetMode(nil)
         switch kind {
         case let .assign(month, categoryID, budgeted):
@@ -235,17 +246,18 @@ enum BudgetMonthOracleReplay {
             let balance = try await database.fetchBudgetMonth(month: month)
                 .categoryGroups.flatMap(\.categories).first { $0.id == to }?.balance ?? 0
             let commands = balance < 0
-                ? [BudgetMoveMoneyCommand(fromCategoryID: from, toCategoryID: to, amount: -balance)]
+                ? [BudgetMoveMoneyCommand(fromCategoryID: from, toCategoryID: to, amount: -balance, kind: .cover)]
                 : []
             return try await commitMove(month: month, database, mode, commands: commands)
         case let .carryover(categoryID, carryover, startMonth):
-            // LocalFirstActualStore+Mutations.setCategoryCarryoverAndRefresh
+            // LocalFirstActualStore+Mutations.setCategoryCarryoverAndRefresh. The through-month is the case's last
+            // created sheet month, a stand-in for Actual's `createdMonths` rather than an expectation.
             var builder = LocalFirstSyncMessageBuilder()
             let drafts = try await database.categoryCarryoverMessages(
                 categoryID: categoryID,
                 carryover: carryover,
                 startMonth: startMonth,
-                throughMonth: carryoverHorizon(startMonth),
+                throughMonth: max(startMonth, createdThrough),
                 builder: &builder
             )
             _ = try await database.commitUserAction(
@@ -265,9 +277,14 @@ enum BudgetMonthOracleReplay {
         case let .reset(month):
             return try await commitHold(.reset, month: month, database)
         case let .incomeCarryoverReset(month):
-            // Reached only when no manual hold is stored (see `seamGap`), where the hold review's reset writes
-            // exactly the income-carryover rows.
-            return try await commitHold(.reset, month: month, database)
+            // Production reaches the income-carryover reset only through the hold review, whose reset also
+            // writes the stored hold. This step calls the reset writer itself and commits it as a user action.
+            let applied = try await database.commitUserActionPlan(source: .ui, expectedMode: mode) { budget, db in
+                var builder = LocalFirstSyncMessageBuilder()
+                let drafts = try budget.resetIncomeCarryoverMessages(month: month, db: db, builder: &builder)
+                return UserActionPlan(drafts: drafts, descriptor: nil, outcome: drafts)
+            }
+            return applied.outcome
         }
     }
 
@@ -280,10 +297,11 @@ enum BudgetMonthOracleReplay {
     ) async throws -> [ActualSyncDecodedMessage] {
         let applied = try await database.commitUserActionPlan(source: .ui, expectedMode: mode) { budget, db in
             var builder = LocalFirstSyncMessageBuilder()
-            let drafts = try budget.moveMoneyMessages(commands: commands, month: month, db: db, builder: &builder)
-            let descriptor: BudgetActionDescriptor? = commands.isEmpty ? nil : .move(
+            let resolved = try budget.resolvedMoveMoneyCommands(commands, month: month, db: db)
+            let drafts = try budget.moveMoneyMessages(commands: resolved, month: month, db: db, builder: &builder)
+            let descriptor: BudgetActionDescriptor? = resolved.isEmpty ? nil : .move(
                 month: month,
-                legs: commands.map {
+                legs: resolved.map {
                     BudgetMoveLeg(fromCategoryID: $0.fromCategoryID, toCategoryID: $0.toCategoryID, amount: $0.amount)
                 }
             )
@@ -306,12 +324,6 @@ enum BudgetMonthOracleReplay {
             expectedHoldReview: review
         )
         return drafts
-    }
-
-    /// `LocalFirstActualStore.categoryCarryoverHorizonMonth`, computed from the replay's fixed clock.
-    private static func carryoverHorizon(_ startMonth: String) -> String {
-        let horizon = Calendar(identifier: .gregorian).date(byAdding: .month, value: 12, to: fixtureNow) ?? fixtureNow
-        return max(startMonth, YearMonth(date: horizon).rawValue)
     }
 
     // MARK: Planning
@@ -354,10 +366,11 @@ enum BudgetMonthOracleReplay {
                 kind = try move(
                     args,
                     from: budgetCategory(try OracleJSON.string(args, "from")),
-                    to: budgetCategory(try OracleJSON.string(args, "to"))
+                    to: budgetCategory(try OracleJSON.string(args, "to")),
+                    commandKind: .move
                 )
             case "budget/transfer-available":
-                kind = try move(args, from: nil, to: OracleJSON.string(args, "category"))
+                kind = try move(args, from: nil, to: OracleJSON.string(args, "category"), commandKind: .transferAvailable)
             case "budget/cover-overspending":
                 let from = budgetCategory(try OracleJSON.string(args, "from"))
                 let to = try OracleJSON.string(args, "to")
@@ -365,7 +378,7 @@ enum BudgetMonthOracleReplay {
                     kind = .cover(month: try OracleJSON.string(args, "month"), to: to, from: from)
                 } else {
                     // An explicit fixture amount is replayed as given.
-                    kind = try move(args, from: from, to: to)
+                    kind = try move(args, from: from, to: to, commandKind: .cover)
                 }
             case "budget/set-carryover":
                 kind = .carryover(
@@ -412,13 +425,19 @@ enum BudgetMonthOracleReplay {
     }
 
     /// A single-leg move. A nil side is To Budget; `amount` comes from the fixture as given.
-    private static func move(_ args: [String: Any], from: String?, to: String?) throws -> Kind {
+    private static func move(
+        _ args: [String: Any],
+        from: String?,
+        to: String?,
+        commandKind: BudgetMoveMoneyCommand.Kind
+    ) throws -> Kind {
         .move(
             month: try OracleJSON.string(args, "month"),
             commands: [BudgetMoveMoneyCommand(
                 fromCategoryID: from,
                 toCategoryID: to,
-                amount: try integer(args, "amount")
+                amount: try integer(args, "amount"),
+                kind: commandKind
             )]
         )
     }

@@ -7,7 +7,7 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/hold-parity/generate.mjs",
-    "sha256": "f757b5e08329cf0435bea9fef7f266916363328742075604d1e1b9362d8b944a"
+    "sha256": "438ab180ad5bd005d61877b5d05c50fd1bf365134cbbc65cf4afd154dced38b0"
   },
   "helpers": [
     {
@@ -73,7 +73,7 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_10_0/Holds/hold-contract.json",
-      "sha256": "943c94feb42af8ee794fa4ea7669eb11f76ec5325af051d45ce0cd3bc156498e",
+      "sha256": "4d5aa7fd42bf74076443bd7911a31bd7d29fa36fc0cf31c3e84d9d48e9cea02f",
       "caseCount": 16,
       "caseIDs": [
         "hold-partial-then-repeat-adds",

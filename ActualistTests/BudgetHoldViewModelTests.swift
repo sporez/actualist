@@ -86,14 +86,16 @@ struct BudgetHoldViewModelTests {
         #expect(model.canHold)
     }
 
-    @Test func automaticHoldDisablesManualEntryButAllowsCurrentRelease() async {
+    @Test func automaticHoldAllowsManualEntryThatReplacesItAndCurrentRelease() async {
         let review = BudgetHoldReview(month: "2026-07", modeIdentity: identity, currency: .usd,
                                       toBudget: 10_000, heldAmount: 5_000,
                                       manualHeldAmount: 0, automaticHeldAmount: 5_000)
         let model = makeModel()
         await model.load(repository: RecordingBudgetRepository(holdReview: { review }))
-        #expect(!model.canHold)
-        #expect(!model.canEnterHold)
+        #expect(model.canEnterHold)
+        #expect(model.canHold)
+        #expect(model.availableText == review.currency.formatted(15_000))
+        #expect(model.holdExplanation.contains("replaces it"))
         #expect(model.canRelease)
         #expect(model.releaseTitle == "Disable Current Auto Hold")
         #expect(model.releaseMessage.contains("future months stay enabled"))
@@ -118,7 +120,7 @@ struct BudgetHoldViewModelTests {
                                       manualHeldAmount: 5_000, automaticHeldAmount: 20_000)
         let model = makeModel()
         await model.load(repository: RecordingBudgetRepository(holdReview: { review }))
-        #expect(!model.canHold)
+        #expect(model.canHold)
         #expect(model.canRelease)
         #expect(model.releaseTitle == "Reset Manual Hold")
         #expect(model.releaseMessage.contains(review.currency.formatted(20_000)))
