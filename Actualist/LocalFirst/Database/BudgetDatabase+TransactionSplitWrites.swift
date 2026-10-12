@@ -410,7 +410,8 @@ extension BudgetDatabase {
             error: row.isParent ? row.error : nil,
             startingBalance: row.startingBalance,
             columns: columns,
-            builder: &builder
+            builder: &builder,
+            cells: .snapshot
         )
     }
 
@@ -516,7 +517,8 @@ extension BudgetDatabase {
             transferID: row.id,
             sortOrder: nil,
             columns: columns,
-            builder: &builder
+            builder: &builder,
+            cells: .snapshot
         )
         return (next, paired)
     }

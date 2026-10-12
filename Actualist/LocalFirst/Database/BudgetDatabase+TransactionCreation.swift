@@ -40,11 +40,7 @@ extension BudgetDatabase {
         let payeeID = UUID().uuidString
         var messages: [ActualSyncDecodedMessage] = []
         try queue.read { db in
-            let payeeColumns = try requiredColumns(
-                table: "payees",
-                required: ["name"],
-                db: db
-            )
+            _ = try requiredColumns(table: "payees", required: ["name"], db: db)
             messages.append(
                 try builder.makeMessage(
                     dataset: "payees",
@@ -53,16 +49,6 @@ extension BudgetDatabase {
                     value: .string(trimmedName)
                 )
             )
-            if payeeColumns.contains("tombstone") {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "payees",
-                        row: payeeID,
-                        column: "tombstone",
-                        value: .bool(false)
-                    )
-                )
-            }
 
             if try tableExists("payee_mapping", db: db) {
                 _ = try requiredColumns(table: "payee_mapping", required: ["targetId"], db: db)
@@ -104,7 +90,6 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try validateSimpleTransactionDraft(draft)
-        var messages: [ActualSyncDecodedMessage] = []
         if try tableExists("accounts", db: db),
            try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
             throw LocalFirstError.referencedRowUnavailable("missing account")
@@ -114,172 +99,63 @@ extension BudgetDatabase {
            try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
             throw LocalFirstError.referencedRowUnavailable("missing category")
         }
-            let columns = try requiredColumns(
-                table: "transactions",
-                required: ["date", "amount"],
-                db: db
-            )
-            let accountColumn = try firstExistingColumn(["acct", "account"], in: columns, table: "transactions")
-            let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
-            let isParentColumn = columns.contains("is_parent") ? "is_parent" : (columns.contains("isParent") ? "isParent" : nil)
-            let dateValue = try Self.actualDateValue(draft.date)
+        let columns = try requiredColumns(
+            table: "transactions",
+            required: ["date", "amount"],
+            db: db
+        )
+        let accountColumn = try firstExistingColumn(["acct", "account"], in: columns, table: "transactions")
+        let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
+        let dateValue = try Self.actualDateValue(draft.date)
 
-            messages.append(
-                try builder.makeMessage(
-                    dataset: "transactions",
-                    row: transactionID,
-                    column: accountColumn,
-                    value: .string(draft.accountID)
-                )
+        // Actual's insert sends only the cells it sets: an absent payee, category or notes stays
+        // unwritten, and structural columns (tombstone, isParent, parent_id) keep their defaults.
+        var cells: [(column: String, value: LocalFirstSyncValue)] = [
+            (accountColumn, .string(draft.accountID)),
+            ("date", .int(Int64(dateValue))),
+            ("amount", .int(Int64(draft.amountMinorUnits)))
+        ]
+        if let payeeID {
+            cells.append((payeeColumn, .string(payeeID)))
+        }
+        if let categoryID = draft.categoryID {
+            cells.append(("category", .string(categoryID)))
+        }
+        if columns.contains("notes"), let notes = draft.notes {
+            cells.append(("notes", .string(notes)))
+        }
+        if columns.contains("cleared") {
+            cells.append(("cleared", .bool(draft.cleared)))
+        }
+        if let importedPayee = draft.importedPayee,
+           let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {
+            cells.append((importedPayeeColumn, .string(importedPayee)))
+        }
+        if let importedID = draft.importedID, !importedID.isEmpty {
+            let importedIDColumn = try firstExistingColumn(
+                ["financial_id", "imported_id"],
+                in: columns,
+                table: "transactions"
             )
-            messages.append(
-                try builder.makeMessage(
-                    dataset: "transactions",
-                    row: transactionID,
-                    column: "date",
-                    value: .int(Int64(dateValue))
-                )
-            )
-            messages.append(
-                try builder.makeMessage(
-                    dataset: "transactions",
-                    row: transactionID,
-                    column: "amount",
-                    value: .int(Int64(draft.amountMinorUnits))
-                )
-            )
-            // A scheduled post writes only the cells Actual sets; absent values stay unwritten.
-            let scheduledPost = draft.writesScheduledPostCells
-            if !scheduledPost || payeeID != nil {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: payeeColumn,
-                        value: payeeID.map(LocalFirstSyncValue.string) ?? .null
-                    )
-                )
-            }
-            if !scheduledPost || draft.categoryID != nil {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: "category",
-                        value: draft.categoryID.map(LocalFirstSyncValue.string) ?? .null
-                    )
-                )
-            }
-            if columns.contains("notes"), !scheduledPost || draft.notes != nil {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: "notes",
-                        value: draft.notes.map(LocalFirstSyncValue.string) ?? .null
-                    )
-                )
-            }
-            if columns.contains("cleared") {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: "cleared",
-                        value: .bool(draft.cleared)
-                    )
-                )
-            }
-            if columns.contains("tombstone"), !scheduledPost {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: "tombstone",
-                        value: .bool(false)
-                    )
-                )
-            }
-            if let isParentColumn, !scheduledPost {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: isParentColumn,
-                        value: .bool(false)
-                    )
-                )
-            }
-            if columns.contains("parent_id"), !scheduledPost {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: "parent_id",
-                        value: .null
-                    )
-                )
-            }
-            if let importedPayee = draft.importedPayee {
-                let importedPayeeColumn = ["imported_description", "imported_payee"]
-                    .first { columns.contains($0) }
-                if let importedPayeeColumn {
-                    messages.append(
-                        try builder.makeMessage(
-                            dataset: "transactions",
-                            row: transactionID,
-                            column: importedPayeeColumn,
-                            value: .string(importedPayee)
-                        )
-                    )
-                }
-            }
-            if let importedID = draft.importedID, !importedID.isEmpty {
-                let importedIDColumn = try firstExistingColumn(
-                    ["financial_id", "imported_id"],
-                    in: columns,
-                    table: "transactions"
-                )
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: importedIDColumn,
-                        value: .string(importedID)
-                    )
-                )
-            }
-            if let sortOrder = draft.sortOrder, columns.contains("sort_order") {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: "sort_order",
-                        value: .double(sortOrder)
-                    )
-                )
-            }
-            if let scheduleID = draft.scheduleID, columns.contains("schedule") {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: "schedule",
-                        value: .string(scheduleID)
-                    )
-                )
-            }
-            if scheduledPost, columns.contains("reconciled") {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: transactionID,
-                        column: "reconciled",
-                        value: .bool(false)
-                    )
-                )
-            }
-        return messages
+            cells.append((importedIDColumn, .string(importedID)))
+        }
+        if columns.contains("sort_order") {
+            cells.append(("sort_order", .double(draft.sortOrder ?? Self.newRowSortOrder)))
+        }
+        if let scheduleID = draft.scheduleID, columns.contains("schedule") {
+            cells.append(("schedule", .string(scheduleID)))
+        }
+        if columns.contains("reconciled") {
+            cells.append(("reconciled", .bool(false)))
+        }
+        return try cells.map {
+            try builder.makeMessage(dataset: "transactions", row: transactionID, column: $0.column, value: $0.value)
+        }
+    }
+
+    /// Actual stamps a new row's `sort_order` with the clock in milliseconds.
+    static var newRowSortOrder: Double {
+        Date().timeIntervalSince1970 * 1_000
     }
 
     func resolveTransactionRowColumns(db: Database) throws -> TransactionRowColumns {
@@ -319,37 +195,36 @@ extension BudgetDatabase {
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder,
         scheduleID: String? = nil,
-        omitStructuralDefaults: Bool = false,
-        omitNilCategory: Bool = false
+        cells: TransactionRowCells = .inserted()
     ) throws -> [ActualSyncDecodedMessage] {
-        // Actual's account close writes only the cells it sets; the structural defaults
-        // (isParent, parent_id, isChild, tombstone, error) stay unwritten, and so does a nil
-        // category on the leg that never carries one.
+        let snapshot = cells.isSnapshot
         var fields: [(String, LocalFirstSyncValue)] = [
             (columns.account, .string(accountID)),
             ("date", .int(Int64(dateValue))),
-            ("amount", .int(Int64(amountMinorUnits))),
-            (columns.payee, payeeID.map(LocalFirstSyncValue.string) ?? .null)
+            ("amount", .int(Int64(amountMinorUnits)))
         ]
-        if !omitNilCategory || categoryID != nil {
+        if snapshot || payeeID != nil {
+            fields.append((columns.payee, payeeID.map(LocalFirstSyncValue.string) ?? .null))
+        }
+        if snapshot || categoryID != nil || cells.clearsCategory {
             fields.append(("category", categoryID.map(LocalFirstSyncValue.string) ?? .null))
         }
-        if columns.hasNotes {
+        if columns.hasNotes, snapshot || notes != nil {
             fields.append(("notes", notes.map(LocalFirstSyncValue.string) ?? .null))
         }
         if columns.hasCleared {
             fields.append(("cleared", .bool(cleared)))
         }
-        if let reconciled, columns.hasReconciled {
+        if columns.hasReconciled, let reconciled = snapshot ? reconciled : false {
             fields.append(("reconciled", .bool(reconciled)))
         }
-        if !omitStructuralDefaults, let isParentColumn = columns.isParent {
+        if snapshot, let isParentColumn = columns.isParent {
             fields.append((isParentColumn, .bool(isParent)))
         }
-        if !omitStructuralDefaults, columns.hasParentID {
+        if snapshot, columns.hasParentID {
             fields.append(("parent_id", parentID.map(LocalFirstSyncValue.string) ?? .null))
         }
-        if !omitStructuralDefaults, let isChildColumn = columns.isChild {
+        if snapshot, let isChildColumn = columns.isChild {
             fields.append((isChildColumn, .bool(isChild)))
         }
         if let transferID, let transferColumn = columns.transferID {
@@ -358,13 +233,13 @@ extension BudgetDatabase {
         if let sortOrder, let sortOrderColumn = columns.sortOrder {
             fields.append((sortOrderColumn, .double(sortOrder)))
         }
-        if !omitStructuralDefaults, columns.hasTombstone {
+        if snapshot, columns.hasTombstone {
             fields.append(("tombstone", .bool(false)))
         }
         if let scheduleID, columns.hasSchedule {
             fields.append(("schedule", .string(scheduleID)))
         }
-        if !omitStructuralDefaults, columns.hasError {
+        if snapshot, columns.hasError {
             fields.append(("error", splitErrorValue(error)))
         }
         if let startingBalance, columns.hasStartingBalance {
@@ -424,6 +299,11 @@ extension BudgetDatabase {
             let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
             let dateValue = try Self.actualDateValue(draft.date)
             let pairedTransactionID = UUID().uuidString
+            let sortOrder = draft.sortOrder ?? Self.newRowSortOrder
+            // Actual clears the source category of a transfer between accounts on the same side
+            // of the budget; crossing sides leaves an unassigned category unwritten.
+            let sameSide = try accountOffBudget(draft.accountID, db: db)
+                == accountOffBudget(destinationAccountID, db: db)
             // Only the budget side of a cross-budget transfer carries a category.
             let transferCategories = try transferCategories(
                 draft: draft,
@@ -445,10 +325,11 @@ extension BudgetDatabase {
                 parentID: nil,
                 isChild: false,
                 transferID: pairedTransactionID,
-                sortOrder: nil,
+                sortOrder: sortOrder,
                 columns: columns,
                 builder: &builder,
-                scheduleID: schedulePostingMetadata?.scheduleID ?? draft.scheduleID
+                scheduleID: schedulePostingMetadata?.scheduleID ?? draft.scheduleID,
+                cells: .inserted(clearsCategory: sameSide)
             )
             let pairedMessages = try transactionRowMessages(
                 rowID: pairedTransactionID,
@@ -463,7 +344,7 @@ extension BudgetDatabase {
                 parentID: nil,
                 isChild: false,
                 transferID: sourceTransactionID,
-                sortOrder: nil,
+                sortOrder: sortOrder,
                 columns: columns,
                 builder: &builder,
                 scheduleID: schedulePostingMetadata?.scheduleID
@@ -601,5 +482,27 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> ActualSyncDecodedMessage {
         try builder.makeMessage(dataset: "transactions", row: rowID, column: "tombstone", value: .bool(true))
+    }
+}
+
+/// Which cells `transactionRowMessages` writes for a row.
+enum TransactionRowCells {
+    /// Actual's insert: only the cells it sets, so an absent payee, category or notes and the
+    /// structural defaults (tombstone, isParent, parent_id, isChild, error) stay unwritten.
+    /// `clearsCategory` writes a null category, as Actual does on the source leg of a transfer
+    /// between accounts on the same side of the budget.
+    case inserted(clearsCategory: Bool = false)
+    /// Every stored column, for a row rewritten from a snapshot or a split plan: an unset value
+    /// must overwrite what the row held before, and a restored row must be live again.
+    case snapshot
+
+    var isSnapshot: Bool {
+        if case .snapshot = self { return true }
+        return false
+    }
+
+    var clearsCategory: Bool {
+        if case .inserted(let clears) = self { return clears }
+        return false
     }
 }

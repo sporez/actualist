@@ -70,7 +70,6 @@ final class TransactionEditorViewModel {
 
     var canSave: Bool {
         amountCents > 0
-            && hasRequiredPayee
             && selectedAccountID != nil
             && (!isEditing || (
                 mutationCoordinator.transactionID != nil
@@ -80,13 +79,6 @@ final class TransactionEditorViewModel {
             && !isPreviewingRules
             && !deleteReview.blocksSave
             && mutationCoordinator.presentation == nil
-    }
-
-    private var hasRequiredPayee: Bool {
-        if isSplit || isEditing {
-            return true
-        }
-        return !payeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var signedAmountCents: Int {

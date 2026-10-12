@@ -101,13 +101,10 @@ extension LocalFirstActualStore {
             let childIDs = split.affectedTransactionIDs.filter { $0 != transactionID }
             graph = .split(childIDs: childIDs)
         } else {
-            guard let payeeID = payeeResolution.payeeID else {
-                throw LocalFirstError.invalidLocalWrite("missing payee")
-            }
             transactionMessages = try await database.createSimpleTransactionMessages(
                 draft,
                 transactionID: transactionID,
-                payeeID: payeeID,
+                payeeID: payeeResolution.payeeID,
                 builder: &builder
             )
         }
@@ -633,7 +630,8 @@ extension LocalFirstActualStore {
         builder: inout LocalFirstSyncMessageBuilder
     ) async throws -> (payeeID: String?, messages: [ActualSyncDecodedMessage]) {
         let trimmedName = draft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
-        if draft.payeeID == nil && trimmedName.isEmpty && (draft.isSplit || draft.isParent) {
+        // Actual saves a transaction without a payee; a transfer is the payee, so it needs one.
+        if (draft.payeeID ?? "").isEmpty && trimmedName.isEmpty && !draft.isTransfer {
             return (nil, [])
         }
         if let selectedPayeeID = draft.payeeID, !selectedPayeeID.isEmpty {

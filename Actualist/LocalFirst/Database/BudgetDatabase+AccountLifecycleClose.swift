@@ -188,8 +188,7 @@ extension BudgetDatabase {
             sortOrder: sortOrder,
             columns: columns,
             builder: &builder,
-            omitStructuralDefaults: true,
-            omitNilCategory: sourceOffBudget != destinationOffBudget
+            cells: .inserted(clearsCategory: sourceOffBudget == destinationOffBudget)
         )
         let destination = try transactionRowMessages(
             rowID: ids.destination,
@@ -207,9 +206,7 @@ extension BudgetDatabase {
             transferID: ids.source,
             sortOrder: sortOrder,
             columns: columns,
-            builder: &builder,
-            omitStructuralDefaults: true,
-            omitNilCategory: true
+            builder: &builder
         )
         return source + destination
     }

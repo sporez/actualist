@@ -294,7 +294,7 @@ extension LocalFirstActualStoreTests {
             ALTER TABLE transactions ADD COLUMN notes TEXT;
             ALTER TABLE transactions ADD COLUMN cleared INTEGER;
             ALTER TABLE transactions ADD COLUMN transferred_id TEXT;
-            ALTER TABLE transactions ADD COLUMN isChild INTEGER;
+            ALTER TABLE transactions ADD COLUMN isChild INTEGER DEFAULT 0;
             CREATE TABLE payees (id TEXT PRIMARY KEY, name TEXT, transfer_acct TEXT, tombstone INTEGER);
             CREATE TABLE payee_mapping (id TEXT PRIMARY KEY, targetId TEXT);
             INSERT INTO payees VALUES ('coffee', 'Coffee Shop', NULL, 0);
@@ -454,9 +454,9 @@ extension LocalFirstActualStoreTests {
                     date INTEGER,
                     amount INTEGER,
                     category TEXT,
-                    tombstone INTEGER,
+                    tombstone INTEGER DEFAULT 0,
                     parent_id TEXT,
-                    is_parent INTEGER
+                    is_parent INTEGER DEFAULT 0
                 );
                 CREATE TABLE category_mapping (
                     id TEXT PRIMARY KEY,

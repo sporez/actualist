@@ -7,7 +7,7 @@ import Foundation
 struct SimpleRowChange {
     let baseline: ActualTransaction
     let draft: TransactionDraft
-    let payeeID: String
+    let payeeID: String?
     let category: String?
     let dateValue: Int
 

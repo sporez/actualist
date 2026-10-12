@@ -374,10 +374,10 @@ extension LocalFirstActualStoreTests {
             additionalFixtureSQL: """
                 INSERT INTO transactions (id, acct, date, amount, category, tombstone, description, cleared, is_parent)
                 VALUES ('p1', 'savings', 20260705, -5000, NULL, 0, 'coffee', 0, 1);
-                INSERT INTO transactions (id, acct, date, amount, category, tombstone, description, cleared, parent_id)
-                VALUES ('c1', 'savings', 20260705, -3000, 'groceries', 0, 'coffee', 0, 'p1');
-                INSERT INTO transactions (id, acct, date, amount, category, tombstone, description, cleared, parent_id)
-                VALUES ('c2', 'savings', 20260705, -2000, 'dining', 0, 'coffee', 0, 'p1');
+                INSERT INTO transactions (id, acct, date, amount, category, tombstone, description, cleared, parent_id, isChild)
+                VALUES ('c1', 'savings', 20260705, -3000, 'groceries', 0, 'coffee', 0, 'p1', NULL);
+                INSERT INTO transactions (id, acct, date, amount, category, tombstone, description, cleared, parent_id, isChild)
+                VALUES ('c2', 'savings', 20260705, -2000, 'dining', 0, 'coffee', 0, 'p1', NULL);
                 """
         )
         let store = bundle.store

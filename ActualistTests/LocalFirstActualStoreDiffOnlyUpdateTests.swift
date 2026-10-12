@@ -75,6 +75,26 @@ extension LocalFirstActualStoreTests {
         #expect(try await column("notes", row: "txn", at: url) == "remote note")
     }
 
+    /// Actual saves a transaction with no payee; editing one writes only what changed.
+    @Test func editingATransactionWithNoPayeeSavesTheChange() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let store = bundle.store
+        let url = try bundle.fileManager.databaseURL(fileID: "file-1")
+        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        #expect(baseline.payee == nil)
+        let before = try storedCRDTMessages(at: url)
+
+        _ = try await store.updateTransactionAndRefresh(
+            "txn", with: try draftEditing(baseline, notes: "edited without a payee"), budgetID: "group-1",
+            originalAccountID: "checking", originalMonth: "2026-07", baseline: baseline,
+            actionSource: .ui, didUpdate: {}
+        )
+
+        #expect(try newLocalCells(since: before, at: url) == ["txn.notes"])
+        #expect(try await column("notes", row: "txn", at: url) == "edited without a payee")
+        #expect(try await column("description", row: "txn", at: url) == nil)
+    }
+
     @Test func aLocalEditCarriesNoTombstoneSoAnOlderRemoteDeleteStillWins() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let store = bundle.store

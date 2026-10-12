@@ -215,8 +215,7 @@ extension BudgetDatabase {
             reconciled: draft.reconciled,
             isParent: draft.isParent,
             splits: draft.splits,
-            scheduleID: draft.scheduleID,
-            writesScheduledPostCells: true
+            scheduleID: draft.scheduleID
         )
     }
 }

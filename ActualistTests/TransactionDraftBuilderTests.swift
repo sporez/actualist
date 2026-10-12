@@ -253,8 +253,10 @@ struct TransactionDraftBuilderTests {
         #expect(TransactionDraftBuilder.makeSubmissionDraft(from: baseSubmissionInput(amountCents: 0)) == nil)
     }
 
-    @Test func submitDraftRejectsBlankPayee() {
-        #expect(TransactionDraftBuilder.makeSubmissionDraft(from: baseSubmissionInput(payeeName: "   ")) == nil)
+    @Test func submitDraftAllowsBlankPayee() throws {
+        let draft = try #require(TransactionDraftBuilder.makeSubmissionDraft(from: baseSubmissionInput(payeeName: "   ")))
+        #expect(draft.payeeName.isEmpty)
+        #expect(draft.payeeID == nil)
     }
 
     @Test func previewRequestRejectsMissingAccount() {

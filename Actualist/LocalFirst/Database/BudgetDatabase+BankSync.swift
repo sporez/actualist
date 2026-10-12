@@ -411,8 +411,9 @@ extension BudgetDatabase {
         }
     }
 
-    /// Income category for a starting-balance row. `nil` when the budget has
-    /// no live income category; the opening balance then lands uncategorized.
+    /// Income category for a starting-balance row: the one named Starting
+    /// Balances, else the first income category (`getStartingBalancePayee`,
+    /// accounts/payees.ts). `nil` when the budget has no live income category.
     func bankSyncIncomeCategoryID() throws -> String? {
         try queue.read { db in
             guard try tableExists("categories", db: db) else { return nil }
@@ -423,7 +424,7 @@ extension BudgetDatabase {
                 sql: """
                     SELECT id FROM categories
                     WHERE is_income = 1 AND \(predicateForLiveRows(columns: columns))
-                    ORDER BY \(order) LIMIT 1
+                    ORDER BY lower(name) = 'starting balances' DESC, \(order) LIMIT 1
                     """
             )
         }
@@ -704,7 +705,7 @@ extension BudgetDatabase {
         guard let date = BankSyncAmounts.date(fromDayID: openingBalance.dayID) else {
             throw LocalFirstError.invalidLocalWrite("invalid opening balance date")
         }
-        let draft = TransactionDraft(
+        var draft = TransactionDraft(
             accountID: accountID,
             date: date,
             amountMinorUnits: openingBalance.amountMinorUnits,
@@ -715,6 +716,7 @@ extension BudgetDatabase {
             cleared: true,
             isTransfer: false
         )
+        draft.sortOrder = sortOrder
         let transactionMessages = try createSimpleTransactionMessages(
             draft,
             transactionID: transactionID,

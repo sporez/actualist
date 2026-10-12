@@ -369,7 +369,8 @@ extension BudgetDatabase {
                 sortOrder: draft.sortOrder,
                 columns: columns,
                 builder: &builder,
-                scheduleID: draft.scheduleID
+                scheduleID: draft.scheduleID,
+                cells: .snapshot
             )
             return TransactionWriteResult(
                 messages: messages,

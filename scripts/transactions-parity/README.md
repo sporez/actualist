@@ -38,7 +38,7 @@ writers (`resolveOrCreatePayeeMessages`, `createSimpleTransactionMessages`,
 `createTransferTransactionMessages`, `makeBankSyncOpeningBalanceMessages`),
 mirroring the store's payee resolution and the import insert draft, then compares
 the cells as a multiset. Each difference is attributed to a registered divergence
-(`config/parity/known-divergences.json`, OP-80 to OP-86); unattributed differences
+(`config/parity/known-divergences.json`, OP-86 (intended)); unattributed differences
 fail strictly.
 
 The editor rule that an off-budget account carries no category is applied before

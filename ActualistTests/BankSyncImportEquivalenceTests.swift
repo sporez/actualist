@@ -157,10 +157,10 @@ id="x-fuzzy" acct="savings" date=20260302 amount=-1000 payee="Coffee Shop" categ
 id="x-recon" acct="savings" date=20260303 amount=-3300 payee="Coffee Shop" category=NULL notes=NULL cleared=1 financial_id=NULL imported_description=NULL is_transfer=0 reconciled=1
 id="xfer-src" acct="savings" date=20260304 amount=-4400 payee="xfer-checking" category=NULL notes="Transfer note" cleared=1 financial_id="bank-xfer" imported_description="Coffee Shop" is_transfer=1 reconciled=NULL
 id="xfer-dst" acct="checking" date=20260304 amount=4400 payee="xfer-savings" category=NULL notes=NULL cleared=0 financial_id=NULL imported_description=NULL is_transfer=1 reconciled=NULL
-id="new" acct="savings" date=20260305 amount=-555 payee="New Merchant" category=NULL notes="coffee ##latte" cleared=1 financial_id="bank-new1" imported_description="New Merchant" is_transfer=0 reconciled=NULL
-id="new" acct="savings" date=20260306 amount=-666 payee="Coffee Shop" category=NULL notes="coffee ##latte" cleared=1 financial_id="bank-new2" imported_description="coffee shop" is_transfer=0 reconciled=NULL
-id="new" acct="savings" date=20260307 amount=-777 payee="Coffee Shop" category="groceries" notes="Rule applied" cleared=1 financial_id="bank-rule" imported_description="RULE MERCHANT" is_transfer=0 reconciled=NULL
-id="new" acct="savings" date=20260308 amount=-123 payee="Pending Place" category=NULL notes="coffee ##latte" cleared=0 financial_id="bank-pending" imported_description="Pending Place" is_transfer=0 reconciled=NULL
+id="new" acct="savings" date=20260305 amount=-555 payee="New Merchant" category=NULL notes="coffee ##latte" cleared=1 financial_id="bank-new1" imported_description="New Merchant" is_transfer=0 reconciled=0
+id="new" acct="savings" date=20260306 amount=-666 payee="Coffee Shop" category=NULL notes="coffee ##latte" cleared=1 financial_id="bank-new2" imported_description="coffee shop" is_transfer=0 reconciled=0
+id="new" acct="savings" date=20260307 amount=-777 payee="Coffee Shop" category="groceries" notes="Rule applied" cleared=1 financial_id="bank-rule" imported_description="RULE MERCHANT" is_transfer=0 reconciled=0
+id="new" acct="savings" date=20260308 amount=-123 payee="Pending Place" category=NULL notes="coffee ##latte" cleared=0 financial_id="bank-pending" imported_description="Pending Place" is_transfer=0 reconciled=0
 payee Optional("") Optional("checking")
 payee Optional("") Optional("credit")
 payee Optional("") Optional("savings")
@@ -177,19 +177,16 @@ messages accounts bank_sync_status 1
 messages accounts last_sync 1
 messages payee_mapping targetId 2
 messages payees name 2
-messages payees tombstone 2
 messages transactions acct 4
 messages transactions amount 4
-messages transactions category 4
+messages transactions category 1
 messages transactions cleared 7
 messages transactions date 4
 messages transactions description 5
 messages transactions financial_id 6
 messages transactions imported_description 7
-messages transactions is_parent 4
 messages transactions notes 6
-messages transactions parent_id 4
+messages transactions reconciled 4
 messages transactions sort_order 4
-messages transactions tombstone 4
 """#
 }

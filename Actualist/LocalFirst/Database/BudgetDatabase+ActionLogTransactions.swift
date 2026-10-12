@@ -400,7 +400,8 @@ extension BudgetDatabase {
                     transferID: snapshot.transferID,
                     sortOrder: nil,
                     columns: columns,
-                    builder: &builder
+                    builder: &builder,
+                    cells: .snapshot
                 )
             }
             messages += try learningUndoMessages(learning, db: db, builder: &builder)

@@ -70,7 +70,8 @@ extension BudgetDatabase {
                 builder: &builder
             )
         }
-        guard let payeeID else {
+        // A transfer needs its transfer payee; any other row may have no payee, as in Actual.
+        if draft.isTransfer, payeeID == nil {
             throw LocalFirstError.invalidLocalWrite("missing payee")
         }
         let dateValue = try Self.actualDateValue(draft.date)
@@ -80,7 +81,7 @@ extension BudgetDatabase {
         let isTransferDraft = draft.isTransfer
         let mainCategory: String?
         let pairedCategory: String?
-        if isTransferDraft {
+        if isTransferDraft, let payeeID {
             // Put the category on the budget side of a cross-budget transfer.
             let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
             let categories = try transferCategories(
@@ -233,7 +234,7 @@ extension BudgetDatabase {
     func transferTransitionMessages(
         mainID: String,
         draft: TransactionDraft,
-        payeeID: String,
+        payeeID: String?,
         dateValue: Int,
         pairedCategory: String?,
         change: SimpleRowChange,
@@ -248,7 +249,7 @@ extension BudgetDatabase {
         let nowTransfer = draft.isTransfer && !draft.isSplit
         var messages: [ActualSyncDecodedMessage] = []
 
-        if nowTransfer {
+        if nowTransfer, let payeeID {
             guard let transferColumn = columns.transferID else {
                 throw LocalFirstError.schemaUnavailable("missing column transactions.transferred_id")
             }
@@ -304,7 +305,8 @@ extension BudgetDatabase {
                     transferID: mainID,
                     sortOrder: nil,
                     columns: columns,
-                    builder: &builder
+                    builder: &builder,
+                    cells: .snapshot
                 )
                 messages.append(try builder.makeMessage(dataset: "transactions", row: mainID, column: transferColumn, value: .string(pairedID)))
             }

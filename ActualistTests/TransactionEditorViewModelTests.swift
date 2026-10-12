@@ -417,15 +417,20 @@ struct TransactionEditorViewModelTests {
         missingAmount.amountDigits = ""
         #expect(await missingAmount.submit(budgetID: "budget", repository: repository) == false)
 
-        let missingPayee = configuredModel()
-        missingPayee.payeeName = " "
-        #expect(await missingPayee.submit(budgetID: "budget", repository: repository) == false)
-
         let missingAccount = configuredModel()
         missingAccount.selectedAccountID = nil
         #expect(await missingAccount.submit(budgetID: "budget", repository: repository) == false)
 
         #expect(await repository.draftCount() == 0)
+    }
+
+    /// Actual saves a transaction with no payee (OP-84).
+    @Test func submitsADraftWithNoPayee() async {
+        let repository = RecordingTransactionRepository()
+        let noPayee = configuredModel()
+        noPayee.payeeName = " "
+        #expect(await noPayee.submit(budgetID: "budget", repository: repository))
+        #expect(await repository.draftCount() == 1)
     }
 
     @Test func successfulSubmitTransitionsThroughRefetching() async {

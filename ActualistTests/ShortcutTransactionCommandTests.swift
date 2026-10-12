@@ -23,10 +23,10 @@ struct ShortcutTransactionCommandTests {
             extraSQL: """
             INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent)
                 VALUES ('split-parent', 'checking', 20260710, -5000, NULL, 0, NULL, 1);
-            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent)
-                VALUES ('split-a', 'checking', 20260710, -2000, 'groceries', 0, 'split-parent', 0);
-            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent)
-                VALUES ('split-b', 'checking', 20260710, -3000, 'utilities', 0, 'split-parent', 0);
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent, isChild)
+                VALUES ('split-a', 'checking', 20260710, -2000, 'groceries', 0, 'split-parent', 0, 1);
+            INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent, isChild)
+                VALUES ('split-b', 'checking', 20260710, -3000, 'utilities', 0, 'split-parent', 0, 1);
             """
         )
         return session

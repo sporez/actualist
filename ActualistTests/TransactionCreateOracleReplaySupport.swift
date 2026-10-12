@@ -32,17 +32,7 @@ enum TransactionCreateOracleReplay {
     /// The open divergence that accounts for a difference, or nil when none does (a strict failure).
     /// Which OPs may apply to a case is declared per case in the test; this only attributes lines.
     static func divergence(for difference: Difference, caseID: String) -> String? {
-        let structuralColumns: Set = ["tombstone", "isParent", "parent_id", "isChild", "error"]
-        let explicitNullColumns: Set = ["notes", "category", "description"]
-        if caseID.hasPrefix("manual-no-payee") { return "OP-84" }
-        if difference.column == "sort_order", difference.isMissing { return "OP-82" }
-        if difference.column == "reconciled", difference.isMissing { return "OP-83" }
-        if !difference.isMissing, structuralColumns.contains(difference.column) { return "OP-80" }
-        if !difference.isMissing, difference.value == "null", explicitNullColumns.contains(difference.column) {
-            return "OP-81"
-        }
         if difference.column == "category", difference.value != "null" {
-            if caseID == "starting-balance-on-budget" { return "OP-85" }
             if caseID.hasPrefix("transfer-") { return "OP-86" }
         }
         return nil
@@ -284,6 +274,8 @@ enum TransactionCreateOracleReplay {
     ) async throws -> (payeeID: String?, messages: [ActualSyncDecodedMessage]) {
         if let selected = draft.payeeID, !selected.isEmpty {
             try await database.requireLivePayee(selected)
+        } else if draft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !draft.isTransfer {
+            return (nil, [])
         }
         let resolved = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: draft.payeeID,

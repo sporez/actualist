@@ -53,20 +53,16 @@ enum TransactionDraftBuilder {
     }
 
     /// Builds the saved create/update draft. Returns nil when the account is
-    /// missing, the amount is non-positive, or the payee is blank — matching
-    /// the editor's `canSave` precondition so an invalid draft never reaches
-    /// the repository.
+    /// missing or the amount is non-positive, matching the editor's `canSave`
+    /// precondition so an invalid draft never reaches the repository. A blank
+    /// payee is valid: Actual saves a transaction without one.
     static func makeSubmissionDraft(from input: SubmissionInput) -> TransactionDraft? {
         guard let accountID = input.accountID else {
             return nil
         }
 
         let trimmedPayee = input.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let payeeRequired = !input.isSplit && !input.originalIsParent
         guard input.amountCents > 0 else {
-            return nil
-        }
-        if payeeRequired && trimmedPayee.isEmpty {
             return nil
         }
 
