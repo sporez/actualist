@@ -37,6 +37,8 @@ enum RuleOracleReplay {
     }
 
     static func replay(_ entry: [String: Any]) async throws -> CaseResult {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let input = try OracleJSON.object(entry["input"], "input")
         let runs = try OracleJSON.objects(entry["runs"], "runs")
 
@@ -45,8 +47,7 @@ enum RuleOracleReplay {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "db.sqlite")
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
-        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
+        let database = try await OracleReplayDatabase.starter(at: url, localNodeID: "node1")
         try await seed(database, input: input)
 
         let payees = try Dictionary(

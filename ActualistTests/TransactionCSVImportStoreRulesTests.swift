@@ -115,7 +115,9 @@ struct TransactionCSVImportStoreRulesTests {
         #expect(try await column(bundle, "description", id: "leg1") == "xfer-savings")
     }
 
-    @Test func transferPayeeIsNotWrittenOntoAMatchedNonTransferRow() async throws {
+    /// A matched row with no payee takes the file's transfer payee and becomes a
+    /// transfer with its paired leg, as Actual's import does (OP-57, OP-63).
+    @Test func transferPayeeOnAMatchedPayeelessRowMakesItATransfer() async throws {
         let bundle = try await makeBundle()
         let (_, result) = try await importCSV(
             "2026-07-03,To Savings,,-123.45,,",
@@ -123,7 +125,10 @@ struct TransactionCSVImportStoreRulesTests {
             bundle: bundle
         )
         #expect(result.updatedCount == 1)
-        #expect(try await column(bundle, "description", id: "txn") == nil)
+        #expect(try await column(bundle, "description", id: "txn") == "to-savings")
+        let pairedID = try #require(try await column(bundle, "transferred_id", id: "txn"))
+        #expect(try await column(bundle, "acct", id: pairedID) == "savings")
+        #expect(try await column(bundle, "transferred_id", id: pairedID) == "txn")
     }
 
     @Test func offBudgetInsertHasNoCategory() async throws {

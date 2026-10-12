@@ -30,6 +30,8 @@ enum ScheduleStatefulReplay {
     // MARK: Steps
 
     static func replaySteps(_ entry: [String: Any]) async throws -> [Comparison] {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let setup = try OracleJSON.object(entry["setup"], "setup")
         let before = try OracleJSON.object(entry["before"], "before")
         let steps = try OracleJSON.objects(entry["steps"], "steps")
@@ -181,6 +183,8 @@ enum ScheduleStatefulReplay {
     // MARK: Creation
 
     static func replayCreation(_ entry: [String: Any]) async throws -> [Comparison] {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let setup = try OracleJSON.object(entry["setup"], "setup")
         let before = try OracleJSON.object(entry["before"], "before")
         let directory = try makeDirectory()
@@ -432,8 +436,7 @@ enum ScheduleStatefulReplay {
 
     private static func makeDatabase(in directory: URL) async throws -> BudgetDatabase {
         let url = directory.appending(path: "db.sqlite")
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
-        return try BudgetDatabase(databaseURL: url, localNodeID: "node1")
+        return try await OracleReplayDatabase.starter(at: url, localNodeID: "node1")
     }
 
     /// Account and payee ids as the fixture normalized them, found through each schedule's rule.

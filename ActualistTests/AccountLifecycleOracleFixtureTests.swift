@@ -21,13 +21,9 @@ struct AccountLifecycleOracleFixtureTests {
     @Test func promotedFixturePinsActualVersionProvenanceAndAllCases() throws {
         let pin = try ParityOraclePin.load()
         let root = try ParityOraclePin.fixtureURL("AccountLifecycle")
-        let manifest = try JSONSerialization.jsonObject(
-            with: Data(contentsOf: root.appending(path: "account-lifecycle-manifest.json"))
-        ) as? [String: Any]
+        let manifest = try OracleJSONFileCache.jsonObject(at: root.appending(path: "account-lifecycle-manifest.json")) as? [String: Any]
         let actual = manifest?["actual"] as? [String: Any]
-        let fixture = try JSONSerialization.jsonObject(
-            with: Data(contentsOf: root.appending(path: "account-lifecycle-oracle.json"))
-        ) as? [String: Any]
+        let fixture = try OracleJSONFileCache.jsonObject(at: root.appending(path: "account-lifecycle-oracle.json")) as? [String: Any]
         let cases = fixture?["cases"] as? [[String: Any]] ?? []
 
         #expect(actual?["tag"] as? String == pin.tag)

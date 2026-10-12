@@ -23,7 +23,7 @@ struct BankSyncOracleFixture {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw OracleReplayError.missingFixture(url.path)
         }
-        let root = try OracleJSON.object(JSONSerialization.jsonObject(with: Data(contentsOf: url)), fileName)
+        let root = try OracleJSON.object(OracleJSONFileCache.jsonObject(at: url), fileName)
         var byID: [String: [String: Any]] = [:]
         for entry in try OracleJSON.objects(root["cases"], "cases") {
             let id = try OracleJSON.string(entry, "id")

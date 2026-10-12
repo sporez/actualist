@@ -52,6 +52,8 @@ enum TransactionQueryOracleReplay {
     }
 
     static func replayQuery(_ entry: [String: Any], world: [String: Any], makeDirectory: () throws -> URL) async throws -> OracleValue {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let session = try open(world: world, filters: [], directory: makeDirectory())
         let query: TransactionFeedQuery
         var filterRun: (conditions: [RuleCondition], join: RuleConditionJoin)?
@@ -113,6 +115,8 @@ enum TransactionQueryOracleReplay {
     }
 
     static func replayFilterCase(_ entry: [String: Any], makeDirectory: () throws -> URL) async throws -> OracleValue {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let candidate = try OracleJSON.object(entry["candidate"], "candidate")
         let seeded = try OracleJSON.objects(entry["seededFilters"], "seededFilters")
         let conditions = try decodeConditions(rawConditions(OracleJSON.objects(candidate["conditions"], "conditions")))
@@ -236,6 +240,8 @@ enum TransactionQueryOracleReplay {
     }
 
     static func replaySplitModes(_ entry: [String: Any], world: [String: Any], makeDirectory: () throws -> URL) async throws -> OracleValue {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let session = try open(world: world, filters: [], directory: makeDirectory())
         let account = entry["account"] as? String
         let search = entry["search"] as? String

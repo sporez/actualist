@@ -96,10 +96,14 @@ enum TransactionCommandOracleReplay {
         referenceData: [String: Any],
         makeDirectory: () throws -> URL
     ) async throws -> OracleValue {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let caseID = try OracleJSON.string(entry, "id")
         let input = try OracleJSON.objects(OracleJSON.object(entry["input"], "input")["transactions"], "transactions")
         let seeded = Set(input.compactMap { $0["id"] as? String })
-        let session = try open(rows: input, referenceData: referenceData, directory: makeDirectory())
+        let url = try makeDirectory().appending(path: "db.sqlite")
+        let database = try await OracleReplayDatabase.starter(at: url, localNodeID: "node1")
+        let session = try open(rows: input, referenceData: referenceData, database: database, url: url)
         let selected = (entry["selected"] as? [String]) ?? []
 
         let applied: Applied
@@ -320,11 +324,9 @@ enum TransactionCommandOracleReplay {
     private static func open(
         rows: [[String: Any]],
         referenceData: [String: Any],
-        directory: URL
+        database: BudgetDatabase,
+        url: URL
     ) throws -> Session {
-        let url = directory.appending(path: "db.sqlite")
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
-        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         let queue = try DatabaseQueue(path: url.path)
         try queue.write { db in
             for table in ["transactions", "rules", "schedules", "payee_mapping", "payees",

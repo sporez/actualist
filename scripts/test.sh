@@ -278,6 +278,30 @@ delete_new_clones() {
   done
 }
 
+# tee finishes once xcodebuild and everything sharing its output have closed
+# it. Wait a bounded time so a lingering descendant cannot hold the wrapper.
+wait_for_run_log() {
+  local waited=0
+  while [[ ! -f "$run_log_done" && "$waited" -lt 30 ]]; do
+    sleep 1
+    waited=$((waited + 1))
+  done
+}
+
+# Each test host reports as "<host name> (<pid>)". The same host under a
+# second pid means it was relaunched mid-run: Swift Testing does not report
+# the tests that were still running in the replaced process, and the result
+# bundle omits them too, so the summary alone can look complete.
+report_replaced_hosts() {
+  [[ -f "$run_log" ]] || return 0
+  # A run with no test-host lines (a build failure) has nothing to report.
+  { grep -oE "on '[^']+ \([0-9]+\)'" "$run_log" || true; } \
+    | sed -E "s/^on '(.+) \(([0-9]+)\)'\$/\1|\2/" \
+    | sort -u \
+    | awk -F'|' '{ pids[$1] = pids[$1] (pids[$1] == "" ? "" : ", ") $2; count[$1]++ }
+        END { for (host in count) if (count[host] > 1) print host " (pids " pids[host] ")" }'
+}
+
 trap 'on_signal 2' INT
 trap 'on_signal 15' TERM
 trap 'on_signal 1' HUP
@@ -303,8 +327,13 @@ if [[ -d "$clone_set" ]]; then
   clones_before="$(list_clones '[A-Za-z ]+')"
 fi
 trap delete_new_clones EXIT
+# The output is also kept in a log so the run can be checked for a replaced
+# test host after xcodebuild exits (see report_replaced_hosts).
+run_log="$ROOT/.artifacts/last-test-run.log"
+run_log_done="$ROOT/.artifacts/last-test-run.done"
+rm -f "$run_log_done"
 set +e
-"${command[@]}" &
+"${command[@]}" > >(tee "$run_log"; touch "$run_log_done") 2>&1 &
 child_pid=$!
 start_status=$?
 set -e
@@ -334,8 +363,16 @@ if [[ "$child_status" -ge 128 ]]; then
   exit "$child_status"
 fi
 
+wait_for_run_log
+replaced_hosts="$(report_replaced_hosts)"
 release_lock
 if [[ "$child_status" -ne 0 ]]; then
   echo "error: xcodebuild exited $child_status; the test-run lock was released" >&2
+fi
+if [[ -n "$replaced_hosts" ]]; then
+  echo "error: a test host was replaced during the run, so the tests still running in it were never reported:" >&2
+  printf '  %s\n' "$replaced_hosts" >&2
+  echo "error: the run is incomplete; full output is in $run_log" >&2
+  [[ "$child_status" -ne 0 ]] || child_status=3
 fi
 exit "$child_status"

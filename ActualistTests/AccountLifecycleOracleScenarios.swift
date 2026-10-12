@@ -28,6 +28,8 @@ enum AccountLifecycleScenarios {
     ]
 
     static func replay(_ caseID: String) async throws -> [String: OracleValue] {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         switch caseID {
         case "rename-open-history":
             return try await renameOpenHistory()

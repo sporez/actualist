@@ -271,7 +271,7 @@ struct RuleOracleReplayTests {
     func fixtureMatchesThePinnedOracle() throws {
         let pin = try ParityOraclePin.load()
         let url = try ParityOraclePin.fixtureURL("Rules").appending(path: Self.manifestName)
-        let manifest = try OracleJSON.object(JSONSerialization.jsonObject(with: Data(contentsOf: url)), Self.manifestName)
+        let manifest = try OracleJSON.object(OracleJSONFileCache.jsonObject(at: url), Self.manifestName)
         let actual = try OracleJSON.object(manifest["actual"], "actual")
         #expect(actual["tag"] as? String == pin.tag)
         #expect(actual["commit"] as? String == pin.commit)

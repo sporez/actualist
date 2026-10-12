@@ -27,7 +27,7 @@ struct BankSyncOracleReplayTests {
         let fixture = try BankSyncOracleFixture.load()
         let url = try ParityOraclePin.fixtureURL("BankSync").appending(path: BankSyncOracleFixture.manifestName)
         let manifest = try OracleJSON.object(
-            JSONSerialization.jsonObject(with: Data(contentsOf: url)),
+            OracleJSONFileCache.jsonObject(at: url),
             BankSyncOracleFixture.manifestName
         )
         let actual = try OracleJSON.object(manifest["actual"], "actual")

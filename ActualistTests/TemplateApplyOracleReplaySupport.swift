@@ -66,6 +66,8 @@ enum TemplateApplyOracleReplay {
     /// expected definition as its stored `goal_def`, so the apply engine runs on its own; see the
     /// README's "Two replays" section.
     static func replay(_ entry: [String: Any], currentMonth: String, seedGoalDefsFromOracle: Bool) async throws -> ReplayResult {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let input = try OracleJSON.object(entry["input"], "input")
         let operation = try OracleJSON.object(entry["operation"], "operation")
         let expectedFields = try OracleJSON.object(entry["expected"], "expected")
@@ -83,9 +85,8 @@ enum TemplateApplyOracleReplay {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "db.sqlite")
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
         // The starter factory opens without a local node id; reopening with one sets the clock that apply writes need.
-        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
+        let database = try await OracleReplayDatabase.starter(at: url, localNodeID: "node1")
         try await seed(database, rows: rows, clearing: cleared)
 
         let mode = try await database.requireBudgetMode(nil)

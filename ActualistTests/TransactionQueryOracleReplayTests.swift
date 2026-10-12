@@ -75,7 +75,7 @@ struct TransactionQueryOracleReplayTests {
             throw OracleReplayError.missingFixture(manifestURL.path)
         }
         let manifest = try OracleJSON.object(
-            JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)),
+            OracleJSONFileCache.jsonObject(at: manifestURL),
             Self.manifestName
         )
         let actual = try OracleJSON.object(manifest["actual"], "actual")
@@ -171,7 +171,7 @@ struct TransactionQueryOracleReplayTests {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw OracleReplayError.missingFixture(url.path)
         }
-        return try OracleJSON.object(JSONSerialization.jsonObject(with: Data(contentsOf: url)), fileName)
+        return try OracleJSON.object(OracleJSONFileCache.jsonObject(at: url), fileName)
     }
 
     /// One of the fixture's top-level `worlds`: the rows a case starts from.

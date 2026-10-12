@@ -203,7 +203,11 @@ private final class HeaderRedirectTestServer: Sendable {
     private let response: @Sendable (String) -> String
 
     init(response: @escaping @Sendable (String) -> String) throws {
-        listener = try NWListener(using: .tcp, on: .any)
+        // Bind the exact address the tests call. A wildcard bind left 127.0.0.1
+        // on the same port free for another socket, which the probe then reached.
+        let parameters = NWParameters.tcp
+        parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
+        listener = try NWListener(using: parameters)
         self.response = response
     }
 

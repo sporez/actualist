@@ -29,6 +29,8 @@ enum BankSyncOracleReplay {
     ]
 
     static func replay(_ entry: [String: Any], fixture: BankSyncOracleFixture) async throws -> Comparison {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         if let error = entry["error"] as? String {
             throw OracleReplayError.malformedFixture("replayed case recorded an error: \(error)")
         }
@@ -43,8 +45,7 @@ enum BankSyncOracleReplay {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "db.sqlite")
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
-        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
+        let database = try await OracleReplayDatabase.starter(at: url, localNodeID: "node1")
         try await seed(
             database,
             tables: fixture.worldTables.merging(input) { _, caseRows in caseRows },

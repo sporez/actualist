@@ -99,6 +99,8 @@ enum BudgetMonthOracleReplay {
     // MARK: Replay
 
     static func replay(_ entry: [String: Any]) async throws -> ReplayResult {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let setup = try OracleJSON.object(entry["setup"], "setup")
         let before = try OracleJSON.objects(entry["before"], "before")
         let actions = try plan(try OracleJSON.objects(entry["steps"], "steps"))
@@ -112,9 +114,8 @@ enum BudgetMonthOracleReplay {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let url = directory.appending(path: "db.sqlite")
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
         // The starter factory opens without a local node id; reopening with one sets the clock that writes need.
-        let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
+        let database = try await OracleReplayDatabase.starter(at: url, localNodeID: "node1")
         try await seed(database, rows: try seedRows(setup))
 
         var expected: [String: OracleValue] = [:]

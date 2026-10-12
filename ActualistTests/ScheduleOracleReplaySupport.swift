@@ -21,7 +21,7 @@ enum ScheduleOracleFixture {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw OracleReplayError.missingFixture(url.path)
         }
-        return try OracleJSON.object(JSONSerialization.jsonObject(with: Data(contentsOf: url)), manifestName)
+        return try OracleJSON.object(OracleJSONFileCache.jsonObject(at: url), manifestName)
     }
 
     /// Local noon of `dayID` in the fixture zone, the `now` the replay injects.

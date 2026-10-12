@@ -75,11 +75,13 @@ enum HoldOracleReplay {
         """
 
     static func replay(_ entry: [String: Any]) async throws -> ReplayResult {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         let setup = try OracleJSON.object(entry["setup"], "setup")
         let before = try OracleJSON.objects(entry["before"], "before")
         let months = try before.map { try OracleJSON.string($0, "month") }
         let actions = try plan(try OracleJSON.objects(entry["steps"], "steps"))
-        let database = try BudgetDatabase(databaseURL: try makeFixture(setup: setup), localNodeID: "hold-oracle")
+        let database = try await OracleReplayDatabase.open(at: try makeFixture(setup: setup), localNodeID: "hold-oracle")
 
         var expected = try stateValues(before, prefix: "before.")
         var actual = try await snapshot(database, months: months, prefix: "before.")

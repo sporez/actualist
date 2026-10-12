@@ -71,7 +71,7 @@ struct AccountLifecycleOracleFixture {
     }
 
     private static func jsonObject(_ url: URL) throws -> [String: Any] {
-        guard let object = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any] else {
+        guard let object = try OracleJSONFileCache.jsonObject(at: url) as? [String: Any] else {
             throw AccountLifecycleOracleError.malformedFixture(url.lastPathComponent)
         }
         return object

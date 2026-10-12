@@ -169,7 +169,7 @@ struct TransactionCommandOracleReplayTests {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw OracleReplayError.missingFixture(url.path)
         }
-        let root = try OracleJSON.object(JSONSerialization.jsonObject(with: Data(contentsOf: url)), fileName)
+        let root = try OracleJSON.object(OracleJSONFileCache.jsonObject(at: url), fileName)
         return try OracleJSON.object(root["referenceData"], "referenceData")
     }
 

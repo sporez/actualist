@@ -467,17 +467,8 @@ struct BudgetDatabaseScheduleWriteTests {
             amount: .exact(-100),
             dateRule: .oneTime(dayID: "2026-10-01", operation: "is")
         )
+        // A between amount stored high to low is valid, as in Actual (OP-50).
         let invalidCommands = [
-            ScheduleCreateCommand(
-                budgetID: "budget",
-                identity: ScheduleCreateIdentity(scheduleID: "bad-range", ruleID: "bad-range-rule", nextDateID: "bad-range-date"),
-                name: "Bad range",
-                definition: ScheduleDefinitionDraft(
-                    accountID: "checking", payeeMappingID: nil,
-                    amount: .range(lower: 1, upper: -1), dateRule: validDefinition.dateRule
-                ),
-                postsTransaction: false, customUpcomingLength: nil, asOfDayID: "2026-09-27"
-            ),
             ScheduleCreateCommand(
                 budgetID: "budget",
                 identity: ScheduleCreateIdentity(scheduleID: "bad-date", ruleID: "bad-date-rule", nextDateID: "bad-date-row"),

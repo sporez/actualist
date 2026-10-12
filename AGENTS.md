@@ -673,6 +673,18 @@ that a unit-only run.
 - Do not remove legitimate production or test actor isolation, weaken
   assertions, increase time limits, or add serialization broadly to obtain a
   green run.
+- Oracle replay suites run hundreds of parameterized cases at once. Each
+  replay entry point takes `OracleReplayGate.shared` before it builds a
+  database, opens throwaway databases through `OracleReplayDatabase`
+  (off the main actor), and reads fixture files through
+  `OracleJSONFileCache`. Without these, the cases flooded the disk and the
+  main actor until a time-limited test expired and its host was replaced. A
+  new replay suite follows the same pattern.
+- `scripts/test.sh` keeps the run output in `.artifacts/last-test-run.log` and
+  fails when a test host was replaced mid-run (the same host name under a
+  second pid). Swift Testing and the result bundle silently omit the tests that
+  were still running in the replaced host, so a green summary alone is not
+  proof of a complete run.
 - Do not split targets or broadly reorganize fixtures as routine flake recovery.
   A future split needs an approved purpose, dependency analysis, and complete
   before/after test inventories. File prefixes alone are not dependency

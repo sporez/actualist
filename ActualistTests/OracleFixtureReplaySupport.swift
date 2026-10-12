@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import Synchronization
 @testable import Actualist
 
 enum OracleReplayError: Error, CustomStringConvertible {
@@ -209,7 +210,7 @@ struct OracleFixtureCases {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw OracleReplayError.missingFixture(url.path)
         }
-        let root = try JSONSerialization.jsonObject(with: Data(contentsOf: url))
+        let root = try OracleJSONFileCache.jsonObject(at: url)
         guard let object = root as? [String: Any], let list = object["cases"] as? [[String: Any]] else {
             throw OracleReplayError.malformedFixture("\(fileName) has no cases array")
         }
@@ -357,7 +358,7 @@ struct OracleManifest {
             throw OracleReplayError.missingFixture(url.path)
         }
         let root = try OracleJSON.object(
-            JSONSerialization.jsonObject(with: Data(contentsOf: url)),
+            OracleJSONFileCache.jsonObject(at: url),
             manifestName
         )
         let entries = (root["fixtures"] as? [[String: Any]]) ?? [root["fixture"] as? [String: Any]].compactMap { $0 }
@@ -396,5 +397,35 @@ struct OracleManifest {
             problems.append("oracle-only case \(id) has no reason")
         }
         return problems
+    }
+}
+
+/// Parses each oracle fixture file once per test process. Replay suites look up
+/// one case per test argument, and parsing the whole file for every argument
+/// kept the main actor busy for tens of seconds in a full run, stalling every
+/// main-actor test in the host behind it.
+enum OracleJSONFileCache {
+    // Invariant: `value` is the immutable Foundation object graph that
+    // JSONSerialization returns without `.mutableContainers`; it is never mutated
+    // after it is stored, so sharing it between test tasks is safe.
+    private final class Entry: @unchecked Sendable {
+        let value: Any
+        init(_ value: Any) { self.value = value }
+    }
+
+    private static let entries = Mutex<[String: Entry]>([:])
+
+    static func jsonObject(at url: URL) throws -> Any {
+        let key = url.standardizedFileURL.path
+        if let cached = entries.withLock({ $0[key] }) {
+            return cached.value
+        }
+        let entry = Entry(try JSONSerialization.jsonObject(with: Data(contentsOf: url)))
+        // Two first readers may both parse; either result is identical.
+        return entries.withLock { entries in
+            if let existing = entries[key] { return existing.value }
+            entries[key] = entry
+            return entry.value
+        }
     }
 }

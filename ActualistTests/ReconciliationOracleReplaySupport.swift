@@ -37,6 +37,8 @@ enum ReconciliationOracleReplay {
         readback: [String: Any]?,
         makeFixture: (String) throws -> URL
     ) async throws -> OracleValue {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
         switch caseID {
         case "cleared-balance":
             let account = try OracleJSON.string(input, "accountRef")
