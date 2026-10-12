@@ -292,10 +292,17 @@
     {
       "id": "transactions",
       "title": "Transaction create, update, delete, batch and transfers",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/transactions-parity",
+        "generate": "node scripts/transactions-parity/generate.mjs",
+        "verify": "node scripts/transactions-parity/verify.mjs",
+        "check": "node scripts/transactions-parity/generate.mjs --check"
+      },
+      "fixture": "Transactions",
+      "oracleSuites": [
+        "TransactionCreateOracleReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCreation.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionUpdates.swift",
@@ -303,7 +310,8 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionBatch*.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCategorization.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionGraphPlanning.swift"
-      ]
+      ],
+      "notes": "Covers creation only: manual single and transfer creates, an imported (CSV / Bank Sync) new row, and the Starting Balance row, replayed through the shared simple-row and transfer writers and compared as exact CRDT cell multisets. Update, delete, batch update and categorization are not covered. Schedule posts are covered by the schedules domain."
     },
     {
       "id": "rules",

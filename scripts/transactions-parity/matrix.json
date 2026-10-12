@@ -1,0 +1,230 @@
+{
+  "cases": [
+    {
+      "id": "manual-payee-category-notes-cleared",
+      "kind": "manual",
+      "account": "acct-main",
+      "payee": "payee-regular",
+      "category": "category-food",
+      "notes": "Weekly shop",
+      "cleared": true,
+      "amount": -4599,
+      "date": "2026-10-05"
+    },
+    {
+      "id": "manual-payee-category-uncleared-no-notes",
+      "kind": "manual",
+      "account": "acct-main",
+      "payee": "payee-regular",
+      "category": "category-food",
+      "notes": null,
+      "cleared": false,
+      "amount": -1250,
+      "date": "2026-10-05"
+    },
+    {
+      "id": "manual-no-payee",
+      "kind": "manual",
+      "account": "acct-main",
+      "payee": null,
+      "category": "category-food",
+      "notes": null,
+      "cleared": false,
+      "amount": -800,
+      "date": "2026-10-06"
+    },
+    {
+      "id": "manual-no-category",
+      "kind": "manual",
+      "account": "acct-main",
+      "payee": "payee-regular",
+      "category": null,
+      "notes": "Uncategorized",
+      "cleared": false,
+      "amount": -300,
+      "date": "2026-10-06"
+    },
+    {
+      "id": "manual-no-payee-no-category",
+      "kind": "manual",
+      "account": "acct-main",
+      "payee": null,
+      "category": null,
+      "notes": null,
+      "cleared": false,
+      "amount": 500,
+      "date": "2026-10-07"
+    },
+    {
+      "id": "manual-new-payee",
+      "kind": "manual",
+      "account": "acct-main",
+      "payee": null,
+      "newPayeeName": "Corner Cafe",
+      "category": "category-food",
+      "notes": null,
+      "cleared": false,
+      "amount": -475,
+      "date": "2026-10-07"
+    },
+    {
+      "id": "manual-income-category",
+      "kind": "manual",
+      "account": "acct-main",
+      "payee": "payee-regular",
+      "category": "category-income",
+      "notes": null,
+      "cleared": true,
+      "amount": 250000,
+      "date": "2026-10-08"
+    },
+    {
+      "id": "manual-off-budget-account",
+      "kind": "manual",
+      "account": "acct-off-a",
+      "payee": "payee-regular",
+      "category": null,
+      "notes": "Off budget",
+      "cleared": true,
+      "amount": -2000,
+      "date": "2026-10-08"
+    },
+    {
+      "id": "manual-off-budget-account-category-supplied",
+      "kind": "manual",
+      "account": "acct-off-a",
+      "payee": "payee-regular",
+      "category": "category-food",
+      "notes": null,
+      "cleared": false,
+      "amount": -2000,
+      "date": "2026-10-08"
+    },
+    {
+      "id": "transfer-on-to-on",
+      "kind": "transfer",
+      "account": "acct-main",
+      "payee": "payee-to-target",
+      "category": null,
+      "notes": "Savings",
+      "cleared": true,
+      "amount": -10000,
+      "date": "2026-10-09"
+    },
+    {
+      "id": "transfer-on-to-on-category-supplied",
+      "kind": "transfer",
+      "account": "acct-main",
+      "payee": "payee-to-target",
+      "category": "category-food",
+      "notes": null,
+      "cleared": false,
+      "amount": -10000,
+      "date": "2026-10-09"
+    },
+    {
+      "id": "transfer-on-to-off",
+      "kind": "transfer",
+      "account": "acct-main",
+      "payee": "payee-to-off-a",
+      "category": "category-food",
+      "notes": null,
+      "cleared": false,
+      "amount": -5000,
+      "date": "2026-10-09"
+    },
+    {
+      "id": "transfer-on-to-off-no-category",
+      "kind": "transfer",
+      "account": "acct-main",
+      "payee": "payee-to-off-a",
+      "category": null,
+      "notes": null,
+      "cleared": true,
+      "amount": -5000,
+      "date": "2026-10-09"
+    },
+    {
+      "id": "transfer-off-to-on",
+      "kind": "transfer",
+      "account": "acct-off-a",
+      "payee": "payee-to-main",
+      "category": "category-food",
+      "notes": "Refund",
+      "cleared": false,
+      "amount": 7000,
+      "date": "2026-10-10"
+    },
+    {
+      "id": "transfer-off-to-off",
+      "kind": "transfer",
+      "account": "acct-off-a",
+      "payee": "payee-to-off-b",
+      "category": null,
+      "notes": null,
+      "cleared": false,
+      "amount": -3000,
+      "date": "2026-10-10"
+    },
+    {
+      "id": "import-new-row-with-identity",
+      "kind": "import",
+      "account": "acct-main",
+      "transaction": {
+        "date": "2026-10-03",
+        "amount": -1999,
+        "payee_name": "Hardware Store",
+        "imported_payee": "HARDWARE STORE #12",
+        "imported_id": "bank-001",
+        "notes": "Paint",
+        "cleared": true
+      }
+    },
+    {
+      "id": "import-new-row-existing-payee-uncleared",
+      "kind": "import",
+      "account": "acct-main",
+      "transaction": {
+        "date": "2026-10-04",
+        "amount": -520,
+        "payee_name": "Merchant",
+        "imported_payee": "MERCHANT",
+        "imported_id": "bank-002",
+        "cleared": false
+      }
+    },
+    {
+      "id": "import-new-row-no-payee-no-identity",
+      "kind": "import",
+      "account": "acct-main",
+      "transaction": {
+        "date": "2026-10-04",
+        "amount": 1500
+      }
+    },
+    {
+      "id": "import-new-row-off-budget-account",
+      "kind": "import",
+      "account": "acct-off-a",
+      "transaction": {
+        "date": "2026-10-04",
+        "amount": -4400,
+        "payee_name": "Broker",
+        "imported_id": "bank-003",
+        "cleared": true
+      }
+    },
+    {
+      "id": "starting-balance-on-budget",
+      "kind": "starting-balance",
+      "offBudget": false,
+      "balance": 1234.56
+    },
+    {
+      "id": "starting-balance-off-budget",
+      "kind": "starting-balance",
+      "offBudget": true,
+      "balance": -250.5
+    }
+  ]
+}

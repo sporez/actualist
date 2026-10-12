@@ -1,0 +1,122 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/transactions-parity/generate.mjs
+// and removed after the run. Seeds one shared world through upstream's own db
+// functions, then drives the handlers the clients call to CREATE transactions
+// (payee-create + transactions-batch-update, transactions-import, account-create)
+// and records the CRDT messages Actual writes. Nothing here decides an expected
+// outcome.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test } from 'vitest';
+
+import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
+import { handlers } from '#server/main';
+import { runHandler } from '#server/mutators';
+import { setSyncingMode } from '#server/sync';
+import { deserializeValue } from '#server/sync/serialization';
+import * as monthUtils from '#shared/months';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const outputPath = __OUTPUT_PATH__;
+
+async function crdtMarker(): Promise<number> {
+  const row = await db.first<{ maximum: number | null }>(
+    'SELECT MAX(id) AS maximum FROM messages_crdt',
+  );
+  return row?.maximum ?? 0;
+}
+
+async function crdtMessagesSince(marker: number) {
+  const rows = await db.all<Record<string, string>>(
+    `SELECT id, dataset, row, column, CAST(value AS TEXT) AS serialized_value
+       FROM messages_crdt
+      WHERE id > ?
+      ORDER BY id`,
+    [marker],
+  );
+  return rows.map(row => ({
+    dataset: row.dataset,
+    row: row.row,
+    column: row.column,
+    value: deserializeValue(row.serialized_value),
+  }));
+}
+
+async function seedWorld(): Promise<void> {
+  await db.insertCategoryGroup({ id: 'group-oracle', name: 'Oracle', is_income: 0 });
+  await db.insertCategory({ id: 'category-food', name: 'Food', cat_group: 'group-oracle', is_income: 0 });
+  await db.insertCategoryGroup({ id: 'group-income', name: 'Income', is_income: 1 });
+  await db.insertCategory({ id: 'category-income', name: 'Income', cat_group: 'group-income', is_income: 1 });
+  await db.insertCategory({ id: 'category-starting', name: 'Starting Balances', cat_group: 'group-income', is_income: 1 });
+  await db.insertAccount({ id: 'acct-main', name: 'Main' });
+  await db.insertAccount({ id: 'acct-target', name: 'Target' });
+  await db.insertAccount({ id: 'acct-off-a', name: 'Off budget A', offbudget: 1 });
+  await db.insertAccount({ id: 'acct-off-b', name: 'Off budget B', offbudget: 1 });
+  await db.insertPayee({ id: 'payee-regular', name: 'Merchant' });
+  await db.insertPayee({ id: 'payee-to-main', name: 'Transfer to Main', transfer_acct: 'acct-main' });
+  await db.insertPayee({ id: 'payee-to-target', name: 'Transfer to Target', transfer_acct: 'acct-target' });
+  await db.insertPayee({ id: 'payee-to-off-a', name: 'Transfer to Off A', transfer_acct: 'acct-off-a' });
+  await db.insertPayee({ id: 'payee-to-off-b', name: 'Transfer to Off B', transfer_acct: 'acct-off-b' });
+  await loadMappings();
+}
+
+const normalizeError = (error: unknown) =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+test(
+  'captures transaction creation from Actual handlers',
+  async () => {
+    const records = [];
+    setSyncingMode('offline');
+    for (const item of plan.cases) {
+      await global.emptyDatabase()();
+      await seedWorld();
+      const marker = await crdtMarker();
+      const record: Record<string, unknown> = { id: item.id, kind: item.kind, error: null };
+      try {
+        if (item.kind === 'manual' || item.kind === 'transfer') {
+          let payee = item.payee;
+          if (item.newPayeeName) {
+            payee = await runHandler(handlers['payee-create'], { name: item.newPayeeName });
+          }
+          await runHandler(handlers['transactions-batch-update'], {
+            added: [
+              {
+                id: 'txn-new',
+                account: item.account,
+                date: item.date,
+                amount: item.amount,
+                payee,
+                category: item.category,
+                notes: item.notes,
+                cleared: item.cleared,
+              },
+            ],
+          });
+        } else if (item.kind === 'import') {
+          const result = await runHandler(handlers['transactions-import'], {
+            accountId: item.account,
+            transactions: [item.transaction],
+            isPreview: false,
+            opts: { payeeNameNormalization: 'original' },
+          });
+          record.importResult = { errors: result.errors, added: result.added.length };
+        } else if (item.kind === 'starting-balance') {
+          record.date = monthUtils.currentDay();
+          await runHandler(handlers['account-create'], {
+            name: 'New account',
+            balance: item.balance,
+            offBudget: item.offBudget,
+          });
+        }
+      } catch (error) {
+        record.error = normalizeError(error);
+      }
+      record.messages = await crdtMessagesSince(marker);
+      records.push(record);
+    }
+    writeFileSync(outputPath, JSON.stringify(records));
+    expect(records.length).toBe(plan.cases.length);
+  },
+  300_000,
+);

@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/transactions-parity/generate.mjs",
+    "sha256": "4b77ae9f4a91b096394cf662132f3d519caf0a16d01178a7582a2039449a4450"
+  },
+  "helpers": [
+    {
+      "path": "scripts/transactions-parity/matrix.json",
+      "sha256": "e4337207e983ccffa3aeee2a88b11fa7f58e254368bf2c04f265983592cb5b92"
+    },
+    {
+      "path": "scripts/transactions-parity/oracle-runner.template",
+      "sha256": "e24eccb838822437be1f7aae168ad6e6db816af7f74d74c3fe7e6da35e168f97"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": null,
+  "timeZone": "UTC",
+  "caseCount": 21,
+  "amountUnits": "integer minor units",
+  "execution": "Actual payee-create + transactions-batch-update (added), transactions-import and account-create (with a starting balance) handlers on an offline in-memory SQLite database; the CRDT messages each wrote, in write order",
+  "scope": "synthetic local handler behavior only; no server round trip",
+  "normalization": [
+    "sort_order is recorded as <sort-order> when Actual writes it: its value is the frozen Date.now() 123456789, and Actualist orders rows with its own base; only the cell's presence is compared",
+    "the new transaction in a manual or transfer case is the explicit id txn-new; every other minted id is named by its role (txn-paired, txn-new, payee-new)",
+    "starting-balance cases drop the account row and its transfer payee (account-lifecycle owns them) and keep the Starting Balance payee and the opening transaction",
+    "CRDT messages are kept verbatim, in the order Actual wrote them; the replay compares them as a multiset",
+    "amounts and dates are never normalized"
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/transactions/app.ts",
+      "sha256": "6fbfa6064e60e2817fa9870a8e1762a69ee10d1b87893f40ab49dd683cac767c"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/index.ts",
+      "sha256": "2c32a9e4a3f54da01dd54d9a141abaef9f3740daa6900640f804da17db9e6c02"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transfer.ts",
+      "sha256": "309ebae609b20dee6053bc0a84e80e310a0d53fd4aed7c284d7e4379c9305701"
+    },
+    {
+      "path": "packages/loot-core/src/server/accounts/app.ts",
+      "sha256": "fe9e1d2150e63bd6f55443e38ecc4e2a0a2e708eec3aa631dd922784258ebc70"
+    },
+    {
+      "path": "packages/loot-core/src/server/accounts/sync.ts",
+      "sha256": "5561e484d09691308640864ece5e3c3ec07365d68bb0ed4e08f01e18ed364a0f"
+    },
+    {
+      "path": "packages/loot-core/src/server/accounts/payees.ts",
+      "sha256": "81178670a00320653fce0205d06f1d3a6f7b4062ce656dbb4477c42931e84b7d"
+    },
+    {
+      "path": "packages/loot-core/src/server/payees/app.ts",
+      "sha256": "a981c54f585e900db7897f3c5165f43125bb8498a79a02a5c83636260c398f7a"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71"
+    },
+    {
+      "path": "packages/loot-core/src/server/mutators.ts",
+      "sha256": "f24756558fd2aadc3cbff1fd23514b5908ef6b319c1ad7d8eefeb5ee649f538f"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/setup.ts",
+      "sha256": "1deb435399c7871a57baea5668474ad2e8290d0925f472a1b971a1832ec18b70"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/Transactions/transactions-contract.json",
+      "sha256": "64d7be550f57eb6dfc284feb0443a26670044f6e9c92c86d4a86da90b559d2d8",
+      "caseCount": 21,
+      "caseIDs": [
+        "manual-payee-category-notes-cleared",
+        "manual-payee-category-uncleared-no-notes",
+        "manual-no-payee",
+        "manual-no-category",
+        "manual-no-payee-no-category",
+        "manual-new-payee",
+        "manual-income-category",
+        "manual-off-budget-account",
+        "manual-off-budget-account-category-supplied",
+        "transfer-on-to-on",
+        "transfer-on-to-on-category-supplied",
+        "transfer-on-to-off",
+        "transfer-on-to-off-no-category",
+        "transfer-off-to-on",
+        "transfer-off-to-off",
+        "import-new-row-with-identity",
+        "import-new-row-existing-payee-uncleared",
+        "import-new-row-no-payee-no-identity",
+        "import-new-row-off-budget-account",
+        "starting-balance-on-budget",
+        "starting-balance-off-budget"
+      ]
+    }
+  ],
+  "oracleOnly": [],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}

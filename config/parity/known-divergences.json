@@ -623,6 +623,173 @@
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: keep orphaned split children (deleted or missing parent) hidden in every read, including the all-rows read used by feed search. They are damaged data; Actual's own fix is Repair transactions in the web app, which deletes them, and those deletions sync."
+    },
+    {
+      "id": "OP-80",
+      "domain": "transactions",
+      "cases": [
+        "TransactionCreateOracleReplayTests/replaysCreateCase"
+      ],
+      "fixtureCases": [
+        "manual-payee-category-notes-cleared",
+        "manual-no-category",
+        "manual-off-budget-account",
+        "manual-payee-category-uncleared-no-notes",
+        "manual-income-category",
+        "manual-new-payee",
+        "transfer-on-to-on",
+        "transfer-on-to-on-category-supplied",
+        "transfer-off-to-on",
+        "transfer-off-to-off",
+        "import-new-row-off-budget-account",
+        "transfer-on-to-off",
+        "transfer-on-to-off-no-category",
+        "import-new-row-with-identity",
+        "import-new-row-no-payee-no-identity",
+        "starting-balance-on-budget",
+        "starting-balance-off-budget",
+        "import-new-row-existing-payee-uncleared",
+        "manual-off-budget-account-category-supplied"
+      ],
+      "summary": "On every create path Actualist writes structural default cells that Actual leaves to column defaults: transactions.tombstone = 0, isParent = 0 and parent_id = null on a simple row (BudgetDatabase+TransactionCreation.swift:198-221), plus isChild = 0 and error = null on each transfer leg (transactionRowMessages, :350-370), and payees.tombstone = 0 on a newly created payee (:55-64). The pinned Actual's insert (db.insertTransaction / payee-create) sends only the cells it sets. Row state is the same once applied; the message stream is not.",
+      "opened": "2026-10-12",
+      "status": "open",
+      "reviewBy": "2026-10-26"
+    },
+    {
+      "id": "OP-81",
+      "domain": "transactions",
+      "cases": [
+        "TransactionCreateOracleReplayTests/replaysCreateCase"
+      ],
+      "fixtureCases": [
+        "manual-no-category",
+        "manual-off-budget-account",
+        "manual-payee-category-uncleared-no-notes",
+        "manual-income-category",
+        "manual-new-payee",
+        "transfer-on-to-on",
+        "transfer-on-to-on-category-supplied",
+        "transfer-off-to-on",
+        "transfer-off-to-off",
+        "import-new-row-off-budget-account",
+        "transfer-on-to-off",
+        "transfer-on-to-off-no-category",
+        "import-new-row-with-identity",
+        "import-new-row-no-payee-no-identity",
+        "starting-balance-on-budget",
+        "starting-balance-off-budget",
+        "import-new-row-existing-payee-uncleared",
+        "manual-off-budget-account-category-supplied"
+      ],
+      "summary": "Actualist writes explicit null cells for unset optional values where Actual writes nothing: notes = null and category = null on a simple row (BudgetDatabase+TransactionCreation.swift:150-186) and notes and category = null on each transfer leg and description = null on a payee-less import row (transactionRowMessages, :332-338). Actual's batch update and import omit absent fields. Row state is the same once applied.",
+      "opened": "2026-10-12",
+      "status": "open",
+      "reviewBy": "2026-10-26"
+    },
+    {
+      "id": "OP-82",
+      "domain": "transactions",
+      "cases": [
+        "TransactionCreateOracleReplayTests/replaysCreateCase"
+      ],
+      "fixtureCases": [
+        "manual-payee-category-notes-cleared",
+        "manual-no-category",
+        "manual-off-budget-account",
+        "manual-payee-category-uncleared-no-notes",
+        "manual-income-category",
+        "manual-new-payee",
+        "transfer-on-to-on",
+        "transfer-on-to-on-category-supplied",
+        "transfer-off-to-on",
+        "transfer-off-to-off",
+        "transfer-on-to-off",
+        "transfer-on-to-off-no-category",
+        "starting-balance-on-budget",
+        "starting-balance-off-budget",
+        "manual-off-budget-account-category-supplied"
+      ],
+      "summary": "Actualist writes no sort_order on a manual create, on either transfer leg, or on the Starting Balance row; the pinned Actual writes sort_order on every new row (the clock in ms). Cause: TransactionDraft.sortOrder is nil on the manual and transfer paths (LocalFirstActualStore+TransactionMutations.swift:96-110, BudgetDatabase+TransactionCreation.swift:448,466), and makeBankSyncOpeningBalanceMessages takes a sortOrder it never uses (BudgetDatabase+BankSync.swift:691-720). The replay compares presence only. Import inserts do write sort_order and match.",
+      "opened": "2026-10-12",
+      "status": "open",
+      "reviewBy": "2026-10-26"
+    },
+    {
+      "id": "OP-83",
+      "domain": "transactions",
+      "cases": [
+        "TransactionCreateOracleReplayTests/replaysCreateCase"
+      ],
+      "fixtureCases": [
+        "manual-payee-category-notes-cleared",
+        "manual-no-category",
+        "manual-off-budget-account",
+        "manual-payee-category-uncleared-no-notes",
+        "manual-income-category",
+        "manual-new-payee",
+        "transfer-on-to-on",
+        "transfer-on-to-on-category-supplied",
+        "transfer-off-to-on",
+        "transfer-off-to-off",
+        "import-new-row-off-budget-account",
+        "transfer-on-to-off",
+        "transfer-on-to-off-no-category",
+        "import-new-row-with-identity",
+        "import-new-row-no-payee-no-identity",
+        "starting-balance-on-budget",
+        "starting-balance-off-budget",
+        "import-new-row-existing-payee-uncleared",
+        "manual-off-budget-account-category-supplied"
+      ],
+      "summary": "Actualist never writes reconciled = 0 when it creates a transaction (manual, transfer, import or starting balance); the pinned Actual writes it on every new row. Cause: BudgetDatabase+TransactionCreation.swift:272 writes reconciled only for a scheduled post, and transactionRowMessages writes it only when a caller passes a value (:343-345).",
+      "opened": "2026-10-12",
+      "status": "open",
+      "reviewBy": "2026-10-26"
+    },
+    {
+      "id": "OP-84",
+      "domain": "transactions",
+      "cases": [
+        "TransactionCreateOracleReplayTests/replaysCreateCase"
+      ],
+      "fixtureCases": [
+        "manual-no-payee",
+        "manual-no-payee-no-category"
+      ],
+      "summary": "A manual create with no payee is refused, where the pinned Actual writes the transaction with no payee (description unset). Cause: resolveOrCreatePayeeMessages throws 'missing payee name' for an empty name (BudgetDatabase+TransactionCreation.swift:29-31), and the store throws 'missing payee' when no payee resolves (LocalFirstActualStore+TransactionMutations.swift:105).",
+      "opened": "2026-10-12",
+      "status": "open",
+      "reviewBy": "2026-10-26"
+    },
+    {
+      "id": "OP-85",
+      "domain": "transactions",
+      "cases": [
+        "TransactionCreateOracleReplayTests/replaysCreateCase"
+      ],
+      "fixtureCases": [
+        "starting-balance-on-budget"
+      ],
+      "summary": "The Starting Balance row takes the first live income category by sort order (so 'Income' in a default budget), where the pinned Actual takes the income category named 'Starting Balances' and falls back to the first income category only when that name is missing. Cause: bankSyncIncomeCategoryID (BudgetDatabase+BankSync.swift:416-430) has no name lookup. Off-budget Starting Balance rows carry no category in both.",
+      "opened": "2026-10-12",
+      "status": "open",
+      "reviewBy": "2026-10-26"
+    },
+    {
+      "id": "OP-86",
+      "domain": "transactions",
+      "cases": [
+        "TransactionCreateOracleReplayTests/replaysCreateCase"
+      ],
+      "fixtureCases": [
+        "transfer-on-to-on-category-supplied",
+        "transfer-off-to-on"
+      ],
+      "summary": "Category on a transfer create differs from Actual in two shapes. Off-budget to on-budget: Actualist puts the chosen category on the paired on-budget leg, where Actual's batch update clears the category of the off-budget source leg and leaves the on-budget leg uncategorized (transferCategories, BudgetDatabase+TransactionCreation.swift:556-575). On-budget to on-budget with a category supplied: Actual writes the category then clears it with a null write; Actualist never writes the category, so the final row state matches but the intermediate cell does not.",
+      "opened": "2026-10-12",
+      "status": "open",
+      "reviewBy": "2026-10-26"
     }
   ]
 }
