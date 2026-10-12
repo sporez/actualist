@@ -7,7 +7,7 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/split-parity/generate.mjs",
-    "sha256": "a4ad00cf4042ac334452e338617c88385b5c25bf2fa95e9f9ff530993768db5a"
+    "sha256": "343f5d70c095397537b7cf468b01808887d03349f771942e350c794cdd8bda0d"
   },
   "helpers": [
     {
@@ -76,7 +76,7 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_10_0/Splits/family-transformations.json",
-      "sha256": "c89bb29045959f809746dbdb286f49be592f4521beaf9a165ca4105631605e6e",
+      "sha256": "3d19b53fd4d4a70cfe3e0a3118f7ed9969b813420cd10172f37deffb7e167fe4",
       "caseCount": 9,
       "caseIDs": [
         "make-child-inheritance-and-null-overrides",
@@ -93,10 +93,6 @@
         {
           "id": "detach-child-preserves-nonchild-fields",
           "reason": "no production path (makeAsNonChildTransactions has no Actualist counterpart)."
-        },
-        {
-          "id": "update-conversion-materializes-exact-family",
-          "reason": "adapter input-shape: child payloads omit payee; SplitTransactionRecord cannot express an omitted payee, and conversion treats nil as an explicit null."
         }
       ]
     },
@@ -117,7 +113,7 @@
     },
     {
       "path": "ActualistTests/Fixtures/ActualCore26_10_0/Splits/mutation-cases.json",
-      "sha256": "8907f18f36e9e3c6d47ec2b269b05aeb31663172f77b24e05a204daecba0a755",
+      "sha256": "430f5207ec7966c253633d65b3d7eb59b6cbbcf5829c02a78d3776260ed4deee",
       "caseCount": 9,
       "caseIDs": [
         "add-child-appends-zero-remainder",
@@ -134,10 +130,6 @@
         {
           "id": "detach-child-preserves-nonchild-fields",
           "reason": "no production path (makeAsNonChildTransactions has no Actualist counterpart)."
-        },
-        {
-          "id": "update-conversion-materializes-exact-family",
-          "reason": "adapter input-shape: child payloads omit payee; SplitTransactionRecord cannot express an omitted payee, and conversion treats nil as an explicit null."
         }
       ]
     }

@@ -2,37 +2,6 @@
   "schemaVersion": 1,
   "divergences": [
     {
-      "id": "OP-10",
-      "domain": "account-lifecycle",
-      "cases": [
-        "AccountLifecycleOracleFixtureTests/replaysOracleCase"
-      ],
-      "fixtureCases": [
-        "close-positive-on-to-on-history",
-        "close-negative-on-to-on",
-        "close-on-to-off-hidden-category",
-        "close-off-to-on",
-        "close-off-to-off",
-        "close-split-balance"
-      ],
-      "summary": "An account close's transfer legs write isParent, parent_id, isChild, tombstone, error, and a null category cell that the pinned Actual does not emit; every oracle message is present. Causes: BudgetDatabase+TransactionCreation.swift:286-345 writes these cells unconditionally; BudgetDatabase+AccountLifecycleClose.swift:168 and :186 use it for both legs.",
-      "opened": "2026-10-10",
-      "reviewBy": "2026-10-24"
-    },
-    {
-      "id": "OP-11",
-      "domain": "account-lifecycle",
-      "cases": [
-        "AccountLifecycleOracleFixtureTests/replaysOracleCase"
-      ],
-      "fixtureCases": [
-        "rename-handler-input-boundary"
-      ],
-      "summary": "Rename refuses an exact duplicate of another account's name; the pinned Actual's handler accepts duplicates (its desktop UI validates separately). Cause: BudgetDatabase+AccountLifecycleWrites.swift:80 (duplicateName). Decision 2026-10-11: fix to match Actual.",
-      "opened": "2026-10-10",
-      "reviewBy": "2026-10-24"
-    },
-    {
       "id": "OP-22",
       "domain": "account-lifecycle",
       "status": "intended",
@@ -46,61 +15,6 @@
       "opened": "2026-10-11",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: trimming and skipping an unchanged rename are harmless and intended."
-    },
-    {
-      "id": "OP-12",
-      "domain": "account-lifecycle",
-      "cases": [
-        "AccountLifecycleOracleFixtureTests/replaysOracleCase"
-      ],
-      "fixtureCases": [
-        "reopen-repeat-history"
-      ],
-      "summary": "Reopening an account that is already open writes nothing; the pinned Actual emits another closed = 0 cell. Cause: BudgetDatabase+AccountLifecycleWrites.swift:100 returns noChange when the account is already open.",
-      "opened": "2026-10-10",
-      "reviewBy": "2026-10-24"
-    },
-    {
-      "id": "OP-13",
-      "domain": "account-lifecycle",
-      "cases": [
-        "AccountLifecycleOracleFixtureTests/replaysOracleCase"
-      ],
-      "fixtureCases": [
-        "schedule-close-reopen-eligibility"
-      ],
-      "summary": "A due scheduled transaction posted after close or reopen omits the sort_order and reconciled cells that the pinned Actual writes, and writes default-valued description, category, notes, tombstone, isParent, and parent_id cells it does not. Causes: BudgetDatabase+ScheduleAdvancement.swift:204-214 builds the draft without sortOrder or reconciled; BudgetDatabase+TransactionCreation.swift:246-253 writes sort_order only when present; createSimpleTransactionMessages (TransactionGraphPlanning.swift:101) writes no reconciled cell.",
-      "opened": "2026-10-10",
-      "reviewBy": "2026-10-24"
-    },
-    {
-      "id": "OP-14",
-      "domain": "splits",
-      "cases": [
-        "SplitOracleReplayTests/replaysFamilyTransformation",
-        "SplitOracleReplayTests/replaysSplitMutation"
-      ],
-      "fixtureCases": [
-        "child-amount-changed-to-zero",
-        "final-child-delete-collapses-parent",
-        "parent-payee-update-preserves-child-override"
-      ],
-      "summary": "Split diffs drop cells changed to null, 0, or false, and can emit an update with no cells. SplitTransactionFamily.swift changedValues (557-586) keeps only non-default values, so a child amount changed to 0 is missing from diff.updated, a final-child delete drops is_parent = false, and a child whose notes became null yields an empty update entry. The pinned Actual's getChangedValues (packages/loot-core/src/shared/util.ts) emits every changed key of the new object. Writes are computed from stored rows, so no sync defect follows from the diff shape.",
-      "opened": "2026-10-10",
-      "reviewBy": "2026-10-24"
-    },
-    {
-      "id": "OP-15",
-      "domain": "splits",
-      "cases": [
-        "SplitOracleReplayTests/replaysFamilyTransformation"
-      ],
-      "fixtureCases": [
-        "split-conversion-zero-sort-order"
-      ],
-      "summary": "Split conversion stores a zero sort order as 0 where the pinned Actual stores -1. The pinned Actual uses sort_order || -1 (packages/loot-core/src/shared/transactions.ts:387, where 0 is falsy); SplitTransactionFamily.swift:349 uses child.sortOrder ?? -1, which keeps 0. Affects family.children[0].sortOrder and rows[1].sortOrder.",
-      "opened": "2026-10-10",
-      "reviewBy": "2026-10-24"
     },
     {
       "id": "OP-16",
@@ -385,7 +299,7 @@
       ],
       "id": "OP-32",
       "opened": "2026-10-11",
-      "summary": "A move or cover writes no 'Reassigned … from … on …' month note, where the pinned Actual writes one. Only the note's presence is compared; its date text comes from the fixture's fake clock and is not compared. Cause: no Reassigned writer exists in Actualist/. The move seam is BudgetDatabase+BudgetWrites.swift:210-240 and the cover commands OverspentCoverSelectionWorkflow.swift:58-84.",
+      "summary": "A move or cover writes no 'Reassigned \u2026 from \u2026 on \u2026' month note, where the pinned Actual writes one. Only the note's presence is compared; its date text comes from the fixture's fake clock and is not compared. Cause: no Reassigned writer exists in Actualist/. The move seam is BudgetDatabase+BudgetWrites.swift:210-240 and the cover commands OverspentCoverSelectionWorkflow.swift:58-84.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: Actualist does not add automatic 'Reassigned' month notes on moves or covers."

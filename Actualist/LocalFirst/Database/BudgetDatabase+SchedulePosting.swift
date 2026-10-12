@@ -38,7 +38,7 @@ extension BudgetDatabase {
             do {
                 return try schedulePostingPlan(
                     review: review, draft: draft, transactionID: transactionID,
-                    postedDayID: postedDayID, today: today, source: source, db: db
+                    postedDayID: postedDayID, today: today, source: source, now: now, db: db
                 )
             } catch LocalFirstError.schemaUnavailable {
                 throw SchedulePostingRefusal.unsupportedBudgetSchema
@@ -66,6 +66,7 @@ extension BudgetDatabase {
         postedDayID: String,
         today: String,
         source: BudgetActionSource,
+        now: Date,
         db: Database
     ) throws -> LocalCommitPlan<SchedulePostingWriteReceipt> {
         let current = try validateScheduleMutationReview(review, db: db)
@@ -132,7 +133,12 @@ extension BudgetDatabase {
         let finalDraft = schedulePostingDraft(
             projected,
             isTransfer: finalTransfer,
-            payeeName: finalPayeeName
+            payeeName: finalPayeeName,
+            // Actual's scheduled post sets sort_order to the clock in milliseconds. Transfer and
+            // split posts keep their own writers' ordering.
+            sortOrder: finalTransfer || !projected.splits.isEmpty
+                ? nil
+                : projected.sortOrder ?? now.timeIntervalSince1970 * 1_000
         )
         let trimmedName = finalDraft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
         var builderForPlan = LocalFirstSyncMessageBuilder()
@@ -190,7 +196,8 @@ extension BudgetDatabase {
     private func schedulePostingDraft(
         _ draft: TransactionDraft,
         isTransfer: Bool,
-        payeeName: String? = nil
+        payeeName: String? = nil,
+        sortOrder: Double? = nil
     ) -> TransactionDraft {
         TransactionDraft(
             accountID: draft.accountID,
@@ -204,11 +211,12 @@ extension BudgetDatabase {
             isTransfer: isTransfer,
             importedPayee: draft.importedPayee,
             importedID: draft.importedID,
-            sortOrder: draft.sortOrder,
+            sortOrder: sortOrder ?? draft.sortOrder,
             reconciled: draft.reconciled,
             isParent: draft.isParent,
             splits: draft.splits,
-            scheduleID: draft.scheduleID
+            scheduleID: draft.scheduleID,
+            writesScheduledPostCells: true
         )
     }
 }

@@ -65,20 +65,31 @@ struct AccountLifecycleWriteTests {
         #expect(outcome.account.name == "Daily Spending")
     }
 
-    @Test func renameRejectsChangedReviewAndExactDuplicateButAllowsCaseVariant() async throws {
+    @Test func renameRejectsChangedReviewButAppliesExactAndCaseVariantDuplicates() async throws {
         let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture(extraSQL: """
             INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0, 2);
             """), localNodeID: "lifecycle-test")
 
-        await #expect(throws: AccountLifecycleCommandError.duplicateName("Savings")) {
-            try await database.commitAccountLifecycleMutation(
-                .rename(AccountRenameCommand(
-                    accountID: "checking",
-                    expectedCurrentName: "Checking",
-                    newName: "Savings"
-                ))
-            )
+        // Actual's rename writes a duplicate name; only the rename sheet's draft check refuses it.
+        let exact = try await database.commitAccountLifecycleMutation(
+            .rename(AccountRenameCommand(
+                accountID: "checking",
+                expectedCurrentName: "Checking",
+                newName: "Savings"
+            ))
+        )
+        guard case .applied(let exactOutcome) = exact else {
+            Issue.record("Expected an applied exact-duplicate rename")
+            return
         }
+        #expect(exactOutcome.account.name == "Savings")
+        _ = try await database.commitAccountLifecycleMutation(
+            .rename(AccountRenameCommand(
+                accountID: "checking",
+                expectedCurrentName: "Savings",
+                newName: "Checking"
+            ))
+        )
 
         let caseVariant = try await database.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
@@ -88,7 +99,7 @@ struct AccountLifecycleWriteTests {
             ))
         )
         guard case .applied = caseVariant else {
-            Issue.record("Expected exact-case duplicate semantics")
+            Issue.record("Expected an applied case-variant rename")
             return
         }
 
@@ -104,7 +115,7 @@ struct AccountLifecycleWriteTests {
         }
     }
 
-    @Test func reopenCommitsOnlyClosedCellAndPeerCompletedReopenIsNoChange() async throws {
+    @Test func reopenCommitsOnlyClosedCellAndPeerCompletedReopenWritesAgain() async throws {
         let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture(extraSQL: """
             UPDATE accounts SET closed = 1 WHERE id = 'checking';
             """), localNodeID: "lifecycle-test")
@@ -125,17 +136,21 @@ struct AccountLifecycleWriteTests {
 
         let peerDatabase = try BudgetDatabase(databaseURL: support.makeSQLiteFixture(extraSQL: """
             UPDATE accounts SET closed = 1 WHERE id = 'checking';
-            """))
+            """), localNodeID: "lifecycle-peer")
         _ = try await peerDatabase.applyRemoteSyncMessages([
             peerMessage(column: "closed", value: "N:0")
         ])
         let decision = try await peerDatabase.commitAccountLifecycleMutation(.reopen(command))
-        guard case .noChange(let peerOutcome) = decision else {
-            Issue.record("Expected peer-completed reopen to be a no-op")
+        // Actual writes closed = 0 even when the account is already open.
+        guard case .applied(let peerOutcome) = decision else {
+            Issue.record("Expected a peer-completed reopen to write again")
             return
         }
         #expect(!peerOutcome.account.isClosed)
-        #expect(try await peerDatabase.pendingLocalSyncMessageCount() == 0)
+        let peerMessages = try await peerDatabase.pendingLocalSyncMessages().map(\.message)
+        #expect(peerMessages.count == 1)
+        #expect(peerMessages.first?.column == "closed")
+        #expect(peerMessages.first?.serializedValue == "N:0")
     }
 
     @Test func tombstonedAccountCannotPassSameTransactionValidation() async throws {

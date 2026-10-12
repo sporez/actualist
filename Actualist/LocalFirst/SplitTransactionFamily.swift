@@ -194,9 +194,22 @@ struct SplitTransactionFamily: Equatable, Sendable {
     }
 }
 
+/// Row cells a split diff can report as changed.
+enum SplitTransactionField: CaseIterable, Sendable {
+    case amount, account, date, category, payee, notes, cleared, reconciled, startingBalance
+    case sortOrder, isParent, isChild, parentID, transferID, error, deleted
+}
+
+/// Actual `getChangedValues`: the new record plus exactly the cells that differ,
+/// including cells changed to nil, 0, or false.
+struct SplitTransactionUpdate: Equatable, Sendable {
+    var record: SplitTransactionRecord
+    var changedFields: Set<SplitTransactionField>
+}
+
 struct SplitTransactionDiff: Equatable, Sendable {
     var added: [SplitTransactionRecord]
-    var updated: [SplitTransactionRecord]
+    var updated: [SplitTransactionUpdate]
     var deleted: [String]
 }
 
@@ -346,7 +359,8 @@ enum SplitTransactionFamilyOps {
                 : SplitTransactionError(total: 0, parentAmount: parent.amount)
             parent.subtransactions = subtransactions.map { child in
                 var copy = child
-                copy.sortOrder = child.sortOrder ?? -1
+                // Actual: `sort_order || -1`, so 0 is also replaced.
+                copy.sortOrder = (child.sortOrder ?? 0) == 0 ? -1 : child.sortOrder
                 return copy
             }
             return parent
@@ -356,9 +370,12 @@ enum SplitTransactionFamilyOps {
     static func updateTransaction(
         _ transactions: [SplitTransactionRecord],
         transaction: SplitTransactionRecord,
+        conversionChildren: [SplitTransactionPatch]? = nil,
         idGenerator: () -> String = { UUID().uuidString }
     ) -> SplitTransactionChangeSet {
-        replaceTransactions(transactions, id: transaction.id) { trans in
+        let conversionPatches = conversionChildren
+            ?? transaction.subtransactions.map { .fromRecord($0) }
+        return replaceTransactions(transactions, id: transaction.id) { trans in
             if trans.isParent {
                 var parent = trans.id == transaction.id ? merged(trans, transaction) : trans
                 let originalSubtransactions = parent.subtransactions.isEmpty
@@ -385,17 +402,19 @@ enum SplitTransactionFamilyOps {
                 }
                 parent.subtransactions = sub
                 return recalculateSplit(parent)
-            } else if !transaction.subtransactions.isEmpty {
+            } else if !conversionPatches.isEmpty {
                 var parent = merged(trans, transaction)
                 parent.isParent = true
                 parent.isChild = false
                 parent.parentID = nil
-                parent.subtransactions = transaction.subtransactions.enumerated().map { index, sub in
-                    var child = sub
-                    if child.sortOrder == nil {
-                        child.sortOrder = Double(-(index + 1))
+                parent.subtransactions = conversionPatches.enumerated().map { index, sub in
+                    var patch = sub
+                    if case .value(let order) = patch.sortOrder, order != nil {
+                        // keep the explicit order
+                    } else {
+                        patch.sortOrder = .value(Double(-(index + 1)))
                     }
-                    return makeChild(parent: parent, record: child, idGenerator: idGenerator)
+                    return makeChild(parent: parent, data: patch, idGenerator: idGenerator)
                 }
                 return recalculateSplit(parent)
             } else {
@@ -454,7 +473,7 @@ enum SplitTransactionFamilyOps {
         let newGrouped = Dictionary(uniqueKeysWithValues: newItems.map { ($0.id, $0) })
         let deleted = items.filter { newGrouped[$0.id] == nil }.map(\.id)
         var added: [SplitTransactionRecord] = []
-        var updated: [SplitTransactionRecord] = []
+        var updated: [SplitTransactionUpdate] = []
         for newItem in newItems {
             guard let item = grouped[newItem.id] else {
                 added.append(newItem)
@@ -557,31 +576,27 @@ private extension SplitTransactionFamilyOps {
     static func changedValues(
         from old: SplitTransactionRecord,
         to new: SplitTransactionRecord
-    ) -> SplitTransactionRecord? {
-        var diff = SplitTransactionRecord(id: old.id)
-        var changed = false
-        func assign<T: Equatable>(_ keyPath: WritableKeyPath<SplitTransactionRecord, T>, _ value: T, _ oldValue: T) {
-            if value != oldValue {
-                diff[keyPath: keyPath] = value
-                changed = true
-            }
+    ) -> SplitTransactionUpdate? {
+        var changed: Set<SplitTransactionField> = []
+        func check<T: Equatable>(_ field: SplitTransactionField, _ keyPath: KeyPath<SplitTransactionRecord, T>) {
+            if old[keyPath: keyPath] != new[keyPath: keyPath] { changed.insert(field) }
         }
-        assign(\.amount, new.amount, old.amount)
-        assign(\.account, new.account, old.account)
-        assign(\.date, new.date, old.date)
-        assign(\.category, new.category, old.category)
-        assign(\.payee, new.payee, old.payee)
-        assign(\.notes, new.notes, old.notes)
-        assign(\.cleared, new.cleared, old.cleared)
-        assign(\.reconciled, new.reconciled, old.reconciled)
-        assign(\.startingBalance, new.startingBalance, old.startingBalance)
-        assign(\.sortOrder, new.sortOrder, old.sortOrder)
-        assign(\.isParent, new.isParent, old.isParent)
-        assign(\.isChild, new.isChild, old.isChild)
-        assign(\.parentID, new.parentID, old.parentID)
-        assign(\.transferID, new.transferID, old.transferID)
-        assign(\.error, new.error, old.error)
-        assign(\.deleted, new.deleted, old.deleted)
-        return changed ? diff : nil
+        check(.amount, \.amount)
+        check(.account, \.account)
+        check(.date, \.date)
+        check(.category, \.category)
+        check(.payee, \.payee)
+        check(.notes, \.notes)
+        check(.cleared, \.cleared)
+        check(.reconciled, \.reconciled)
+        check(.startingBalance, \.startingBalance)
+        check(.sortOrder, \.sortOrder)
+        check(.isParent, \.isParent)
+        check(.isChild, \.isChild)
+        check(.parentID, \.parentID)
+        check(.transferID, \.transferID)
+        check(.error, \.error)
+        check(.deleted, \.deleted)
+        return changed.isEmpty ? nil : SplitTransactionUpdate(record: new, changedFields: changed)
     }
 }

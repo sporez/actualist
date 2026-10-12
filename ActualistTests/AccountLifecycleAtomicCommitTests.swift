@@ -193,7 +193,7 @@ struct AccountLifecycleAtomicCommitTests {
         #expect(peerRevisions.count == 0)
     }
 
-    @Test func staleTombstonedAndDuplicateRenamesRejectWithoutMutation() async throws {
+    @Test func staleAndTombstonedRenamesRejectWithoutMutation() async throws {
         try await expectRejectedRename(
             extraSQL: "UPDATE accounts SET name = 'Peer Name' WHERE id = 'checking';",
             command: AccountRenameCommand(
@@ -211,15 +211,6 @@ struct AccountLifecycleAtomicCommitTests {
                 newName: "Local Name"
             ),
             expectedError: .accountNotFound
-        )
-        try await expectRejectedRename(
-            extraSQL: "INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0, 2);",
-            command: AccountRenameCommand(
-                accountID: "checking",
-                expectedCurrentName: "Checking",
-                newName: "Savings"
-            ),
-            expectedError: .duplicateName("Savings")
         )
     }
 

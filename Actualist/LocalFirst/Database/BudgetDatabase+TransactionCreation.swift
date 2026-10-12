@@ -148,23 +148,29 @@ extension BudgetDatabase {
                     value: .int(Int64(draft.amountMinorUnits))
                 )
             )
-            messages.append(
-                try builder.makeMessage(
-                    dataset: "transactions",
-                    row: transactionID,
-                    column: payeeColumn,
-                    value: payeeID.map(LocalFirstSyncValue.string) ?? .null
+            // A scheduled post writes only the cells Actual sets; absent values stay unwritten.
+            let scheduledPost = draft.writesScheduledPostCells
+            if !scheduledPost || payeeID != nil {
+                messages.append(
+                    try builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: payeeColumn,
+                        value: payeeID.map(LocalFirstSyncValue.string) ?? .null
+                    )
                 )
-            )
-            messages.append(
-                try builder.makeMessage(
-                    dataset: "transactions",
-                    row: transactionID,
-                    column: "category",
-                    value: draft.categoryID.map(LocalFirstSyncValue.string) ?? .null
+            }
+            if !scheduledPost || draft.categoryID != nil {
+                messages.append(
+                    try builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: "category",
+                        value: draft.categoryID.map(LocalFirstSyncValue.string) ?? .null
+                    )
                 )
-            )
-            if columns.contains("notes") {
+            }
+            if columns.contains("notes"), !scheduledPost || draft.notes != nil {
                 messages.append(
                     try builder.makeMessage(
                         dataset: "transactions",
@@ -184,7 +190,7 @@ extension BudgetDatabase {
                     )
                 )
             }
-            if columns.contains("tombstone") {
+            if columns.contains("tombstone"), !scheduledPost {
                 messages.append(
                     try builder.makeMessage(
                         dataset: "transactions",
@@ -194,7 +200,7 @@ extension BudgetDatabase {
                     )
                 )
             }
-            if let isParentColumn {
+            if let isParentColumn, !scheduledPost {
                 messages.append(
                     try builder.makeMessage(
                         dataset: "transactions",
@@ -204,7 +210,7 @@ extension BudgetDatabase {
                     )
                 )
             }
-            if columns.contains("parent_id") {
+            if columns.contains("parent_id"), !scheduledPost {
                 messages.append(
                     try builder.makeMessage(
                         dataset: "transactions",
@@ -263,6 +269,16 @@ extension BudgetDatabase {
                     )
                 )
             }
+            if scheduledPost, columns.contains("reconciled") {
+                messages.append(
+                    try builder.makeMessage(
+                        dataset: "transactions",
+                        row: transactionID,
+                        column: "reconciled",
+                        value: .bool(false)
+                    )
+                )
+            }
         return messages
     }
 
@@ -302,15 +318,22 @@ extension BudgetDatabase {
         startingBalance: Bool? = nil,
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder,
-        scheduleID: String? = nil
+        scheduleID: String? = nil,
+        omitStructuralDefaults: Bool = false,
+        omitNilCategory: Bool = false
     ) throws -> [ActualSyncDecodedMessage] {
+        // Actual's account close writes only the cells it sets; the structural defaults
+        // (isParent, parent_id, isChild, tombstone, error) stay unwritten, and so does a nil
+        // category on the leg that never carries one.
         var fields: [(String, LocalFirstSyncValue)] = [
             (columns.account, .string(accountID)),
             ("date", .int(Int64(dateValue))),
             ("amount", .int(Int64(amountMinorUnits))),
-            (columns.payee, payeeID.map(LocalFirstSyncValue.string) ?? .null),
-            ("category", categoryID.map(LocalFirstSyncValue.string) ?? .null)
+            (columns.payee, payeeID.map(LocalFirstSyncValue.string) ?? .null)
         ]
+        if !omitNilCategory || categoryID != nil {
+            fields.append(("category", categoryID.map(LocalFirstSyncValue.string) ?? .null))
+        }
         if columns.hasNotes {
             fields.append(("notes", notes.map(LocalFirstSyncValue.string) ?? .null))
         }
@@ -320,13 +343,13 @@ extension BudgetDatabase {
         if let reconciled, columns.hasReconciled {
             fields.append(("reconciled", .bool(reconciled)))
         }
-        if let isParentColumn = columns.isParent {
+        if !omitStructuralDefaults, let isParentColumn = columns.isParent {
             fields.append((isParentColumn, .bool(isParent)))
         }
-        if columns.hasParentID {
+        if !omitStructuralDefaults, columns.hasParentID {
             fields.append(("parent_id", parentID.map(LocalFirstSyncValue.string) ?? .null))
         }
-        if let isChildColumn = columns.isChild {
+        if !omitStructuralDefaults, let isChildColumn = columns.isChild {
             fields.append((isChildColumn, .bool(isChild)))
         }
         if let transferID, let transferColumn = columns.transferID {
@@ -335,13 +358,13 @@ extension BudgetDatabase {
         if let sortOrder, let sortOrderColumn = columns.sortOrder {
             fields.append((sortOrderColumn, .double(sortOrder)))
         }
-        if columns.hasTombstone {
+        if !omitStructuralDefaults, columns.hasTombstone {
             fields.append(("tombstone", .bool(false)))
         }
         if let scheduleID, columns.hasSchedule {
             fields.append(("schedule", .string(scheduleID)))
         }
-        if columns.hasError {
+        if !omitStructuralDefaults, columns.hasError {
             fields.append(("error", splitErrorValue(error)))
         }
         if let startingBalance, columns.hasStartingBalance {

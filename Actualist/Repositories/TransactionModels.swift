@@ -38,6 +38,8 @@ struct TransactionDraft: Hashable, Sendable {
     var isParent = false
     var splits: [TransactionSplitDraft] = []
     var scheduleID: String? = nil
+    /// Write only the cells Actual's scheduled post writes. Set by schedule posting alone.
+    var writesScheduledPostCells = false
 
     var month: YearMonth {
         YearMonth(date: date)

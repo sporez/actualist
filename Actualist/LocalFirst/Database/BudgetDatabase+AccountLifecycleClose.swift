@@ -89,6 +89,7 @@ extension BudgetDatabase {
                 ))
                 drafts += try accountClosingTransferMessages(
                     sourceAccountID: fresh.account.id,
+                    sourceOffBudget: fresh.account.offBudget,
                     transfer: transfer,
                     localDay: fresh.identity.localDay,
                     ids: transferIDs,
@@ -132,6 +133,7 @@ extension BudgetDatabase {
 
     private func accountClosingTransferMessages(
         sourceAccountID: String,
+        sourceOffBudget: Bool,
         transfer: AccountClosingTransfer,
         localDay: AccountLifecycleDay,
         ids: AccountClosingTransferIDs,
@@ -165,6 +167,10 @@ extension BudgetDatabase {
             accountID: sourceAccountID,
             db: db
         )
+        // Actual clears the source category only for a transfer between accounts on the same side
+        // of the budget; crossing sides leaves an unassigned category unwritten.
+        let destinationOffBudget = try accountLifecycleAccounts(db: db)
+            .first { $0.id == transfer.destinationAccountID }?.offBudget ?? sourceOffBudget
         let source = try transactionRowMessages(
             rowID: ids.source,
             accountID: sourceAccountID,
@@ -181,7 +187,9 @@ extension BudgetDatabase {
             transferID: ids.destination,
             sortOrder: sortOrder,
             columns: columns,
-            builder: &builder
+            builder: &builder,
+            omitStructuralDefaults: true,
+            omitNilCategory: sourceOffBudget != destinationOffBudget
         )
         let destination = try transactionRowMessages(
             rowID: ids.destination,
@@ -199,7 +207,9 @@ extension BudgetDatabase {
             transferID: ids.source,
             sortOrder: sortOrder,
             columns: columns,
-            builder: &builder
+            builder: &builder,
+            omitStructuralDefaults: true,
+            omitNilCategory: true
         )
         return source + destination
     }

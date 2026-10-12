@@ -14,20 +14,28 @@
         "operation": "addSplitTransaction",
         "transactions": [
           {
+            "notes": "parent note",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "parent-1",
             "amount": -10000,
             "account": "checking",
             "date": "2026-08-15",
             "category": "groceries",
             "payee": null,
-            "notes": "parent note",
             "cleared": true,
             "reconciled": false,
             "starting_balance_flag": false,
             "sort_order": 100,
-            "is_parent": true,
             "subtransactions": [
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -6000,
                 "id": "child-1",
                 "sort_order": -1,
@@ -37,12 +45,14 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               },
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -4000,
                 "id": "child-2",
                 "sort_order": -2,
@@ -52,45 +62,43 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               }
-            ],
-            "error": null
+            ]
           },
           {
+            "notes": "inherited payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -6000,
             "id": "child-1",
             "payee": "coffee",
-            "notes": "inherited payee",
             "sort_order": -1,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           },
           {
+            "notes": "override payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -4000,
             "id": "child-2",
             "payee": "market",
-            "notes": "override payee",
             "sort_order": -2,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           }
         ],
         "id": "parent-1"
@@ -254,20 +262,28 @@
         "operation": "updateTransaction",
         "transactions": [
           {
+            "notes": "parent note",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "parent-1",
             "amount": -10000,
             "account": "checking",
             "date": "2026-08-15",
             "category": "groceries",
             "payee": null,
-            "notes": "parent note",
             "cleared": true,
             "reconciled": false,
             "starting_balance_flag": false,
             "sort_order": 100,
-            "is_parent": true,
             "subtransactions": [
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -6000,
                 "id": "child-1",
                 "sort_order": -1,
@@ -277,12 +293,14 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               },
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -4000,
                 "id": "child-2",
                 "sort_order": -2,
@@ -292,62 +310,61 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               }
-            ],
-            "error": null
+            ]
           },
           {
+            "notes": "inherited payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -6000,
             "id": "child-1",
             "payee": "coffee",
-            "notes": "inherited payee",
             "sort_order": -1,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           },
           {
+            "notes": "override payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -4000,
             "id": "child-2",
             "payee": "market",
-            "notes": "override payee",
             "sort_order": -2,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           }
         ],
         "transaction": {
+          "notes": "inherited payee",
+          "is_parent": false,
+          "is_child": true,
+          "parent_id": "parent-1",
+          "error": null,
           "amount": -7000,
           "id": "child-1",
           "payee": "coffee",
-          "notes": "inherited payee",
           "sort_order": -1,
           "category": "groceries",
           "account": "checking",
           "date": "2026-08-15",
           "cleared": true,
           "reconciled": false,
-          "starting_balance_flag": false,
-          "is_child": true,
-          "parent_id": "parent-1",
-          "error": null
+          "starting_balance_flag": false
         }
       },
       "expected": {
@@ -501,20 +518,28 @@
         "operation": "updateTransaction",
         "transactions": [
           {
+            "notes": "parent note",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "parent-1",
             "amount": -10000,
             "account": "checking",
             "date": "2026-08-15",
             "category": "groceries",
             "payee": null,
-            "notes": "parent note",
             "cleared": true,
             "reconciled": false,
             "starting_balance_flag": false,
             "sort_order": 100,
-            "is_parent": true,
             "subtransactions": [
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -6000,
                 "id": "child-1",
                 "sort_order": -1,
@@ -524,12 +549,14 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               },
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -4000,
                 "id": "child-2",
                 "sort_order": -2,
@@ -539,62 +566,61 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               }
-            ],
-            "error": null
+            ]
           },
           {
+            "notes": "inherited payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -6000,
             "id": "child-1",
             "payee": "coffee",
-            "notes": "inherited payee",
             "sort_order": -1,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           },
           {
+            "notes": "override payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -4000,
             "id": "child-2",
             "payee": "market",
-            "notes": "override payee",
             "sort_order": -2,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           }
         ],
         "transaction": {
+          "notes": "override payee",
+          "is_parent": false,
+          "is_child": true,
+          "parent_id": "parent-1",
+          "error": null,
           "amount": 0,
           "id": "child-2",
           "payee": "market",
-          "notes": "override payee",
           "sort_order": -2,
           "category": "groceries",
           "account": "checking",
           "date": "2026-08-15",
           "cleared": true,
           "reconciled": false,
-          "starting_balance_flag": false,
-          "is_child": true,
-          "parent_id": "parent-1",
-          "error": null
+          "starting_balance_flag": false
         }
       },
       "expected": {
@@ -748,20 +774,28 @@
         "operation": "updateTransaction",
         "transactions": [
           {
+            "notes": "parent note",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "parent-1",
             "amount": -10000,
             "account": "checking",
             "date": "2026-08-15",
             "category": "groceries",
             "payee": null,
-            "notes": "parent note",
             "cleared": true,
             "reconciled": false,
             "starting_balance_flag": false,
             "sort_order": 100,
-            "is_parent": true,
             "subtransactions": [
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -6000,
                 "id": "child-1",
                 "sort_order": -1,
@@ -771,12 +805,14 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               },
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -4000,
                 "id": "child-2",
                 "sort_order": -2,
@@ -786,62 +822,68 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               }
-            ],
-            "error": null
+            ]
           },
           {
+            "notes": "inherited payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -6000,
             "id": "child-1",
             "payee": "coffee",
-            "notes": "inherited payee",
             "sort_order": -1,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           },
           {
+            "notes": "override payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -4000,
             "id": "child-2",
             "payee": "market",
-            "notes": "override payee",
             "sort_order": -2,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           }
         ],
         "transaction": {
+          "notes": "parent note",
+          "is_parent": true,
+          "is_child": false,
+          "parent_id": null,
+          "error": null,
           "id": "parent-1",
           "amount": -10000,
           "account": "savings",
           "date": "2026-08-20",
           "category": "groceries",
           "payee": null,
-          "notes": "parent note",
           "cleared": false,
           "reconciled": false,
           "starting_balance_flag": false,
           "sort_order": 100,
-          "is_parent": true,
           "subtransactions": [
             {
+              "notes": null,
+              "is_parent": false,
+              "is_child": true,
+              "parent_id": "parent-1",
+              "error": null,
               "amount": -6000,
               "id": "child-1",
               "sort_order": -1,
@@ -851,12 +893,14 @@
               "date": "2026-08-15",
               "cleared": true,
               "reconciled": false,
-              "starting_balance_flag": false,
-              "is_child": true,
-              "parent_id": "parent-1",
-              "error": null
+              "starting_balance_flag": false
             },
             {
+              "notes": null,
+              "is_parent": false,
+              "is_child": true,
+              "parent_id": "parent-1",
+              "error": null,
               "amount": -4000,
               "id": "child-2",
               "sort_order": -2,
@@ -866,13 +910,9 @@
               "date": "2026-08-15",
               "cleared": true,
               "reconciled": false,
-              "starting_balance_flag": false,
-              "is_child": true,
-              "parent_id": "parent-1",
-              "error": null
+              "starting_balance_flag": false
             }
-          ],
-          "error": null
+          ]
         }
       },
       "expected": {
@@ -1003,12 +1043,14 @@
             },
             {
               "id": "child-1",
+              "notes": null,
               "account": "savings",
               "date": "2026-08-20",
               "cleared": false
             },
             {
               "id": "child-2",
+              "notes": null,
               "account": "savings",
               "date": "2026-08-20",
               "cleared": false,
@@ -1025,13 +1067,17 @@
         "operation": "updateTransaction",
         "transactions": [
           {
+            "notes": "parent note",
+            "is_parent": false,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "parent-1",
             "amount": -10000,
             "account": "checking",
             "date": "2026-08-15",
             "category": "groceries",
             "payee": "coffee",
-            "notes": "parent note",
             "cleared": true,
             "reconciled": false,
             "starting_balance_flag": false,
@@ -1212,9 +1258,7 @@
           "updated": [
             {
               "id": "parent-1",
-              "is_parent": true,
-              "is_child": false,
-              "error": null
+              "is_parent": true
             }
           ],
           "deleted": []
@@ -1227,20 +1271,28 @@
         "operation": "updateTransaction",
         "transactions": [
           {
+            "notes": "parent note",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "parent-1",
             "amount": -10000,
             "account": "checking",
             "date": "2026-08-15",
             "category": "groceries",
             "payee": null,
-            "notes": "parent note",
             "cleared": true,
             "reconciled": false,
             "starting_balance_flag": false,
             "sort_order": 100,
-            "is_parent": true,
             "subtransactions": [
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -6000,
                 "id": "child-1",
                 "sort_order": -1,
@@ -1250,12 +1302,14 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               },
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -4000,
                 "id": "child-2",
                 "sort_order": -2,
@@ -1265,62 +1319,68 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               }
-            ],
-            "error": null
+            ]
           },
           {
+            "notes": "inherited payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -6000,
             "id": "child-1",
             "payee": "coffee",
-            "notes": "inherited payee",
             "sort_order": -1,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           },
           {
+            "notes": "override payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -4000,
             "id": "child-2",
             "payee": "market",
-            "notes": "override payee",
             "sort_order": -2,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           }
         ],
         "transaction": {
+          "notes": "parent note",
+          "is_parent": true,
+          "is_child": false,
+          "parent_id": null,
+          "error": null,
           "id": "parent-1",
           "amount": -10000,
           "account": "checking",
           "date": "2026-08-15",
           "category": "groceries",
           "payee": "tea",
-          "notes": "parent note",
           "cleared": true,
           "reconciled": false,
           "starting_balance_flag": false,
           "sort_order": 100,
-          "is_parent": true,
           "subtransactions": [
             {
+              "notes": null,
+              "is_parent": false,
+              "is_child": true,
+              "parent_id": "parent-1",
+              "error": null,
               "amount": -6000,
               "id": "child-1",
               "sort_order": -1,
@@ -1330,12 +1390,14 @@
               "date": "2026-08-15",
               "cleared": true,
               "reconciled": false,
-              "starting_balance_flag": false,
-              "is_child": true,
-              "parent_id": "parent-1",
-              "error": null
+              "starting_balance_flag": false
             },
             {
+              "notes": null,
+              "is_parent": false,
+              "is_child": true,
+              "parent_id": "parent-1",
+              "error": null,
               "amount": -4000,
               "id": "child-2",
               "sort_order": -2,
@@ -1345,13 +1407,9 @@
               "date": "2026-08-15",
               "cleared": true,
               "reconciled": false,
-              "starting_balance_flag": false,
-              "is_child": true,
-              "parent_id": "parent-1",
-              "error": null
+              "starting_balance_flag": false
             }
-          ],
-          "error": null
+          ]
         }
       },
       "expected": {
@@ -1479,7 +1537,12 @@
               "payee": "tea"
             },
             {
+              "id": "child-1",
+              "notes": null
+            },
+            {
               "id": "child-2",
+              "notes": null,
               "payee": "coffee"
             }
           ],
@@ -1493,20 +1556,28 @@
         "operation": "deleteTransaction",
         "transactions": [
           {
+            "notes": "parent note",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "parent-1",
             "amount": -10000,
             "account": "checking",
             "date": "2026-08-15",
             "category": "groceries",
             "payee": null,
-            "notes": "parent note",
             "cleared": true,
             "reconciled": false,
             "starting_balance_flag": false,
             "sort_order": 100,
-            "is_parent": true,
             "subtransactions": [
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -6000,
                 "id": "child-1",
                 "sort_order": -1,
@@ -1516,12 +1587,14 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               },
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -4000,
                 "id": "child-2",
                 "sort_order": -2,
@@ -1531,45 +1604,43 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               }
-            ],
-            "error": null
+            ]
           },
           {
+            "notes": "inherited payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -6000,
             "id": "child-1",
             "payee": "coffee",
-            "notes": "inherited payee",
             "sort_order": -1,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           },
           {
+            "notes": "override payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -4000,
             "id": "child-2",
             "payee": "market",
-            "notes": "override payee",
             "sort_order": -2,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           }
         ],
         "id": "child-1"
@@ -1819,38 +1890,47 @@
         "operation": "makeAsNonChildTransactions",
         "transactions": [
           {
+            "notes": "inherited payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -6000,
             "id": "child-1",
             "payee": "coffee",
-            "notes": "inherited payee",
             "sort_order": -1,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           }
         ],
         "allTransactions": [
           {
+            "notes": "parent note",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "parent-1",
             "amount": -10000,
             "account": "checking",
             "date": "2026-08-15",
             "category": "groceries",
             "payee": null,
-            "notes": "parent note",
             "cleared": true,
             "reconciled": false,
             "starting_balance_flag": false,
             "sort_order": 100,
-            "is_parent": true,
             "subtransactions": [
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -6000,
                 "id": "child-1",
                 "sort_order": -1,
@@ -1860,12 +1940,14 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               },
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -4000,
                 "id": "child-2",
                 "sort_order": -2,
@@ -1875,45 +1957,43 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               }
-            ],
-            "error": null
+            ]
           },
           {
+            "notes": "inherited payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -6000,
             "id": "child-1",
             "payee": "coffee",
-            "notes": "inherited payee",
             "sort_order": -1,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           },
           {
+            "notes": "override payee",
+            "is_parent": false,
+            "is_child": true,
+            "parent_id": "parent-1",
+            "error": null,
             "amount": -4000,
             "id": "child-2",
             "payee": "market",
-            "notes": "override payee",
             "sort_order": -2,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": false,
-            "is_child": true,
-            "parent_id": "parent-1",
-            "error": null
+            "starting_balance_flag": false
           }
         ]
       },
@@ -1921,53 +2001,63 @@
         "updated": [
           {
             "amount": -6000,
+            "notes": "inherited payee",
+            "is_parent": false,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "child-1",
             "payee": "coffee",
-            "notes": "inherited payee",
             "sort_order": 100,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": null,
-            "is_child": false,
-            "parent_id": null,
-            "error": null
+            "starting_balance_flag": null
           },
           {
             "amount": -4000,
+            "notes": "override payee",
+            "is_parent": false,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "child-2",
             "payee": "market",
-            "notes": "override payee",
             "sort_order": 100,
             "category": "groceries",
             "account": "checking",
             "date": "2026-08-15",
             "cleared": true,
             "reconciled": false,
-            "starting_balance_flag": null,
-            "is_child": false,
-            "parent_id": null,
-            "error": null
+            "starting_balance_flag": null
           }
         ],
         "deleted": [
           {
+            "notes": "parent note",
+            "is_parent": true,
+            "is_child": false,
+            "parent_id": null,
+            "error": null,
             "id": "parent-1",
             "amount": -10000,
             "account": "checking",
             "date": "2026-08-15",
             "category": "groceries",
             "payee": null,
-            "notes": "parent note",
             "cleared": true,
             "reconciled": false,
             "starting_balance_flag": false,
             "sort_order": 100,
-            "is_parent": true,
             "subtransactions": [
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -6000,
                 "id": "child-1",
                 "sort_order": -1,
@@ -1977,12 +2067,14 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               },
               {
+                "notes": null,
+                "is_parent": false,
+                "is_child": true,
+                "parent_id": "parent-1",
+                "error": null,
                 "amount": -4000,
                 "id": "child-2",
                 "sort_order": -2,
@@ -1992,13 +2084,9 @@
                 "date": "2026-08-15",
                 "cleared": true,
                 "reconciled": false,
-                "starting_balance_flag": false,
-                "is_child": true,
-                "parent_id": "parent-1",
-                "error": null
+                "starting_balance_flag": false
               }
-            ],
-            "error": null
+            ]
           }
         ]
       }

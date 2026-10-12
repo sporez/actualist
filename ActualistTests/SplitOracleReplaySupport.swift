@@ -59,10 +59,16 @@ enum SplitOracleReplay {
             return rowsAndFamily(changes.data, parentID: id)
         case "updateTransaction":
             let rows = try flatten(input)
-            let transaction = try record(try editedObject(input))
+            let edited = try editedObject(input)
+            let transaction = try record(edited)
+            // JSON key presence decides whether a child inherits the parent's payee.
+            let conversionChildren = try edited["subtransactions"] == nil
+                ? nil
+                : OracleJSON.objects(edited["subtransactions"], "subtransactions").map { try patch($0) }
             let changes = SplitTransactionFamilyOps.updateTransaction(
                 rows,
                 transaction: transaction,
+                conversionChildren: conversionChildren,
                 idGenerator: ids.next
             )
             return changeSet(changes, parentID: effectiveParentID(rows, id: transaction.id))
@@ -236,8 +242,7 @@ enum SplitOracleReplay {
     }
 
     /// Diff entries: `diffItems` reports the whole record for additions, and only changed cells
-    /// for updates. Changed-to-default values are not representable in the diff record; see
-    /// `sparseUpdate`.
+    /// for updates; see `sparseUpdate`.
     private static func diff(_ diff: SplitTransactionDiff) -> OracleValue {
         .object([
             "added": .array(diff.added.map { addedRecord($0) }),
@@ -269,34 +274,31 @@ enum SplitOracleReplay {
         ])
     }
 
-    /// Changed cells only. A nil cell cannot say "changed to null", and an amount of zero or a
-    /// false flag cannot say "changed to default", because the diff record uses the same
-    /// defaults for unchanged cells. Those gaps are the registered divergences, not normalized away.
-    private static func sparseUpdate(_ record: SplitTransactionRecord) -> OracleValue {
+    /// Changed cells only, as `getChangedValues` reports them: a cell changed to null, 0, or
+    /// false is present with that value.
+    private static func sparseUpdate(_ update: SplitTransactionUpdate) -> OracleValue {
+        let record = update.record
         var fields: [String: OracleValue] = ["id": .string(record.id)]
-        if record.amount != 0 {
-            fields["amount"] = .number(Double(record.amount))
+        for field in update.changedFields {
+            switch field {
+            case .amount: fields["amount"] = .number(Double(record.amount))
+            case .account: fields["account"] = cell(record.account)
+            case .date: fields["date"] = cell(record.date)
+            case .category: fields["category"] = cell(record.category)
+            case .payee: fields["payee"] = cell(record.payee)
+            case .notes: fields["notes"] = cell(record.notes)
+            case .cleared: fields["cleared"] = cell(record.cleared)
+            case .reconciled: fields["reconciled"] = cell(record.reconciled)
+            case .startingBalance: fields["starting_balance_flag"] = cell(record.startingBalance)
+            case .sortOrder: fields["sort_order"] = cell(record.sortOrder)
+            case .isParent: fields["is_parent"] = bit(record.isParent)
+            case .isChild: fields["is_child"] = bit(record.isChild)
+            case .parentID: fields["parent_id"] = cell(record.parentID)
+            case .transferID: fields["transfer_id"] = cell(record.transferID)
+            case .error: fields["error"] = errorValue(record.error)
+            case .deleted: fields["deleted"] = bit(record.deleted)
+            }
         }
-        fields["account"] = record.account.map { OracleValue.string($0) }
-        fields["date"] = record.date.map { OracleValue.string($0) }
-        fields["category"] = record.category.map { OracleValue.string($0) }
-        fields["payee"] = record.payee.map { OracleValue.string($0) }
-        fields["notes"] = record.notes.map { OracleValue.string($0) }
-        fields["cleared"] = record.cleared.map { bit($0) }
-        fields["reconciled"] = record.reconciled.map { bit($0) }
-        fields["starting_balance_flag"] = record.startingBalance.map { bit($0) }
-        fields["sort_order"] = record.sortOrder.map { OracleValue.number($0) }
-        fields["parent_id"] = record.parentID.map { OracleValue.string($0) }
-        if record.isParent {
-            fields["is_parent"] = .number(1)
-        }
-        if record.isChild {
-            fields["is_child"] = .number(1)
-        }
-        if record.deleted {
-            fields["deleted"] = .number(1)
-        }
-        fields["error"] = record.error.map { errorValue($0) }
         return .object(fields)
     }
 

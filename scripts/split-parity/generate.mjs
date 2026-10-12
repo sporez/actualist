@@ -135,6 +135,23 @@ const baseParent = {
   sort_order: 100,
 };
 
+// Stored rows carry every cell. A key the oracle's diff would see as undefined-versus-null
+// is an artifact of a sparse fixture, so update inputs are densified.
+function dense(transaction) {
+  const row = {
+    notes: null,
+    is_parent: false,
+    is_child: false,
+    parent_id: null,
+    error: null,
+    ...transaction,
+  };
+  if (row.subtransactions) {
+    row.subtransactions = row.subtransactions.map(dense);
+  }
+  return row;
+}
+
 function selected(transaction) {
   return {
     id: transaction.id ?? null,
@@ -299,10 +316,11 @@ const updateConversionInput = {
     },
   ],
 };
-const updateConversion = updateTransaction(copy([baseParent]), copy(updateConversionInput));
+const denseBaseParent = dense(baseParent);
+const updateConversion = updateTransaction(copy([denseBaseParent]), copy(updateConversionInput));
 const updateConversionOperation = {
   operation: 'updateTransaction',
-  transactions: [baseParent],
+  transactions: [denseBaseParent],
   transaction: updateConversionInput,
 };
 
@@ -322,8 +340,8 @@ const updateSource = [
     notes: 'override payee',
     sort_order: -2,
   }),
-];
-const parentPayeeInput = { ...copy(exactParent), payee: 'tea' };
+].map(dense);
+const parentPayeeInput = dense({ ...copy(exactParent), payee: 'tea' });
 const parentPayeeUpdate = updateTransaction(copy(updateSource), copy(parentPayeeInput));
 const parentPayeeOperation = {
   operation: 'updateTransaction',
@@ -529,12 +547,12 @@ const childZeroAmountOperation = {
   transactions: updateSource,
   transaction: childZeroAmountInput,
 };
-const parentDateInput = {
+const parentDateInput = dense({
   ...copy(exactParent),
   date: '2026-08-20',
   account: 'savings',
   cleared: false,
-};
+});
 const parentDateAccountCleared = updateTransaction(copy(updateSource), copy(parentDateInput));
 const parentDateOperation = {
   operation: 'updateTransaction',
@@ -712,15 +730,12 @@ for (const [name, value] of fixtures) {
   writeFileSync(join(outputDirectory, name), JSON.stringify(value, null, 2) + '\n');
 }
 // Oracle cases Actualist does not replay, per fixture file. Each reason is a product or coverage fact.
-const updateConversionReason =
-  'adapter input-shape: child payloads omit payee; SplitTransactionRecord cannot express an omitted payee, and conversion treats nil as an explicit null.';
 const splitOracleOnly = {
   'family-transformations.json': [
     {
       id: 'detach-child-preserves-nonchild-fields',
       reason: 'no production path (makeAsNonChildTransactions has no Actualist counterpart).',
     },
-    { id: 'update-conversion-materializes-exact-family', reason: updateConversionReason },
   ],
   'split-rule-cases.json': [],
   'mutation-cases.json': [
@@ -728,7 +743,6 @@ const splitOracleOnly = {
       id: 'detach-child-preserves-nonchild-fields',
       reason: 'no production path (makeAsNonChildTransactions has no Actualist counterpart).',
     },
-    { id: 'update-conversion-materializes-exact-family', reason: updateConversionReason },
   ],
 };
 const fixtureEntries = fixtures.map(([name, value]) => {

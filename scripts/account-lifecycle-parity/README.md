@@ -244,22 +244,11 @@ Not replayed:
 - `remoteCalls`. They record the oracle's mocked transport and are kept only in
   the fixture; Actualist's replay has no transport seam.
 
-Known divergences. Four groups of production behavior differ from the pinned
-oracle and are registered as `OP-10` through `OP-13` in
-`config/parity/known-divergences.json`. Message arrays are compared as
-multisets. Each divergence wraps only its own "has extras" or "has gaps" check
-in `withKnownIssue`; the cells it may touch are checked strictly first, so any
-other missing message, extra cell, or state mismatch fails.
-
-- `OP-10` (transfer legs): the extras may only be default cells — `isParent`,
-  `isChild`, `tombstone` = 0; `parent_id`, `error`, `category` = null. Missing
-  messages fail strictly.
-- `OP-11` (rename) and `OP-12` (reopen): the case's whole message array for the
-  divergent path is wrapped.
-- `OP-13` (scheduled post): the only allowed gaps are the missing `sort_order`
-  and `reconciled` cells and the scheduled row's `sort_order`. The only allowed
-  extras are default `description`, `category`, `notes` = null; `tombstone`,
-  `isParent` = 0; `parent_id` = null.
+Known divergences. The replay matches the oracle exactly. Message arrays are
+compared as multisets, so any missing or extra message, or any state mismatch,
+fails. The one intended difference is `OP-22`: rename trims its input and skips
+an unchanged name, so the `rename-handler-input-boundary` case lacks the oracle's
+messages for those submissions; that single check is wrapped in `withKnownIssue`.
 
 Oracle-only cases. These six are listed in the manifest's `oracleOnly` field
 with a reason each. They are not registered as divergences:

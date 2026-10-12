@@ -74,11 +74,6 @@ extension BudgetDatabase {
             guard current.name == command.expectedCurrentName else {
                 throw AccountLifecycleCommandError.reviewChanged
             }
-            if accounts.contains(where: {
-                $0.id != command.accountID && $0.name == command.newName
-            }) {
-                throw AccountLifecycleCommandError.duplicateName(command.newName)
-            }
             return .apply(AccountLifecycleOutcome(
                 operation: .rename,
                 account: AccountLifecycleAccount(
@@ -95,9 +90,6 @@ extension BudgetDatabase {
             let accounts = try accountLifecycleAccounts(db: db)
             guard let current = accounts.first(where: { $0.id == command.accountID }) else {
                 throw AccountLifecycleCommandError.accountNotFound
-            }
-            if !current.isClosed {
-                return .noChange(AccountLifecycleOutcome(operation: .reopen, account: current))
             }
             guard command.expectedClosed else {
                 throw AccountLifecycleCommandError.invalidPreparedMutation

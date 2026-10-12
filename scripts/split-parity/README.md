@@ -61,10 +61,7 @@ Added with the input recording:
   nonzero value to `0`. The `diff` records the change, so a consumer that
   compares against defaults can be checked against it.
 
-These are oracle-observed behaviors. Swift divergences from them are registered
-in `config/parity/known-divergences.json`: `split-conversion-zero-sort-order` is
-OP-15; `child-amount-changed-to-zero`, `final-child-delete-collapses-parent`, and
-`parent-payee-update-preserves-child-override` are OP-14.
+These are oracle-observed behaviors that the Swift replay matches.
 
 ## Oracle-only cases
 
@@ -75,13 +72,6 @@ listed there.
 - `detach-child-preserves-nonchild-fields` (family-transformations and
   mutation-cases): no production path. `makeAsNonChildTransactions` has no
   Actualist counterpart.
-- `update-conversion-materializes-exact-family` (family-transformations and
-  mutation-cases): adapter input shape. The child payloads omit `payee`. The
-  oracle inherits the parent's payee for an omitted key. `SplitTransactionRecord`
-  cannot express an omitted payee, and conversion treats a nil payee as an
-  explicit null. This is not registered as a divergence. It is an open question
-  for the user whether a conversion payload should be able to omit a child's
-  payee.
 
 ## Swift replay
 

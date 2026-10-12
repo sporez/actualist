@@ -92,7 +92,7 @@ struct AccountLifecycleCloseWriteTests {
         #expect(messages.contains(cell: "transactions|closing-destination|acct|S:destination"))
         #expect(messages.contains(cell: "transactions|closing-destination|amount|N:4250"))
         #expect(messages.contains(cell: "transactions|closing-destination|description|S:transfer-checking"))
-        #expect(messages.contains(cell: "transactions|closing-destination|category|0:"))
+        #expect(!messages.contains { $0.row == "closing-destination" && $0.column == "category" })
         #expect(messages.contains(cell: "transactions|closing-destination|date|N:20260927"))
         #expect(messages.contains(cell: "transactions|closing-destination|notes|S:Closing account"))
         #expect(messages.contains(cell: "transactions|closing-destination|cleared|N:0"))
@@ -136,9 +136,16 @@ struct AccountLifecycleCloseWriteTests {
             let messages = try await database.pendingLocalSyncMessages().map(\.message)
             #expect(messages.contains(cell: "transactions|\(sourceID)|amount|N:4250"))
             #expect(messages.contains(cell: "transactions|\(destinationID)|amount|N:-4250"))
-            let sourceCategory = direction.category.map { "S:\($0)" } ?? "0:"
-            #expect(messages.contains(cell: "transactions|\(sourceID)|category|\(sourceCategory)"))
-            #expect(messages.contains(cell: "transactions|\(destinationID)|category|0:"))
+            // The source leg writes its category, or a cleared one when both accounts sit on the
+            // same side of the budget; the destination leg never writes one.
+            if let category = direction.category {
+                #expect(messages.contains(cell: "transactions|\(sourceID)|category|S:\(category)"))
+            } else if direction.sourceOffBudget == direction.destinationOffBudget {
+                #expect(messages.contains(cell: "transactions|\(sourceID)|category|0:"))
+            } else {
+                #expect(!messages.contains { $0.row == sourceID && $0.column == "category" })
+            }
+            #expect(!messages.contains { $0.row == destinationID && $0.column == "category" })
         }
     }
 
@@ -189,8 +196,7 @@ struct AccountLifecycleCloseWriteTests {
         let messages = try await database.pendingLocalSyncMessages().map(\.message)
         #expect(messages.contains(cell: "transactions|alias-source|account|S:checking"))
         #expect(messages.contains(cell: "transactions|alias-source|payee|S:transfer-destination"))
-        #expect(messages.contains(cell: "transactions|alias-source|isParent|N:0"))
-        #expect(messages.contains(cell: "transactions|alias-source|is_child|N:0"))
+        #expect(!messages.contains { $0.row == "alias-source" && ($0.column == "isParent" || $0.column == "is_child") })
         #expect(messages.contains(cell: "transactions|alias-source|transfer_id|S:alias-destination"))
     }
 

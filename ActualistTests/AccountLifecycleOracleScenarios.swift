@@ -107,8 +107,7 @@ enum AccountLifecycleScenarios {
         ]
     }
 
-    /// Submits each name against the current name, as the rename sheet does. The duplicate is
-    /// refused and writes nothing.
+    /// Submits each name against the current name, as the rename sheet does.
     private static func renameHandlerInputBoundary() async throws -> [String: OracleValue] {
         let budget = try AccountLifecycleReplayBudget(seeds: [
             ReplaySQL.account("source", name: "Original"),
@@ -119,10 +118,7 @@ enum AccountLifecycleScenarios {
         var messages: [ActualSyncDecodedMessage] = []
         for submitted in ["Original", "  Original  ", "Duplicate", "duplicate"] {
             let current = try budget.accountName("source")
-            do {
-                try await budget.rename("source", from: current, to: submitted)
-            } catch AccountLifecycleCommandError.duplicateName {
-            }
+            try await budget.rename("source", from: current, to: submitted)
             messages += try await budget.capturedMessages()
         }
         let after = try budget.snapshot()
@@ -144,7 +140,8 @@ enum AccountLifecycleScenarios {
         let afterRepeat = try budget.record("accounts", id: "source")
         return [
             "firstMessages": ReplayNormalizer.messages(firstMessages),
-            "repeatMessages": ReplayNormalizer.messages(repeatMessages),
+            // The oracle records the messages of both calls under this key.
+            "repeatMessages": ReplayNormalizer.messages(firstMessages + repeatMessages),
             "afterRepeat": afterRepeat,
         ]
     }
