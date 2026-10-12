@@ -14,7 +14,7 @@ behavior. The following notice is retained for any portions derived from the
 Actual Budget project:
 
 The starter database schema in `ActualStarterSchema.swift` is derived from the
-schema a fresh Actual v26.9.0 budget creates.
+schema a fresh Actual v26.10.0 budget creates.
 
 Copyright James Long
 

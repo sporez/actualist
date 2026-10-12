@@ -223,7 +223,7 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift",
         "Actualist/LocalFirst/Database/PortableBudgetSchema.swift"
       ],
-      "notes": "Fixtures/Portability/Archive is hand-written, not oracle output. OP-03 lives here."
+      "notes": "Fixtures/Portability/Archive is hand-written, not oracle output. The sync reset (OP-03, fixed) is covered by PortableBudgetImportSyncResetTests, not an oracle case."
     },
     {
       "id": "csv-import-export",

@@ -44,7 +44,8 @@ import ZIPFoundation
     }
 
     @Test func acceptsKnownMigrationWatermarkAndRejectsUnknownSchema() throws {
-        let known = [BudgetDatabase.accountGroupsMigrationID, 1_548_957_970_627]
+        // 1788468782000 is the newest id an Actual 26.10.0 export carries.
+        let known = [BudgetDatabase.accountGroupsMigrationID, 1_548_957_970_627, 1_788_468_782_000]
         let withKnownWatermark = try Self.makeSeedDatabaseURL(migrationIDs: known)
         try assertAccepts(databaseURL: withKnownWatermark, label: "known-migrations")
 

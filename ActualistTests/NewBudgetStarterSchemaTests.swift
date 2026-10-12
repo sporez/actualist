@@ -49,13 +49,7 @@ struct NewBudgetStarterSchemaTests {
                         dflt_value: $0["dflt_value"], pk: $0["pk"]
                     )
                 }
-                if table == "messages_pending" {
-                    withKnownIssue("OP-01: the starter schema lacks messages_pending") {
-                        #expect(actual == columns, "table_info differs for \(table)")
-                    }
-                } else {
-                    #expect(actual == columns, "table_info differs for \(table)")
-                }
+                #expect(actual == columns, "table_info differs for \(table)")
             }
         }
     }
@@ -69,10 +63,8 @@ struct NewBudgetStarterSchemaTests {
         let applied = try DatabaseQueue(path: url.path).read { db in
             try Int64.fetchAll(db, sql: "SELECT id FROM __migrations__ ORDER BY id")
         }
-        withKnownIssue("OP-02: knownMigrationIDs lacks 1788468782000") {
-            #expect(Set(listed) == PortableBudgetSchema.knownMigrationIDs)
-            #expect(applied == listed.sorted())
-        }
+        #expect(Set(listed) == PortableBudgetSchema.knownMigrationIDs)
+        #expect(applied == listed.sorted())
     }
 
     @Test func seedHoldsStarterRowsDashboardAndNoClockOrMeta() throws {

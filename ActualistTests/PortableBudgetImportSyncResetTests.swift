@@ -82,6 +82,43 @@ struct PortableBudgetImportSyncResetTests {
         }
     }
 
+    /// Actual 26.10.0 defers messages from a newer client in `messages_pending`;
+    /// `resetSync` deletes them with the rest of the history. A file from an
+    /// older Actual has no such table and must still reset.
+    @Test(arguments: [true, false])
+    func resetClearsEveryHistoryTable(withPendingTable: Bool) throws {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "PortableReset-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try DatabaseQueue(path: url.path).write { db in
+            try db.execute(sql: """
+                CREATE TABLE messages_crdt (id INTEGER PRIMARY KEY, timestamp TEXT, dataset TEXT, row TEXT, column TEXT, value BLOB);
+                CREATE TABLE messages_clock (id INTEGER PRIMARY KEY, clock TEXT);
+                INSERT INTO messages_crdt (timestamp, dataset, row, column, value)
+                    VALUES ('\(Self.carriedTimestamp)', 'payees', 'coffee', 'name', 'S:Carried');
+                INSERT INTO messages_clock VALUES (1, '{}');
+                """)
+            if withPendingTable {
+                try db.execute(sql: """
+                    CREATE TABLE messages_pending (dataset TEXT NOT NULL, row TEXT NOT NULL, column TEXT NOT NULL,
+                        timestamp TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (dataset, row, column));
+                    INSERT INTO messages_pending
+                        VALUES ('payees', 'coffee', 'future_column', '\(Self.carriedTimestamp)', 'S:Deferred');
+                    """)
+            }
+        }
+
+        try BudgetDatabase.resetSyncHistory(atStagedPortableDatabase: url)
+
+        try DatabaseQueue(path: url.path).read { db throws in
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM messages_crdt") == 0)
+            #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM messages_clock") == 0)
+            if withPendingTable {
+                #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM messages_pending") == 0)
+            }
+        }
+    }
+
     @Test(.timeLimit(.minutes(1))) func importedBudgetSyncsAgainstTheEmptyRegisteredGroup() async throws {
         let transport = MerkleAwareSyncTransport()
         let imported = try await importCarryingHistory(transport: transport)

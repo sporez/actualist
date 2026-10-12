@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-/// Migration ids Actual 26.9.0 (`59fe126f`) ships in
+/// Migration ids Actual 26.10.0 (`2bebdbaa`) ships in
 /// `packages/loot-core/migrations`. Mock migrations under `src/mocks` are not
 /// part of a real budget file and are omitted.
 ///
@@ -69,7 +69,8 @@ enum PortableBudgetSchema {
         1_780_606_215_000,
         1_780_606_215_001,
         1_783_004_650_757,
-        BudgetDatabase.accountGroupsMigrationID
+        BudgetDatabase.accountGroupsMigrationID,
+        1_788_468_782_000
     ]
 
     static func rejectUnknownMigrations(in db: Database) throws {

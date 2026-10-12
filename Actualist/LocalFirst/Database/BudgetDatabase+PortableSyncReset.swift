@@ -9,6 +9,7 @@ extension BudgetDatabase {
 
     /// Clears the carried CRDT history of a staged portable database, like
     /// upstream's `resetSync` (`loot-core/src/server/sync/reset.ts`): delete
+    /// `messages_pending` (deferred messages from a newer client, 26.10.0+),
     /// `messages_crdt` and `messages_clock`, delete tombstoned rows of the
     /// listed domain tables, then `ANALYZE` and `VACUUM`.
     ///
@@ -26,7 +27,7 @@ extension BudgetDatabase {
             configuration: untrustedFileConfiguration(deleteJournal: true)
         )
         try queue.write { db in
-            for table in ["messages_crdt", "messages_clock"] where try hasTable(table, in: db) {
+            for table in ["messages_pending", "messages_crdt", "messages_clock"] where try hasTable(table, in: db) {
                 try db.execute(sql: "DELETE FROM \(table.quotedDatabaseIdentifier)")
             }
             for table in syncResetTombstoneTables where try hasTable(table, in: db) {
