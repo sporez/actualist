@@ -63,10 +63,6 @@ extension LocalFirstActualStore {
             payee.id.map { ($0, payee.name) }
         })
         let categoryNames = categories.namesByID
-        let transferPayeeIDs = Set(payees.compactMap { payee -> String? in
-            guard payee.transferAccount != nil else { return nil }
-            return payee.id
-        })
 
         var startDates: [String] = []
         var accountHadLiveTransactions: [Bool] = []
@@ -178,7 +174,6 @@ extension LocalFirstActualStore {
                 currency: currency,
                 payeeNames: payeeNames,
                 categoryNames: categoryNames,
-                transferPayeeIDs: transferPayeeIDs,
                 accountHadLiveTransactions: accountHadLiveTransactions[index],
                 database: database
             ))
@@ -358,7 +353,6 @@ extension LocalFirstActualStore {
         currency: BudgetCurrency,
         payeeNames: [String: String],
         categoryNames: [String: String],
-        transferPayeeIDs: Set<String>,
         accountHadLiveTransactions: Bool,
         database: BudgetDatabase
     ) async throws -> BankSyncReview.AccountPlan {
@@ -368,8 +362,8 @@ extension LocalFirstActualStore {
             accountID: account.id,
             accountIsOffBudget: account.offbudget,
             candidateDayIDs: candidateDayIDs,
+            importedIDs: Set(prepared.candidates.compactMap(\.financialID)),
             projected: prepared.projectedCandidates,
-            transferPayeeIDs: transferPayeeIDs,
             options: .bankSync
         )
         let existing = outcome.existing
@@ -398,7 +392,7 @@ extension LocalFirstActualStore {
             if case .update(let update) = entry { return update }
             return nil
         }
-        let reviewedIDs = Set(updates.flatMap { [$0.existingID] + $0.childIDs })
+        let reviewedIDs = Set(updates.flatMap { [$0.existingID] + $0.childIDs + $0.dateChildIDs })
         let matchDetails = BankSyncMatchReview.details(
             updates: updates,
             existing: existing,

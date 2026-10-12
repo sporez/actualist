@@ -64,8 +64,6 @@ struct TransactionCommandOracleReplayTests {
         case actualWritesBeforeRefusing
         /// Actualist blocks the undo after a later edit; Actual's undo overwrites it.
         case undoBlockedAfterLaterEdit
-        /// Actualist keeps the other row of the pair.
-        case differentKeeper
     }
 
     private static let divergences: [String: (op: String, kind: Kind)] = [
@@ -79,7 +77,6 @@ struct TransactionCommandOracleReplayTests {
         "M2-keep-split-drop-simple": ("OP-74", .refusedWhereActualAllows),
         "M4-atomic-reject-invalid-second-pair": ("OP-75", .actualWritesBeforeRefusing),
         "M4-undo-conflict-after-merge": ("OP-76", .undoBlockedAfterLaterEdit),
-        "M1-imported-payee-over-manual": ("OP-77", .differentKeeper),
     ]
 
     @Test(arguments: replayedCaseIDs)
@@ -116,12 +113,6 @@ struct TransactionCommandOracleReplayTests {
             #expect(expected.field("undo")?.field("outcome") == .string("ok"))
             #expect(actual.field("undo")?.field("outcome") == .string("blocked"))
             known = mismatches.filter { $0.path.hasPrefix("undo.") }
-        case .differentKeeper:
-            #expect(actual.field("outcome") == .string("ok"))
-            #expect(actual.field("kept") != expected.field("kept"))
-            known = mismatches.filter {
-                $0.path == "kept" || $0.path.range(of: #"^rows\[\d+\]\.tombstone$"#, options: .regularExpression) != nil
-            }
         }
         let strict = mismatches.filter { mismatch in !known.contains(mismatch) }
         #expect(strict.isEmpty, Comment(rawValue: OracleComparison.report(caseID, strict)))
@@ -153,10 +144,6 @@ struct TransactionCommandOracleReplayTests {
             }
         case "OP-76":
             withKnownIssue("OP-76: undo is blocked after a later edit to a merged row") {
-                #expect(known.isEmpty, report)
-            }
-        case "OP-77":
-            withKnownIssue("OP-77: an imported payee does not decide which row a merge keeps") {
                 #expect(known.isEmpty, report)
             }
         default:

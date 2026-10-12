@@ -33,7 +33,7 @@ struct ImportReconcileStepTests {
         #expect(ActualDateOnly.dayID(from: draft.date, timeZone: .autoupdatingCurrent) == "2026-03-10")
     }
 
-    @Test func projectionKeepsDropsAndRefusesInInputOrder() {
+    @Test func projectionKeepsDeletedMarksAndRefusesInInputOrder() {
         let candidates = [
             candidate(id: "keep"), candidate(id: "delete"), candidate(id: "move"), candidate(id: "schedule"),
         ]
@@ -46,12 +46,13 @@ struct ImportReconcileStepTests {
         let result = ImportReconcileProjection.project(
             candidates: candidates, previews: previews, accountID: "checking", accountIsOffBudget: false
         )
-        #expect(result.sources == [0, 3])
+        #expect(result.sources == [0, 1, 3])
         #expect(result.movedSources == [2])
-        #expect(result.candidates.map(\.financialID) == ["keep", "schedule"])
+        #expect(result.candidates.map(\.financialID) == ["keep", "delete", "schedule"])
+        #expect(result.candidates.map(\.deletedByRule) == [false, true, false])
         #expect(result.candidates[0].payeeID == "payee-b")
         #expect(result.candidates[0].categoryID == "cat-1")
-        #expect(result.candidates[1].scheduleID == "sched-1")
+        #expect(result.candidates[2].scheduleID == "sched-1")
     }
 
     @Test func projectionStripsTheCategoryFromAnOffBudgetAccount() {
@@ -210,7 +211,6 @@ struct ImportReconcileStepTests {
             accountIsOffBudget: false,
             candidateDayIDs: ["20260310"],
             projected: [candidate(id: marker)],
-            transferPayeeIDs: [],
             options: .bankSync
         )
 

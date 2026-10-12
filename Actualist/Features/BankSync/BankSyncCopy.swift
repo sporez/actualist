@@ -99,6 +99,10 @@ enum BankSyncCopy {
             return "Replace existing bank transaction ID"
         case .payee:
             return "Payee: \(value(change.oldValue, empty: "None")) → \(value(change.newValue, empty: "None"))"
+        case .newPayee:
+            return "Payee: None → \(value(change.newValue, empty: "None")) (new payee)"
+        case .date:
+            return "Date: \(dayText(change.oldValue ?? "")) → \(dayText(change.newValue ?? ""))"
         case .category:
             return "Category: \(value(change.oldValue, empty: "Uncategorized")) → \(value(change.newValue, empty: "Uncategorized"))"
         case .bankPayee:

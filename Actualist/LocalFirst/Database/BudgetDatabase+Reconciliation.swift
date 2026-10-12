@@ -135,9 +135,9 @@ extension BudgetDatabase {
         }
         let defaultNotes = draft.notes
         draft = TransactionRulePreviewProjection.applying(preview, to: draft)
-        // Rule preview uses nil notes to mean "remove." Actual's adjustment still
-        // keeps the default note unless a rule replaced it with another value.
-        if draft.notes == nil, preview.notes == nil {
+        // A rule that clears notes (nil, or "" since rules store an empty note
+        // as Actual does) keeps the default adjustment note (intended OP-17).
+        if (draft.notes ?? "").isEmpty, (preview.notes ?? "").isEmpty {
             draft = draft.withNotes(defaultNotes)
         }
 

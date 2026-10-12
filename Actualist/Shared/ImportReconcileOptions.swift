@@ -20,14 +20,18 @@ struct ImportReconcileOptions: Equatable, Sendable {
     /// when the incoming row has one (`(imported_id IS NULL OR ? IS NULL)`).
     var strictIdChecking: Bool
     /// `nil` reads the account's `sync-reimport-deleted-<id>` preference (Bank
-    /// Sync). `true` re-imports rows the user deleted, so no deleted id is
-    /// suppressed (the CSV default).
+    /// Sync and CSV import, as upstream's `reconcileTransactions` does). `true`
+    /// re-imports rows the user deleted, so no deleted id is suppressed.
     var reimportDeleted: Bool?
     /// An inserted row whose source did not say whether it is cleared takes
     /// this value (`trans.cleared ?? defaultCleared`).
     var defaultCleared: Bool
     /// `normalizePayeeName`: how a new payee name is spelled.
     var payeeNameNormalization: ImportPayeeNameNormalization
+    /// A matched row takes the download's date (`updateDates`, sync.ts). `nil`
+    /// reads the account's `sync-update-dates-<id>` preference, which defaults
+    /// to off; only Bank Sync leaves it `nil`, file import never moves dates.
+    var updateDates: Bool? = false
 
     /// Bank Sync as shipped in 0.8.1.
     static let bankSync = ImportReconcileOptions(
@@ -35,14 +39,15 @@ struct ImportReconcileOptions: Equatable, Sendable {
         strictIdChecking: false,
         reimportDeleted: nil,
         defaultCleared: true,
-        payeeNameNormalization: .original
+        payeeNameNormalization: .original,
+        updateDates: nil
     )
 
     /// Upstream `transactions-import` defaults (main-to-dev D5).
     static let csv = ImportReconcileOptions(
         isBankSyncAccount: false,
         strictIdChecking: true,
-        reimportDeleted: true,
+        reimportDeleted: nil,
         defaultCleared: true,
         payeeNameNormalization: .titleCase
     )

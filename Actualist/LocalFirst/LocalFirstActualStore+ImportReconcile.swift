@@ -40,7 +40,6 @@ extension LocalFirstActualStore {
         candidateDayIDs: [String],
         importedIDs: Set<String> = [],
         projected: [BankSyncReconciliation.Candidate],
-        transferPayeeIDs: Set<String>,
         options: ImportReconcileOptions
     ) async throws -> ImportReconcileOutcome {
         let existing = try await database.bankSyncExistingRows(
@@ -56,12 +55,15 @@ extension LocalFirstActualStore {
         )
         case nil: suppressed = try await database.bankSyncSuppressedFinancialIDs(accountID: accountID)
         }
+        var options = options
+        if options.updateDates == nil {
+            options.updateDates = try await database.bankSyncUpdatesDates(accountID: accountID)
+        }
         let plan = await BankSyncReconciliation.planOffMain(
             candidates: projected,
             existing: existing,
             suppressedFinancialIDs: suppressed,
             accountIsOffBudget: accountIsOffBudget,
-            transferPayeeIDs: transferPayeeIDs,
             options: options
         )
         return ImportReconcileOutcome(plan: plan, existing: existing)
@@ -83,8 +85,22 @@ extension LocalFirstActualStore {
         builder: inout LocalFirstSyncMessageBuilder
     ) async throws -> ImportReconcileWrites {
         var writes = ImportReconcileWrites(affectedAccountIDs: [accountID])
-        for (update, existing) in updates {
+        var resolvedPayeeIDs: [String: String] = [:]
+        var knownPayees: [ActualPayee]?
+        for (planned, existing) in updates {
             try Task.checkCancellation()
+            var update = planned
+            if let name = planned.newPayeeName {
+                let payee = try await resolveReconcilePayee(
+                    named: name,
+                    resolvedPayeeIDs: &resolvedPayeeIDs,
+                    knownPayees: &knownPayees,
+                    database: database,
+                    builder: &builder
+                )
+                update.payeeID = payee.payeeID
+                writes.messages.append(contentsOf: payee.messages)
+            }
             writes.messages.append(contentsOf: try await database.makeBankSyncMatchUpdateMessages(
                 update: update,
                 existing: existing,
@@ -92,11 +108,19 @@ extension LocalFirstActualStore {
                 clearsMissingImportIdentity: !options.isBankSyncAccount,
                 builder: &builder
             ))
+            let transfer = try await database.makeBankSyncTransferConversionMessages(
+                update: update,
+                existing: existing,
+                builder: &builder
+            )
+            writes.messages.append(contentsOf: transfer.messages)
+            if let destination = transfer.destinationAccountID, let pairedID = transfer.pairedTransactionID {
+                writes.affectedAccountIDs.insert(destination)
+                writes.insertedIDsByAccount[destination, default: []].append(pairedID)
+            }
             writes.updatedCount += 1
         }
 
-        var resolvedPayeeIDs: [String: String] = [:]
-        var knownPayees: [ActualPayee]?
         for (index, candidate) in inserts.enumerated() {
             try Task.checkCancellation()
             let transactionID = UUID().uuidString
@@ -213,7 +237,24 @@ extension LocalFirstActualStore {
             return (selectedPayeeID, [])
         }
         // Splits carry no payee of their own; the parent name drives creation.
-        let name = candidate.payeeName ?? ""
+        return try await resolveReconcilePayee(
+            named: candidate.payeeName ?? "",
+            resolvedPayeeIDs: &resolvedPayeeIDs,
+            knownPayees: &knownPayees,
+            database: database,
+            builder: &builder
+        )
+    }
+
+    /// Finds the payee by case-insensitive name or creates it, once per name
+    /// for the whole import.
+    private func resolveReconcilePayee(
+        named name: String,
+        resolvedPayeeIDs: inout [String: String],
+        knownPayees: inout [ActualPayee]?,
+        database: BudgetDatabase,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) async throws -> (payeeID: String?, messages: [ActualSyncDecodedMessage]) {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return (nil, [])
         }

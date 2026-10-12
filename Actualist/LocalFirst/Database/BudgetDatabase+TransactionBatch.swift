@@ -451,7 +451,7 @@ extension BudgetDatabase {
             splitError: snapshot.splitError.flatMap { try? JSONDecoder().decode(SplitTransactionError.self, from: Data($0.utf8)) },
             scheduleID: snapshot.scheduleID,
             importedID: snapshot.importedID,
-            importedPayee: snapshot.importedPayee ?? snapshot.importedDescription
+            importedPayee: snapshot.effectiveImportedPayee
         )
     }
 
@@ -479,7 +479,7 @@ extension BudgetDatabase {
         var startingBalance = snapshot.startingBalance
         var scheduleID = snapshot.scheduleID
         var importedID = snapshot.importedID
-        var importedPayee = snapshot.importedPayee ?? snapshot.importedDescription
+        var importedPayee = snapshot.effectiveImportedPayee
 
         for message in messages {
             let value = try ActualSyncSQLiteValue(serialized: message.serializedValue)

@@ -299,7 +299,7 @@ extension LocalFirstActualStoreTests {
         #expect(imported.category == "groceries")
     }
 
-    @Test func walletRemoveNotesRuleProducesFinalNilNotes() async throws {
+    @Test func walletRemoveNotesRuleProducesFinalEmptyNotes() async throws {
         let rawPayee = "WALLET MEMO MERCHANT"
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
             CREATE TABLE rules (
@@ -354,8 +354,9 @@ extension LocalFirstActualStoreTests {
         )
         let projected = TransactionRulePreviewProjection.applying(preview, to: noteBearingDraft)
 
-        #expect(preview.notes == nil)
-        #expect(projected.notes == nil)
+        // A rule that sets notes to '' stores an empty note, as Actual does.
+        #expect(preview.notes == "")
+        #expect(projected.notes == "")
     }
 
     @Test func importWalletTransactionsPersistsRuleSplitChildrenAndParentIdentity() async throws {

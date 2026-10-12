@@ -89,8 +89,8 @@ enum BankSyncOracleReplay {
         guard projection.movedSources.isEmpty else {
             throw OracleReplayError.malformedFixture("a rule moved a replayed import to another account")
         }
-        // CSV import also matches by imported id wherever the stored row sits; Bank Sync does not.
-        let importedIDs: Set<String> = kind == "csv" ? Set(candidates.compactMap(\.financialID)) : []
+        // Both sources match by imported id wherever the stored row sits.
+        let importedIDs = Set(candidates.compactMap(\.financialID))
         let outcome = try await store.reconcileProjectedImport(
             database: database,
             accountID: accountID,
@@ -98,7 +98,6 @@ enum BankSyncOracleReplay {
             candidateDayIDs: candidates.map(\.dayID),
             importedIDs: importedIDs,
             projected: projection.candidates,
-            transferPayeeIDs: transferPayeeIDs,
             options: reconcileOptions
         )
 
@@ -128,13 +127,18 @@ enum BankSyncOracleReplay {
 
     // MARK: Options
 
-    /// The production defaults for the kind, with the call's upstream options laid over them. `updateDates`
-    /// has no Actualist counterpart and is not passed.
+    /// The production defaults for the kind, with the call's upstream options laid over them. A `simplefin`
+    /// call reads the seeded `sync-update-dates-<account>` preference, as production does; a `bank` or
+    /// `csv` call passes the option (production's file import never sets it).
     private static func reconcileOptions(kind: String, options: [String: Any]) -> ImportReconcileOptions {
         var result: ImportReconcileOptions = kind == "csv" ? .csv : .bankSync
         // A direct `bank` call is a provider whose accounts use upstream's default strict id checking.
         // Actualist has only SimpleFIN, whose accounts turn it off, so `simplefin` keeps `.bankSync`.
-        if kind == "bank" { result.strictIdChecking = true }
+        if kind == "bank" {
+            result.strictIdChecking = true
+            result.updateDates = false
+        }
+        if let updateDates = options["updateDates"] as? Bool { result.updateDates = updateDates }
         if let strict = options["strictIdChecking"] as? Bool { result.strictIdChecking = strict }
         if let reimport = options["reimportDeleted"] as? Bool { result.reimportDeleted = reimport }
         if let cleared = options["defaultCleared"] as? Bool { result.defaultCleared = cleared }
@@ -197,7 +201,8 @@ enum BankSyncOracleReplay {
                 notes: transaction["notes"] as? String,
                 categoryName: category.map { namesByID[$0] ?? $0 },
                 cleared: transaction["cleared"] as? Bool,
-                importedID: transaction["imported_id"] as? String
+                importedID: transaction["imported_id"] as? String,
+                payeeCellWasEmpty: transaction["payee_name"] as? String == ""
             )
         }
     }
@@ -312,7 +317,7 @@ enum BankSyncOracleReplay {
         var messages = writes.messages
         if let currentBalance {
             // Bank Sync's first-sync step: the account's first sync writes a Starting Balance row.
-            let hadLiveTransactions = try await database.bankSyncOldestLiveTransactionDayID(accountID: accountID) != nil
+            let hadLiveTransactions = try await database.bankSyncOldestLiveTransactionDayID(accountID: accountID, todayDayID: "20261015") != nil
             if let opening = BankSyncReconciliation.openingBalance(
                 currentBalanceMinorUnits: currentBalance,
                 inserts: outcome.plan.inserts,

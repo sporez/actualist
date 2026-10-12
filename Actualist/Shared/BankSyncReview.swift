@@ -67,6 +67,8 @@ enum BankSyncReview {
             case bankIDAttached
             case bankIDReplaced
             case payee
+            case newPayee
+            case date
             case category
             case bankPayee
             case notes

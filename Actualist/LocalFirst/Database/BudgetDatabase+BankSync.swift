@@ -203,8 +203,12 @@ extension BudgetDatabase {
     }
 
     /// Oldest live transaction day for the account (`YYYYMMDD`), for the
-    /// sync lookback start. `nil` when the account has no live rows.
-    func bankSyncOldestLiveTransactionDayID(accountID: String) throws -> String? {
+    /// sync lookback start. `nil` when the account has no live rows. Rows dated
+    /// after `todayDayID` are ignored (`getAccountOldestTransaction`, sync.ts).
+    func bankSyncOldestLiveTransactionDayID(
+        accountID: String,
+        todayDayID: String = BankSyncAmounts.dayID(fromUnixSeconds: Int64(Date().timeIntervalSince1970))
+    ) throws -> String? {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else { return nil }
             let columns = try columnSet(for: "transactions", db: db)
@@ -213,9 +217,9 @@ extension BudgetDatabase {
                 db,
                 sql: """
                     SELECT MIN(date) FROM transactions
-                    WHERE \(split.account) = ? AND \(predicateForLiveRows(columns: columns))
+                    WHERE \(split.account) = ? AND \(predicateForLiveRows(columns: columns)) AND date <= ?
                     """,
-                arguments: [accountID]
+                arguments: [accountID, Int(todayDayID)]
             )
             return oldest.map(String.init)
         }
@@ -375,6 +379,11 @@ extension BudgetDatabase {
                 )
             )
         }
+    }
+
+    /// `sync-update-dates-<account>`; upstream defaults a missing preference to off.
+    func bankSyncUpdatesDates(accountID: String) throws -> Bool {
+        try queue.read { db in try preferenceValue("sync-update-dates-\(accountID)", db: db) == "true" }
     }
 
     /// Actual 26.9.0 matchTransactions defaults a missing preference to true.
@@ -630,12 +639,49 @@ extension BudgetDatabase {
             if columns.contains("cleared") {
                 try appendIfChanged("cleared", .bool(update.cleared), changed: update.cleared != existing.cleared)
             }
+            if let dayID = update.dayID, let packed = Int64(dayID) {
+                try appendIfChanged("date", .int(packed), changed: dayID != existing.dayID)
+                for childID in update.dateChildIDs {
+                    messages.append(try builder.makeMessage(
+                        dataset: "transactions", row: childID, column: "date", value: .int(packed)
+                    ))
+                }
+            }
             for childID in update.childIDs where columns.contains("cleared") {
                 messages.append(try builder.makeMessage(
                     dataset: "transactions", row: childID, column: "cleared", value: .bool(update.cleared)
                 ))
             }
             return messages
+        }
+    }
+
+    /// A matched plain row that took a transfer payee becomes a transfer: the
+    /// paired leg and the link (`transfer.ts` `onUpdate`), through the shared
+    /// transfer writer. Empty when the payee is not a transfer payee or the row
+    /// is already a transfer or a split parent.
+    func makeBankSyncTransferConversionMessages(
+        update: BankSyncReconciliation.MatchedUpdate,
+        existing: BankSyncReconciliation.Existing,
+        builder: inout LocalFirstSyncMessageBuilder
+    ) throws -> (messages: [ActualSyncDecodedMessage], destinationAccountID: String?, pairedTransactionID: String?) {
+        try queue.read { db in
+            guard !existing.isTransfer, !existing.isParent, let payeeID = update.payeeID, payeeID != existing.payeeID,
+                  try transferAccountID(ifPayee: payeeID, db: db) != nil else { return ([], nil, nil) }
+            let columns = try resolveTransactionRowColumns(db: db)
+            guard var old = try loadTransactionRecord(id: update.existingID, columns: columns, db: db) else {
+                return ([], nil, nil)
+            }
+            // The pair mirrors the row as updated: the update's category, notes and date.
+            old.category = update.categoryID ?? old.category
+            old.notes = update.notes ?? old.notes
+            if let dayID = update.dayID {
+                old.date = "\(dayID.prefix(4))-\(dayID.dropFirst(4).prefix(2))-\(dayID.suffix(2))"
+            }
+            var new = old
+            new.payee = payeeID
+            let result = try transferMessagesOnUpdate(old: old, new: new, columns: columns, db: db, builder: &builder)
+            return (result.messages, result.accounts.first, result.transactions.first)
         }
     }
 

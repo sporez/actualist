@@ -329,8 +329,8 @@ struct BankSyncReconcilerTests: BankSyncReconcilerFixtures {
         #expect(insertIDs(plan).count == 1)
     }
 
-    @Test func deleteRuleDropsCandidate() {
-        let projected = BankSyncReconciliation.applyingRulePreview(
+    @Test func deleteRuleMarksCandidateButKeepsItForMatching() throws {
+        let projected = try #require(BankSyncReconciliation.applyingRulePreview(
             TransactionRulePreview(
                 categoryID: nil,
                 notes: nil,
@@ -343,8 +343,9 @@ struct BankSyncReconcilerTests: BankSyncReconcilerFixtures {
                 splits: []
             ),
             to: candidate()
-        )
-        #expect(projected == nil)
+        ))
+        #expect(projected.deletedByRule)
+        #expect(BankSyncReconciliation.plan(candidates: [projected], existing: []).entries.isEmpty)
     }
 
     @Test func matchedTransferDoesNotTakeCandidateCategory() {
@@ -505,23 +506,71 @@ struct BankSyncReconcilerTests: BankSyncReconcilerFixtures {
         #expect(projected?.splits.first?.notes == .value("child-a"))
     }
 
-    @Test func matchedOrdinaryDoesNotTakeTransferPayee() {
+    @Test func matchedPayeelessRowTakesTransferPayeeForTheWriterToConvert() {
         let plan = BankSyncReconciliation.plan(
             candidates: [candidate(id: "fin-1", payee: "xfer-checking", cleared: true)],
-            existing: [existing(id: "row", payee: nil, cleared: false)],
-            transferPayeeIDs: ["xfer-checking"]
+            existing: [existing(id: "row", payee: nil, cleared: false)]
         )
         let matched = update(for: "row", plan)
-        #expect(matched?.payeeID == nil)
+        #expect(matched?.payeeID == "xfer-checking")
+        #expect(matched?.newPayeeName == nil)
         #expect(matched?.financialID == "fin-1")
         #expect(matched?.cleared == true)
+    }
+
+    @Test func matchedPayeelessRowCarriesTheDownloadsNewPayeeName() {
+        var download = candidate(id: "fin-1", payee: nil)
+        download.payeeName = "Corner Cafe"
+        let plan = BankSyncReconciliation.plan(
+            candidates: [download],
+            existing: [existing(id: "row", payee: nil), existing(id: "named", day: "20240302", payee: "payee-a")]
+        )
+        #expect(update(for: "row", plan)?.newPayeeName == "Corner Cafe")
+        #expect(update(for: "row", plan)?.payeeID == nil)
+    }
+
+    @Test func updateDatesMovesTheMatchedRowAndItsSplitChildren() {
+        var options = ImportReconcileOptions.bankSync
+        options.updateDates = true
+        let plan = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", day: "20240305")],
+            existing: [
+                existing(id: "parent", financialID: "fin-1", day: "20240301", isParent: true),
+                existing(id: "kid", day: "20240301", isChild: true, parentID: "parent"),
+                existing(id: "kid-same", day: "20240305", isChild: true, parentID: "parent")
+            ],
+            options: options
+        )
+        let matched = update(for: "parent", plan)
+        #expect(matched?.dayID == "20240305")
+        #expect(matched?.dateChildIDs == ["kid"])
+    }
+
+    @Test func dateIsLeftAloneWithoutUpdateDatesAndOnReconciledRows() {
+        let off = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", day: "20240305", cleared: true)],
+            existing: [existing(id: "row", financialID: "fin-1", day: "20240301", cleared: false)],
+            options: ImportReconcileOptions(
+                isBankSyncAccount: true, strictIdChecking: false, reimportDeleted: nil,
+                defaultCleared: true, payeeNameNormalization: .original, updateDates: false
+            )
+        )
+        #expect(update(for: "row", off)?.dayID == nil)
+
+        var on = ImportReconcileOptions.bankSync
+        on.updateDates = true
+        let locked = BankSyncReconciliation.plan(
+            candidates: [candidate(id: "fin-1", day: "20240305")],
+            existing: [existing(id: "row", financialID: "fin-1", day: "20240301", reconciled: true)],
+            options: on
+        )
+        #expect(update(for: "row", locked) == nil)
     }
 
     @Test func matchedTransferKeepsExistingPayeeAgainstCandidate() {
         let plan = BankSyncReconciliation.plan(
             candidates: [candidate(id: "fin-1", payee: "coffee")],
-            existing: [existing(id: "xfer", payee: "xfer-checking", transferID: "xfer-dst")],
-            transferPayeeIDs: ["xfer-checking"]
+            existing: [existing(id: "xfer", payee: "xfer-checking", transferID: "xfer-dst")]
         )
         let matched = update(for: "xfer", plan)
         #expect(matched?.payeeID == "xfer-checking")

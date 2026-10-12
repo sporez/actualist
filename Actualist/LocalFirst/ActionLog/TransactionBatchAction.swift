@@ -40,6 +40,10 @@ struct TransactionBatchTransactionSnapshot: Codable, Equatable, Sendable {
     let importedPayee: String?
     let importedDescription: String?
 
+    /// An Actual budget stores the imported payee in `imported_description`;
+    /// `imported_payee` is the other spelling some schemas use.
+    var effectiveImportedPayee: String? { importedPayee ?? importedDescription }
+
     func matches(_ other: TransactionBatchTransactionSnapshot) -> Bool {
         id == other.id
             && columns == other.columns

@@ -293,7 +293,7 @@ extension LocalFirstActualStoreTests {
         #expect(created.schedule == "internet-sched")
     }
 
-    @Test func completedScheduleRuleDoesNotBlockPayeeDeletionOrExecute() async throws {
+    @Test func completedScheduleRuleDoesNotBlockPayeeDeletionAndStillRuns() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
             ALTER TABLE transactions ADD COLUMN schedule TEXT;
             CREATE TABLE rules (
@@ -337,6 +337,7 @@ extension LocalFirstActualStoreTests {
             ),
             budgetID: "group-1"
         )
-        #expect(preview.scheduleID == nil)
+        // Rules of completed schedules still run, as in Actual (OP-45).
+        #expect(preview.scheduleID == "done-sched")
     }
 }

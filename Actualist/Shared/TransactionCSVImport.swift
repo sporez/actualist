@@ -23,6 +23,9 @@ struct TransactionCSVImportRow: Identifiable, Hashable, Sendable {
     /// nil when the file carries no Cleared value for the row.
     let cleared: Bool?
     let importedID: String?
+    /// The file has a Payee cell and it is exactly empty. Upstream stores that
+    /// as an empty imported payee; an absent or whitespace-only cell is null.
+    var payeeCellWasEmpty = false
 }
 
 enum TransactionCSVImportRowError: Error, Equatable {
@@ -175,7 +178,8 @@ enum TransactionCSVImportMapper {
                 notes: notes,
                 categoryName: categoryName,
                 cleared: cleared,
-                importedID: importedID
+                importedID: importedID,
+                payeeCellWasEmpty: payeeRaw == ""
             ))
         }
         return rows

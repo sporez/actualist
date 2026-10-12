@@ -32,7 +32,8 @@ enum TransactionCSVImportCandidates {
         options: ImportReconcileOptions
     ) -> BankSyncReconciliation.Candidate {
         // `normalizeTransactions`: the payee name is trimmed and normalized,
-        // an empty one is a null payee, and imported_payee is that same text.
+        // an empty one is a null payee, and imported_payee is that same text
+        // ('' for an exactly empty cell, as upstream stores it).
         let payeeName = row.payeeName.isEmpty ? nil : options.payeeNameNormalization.normalize(row.payeeName)
         return BankSyncReconciliation.Candidate(
             financialID: row.importedID.flatMap { $0.isEmpty ? nil : $0 },
@@ -44,7 +45,7 @@ enum TransactionCSVImportCandidates {
             notes: row.notes,
             categoryID: row.categoryName.flatMap { lookup.categoryIDByName[$0.lowercased()] },
             cleared: row.cleared ?? false,
-            importedPayee: payeeName,
+            importedPayee: payeeName ?? (row.payeeCellWasEmpty ? "" : nil),
             clearedIsExplicit: row.cleared != nil
         )
     }

@@ -502,10 +502,10 @@ enum TransactionMergePlanner {
         if isTruthy(first.importedID), !isTruthy(second.importedID) {
             return PairMerge(keptID: first.id, droppedID: second.id)
         }
-        if isTruthy(second.importedPayee), !isTruthy(first.importedPayee) {
+        if isTruthy(second.effectiveImportedPayee), !isTruthy(first.effectiveImportedPayee) {
             return PairMerge(keptID: second.id, droppedID: first.id)
         }
-        if isTruthy(first.importedPayee), !isTruthy(second.importedPayee) {
+        if isTruthy(first.effectiveImportedPayee), !isTruthy(second.effectiveImportedPayee) {
             return PairMerge(keptID: first.id, droppedID: second.id)
         }
         guard let firstDate = first.dateValue, let secondDate = second.dateValue else {

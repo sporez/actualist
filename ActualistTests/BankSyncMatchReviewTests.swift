@@ -52,4 +52,28 @@ struct BankSyncMatchReviewTests {
             .init(field: .splitChildrenCleared, oldValue: nil, newValue: "2")
         ])
     }
+
+    @Test func detailsListANewPayeeAndAMovedDate() throws {
+        let existing = BankSyncReconciliation.Existing(
+            id: "local-1", financialID: "bank-1", dayID: "20261007", amountMinorUnits: -1_500,
+            payeeID: nil, categoryID: nil, notes: nil, cleared: true, reconciled: false,
+            importedPayee: "Market", isParent: false, isChild: false, parentID: nil, transferID: nil
+        )
+        let update = BankSyncReconciliation.MatchedUpdate(
+            existingID: "local-1", financialID: "bank-1", payeeID: nil, categoryID: nil,
+            importedPayee: "Market", notes: nil, cleared: true, childIDs: [],
+            dayID: "20261010", newPayeeName: "Corner Market"
+        )
+        let detail = try #require(BankSyncMatchReview.details(
+            updates: [update], existing: [existing], payeeNames: [:], categoryNames: [:]
+        ).first)
+        #expect(detail.changes == [
+            .init(field: .newPayee, oldValue: nil, newValue: "Corner Market"),
+            .init(field: .date, oldValue: "20261007", newValue: "20261010")
+        ])
+        #expect(detail.changes.map(BankSyncCopy.matchChangeText) == [
+            "Payee: None → Corner Market (new payee)",
+            "Date: \(BankSyncCopy.dayText("20261007")) → \(BankSyncCopy.dayText("20261010"))"
+        ])
+    }
 }

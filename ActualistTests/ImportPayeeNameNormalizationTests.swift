@@ -36,7 +36,7 @@ struct ImportPayeeNameNormalizationTests {
         #expect(ImportReconcileOptions.csv == ImportReconcileOptions(
             isBankSyncAccount: false,
             strictIdChecking: true,
-            reimportDeleted: true,
+            reimportDeleted: nil,
             defaultCleared: true,
             payeeNameNormalization: .titleCase
         ))

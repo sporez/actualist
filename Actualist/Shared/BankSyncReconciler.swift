@@ -6,8 +6,9 @@ import Foundation
 ///
 /// No I/O: callers hand in the normalized, rule-projected download
 /// candidates and the account's live local rows. Bank Sync runs with
-/// `ImportReconcileOptions.bankSync` (not strict) and does not rewrite dates
-/// (no date cascade); CSV import runs the same reconcile with its own options.
+/// `ImportReconcileOptions.bankSync` (not strict), which rewrites dates only
+/// when the account's update-dates preference is on; CSV import runs the same
+/// reconcile with its own options.
 ///
 /// Match-window contract: `existing` carries the account's live rows in the
 /// ±7-day window (`v_transactions` semantics — valid split children
@@ -42,6 +43,10 @@ enum BankSyncReconciliation {
         /// insert takes `ImportReconcileOptions.defaultCleared` instead
         /// (`trans.cleared ?? defaultCleared`, sync.ts).
         var clearedIsExplicit = true
+        /// A delete-transaction rule matched. The row still takes part in
+        /// matching and updates the row it matches, but is never inserted
+        /// (`trans.tombstone`, sync.ts).
+        var deletedByRule = false
 
         struct Split: Equatable, Sendable {
             var categoryID: String?
@@ -91,7 +96,9 @@ enum BankSyncReconciliation {
     struct MatchedUpdate: Equatable, Sendable {
         let existingID: String
         let financialID: String?
-        let payeeID: String?
+        /// A transfer payee on a plain row converts it into a transfer; the
+        /// writer creates the paired leg.
+        var payeeID: String?
         let categoryID: String?
         let importedPayee: String?
         let notes: String?
@@ -100,6 +107,14 @@ enum BankSyncReconciliation {
         /// same cleared value. Travels with the parent match; not a separate
         /// review section.
         let childIDs: [String]
+        /// The download's day, when `updateDates` moves a matched row. Nil
+        /// leaves the date alone.
+        var dayID: String? = nil
+        /// Live children of a matched split parent that move to `dayID` with it.
+        var dateChildIDs: [String] = []
+        /// Download payee name with no payee yet; the writer finds or creates
+        /// it and sets it as `payeeID` (`existing.payee || trans.payee`).
+        var newPayeeName: String? = nil
     }
 
     enum Entry: Equatable, Sendable {
@@ -137,7 +152,6 @@ enum BankSyncReconciliation {
         existing: [Existing],
         suppressedFinancialIDs: Set<String>,
         accountIsOffBudget: Bool,
-        transferPayeeIDs: Set<String>,
         options: ImportReconcileOptions
     ) async -> Plan {
         #if DEBUG
@@ -148,7 +162,6 @@ enum BankSyncReconciliation {
             existing: existing,
             suppressedFinancialIDs: suppressedFinancialIDs,
             accountIsOffBudget: accountIsOffBudget,
-            transferPayeeIDs: transferPayeeIDs,
             options: options
         )
     }
@@ -164,7 +177,6 @@ enum BankSyncReconciliation {
         existing: [Existing],
         suppressedFinancialIDs: Set<String> = [],
         accountIsOffBudget: Bool = false,
-        transferPayeeIDs: Set<String> = [],
         options: ImportReconcileOptions = .bankSync
     ) -> Plan {
         #if DEBUG
@@ -245,6 +257,8 @@ enum BankSyncReconciliation {
             let candidate = step.candidate
             guard let matchID = step.matchedID ?? matches[index],
                   let row = existingByID[matchID] else {
+                // A rule-deleted download that matched nothing is not inserted.
+                if candidate.deletedByRule { continue }
                 entries.append(.insert(
                     accountIsOffBudget ? withoutBudgetCategory(candidate) : candidate
                 ))
@@ -260,23 +274,29 @@ enum BankSyncReconciliation {
             }
 
             let existingNotes = row.notes?.isEmpty == false ? row.notes : nil
+            let payeeID = mergedPayeeID(existing: row, candidate: candidate)
+            let newPayeeName = payeeID == nil && !row.isTransfer
+                ? candidate.payeeName.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+                : nil
+            let movedDayID = options.updateDates == true && candidate.dayID != row.dayID ? candidate.dayID : nil
             let update = MatchedUpdate(
                 existingID: row.id,
                 financialID: candidate.financialID,
-                payeeID: mergedPayeeID(
-                    existing: row,
-                    candidate: candidate,
-                    transferPayeeIDs: transferPayeeIDs
-                ),
+                payeeID: payeeID,
                 categoryID: mergedCategoryID(
                     existing: row,
                     candidate: candidate,
                     accountIsOffBudget: accountIsOffBudget
                 ),
-                importedPayee: candidate.importedPayee,
-                notes: existingNotes ?? candidate.notes,
+                // `imported_payee: trans.imported_payee || null`: '' updates as null.
+                importedPayee: candidate.importedPayee.flatMap { $0.isEmpty ? nil : $0 },
+                // `notes: existing.notes || trans.notes || null`: a rule's '' writes nothing.
+                notes: existingNotes ?? candidate.notes.flatMap { $0.isEmpty ? nil : $0 },
                 cleared: row.cleared || candidate.cleared,
-                childIDs: childIDsForClearCascade(of: row, in: existing, cleared: row.cleared || candidate.cleared)
+                childIDs: childIDsForClearCascade(of: row, in: existing, cleared: row.cleared || candidate.cleared),
+                dayID: movedDayID,
+                dateChildIDs: movedDayID.map { childIDsForDateCascade(of: row, in: existing, dayID: $0) } ?? [],
+                newPayeeName: newPayeeName
             )
             // loot-core hasFieldsChanged: a match that would write nothing is
             // reported as unchanged, not as an update.
@@ -285,7 +305,9 @@ enum BankSyncReconciliation {
                update.categoryID == row.categoryID,
                update.importedPayee == row.importedPayee,
                update.notes == existingNotes,
-               update.cleared == row.cleared {
+               update.cleared == row.cleared,
+               update.dayID == nil,
+               update.newPayeeName == nil {
                 entries.append(.unchanged(existingID: row.id))
             } else {
                 entries.append(.update(update))
@@ -346,21 +368,18 @@ enum BankSyncReconciliation {
             .map(\.id)
     }
 
-    /// Existing transfers keep their payee. A rule must not turn a normal
-    /// matched row into a half-transfer by filling a transfer payee with no pair.
-    private static func mergedPayeeID(
-        existing row: Existing,
-        candidate: Candidate,
-        transferPayeeIDs: Set<String>
-    ) -> String? {
-        if row.isTransfer {
-            return row.payeeID
-        }
-        let proposed = row.payeeID ?? candidate.payeeID
-        if let proposed, transferPayeeIDs.contains(proposed) {
-            return row.payeeID
-        }
-        return proposed
+    /// Date cascade (`reconcileTransactions`): a matched parent that moves takes
+    /// its live children along.
+    private static func childIDsForDateCascade(of row: Existing, in existing: [Existing], dayID: String) -> [String] {
+        guard row.isParent else { return [] }
+        return existing.filter { $0.isChild && $0.parentID == row.id && $0.dayID != dayID }.map(\.id)
+    }
+
+    /// `existing.payee || trans.payee`. Existing transfers keep their payee. A
+    /// transfer payee filled onto a plain row is allowed: the writer turns that
+    /// row into a transfer with its paired leg (`transfer.ts` `onUpdate`).
+    private static func mergedPayeeID(existing row: Existing, candidate: Candidate) -> String? {
+        row.isTransfer ? row.payeeID : row.payeeID ?? candidate.payeeID
     }
 
     /// Transfers keep their existing category, including nil. Off-budget
@@ -399,7 +418,7 @@ enum BankSyncReconciliation {
 
     /// Projects one candidate through a rule preview *before* matching
     /// (loot-core runs rules on `transactionsStep1`). A delete-transaction
-    /// rule drops the candidate (returns nil). Mirrors wallet import's
+    /// rule marks the candidate `deletedByRule`. Mirrors wallet import's
     /// preview application: rule-driven splits turn the candidate into a
     /// split parent.
     static func applyingRulePreview(
@@ -407,10 +426,8 @@ enum BankSyncReconciliation {
         to candidate: Candidate,
         accountIsOffBudget: Bool = false
     ) -> Candidate? {
-        if preview.deletesTransaction {
-            return nil
-        }
         var projected = candidate
+        projected.deletedByRule = preview.deletesTransaction
         projected.payeeID = preview.clearsPayee ? nil : preview.payeeID ?? projected.payeeID
         projected.amountMinorUnits = preview.amountMinorUnits ?? projected.amountMinorUnits
         if let date = preview.date {

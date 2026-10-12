@@ -134,7 +134,6 @@ struct ImportReconcileEquivalenceTests {
             candidates: TransactionCSVImportCandidates.candidates(rows: rows, lookup: lookup, options: options),
             existing: existing,
             accountIsOffBudget: offBudget,
-            transferPayeeIDs: lookup.transferPayeeIDs,
             options: options
         )
         var outcomes = [Outcome?](repeating: nil, count: rows.count)
@@ -283,11 +282,11 @@ struct ImportReconcileEquivalenceTests {
         )
     }
 
-    @Test func nilPayeeIsNotFilledWithATransferPayee() {
+    @Test func nilPayeeTakesATransferPayeeAndTheWriterConvertsTheRow() {
         expectOutcomes(
             [row("r1", payee: "To Savings", amount: -1_234)],
             [existing(id: "e1", payeeID: nil, importedPayee: "Sample Market", amount: -1_234)],
-            [.update(id: "e1", fill(importedPayee: "To Savings"))]
+            [.update(id: "e1", fill(payee: "payee-transfer", importedPayee: "To Savings"))]
         )
     }
 
@@ -428,7 +427,6 @@ struct ImportReconcileEquivalenceTests {
             candidates: TransactionCSVImportCandidates.candidates(rows: rows, lookup: Self.lookup, options: options),
             existing: [existing(id: "e1", importedPayee: "Sample Market")],
             suppressedFinancialIDs: [],
-            transferPayeeIDs: Self.lookup.transferPayeeIDs,
             options: options
         )
         #expect(plan.entries.count == 3)
@@ -524,13 +522,12 @@ struct ImportReconcileEquivalenceTests {
                 #expect(stored != nil && stored?.reconciled == false, "seed \(seed) row \(row.id)")
                 if let stored {
                     // Guards: a transfer leg, split parent or off-budget row never takes a category;
-                    // a transfer payee never lands on a non-transfer row; a stored payee is kept.
+                    // a stored payee is kept; a transfer payee may land on a plain row, which the writer converts.
                     if stored.isTransfer || stored.isParent || offBudget {
                         #expect(fill.categoryID == nil, "seed \(seed) row \(row.id)")
                     }
                     if let payee = fill.payeeID {
-                        #expect(stored.payeeID == nil && !stored.isTransfer
-                            && !Self.lookup.transferPayeeIDs.contains(payee), "seed \(seed) row \(row.id)")
+                        #expect(stored.payeeID == nil && !stored.isTransfer, "seed \(seed) row \(row.id)")
                     }
                     #expect(fill.categoryID == nil || stored.categoryID == nil, "seed \(seed) row \(row.id)")
                     #expect(fill.notes == nil || stored.notes == nil, "seed \(seed) row \(row.id)")

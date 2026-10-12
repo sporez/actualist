@@ -57,7 +57,6 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             candidateDayIDs: candidates.map(\.dayID),
             importedIDs: Set(candidates.compactMap(\.financialID)),
             projected: projection.candidates,
-            transferPayeeIDs: transferPayeeIDs,
             options: options
         )
 
@@ -184,7 +183,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             case .unchanged(let id):
                 outcomes[rowIndex] = existingByID[id]?.reconciled == true ? .reconciled : .unchanged
             case .skippedDeleted:
-                // CSV re-imports deleted rows (reimportDeleted: true), so no id is suppressed.
+                // The account's reimport-deleted preference suppressed this deleted row's id.
                 outcomes[rowIndex] = .unchanged
             }
         }

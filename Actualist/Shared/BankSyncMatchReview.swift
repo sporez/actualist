@@ -45,6 +45,12 @@ enum BankSyncMatchReview {
                 newValue: payeeNames[payeeID] ?? "Unknown payee"
             ))
         }
+        if let name = update.newPayeeName {
+            changes.append(.init(field: .newPayee, oldValue: nil, newValue: name))
+        }
+        if let dayID = update.dayID, dayID != row.dayID {
+            changes.append(.init(field: .date, oldValue: row.dayID, newValue: dayID))
+        }
         if let categoryID = update.categoryID, categoryID != row.categoryID {
             changes.append(.init(
                 field: .category,
