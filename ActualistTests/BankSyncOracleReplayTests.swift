@@ -127,7 +127,7 @@ struct BankSyncOracleReplayTests {
             }
         }
         if !op64.isEmpty {
-            withKnownIssue("OP-64: a delete-transaction rule is skipped (same cause as OP-37), so its download is imported") {
+            withKnownIssue("OP-64: a rule-deleted download is dropped before matching, where the oracle matches it, deletes the matched row, and counts it in the opening balance") {
                 #expect(op64.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op64)))
             }
         }
@@ -250,8 +250,8 @@ struct BankSyncOracleReplayTests {
     ]
 
     private static let op64Paths: [String: Set<String>] = [
-        "named-opening-balance-rule-deletes-row": ["payees.new-payee:Noise", "result.addedCount", "transactions.new-2.amount", "transactions.new-2.category", "transactions.new-2.imported_id", "transactions.new-2.imported_payee", "transactions.new-2.payee", "transactions.new-2.starting_balance_flag", "transactions.new-3"],
-        "named-rule-delete-transaction-commit": ["payees.new-payee:Noise", "result.addedCount", "transactions.new-1.amount", "transactions.new-1.date", "transactions.new-1.imported_payee", "transactions.new-1.payee", "transactions.new-2"],
+        "named-opening-balance-rule-deletes-row": ["transactions.new-2.amount"],
+        "named-rule-delete-transaction": ["result.updated"],
     ]
 
     private static let op65Paths: [String: Set<String>] = [

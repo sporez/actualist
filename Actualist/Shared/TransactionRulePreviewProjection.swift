@@ -9,7 +9,7 @@ enum TransactionRulePreviewProjection {
             accountID: preview.accountID ?? draft.accountID,
             date: preview.date ?? draft.date,
             amountMinorUnits: preview.amountMinorUnits ?? draft.amountMinorUnits,
-            payeeID: preview.payeeID ?? draft.payeeID,
+            payeeID: preview.clearsPayee ? nil : preview.payeeID ?? draft.payeeID,
             payeeName: draft.payeeName,
             categoryID: preview.splits.isEmpty ? preview.categoryID : nil,
             // Rule preview carries the final nullable notes value. Nil means

@@ -269,7 +269,8 @@ struct RuleConditionEvaluatorTests {
         #expect(action.editorField == "payee")
         #expect(action.canRoundTripAndEvaluate)
         #expect(result.payeeID == "market")
-        #expect(result.payeeName == "Neighborhood Market")
+        // payee_name is read once before any rule runs, so it keeps the original payee's name (Actual).
+        #expect(result.payeeName == "Coffee Shop")
     }
 
     @Test func everySupportedConditionOperatorHasAnExecutableFixture() {
@@ -346,7 +347,7 @@ struct RuleConditionEvaluatorTests {
                 conditions: [
                     .init(field: "account", operation: "offBudget", value: .null, type: "id"),
                     .init(field: "category_group", operation: "is", value: .string("everyday"), type: "id"),
-                    .init(field: "payee_name", operation: "is", value: .string("Neighborhood Market"), type: "string")
+                    .init(field: "payee_name", operation: "is", value: .string("Coffee Shop"), type: "string")
                 ],
                 actions: [.init(operation: "append-notes", value: .string(" matched"))]
             )

@@ -66,7 +66,7 @@ struct RuleScheduleRuntimeTests {
         #expect(result.notes == "start")
     }
 
-    @Test func completedTombstonedAndMissingSchedulesDoNotForceExecute() {
+    @Test func completedAndMissingSchedulesDoNotForceExecuteButTheirRulesAreOrdinaryRules() {
         let noteAction = RuleAction(operation: "set", field: "notes", value: .string("ran"))
         let completed = scheduleOwnedRule(
             id: "completed-rule",
@@ -108,17 +108,31 @@ struct RuleScheduleRuntimeTests {
             schedules: schedules
         )
 
-        #expect(completedResult.notes == "start")
-        #expect(tombstonedResult.notes == "start")
+        // With no schedule attached, a rule linked to a completed schedule is an ordinary rule (Actual).
+        #expect(completedResult.notes == "ran")
+        #expect(tombstonedResult.notes == "ran")
         #expect(missingResult.notes == "start")
         #expect(missingResult.scheduleID == "missing-sched")
+
+        // A transaction that came from another schedule still skips rules linked to completed ones.
+        var attachedToOther = makeContext(date: date("2026-08-11"))
+        attachedToOther.scheduleID = "other-sched"
+        let skipped = RuleConditionEvaluator.applying(
+            [completed],
+            to: attachedToOther,
+            schedules: RuleScheduleIndex(
+                ruleIDByScheduleID: ["other-sched": "other-rule"],
+                completedRuleIDs: ["completed-rule"]
+            )
+        )
+        #expect(skipped.notes == "start")
     }
 
     @Test func unsupportedSiblingActionBlocksEveryActionIncludingLinkSchedule() {
         let rule = scheduleOwnedRule(
             id: ruleA,
             scheduleID: scheduleA,
-            extraActions: [RuleAction(operation: "delete-transaction", value: .string(""))]
+            extraActions: [RuleAction(operation: "set", field: "unsupported-field", value: .string("x"))]
         )
 
         let result = RuleConditionEvaluator.applying(

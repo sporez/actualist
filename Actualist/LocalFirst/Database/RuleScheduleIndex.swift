@@ -27,9 +27,11 @@ struct RuleScheduleIndex: Hashable, Sendable {
     }
 
     func shouldSkip(ruleID: String, attachedRuleID: String?) -> Bool {
-        if completedRuleIDs.contains(ruleID) { return true }
+        // Actual only skips schedule-linked rules (completed ones included) for a transaction that came
+        // from a schedule; otherwise a rule linked to a completed schedule is an ordinary rule.
         guard let attachedRuleID else { return false }
-        return ruleID != attachedRuleID && liveLinkedRuleIDs.contains(ruleID)
+        return ruleID != attachedRuleID
+            && (liveLinkedRuleIDs.contains(ruleID) || completedRuleIDs.contains(ruleID))
     }
 }
 

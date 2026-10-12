@@ -12,7 +12,7 @@ struct RuleConditionEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             RuleMenuPickerRow("Field", selection: editorFieldBinding) {
-                ForEach(RuleCondition.editableFields, id: \.value) { Text($0.name).tag($0.value) }
+                ForEach(RuleCondition.fieldChoices(including: condition.editorField), id: \.value) { Text($0.name).tag($0.value) }
             }
             RuleMenuPickerRow("Comparison", selection: $condition.operation) {
                 ForEach(operations, id: \.self) { Text(RulePresentation.operationName($0)).tag($0) }

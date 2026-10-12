@@ -12,7 +12,7 @@ enum RulePresentation {
 
     static func fieldName(_ field: String) -> String {
         let editorField = presentationField(field)
-        return RuleCondition.editableFields.first { $0.value == editorField }?.name ?? "Unsupported field"
+        return (RuleCondition.editableFields + RuleCondition.legacyFields).first { $0.value == editorField }?.name ?? "Unsupported field"
     }
 
     static func operationName(_ operation: String) -> String {

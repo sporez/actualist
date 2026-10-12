@@ -233,7 +233,7 @@ enum RuleSplitActionExecutor {
             case "amount":
                 guard let number = result.number else { return .failedClosed }
                 return .ok(.number(number))
-            case "notes", "payee", "category", "account", "date":
+            case "notes", "payee", "category", "account", "acct", "date":
                 switch result {
                 case .string(let text): return .ok(.string(text))
                 case .number(let number): return .ok(.string(String(Int(number))))
@@ -252,7 +252,7 @@ enum RuleSplitActionExecutor {
 
     private static func assign(field: String?, value: RuleJSONValue, to record: inout SplitTransactionRecord) {
         switch field {
-        case "account":
+        case "account", "acct":
             if case .string(let account) = value { record.account = account }
         case "amount":
             if let amount = integerAmount(value) { record.amount = amount }
@@ -319,7 +319,8 @@ enum RuleSplitActionExecutor {
             sortOrder: context.sortOrder,
             isParent: context.isParent,
             isChild: context.isChild,
-            parentID: context.parentID
+            parentID: context.parentID,
+            deleted: context.deletesTransaction
         )
     }
 

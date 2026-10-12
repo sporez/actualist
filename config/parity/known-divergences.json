@@ -835,155 +835,6 @@
     },
     {
       "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "gen-action-set-account",
-        "gen-action-set-account-offbudget",
-        "set-account-and-date-and-amount"
-      ],
-      "id": "OP-36",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "A set-account action is not recognised, so the whole rule is skipped: Actual stores the field as acct, and Actualist only accepts account. The rule's other actions are lost, and later rules that read the account see the old one. Cause: RuleAction.editorField/canRoundTripAndEvaluate (RuleRepository.swift:382-401) map only description to payee, so RuleConditionEvaluator.apply's account branch (RuleConditionEvaluator.swift:303) is unreachable for acct; conditions do map acct via RulePresentation.presentationField."
-    },
-    {
-      "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "delete-transaction-then-later-rules",
-        "gen-action-delete-transaction"
-      ],
-      "id": "OP-37",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "A delete-transaction action does not execute: Actual writes it as {op} with no value key, and Actualist's RuleAction requires one, so the rule fails to decode and the whole rule is skipped. Cause: RuleRepository.swift:156 (non-optional value in a synthesized Decodable), decoded with try? at BudgetDatabase+Rules.swift:223-225."
-    },
-    {
-      "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "gen-action-clear-notes-empty",
-        "notes-set-null-and-empty"
-      ],
-      "id": "OP-38",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "A set-notes action with an empty string stores nil, where the pinned Actual stores an empty string. Cause: stringOrNil (RuleConditionEvaluator.swift:341-344) maps empty to nil for every set action's text value."
-    },
-    {
-      "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "date-recurring-schedule-style-value",
-        "gen-cond-date-is-recur-1",
-        "gen-cond-date-is-recur-2",
-        "gen-cond-date-is-recur-biweekly-1",
-        "gen-cond-date-is-recur-biweekly-2",
-        "gen-cond-date-is-recur-ended-1",
-        "gen-cond-date-is-recur-ended-2",
-        "gen-cond-date-is-recur-skip-weekend-1",
-        "gen-cond-date-is-recur-skip-weekend-2",
-        "gen-cond-date-isapprox-recur-2",
-        "schedule-attached-runs-its-rule-regardless-of-conditions",
-        "schedule-rule-links-by-conditions"
-      ],
-      "id": "OP-39",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "A date condition with a recurrence value (schedule-style frequency, interval, weekend skip, end) never matches, where the pinned Actual matches the dates the recurrence occurs on, including the schedule rules that use them. Cause: compareDate (RuleConditionEvaluator.swift:234-236) requires both values to be strings, so an object value returns false."
-    },
-    {
-      "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "gen-cond-payee-contains-id-1",
-        "gen-cond-payee-contains-id-2",
-        "gen-cond-payee-matches-id-1",
-        "gen-cond-payee-matches-id-2"
-      ],
-      "id": "OP-40",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "contains, doesNotContain and matches on a payee condition compare the payee's display name, where the pinned runRules compares the payee id string (the name only matches in Actual's query path). Cause: RuleConditionEvaluator.swift:135-148 swaps the actual value to the name for id-typed fields."
-    },
-    {
-      "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "index-excludes-or-rule-with-two-indexed-conditions"
-      ],
-      "id": "OP-41",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "Every ranked rule is a candidate, where the pinned Actual skips a rule that has both a payee and an imported-payee is, isNot, oneOf or notOneOf condition when neither index lists it. An or rule of two isNot conditions therefore runs in Actualist and is skipped in Actual. Cause: RuleConditionEvaluator.applying (RuleConditionEvaluator.swift:57) loops over all rules; Actualist has no equivalent of RuleIndexer."
-    },
-    {
-      "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "payee-set-then-later-payee-rules"
-      ],
-      "id": "OP-42",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "payee_name is refreshed when a rule sets the payee, so a later payee_name condition sees the new payee's name, where the pinned runRules computes payee_name once before any rule runs. Cause: RuleConditionEvaluator.apply (RuleConditionEvaluator.swift:323-324) rewrites payeeName."
-    },
-    {
-      "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "split-amount-formula-literal-and-balance-of",
-        "split-fixed-and-remainder-interaction"
-      ],
-      "id": "OP-43",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "A rule that creates splits leaves the parent's payee as it was, where the pinned Actual clears the parent's payee (the children carry the payee). The preview cannot express clearing a payee at all: it reports nil for both unchanged and cleared. Cause: RuleSplitActionExecutor.swift:338-339 writes the parent record's payee back unchanged, and BudgetDatabase+Rules.swift:107 maps a cleared payee to nil."
-    },
-    {
-      "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "transfer-and-parent-conditions-in-run-rules"
-      ],
-      "id": "OP-44",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "transfer and parent conditions are evaluated against the draft's transfer and parent state, where the pinned runRules reads fields it never populates, so they match only when the input carries them. Cause: RuleConditionEvaluator.swift:121-122 with isTransfer/isParent set at BudgetDatabase+Rules.swift:635-636."
-    },
-    {
-      "cases": [
-        "RuleOracleReplayTests/replaysRuleCase"
-      ],
-      "domain": "rules",
-      "fixtureCases": [
-        "schedule-rule-with-plain-conditions-active-and-completed"
-      ],
-      "id": "OP-45",
-      "opened": "2026-10-11",
-      "reviewBy": "2026-10-25",
-      "summary": "A rule linked to a completed schedule is skipped, where the pinned Actual still runs it (it is an ordinary rule once loaded). Cause: RuleConditionEvaluator.applying skips rule.isCompletedScheduleRule (RuleConditionEvaluator.swift:59)."
-    },
-    {
-      "cases": [
         "ScheduleOracleReplayTests/replaysStatusCase"
       ],
       "domain": "schedules",
@@ -1305,12 +1156,12 @@
       "domain": "bank-sync-matching",
       "fixtureCases": [
         "named-opening-balance-rule-deletes-row",
-        "named-rule-delete-transaction-commit"
+        "named-rule-delete-transaction"
       ],
       "id": "OP-64",
       "opened": "2026-10-11",
       "reviewBy": "2026-10-25",
-      "summary": "A delete-transaction rule action does not execute, so the rule's download is imported (and counted in the opening balance) where the pinned Actual drops it before matching. Same cause as OP-37 in the rules domain: Actual writes the action without a value key and Actualist's RuleAction requires one (RuleRepository.swift:156), decoded with try? at BudgetDatabase+Rules.swift:223-225."
+      "summary": "A delete-transaction rule now executes (OP-37), but Actualist drops the downloaded row before matching, where the pinned Actual keeps it in matching: it can match an existing row and marks that row deleted, and every downloaded row, deleted or not, counts toward the opening balance. So a matched existing row is left alone and the opening balance differs by the deleted row's amount. Cause: BankSyncReconciler.applyingRulePreview returns nil for a deleting preview, and BankSyncReconciliation.openingBalance sums the reconciled inserts."
     },
     {
       "cases": [

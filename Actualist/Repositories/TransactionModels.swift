@@ -128,6 +128,9 @@ struct TransactionRulePreview: Hashable, Sendable {
     let notes: String?
     let accountID: String?
     let payeeID: String?
+    /// True when the rules left the transaction with no payee (a rule-created split clears the parent's).
+    /// `payeeID` nil alone means "unchanged".
+    let clearsPayee: Bool
     let amountMinorUnits: Int?
     let date: Date?
     let cleared: Bool?
@@ -140,6 +143,7 @@ struct TransactionRulePreview: Hashable, Sendable {
         notes: String?,
         accountID: String? = nil,
         payeeID: String? = nil,
+        clearsPayee: Bool = false,
         amountMinorUnits: Int? = nil,
         date: Date? = nil,
         cleared: Bool? = nil,
@@ -151,6 +155,7 @@ struct TransactionRulePreview: Hashable, Sendable {
         self.notes = notes
         self.accountID = accountID
         self.payeeID = payeeID
+        self.clearsPayee = clearsPayee
         self.amountMinorUnits = amountMinorUnits
         self.date = date
         self.cleared = cleared

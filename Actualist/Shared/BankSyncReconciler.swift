@@ -411,7 +411,7 @@ enum BankSyncReconciliation {
             return nil
         }
         var projected = candidate
-        projected.payeeID = preview.payeeID ?? projected.payeeID
+        projected.payeeID = preview.clearsPayee ? nil : preview.payeeID ?? projected.payeeID
         projected.amountMinorUnits = preview.amountMinorUnits ?? projected.amountMinorUnits
         if let date = preview.date {
             projected.dayID = ActualDateOnly.dayID(from: date, timeZone: .autoupdatingCurrent)

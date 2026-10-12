@@ -81,8 +81,12 @@ enum RuleOracleReplay {
     /// A production draft always carries its payee, category and account (null when unset), so a run whose
     /// input leaves an id field absent cannot be expressed. Upstream fails every operator on an absent id
     /// field, including `isNot`; that distinction is documented in the README and not replayed.
+    ///
+    /// A run whose input carries `transfer` or `parent` is not replayable either: production drafts never supply
+    /// them, and rule matching never reads their own transfer/parent state (OP-44), so those runs cannot be expressed.
     private static func isReplayable(_ transaction: [String: Any]) -> Bool {
         ["payee", "category", "account"].allSatisfy { transaction[$0] != nil }
+            && transaction["transfer"] == nil && transaction["parent"] == nil
     }
 
     // MARK: Drafts
@@ -161,7 +165,7 @@ enum RuleOracleReplay {
         let day = ActualDateOnly.dayID(from: preview.date ?? draft.date, timeZone: timeZone)
         fields["date"] = .string(day)
         fields["amount"] = .number(Double(preview.amountMinorUnits ?? draft.amountMinorUnits))
-        fields["payee"] = text(preview.payeeID ?? draft.payeeID)
+        fields["payee"] = text(preview.clearsPayee ? nil : preview.payeeID ?? draft.payeeID)
         fields["notes"] = text(preview.notes)
         fields["category"] = text(preview.categoryID)
         fields["cleared"] = .number((preview.cleared ?? draft.cleared) ? 1 : 0)

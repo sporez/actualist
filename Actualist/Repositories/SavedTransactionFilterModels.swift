@@ -250,7 +250,9 @@ extension SavedTransactionFilter {
 
 private extension TransactionQueryCondition {
     init?(savedRuleCondition condition: RuleCondition) {
-        let field = RuleCondition.serializedField(condition.field)
+        // Saved filters keep the public account name; rules store it as `acct`.
+        let serialized = RuleCondition.serializedField(condition.field)
+        let field = serialized == "acct" ? "account" : serialized
         if field == "date" {
             guard let operation = TransactionQueryDateOperation(rawValue: condition.operation),
                   case .string(let value) = condition.value,

@@ -53,10 +53,11 @@ enum RuleConditionEvaluator {
         schedules: RuleScheduleIndex = .empty
     ) -> RuleEvaluationContext {
         var result = context
+        let candidatePayeeID = context.payeeID
+        let candidateImportedPayee = context.importedPayee
         let attachedRuleID = schedules.ruleID(forScheduleID: context.scheduleID)
         for rule in rules {
-            if schedules.shouldSkip(ruleID: rule.id, attachedRuleID: attachedRuleID)
-                || rule.isCompletedScheduleRule {
+            if schedules.shouldSkip(ruleID: rule.id, attachedRuleID: attachedRuleID) {
                 continue
             }
             let forceExecute = schedules.shouldForceExecute(
@@ -67,19 +68,21 @@ enum RuleConditionEvaluator {
                   execution.actions.allSatisfy(\.canExecuteAtRuntime) else {
                 continue
             }
+            guard RuleCandidateIndex.isCandidate(
+                execution, payeeID: candidatePayeeID, importedPayee: candidateImportedPayee
+            ) else { continue }
             if !forceExecute {
-                guard conditionsMatch(execution, context: result) else { continue }
+                guard conditionsMatch(execution, context: result, readsTransferAndParent: false) else { continue }
             }
-            if execution.actions.contains(where: { $0.operation == "delete-transaction" && ($0.splitIndex ?? 0) == 0 }) {
-                result.deletesTransaction = true
-                break
-            }
-            if execution.actions.contains(where: { ($0.splitIndex ?? 0) != 0 || $0.operation == "set-split-amount" }) {
-                guard RuleSplitActionExecutor.apply(actions: execution.actions, context: &result) else {
+            // Actual only marks the transaction deleted; later rules and this rule's other actions still run.
+            let actions = execution.actions.filter { $0.operation != "delete-transaction" }
+            if actions.count != execution.actions.count { result.deletesTransaction = true }
+            if actions.contains(where: { ($0.splitIndex ?? 0) != 0 || $0.operation == "set-split-amount" }) {
+                guard RuleSplitActionExecutor.apply(actions: actions, context: &result) else {
                     continue
                 }
             } else {
-                for action in execution.actions {
+                for action in actions {
                     apply(action: action, context: &result)
                 }
             }
@@ -87,16 +90,30 @@ enum RuleConditionEvaluator {
         return result
     }
 
-    static func conditionsMatch(_ draft: RuleDraft, context: RuleEvaluationContext) -> Bool {
+    /// `readsTransferAndParent` is false while rules run on a transaction: Actual's `runRules` never
+    /// fills `transfer` or `parent`, so conditions on them cannot match. Matching saved transactions
+    /// (the editor's preview) reads the real values.
+    static func conditionsMatch(
+        _ draft: RuleDraft,
+        context: RuleEvaluationContext,
+        readsTransferAndParent: Bool = true
+    ) -> Bool {
         guard !draft.conditions.isEmpty else { return false }
-        let matches = draft.conditions.map { conditionMatches($0, context: context) }
+        let matches = draft.conditions.map {
+            conditionMatches($0, context: context, readsTransferAndParent: readsTransferAndParent)
+        }
         return draft.conditionsJoin == .and
             ? matches.allSatisfy { $0 }
             : matches.contains(true)
     }
 
-    static func conditionMatches(_ condition: RuleCondition, context: RuleEvaluationContext) -> Bool {
+    static func conditionMatches(
+        _ condition: RuleCondition,
+        context: RuleEvaluationContext,
+        readsTransferAndParent: Bool = true
+    ) -> Bool {
         let field = RulePresentation.presentationField(condition.field)
+        if !readsTransferAndParent, field == "transfer" || field == "parent" { return false }
         if field == "account" && condition.operation == "onBudget" {
             return !context.accountIsOffBudget
         }
@@ -141,9 +158,6 @@ enum RuleConditionEvaluator {
             case "category_group":
                 guard context.categoryGroupID != nil else { return false }
                 actual = .string(context.categoryGroupName ?? "")
-            case "payee":
-                guard context.payeeID != nil else { return false }
-                actual = .string(context.payeeName)
             default: break
             }
         }
@@ -232,6 +246,9 @@ enum RuleConditionEvaluator {
     }
 
     private static func compareDate(actual: RuleJSONValue, operation: String, expected: RuleJSONValue) -> Bool {
+        if case .string(let actualDate) = actual, case .object = expected {
+            return RuleRecurrenceDateMatcher.matches(dayID: actualDate, operation: operation, recurrence: expected)
+        }
         guard case .string(let actualDate) = actual, case .string(let expectedDate) = expected else { return false }
         switch operation {
         case "is":
@@ -299,7 +316,7 @@ enum RuleConditionEvaluator {
     static func apply(action: RuleAction, context: inout RuleEvaluationContext) {
         switch action.operation {
         case "set":
-            switch action.field {
+            switch action.editorField {
             case "account":
                 if case .string(let value) = action.value {
                     context.accountID = value
@@ -318,10 +335,12 @@ enum RuleConditionEvaluator {
                    let date = ActualDateOnly.date(from: value, timeZone: context.dateTimeZone) {
                     context.date = date
                 }
-            case "notes": context.notes = stringOrNil(action.value)
-            case "payee", "description":
+            case "notes":
+                // Unlike the other text fields, an empty note is stored as an empty note.
+                if case .string(let notes) = action.value { context.notes = notes } else { context.notes = nil }
+            case "payee":
+                // payee_name stays what it was before any rule ran, as in Actual.
                 context.payeeID = stringOrNil(action.value)
-                context.payeeName = context.payeeID.flatMap { context.payeeNames[$0] } ?? ""
             case "cleared":
                 if case .bool(let value) = action.value { context.cleared = value }
             default: break

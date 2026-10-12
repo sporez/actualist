@@ -677,6 +677,8 @@ final class TransactionEditorViewModel {
         if let payeeID = preview.payeeID,
            let payee = payees.first(where: { $0.id == payeeID }) {
             selectPayee(payee)
+        } else if preview.clearsPayee {
+            useCustomPayee("")
         }
         if let amount = preview.amountMinorUnits {
             kind = amount < 0 ? .spend : .inflow

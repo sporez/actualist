@@ -175,6 +175,16 @@ struct RuleAction: Hashable, Sendable, Codable, Identifiable {
         self.type = type
         self.options = options
     }
+
+    /// Actual writes `delete-transaction` with no `value` key.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        operation = try container.decode(String.self, forKey: .operation)
+        field = try container.decodeIfPresent(String.self, forKey: .field)
+        value = try container.decodeIfPresent(RuleJSONValue.self, forKey: .value) ?? .null
+        type = try container.decodeIfPresent(String.self, forKey: .type)
+        options = try container.decodeIfPresent([String: RuleJSONValue].self, forKey: .options)
+    }
 }
 
 struct RuleDraft: Hashable, Sendable {
@@ -231,14 +241,23 @@ extension RuleCondition {
         ("Amount (Inflow)", "amount-inflow"),
         ("Amount (Outflow)", "amount-outflow"),
         ("Cleared", "cleared"),
-        ("Reconciled", "reconciled"),
+        ("Reconciled", "reconciled")
+    ]
+
+    /// Actual's editor does not offer these because rule matching never fills them, so they never match.
+    /// A rule synced from elsewhere may still carry one; it stays visible but cannot be newly chosen.
+    static let legacyFields: [(name: String, value: String)] = [
         ("Transfer", "transfer"),
         ("Parent Transaction", "parent")
     ]
 
+    static func fieldChoices(including current: String) -> [(name: String, value: String)] {
+        editableFields + legacyFields.filter { $0.value == current }
+    }
+
     static func valueKind(for field: String) -> ValueKind? {
         switch serializedField(field) {
-        case "account", "category", "category_group", "description": .id
+        case "account", "acct", "category", "category_group", "description": .id
         case "imported_payee", "payee_name", "notes": .string
         case "amount": .number
         case "date": .date
@@ -251,7 +270,7 @@ extension RuleCondition {
         switch valueKind(for: field) {
         case .id:
             var operations = ["is", "oneOf", "isNot", "notOneOf"]
-            if serializedField(field) == "account" {
+            if RulePresentation.presentationField(field) == "account" {
                 operations.append(contentsOf: ["onBudget", "offBudget"])
             }
             return operations
@@ -281,6 +300,8 @@ extension RuleCondition {
         switch field {
         case "amount-inflow", "amount-outflow": "amount"
         case "payee": "description"
+        // Actual stores the account field as `acct` (its transactions schema name).
+        case "account": "acct"
         default: field
         }
     }
@@ -299,6 +320,7 @@ extension RuleCondition {
 
     var editorField: String {
         if field == "description" { return "payee" }
+        if field == "acct" { return "account" }
         if field == "amount", options?["inflow"] == .bool(true) { return "amount-inflow" }
         if field == "amount", options?["outflow"] == .bool(true) { return "amount-outflow" }
         return field
@@ -380,7 +402,11 @@ extension RuleCondition {
 
 extension RuleAction {
     var editorField: String? {
-        field == "description" ? "payee" : field
+        switch field {
+        case "description": "payee"
+        case "acct": "account"
+        default: field
+        }
     }
 
     /// Split-targeted actions stay visible through raw read-only presentation,

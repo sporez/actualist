@@ -18,7 +18,7 @@ struct RuleDeleteActionTests {
         #expect(draft.canRoundTripAndEvaluate)
     }
 
-    @Test func deleteActionPreventsSiblingActionsAndLaterRules() {
+    @Test func deleteActionMarksDeletedButSiblingActionsAndLaterRulesStillRun() {
         let deleteRule = ManagedRule(
             id: "delete",
             draft: RuleDraft(
@@ -81,9 +81,10 @@ struct RuleDeleteActionTests {
             )
         )
 
+        // Actual only marks the transaction deleted; everything else still runs.
         #expect(result.deletesTransaction)
-        #expect(result.categoryID == nil)
-        #expect(result.notes == "start")
+        #expect(result.categoryID == "groceries")
+        #expect(result.notes == "after")
     }
 
     @Test @MainActor func reviewBlocksSaveUntilPreviewClears() {

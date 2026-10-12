@@ -105,6 +105,7 @@ extension BudgetDatabase {
                 notes: result.notes,
                 accountID: result.accountID == draft.accountID ? nil : result.accountID,
                 payeeID: result.payeeID == draft.payeeID ? nil : result.payeeID,
+                clearsPayee: result.payeeID == nil && draft.payeeID != nil,
                 amountMinorUnits: result.amount == draft.amountMinorUnits ? nil : result.amount,
                 date: ActualDateOnly.dayID(from: result.date, timeZone: dateTimeZone)
                     == ActualDateOnly.dayID(from: draft.date, timeZone: dateTimeZone)
@@ -635,7 +636,6 @@ extension BudgetDatabase {
             isTransfer: draft.isTransfer,
             isParent: draft.isParent,
             sortOrder: draft.sortOrder,
-            startingBalance: false,
             scheduleID: draft.scheduleID,
             accountNames: metadata.accountNames,
             offBudgetAccountIDs: metadata.offBudgetAccountIDs,
