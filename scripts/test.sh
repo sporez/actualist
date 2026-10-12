@@ -302,6 +302,17 @@ report_replaced_hosts() {
         END { for (host in count) if (count[host] > 1) print host " (pids " pids[host] ")" }'
 }
 
+# Per-test result lines in the three shapes xcodebuild prints: parallel runs
+# ("Test case '...' passed on ..."), serial Swift Testing ("✔ Test name()
+# passed after ..."), and XCTest ("Test Case '-[...]' passed"). The summary
+# lines ("Test run with N tests", "Executed N tests") are not counted, because
+# XCTest prints "Executed 0 tests" even when Swift Testing tests ran.
+count_reported_tests() {
+  [[ -f "$run_log" ]] || { echo 0; return 0; }
+  { grep -E "^Test case '|^Test Case '-\[.*\]' (passed|failed|skipped)|^[✔✘↪] Test .* (passed|failed|skipped)" "$run_log" || true; } \
+    | { grep -vc "^[✔✘↪] Test run with" || true; }
+}
+
 trap 'on_signal 2' INT
 trap 'on_signal 15' TERM
 trap 'on_signal 1' HUP
@@ -365,6 +376,7 @@ fi
 
 wait_for_run_log
 replaced_hosts="$(report_replaced_hosts)"
+reported_tests="$(count_reported_tests)"
 release_lock
 if [[ "$child_status" -ne 0 ]]; then
   echo "error: xcodebuild exited $child_status; the test-run lock was released" >&2
@@ -374,5 +386,11 @@ if [[ -n "$replaced_hosts" ]]; then
   printf '  %s\n' "$replaced_hosts" >&2
   echo "error: the run is incomplete; full output is in $run_log" >&2
   [[ "$child_status" -ne 0 ]] || child_status=3
+fi
+# A selector that matches nothing (a Swift Testing method named without its
+# "()", a renamed suite) still ends in TEST SUCCEEDED with no test run.
+if [[ "$child_status" -eq 0 && "$reported_tests" -eq 0 ]]; then
+  echo "error: xcodebuild succeeded but no test ran; check the selection (Swift Testing methods need \"()\", e.g. Suite/test())" >&2
+  child_status=4
 fi
 exit "$child_status"

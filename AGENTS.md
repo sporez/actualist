@@ -684,7 +684,9 @@ that a unit-only run.
   fails when a test host was replaced mid-run (the same host name under a
   second pid). Swift Testing and the result bundle silently omit the tests that
   were still running in the replaced host, so a green summary alone is not
-  proof of a complete run.
+  proof of a complete run. It also fails a run that reports no test at all
+  (exit 4); a Swift Testing method selector needs its `()`, e.g.
+  `Suite/test()`.
 - Do not split targets or broadly reorganize fixtures as routine flake recovery.
   A future split needs an approved purpose, dependency analysis, and complete
   before/after test inventories. File prefixes alone are not dependency
