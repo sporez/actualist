@@ -229,7 +229,6 @@ struct ScheduleRuleProjection: Hashable, Sendable {
                   let upperValue = range["num2"]?.number,
                   lowerValue.isFinite,
                   upperValue.isFinite,
-                  lowerValue <= upperValue,
                   let lower = actualRounded(lowerValue),
                   let upper = actualRounded(upperValue),
                   let posting = actualRounded((lowerValue + upperValue) / 2) else {

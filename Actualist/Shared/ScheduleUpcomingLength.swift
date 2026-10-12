@@ -35,7 +35,7 @@ enum ScheduleUpcomingLength {
                         months = safeCount
                     }
                     guard let monthStart = calendar.dateInterval(of: .month, for: todayDate)?.start,
-                          let future = calendar.date(byAdding: .month, value: months, to: todayDate),
+                          let future = calendar.date(byAdding: .month, value: months, to: monthStart),
                           let days = calendar.dateComponents([.day], from: monthStart, to: future).day else { return 7 }
                     let inclusiveDays = days.addingReportingOverflow(1)
                     return inclusiveDays.overflow ? 7 : inclusiveDays.partialValue

@@ -148,6 +148,21 @@ struct ActualScheduleRecurrenceTests {
         }
     }
 
+    @Test func nextDateAfterLeavesAFridayThatStandsInForWeekendOccurrences() throws {
+        // Daily: Saturday and Sunday both display as Friday 2026-10-09 under "before".
+        let daily = try recurrence(start: "2026-10-01", frequency: .daily, skipWeekend: true, adjustment: .before)
+        #expect(try daily.nextDateAfter("2026-10-09") == "2026-10-12")
+        #expect(try daily.nextDateAfter("2026-10-08") == "2026-10-09")
+        // Monthly on the 10th (a Saturday this October) is shown on Friday; the next is in November.
+        let monthly = try recurrence(start: "2026-08-10", frequency: .monthly, skipWeekend: true, adjustment: .before)
+        #expect(try monthly.nextDateAfter("2026-10-09") == "2026-11-10")
+    }
+
+    @Test func nextDateAfterReturnsNilWhenTheScheduleHasEnded() throws {
+        let ended = try recurrence(start: "2026-09-05", frequency: .weekly, ending: .afterOccurrences(2))
+        #expect(try ended.nextDateAfter("2026-09-12") == nil)
+    }
+
     @Test func lastOccurrenceAppliesWeekendSolveAfterChoosingTheNaturalDate() throws {
         // 2026-09-05 is a Saturday; the second weekly occurrence is Saturday 2026-09-12.
         let after = try recurrence(

@@ -25,6 +25,40 @@ extension ActualScheduleRecurrence {
         return Self.dayID(from: display, calendar: calendar)
     }
 
+    /// Port of Actual's `getNextDateAfter` (at most seven attempts). A weekend
+    /// move can map a later occurrence back onto `afterDayID` or earlier, so the
+    /// search restarts past each natural occurrence until a displayed date is
+    /// strictly later.
+    func nextDateAfter(
+        _ afterDayID: String,
+        calendar: Calendar = .actualScheduleGregorian
+    ) throws -> String? {
+        guard let after = Self.date(from: afterDayID, calendar: calendar),
+              var start = calendar.date(byAdding: .day, value: -1, to: after) else {
+            throw ActualScheduleRecurrenceError.invalidStartDate
+        }
+        func occurrence(from start: Date, adjustWeekend: Bool) throws -> String? {
+            try nextOccurrence(
+                onOrAfter: Self.dayID(from: start, calendar: calendar),
+                applyWeekendAdjustment: adjustWeekend,
+                calendar: calendar
+            ) ?? lastOccurrence(applyWeekendAdjustment: adjustWeekend, calendar: calendar)
+        }
+        for _ in 0..<7 {
+            guard let natural = try occurrence(from: start, adjustWeekend: false),
+                  natural >= Self.dayID(from: start, calendar: calendar),
+                  let naturalDate = Self.date(from: natural, calendar: calendar) else {
+                return nil
+            }
+            if let next = try occurrence(from: start, adjustWeekend: true), next > afterDayID {
+                return next
+            }
+            guard let following = calendar.date(byAdding: .day, value: 1, to: naturalDate) else { return nil }
+            start = following
+        }
+        return nil
+    }
+
     private func lastLinearOccurrence(start: Date, calendar: Calendar) throws -> Date? {
         let step = frequencyValue == .weekly ? interval * 7 : interval
         let index: Int

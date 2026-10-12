@@ -179,24 +179,11 @@ enum ScheduleRuleMutation {
         recurrence: ActualScheduleRecurrence,
         currentDayID: String
     ) throws -> String? {
-        guard let currentDate = ActualScheduleRecurrence.date(from: currentDayID) else {
+        do {
+            return try recurrence.nextDateAfter(currentDayID)
+        } catch ActualScheduleRecurrenceError.invalidStartDate {
             throw ScheduleRuleMutationError.invalidDefinition
         }
-        var start = currentDate
-        if recurrence.skipWeekend, recurrence.weekendAdjustment == .before {
-            let weekday = Calendar.actualScheduleGregorian.component(.weekday, from: currentDate)
-            if weekday == 6 || weekday == 7 || weekday == 1 {
-                let offset = weekday == 6 ? 3 : weekday == 7 ? 2 : 1
-                guard let monday = Calendar.actualScheduleGregorian.date(byAdding: .day, value: offset, to: currentDate) else {
-                    throw ScheduleRuleMutationError.invalidDefinition
-                }
-                start = monday
-            }
-        }
-        guard let dayAfter = Calendar.actualScheduleGregorian.date(byAdding: .day, value: 1, to: start) else {
-            throw ScheduleRuleMutationError.invalidDefinition
-        }
-        return try recurrence.nextOccurrence(onOrAfter: ActualScheduleRecurrence.dayID(from: dayAfter))
     }
 
     static func updateNextDate(
@@ -305,8 +292,7 @@ enum ScheduleRuleMutation {
             guard Int(exactly: Double(value)) == value else { throw ScheduleRuleMutationError.invalidDefinition }
             return ("isapprox", .number(Double(value)))
         case .range(let lower, let upper):
-            guard lower <= upper,
-                  Int(exactly: Double(lower)) == lower, Int(exactly: Double(upper)) == upper else {
+            guard Int(exactly: Double(lower)) == lower, Int(exactly: Double(upper)) == upper else {
                 throw ScheduleRuleMutationError.invalidDefinition
             }
             return ("isbetween", .object(["num1": .number(Double(lower)), "num2": .number(Double(upper))]))
@@ -384,7 +370,7 @@ enum ScheduleRuleMutation {
             guard let range = value.objectValue,
                   let lower = range["num1"]?.number,
                   let upper = range["num2"]?.number else { return false }
-            return lower.isFinite && upper.isFinite && lower <= upper
+            return lower.isFinite && upper.isFinite
         default: return false
         }
     }

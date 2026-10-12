@@ -134,22 +134,22 @@ struct ScheduleOccurrencePlannerTests {
         ) == .stop)
     }
 
-    @Test func postsTransactionFalseAndPaidRecurringStillAdvances() {
+    @Test func postsTransactionFalseAndPaidRecurringRecomputesFromToday() {
         #expect(action(
             postsTransaction: false,
             isRecurring: true,
             nextDate: past,
             status: .paid
-        ) == .advanceRecurring)
+        ) == .recomputeRecurring)
     }
 
-    @Test func postsTransactionFalsePaidRecurringTodayStillAdvances() {
+    @Test func postsTransactionFalsePaidRecurringTodayRecomputesFromToday() {
         #expect(action(
             postsTransaction: false,
             isRecurring: true,
             nextDate: today,
             status: .paid
-        ) == .advanceRecurring)
+        ) == .recomputeRecurring)
     }
 
     private func action(

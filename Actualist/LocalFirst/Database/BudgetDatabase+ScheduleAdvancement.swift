@@ -163,6 +163,16 @@ extension BudgetDatabase {
                 if moved != .dateChanged {
                     return moved == .stopRun ? .stopRun : .nextSchedule
                 }
+            case .recomputeRecurring:
+                let moved = try advanceRecurringOccurrence(
+                    scheduleID,
+                    budgetID: budgetID,
+                    today: today,
+                    now: now,
+                    fromToday: true,
+                    scheduleMutated: &scheduleMutated
+                )
+                return moved == .stopRun ? .stopRun : .nextSchedule
             case .completeOneTime:
                 do {
                     let result = try completeSchedule(
@@ -224,13 +234,14 @@ extension BudgetDatabase {
         )
     }
 
-    /// Moves a recurring next date from the day after the current occurrence.
-    /// This is not user skip: `nextDateAfterSkip` is not used.
+    /// Moves a recurring next date to the next date after the current one, like user skip, or
+    /// (`fromToday`) to the first date from today.
     private func advanceRecurringOccurrence(
         _ scheduleID: String,
         budgetID: String,
         today: String,
         now: Date,
+        fromToday: Bool = false,
         scheduleMutated: inout Bool
     ) throws -> RecurringAdvanceStep {
         try Task.checkCancellation()
@@ -254,7 +265,9 @@ extension BudgetDatabase {
                 guard let recurrence = current.projection.dateRule.recurrence,
                       let effective = current.effectiveNextDate,
                       let next = current.review.uniqueNextDate,
-                      let advanced = try advancedRecurringDayID(recurrence: recurrence, currentDayID: effective),
+                      let advanced = try (fromToday
+                          ? ScheduleRuleMutation.initialNextDate(for: current.projection.dateRule, asOf: today)
+                          : recurrence.nextDateAfter(effective)),
                       advanced != effective else {
                     return LocalCommitPlan(drafts: [], action: nil, outcome: false)
                 }
@@ -281,19 +294,6 @@ extension BudgetDatabase {
             return .dateUnchanged
         }
         return .dateChanged
-    }
-
-    private func advancedRecurringDayID(
-        recurrence: ActualScheduleRecurrence,
-        currentDayID: String
-    ) throws -> String? {
-        guard let currentDate = ActualScheduleRecurrence.date(from: currentDayID),
-              let dayAfter = Calendar.actualScheduleGregorian.date(byAdding: .day, value: 1, to: currentDate) else {
-            return nil
-        }
-        return try recurrence.nextOccurrence(
-            onOrAfter: ActualScheduleRecurrence.dayID(from: dayAfter)
-        )
     }
 
     /// Same local next-date messages the skip writer enqueues (`base: false`).

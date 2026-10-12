@@ -149,7 +149,7 @@ Excluded from the replay, each with its reason:
   production mode) and a `setNextDate` with neither or both of `advance` and `reset` (no production entry; skip and
   `resetNextDate` are its two callers). The generator marks any case containing such a step.
 
-Known divergences found by the replay are registered as OP-46 to OP-53 in `config/parity/known-divergences.json`.
+Known divergences found by the replay are registered as OP-51 to OP-53 in `config/parity/known-divergences.json`.
 
 ## Upstream behavior worth knowing
 

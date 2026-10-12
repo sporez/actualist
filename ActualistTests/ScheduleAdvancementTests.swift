@@ -153,6 +153,34 @@ struct ScheduleAdvancementTests {
         #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
     }
 
+    /// A before-weekend schedule whose Saturday occurrence is shown on Friday posts that
+    /// occurrence once, leaves the Friday stand-in, and keeps posting later occurrences.
+    @Test func missedWeekendOccurrencePostsOnceAndLaterOccurrencesContinue() async throws {
+        let friday = "2026-10-09"
+        let conditions = """
+        [{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-10000},{"op":"is","field":"date","value":{"start":"2026-08-10","frequency":"monthly","skipWeekend":true,"weekendSolveMode":"before"}}]
+        """
+        let fixture = try makeDatabase(
+            extraSQL: Self.schemaSQL + scheduleInsertSQL(
+                scheduleID: "rent",
+                conditions: conditions,
+                actions: "[{\"op\":\"link-schedule\",\"value\":\"rent\"}]",
+                nextDayID: friday
+            )
+        )
+
+        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: "2026-10-12")
+        #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
+        #expect(try readInt("SELECT date FROM transactions WHERE schedule = 'rent'", fixture.url) == Self.packed(friday))
+        let advanced = try #require(
+            try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: "2026-10-12").detail(id: "rent")
+        )
+        #expect(advanced.effectiveNextDate == "2026-11-10")
+
+        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: "2026-11-10")
+        #expect(try scheduleTransactionCount("rent", fixture.url) == 2)
+    }
+
     @Test func closedAccountIsNotPosted() async throws {
         let fixture = try makeDatabase(
             extraSQL: oneTimeScheduleSQL(scheduleID: "rent", dayID: Self.today, amount: -10_000) + """
