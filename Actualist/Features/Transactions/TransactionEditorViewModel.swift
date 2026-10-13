@@ -696,18 +696,17 @@ final class TransactionEditorViewModel {
             return
         }
 
-        if let fallbackPayeeName,
+        // The feed shows imported text for a row with no payee. Like Actual, the
+        // editor keeps that row payee-less so saving never makes a payee from it.
+        let hasPayee = !(transaction.payee ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if hasPayee,
+           let fallbackPayeeName,
            !fallbackPayeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           fallbackPayeeName != "Unknown Payee",
-           fallbackPayeeName != "(No payee)",
-           fallbackPayeeName != "Split (no payee)" {
+           fallbackPayeeName != "Unknown Payee" {
             payeeName = fallbackPayeeName
         } else if let transactionPayeeName = transaction.payeeName,
                   !transactionPayeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             payeeName = transactionPayeeName
-        } else if let importedPayee = transaction.importedPayee,
-                  !importedPayee.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            payeeName = importedPayee
         }
     }
 

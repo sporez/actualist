@@ -323,6 +323,40 @@ struct TransactionEditorViewModelTests {
         #expect(model.canSave)
     }
 
+    /// The feed shows imported text for a row with no payee; Actual keeps that row payee-less.
+    @Test func editingARowWithNoPayeeKeepsItPayeeLessDespiteImportedText() async throws {
+        let transaction = ActualTransaction(
+            id: "txn-imported",
+            account: "checking",
+            date: "2026-06-14",
+            amount: -450,
+            payee: nil,
+            payeeName: nil,
+            importedPayee: "SQ *COFFEE 1234",
+            category: nil,
+            notes: nil,
+            cleared: .bool(false)
+        )
+        let rowText = TransactionRowSemantics.project(transaction, lookup: TransactionRowLookup()).payeeText
+        #expect(rowText == "SQ *COFFEE 1234")
+        let model = TransactionEditorViewModel(editing: transaction, payeeName: rowText, categoryName: "Uncategorized")
+
+        #expect(model.payeeName.isEmpty)
+        #expect(model.selectedPayeeID == nil)
+        #expect(model.selectedPayeeName == "Select Payee")
+
+        model.amountDigits = "450"
+        model.notes = "note only"
+        let repository = RecordingTransactionRepository()
+        #expect(await model.submit(budgetID: "budget", repository: repository))
+
+        let update = try await repository.onlyUpdate()
+        #expect(update.draft.payeeID == nil)
+        #expect(update.draft.payeeName.isEmpty)
+        #expect(update.draft.importedPayee == "SQ *COFFEE 1234")
+        #expect(update.draft.notes == "note only")
+    }
+
     @Test func editingExistingSplitPrefillsChildRows() {
         let model = TransactionEditorViewModel(
             editing: ActualTransaction(
