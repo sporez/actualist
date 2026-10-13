@@ -16,6 +16,10 @@ const USAGE = `Usage: scripts/parity.sh [--dry-run] <command>
   verify <domain>        Run the domain's fixture hash check, its regenerate-and-diff
                          check when ${ORACLE_ROOT_VARIABLE} is set, then its Swift
                          oracle suites through scripts/test.sh.
+  verify-all             verify for every domain with a harness or oracle suites:
+                         each hash check and regenerate-and-diff in turn, then
+                         one scripts/test.sh run with every passing domain's
+                         suites. For a re-pin or a release, not a routine change.
   verify-hashes          Run every harness's hash check (no oracle, no Xcode).
   divergences            Lint the known-divergence registry and list open entries.
   gate [<range>] [--ack OP-01,OP-02]
@@ -23,7 +27,7 @@ const USAGE = `Usage: scripts/parity.sh [--dry-run] <command>
                          touches (every open entry when no range is given), unless
                          each one is acknowledged by ID.
 
---dry-run prints the commands verify would run without running them.`;
+--dry-run prints the commands verify or verify-all would run without running them.`;
 
 function run(command, { dryRun }) {
   console.log(`$ ${command}`);
@@ -45,8 +49,44 @@ function quoteSuites(suites) {
   return suites.map((suite) => `'${suite.replaceAll("'", "'\\''")}'`).join(' ');
 }
 
-function testCommand(domain) {
-  return `scripts/test.sh unit ${quoteSuites(domain.oracleSuites)}`;
+function testCommand(suites) {
+  return `scripts/test.sh unit ${quoteSuites(suites)}`;
+}
+
+function outcome(code, { dryRun }) {
+  return dryRun ? 'dry run' : code === 0 ? 'passed' : 'FAILED';
+}
+
+// The hash check and regenerate-and-diff steps, which need no Xcode.
+function fixtureSteps(domain, { dryRun }) {
+  const steps = [];
+  let failed = false;
+  const harness = domain.harness ?? {};
+
+  if (harness.verify) {
+    const code = run(harness.verify, { dryRun });
+    steps.push(`hash check: ${outcome(code, { dryRun })}`);
+    failed ||= code !== 0;
+  } else {
+    steps.push('hash check: none (no committed fixture)');
+  }
+
+  if (harness.check && hasOracleRoot()) {
+    const code = run(harness.check, { dryRun });
+    steps.push(`regenerate-and-diff against ${oraclePin.tag}: ${outcome(code, { dryRun })}`);
+    failed ||= code !== 0;
+  } else if (harness.check) {
+    steps.push(`regenerate-and-diff: SKIPPED (${ORACLE_ROOT_VARIABLE} not set); this is not a fresh-oracle pass`);
+  } else {
+    steps.push('regenerate-and-diff: none for this harness');
+  }
+  return { steps, failed };
+}
+
+function divergenceLabel(entry) {
+  return isOpen(entry)
+    ? `open divergence ${entry.id} (expected failure, review by ${entry.reviewBy})`
+    : `intended difference ${entry.id} (expected failure, decided ${entry.decided})`;
 }
 
 function status() {
@@ -101,34 +141,14 @@ function verify(id, { dryRun }) {
     console.error(`Unknown domain: ${id}. See scripts/parity.sh status.`);
     return 2;
   }
-  const steps = [];
-  let failed = false;
-  const harness = domain.harness ?? {};
-
-  if (harness.verify) {
-    const code = run(harness.verify, { dryRun });
-    steps.push(`hash check: ${dryRun ? 'dry run' : code === 0 ? 'passed' : 'FAILED'}`);
-    failed ||= code !== 0;
-  } else {
-    steps.push('hash check: none (no committed fixture)');
-  }
-
-  if (harness.check && hasOracleRoot()) {
-    const code = run(harness.check, { dryRun });
-    steps.push(`regenerate-and-diff against ${oraclePin.tag}: ${dryRun ? 'dry run' : code === 0 ? 'passed' : 'FAILED'}`);
-    failed ||= code !== 0;
-  } else if (harness.check) {
-    steps.push(`regenerate-and-diff: SKIPPED (${ORACLE_ROOT_VARIABLE} not set); this is not a fresh-oracle pass`);
-  } else {
-    steps.push('regenerate-and-diff: none for this harness');
-  }
+  let { steps, failed } = fixtureSteps(domain, { dryRun });
 
   if ((domain.oracleSuites ?? []).length) {
     if (failed && !dryRun) {
       steps.push('Swift oracle suites: not run because an earlier step failed');
     } else {
-      const code = run(testCommand(domain), { dryRun });
-      steps.push(`Swift oracle suites: ${dryRun ? 'dry run' : code === 0 ? 'passed' : 'FAILED'}`);
+      const code = run(testCommand(domain.oracleSuites), { dryRun });
+      steps.push(`Swift oracle suites: ${outcome(code, { dryRun })}`);
       failed ||= code !== 0;
     }
   } else {
@@ -138,12 +158,48 @@ function verify(id, { dryRun }) {
   console.log(`\nparity verify ${domain.id}:`);
   for (const step of steps) console.log(`- ${step}`);
   for (const entry of openByDomain().get(domain.id) ?? []) {
-    const label = isOpen(entry)
-      ? `open divergence ${entry.id} (expected failure, review by ${entry.reviewBy})`
-      : `intended difference ${entry.id} (expected failure, decided ${entry.decided})`;
-    console.log(`- ${label}: ${entry.summary}`);
+    console.log(`- ${divergenceLabel(entry)}: ${entry.summary}`);
   }
   return failed ? 1 : 0;
+}
+
+// One scripts/test.sh run for every suite, so Xcode builds and launches once
+// instead of once per domain. A suite failure fails every domain in that run;
+// rerun `verify <domain>` to attribute it.
+function verifyAll({ dryRun }) {
+  const allDomains = loadDomains();
+  const domains = allDomains.filter((domain) => domain.harness || (domain.oracleSuites ?? []).length);
+  const results = domains.map((domain) => ({ domain, ...fixtureSteps(domain, { dryRun }) }));
+  const tested = results.filter((result) => !result.failed || dryRun);
+  const suites = [...new Set(tested.flatMap(({ domain }) => domain.oracleSuites ?? []))];
+
+  let suiteCode = 0;
+  if (suites.length) suiteCode = run(testCommand(suites), { dryRun });
+  const suiteOutcome = `${outcome(suiteCode, { dryRun })} (one run, ${suites.length} suites)`;
+
+  const open = openByDomain();
+  console.log('\nparity verify-all:');
+  for (const { domain, steps, failed } of results) {
+    let suiteStep;
+    if (!(domain.oracleSuites ?? []).length) {
+      suiteStep = 'Swift oracle suites: none; unverified against Actual by Swift replay';
+    } else if (failed && !dryRun) {
+      suiteStep = 'Swift oracle suites: not run because an earlier step failed';
+    } else {
+      suiteStep = `Swift oracle suites: ${suiteOutcome}`;
+    }
+    const domainFailed = failed || (suiteCode !== 0 && (domain.oracleSuites ?? []).length > 0);
+    console.log(`- ${domain.id} [${domain.status}]: ${dryRun ? 'dry run' : domainFailed ? 'FAILED' : 'passed'}`);
+    for (const step of [...steps, suiteStep]) console.log(`    ${step}`);
+    const entries = open.get(domain.id) ?? [];
+    const openIDs = entries.filter(isOpen).map((entry) => entry.id);
+    const intendedIDs = entries.filter((entry) => !isOpen(entry)).map((entry) => entry.id);
+    if (openIDs.length) console.log(`    open divergences (expected failures): ${openIDs.join(', ')}`);
+    if (intendedIDs.length) console.log(`    intended differences (expected failures): ${intendedIDs.join(', ')}`);
+  }
+  const uncovered = allDomains.filter((domain) => !domains.includes(domain)).map((domain) => domain.id);
+  if (uncovered.length) console.log(`- no harness or suites, unverified against Actual: ${uncovered.join(', ')}`);
+  return results.some((result) => result.failed) || suiteCode !== 0 ? 1 : 0;
 }
 
 function verifyHashes({ dryRun }) {
@@ -251,6 +307,9 @@ try {
     case 'verify':
       code = rest[0] ? verify(rest[0], { dryRun }) : 2;
       if (!rest[0]) console.error(USAGE);
+      break;
+    case 'verify-all':
+      code = verifyAll({ dryRun });
       break;
     case 'verify-hashes':
       code = verifyHashes({ dryRun });

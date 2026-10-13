@@ -774,7 +774,7 @@ push, phase completion, or handoff as a reason to repeat successful validation.
 | Contained production logic | Affected unit suites, including relevant caller/regression coverage. |
 | UI layout or interaction | Compile, inspect affected screens, and run relevant UI regressions for changed interactions; include unit tests when view-model/domain behavior changes. No unrelated UI suites. |
 | Shared database, sync, money logic, broad refactors, or runtime-relevant project/target configuration | Full unit suite and relevant integration coverage; affected UI tests only when UI behavior is at risk. |
-| TestFlight release | Full unit and UI coverage, reusing applicable evidence when the release records the already validated state. |
+| TestFlight release | Full unit and UI coverage plus `scripts/parity.sh verify-all`, reusing applicable evidence when the release records the already validated state. |
 
 Full UI coverage is required for releases and broad UI/navigation changes.
 Routine backend changes do not require it. Verify affected iPad layouts when
@@ -805,6 +805,10 @@ tree or range touches.
 - A change matching a domain's paths requires
   `scripts/parity.sh verify <domain>`. A hand-written test is not a substitute.
   The verify run counts toward the verification budget like any focused run.
+- `scripts/parity.sh verify-all` runs every domain with one Swift test
+  invocation. Use it for an oracle re-pin or a release check, not in place of
+  `verify <domain>` for a routine change. It counts as one focused run, not a
+  full-suite run.
 - New behavior that Actual also has requires a new oracle case in that
   domain's generator. Changing an uncovered domain does not require building
   its harness, but the handoff names the domain as unverified against Actual.
@@ -817,8 +821,10 @@ tree or range touches.
   removes the marker and the entry in the same commit. A difference the user
   decides to keep stays marked, with `"status": "intended"`, a decided date and
   the reason. Intended entries never block a release or merge.
-- Without `ACTUALIST_PARITY_ORACLE_ROOT`, `verify` skips the
-  regenerate-and-diff step. Report that skip; it is not a fresh-oracle pass.
+- `scripts/parity.sh` takes `ACTUALIST_PARITY_ORACLE_ROOT` from the
+  environment or, when unset, from the gitignored `scripts/lib/lab.env`.
+  Without either, `verify` skips the regenerate-and-diff step. Report that
+  skip; it is not a fresh-oracle pass.
 
 ### Evidence And Reuse
 

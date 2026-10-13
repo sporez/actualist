@@ -131,6 +131,10 @@ Clone Actual at the pinned tag outside this repository, run
 export ACTUALIST_PARITY_ORACLE_ROOT=/path/to/actual
 ```
 
+`scripts/parity.sh` also reads it from the gitignored `scripts/lib/lab.env`
+(copied from `scripts/lib/lab.example.env`) when it is not already set.
+Running a generator directly still needs the variable in the environment.
+
 Every generator refuses to run unless that checkout is at the pinned commit
 and tag with a clean tree, and checks again afterwards. Generators that write
 into the checkout need their own clone when run in parallel. Nothing in
@@ -144,6 +148,7 @@ scripts/parity.sh touched           # domains the working tree touches
 scripts/parity.sh touched main..HEAD
 scripts/parity.sh verify tracking   # hash check, regenerate-and-diff, Swift suites
 scripts/parity.sh --dry-run verify tracking
+scripts/parity.sh verify-all        # every domain, one Swift test run
 ```
 
 `verify` runs the domain's fixture hash check. When
@@ -151,6 +156,12 @@ scripts/parity.sh --dry-run verify tracking
 temporary folder and diffs it against the committed copy. Finally it runs the
 domain's Swift oracle suites through `scripts/test.sh`. Without the oracle it
 says the regenerate step was skipped.
+
+`verify-all` runs every domain's hash check and regenerate-and-diff in turn,
+then one `scripts/test.sh` run with all of their Swift oracle suites, so Xcode
+starts once. A failing suite fails every domain in that run; use `verify
+<domain>` to find which one. It is for a re-pin or a release check. For an
+ordinary change, run `verify` for each touched domain.
 
 ### Known divergences
 
