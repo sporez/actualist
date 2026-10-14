@@ -51,6 +51,23 @@ struct ShortcutIntentTests {
         #expect(ActualistShortcutsProvider.appShortcuts.count == 6)
     }
 
+    /// Siri sends "transaction" to Wallet and Apple Cash, so the logging
+    /// phrase must avoid payment words.
+    @Test func extractedLoggingPhraseAvoidsWalletWords() throws {
+        let url = try #require(
+            Bundle.main.url(
+                forResource: "extract",
+                withExtension: "actionsdata",
+                subdirectory: "Metadata.appintents"
+            )
+        )
+        let payload = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        let shortcuts = try #require(payload?["autoShortcuts"] as? [[String: Any]])
+        let log = try #require(shortcuts.first { $0["actionIdentifier"] as? String == "LogTransactionIntent" })
+        let phrases = try #require(log["phraseTemplates"] as? [[String: Any]]).compactMap { $0["key"] as? String }
+        #expect(phrases == ["Log an expense in ${applicationName}"])
+    }
+
     @Test func extractedIntentMetadataUsesShortcutCategories() throws {
         let url = try #require(
             Bundle.main.url(

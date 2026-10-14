@@ -29,8 +29,10 @@ struct ActualistShortcutsProvider: AppShortcutsProvider {
         )
         AppShortcut(
             intent: LogTransactionIntent(),
+            // "Transaction" is a Wallet / Apple Cash word: Siri routed the
+            // phrase there or asked which app, then stalled (observed on device).
             phrases: [
-                "Log a transaction in \(.applicationName)"
+                "Log an expense in \(.applicationName)"
             ],
             shortTitle: "Log Transaction",
             systemImageName: "plus"
