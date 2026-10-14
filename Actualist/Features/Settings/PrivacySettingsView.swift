@@ -43,10 +43,12 @@ struct PrivacySettingsView: View {
 
             Section {
                 Toggle("Allow Shortcuts & Siri", isOn: shortcutsEnabledSelection)
+                Toggle("Allow Logging While Locked", isOn: shortcutsLockedLoggingSelection)
+                    .disabled(!appState.settings.shortcutsEnabled || appState.isDemoMode)
             } header: {
                 Text("System Access")
             } footer: {
-                Text("Shortcuts and Siri can read balances and log transactions in the selected budget.")
+                Text("Shortcuts and Siri can read balances and log transactions in the selected budget. With Allow Logging While Locked on, Log Transaction, Log Transfer and Import Transaction from Text also work while your device is locked. Every other action still asks you to unlock.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -91,6 +93,14 @@ struct PrivacySettingsView: View {
             appState.settings.shortcutsEnabled
         } set: { isEnabled in
             appState.updateShortcutsEnabled(isEnabled)
+        }
+    }
+
+    private var shortcutsLockedLoggingSelection: Binding<Bool> {
+        Binding {
+            appState.settings.shortcutsLockedLoggingEnabled
+        } set: { isEnabled in
+            appState.updateShortcutsLockedLoggingEnabled(isEnabled)
         }
     }
 

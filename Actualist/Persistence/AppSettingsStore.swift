@@ -45,6 +45,9 @@ struct AppSettings: Codable, Equatable {
     var showHiddenCategories: Bool = false
     var randomizedDisplayValuesEnabled: Bool = false
     var shortcutsEnabled: Bool = true
+    /// Consent for the "(Allow While Locked)" add-only Shortcuts actions.
+    /// Enabling it promotes Keychain items to after-first-unlock.
+    var shortcutsLockedLoggingEnabled: Bool = false
     var appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
@@ -79,6 +82,7 @@ struct AppSettings: Codable, Equatable {
         showHiddenCategories: Bool = false,
         randomizedDisplayValuesEnabled: Bool = false,
         shortcutsEnabled: Bool = true,
+        shortcutsLockedLoggingEnabled: Bool = false,
         appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded,
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
@@ -108,6 +112,7 @@ struct AppSettings: Codable, Equatable {
         self.showHiddenCategories = showHiddenCategories
         self.randomizedDisplayValuesEnabled = randomizedDisplayValuesEnabled
         self.shortcutsEnabled = shortcutsEnabled
+        self.shortcutsLockedLoggingEnabled = shortcutsLockedLoggingEnabled
         self.appSwitcherPrivacyMode = appSwitcherPrivacyMode
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
@@ -163,6 +168,10 @@ struct AppSettings: Codable, Equatable {
             Bool.self,
             forKey: .shortcutsEnabled
         ) ?? true
+        shortcutsLockedLoggingEnabled = container.lenient(
+            Bool.self,
+            forKey: .shortcutsLockedLoggingEnabled
+        ) ?? false
         appSwitcherPrivacyMode = container.lenient(
             AppSwitcherPrivacyMode.self,
             forKey: .appSwitcherPrivacyMode

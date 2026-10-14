@@ -1,7 +1,9 @@
 import Foundation
+import Security
 
 enum ShortcutsError: LocalizedError, Equatable {
     case shortcutsDisabled
+    case deviceLocked
     case noBudgetSelected
     case budgetFileMissing
     case encryptedBudgetNeedsUnlock
@@ -31,6 +33,8 @@ enum ShortcutsError: LocalizedError, Equatable {
         switch self {
         case .shortcutsDisabled:
             "Shortcuts are turned off in Privacy."
+        case .deviceLocked:
+            "Actualist can't reach this budget while your device is locked. Unlock it and try again."
         case .noBudgetSelected:
             "No budget is selected. Open Actualist and choose a budget first."
         case .budgetFileMissing:
@@ -92,6 +96,11 @@ enum ShortcutsError: LocalizedError, Equatable {
         }
         if error is ReconciledTransactionMutationError {
             return .reconciledTransaction
+        }
+        // A locked device refuses Keychain items that were never promoted to
+        // after-first-unlock; an encrypted budget reads its key to open.
+        if error as? KeychainReadError == .unavailable(errSecInteractionNotAllowed) {
+            return .deviceLocked
         }
         if let error = error as? LocalFirstError {
             switch error {

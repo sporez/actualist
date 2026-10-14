@@ -70,6 +70,24 @@ extension AppState {
         settingsStore.save(settings)
     }
 
+    /// The locked-capable actions need credentials readable while locked: an
+    /// encrypted budget reads its key to open. Promotion is one-way, so turning
+    /// this off leaves the items promoted, like the background toggles.
+    func updateShortcutsLockedLoggingEnabled(_ isEnabled: Bool) {
+        if isEnabled {
+            do {
+                try keychain.promoteAllItemsForBackgroundRefresh()
+            } catch {
+                lastErrorMessage = error.localizedDescription
+                settings.shortcutsLockedLoggingEnabled = false
+                settingsStore.save(settings)
+                return
+            }
+        }
+        settings.shortcutsLockedLoggingEnabled = isEnabled
+        settingsStore.save(settings)
+    }
+
     func updateTheme(_ theme: ActualistThemeOption) {
         settings.theme = theme
         ActualistTheme.activate(theme)

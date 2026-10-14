@@ -115,6 +115,45 @@ struct ShortcutIntentTests {
         }
     }
 
+    /// The system enforces the policy from the build-time metadata, not the
+    /// static property, so pin the extracted values: only the tab opens and the
+    /// add-only actions skip the system unlock (the app gates the latter on
+    /// Allow Logging While Locked).
+    @Test func extractedIntentMetadataPinsWhichActionsRunWhileLocked() throws {
+        let url = try #require(
+            Bundle.main.url(
+                forResource: "extract",
+                withExtension: "actionsdata",
+                subdirectory: "Metadata.appintents"
+            )
+        )
+        let payload = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        let actions = try #require(payload?["actions"] as? [String: Any])
+        // App Intents encodes `.alwaysAllowed` as 0 and `.requiresAuthentication` as 1.
+        let alwaysAllowed: Set<String> = [
+            "OpenBudgetIntent",
+            "OpenAccountsIntent",
+            "OpenSpendingIntent",
+            "OpenReportsIntent",
+            "LogTransactionIntent",
+            "LogTransferIntent",
+            "ImportTransactionFromTextIntent"
+        ]
+        #expect(alwaysAllowed.isSubset(of: Set(actions.keys)))
+        for (identifier, value) in actions {
+            let action = try #require(value as? [String: Any])
+            let policy = action["authenticationPolicy"] as? Int
+            #expect(policy == (alwaysAllowed.contains(identifier) ? 0 : 1), "\(identifier)")
+        }
+        // A shown dialog stalls a locked automation, so the add-only actions
+        // must not provide one (`outputFlags` bit 4 is ProvidesDialog).
+        for identifier in ["LogTransactionIntent", "LogTransferIntent", "ImportTransactionFromTextIntent"] {
+            let action = try #require(actions[identifier] as? [String: Any])
+            let flags = try #require(action["outputFlags"] as? Int)
+            #expect(flags & 4 == 0, "\(identifier)")
+        }
+    }
+
     @Test func openIntentsUseDynamicForegroundMode() {
         let expected = IntentModes.foreground(.dynamic)
         #expect(OpenBudgetIntent.supportedModes == expected)
@@ -125,6 +164,13 @@ struct ShortcutIntentTests {
         #expect(OpenCategoryIntent.supportedModes == expected)
         #expect(OpenUncategorizedIntent.supportedModes == expected)
         #expect(OpenNewTransactionIntent.supportedModes == expected)
+    }
+
+    @Test func addOnlyIntentsRunInBackgroundAndCanContinueInForeground() {
+        let expected: IntentModes = [.background, .foreground(.dynamic)]
+        #expect(LogTransactionIntent.supportedModes == expected)
+        #expect(LogTransferIntent.supportedModes == expected)
+        #expect(ImportTransactionFromTextIntent.supportedModes == expected)
     }
 
     @Test func intentEnumsMapToDomainCommands() {
@@ -545,6 +591,54 @@ struct ShortcutIntentTests {
         openNew.direction = .spend
         _ = try await openNew.perform()
         #expect(appState.routeCoordinator.pendingRoute == .newTransaction(ShortcutEditorPrefill(direction: .spend)))
+    }
+
+    @Test func addOnlyIntentsAskForUnlockOnlyWhenLockedWithTheSettingOff() async throws {
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let appState = try fixtures.makeAppState(for: bundle)
+        let unlocked = ShortcutsBudgetSession(appState: appState, isDeviceLocked: { false })
+        let locked = ShortcutsBudgetSession(appState: appState, isDeviceLocked: { true })
+
+        #expect(!appState.settings.shortcutsLockedLoggingEnabled)
+        #expect(try !unlocked.needsUnlockToLog())
+        #expect(try locked.needsUnlockToLog())
+        appState.settings.shortcutsLockedLoggingEnabled = true
+        #expect(try !locked.needsUnlockToLog())
+        #expect(try !unlocked.needsUnlockToLog())
+
+        appState.updateShortcutsEnabled(false)
+        #expect(throws: ShortcutsError.shortcutsDisabled) { _ = try locked.needsUnlockToLog() }
+    }
+
+    @Test func lockedRunWithTheSettingOnLogsWithoutAskingToUnlock() async throws {
+        let bundle = try await fixtures.makeOpenedWritableStoreBundle()
+        let appState = try fixtures.makeAppState(for: bundle)
+        appState.settings.shortcutsLockedLoggingEnabled = true
+        let session = ShortcutsBudgetSession(appState: appState, isDeviceLocked: { true })
+        let log = LogTransactionIntent()
+        log.session = session
+        log.amount = amount("2.75")
+        log.account = account()
+        log.direction = .spend
+        log.payeeName = "Locked Cafe"
+        log.cleared = false
+        let transfer = LogTransferIntent()
+        transfer.session = session
+        transfer.fromAccount = account("checking")
+        transfer.toAccount = account("savings")
+        transfer.amount = amount("6.00")
+        let importText = ImportTransactionFromTextIntent()
+        importText.session = session
+        importText.text = "1.40 bakery Groceries Checking"
+
+        let logged = try await log.perform().value
+        #expect(logged?.payee == "Locked Cafe")
+        #expect(logged?.amount.map { abs($0.amount) } == Decimal(string: "2.75"))
+        let transferred = try await transfer.perform().value
+        #expect(transferred?.isTransfer == true)
+        #expect(transferred?.amount.map { abs($0.amount) } == 6)
+        let imported = try await importText.perform().value
+        #expect(imported?.amount.map { abs($0.amount) } == Decimal(string: "1.4"))
     }
 
     @Test func disabledShortcutsRefuseIntentPerform() async throws {

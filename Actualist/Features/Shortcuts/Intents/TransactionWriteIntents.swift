@@ -19,13 +19,35 @@ enum ShortcutTransactionDirectionAppEnum: String, AppEnum {
     }
 }
 
-struct LogTransactionIntent: AppIntent {
+/// Log Transaction, Log Transfer and Import Transaction from Text only add
+/// transactions, so they may run on a locked device when the user turned on
+/// Allow Logging While Locked (GitHub #6). iOS enforces `authenticationPolicy`
+/// from build-time metadata before the app runs, so they declare
+/// `.alwaysAllowed` and, with the setting off, ask for unlock themselves by
+/// continuing in the foreground. They return no dialog: on a locked device
+/// Shortcuts holds a shown dialog on the lock screen and the rest of an
+/// automation never runs (observed on device, iOS 26).
+protocol AddOnlyTransactionIntent: AppIntent {
+    var session: ShortcutsBudgetSession { get }
+}
+
+extension AddOnlyTransactionIntent {
+    nonisolated static var supportedModes: IntentModes { [.background, .foreground(.dynamic)] }
+
+    func unlockUnlessLoggingWhileLockedIsOn() async throws {
+        if try await session.needsUnlockToLog() {
+            try await continueInForeground(IntentDialog("Unlock to log this in Actualist."), alwaysConfirm: false)
+        }
+    }
+}
+
+struct LogTransactionIntent: AddOnlyTransactionIntent {
     static let title: LocalizedStringResource = "Log Transaction"
     static let description = IntentDescription(
         "Logs a transaction in the selected budget immediately.",
         categoryName: "Transactions"
     )
-    static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
+    static var authenticationPolicy: IntentAuthenticationPolicy { .alwaysAllowed }
 
     @Parameter(title: "Amount")
     var amount: IntentCurrencyAmount
@@ -70,7 +92,8 @@ struct LogTransactionIntent: AppIntent {
         }
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<TransactionEntity> & ProvidesDialog {
+    func perform() async throws -> some IntentResult & ReturnsValue<TransactionEntity> {
+        try await unlockUnlessLoggingWhileLockedIsOn()
         let transaction = try await ShortcutTransactionCommand.log(
             .init(
                 amountMinorUnits: try await session.minorUnits(from: amount),
@@ -85,18 +108,17 @@ struct LogTransactionIntent: AppIntent {
             ),
             session: session
         )
-        let spoken = ShortcutMoney.spoken(transaction.amount)
-        return .result(value: transaction, dialog: IntentDialog("Logged \(spoken) for \(transaction.payee)."))
+        return .result(value: transaction)
     }
 }
 
-struct LogTransferIntent: AppIntent {
+struct LogTransferIntent: AddOnlyTransactionIntent {
     static let title: LocalizedStringResource = "Log Transfer"
     static let description = IntentDescription(
         "Transfers money between two accounts immediately.",
         categoryName: "Transactions"
     )
-    static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
+    static var authenticationPolicy: IntentAuthenticationPolicy { .alwaysAllowed }
 
     @Parameter(title: "From Account")
     var fromAccount: AccountEntity
@@ -123,7 +145,8 @@ struct LogTransferIntent: AppIntent {
         }
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<TransactionEntity> & ProvidesDialog {
+    func perform() async throws -> some IntentResult & ReturnsValue<TransactionEntity> {
+        try await unlockUnlessLoggingWhileLockedIsOn()
         let transaction = try await ShortcutTransactionCommand.transfer(
             fromAccountID: fromAccount.id,
             toAccountID: toAccount.id,
@@ -132,11 +155,7 @@ struct LogTransferIntent: AppIntent {
             notes: notes,
             session: session
         )
-        let spoken = ShortcutMoney.spoken(transaction.amount)
-        return .result(
-            value: transaction,
-            dialog: IntentDialog("Transferred \(spoken) from \(fromAccount.name) to \(toAccount.name).")
-        )
+        return .result(value: transaction)
     }
 }
 
@@ -310,13 +329,13 @@ struct DeleteTransactionIntent: AppIntent {
     }
 }
 
-struct ImportTransactionFromTextIntent: AppIntent {
+struct ImportTransactionFromTextIntent: AddOnlyTransactionIntent {
     static let title: LocalizedStringResource = "Import Transaction from Text"
     static let description = IntentDescription(
         "Parses text and logs the transaction immediately.",
         categoryName: "Transactions"
     )
-    static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
+    static var authenticationPolicy: IntentAuthenticationPolicy { .alwaysAllowed }
 
     @Parameter(title: "Text")
     var text: String
@@ -328,9 +347,9 @@ struct ImportTransactionFromTextIntent: AppIntent {
         Summary("Import transaction from \(\.$text)")
     }
 
-    func perform() async throws -> some IntentResult & ReturnsValue<TransactionEntity> & ProvidesDialog {
+    func perform() async throws -> some IntentResult & ReturnsValue<TransactionEntity> {
+        try await unlockUnlessLoggingWhileLockedIsOn()
         let transaction = try await ShortcutTransactionCommand.importFromText(text, session: session)
-        let spoken = ShortcutMoney.spoken(transaction.amount)
-        return .result(value: transaction, dialog: IntentDialog("Logged \(spoken) for \(transaction.payee)."))
+        return .result(value: transaction)
     }
 }

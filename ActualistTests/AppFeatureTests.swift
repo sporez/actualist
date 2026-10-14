@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 @testable import Actualist
 
@@ -51,6 +52,49 @@ struct AppFeatureTests {
         #expect(state.settings.backgroundTransactionRefreshEnabled)
         #expect(state.settings.wantsBackgroundAppRefresh)
         #expect(!settingsStore.load().simplefinBackgroundSyncEnabled)
+    }
+
+    @Test func lockedLoggingToggleDefaultsOffAndPromotesCredentialsWhenEnabled() throws {
+        #expect(!(try JSONDecoder().decode(AppSettings.self, from: Data("{}".utf8))).shortcutsLockedLoggingEnabled)
+
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        let backend = FakeKeychainBackend()
+        let service = "com.sporez.actualist.tests"
+        let keychain = KeychainStore(service: service, account: UUID().uuidString, backend: backend)
+        try keychain.saveActualSyncToken("token")
+        let state = AppState(settingsStore: settingsStore, keychain: keychain)
+        let promoted = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
+        let accessibility = { backend.storedItemAttributes(service: service).map { $0[kSecAttrAccessible as String] as? String } }
+        #expect(accessibility() != [promoted])
+
+        state.updateShortcutsLockedLoggingEnabled(true)
+        #expect(state.settings.shortcutsLockedLoggingEnabled)
+        #expect(settingsStore.load().shortcutsLockedLoggingEnabled)
+        #expect(accessibility() == [promoted])
+        #expect(state.lastErrorMessage == nil)
+
+        // Turning it off does not demote, matching the background toggles.
+        state.updateShortcutsLockedLoggingEnabled(false)
+        #expect(!state.settings.shortcutsLockedLoggingEnabled)
+        #expect(!settingsStore.load().shortcutsLockedLoggingEnabled)
+        #expect(accessibility() == [promoted])
+    }
+
+    @Test func lockedLoggingToggleStaysOffWhenPromotionFails() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let settingsStore = AppSettingsStore(defaults: defaults)
+        let backend = FakeKeychainBackend()
+        let keychain = KeychainStore(service: "com.sporez.actualist.tests", account: UUID().uuidString, backend: backend)
+        try keychain.saveActualSyncToken("token")
+        backend.updateFailureStatus = errSecInteractionNotAllowed
+        let state = AppState(settingsStore: settingsStore, keychain: keychain)
+
+        state.updateShortcutsLockedLoggingEnabled(true)
+
+        #expect(!state.settings.shortcutsLockedLoggingEnabled)
+        #expect(!settingsStore.load().shortcutsLockedLoggingEnabled)
+        #expect(state.lastErrorMessage != nil)
     }
 
     @Test func persistedBackgroundBankSyncSurvivesAppStateStartup() {

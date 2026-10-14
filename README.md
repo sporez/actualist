@@ -66,6 +66,10 @@ and iOS Liquid Glass controls.
 - Widgets for balances, budget overview, recent activity, net worth, and quick
   actions. Configure them through Apple's **Edit Widget** controls.
 - Shortcuts and Siri, themes, sample-value privacy, and background refresh.
+  Turn on **Allow Logging While Locked** under Settings → Privacy &
+  Notifications to let Log Transaction, Log Transfer and Import Transaction
+  from Text run on a locked iPhone, for example from an automation. Every
+  other action still asks you to unlock.
 - Offline changes that sync when your server is reachable, optional budget
   encryption, OpenID sign-in, and custom request headers.
 

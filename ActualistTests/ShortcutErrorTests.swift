@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 @testable import Actualist
 
@@ -6,6 +7,7 @@ struct ShortcutErrorTests {
     @Test func everyCaseHasUserFacingCopyWithoutInternalTokens() throws {
         let cases: [ShortcutsError] = [
             .shortcutsDisabled,
+            .deviceLocked,
             .noBudgetSelected,
             .budgetFileMissing,
             .encryptedBudgetNeedsUnlock,
@@ -58,6 +60,17 @@ struct ShortcutErrorTests {
         #expect(ShortcutsError.mapping(LocalFirstError.missingSyncToken) == .writeFailed)
         #expect(ShortcutsError.mapping(LocalFirstError.missingSyncToken, fallback: .budgetFileMissing) == .budgetFileMissing)
         #expect(ShortcutsError.mapping(NSError(domain: "test", code: 1)) == .writeFailed)
+    }
+
+    @Test func lockedKeychainMapsToDeviceLockedNotAMissingFile() {
+        let locked = KeychainReadError.unavailable(errSecInteractionNotAllowed)
+        #expect(ShortcutsError.mapping(locked, fallback: .budgetFileMissing) == .deviceLocked)
+        #expect(ShortcutsError.mapping(locked) == .deviceLocked)
+        #expect(
+            ShortcutsError.mapping(KeychainReadError.unavailable(errSecAuthFailed), fallback: .budgetFileMissing)
+                == .budgetFileMissing
+        )
+        #expect(ShortcutsError.mapping(KeychainReadError.unreadable) == .writeFailed)
     }
 
     @Test func cancellationMapsToBudgetBusyNotAMissingFile() {

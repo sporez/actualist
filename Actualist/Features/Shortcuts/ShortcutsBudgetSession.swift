@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import UIKit
 
 struct PreparedBudget {
     let budgetID: String
@@ -33,6 +34,7 @@ extension ShortcutsBudgetSession {
 @MainActor
 final class ShortcutsBudgetSession {
     private let appState: AppState
+    private let isDeviceLocked: @MainActor () -> Bool
     private var isWriting = false
     private var writeWaiters: [WriteWaiter] = []
 
@@ -45,14 +47,28 @@ final class ShortcutsBudgetSession {
     /// a queued write deterministically.
     var queuedWriteCount: Int { writeWaiters.count }
 
-    init(appState: AppState) {
+    /// Complete-class protected data goes away shortly after the device locks,
+    /// so its absence is the public signal that the device is locked.
+    init(
+        appState: AppState,
+        isDeviceLocked: @escaping @MainActor () -> Bool = { !UIApplication.shared.isProtectedDataAvailable }
+    ) {
         self.appState = appState
+        self.isDeviceLocked = isDeviceLocked
     }
 
     func requireEnabled() throws {
         guard appState.settings.shortcutsEnabled else {
             throw ShortcutsError.shortcutsDisabled
         }
+    }
+
+    /// Whether an add-only action must ask the user to unlock before touching
+    /// the budget. Those actions are `.alwaysAllowed` because the system reads
+    /// the policy from build-time metadata, so the setting is enforced here.
+    func needsUnlockToLog() throws -> Bool {
+        try requireEnabled()
+        return isDeviceLocked() && !appState.settings.shortcutsLockedLoggingEnabled
     }
 
     @discardableResult
