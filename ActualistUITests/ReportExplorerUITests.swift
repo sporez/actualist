@@ -38,6 +38,15 @@ final class ReportExplorerUITests: XCTestCase {
         assertSwitch("report-filter-hidden-categories", equals: true, in: app)
         assertSwitch("report-filter-uncategorized", equals: true, in: app)
 
+        let closedAccounts = app.buttons["Closed Accounts"]
+        scrollUntilHittable(closedAccounts, in: filterScroller(in: app), direction: .down)
+        closedAccounts.tap()
+        let carLoan = assertSwitch("report-filter-account-carloan", equals: false, in: app)
+        attachScreenshot(named: "reports-filter-closed-accounts-dark-\(layoutName(in: app))", app: app)
+        carLoan.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        assertSwitch("report-filter-account-carloan", equals: true, in: app)
+        assertSwitch("report-filter-off-budget", equals: true, fallbackDirection: .down, in: app)
+
         let noneButtons = try filterNoneButtons(in: app)
         scrollUntilHittable(noneButtons[0], in: filterScroller(in: app), direction: .down)
         noneButtons[0].tap()
@@ -162,7 +171,7 @@ final class ReportExplorerUITests: XCTestCase {
         assertSwitch("report-filter-account-checking", equals: true, in: app)
         assertSwitch(
             "report-filter-off-budget",
-            equals: false,
+            equals: true,
             fallbackDirection: .down,
             in: app
         )

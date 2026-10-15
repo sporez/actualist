@@ -258,11 +258,14 @@ struct ReportExplorerTests {
 
     @Test func netWorthReadUsesOpeningBalanceAndExactInclusiveEndDay() async throws {
         let database = try BudgetDatabase(databaseURL: makeFixture())
+        var onBudgetOnly = ReportExplorerFilters.defaults(for: .netWorth)
+        onBudgetOnly.includesOffBudget = false
         let query = ReportExplorerQuery(
             metric: .netWorth,
             startDay: "2026-01-15",
             endDay: "2026-02-28",
-            interval: .month
+            interval: .month,
+            filters: onBudgetOnly
         )
 
         let snapshot = try await database.fetchReportExplorer(query: query)
