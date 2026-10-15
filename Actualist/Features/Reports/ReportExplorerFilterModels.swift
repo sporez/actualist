@@ -16,13 +16,17 @@ struct ReportExplorerFilters: Hashable, Sendable {
     var includesHiddenCategories: Bool
     var includesUncategorized: Bool
 
-    static let `default` = Self(
-        accounts: .all,
-        categories: .all,
-        includesOffBudget: false,
-        includesHiddenCategories: true,
-        includesUncategorized: true
-    )
+    /// Net worth counts every account, matching the Reports dashboard card;
+    /// activity reports start from on-budget accounts.
+    static func defaults(for metric: ReportExplorerMetric) -> Self {
+        Self(
+            accounts: .all,
+            categories: .all,
+            includesOffBudget: metric == .netWorth,
+            includesHiddenCategories: true,
+            includesUncategorized: true
+        )
+    }
 }
 
 struct ReportExplorerAccountFilterOption: Identifiable, Hashable, Sendable {
@@ -52,65 +56,111 @@ struct ReportExplorerFilterCatalog: Hashable, Sendable {
     }
 }
 
+/// Edits filters so every row shows whether the report counts it. Off-budget
+/// accounts and hidden categories only count while their include switch is on,
+/// so a row in that gated group reads off while the switch is off, and turning
+/// one on opens the switch for that row alone.
 struct ReportExplorerFilterDraft: Hashable, Sendable {
     var filters: ReportExplorerFilters
+    private let defaults: ReportExplorerFilters
+    private let accountIDs: Set<String>
+    private let offBudgetAccountIDs: Set<String>
+    private let categoryIDs: Set<String>
+    private let hiddenCategoryIDs: Set<String>
 
-    init(filters: ReportExplorerFilters) {
-        self.filters = filters
-    }
-
-    func isAccountSelected(_ id: String) -> Bool {
-        isSelected(id, in: filters.accounts)
-    }
-
-    func isCategorySelected(_ id: String) -> Bool {
-        isSelected(id, in: filters.categories)
-    }
-
-    mutating func setAccount(
-        _ id: String,
-        selected: Bool,
-        availableIDs: Set<String>
+    init(
+        filters: ReportExplorerFilters,
+        defaults: ReportExplorerFilters,
+        accounts: [ReportExplorerAccountFilterOption],
+        categories: [ReportExplorerCategoryFilterOption]
     ) {
-        filters.accounts = updatedSelection(
-            filters.accounts,
-            id: id,
-            selected: selected,
-            availableIDs: availableIDs
+        self.filters = filters
+        self.defaults = defaults
+        accountIDs = Set(accounts.map(\.id))
+        offBudgetAccountIDs = Set(accounts.lazy.filter(\.isOffBudget).map(\.id))
+        categoryIDs = Set(categories.map(\.id))
+        hiddenCategoryIDs = Set(categories.lazy.filter(\.isHidden).map(\.id))
+    }
+
+    func isAccountIncluded(_ id: String) -> Bool {
+        (filters.includesOffBudget || !offBudgetAccountIDs.contains(id))
+            && Self.isSelected(id, in: filters.accounts)
+    }
+
+    func isCategoryIncluded(_ id: String) -> Bool {
+        (filters.includesHiddenCategories || !hiddenCategoryIDs.contains(id))
+            && Self.isSelected(id, in: filters.categories)
+    }
+
+    mutating func setAccount(_ id: String, included: Bool) {
+        Self.setRow(
+            id,
+            included: included,
+            selection: &filters.accounts,
+            gateIsOpen: &filters.includesOffBudget,
+            availableIDs: accountIDs,
+            gatedIDs: offBudgetAccountIDs
         )
     }
 
-    mutating func setCategory(
-        _ id: String,
-        selected: Bool,
-        availableIDs: Set<String>
-    ) {
-        filters.categories = updatedSelection(
-            filters.categories,
-            id: id,
-            selected: selected,
-            availableIDs: availableIDs
+    mutating func setCategory(_ id: String, included: Bool) {
+        Self.setRow(
+            id,
+            included: included,
+            selection: &filters.categories,
+            gateIsOpen: &filters.includesHiddenCategories,
+            availableIDs: categoryIDs,
+            gatedIDs: hiddenCategoryIDs
+        )
+    }
+
+    mutating func setIncludesOffBudget(_ included: Bool) {
+        Self.setGate(
+            included,
+            selection: &filters.accounts,
+            gateIsOpen: &filters.includesOffBudget,
+            availableIDs: accountIDs,
+            gatedIDs: offBudgetAccountIDs
+        )
+    }
+
+    mutating func setIncludesHiddenCategories(_ included: Bool) {
+        Self.setGate(
+            included,
+            selection: &filters.categories,
+            gateIsOpen: &filters.includesHiddenCategories,
+            availableIDs: categoryIDs,
+            gatedIDs: hiddenCategoryIDs
         )
     }
 
     mutating func selectAllAccounts() {
         filters.accounts = .all
+        filters.includesOffBudget = true
     }
 
     mutating func clearAccounts() {
         filters.accounts = .only([])
+        filters.includesOffBudget = false
     }
 
     mutating func selectAllCategories() {
         filters.categories = .all
+        filters.includesHiddenCategories = true
+        filters.includesUncategorized = true
     }
 
     mutating func clearCategories() {
         filters.categories = .only([])
+        filters.includesHiddenCategories = false
         filters.includesUncategorized = false
     }
 
-    private func isSelected(_ id: String, in selection: ReportFilterSelection) -> Bool {
+    mutating func reset() {
+        filters = defaults
+    }
+
+    private static func isSelected(_ id: String, in selection: ReportFilterSelection) -> Bool {
         switch selection {
         case .all:
             true
@@ -119,25 +169,59 @@ struct ReportExplorerFilterDraft: Hashable, Sendable {
         }
     }
 
-    private func updatedSelection(
+    private static func selectedIDs(
         _ selection: ReportFilterSelection,
-        id: String,
-        selected: Bool,
+        availableIDs: Set<String>
+    ) -> Set<String> {
+        switch selection {
+        case .all: availableIDs
+        case .only(let ids): ids
+        }
+    }
+
+    private static func normalized(
+        _ selectedIDs: Set<String>,
         availableIDs: Set<String>
     ) -> ReportFilterSelection {
-        var selectedIDs: Set<String>
-        switch selection {
-        case .all:
-            selectedIDs = availableIDs
-        case .only(let ids):
-            selectedIDs = ids
-        }
-        if selected {
-            selectedIDs.insert(id)
+        selectedIDs == availableIDs ? .all : .only(selectedIDs)
+    }
+
+    /// Opening a closed gate from one row adds only that row: the other gated
+    /// rows read off while the gate is closed, so they stay off.
+    private static func setRow(
+        _ id: String,
+        included: Bool,
+        selection: inout ReportFilterSelection,
+        gateIsOpen: inout Bool,
+        availableIDs: Set<String>,
+        gatedIDs: Set<String>
+    ) {
+        var ids = selectedIDs(selection, availableIDs: availableIDs)
+        if included {
+            if gatedIDs.contains(id), !gateIsOpen {
+                ids.subtract(gatedIDs)
+                gateIsOpen = true
+            }
+            ids.insert(id)
         } else {
-            selectedIDs.remove(id)
+            ids.remove(id)
         }
-        return selectedIDs == availableIDs ? .all : .only(selectedIDs)
+        selection = normalized(ids, availableIDs: availableIDs)
+    }
+
+    /// Opening the gate turns every gated row on. Closing it leaves the
+    /// selection alone because the gate already excludes those rows.
+    private static func setGate(
+        _ open: Bool,
+        selection: inout ReportFilterSelection,
+        gateIsOpen: inout Bool,
+        availableIDs: Set<String>,
+        gatedIDs: Set<String>
+    ) {
+        gateIsOpen = open
+        guard open else { return }
+        let ids = selectedIDs(selection, availableIDs: availableIDs).union(gatedIDs)
+        selection = normalized(ids, availableIDs: availableIDs)
     }
 }
 

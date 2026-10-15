@@ -76,12 +76,16 @@ final class ReportExplorerViewModel {
         return request
     }
     var activeFilterCount: Int {
+        let filters = query.filters
+        let defaults = ReportExplorerFilters.defaults(for: query.metric)
         var count = 0
-        if !query.filters.accounts.isAll { count += 1 }
-        if query.metric.supportsCategoryFilters, !query.filters.categories.isAll { count += 1 }
-        if query.filters.includesOffBudget { count += 1 }
-        if query.metric.supportsActivityVisibility, !query.filters.includesHiddenCategories { count += 1 }
-        if query.metric.supportsActivityVisibility, !query.filters.includesUncategorized { count += 1 }
+        if filters.accounts != defaults.accounts { count += 1 }
+        if query.metric.supportsCategoryFilters, filters.categories != defaults.categories { count += 1 }
+        if filters.includesOffBudget != defaults.includesOffBudget { count += 1 }
+        if query.metric.supportsActivityVisibility,
+           filters.includesHiddenCategories != defaults.includesHiddenCategories { count += 1 }
+        if query.metric.supportsActivityVisibility,
+           filters.includesUncategorized != defaults.includesUncategorized { count += 1 }
         return count
     }
 

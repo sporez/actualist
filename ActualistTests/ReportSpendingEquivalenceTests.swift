@@ -29,4 +29,28 @@ struct ReportSpendingEquivalenceTests {
         #expect(dashboard.monthComparison.points[22].current == explorer.totals.expenses)
         #expect(dashboard.threeMonthAverage.currentExpenses == explorer.totals.expenses)
     }
+
+    @Test func dashboardAndDefaultExplorerAgreeOnNetWorthIncludingOffBudgetAccounts() async throws {
+        let database = try BudgetDatabase(databaseURL: ReportExplorerTests().makeFixture())
+        let range = ReportDateRange(anchorMonth: "2026-01", startDay: "2025-08-01", endDay: "2026-01-23")
+        let dashboard = try await database.fetchReportsDashboard(range: range)
+        let explorer = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .netWorth,
+            startDay: "2025-08-01",
+            endDay: "2026-01-31",
+            interval: .month
+        ))
+        var onBudgetFilters = explorer.query.filters
+        onBudgetFilters.includesOffBudget = false
+        let onBudgetOnly = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .netWorth,
+            startDay: "2025-08-01",
+            endDay: "2026-01-31",
+            interval: .month,
+            filters: onBudgetFilters
+        ))
+
+        #expect(explorer.totals.endingBalance == dashboard.netWorth.balance)
+        #expect(onBudgetOnly.totals.endingBalance != dashboard.netWorth.balance)
+    }
 }

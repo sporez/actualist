@@ -167,20 +167,20 @@ struct ReportExplorerViewModelTests {
         #expect(repository.requestedQueries == [model.query])
     }
 
-    @Test func filterDraftDistinguishesAllSomeAndExplicitlyEmptySelections() {
-        var draft = ReportExplorerFilterDraft(filters: .default)
-        let accountIDs: Set<String> = ["checking", "savings"]
+    @Test func eachReportStartsFromItsOwnDefaultFiltersWithNoActiveFilterCount() throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let netWorth = ReportExplorerViewModel(reportCard: .netWorth, now: now)
+        let spending = ReportExplorerViewModel(reportCard: .monthComparison, now: now)
 
-        draft.setAccount("checking", selected: false, availableIDs: accountIDs)
-        #expect(draft.filters.accounts == .only(["savings"]))
-        draft.setAccount("checking", selected: true, availableIDs: accountIDs)
-        #expect(draft.filters.accounts == .all)
+        #expect(netWorth.query.filters.includesOffBudget)
+        #expect(!spending.query.filters.includesOffBudget)
+        #expect(netWorth.activeFilterCount == 0)
+        #expect(spending.activeFilterCount == 0)
 
-        draft.clearAccounts()
-        draft.clearCategories()
-        #expect(draft.filters.accounts == .only([]))
-        #expect(draft.filters.categories == .only([]))
-        #expect(!draft.filters.includesUncategorized)
+        var withoutOffBudget = netWorth.query.filters
+        withoutOffBudget.includesOffBudget = false
+        netWorth.applyFilters(withoutOffBudget)
+        #expect(netWorth.activeFilterCount == 1)
     }
 
     @Test func netWorthNormalizesUnsupportedCategoryVisibilityFilters() async throws {

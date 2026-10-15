@@ -138,13 +138,13 @@ struct ReportExplorerQuery: Hashable, Sendable {
         startDay: String,
         endDay: String,
         interval: ReportInterval,
-        filters: ReportExplorerFilters = .default
+        filters: ReportExplorerFilters? = nil
     ) {
         self.metric = metric
         self.startDay = startDay
         self.endDay = endDay
         self.interval = interval
-        self.filters = filters
+        self.filters = filters ?? .defaults(for: metric)
     }
 
     var hasValidRange: Bool {
