@@ -12,12 +12,6 @@ private struct RawCalendarActivityDay: Sendable {
     let amount: Int
 }
 
-private enum ReportCalendarTransferFilter: Equatable {
-    case all
-    case transfers
-    case nonTransfers
-}
-
 extension BudgetDatabase {
     func fetchNetWorthReport(range: ReportDateRange) throws -> NetWorthReport {
         let end = ReportCalendar.dayID(month: range.anchorMonth, day: max(ReportCalendar.days(in: range.anchorMonth), 1))
@@ -35,6 +29,7 @@ extension BudgetDatabase {
         let raw = try queue.read { db in
             let calendarTransferFilter = try reportCalendarTransferFilter(db: db)
             return (
+                calendarTransfers: calendarTransferFilter,
                 netWorth: try reportNetWorthDays(through: anchorMonthEnd, db: db),
                 activity: try reportActivityDays(from: range.startDay, through: anchorMonthEnd, db: db),
                 calendarActivity: try reportCalendarActivityDays(
@@ -51,6 +46,7 @@ extension BudgetDatabase {
             netWorthDays: raw.netWorth,
             activityDays: raw.activity,
             calendarActivityDays: raw.calendarActivity,
+            calendarTransfers: raw.calendarTransfers,
             budgetedExpenses: raw.budgetedExpenses
         )
     }
@@ -93,7 +89,7 @@ extension BudgetDatabase {
     private func reportCalendarActivityDays(
         from startDay: String,
         through endDay: String,
-        transferFilter: ReportCalendarTransferFilter,
+        transferFilter: ReportTransferFilter,
         db: Database
     ) throws -> [RawCalendarActivityDay] {
         guard try tableExists("transactions", db: db), try tableExists("accounts", db: db) else {
@@ -148,7 +144,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func reportCalendarTransferFilter(db: Database) throws -> ReportCalendarTransferFilter {
+    private func reportCalendarTransferFilter(db: Database) throws -> ReportTransferFilter {
         guard try tableExists("dashboard", db: db) else { return .all }
         let columns = try columnSet(for: "dashboard", db: db)
         guard columns.contains("type"), columns.contains("meta") else { return .all }
@@ -188,6 +184,7 @@ extension BudgetDatabase {
         netWorthDays: [RawNetWorthDay],
         activityDays: [RawReportActivityDay],
         calendarActivityDays: [RawCalendarActivityDay],
+        calendarTransfers: ReportTransferFilter,
         budgetedExpenses: Int
     ) throws -> ReportsDashboardSnapshot {
         var activityByDay: [String: ReportDailyActivity] = [:]
@@ -228,7 +225,8 @@ extension BudgetDatabase {
             monthComparison: monthComparison,
             budgetOverview: budgetOverview,
             threeMonthAverage: threeMonthAverage,
-            transactionCalendar: calendar
+            transactionCalendar: calendar,
+            calendarTransfers: calendarTransfers
         )
     }
 

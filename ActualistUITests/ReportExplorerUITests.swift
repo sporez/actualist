@@ -180,6 +180,26 @@ final class ReportExplorerUITests: XCTestCase {
         attachScreenshot(named: "reports-net-worth-filter-light-privacy-ax-\(layoutName(in: app))", app: app)
     }
 
+    func testCalendarDetailStartsWithItsCardsAccountsAndTransfers() throws {
+        prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
+        let app = launchDemo(screen: "budget")
+        defer {
+            app.terminate()
+            restoreDefaults()
+        }
+
+        try openReportsFromNativeNavigation(in: app)
+        try openReportCard(named: "Transaction Calendar", in: app)
+        XCTAssertTrue(app.navigationBars["Transaction Calendar"].waitForExistence(timeout: 8))
+
+        openFilters(in: app)
+        assertSwitch("report-filter-off-budget", equals: true, in: app)
+        assertSwitch("report-filter-transfers", equals: true, in: app)
+        attachScreenshot(named: "reports-calendar-filter-dark-\(layoutName(in: app))", app: app)
+        app.buttons["report-filter-cancel"].tap()
+        XCTAssertTrue(app.staticTexts["Filter This Report"].waitForNonExistence(timeout: 5))
+    }
+
     func testCustomRangeSheetCancelPreservesAndApplyKeepsSelectedDates() throws {
         prepareDemo(theme: "Actual Purple (dark)", sampleValues: false)
         let app = launchDemo(screen: "budget")

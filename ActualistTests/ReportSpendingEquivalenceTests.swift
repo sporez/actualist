@@ -53,4 +53,38 @@ struct ReportSpendingEquivalenceTests {
         #expect(explorer.totals.endingBalance == dashboard.netWorth.balance)
         #expect(onBudgetOnly.totals.endingBalance != dashboard.netWorth.balance)
     }
+
+    /// No dashboard row means Actual's calendar default: every account and
+    /// every transfer, which this fixture has both of.
+    @Test func calendarDetailCountsTheSameOffBudgetAndTransferRowsAsItsCard() async throws {
+        let database = try BudgetDatabase(databaseURL: ReportExplorerTests().makeFixture())
+        let range = ReportDateRange(anchorMonth: "2026-01", startDay: "2025-08-01", endDay: "2026-01-23")
+        let dashboard = try await database.fetchReportsDashboard(range: range)
+        let calendarMonth = try #require(dashboard.transactionCalendar.last)
+        let defaults = ReportCardKind.transactionCalendar.explorerDefaultFilters(
+            calendarTransfers: dashboard.calendarTransfers
+        )
+        let explorer = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .cashFlow,
+            startDay: "2026-01-01",
+            endDay: "2026-01-31",
+            interval: .month,
+            filters: defaults
+        ))
+        var cashFlowRules = defaults
+        cashFlowRules.includesOffBudget = false
+        cashFlowRules.transfers = .nonTransfers
+        let cashFlow = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .cashFlow,
+            startDay: "2026-01-01",
+            endDay: "2026-01-31",
+            interval: .month,
+            filters: cashFlowRules
+        ))
+
+        #expect(dashboard.calendarTransfers == .all)
+        #expect(explorer.totals.income == calendarMonth.income)
+        #expect(explorer.totals.expenses == calendarMonth.expenses)
+        #expect(cashFlow.totals.expenses != calendarMonth.expenses)
+    }
 }

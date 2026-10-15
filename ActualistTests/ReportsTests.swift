@@ -72,6 +72,35 @@ struct ReportsTests {
         #expect(snapshot.transactionCalendar[2].expenses == 17_700)
         #expect(snapshot.transactionCalendar[2].days.count == 31)
         #expect(snapshot.transactionCalendar[2].days[19].income == 99_999)
+        #expect(snapshot.calendarTransfers == .nonTransfers)
+    }
+
+    @Test func cashFlowAndCalendarDetailsStartFromTheirCardsNumbers() async throws {
+        let database = try BudgetDatabase(databaseURL: makeReportsFixture())
+        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+
+        let cashFlow = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .cashFlow,
+            startDay: "2026-07-01",
+            endDay: reportRange.endDay,
+            interval: .day,
+            filters: ReportCardKind.cashFlow.explorerDefaultFilters(calendarTransfers: snapshot.calendarTransfers)
+        ))
+        #expect(cashFlow.totals.income == snapshot.cashFlow.income)
+        #expect(cashFlow.totals.expenses == snapshot.cashFlow.expenses)
+
+        let calendarMonth = try #require(snapshot.transactionCalendar.last)
+        let calendar = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .cashFlow,
+            startDay: "2026-07-01",
+            endDay: "2026-07-31",
+            interval: .month,
+            filters: ReportCardKind.transactionCalendar.explorerDefaultFilters(
+                calendarTransfers: snapshot.calendarTransfers
+            )
+        ))
+        #expect(calendar.totals.income == calendarMonth.income)
+        #expect(calendar.totals.expenses == calendarMonth.expenses)
     }
 
     @Test func storeCachesReportsAndInvalidatesThemExplicitly() async throws {

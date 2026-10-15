@@ -9,8 +9,11 @@ struct ReportExplorerView: View {
     @State private var isCustomRangePresented = false
     @State private var isFilterPresented = false
 
-    init(reportCard: ReportCardKind) {
-        _viewModel = State(initialValue: ReportExplorerViewModel(reportCard: reportCard))
+    init(reportCard: ReportCardKind, defaultFilters: ReportExplorerFilters) {
+        _viewModel = State(initialValue: ReportExplorerViewModel(
+            reportCard: reportCard,
+            defaultFilters: defaultFilters
+        ))
     }
 
     var body: some View {
@@ -157,6 +160,7 @@ struct ReportExplorerView: View {
             ReportExplorerFilterView(
                 metric: viewModel.query.metric,
                 filters: viewModel.filters,
+                defaults: viewModel.defaultFilters,
                 catalog: viewModel.filterCatalog,
                 onApply: { viewModel.applyFilters($0) }
             )

@@ -150,6 +150,7 @@ struct ReportsDashboardSnapshot: Equatable, Sendable {
     let budgetOverview: BudgetOverviewReport
     let threeMonthAverage: ThreeMonthAverageReport
     let transactionCalendar: [TransactionCalendarMonth]
+    var calendarTransfers: ReportTransferFilter = .all
 }
 
 struct ReportDailyActivity: Equatable, Sendable {

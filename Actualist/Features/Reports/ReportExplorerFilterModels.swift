@@ -9,12 +9,21 @@ enum ReportFilterSelection: Hashable, Sendable {
     }
 }
 
+/// Which transfers a cash-flow read counts. `transfers` (transfers only) comes
+/// from an Actual Calendar card whose conditions say `transfer is true`.
+enum ReportTransferFilter: Hashable, Sendable {
+    case all
+    case transfers
+    case nonTransfers
+}
+
 struct ReportExplorerFilters: Hashable, Sendable {
     var accounts: ReportFilterSelection
     var categories: ReportFilterSelection
     var includesOffBudget: Bool
     var includesHiddenCategories: Bool
     var includesUncategorized: Bool
+    var transfers: ReportTransferFilter = .nonTransfers
 
     /// Net worth counts every account, matching the Reports dashboard card;
     /// activity reports start from on-budget accounts.
@@ -156,6 +165,14 @@ struct ReportExplorerFilterDraft: Hashable, Sendable {
         filters.includesUncategorized = false
     }
 
+    var includesTransfers: Bool {
+        filters.transfers != .nonTransfers
+    }
+
+    mutating func setIncludesTransfers(_ included: Bool) {
+        filters.transfers = included ? .all : .nonTransfers
+    }
+
     mutating func reset() {
         filters = defaults
     }
@@ -228,6 +245,7 @@ struct ReportExplorerFilterDraft: Hashable, Sendable {
 extension ReportExplorerMetric {
     var supportsCategoryFilters: Bool { self != .netWorth }
     var supportsActivityVisibility: Bool { self != .netWorth }
+    var supportsTransferFilter: Bool { self == .cashFlow }
 }
 
 enum ReportDrilldownUnavailableReason: Hashable, Sendable {

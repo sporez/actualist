@@ -41,7 +41,10 @@ struct ReportsView: View {
             .navigationTitle("Reports")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ReportCardKind.self) { reportCard in
-                ReportExplorerView(reportCard: reportCard)
+                ReportExplorerView(
+                    reportCard: reportCard,
+                    defaultFilters: viewModel.explorerDefaultFilters(for: reportCard)
+                )
             }
             .task { await viewModel.load(using: appState) }
             .refreshable { await viewModel.refresh(using: appState) }

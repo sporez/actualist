@@ -314,6 +314,18 @@ enum ReportExplorerError: LocalizedError, Equatable {
 }
 
 extension ReportCardKind {
+    /// The detail opens with the same accounts and transfers its dashboard card
+    /// counts. The Calendar card follows Actual's calendar widget: every
+    /// account, with transfers as its card conditions choose.
+    func explorerDefaultFilters(calendarTransfers: ReportTransferFilter) -> ReportExplorerFilters {
+        var filters = ReportExplorerFilters.defaults(for: explorerMetric)
+        if self == .transactionCalendar {
+            filters.includesOffBudget = true
+            filters.transfers = calendarTransfers
+        }
+        return filters
+    }
+
     var explorerMetric: ReportExplorerMetric {
         switch self {
         case .netWorth:

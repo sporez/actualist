@@ -183,6 +183,26 @@ struct ReportExplorerViewModelTests {
         #expect(netWorth.activeFilterCount == 1)
     }
 
+    @Test func calendarDetailStartsFromItsCardsAccountsAndTransfers() throws {
+        let now = try reportDate(year: 2026, month: 1, day: 31)
+        let defaults = ReportCardKind.transactionCalendar.explorerDefaultFilters(calendarTransfers: .transfers)
+        let calendar = ReportExplorerViewModel(reportCard: .transactionCalendar, defaultFilters: defaults, now: now)
+        let cashFlow = ReportExplorerViewModel(reportCard: .cashFlow, now: now)
+
+        #expect(calendar.query.metric == .cashFlow)
+        #expect(calendar.query.filters.includesOffBudget)
+        #expect(calendar.query.filters.transfers == .transfers)
+        #expect(calendar.activeFilterCount == 0)
+        #expect(!cashFlow.query.filters.includesOffBudget)
+        #expect(cashFlow.query.filters.transfers == .nonTransfers)
+        #expect(cashFlow.activeFilterCount == 0)
+
+        var allTransfers = calendar.query.filters
+        allTransfers.transfers = .all
+        calendar.applyFilters(allTransfers)
+        #expect(calendar.activeFilterCount == 1)
+    }
+
     @Test func netWorthNormalizesUnsupportedCategoryVisibilityFilters() async throws {
         let now = try reportDate(year: 2026, month: 1, day: 31)
         let model = ReportExplorerViewModel(reportCard: .netWorth, now: now)

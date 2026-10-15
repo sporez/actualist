@@ -153,7 +153,11 @@ extension BudgetDatabase {
             conditions.append(.category(category))
         }
         if query.metric == .cashFlow {
-            conditions.append(.transfer(false))
+            switch query.filters.transfers {
+            case .all: break
+            case .transfers: conditions.append(.transfer(true))
+            case .nonTransfers: conditions.append(.transfer(false))
+            }
         }
         return TransactionDrilldownRequest(
             scope: .spending,

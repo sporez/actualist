@@ -14,6 +14,7 @@ final class ReportExplorerViewModel {
     }
 
     let reportCard: ReportCardKind
+    let defaultFilters: ReportExplorerFilters
     private(set) var query: ReportExplorerQuery
     private(set) var selectedPreset: ReportExplorerRangePreset
     private(set) var snapshot: ReportExplorerSnapshot?
@@ -25,8 +26,14 @@ final class ReportExplorerViewModel {
     private var requestGeneration = 0
     private var activeSessionIdentity: ReportExplorerSessionIdentity?
 
-    init(reportCard: ReportCardKind, now: Date = ReportClock.now) {
+    init(
+        reportCard: ReportCardKind,
+        defaultFilters: ReportExplorerFilters? = nil,
+        now: Date = ReportClock.now
+    ) {
         self.reportCard = reportCard
+        let defaultFilters = defaultFilters ?? reportCard.explorerDefaultFilters(calendarTransfers: .all)
+        self.defaultFilters = defaultFilters
         selectedPreset = reportCard.explorerDefaultPreset
         let range = reportCard.explorerDefaultPreset.range(through: now)
             ?? ReportExplorerRangePreset.monthToDate.range(through: now)
@@ -35,7 +42,8 @@ final class ReportExplorerViewModel {
             metric: reportCard.explorerMetric,
             startDay: range.startDay,
             endDay: range.endDay,
-            interval: reportCard.explorerDefaultInterval
+            interval: reportCard.explorerDefaultInterval,
+            filters: defaultFilters
         )
     }
 
@@ -77,7 +85,7 @@ final class ReportExplorerViewModel {
     }
     var activeFilterCount: Int {
         let filters = query.filters
-        let defaults = ReportExplorerFilters.defaults(for: query.metric)
+        let defaults = defaultFilters
         var count = 0
         if filters.accounts != defaults.accounts { count += 1 }
         if query.metric.supportsCategoryFilters, filters.categories != defaults.categories { count += 1 }
@@ -86,6 +94,7 @@ final class ReportExplorerViewModel {
            filters.includesHiddenCategories != defaults.includesHiddenCategories { count += 1 }
         if query.metric.supportsActivityVisibility,
            filters.includesUncategorized != defaults.includesUncategorized { count += 1 }
+        if query.metric.supportsTransferFilter, filters.transfers != defaults.transfers { count += 1 }
         return count
     }
 

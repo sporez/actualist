@@ -185,6 +185,10 @@ final class ReportsViewModel {
     func calendarMonthIncome(_ month: TransactionCalendarMonth) -> String { money(month.income) }
     func calendarMonthExpenses(_ month: TransactionCalendarMonth) -> String { money(month.expenses) }
 
+    func explorerDefaultFilters(for reportCard: ReportCardKind) -> ReportExplorerFilters {
+        reportCard.explorerDefaultFilters(calendarTransfers: snapshot?.calendarTransfers ?? .all)
+    }
+
     var netWorthAccessibility: String {
         "Net worth \(netWorthHeadline), change \(netWorthChangeText), \(netWorthSubtitle)"
     }
@@ -306,7 +310,8 @@ final class ReportsViewModel {
                 averageExpenses: averageExpenses,
                 variance: currentExpenses - averageExpenses
             ),
-            transactionCalendar: calendar
+            transactionCalendar: calendar,
+            calendarTransfers: snapshot.calendarTransfers
         )
     }
 

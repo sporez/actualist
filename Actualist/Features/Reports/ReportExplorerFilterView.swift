@@ -7,21 +7,24 @@ struct ReportExplorerFilterView: View {
     @State private var showsClosedAccounts = false
 
     let metric: ReportExplorerMetric
+    let defaults: ReportExplorerFilters
     let catalog: ReportExplorerFilterCatalog
     let onApply: (ReportExplorerFilters) -> Void
 
     init(
         metric: ReportExplorerMetric,
         filters: ReportExplorerFilters,
+        defaults: ReportExplorerFilters,
         catalog: ReportExplorerFilterCatalog,
         onApply: @escaping (ReportExplorerFilters) -> Void
     ) {
         self.metric = metric
+        self.defaults = defaults
         self.catalog = catalog
         self.onApply = onApply
         _draft = State(initialValue: ReportExplorerFilterDraft(
             filters: filters,
-            defaults: .defaults(for: metric),
+            defaults: defaults,
             accounts: catalog.accounts,
             categories: catalog.categories(for: metric)
         ))
@@ -129,6 +132,13 @@ struct ReportExplorerFilterView: View {
                 .accessibilityIdentifier("report-filter-hidden-categories")
             Toggle("Include uncategorized", isOn: $draft.filters.includesUncategorized)
                 .accessibilityIdentifier("report-filter-uncategorized")
+            if metric.supportsTransferFilter {
+                Toggle("Include transfers", isOn: Binding(
+                    get: { draft.includesTransfers },
+                    set: { draft.setIncludesTransfers($0) }
+                ))
+                .accessibilityIdentifier("report-filter-transfers")
+            }
 
             ForEach(categoryGroups, id: \.name) { group in
                 DisclosureGroup(group.name) {

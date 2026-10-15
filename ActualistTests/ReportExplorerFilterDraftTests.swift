@@ -142,6 +142,21 @@ struct ReportExplorerFilterDraftTests {
         #expect(draft.filters.includesUncategorized)
     }
 
+    @Test func transferSwitchIncludesAllTransfersOrNone() {
+        var calendarDefaults = Self.spendingDefaults
+        calendarDefaults.transfers = .transfers
+        var draft = makeDraft(calendarDefaults, defaults: calendarDefaults)
+        #expect(draft.includesTransfers)
+
+        draft.setIncludesTransfers(false)
+        #expect(draft.filters.transfers == .nonTransfers)
+        draft.setIncludesTransfers(true)
+        #expect(draft.filters.transfers == .all)
+
+        draft.reset()
+        #expect(draft.filters.transfers == .transfers)
+    }
+
     @Test func resetRestoresDefaultFilters() {
         var draft = makeDraft()
         draft.selectAllAccounts()
