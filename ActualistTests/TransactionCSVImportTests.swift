@@ -4,15 +4,13 @@ import Testing
 
 /// CSV import parse, reconcile matching, and apply coverage.
 ///
-/// The parse cases materialize the declarative index in
-/// `ActualistTests/Fixtures/Portability/CSVImport/import-cases.json` in-test
-/// (synthetic strings only; the fixture asserts no parse results). Apply-level
+/// The parse cases use synthetic strings only. Apply-level
 /// tests run against the shared synthetic store fixture. No demo or user
 /// budget bytes, no server, no wallet or bank-sync routing.
 @MainActor
 struct TransactionCSVImportTests {
 
-    // MARK: - Parse stage (fixture index materialized in-test)
+    // MARK: - Parse stage
 
     private struct FixtureCase {
         let id: String
@@ -20,7 +18,6 @@ struct TransactionCSVImportTests {
         let csv: String
     }
 
-    /// The eight cases of `import-cases.json`, verbatim.
     private static let fixtureCases: [FixtureCase] = [
         FixtureCase(
             id: "utf8-bom-header-comma",

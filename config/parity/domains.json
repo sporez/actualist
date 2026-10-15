@@ -223,7 +223,7 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift",
         "Actualist/LocalFirst/Database/PortableBudgetSchema.swift"
       ],
-      "notes": "Fixtures/Portability/Archive is hand-written, not oracle output. The sync reset (OP-03, fixed) is covered by PortableBudgetImportSyncResetTests, not an oracle case."
+      "notes": "Portable archive tests build their archives in-test (hand-written, not oracle output). The sync reset (OP-03, fixed) is covered by PortableBudgetImportSyncResetTests, not an oracle case."
     },
     {
       "id": "csv-import-export",
@@ -241,7 +241,7 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCSV*.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+TransactionCSVImport.swift"
       ],
-      "notes": "The interop suite is opt-in and skips without its environment. Fixtures/Portability/CSVImport is hand-written."
+      "notes": "The interop suite is opt-in and skips without its environment."
     },
     {
       "id": "transaction-commands",

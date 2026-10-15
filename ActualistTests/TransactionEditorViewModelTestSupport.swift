@@ -396,10 +396,6 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         try #require(updates.first)
     }
 
-    func onlyDelete() async throws -> ActualTransaction {
-        try #require(deletes.first)
-    }
-
     func onlyRulePreviewDraft() async throws -> TransactionDraft {
         try #require(rulePreviewDrafts.first)
     }

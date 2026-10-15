@@ -452,10 +452,6 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         try #require(categoryHides.first)
     }
 
-    func onlyGroupHide() throws -> RecordedCategoryGroupHiddenUpdate {
-        try #require(groupHides.first)
-    }
-
     func assignmentCount() -> Int { assignments.count }
 
     func onlyAssignment() throws -> RecordedBudgetAssignment {

@@ -6,11 +6,9 @@ import ZIPFoundation
 
 /// Portable ZIP validate and export-snapshot coverage.
 ///
-/// These tests materialize the declarative cases from
-/// `ActualistTests/Fixtures/Portability/Archive/portability-archive-cases.json`
-/// against a synthetic SQLite seed. No demo or user budget bytes, no server,
-/// and no download/reimport (`importBudgetZip` / `reimportBudget`) assertions:
-/// those stay in `LocalFirstActualStoreStorageTransportTests`.
+/// These tests build their archives from a synthetic SQLite seed. No demo
+/// or user budget bytes, no server, and no download/reimport
+/// (`importBudgetZip` / `reimportBudget`) assertions: those stay in `LocalFirstActualStoreStorageTransportTests`.
 @Suite struct PortableBudgetArchiveTests {
     private let sourceIdentity = "cloud-file-1"
     private let tokenSecret = "sync-token-secret-value"

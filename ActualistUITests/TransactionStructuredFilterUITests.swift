@@ -281,45 +281,6 @@ final class TransactionStructuredFilterUITests: XCTestCase {
         app.frame.width >= 792
     }
 
-    private func isFullyVisible(
-        _ elementFrame: CGRect,
-        in scroll: XCUIElement,
-        below navigation: XCUIElement,
-        above footer: XCUIElement
-    ) -> Bool {
-        let visibleTop = max(scroll.frame.minY, navigation.frame.maxY)
-        let visibleBottom = min(scroll.frame.maxY, footer.frame.minY)
-        return elementFrame.minY >= visibleTop
-            && elementFrame.maxY <= visibleBottom
-            && elementFrame.width > 0
-            && elementFrame.height > 0
-    }
-
-    private func scrollReviewBySmallStep(
-        in app: XCUIApplication,
-        scroll: XCUIElement,
-        below navigation: XCUIElement,
-        above footer: XCUIElement
-    ) {
-        let visibleTop = max(scroll.frame.minY, navigation.frame.maxY)
-        let visibleBottom = min(scroll.frame.maxY, footer.frame.minY)
-        let visibleHeight = visibleBottom - visibleTop
-        guard visibleHeight > 0 else {
-            XCTFail("Transaction filter review has no scroll space above its fixed actions")
-            return
-        }
-
-        let start = app.coordinate(withNormalizedOffset: CGVector(
-            dx: scroll.frame.midX / app.frame.width,
-            dy: (visibleTop + visibleHeight * 0.78) / app.frame.height
-        ))
-        let end = app.coordinate(withNormalizedOffset: CGVector(
-            dx: scroll.frame.midX / app.frame.width,
-            dy: (visibleTop + visibleHeight * 0.56) / app.frame.height
-        ))
-        start.press(forDuration: 0.05, thenDragTo: end)
-    }
-
     private func screenshot(_ name: String, app: XCUIApplication) {
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = name
