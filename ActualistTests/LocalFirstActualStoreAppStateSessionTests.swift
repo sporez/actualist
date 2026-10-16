@@ -398,7 +398,7 @@ extension LocalFirstActualStoreTests {
         #expect(appState.requiresReauthentication)
         #expect(
             appState.lastErrorMessage
-                == "Your Actual session is no longer valid. Sign in again to resume syncing."
+                == "Your sign-in has expired. Sign in again to resume syncing."
         )
     }
 

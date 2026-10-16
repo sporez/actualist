@@ -12,7 +12,7 @@ extension LocalFirstActualStoreTests {
 
         #expect(notice.contains("cannot be recovered by Actualist"))
         #expect(notice.contains("Store it securely"))
-        #expect(notice.contains("if this iPhone is lost or replaced"))
+        #expect(notice.contains("if this device is lost or replaced"))
         #expect(notice.contains("not the password"))
         #expect(notice.contains("Neither is included in device backups"))
     }

@@ -29,7 +29,7 @@ extension BudgetDatabase {
     /// block another row.
     func requireNewestAppliedUndo(record: BudgetActionRecord, db: Database) throws {
         guard record.source != .automatic else {
-            throw LocalFirstError.actionUndoBlocked("This was posted automatically and can't be undone.")
+            throw LocalFirstError.actionUndoBlocked("This was posted automatically and cannot be undone.")
         }
         let createdAt = SyncTimestamp.wallTimeString(for: record.createdAt)
         let filter = BudgetActionUndoOrder.participatingRowsFilter

@@ -34,7 +34,7 @@ enum BankSyncReview {
         static func unsupportedAccountMove(remoteTransactionID: String?) -> Problem {
             Problem(
                 remoteTransactionID: remoteTransactionID,
-                message: "A rule moves this transaction to another account. This Bank Sync build cannot apply that safely."
+                message: "A rule moves this transaction to another account. Actualist cannot apply that safely."
             )
         }
 
@@ -135,7 +135,7 @@ struct BankSyncCommittedRefreshError: LocalizedError {
     let underlyingError: any Error
 
     var errorDescription: String? {
-        "Changes were saved locally, but the display could not refresh. Sync again to refresh and continue."
+        "Your changes were saved on this device, but the screen could not update. Sync again to refresh."
     }
 }
 

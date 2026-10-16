@@ -18,21 +18,21 @@ enum SimpleFINBridgeError: LocalizedError, Equatable {
         case .invalidSetupToken:
             return "That setup token is not valid. Copy the complete token from SimpleFIN and try again."
         case .insecureURL:
-            return "SimpleFIN returned a non-HTTPS address, which is not allowed. Nothing was saved."
+            return "SimpleFIN returned an insecure address. Nothing was saved."
         case .alreadyClaimed:
             return "SimpleFIN rejected this setup token, usually because it was already claimed. Disable it in SimpleFIN and create a new one."
         case .invalidAccessURL:
-            return "SimpleFIN returned an unreadable access key."
+            return "SimpleFIN sent a connection address Actualist could not read."
         case .invalidResponse:
-            return "SimpleFIN returned data this app could not read."
-        case .unexpectedStatus(let status):
-            return "SimpleFIN returned an unexpected response (\(status))."
+            return "SimpleFIN sent data Actualist could not read. Try again later."
+        case .unexpectedStatus:
+            return "SimpleFIN sent an unexpected reply. Try again later."
         case .paymentRequired:
-            return "SimpleFIN says this connection requires payment."
+            return "SimpleFIN says this connection needs a payment."
         case .accessRevoked:
             return "SimpleFIN access was denied. The connection may have been revoked."
         case .responseTooLarge:
-            return "SimpleFIN returned more data than Actualist can safely read, so nothing was imported."
+            return "SimpleFIN sent more data than Actualist can handle, so nothing was imported."
         }
     }
 }

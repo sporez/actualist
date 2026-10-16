@@ -80,7 +80,7 @@ enum TransactionCSVImportError: Error, Equatable {
         case .reviewChanged:
             return "This account changed after review. Nothing was imported. Open the import again to review it."
         case .unsupportedAccountMove(let line):
-            return "A rule would move row \(line) to another account, which an import can't do. Nothing was imported."
+            return "A rule would move row \(line) to another account, which an import cannot do. Nothing was imported."
         }
     }
 }

@@ -43,7 +43,7 @@ struct NetWorthWidgetView: View {
                     }
                 }
             } else {
-                WidgetEmptyView(title: "Refresh net worth")
+                WidgetEmptyView(title: "Nothing to Show Yet")
             }
         }
     }

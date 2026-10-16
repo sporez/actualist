@@ -81,7 +81,7 @@ struct AccountBalancesWidget: Widget {
             AccountBalancesWidgetView(entry: $0).widgetTheme($0.theme)
         }
         .configurationDisplayName("Account Balances")
-        .description("Your chosen accounts, in your preferred order.")
+        .description("Balances for the accounts you choose.")
         .supportedFamilies(WidgetSizeSupport.home + [.accessoryInline, .accessoryRectangular])
     }
 }
@@ -91,11 +91,11 @@ struct AccountBalancesWidgetView: View {
     var body: some View {
         Group {
             if entry.needsSelection {
-                WidgetEmptyView(title: "Choose accounts", detail: "Edit this widget to select your accounts.", symbol: "building.columns")
+                WidgetEmptyView(title: "Choose Accounts", detail: "Edit this widget to select your accounts.", symbol: "building.columns")
             } else if entry.unavailable {
-                WidgetEmptyView(title: "Open Actualist")
+                WidgetEmptyView(title: "Nothing to Show Yet")
             } else if entry.accounts.isEmpty {
-                WidgetEmptyView(title: "Update accounts", detail: "Choose accounts from your current budget.")
+                WidgetEmptyView(title: "Choose Accounts Again", detail: "Edit this widget to choose accounts from your current budget.")
             } else {
                 WidgetBalanceListView(title: "Account Balances", items: entry.accounts.map {
                     WidgetBalanceItem(id: $0.id, name: $0.name, amount: $0.balance, destination: WidgetDeepLink.url(.account(id: $0.id)))

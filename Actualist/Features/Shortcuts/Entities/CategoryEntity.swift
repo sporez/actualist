@@ -22,7 +22,7 @@ struct CategoryEntity: AppEntity {
     @Property(title: "Spent")
     var spent: IntentCurrencyAmount?
 
-    @Property(title: "Carryover")
+    @Property(title: "Rollover")
     var carryover: Bool
 
     @Property(title: "Income")

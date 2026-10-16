@@ -42,7 +42,7 @@ struct BankSyncPostCommitTests {
         guard case .failed(let message) = model.phase else {
             Issue.record("Expected committed refresh failure"); return
         }
-        #expect(message.contains("saved locally"))
+        #expect(message.contains("saved on this device"))
         #expect(model.lastRun?.summary.contains("Added 1 transaction") == true)
         #expect(model.resultLines.first?.addedCount == 1)
         #expect(try await queue.read { db in

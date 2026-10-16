@@ -3,7 +3,7 @@ import Foundation
 enum LocalFirstRecoveryGuidance {
     static let encryptionPasswordNotice = """
         This encryption password cannot be recovered by Actualist. Store it securely somewhere \
-        you can access if this iPhone is lost or replaced. Actualist stores only the unlocked \
+        you can access if this device is lost or replaced. Actualist stores only the unlocked \
         budget key on this device, not the password. Neither is included in device backups.
         """
 }
@@ -74,85 +74,85 @@ enum LocalFirstError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .missingServerURL:
-            "Enter an Actual server URL."
+            "Enter your Actual server address."
         case .missingPassword:
             "Enter your Actual server password."
         case .missingSyncToken:
             "Sign in to the Actual server before loading budgets."
         case .missingBudgetFileID:
-            "The selected Actual budget does not include a file ID."
+            "This budget is missing information Actualist needs. Reimport the budget."
         case .selectedBudgetUnavailable:
-            "The selected budget is not available on this Actual server."
+            "The selected budget is not on this Actual server."
         case .invalidBudgetFileID:
-            "The Actual budget file ID is not safe to use."
+            "This budget is missing information Actualist needs. Reimport the budget."
         case .numericValueOutOfRange:
-            "Actualist found a numeric value outside the supported range."
+            "A number in this budget is too large for Actualist to handle."
         case .unsupportedWrite:
-            "This local-first write is not available yet."
+            "Actualist cannot make this change yet."
         case .unsupportedTransferWrite:
-            "This transfer write is not available."
+            "Actualist cannot change this transfer."
         case .unsupportedSplitWrite:
-            "This split transaction write is not available."
+            "Actualist cannot change this split transaction."
         case .encryptedBudgetRequiresPassword:
-            "This encrypted budget needs an encryption password before Actualist can open it."
+            "This budget is encrypted. Enter its encryption password to open it."
         case .invalidEncryptionPassword:
-            "The encryption password could not unlock this budget."
+            "That encryption password did not unlock this budget. Check it and try again."
         case .invalidEncryptionKey:
-            "Actualist could not load this budget's encryption key."
+            "Actualist could not unlock this budget. Enter its encryption password again."
         case .invalidEncryptedPayload:
-            "Actualist could not read encrypted budget data from the server."
+            "Actualist could not read this budget's encrypted data from the server. Check the encryption password."
         case .budgetEncryptionChanged:
-            "This budget's encryption settings changed on the server. Re-open the budget and enter its current encryption password."
-        case .unsupportedEncryptionAlgorithm(let algorithm):
-            "Actualist does not support this budget encryption algorithm: \(algorithm)."
+            "This budget's encryption changed on the server. Reopen the budget and enter its current encryption password."
+        case .unsupportedEncryptionAlgorithm:
+            "Actualist does not support this budget's type of encryption."
         case .missingImportedDatabase:
-            "Actualist could not find db.sqlite in the imported budget."
+            "The imported budget does not contain any budget data."
         case .invalidDownloadedBudget:
-            "The downloaded budget file could not be imported."
+            "Actualist could not import the downloaded budget."
         case .localBudgetHardeningFailed:
-            "Actualist could not secure the local budget files."
+            "Actualist could not protect this budget's data on this device."
         case .reimportRollbackFailed:
-            "Actualist could not restore your previous budget copy after the reimport failed. Your previous copy is kept on this device. Try again."
+            "The reimport failed, and Actualist could not restore your previous copy. Your previous copy is still on this device. Try again."
         case .remoteDataLimitExceeded:
-            "The server response exceeded Actualist's safe resource limits."
+            "The server sent more data than Actualist can handle."
         case .insufficientStorage:
-            "This device does not have enough free storage to import the budget safely."
+            "There is not enough free space on this device to import the budget."
         case .invalidLocalWrite(let reason), .schemaUnavailable(let reason), .referencedRowUnavailable(let reason):
-            "Actualist could not apply the local-first write: \(reason)"
+            "Actualist could not save this change: \(reason)"
         case .actionUndoBlocked(let reason):
             reason
         case .budgetNotOpened:
-            "Open a local-first budget before loading this screen."
-        case .unsupportedTemplate(let reason):
-            "This budget template can't be applied locally yet: \(reason)"
+            "Open a budget first."
+        case .unsupportedTemplate:
+            "Actualist cannot apply this budget template yet."
         case .budgetTemplateReviewStale:
             "This template preview is out of date. Review it again before applying."
         case .budgetHoldReviewStale:
-            "This hold review is out of date. Review it again before applying."
-        case .keychainFailure(let operation, let status):
-            "Actualist could not \(operation) Keychain data. OSStatus: \(status)"
+            "This Hold for Next Month preview is out of date. Review it again before applying."
+        case .keychainFailure:
+            "Actualist could not access your saved sign-in on this device. Unlock the device and try again."
         case .hybridLogicalClockOverflow:
-            "Actualist could not create a local sync timestamp because the clock counter overflowed."
+            "Actualist could not save this change. Try again."
         case .localWriteSuperseded:
-            "Actualist did not save the change because a newer local value already exists."
+            "Actualist did not save this change because a newer change already exists on this device."
         case .importedTransactionConflict:
             "Some of these transactions were already imported by another update. Nothing was saved. Try again."
         case .syncUploadNotConfirmed(let count):
-            "The Actual server did not confirm \(count) uploaded sync message\(count == 1 ? "" : "s"). The changes remain pending on this device."
+            "The Actual server did not confirm \(count) change\(count == 1 ? "" : "s"). The change\(count == 1 ? " is" : "s are") still saved on this device and will sync later."
         case .unauthenticatedPlaintextEnvelope:
-            "The Actual server returned unauthenticated plaintext data for an encrypted budget."
+            "The Actual server sent unprotected data for an encrypted budget. Actualist stopped syncing for your safety."
         case .clockDrift:
-            "Sync stopped because a change is dated more than 5 minutes in the future. The clock on this device or on the server is wrong. Check Date & Time on both, then try again."
-        case .storedChangeDatedInFuture(let wallTime):
-            "Actualist did not save the change because a change already stored on this device is dated \(wallTime), more than 5 minutes ahead of this device's clock. Check Date & Time on this device. If it is correct, download the budget again."
+            "Sync stopped because a change is dated more than 5 minutes in the future. The clock on this device or the server is wrong. Check the date and time on both, then try again."
+        case .storedChangeDatedInFuture:
+            "Actualist did not save this change because the clock on this device looks wrong. Check Date & Time in Settings. If it is correct, reimport the budget."
         case .invalidSyncTimestamp:
-            "Sync stopped because the Actual server sent a change with an invalid timestamp. Nothing from that sync was applied."
+            "Sync stopped because the Actual server sent a change Actualist could not read. Nothing from that sync was applied."
         case .undecryptableMessage:
-            "Actualist could not decrypt a change from the Actual server. Check the budget's encryption password."
+            "Actualist could not unlock a change from the Actual server. Check the budget's encryption password."
         case .invalidSyncValue:
-            "Actualist found a synced value it could not read."
+            "Actualist found synced data it could not read."
         case .syncOutOfSync:
-            "Sync could not finish because this device and the Actual server disagree about which changes exist. Your changes are still on this device. Try again later, or download the budget again if this keeps happening."
+            "Sync could not finish because this device and the Actual server do not agree on the latest changes. Your changes are still on this device. Try again later, or reimport the budget if this keeps happening."
         }
     }
 }

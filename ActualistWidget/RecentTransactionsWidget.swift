@@ -7,7 +7,7 @@ struct RecentTransactionsWidget: Widget {
             RecentTransactionsWidgetView(entry: $0).widgetTheme($0.theme)
         }
         .configurationDisplayName("Recent Transactions")
-        .description("Your latest transactions across accounts. Tap a row to open its account.")
+        .description("Your latest transactions across accounts. Tap a transaction to open its account.")
         .supportedFamilies(WidgetSizeSupport.home + [.accessoryRectangular])
     }
 }
@@ -22,7 +22,7 @@ struct RecentTransactionsWidgetView: View {
         WidgetSummaryShell(title: family == .systemSmall ? "Latest Transaction" : "Recent Transactions", snapshot: entry.snapshot, destination: destination) { snapshot in
             if let transactions = snapshot.recentTransactions {
                 if transactions.isEmpty {
-                    WidgetEmptyView(title: "No transactions", detail: "Your latest activity will appear here.", symbol: "banknote")
+                    WidgetEmptyView(title: "No Transactions", detail: "Your latest activity will appear here.", symbol: "banknote")
                 } else if WidgetSizeSupport.size(family) == .small, let first = transactions.first {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(first.payee).font(.headline).lineLimit(1).minimumScaleFactor(0.65)
@@ -40,7 +40,7 @@ struct RecentTransactionsWidgetView: View {
                     rows(Array(transactions.prefix(rowCount)))
                 }
             } else {
-                WidgetEmptyView(title: "Refresh transactions")
+                WidgetEmptyView(title: "Nothing to Show Yet")
             }
         }
     }

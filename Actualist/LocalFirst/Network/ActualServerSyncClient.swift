@@ -648,47 +648,47 @@ enum ActualAPIError: LocalizedError {
 
     var errorDescription: String? {
         if isAuthenticationFailure {
-            return "Your Actual session is no longer valid. Sign in again to resume syncing."
+            return "Your sign-in has expired. Sign in again to resume syncing."
         }
 
         return switch self {
         case .invalidURL:
-            "The server URL is invalid."
+            "The server address is not valid. Check it and try again."
         case .redirectRefused:
-            "The server redirected the request to a different address. Enter the final server URL directly."
+            "The server moved to a different address. Enter its new address."
         case .invalidResponse:
-            "The server returned an invalid response."
+            "Actualist could not understand the server's reply. Check the server address."
         case .unsupportedAuthenticationMethod:
-            "This Actual server authentication method is not supported."
+            "Actualist does not support how this Actual server signs in."
         case .serverRejected(_, let reason):
             reason.description
         case .syncRejected(_, let reason):
             switch reason {
             case .fileHasNewKey, .fileKeyMismatch:
-                "This budget's encryption no longer matches the server. Re-open the budget to continue syncing."
+                "This budget's encryption no longer matches the server. Reopen the budget to continue syncing."
             case .fileHasReset:
-                "The server reset this budget's sync state. Re-import the budget to continue syncing."
+                "The server reset syncing for this budget. Reimport the budget to continue syncing."
             case .fileOldVersion:
-                "This budget uses an older sync format that the server no longer accepts."
+                "This budget is out of date for the server. Reimport the budget to continue syncing."
             case .fileNeedsUpload:
-                "The server needs this budget uploaded again before it can sync."
+                "The server needs a fresh copy of this budget. Upload it again to continue syncing."
             }
         case .httpStatus(let status):
-            "The server returned HTTP \(status)."
+            "The server had a problem. Try again later."
         case .syncCatchUpTooLarge:
-            "This budget has more changes waiting on the server than Actualist can sync at once. Reset sync for this budget in Actual on the web (Settings, then Reset sync), then download the budget here again."
+            "This budget has too many changes to sync at once. In Actual on the web, go to Settings and choose Reset sync, then reimport the budget here."
         case .decoding:
-            "Actualist could not read the server response."
+            "Actualist could not understand the server's reply. Try again later."
         case .transport(let code):
             if code == .timedOut {
-                "The server did not respond. Check that this phone is on the same Wi-Fi as your Actual server and that the URL is correct."
+                "The server did not respond. Check that this device is on the same Wi-Fi as your Actual server and that the address is correct."
             } else if code == .notConnectedToInternet {
-                "This device is not connected to the network."
+                "This device is not connected to a network."
             } else {
                 "Actualist could not reach the server."
             }
         case .localNetworkDenied:
-            "Actualist could not reach the server. If iOS asked for Local Network access and you tapped Don't Allow, enable it for Actualist in Settings > Privacy & Security > Local Network, then try again. Otherwise, check that the server is running and the URL is correct."
+            "Actualist could not reach the server. If you tapped \"Don't Allow\" for Local Network access, turn it on for Actualist in Settings > Privacy & Security > Local Network. Otherwise, check that the server is running and the address is correct."
         }
     }
 }

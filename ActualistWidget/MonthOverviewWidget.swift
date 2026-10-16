@@ -61,13 +61,13 @@ struct MonthOverviewWidgetView: View {
                         Text("\(snapshot.month) · \(snapshot.budgetName)")
                             .font(.caption).foregroundStyle(palette.secondaryText).lineLimit(2)
                         if !typeSize.isAccessibilitySize && snapshot.isTrackingBudget != true {
-                            Text("Available includes money carried over from previous months.")
+                            Text("Available includes money rolled over from previous months.")
                                 .font(.caption).foregroundStyle(palette.secondaryText)
                         }
                     }
                 }
             } else {
-                WidgetEmptyView(title: "Refresh month")
+                WidgetEmptyView(title: "Nothing to Show Yet")
             }
         }
     }

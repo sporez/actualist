@@ -270,7 +270,7 @@ struct ActualServerErrorRedactionTests {
             Issue.record("Expected invalid JSON to fail decoding")
         } catch {
             let message = error.localizedDescription
-            #expect(message == "Actualist could not read the server response.")
+            #expect(message == "Actualist could not understand the server's reply. Try again later.")
             #expect(!message.contains("private-token"))
             #expect(!message.contains("123456789"))
             #expect(!message.contains("actual.private.example"))
@@ -285,7 +285,7 @@ struct ActualServerErrorRedactionTests {
             Issue.record("Expected the HTTP response to fail")
         } catch {
             let message = error.localizedDescription
-            #expect(message == "Your Actual session is no longer valid. Sign in again to resume syncing.")
+            #expect(message == "Your sign-in has expired. Sign in again to resume syncing.")
             #expect(!message.contains("private-token"))
             #expect(!message.contains("123456789"))
             #expect(!message.contains("actual.private.example"))
@@ -302,7 +302,7 @@ struct ActualServerErrorRedactionTests {
             Issue.record("Expected the transport to fail")
         } catch {
             let message = error.localizedDescription
-            #expect(message == "Actualist could not reach the server. If iOS asked for Local Network access and you tapped Don't Allow, enable it for Actualist in Settings > Privacy & Security > Local Network, then try again. Otherwise, check that the server is running and the URL is correct.")
+            #expect(message == "Actualist could not reach the server. If you tapped \"Don't Allow\" for Local Network access, turn it on for Actualist in Settings > Privacy & Security > Local Network. Otherwise, check that the server is running and the address is correct.")
             #expect(!message.contains("offline.actual.private.example"))
             #expect(!message.contains("private-token"))
         }

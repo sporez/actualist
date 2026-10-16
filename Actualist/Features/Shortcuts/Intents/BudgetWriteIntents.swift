@@ -20,7 +20,7 @@ enum ShortcutTemplateMode: String, AppEnum {
 }
 
 struct AssignCategoryBudgetIntent: AppIntent {
-    static let title: LocalizedStringResource = "Assign Category Budget"
+    static let title: LocalizedStringResource = "Set Category Budget"
     static let description = IntentDescription(
         "Sets the budgeted amount for a category.",
         categoryName: "Budget"
@@ -40,7 +40,7 @@ struct AssignCategoryBudgetIntent: AppIntent {
     var session: ShortcutsBudgetSession
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Assign \(\.$amount) to \(\.$category)") {
+        Summary("Budget \(\.$amount) for \(\.$category)") {
             \.$month
         }
     }
@@ -53,14 +53,14 @@ struct AssignCategoryBudgetIntent: AppIntent {
             session: session
         )
         let spoken = ShortcutMoney.spoken(updated.budgeted)
-        return .result(value: updated, dialog: IntentDialog("Assigned \(spoken) to \(updated.name)."))
+        return .result(value: updated, dialog: IntentDialog("Budgeted \(spoken) for \(updated.name)."))
     }
 }
 
 struct AddToCategoryBudgetIntent: AppIntent {
     static let title: LocalizedStringResource = "Add to Category Budget"
     static let description = IntentDescription(
-        "Adds an amount to a category's current budgeted value.",
+        "Adds to the amount budgeted for a category.",
         categoryName: "Budget"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -98,7 +98,7 @@ struct AddToCategoryBudgetIntent: AppIntent {
 struct MoveMoneyIntent: AppIntent {
     static let title: LocalizedStringResource = "Move Money"
     static let description = IntentDescription(
-        "Moves money between categories or Ready to Assign.",
+        "Moves money between categories or To Budget.",
         categoryName: "Budget"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -142,7 +142,7 @@ struct MoveMoneyIntent: AppIntent {
 struct ApplyBudgetTemplateIntent: AppIntent {
     static let title: LocalizedStringResource = "Apply Budget Template"
     static let description = IntentDescription(
-        "Applies a budget template to a month or one category.",
+        "Applies your budget templates to a month or one category.",
         categoryName: "Budget"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -178,9 +178,9 @@ struct ApplyBudgetTemplateIntent: AppIntent {
 }
 
 struct SetCategoryCarryoverIntent: AppIntent {
-    static let title: LocalizedStringResource = "Set Category Carryover"
+    static let title: LocalizedStringResource = "Set Category Rollover"
     static let description = IntentDescription(
-        "Enables or disables category carryover from a start month.",
+        "Turns rollover on or off for a category, starting from a month.",
         categoryName: "Budget"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -198,7 +198,7 @@ struct SetCategoryCarryoverIntent: AppIntent {
     var session: ShortcutsBudgetSession
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Set carryover on \(\.$category)") {
+        Summary("Set rollover on \(\.$category)") {
             \.$enabled
             \.$startMonth
         }
@@ -212,7 +212,7 @@ struct SetCategoryCarryoverIntent: AppIntent {
             session: session
         )
         let state = enabled ? "on" : "off"
-        return .result(value: updated, dialog: IntentDialog("Carryover for \(updated.name) is \(state)."))
+        return .result(value: updated, dialog: IntentDialog("Rollover for \(updated.name) is \(state)."))
     }
 }
 

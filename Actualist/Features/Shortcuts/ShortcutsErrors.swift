@@ -32,57 +32,57 @@ enum ShortcutsError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .shortcutsDisabled:
-            "Shortcuts are turned off in Privacy."
+            "Shortcuts are turned off. Turn on Allow Shortcuts & Siri in Actualist under Settings > Privacy."
         case .deviceLocked:
-            "Actualist can't reach this budget while your device is locked. Unlock it and try again."
+            "Actualist cannot open this budget while this device is locked. Unlock the device and try again."
         case .noBudgetSelected:
             "No budget is selected. Open Actualist and choose a budget first."
         case .budgetFileMissing:
-            "The budget file is not on this device. Reopen the budget in Actualist."
+            "This budget is not on this device yet. Open it in Actualist first."
         case .encryptedBudgetNeedsUnlock:
             "This encrypted budget needs to be unlocked in Actualist first."
         case .budgetBusy:
             "Actualist is switching budgets. Try again in a moment."
         case .accountNotFound:
-            "That account could not be found in the selected budget."
+            "Actualist could not find that account in the selected budget."
         case .categoryNotFound:
-            "That category could not be found in the selected budget."
+            "Actualist could not find that category in the selected budget."
         case .payeeNotFound:
-            "That payee could not be found in the selected budget."
+            "Actualist could not find that payee in the selected budget."
         case .transactionNotFound:
-            "That transaction could not be found in the selected budget."
+            "Actualist could not find that transaction in the selected budget."
         case .amountMissing:
             "Enter an amount."
         case .amountInvalid:
-            "That amount is not valid."
+            "That amount is not valid. Enter a number."
         case .transferDestinationMissing:
             "Choose a destination account for the transfer."
         case .defaultAccountMissing:
             "Choose an account or set a default account in Settings."
         case .textImportAmountMissing:
-            "That text does not include an amount."
+            "That text does not include an amount. Add one and try again."
         case .ambiguousMatch:
             "That name matches more than one item. Be more specific."
         case .unsupportedSplit:
-            "Split transactions can only be changed in Actualist. Shortcuts will not change a split."
+            "Shortcuts cannot change split transactions. Open the transaction in Actualist to change it."
         case .unsupportedTransfer:
-            "That transfer cannot be changed that way. Open it in Actualist."
+            "Shortcuts cannot change that transfer. Open it in Actualist to change it."
         case .reconciledTransaction:
             "That transaction is reconciled. Open it in Actualist to change it."
         case .accountClosed:
             "That account is closed. Choose an open account."
         case .currencyMismatch:
-            "Use the same currency as this iPhone."
+            "The amount must use your budget's currency."
         case .invalidName:
             "Enter a name."
         case .writeFailed:
-            "Actualist could not apply that change."
+            "Actualist could not save that change. Try again."
         case .trackingActionUnsupported:
-            "Tracking budgets do not support Move Money or Ready to Assign. Use budget assignment or Get Budget Summary."
+            "Tracking budgets do not have Move Money or To Budget. Use Set Category Budget or Get Budget Summary instead."
         case .metricUnavailable:
-            "That metric is unavailable for this category. Use Balance for tracking expenses or Received for income."
+            "That metric is not available for this category. Use Balance for expenses in a tracking budget, or Received for income."
         case .templateUnsupported:
-            "That budget template cannot be applied in Shortcuts. Open Actualist to apply it."
+            "Shortcuts cannot apply that budget template. Open Actualist to apply it."
         }
     }
 

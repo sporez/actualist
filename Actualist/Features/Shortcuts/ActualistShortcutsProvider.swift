@@ -22,9 +22,9 @@ struct ActualistShortcutsProvider: AppShortcutsProvider {
         AppShortcut(
             intent: GetReadyToAssignIntent(),
             phrases: [
-                "How much can I budget in \(.applicationName)"
+                "How much is left to budget in \(.applicationName)"
             ],
-            shortTitle: "Ready to Assign",
+            shortTitle: "To Budget",
             systemImageName: "list.bullet.rectangle.portrait.fill"
         )
         AppShortcut(

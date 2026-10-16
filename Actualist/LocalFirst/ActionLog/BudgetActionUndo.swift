@@ -47,31 +47,31 @@ enum BudgetActionUndoBlock: Equatable, Sendable {
         case .categoryMissing:
             "A category from this action no longer exists."
         case .changedSinceApplied:
-            "Something changed a category after this action. Undo would overwrite the newer change, so it was refused."
+            "Something changed a category after this action. Undo would overwrite that newer change, so it was not done."
         case .amountOutOfRange:
             "Undo would restore an amount too large to save."
         case .transactionMissing:
             "A transaction from this action no longer exists."
         case .transactionChanged:
-            "Something changed this transaction after this action. Undo would overwrite the newer change, so it was refused."
+            "Something changed this transaction after this action. Undo would overwrite that newer change, so it was not done."
         case .alreadyTombstoned:
             "This transaction was already deleted."
         case .alreadyLive:
             "This transaction is already restored."
         case .graphRewritten:
-            "This transaction was split, transferred, or rewritten after this action. Undo would not be safe."
+            "This transaction was split, transferred, or edited after this action, so undo is not safe."
         case .sideEffectChanged:
-            "A category-learning rule from this action changed later. Undo would not be safe."
+            "A rule that learned a category from this action changed later, so undo is not safe."
         case .batchChanged:
-            "A transaction from this batch changed later. Undo would overwrite newer data, so it was refused."
+            "A transaction from this batch changed later. Undo would overwrite newer data, so it was not done."
         case .transactionCommandChanged:
-            "A transaction or linked entry changed after this action. Undo would overwrite newer data, so it was refused."
+            "A transaction or linked entry changed after this action. Undo would overwrite newer data, so it was not done."
         case .budgetModeChanged:
-            "This budget changed after the action. Budget Undo is unavailable for this older action."
+            "This budget changed after the action. Undo is not available for this older action."
         case .notOfferedFromHistory:
-            "This change isn't undone from History."
+            "This change cannot be undone from History."
         case .referencedRowMissing:
-            "An account or category from this action was deleted. Undo would restore transactions into it, so it was refused."
+            "An account or category from this action was deleted. Undo would put transactions back into it, so it was not done."
         }
     }
 }

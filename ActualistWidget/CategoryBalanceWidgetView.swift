@@ -15,11 +15,11 @@ struct CategoryBalanceWidgetView: View {
                     )
                 }).redacted(reason: entry.state == .placeholder ? .placeholder : [])
             case .needsCategories:
-                WidgetEmptyView(title: "Choose categories", detail: "Edit this widget to select your categories.", symbol: "list.bullet.rectangle.portrait")
+                WidgetEmptyView(title: "Choose Categories", detail: "Edit this widget to select your categories.", symbol: "list.bullet.rectangle.portrait")
             case .needsApp:
-                WidgetEmptyView(title: "Open Actualist")
+                WidgetEmptyView(title: "Nothing to Show Yet")
             case .categoriesUnavailable:
-                WidgetEmptyView(title: "Update categories", detail: "Choose categories from your current budget.")
+                WidgetEmptyView(title: "Choose Categories Again", detail: "Edit this widget to choose categories from your current budget.")
             }
         }
         .accessibilityLabel(entry.budgetName.isEmpty ? "Category balances" : "Category balances for \(entry.budgetName)")

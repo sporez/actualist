@@ -27,10 +27,10 @@ enum ActualServerErrorCategory: Sendable, Equatable, CaseIterable {
     var description: String {
         switch self {
         case .invalidPassword: "The server password is incorrect."
-        case .sessionExpired: "Your Actual session is no longer valid. Sign in again to resume syncing."
-        case .passwordAuthenticationDisabled: "Password sign-in is not enabled on this Actual server."
-        case .invalidHeader: "The Actual server rejected an HTTP header."
-        case .unknown: "The Actual server rejected the request."
+        case .sessionExpired: "Your sign-in has expired. Sign in again to resume syncing."
+        case .passwordAuthenticationDisabled: "Password sign-in is turned off on this Actual server."
+        case .invalidHeader: "The Actual server rejected a custom header. Check your custom headers."
+        case .unknown: "The Actual server rejected the request. Try again later."
         }
     }
 }

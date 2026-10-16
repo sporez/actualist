@@ -156,7 +156,7 @@ struct OpenUncategorizedIntent: ActualistForegroundIntent {
 struct OpenNewTransactionIntent: ActualistForegroundIntent {
     static let title: LocalizedStringResource = "Open New Transaction"
     static let description = IntentDescription(
-        "Opens the transaction editor with optional prefill. Does not write.",
+        "Opens a new transaction with any details you provide filled in. Nothing is saved until you save it.",
         categoryName: "Transactions"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }

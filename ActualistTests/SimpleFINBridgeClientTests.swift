@@ -313,7 +313,7 @@ struct SimpleFINBridgeClientTests {
         }
         #expect(
             SimpleFINBridgeError.responseTooLarge.errorDescription
-                == "SimpleFIN returned more data than Actualist can safely read, so nothing was imported."
+                == "SimpleFIN sent more data than Actualist can handle, so nothing was imported."
         )
     }
 }

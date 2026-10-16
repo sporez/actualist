@@ -17,9 +17,9 @@ extension LocalFirstActualStore {
         var errorDescription: String? {
             switch self {
             case .staleGeneration:
-                return "This bank sync download is stale. Sync again."
+                return "This Bank Sync download is out of date. Sync again."
             case .unresolvedProblems:
-                return "Bank sync found transactions it could not safely read. Nothing was saved."
+                return "Bank Sync found transactions it could not read. Nothing was saved."
             case .notLinked:
                 return "This account is not linked to a bank."
             case .notSimpleFINLinked:
@@ -27,7 +27,7 @@ extension LocalFirstActualStore {
             case .notConfigured:
                 return "Connect SimpleFIN on your server or add a setup token on this device."
             case .serverCannotBankSync:
-                return "Your server does not provide SimpleFIN, so background bank sync cannot run."
+                return "Your server does not have SimpleFIN set up, so Bank Sync cannot run in the background."
             }
         }
     }

@@ -10,7 +10,7 @@ struct BudgetSummaryEntity: AppEntity {
     @Property(title: "Month")
     var month: String
 
-    @Property(title: "Ready to Assign")
+    @Property(title: "To Budget")
     var readyToAssign: IntentCurrencyAmount?
 
     @Property(title: "Total Budgeted")
@@ -114,7 +114,7 @@ struct BudgetSummaryEntity: AppEntity {
         if let savingsLabel, let savings {
             return "\(savingsLabel): \(ShortcutMoney.spoken(savings))."
         }
-        return "You have \(ShortcutMoney.spoken(readyToAssign)) ready to assign."
+        return "You have \(ShortcutMoney.spoken(readyToAssign)) to budget."
     }
 }
 

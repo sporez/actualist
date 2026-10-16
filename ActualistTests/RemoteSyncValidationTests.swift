@@ -124,7 +124,7 @@ struct RemoteSyncValidationTests {
         }
         #expect(try await database.pendingLocalSyncMessageCount() == outboxBefore)
         #expect(LocalFirstError.storedChangeDatedInFuture(wallTime: "2027-01-01T00:00:00.000Z")
-            .localizedDescription.contains("2027-01-01T00:00:00.000Z"))
+            .localizedDescription.contains("clock on this device looks wrong"))
     }
 
     @Test func openedStoreExposesTheStoredFutureWallTimeForDiagnostics() async throws {

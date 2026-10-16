@@ -26,7 +26,7 @@ struct GetNetWorthIntent: AppIntent {
         let amount = ShortcutMoney.intentAmount(minorUnits: dashboard.netWorth.balance)
         let change = ShortcutMoney.spoken(minorUnits: dashboard.netWorth.change)
         let spoken = ShortcutMoney.spoken(amount)
-        return .result(value: amount, dialog: IntentDialog("Net worth is \(spoken), change \(change)."))
+        return .result(value: amount, dialog: IntentDialog("Your net worth is \(spoken). Change: \(change)."))
     }
 }
 
@@ -67,7 +67,7 @@ struct GetCashFlowIntent: AppIntent {
 struct GetBudgetOverviewIntent: AppIntent {
     static let title: LocalizedStringResource = "Get Budget Overview"
     static let description = IntentDescription(
-        "Returns actual vs budgeted spending and the variance.",
+        "Returns what you spent compared with what you budgeted, and the difference.",
         categoryName: "Reports"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -93,7 +93,7 @@ struct GetBudgetOverviewIntent: AppIntent {
         let spokenActual = ShortcutMoney.spoken(actual)
         return .result(
             value: actual,
-            dialog: IntentDialog("Spent \(spokenActual) of \(budgeted) budgeted, variance \(variance).")
+            dialog: IntentDialog("Spent \(spokenActual) of \(budgeted) budgeted. Difference: \(variance).")
         )
     }
 }

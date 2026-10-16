@@ -149,7 +149,7 @@ extension LocalFirstActualStoreTests {
         )
 
         let error = await refresh(bundle.store)
-        #expect(error?.localizedDescription == "The server returned HTTP 400.")
+        #expect(error?.localizedDescription == "The server had a problem. Try again later.")
         #expect(!isEncryptionChanged(error))
     }
 
@@ -164,7 +164,7 @@ extension LocalFirstActualStoreTests {
         #expect(isSyncRejected(error, reason: .fileHasReset) == false)
         #expect(!isEncryptionChanged(error))
         #expect(
-            error?.localizedDescription == "This device is not connected to the network."
+            error?.localizedDescription == "This device is not connected to a network."
         )
     }
 

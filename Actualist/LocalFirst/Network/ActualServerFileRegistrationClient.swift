@@ -98,17 +98,17 @@ enum ActualFileRegistrationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .emptyRegistrationInput:
-            "The budget archive, name, or file ID was empty, so registration was refused."
+            "Actualist could not upload this budget because required details were missing."
         case .keyRegistrationNotConfirmed:
-            "The Actual server did not confirm the budget's encryption key. The budget was not registered."
+            "The Actual server did not confirm the budget's encryption key. The budget was not uploaded."
         case .uploadUnconfirmed:
-            "The Actual server did not confirm the new budget upload. Nothing was registered; the same budget can be registered again."
+            "The Actual server did not confirm the new budget upload. Nothing was uploaded. You can try again."
         case .registrationAmbiguous:
-            "The Actual server returned conflicting records for the new budget ID, so registration was refused."
+            "The Actual server reported conflicting copies of this new budget, so it was not uploaded."
         case .encryptionKeyMismatch:
-            "The Actual server already stores this budget under a different encryption key, so registration was refused."
+            "The Actual server already has this budget with a different encryption key, so it was not uploaded."
         case .budgetNameTooLong:
-            "Budget names can be at most 255 characters. Shorten the name and try again."
+            "Budget names can have up to 255 characters. Shorten the name and try again."
         }
     }
 }

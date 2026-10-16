@@ -27,9 +27,9 @@ struct NeedsAttentionWidgetView: View {
                     VStack { Image(systemName: "exclamationmark.circle"); Text("\(attention.issueCount)").bold() }
                 } else if family == .systemSmall && typeSize.isAccessibilitySize {
                     Text("\(attention.issueCount)").font(.largeTitle.bold()).minimumScaleFactor(0.6).lineLimit(1)
-                    Text(attention.issueCount == 0 ? "All caught up" : "To review").font(.caption).lineLimit(1).minimumScaleFactor(0.7)
+                    Text(attention.issueCount == 0 ? "All Caught Up" : "To Review").font(.caption).lineLimit(1).minimumScaleFactor(0.7)
                 } else if attention.issueCount == 0 {
-                    WidgetEmptyView(title: "All caught up", detail: "No overspent categories or uncategorized transactions.", symbol: "checkmark.circle")
+                    WidgetEmptyView(title: "All Caught Up", detail: "No overspent categories or uncategorized transactions.", symbol: "checkmark.circle")
                 } else {
                     counts(attention)
                     if !attention.overspentCategoryIDs.isEmpty,
@@ -39,7 +39,7 @@ struct NeedsAttentionWidgetView: View {
                     }
                 }
             } else {
-                WidgetEmptyView(title: "Refresh attention")
+                WidgetEmptyView(title: "Nothing to Show Yet")
             }
         }
     }

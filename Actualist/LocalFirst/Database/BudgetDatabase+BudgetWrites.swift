@@ -61,7 +61,7 @@ extension BudgetDatabase {
         let startMonthValue = try Self.actualMonthValue(startMonth)
         let throughMonthValue = try Self.actualMonthValue(throughMonth)
         guard throughMonthValue >= startMonthValue else {
-            throw LocalFirstError.invalidLocalWrite("invalid carryover month range")
+            throw LocalFirstError.invalidLocalWrite("That rollover month range is not valid.")
         }
 
         return try queue.read { db in
@@ -98,7 +98,7 @@ extension BudgetDatabase {
         let startMonthValue = try Self.actualMonthValue(startMonth)
         let throughMonthValue = try Self.actualMonthValue(throughMonth)
         guard throughMonthValue >= startMonthValue else {
-            throw LocalFirstError.invalidLocalWrite("invalid carryover month range")
+            throw LocalFirstError.invalidLocalWrite("That rollover month range is not valid.")
         }
 
         return try queue.read { db in
@@ -144,7 +144,7 @@ extension BudgetDatabase {
         // carryover toggle into a loop over thousands of months.
         let cappedLastMonthValue = shiftedMonth(startMonthValue, by: Self.maximumCarryoverMonthSpan - 1)
         guard throughMonthValue <= cappedLastMonthValue else {
-            throw LocalFirstError.invalidLocalWrite("carryover month range too large")
+            throw LocalFirstError.invalidLocalWrite("That rollover month range is too large.")
         }
         let effectiveThroughMonthValue = min(
             cappedLastMonthValue,

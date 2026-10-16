@@ -44,7 +44,7 @@ extension AddOnlyTransactionIntent {
 struct LogTransactionIntent: AddOnlyTransactionIntent {
     static let title: LocalizedStringResource = "Log Transaction"
     static let description = IntentDescription(
-        "Logs a transaction in the selected budget immediately.",
+        "Logs a transaction in the selected budget right away.",
         categoryName: "Transactions"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .alwaysAllowed }
@@ -115,7 +115,7 @@ struct LogTransactionIntent: AddOnlyTransactionIntent {
 struct LogTransferIntent: AddOnlyTransactionIntent {
     static let title: LocalizedStringResource = "Log Transfer"
     static let description = IntentDescription(
-        "Transfers money between two accounts immediately.",
+        "Transfers money between two accounts right away.",
         categoryName: "Transactions"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .alwaysAllowed }
@@ -162,7 +162,7 @@ struct LogTransferIntent: AddOnlyTransactionIntent {
 struct UpdateTransactionIntent: AppIntent {
     static let title: LocalizedStringResource = "Update Transaction"
     static let description = IntentDescription(
-        "Updates a transaction immediately.",
+        "Updates a transaction right away.",
         categoryName: "Transactions"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -241,7 +241,7 @@ struct UpdateTransactionIntent: AppIntent {
 struct CategorizeTransactionIntent: AppIntent {
     static let title: LocalizedStringResource = "Categorize Transaction"
     static let description = IntentDescription(
-        "Sets a transaction's category immediately.",
+        "Sets a transaction's category right away.",
         categoryName: "Transactions"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -272,7 +272,7 @@ struct CategorizeTransactionIntent: AppIntent {
 struct SetTransactionClearedIntent: AppIntent {
     static let title: LocalizedStringResource = "Set Transaction Cleared"
     static let description = IntentDescription(
-        "Marks a transaction cleared or uncleared immediately.",
+        "Marks a transaction cleared or uncleared right away.",
         categoryName: "Transactions"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -304,7 +304,7 @@ struct SetTransactionClearedIntent: AppIntent {
 struct DeleteTransactionIntent: AppIntent {
     static let title: LocalizedStringResource = "Delete Transaction"
     static let description = IntentDescription(
-        "Deletes a transaction immediately.",
+        "Deletes a transaction right away.",
         categoryName: "Transactions"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -332,7 +332,7 @@ struct DeleteTransactionIntent: AppIntent {
 struct ImportTransactionFromTextIntent: AddOnlyTransactionIntent {
     static let title: LocalizedStringResource = "Import Transaction from Text"
     static let description = IntentDescription(
-        "Parses text and logs the transaction immediately.",
+        "Reads a transaction from text and saves it right away.",
         categoryName: "Transactions"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .alwaysAllowed }

@@ -266,7 +266,7 @@ extension LocalFirstActualStoreTests {
         let preview = try await store.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
         #expect(preview.block == .budgetModeChanged)
         await #expect(throws: LocalFirstError.actionUndoBlocked(
-            "This budget changed after the action. Budget Undo is unavailable for this older action."
+            "This budget changed after the action. Undo is not available for this older action."
         )) {
             try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
         }
@@ -406,7 +406,7 @@ extension LocalFirstActualStoreTests {
         _ = try await database.commitLocalSyncMessagesAndEnqueue(untracked)
 
         await #expect(throws: LocalFirstError.actionUndoBlocked(
-            "Something changed a category after this action. Undo would overwrite the newer change, so it was refused."
+            "Something changed a category after this action. Undo would overwrite that newer change, so it was not done."
         )) {
             try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
         }

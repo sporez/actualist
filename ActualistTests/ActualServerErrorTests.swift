@@ -44,19 +44,19 @@ extension LocalFirstActualStoreTests {
     @Test func knownStructuredErrorUsesAppOwnedDescription() async throws {
         let message = await loginErrorMessage(using: DetailedErrorURLProtocol.self)
 
-        #expect(message == "Password sign-in is not enabled on this Actual server.")
+        #expect(message == "Password sign-in is turned off on this Actual server.")
     }
 
     @Test func successfulHTTPErrorEnvelopeIsStillSurfaced() async throws {
         let message = await loginErrorMessage(using: SuccessfulErrorURLProtocol.self)
 
-        #expect(message == "The Actual server rejected an HTTP header.")
+        #expect(message == "The Actual server rejected a custom header. Check your custom headers.")
     }
 
     @Test func nonJSONErrorFallsBackToHTTPStatus() async throws {
         let message = await loginErrorMessage(using: ProxyErrorURLProtocol.self)
 
-        #expect(message == "The server returned HTTP 502.")
+        #expect(message == "The server had a problem. Try again later.")
     }
 
     @Test func structuredUnauthorizedResponseRequiresReauthentication() async throws {
@@ -65,7 +65,7 @@ extension LocalFirstActualStoreTests {
         #expect(error?.isAuthenticationFailure == true)
         #expect(
             error?.localizedDescription
-                == "Your Actual session is no longer valid. Sign in again to resume syncing."
+                == "Your sign-in has expired. Sign in again to resume syncing."
         )
     }
 
@@ -75,7 +75,7 @@ extension LocalFirstActualStoreTests {
         #expect(error?.isAuthenticationFailure == true)
         #expect(
             error?.localizedDescription
-                == "Your Actual session is no longer valid. Sign in again to resume syncing."
+                == "Your sign-in has expired. Sign in again to resume syncing."
         )
     }
 

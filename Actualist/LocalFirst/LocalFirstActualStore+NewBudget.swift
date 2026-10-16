@@ -23,7 +23,7 @@ enum NewBudgetError: LocalizedError, Equatable {
         case .invalidBudgetName:
             "Enter a name for the new budget."
         case .budgetDirectoryAlreadyExists:
-            "A local budget already uses this new budget's identity."
+            "A budget with this identity already exists on this device. Try again."
         }
     }
 }

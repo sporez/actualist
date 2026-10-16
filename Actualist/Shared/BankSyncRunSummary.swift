@@ -16,7 +16,7 @@ struct BankSyncLastRun: Equatable, Sendable {
 /// Running totals for one Bank Sync run. Sync All and background bank sync
 /// share it so both record the same summary wording.
 struct BankSyncRunTally: Equatable, Sendable {
-    static let nothingSavedSummary = "Sync didn't finish. Nothing was saved."
+    static let nothingSavedSummary = "Sync did not finish. Nothing was saved."
 
     private(set) var completedCount = 0
     private(set) var skippedCount = 0

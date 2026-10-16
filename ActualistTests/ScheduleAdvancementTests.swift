@@ -404,7 +404,7 @@ struct ScheduleAdvancementTests {
         #expect(!history.rows[0].canUndo)
         #expect(history.rows[1].canUndo)
 
-        await #expect(throws: LocalFirstError.actionUndoBlocked("This was posted automatically and can't be undone.")) {
+        await #expect(throws: LocalFirstError.actionUndoBlocked("This was posted automatically and cannot be undone.")) {
             try await store.undoBudgetActionAndRefresh(actionID: automatic.id, budgetID: "group-1")
         }
         try await store.undoBudgetActionAndRefresh(actionID: assign.id, budgetID: "group-1")

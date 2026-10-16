@@ -45,7 +45,7 @@ struct WidgetSummaryShell<Content: View>: View {
                     }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
-                WidgetEmptyView(title: "Open Actualist")
+                WidgetEmptyView(title: "Nothing to Show Yet")
             }
         }
         .widgetURL(destination)

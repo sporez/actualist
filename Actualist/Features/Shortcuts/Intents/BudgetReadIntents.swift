@@ -160,9 +160,9 @@ struct GetPayeesIntent: AppIntent {
 }
 
 struct GetReadyToAssignIntent: AppIntent {
-    static let title: LocalizedStringResource = "Get Ready to Assign"
+    static let title: LocalizedStringResource = "Get To Budget"
     static let description = IntentDescription(
-        "Returns the amount ready to assign for a budget month.",
+        "Returns the amount left to budget for a month.",
         categoryName: "Budget"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -174,7 +174,7 @@ struct GetReadyToAssignIntent: AppIntent {
     var session: ShortcutsBudgetSession
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Get Ready to Assign") {
+        Summary("Get To Budget") {
             \.$month
         }
     }
@@ -183,14 +183,14 @@ struct GetReadyToAssignIntent: AppIntent {
         let summary = try await session.budgetSummary(month: month?.id)
         guard let amount = summary.readyToAssign else { throw ShortcutsError.trackingActionUnsupported }
         let spoken = ShortcutMoney.spoken(amount)
-        return .result(value: amount, dialog: IntentDialog("You have \(spoken) ready to assign."))
+        return .result(value: amount, dialog: IntentDialog("You have \(spoken) to budget."))
     }
 }
 
 struct GetBudgetSummaryIntent: AppIntent {
     static let title: LocalizedStringResource = "Get Budget Summary"
     static let description = IntentDescription(
-        "Returns ready to assign and month totals.",
+        "Returns To Budget and the totals for a month.",
         categoryName: "Budget"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
@@ -298,7 +298,7 @@ struct GetUncategorizedCountIntent: AppIntent {
 struct GetBudgetAlertsIntent: AppIntent {
     static let title: LocalizedStringResource = "Get Budget Alerts"
     static let description = IntentDescription(
-        "Returns ready-to-assign, overspent, and uncategorized alerts.",
+        "Returns To Budget, overspent, and uncategorized alerts.",
         categoryName: "Budget"
     )
     static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }

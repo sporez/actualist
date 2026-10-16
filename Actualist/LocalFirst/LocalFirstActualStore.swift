@@ -395,7 +395,7 @@ enum ActualServerConnectionSecurity {
     }
 
     static let unsupportedSchemeMessage = "Server addresses must start with https:// (or http:// for a local network server)."
-    static let embeddedCredentialsMessage = "Server addresses can't include a username or password. Remove it from the address."
+    static let embeddedCredentialsMessage = "Server addresses cannot include a username or password. Remove it from the address."
 
     /// The one rule for every server URL the app accepts (primary and fallback).
     /// Returns a user-facing reason, or `nil` when the address is acceptable.

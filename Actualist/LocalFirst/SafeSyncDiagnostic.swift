@@ -53,12 +53,12 @@ enum SafeSyncDiagnostic {
     }
 
     /// Read/export boundary for error strings written by older versions. Only
-    /// exact app-authored descriptions (or a canonical numeric HTTP status)
-    /// can be retained; a substring match would leak unlabeled secrets.
+    /// exact app-authored descriptions can be retained; a substring match would leak unlabeled secrets.
     static func storedError(_ text: String?) -> String {
         guard let text else { return previousFailure }
         let known = [
             ActualAPIError.invalidURL.localizedDescription,
+            ActualAPIError.httpStatus(500).localizedDescription,
             ActualAPIError.redirectRefused.localizedDescription,
             ActualAPIError.invalidResponse.localizedDescription,
             ActualAPIError.decoding.localizedDescription,
@@ -86,11 +86,13 @@ enum SafeSyncDiagnostic {
               ActualAPIError.syncRejected(status: 400, reason: $0).localizedDescription
           }
         if known.contains(text) { return text }
-        let prefix = "The server returned HTTP "
-        if text.hasPrefix(prefix), text.hasSuffix("."),
-           let status = Int(text.dropFirst(prefix.count).dropLast()),
-           (100...599).contains(status), text == ActualAPIError.httpStatus(status).localizedDescription {
-            return text
+        // Older versions stored "The server returned HTTP <status>."; the
+        // current message carries no status, so every stored one maps to it.
+        let legacyHTTPPrefix = "The server returned HTTP "
+        if text.hasPrefix(legacyHTTPPrefix), text.hasSuffix("."),
+           let status = Int(text.dropFirst(legacyHTTPPrefix.count).dropLast()),
+           (100...599).contains(status) {
+            return ActualAPIError.httpStatus(status).localizedDescription
         }
         let uploadPrefix = "The Actual server did not confirm "
         if text.hasPrefix(uploadPrefix),
