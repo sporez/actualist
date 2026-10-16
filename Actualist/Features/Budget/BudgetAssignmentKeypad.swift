@@ -104,7 +104,7 @@ struct BudgetAssignmentKeypad: View {
                         submit()
                         keyPressCount += 1
                     } label: {
-                        Text(isSubmitting ? "Saving" : "Done")
+                        Text(isSubmitting ? "Saving…" : "Done")
                             .font(ActualistTypography.control(for: density))
                             .frame(maxWidth: .infinity)
                             .frame(height: BudgetKeypadLayout.actionHeight)

@@ -77,6 +77,16 @@ enum ActualistDisplayDensity: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// The next size up, for a line that should read slightly larger than
+    /// ordinary rows; Large has no step above it.
+    var oneStepLarger: ActualistDisplayDensity {
+        switch self {
+        case .dense: .compact
+        case .compact: .comfortable
+        case .comfortable, .large: .large
+        }
+    }
+
     var workScreenAmountSize: CGFloat {
         switch self {
         case .large: 24

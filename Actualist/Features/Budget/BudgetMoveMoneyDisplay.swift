@@ -25,6 +25,10 @@ struct BudgetMoveMoneyDisplay {
         money(amount, seed: "move-counterparty-\(draft.focusedCategoryID)")
     }
 
+    func allocationCounterpartyAvailableText(_ allocation: BudgetMoveMoneyAllocation, amount: Int) -> String {
+        money(amount, seed: "move-allocation-counterparty-\(allocation.id)")
+    }
+
     func destinationTitle(for draft: BudgetMoveMoneyDraft) -> String {
         if !draft.allocations.isEmpty {
             return draft.allocations.count == 1 ? allocationTitle(draft.allocations[0]) : "Selected Categories"

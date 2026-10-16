@@ -116,15 +116,6 @@ enum BudgetMoveMoneyDirection: Equatable, Sendable {
         }
     }
 
-    var counterpartyPrompt: String {
-        switch self {
-        case .outOfFocusedCategory:
-            "To"
-        case .intoFocusedCategory:
-            "From"
-        }
-    }
-
     var arrowSystemImage: String {
         switch self {
         case .outOfFocusedCategory:
@@ -163,6 +154,11 @@ struct BudgetMoveMoneyDraft: Equatable {
 
     var isSubmitting: Bool {
         submissionState.isSubmitting
+    }
+
+    /// A single category or at least one split line has been picked.
+    var hasCounterparty: Bool {
+        destination != nil || !allocations.isEmpty
     }
 
     var totalAllocatedAmount: Int {

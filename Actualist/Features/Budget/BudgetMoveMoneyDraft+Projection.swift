@@ -47,14 +47,11 @@ extension BudgetMoveMoneyDraft {
     ) -> Int {
         switch direction {
         case .outOfFocusedCategory:
-            return max(
-                0,
-                payingAvailable(
-                    for: allocationID,
-                    budgetMonth: budgetMonth,
-                    visibleGroups: visibleGroups
-                )
-            )
+            // Every split line shares the source's full balance as its scale.
+            // Scaling to what the other lines leave would move one line's
+            // thumb while another is dragged; the detent still uses the
+            // remaining amount.
+            return max(0, focusedAvailable)
         case .intoFocusedCategory:
             let paying = payingAvailable(
                 for: allocationID,

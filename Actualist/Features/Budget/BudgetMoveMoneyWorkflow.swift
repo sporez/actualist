@@ -334,6 +334,14 @@ final class BudgetMoveMoneyWorkflow {
             return
         }
 
+        // Split mode starts from the single category already chosen, which
+        // the picker shows as checked, so it stays part of the split.
+        if draft.allocations.isEmpty, let current = draft.destination {
+            draft.allocations = [
+                BudgetMoveMoneyAllocation(id: current.id, destination: current, amount: draft.amount)
+            ]
+            draft.focusedAllocationID = current.id
+        }
         draft.destination = nil
         if let index = draft.allocations.firstIndex(where: { $0.id == destination.id }) {
             draft.allocations.remove(at: index)
@@ -482,25 +490,40 @@ final class BudgetMoveMoneyWorkflow {
         }
     }
 
+    /// The balance the other category ends at: the single destination, or
+    /// the split line named by `allocationID`.
     func counterpartyAvailableDisplayAmount(
+        for allocationID: String? = nil,
         budgetMonth: BudgetMonth?,
         visibleGroups: [BudgetMonthCategoryGroup]
     ) -> Int {
-        guard let draft,
-              let destination = draft.destination else {
+        guard let draft else {
             return 0
         }
 
+        let counterparty: (destination: BudgetMoveMoneyDestination, amount: Int)
+        if let allocationID {
+            guard let allocation = draft.allocations.first(where: { $0.id == allocationID }) else {
+                return 0
+            }
+            counterparty = (allocation.destination, allocation.amount)
+        } else {
+            guard let destination = draft.destination else {
+                return 0
+            }
+            counterparty = (destination, draft.amount)
+        }
+
         let destinationAvailable = BudgetMoveMoneyDraft.availableAmount(
-            for: destination,
+            for: counterparty.destination,
             budgetMonth: budgetMonth,
             visibleGroups: visibleGroups
         )
         switch draft.direction {
         case .outOfFocusedCategory:
-            return destinationAvailable.addingClamped(draft.amount)
+            return destinationAvailable.addingClamped(counterparty.amount)
         case .intoFocusedCategory:
-            return destinationAvailable.subtractingClamped(draft.amount)
+            return destinationAvailable.subtractingClamped(counterparty.amount)
         }
     }
 

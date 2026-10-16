@@ -185,8 +185,9 @@ final class BudgetViewModel {
         moveMoneyWorkflow.availableDisplayAmount()
     }
 
-    var moveMoneyCounterpartyAvailableDisplayAmount: Int {
+    func moveMoneyCounterpartyAvailableDisplayAmount(for allocationID: String? = nil) -> Int {
         moveMoneyWorkflow.counterpartyAvailableDisplayAmount(
+            for: allocationID,
             budgetMonth: budgetMonth,
             visibleGroups: visibleGroups
         )

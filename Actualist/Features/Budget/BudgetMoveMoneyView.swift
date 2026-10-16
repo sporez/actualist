@@ -10,6 +10,7 @@ struct BudgetMoveMoneyView: View {
     @State private var isDestinationPickerPresented = false
     @State private var didAutoPresentDestinationPicker = false
     @State private var isNumberPadVisible = false
+    @State private var closeButtonTrailingEdge: CGFloat = 0
 
     private var display: BudgetMoveMoneyDisplay {
         BudgetMoveMoneyDisplay(
@@ -63,7 +64,7 @@ struct BudgetMoveMoneyView: View {
                         .animation(.snappy(duration: 0.24), value: isNumberPadVisible)
                     }
                     .padding(.horizontal, 22)
-                    .padding(.top, -28)
+                    .padding(.top, -BudgetMoveMoneyLayout.cardHeaderOverlap)
                     .padding(.bottom, 10)
                 }
             }
@@ -100,13 +101,29 @@ struct BudgetMoveMoneyView: View {
         }
     }
 
+    /// The amount lines read one size up from ordinary rows so the amount
+    /// being moved stands out without changing the line's proportions.
+    private var amountLineDensity: ActualistDisplayDensity {
+        density.oneStepLarger
+    }
+
+    /// Insets the category name on both sides so a long name stops short of
+    /// the close button and stays centered.
+    private var headerNameInset: CGFloat {
+        max(
+            0,
+            closeButtonTrailingEdge + BudgetMoveMoneyLayout.headerNameCloseButtonGap
+                - BudgetMoveMoneyLayout.headerHorizontalPadding
+        )
+    }
+
     private var reservedBottomHeight: CGFloat {
         isNumberPadVisible ? BudgetMoveMoneyLayout.numberPadReservedHeight : BudgetMoveMoneyLayout.compactSubmitReservedHeight
     }
 
     private var compactSubmitButton: some View {
         Button(action: submitMoveMoney) {
-            Text(viewModel.isSubmittingMoveMoney ? "saving" : "done")
+            Text(viewModel.isSubmittingMoveMoney ? "Saving…" : "Done")
                 .font(ActualistTypography.control(for: density))
                 .frame(maxWidth: .infinity)
                 .frame(height: 54)
@@ -130,59 +147,57 @@ struct BudgetMoveMoneyView: View {
 
     private func moveHeader(_ draft: BudgetMoveMoneyDraft) -> some View {
         ZStack(alignment: .topLeading) {
-            VStack(spacing: 14) {
-                Text(draft.direction.headerTitle)
-                    .font(ActualistTypography.sectionTitle(for: density))
-                    .foregroundStyle(BudgetMoveMoneyHeaderStyle.primaryText)
-
-                VStack(spacing: 10) {
-                    Text(display.focusedCategoryName(draft))
-                        .font(ActualistTypography.rowTitle(for: density))
+            VStack(spacing: 0) {
+                VStack(spacing: 14) {
+                    Text(draft.direction.headerTitle)
+                        .font(ActualistTypography.sectionTitle(for: density))
                         .foregroundStyle(BudgetMoveMoneyHeaderStyle.primaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
 
-                    Text(display.headerAmountText(draft, amount: viewModel.moveMoneyAvailableDisplayAmount))
-                        .font(ActualistTypography.workScreenAmount(for: density))
-                        .foregroundStyle(moveHeaderAmountForeground)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 7)
-                        .background(Color.black.opacity(0.26), in: Capsule())
-                }
+                    VStack(spacing: 10) {
+                        Text(display.focusedCategoryName(draft))
+                            .font(ActualistTypography.rowTitle(for: density))
+                            .foregroundStyle(BudgetMoveMoneyHeaderStyle.primaryText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .padding(.horizontal, headerNameInset)
 
-                VStack(spacing: 7) {
-                    Button {
-                        viewModel.toggleMoveMoneyDirection()
-                        isNumberPadVisible = false
-                        if viewModel.moveMoneyDraft?.destination == nil {
-                            isDestinationPickerPresented = true
-                        }
-                    } label: {
-                        // A plain arrow in one circular glass button, like the
-                        // close button; a filled circle symbol inside the glass
-                        // read as a button inside a button.
-                        Image(systemName: draft.direction.arrowSystemImage)
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(ActualistTheme.primaryText)
-                            .frame(width: 54, height: 54)
+                        Text(display.headerAmountText(draft, amount: viewModel.moveMoneyAvailableDisplayAmount))
+                            .font(ActualistTypography.workScreenAmount(for: density))
+                            .foregroundStyle(moveHeaderAmountForeground)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .padding(.horizontal, 22)
+                            .padding(.vertical, 7)
+                            .background(Color.black.opacity(0.26), in: Capsule())
                     }
-                    .buttonStyle(.glass)
-                    .buttonBorderShape(.circle)
-                    .disabled(draft.isSubmitting)
-                    .accessibilityLabel("Switch move money direction")
-
-                    Text(draft.direction.counterpartyPrompt)
-                        .font(ActualistTypography.rowLabel(for: density))
-                        .foregroundStyle(BudgetMoveMoneyHeaderStyle.secondaryText)
                 }
-                .padding(.top, 4)
 
-                Spacer(minLength: 28)
+                // Centered in the green left visible between the amount and
+                // the card that overlaps the header's bottom edge.
+                Button {
+                    viewModel.toggleMoveMoneyDirection()
+                    isNumberPadVisible = false
+                    if viewModel.moveMoneyDraft?.hasCounterparty == false {
+                        isDestinationPickerPresented = true
+                    }
+                } label: {
+                    // A plain arrow in one circular glass button, like the
+                    // close button; a filled circle symbol inside the glass
+                    // read as a button inside a button.
+                    Image(systemName: draft.direction.arrowSystemImage)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(ActualistTheme.primaryText)
+                        .frame(width: 54, height: 54)
+                }
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .disabled(draft.isSubmitting)
+                .accessibilityLabel("Switch move money direction")
+                .frame(maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity)
             .padding(.top, BudgetMoveMoneyLayout.headerTopInset)
+            .padding(.bottom, BudgetMoveMoneyLayout.cardHeaderOverlap)
             .padding(.horizontal, BudgetMoveMoneyLayout.headerHorizontalPadding)
 
             VStack {
@@ -193,17 +208,24 @@ struct BudgetMoveMoneyView: View {
                     Image(systemName: "xmark")
                         .font(.title2.weight(.medium))
                         .foregroundStyle(ActualistTheme.primaryText)
-                        .frame(width: 54, height: 54)
+                        .frame(width: BudgetMoveMoneyLayout.closeButtonSize, height: BudgetMoveMoneyLayout.closeButtonSize)
                 }
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
                 .disabled(draft.isSubmitting)
+                // Measured because the glass chrome draws wider than the label.
+                .onGeometryChange(for: CGFloat.self) {
+                    $0.frame(in: .named(BudgetMoveMoneyLayout.headerCoordinateSpace)).maxX
+                } action: {
+                    closeButtonTrailingEdge = $0
+                }
             }
             .padding(.top, BudgetMoveMoneyLayout.closeButtonTopInset)
             .padding(.leading, BudgetMoveMoneyLayout.closeButtonLeadingInset)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 332)
+        .coordinateSpace(.named(BudgetMoveMoneyLayout.headerCoordinateSpace))
         .background(
             UnevenRoundedRectangle(
                 cornerRadii: RectangleCornerRadii(bottomLeading: 32, bottomTrailing: 32),
@@ -217,8 +239,8 @@ struct BudgetMoveMoneyView: View {
         VStack(spacing: 18) {
             HStack(spacing: 10) {
                 Text(display.destinationTitle(for: draft))
-                    .font(ActualistTypography.rowTitle(for: density))
-                    .foregroundStyle(draft.destination == nil && draft.allocations.isEmpty ? ActualistTheme.accent : ActualistTheme.primaryText)
+                    .font(ActualistTypography.rowTitle(for: amountLineDensity))
+                    .foregroundStyle(draft.hasCounterparty ? ActualistTheme.primaryText : ActualistTheme.accent)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
 
@@ -228,7 +250,7 @@ struct BudgetMoveMoneyView: View {
                     isNumberPadVisible = true
                 } label: {
                     Text(display.amountText(draft, amount: viewModel.moveMoneyDisplayAmount))
-                        .font(ActualistTypography.rowValue(for: density))
+                        .font(ActualistTypography.rowValue(for: amountLineDensity))
                         .foregroundStyle(ActualistTheme.accent)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
@@ -237,14 +259,11 @@ struct BudgetMoveMoneyView: View {
                 .buttonStyle(.plain)
                 .accessibilityHint("Opens the amount keypad")
 
-                Text(display.counterpartyAvailableText(draft, amount: viewModel.moveMoneyCounterpartyAvailableDisplayAmount))
-                    .font(ActualistTypography.rowBadge(for: density))
-                    .foregroundStyle(moveCounterpartyAvailableForeground)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .padding(.horizontal, 11)
-                    .padding(.vertical, 5)
-                    .background(moveCounterpartyAvailableBackground, in: Capsule())
+                // A split shows each line's ending balance on its own row.
+                if draft.destination != nil {
+                    let amount = viewModel.moveMoneyCounterpartyAvailableDisplayAmount()
+                    counterpartyBadge(display.counterpartyAvailableText(draft, amount: amount), amount: amount)
+                }
             }
 
             if draft.allocations.isEmpty {
@@ -275,7 +294,7 @@ struct BudgetMoveMoneyView: View {
                 isNumberPadVisible = false
                 isDestinationPickerPresented = true
             } label: {
-                Label(draft.destination == nil ? "Select Category" : "Select Another", systemImage: "plus.circle.fill")
+                Label("Select Category", systemImage: "plus.circle.fill")
                     .font(ActualistTypography.control(for: density))
                     .foregroundStyle(ActualistTheme.accent)
                     .frame(maxWidth: .infinity)
@@ -296,7 +315,7 @@ struct BudgetMoveMoneyView: View {
         VStack(spacing: 10) {
             HStack(spacing: 10) {
                 Text(display.allocationTitle(allocation))
-                    .font(ActualistTypography.rowTitle(for: density))
+                    .font(ActualistTypography.rowTitle(for: amountLineDensity))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
@@ -308,7 +327,7 @@ struct BudgetMoveMoneyView: View {
                     isNumberPadVisible = true
                 } label: {
                     Text(display.allocationAmountText(allocation))
-                        .font(ActualistTypography.rowValue(for: density))
+                        .font(ActualistTypography.rowValue(for: amountLineDensity))
                         .foregroundStyle(ActualistTheme.accent)
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
@@ -316,6 +335,12 @@ struct BudgetMoveMoneyView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Opens the amount keypad")
+
+                let endingAmount = viewModel.moveMoneyCounterpartyAvailableDisplayAmount(for: allocation.id)
+                counterpartyBadge(
+                    display.allocationCounterpartyAvailableText(allocation, amount: endingAmount),
+                    amount: endingAmount
+                )
             }
 
             BudgetMoveMoneyAmountSlider(
@@ -335,8 +360,18 @@ struct BudgetMoveMoneyView: View {
         }
     }
 
-    private var moveCounterpartyAvailableBackground: Color {
-        let amount = viewModel.moveMoneyCounterpartyAvailableDisplayAmount
+    private func counterpartyBadge(_ text: String, amount: Int) -> some View {
+        Text(text)
+            .font(ActualistTypography.rowBadge(for: amountLineDensity))
+            .foregroundStyle(counterpartyAvailableForeground(amount))
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 5)
+            .background(counterpartyAvailableBackground(amount), in: Capsule())
+    }
+
+    private func counterpartyAvailableBackground(_ amount: Int) -> Color {
         if amount < 0 {
             return ActualistTheme.danger
         }
@@ -346,8 +381,7 @@ struct BudgetMoveMoneyView: View {
         return ActualistTheme.positive
     }
 
-    private var moveCounterpartyAvailableForeground: Color {
-        let amount = viewModel.moveMoneyCounterpartyAvailableDisplayAmount
+    private func counterpartyAvailableForeground(_ amount: Int) -> Color {
         if amount < 0 {
             return ActualistTheme.dangerForeground
         }
@@ -383,6 +417,10 @@ private enum BudgetMoveMoneyLayout {
     static let closeButtonTopInset: CGFloat = 54
     static let closeButtonLeadingInset: CGFloat = 34
     static let headerHorizontalPadding: CGFloat = 34
+    static let closeButtonSize: CGFloat = 54
+    static let cardHeaderOverlap: CGFloat = 28
+    static let headerNameCloseButtonGap: CGFloat = 8
+    static let headerCoordinateSpace = "move-money-header"
     static let numberPadReservedHeight: CGFloat = 302
     static let compactSubmitReservedHeight: CGFloat = 78
 }
@@ -439,7 +477,7 @@ private struct BudgetMoveMoneyNumberPad: View {
                     submit()
                     keyPressCount += 1
                 } label: {
-                    Text(isSubmitting ? "saving" : "done")
+                    Text(isSubmitting ? "Saving…" : "Done")
                         .font(ActualistTypography.control(for: density))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)

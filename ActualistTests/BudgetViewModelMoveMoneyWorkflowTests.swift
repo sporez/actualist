@@ -85,7 +85,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         )
         #expect(model.canSubmitMoveMoney)
         #expect(model.moveMoneyAvailableDisplayAmount == 0)
-        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount == 4_307)
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount() == 4_307)
     }
 
     @Test func overspentAlertCategoryTapStartsCoverMoveMoneyDraft() async throws {
@@ -169,7 +169,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         model.moveMoneyWorkflow.setAmountDollars(25, currency: model.currency)
 
         #expect(model.moveMoneyAvailableDisplayAmount == 8_720)
-        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount == 7_500)
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount() == 7_500)
     }
 
     @Test func successfulMoveMoneyToBudgetSubmitsNilDestinationAndClearsEditingState() async throws {
@@ -293,7 +293,7 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
                 == BudgetMoveMoneySliderMetrics.maximumAmount(baselineAmount: 12_000, currentAmount: 2_500)
         )
         #expect(model.moveMoneyAvailableDisplayAmount == 10_193)
-        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount == 9_500)
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount() == 9_500)
 
         let saved = await model.submitMoveMoney(budgetID: "budget", repository: repository)
 
@@ -339,6 +339,37 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
             BudgetMoveMoneyCommand(fromCategoryID: "mortgage", toCategoryID: "utilities", amount: 24_929),
             BudgetMoveMoneyCommand(fromCategoryID: "mortgage", toCategoryID: nil, amount: 10_000)
         ])
+    }
+
+    @Test func splittingKeepsTheAlreadyChosenCategoryAndItsAmount() throws {
+        let model = try makeMoveMoneyModel(visibleCategoryBalance: 10_000)
+        let utilities = BudgetMoveMoneyDestination.category(id: "utilities", name: "🧹 Utilities")
+        model.selectMoveMoneyDestination(utilities)
+        model.moveMoneyWorkflow.setAmountDollars(25, currency: model.currency)
+
+        model.toggleMoveMoneyDestination(.toBudget)
+
+        let draft = try #require(model.moveMoneyDraft)
+        #expect(draft.destination == nil)
+        #expect(draft.allocations.map(\.id) == ["utilities", "to-budget"])
+        #expect(draft.allocations.map(\.amount) == [2_500, 0])
+        #expect(draft.focusedAllocationID == "to-budget")
+        #expect(model.isMoveMoneyDestinationSelected(utilities))
+    }
+
+    @Test func splittingThenUncheckingTheChosenCategoryLeavesNoneSelected() throws {
+        let model = try makeMoveMoneyModel(visibleCategoryBalance: 10_000)
+        let utilities = BudgetMoveMoneyDestination.category(id: "utilities", name: "🧹 Utilities")
+        model.selectMoveMoneyDestination(utilities)
+        model.moveMoneyWorkflow.setAmountDollars(25, currency: model.currency)
+
+        model.toggleMoveMoneyDestination(utilities)
+        model.finalizeMoveMoneyDestinationSelection()
+
+        let draft = try #require(model.moveMoneyDraft)
+        #expect(draft.destination == nil)
+        #expect(draft.allocations.isEmpty)
+        #expect(draft.focusedAllocationID == nil)
     }
 
     @Test func moveMoneyKeypadDigitsApplyToFocusedAllocation() async throws {
@@ -487,13 +518,61 @@ struct BudgetViewModelMoveMoneyWorkflowTests {
         #expect(remaining.detentAmount == 4_000)
         #expect(
             remaining.maximumAmount
-                == BudgetMoveMoneySliderMetrics.maximumAmount(baselineAmount: 4_000, currentAmount: 0)
+                == BudgetMoveMoneySliderMetrics.maximumAmount(baselineAmount: 10_000, currentAmount: 0)
         )
 
         model.setMoveMoneySliderEditing(true, allocationID: "to-budget")
         model.setMoveMoneySliderAmountDollars(80, allocationID: "to-budget")
         #expect(model.moveMoneyDraft?.allocations.first(where: { $0.id == "to-budget" })?.amount == 4_000)
         #expect(model.moveMoneySliderDetentFeedback == 1)
+    }
+
+    @Test func draggingOneSplitLineLeavesTheOtherLinesScaleAlone() throws {
+        let model = try makeMoveMoneyModel(visibleCategoryBalance: 10_000)
+        model.toggleMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
+        model.toggleMoveMoneyDestination(.toBudget)
+        let before = model.moveMoneySliderSpec(for: "to-budget")
+
+        model.setMoveMoneySliderEditing(true, allocationID: "utilities")
+        model.setMoveMoneySliderAmountDollars(60, allocationID: "utilities")
+        model.setMoveMoneySliderEditing(false, allocationID: "utilities")
+
+        let after = model.moveMoneySliderSpec(for: "to-budget")
+        #expect(after.maximumAmount == before.maximumAmount)
+        #expect(after.maximumAmount == model.moveMoneySliderSpec(for: "utilities").maximumAmount)
+        #expect(after.detentAmount == 4_000)
+    }
+
+    @Test func splitLinesShowTheirOwnEndingBalance() throws {
+        let model = BudgetViewModel(initialBudgetID: "budget")
+        let month = try BudgetViewModelFixtures.decodeBudgetMonth(
+            visibleCategoryBalance: 10_000,
+            hiddenCategoryBalance: 0,
+            toBudget: 500,
+            counterpartyCategoryBalance: 1_000,
+            lastMonthOverspent: 0
+        )
+        model.budgetMonth = month
+        let category = try #require(month.categoryGroups.first(where: { !$0.isIncome })?.visibleCategories.first)
+        model.beginAssignmentEditing(for: category)
+        model.beginMoveMoney()
+
+        model.toggleMoveMoneyDestination(.category(id: "utilities", name: "🧹 Utilities"))
+        model.moveMoneyWorkflow.setAmountDollars(25, currency: model.currency)
+        model.toggleMoveMoneyDestination(.toBudget)
+        model.moveMoneyWorkflow.setAmountDollars(10, currency: model.currency)
+
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount(for: "utilities") == 3_500)
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount(for: "to-budget") == 1_500)
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount(for: "missing") == 0)
+
+        model.toggleMoveMoneyDirection()
+
+        // The direction button reopens the picker only without a counterparty.
+        #expect(model.moveMoneyDraft?.hasCounterparty == true)
+        #expect(model.moveMoneyDraft?.allocations.map(\.amount) == [2_500, 1_000])
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount(for: "utilities") == -1_500)
+        #expect(model.moveMoneyCounterpartyAvailableDisplayAmount(for: "to-budget") == -500)
     }
 
     @Test func overspentCoverIntroStartsAtZeroAndLandsOnCoverAmount() async throws {
