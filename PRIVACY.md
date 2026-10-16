@@ -45,7 +45,7 @@ Local budget data, pending changes, recovery copies, and shared extension data
 are excluded from device backups. Synced changes can be restored from your
 Actual server; pending changes cannot.
 
-Use **Disconnect & Erase Local Data** in Actualist to remove local budgets,
+Use **Disconnect and Erase Data** in Actualist to remove local budgets,
 saved credentials, and shared extension data. Use this action before uninstalling
 to clear credentials stored in Keychain. Erasing local data does not delete data
 from your server or revoke access at other services.

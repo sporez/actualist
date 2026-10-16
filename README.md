@@ -32,7 +32,7 @@ and iOS Liquid Glass controls.
   <img src="screenshots/IMG_3428.PNG" width="23%" alt="Actualist reports dashboard">
 </p>
 
-<p align="center"><sub>Budget · Spending · Accounts · Reports<br>Screenshots use randomized display values.</sub></p>
+<p align="center"><sub>Budget · Spending · Accounts · Reports<br>Screenshots use sample values.</sub></p>
 
 ## Features
 
@@ -73,7 +73,7 @@ and iOS Liquid Glass controls.
 - Offline changes that sync when your server is reachable, optional budget
   encryption, OpenID sign-in, and custom request headers.
 
-Envelope budgets show **Assigned / Available** and **To Budget**. Tracking
+Envelope budgets show **Budgeted / Available** and **To Budget**. Tracking
 budgets show **Budgeted / Balance** for expenses and **Budgeted / Received** for
 income, with **Projected Savings** for current/future months and **Saved** or
 **Overspent** for past months. Tracking expense balances reset monthly unless
@@ -134,7 +134,7 @@ using the beta. Read recovery confirmations before reimporting or erasing data.
 
 Local budgets and pending changes are excluded from device backups. **Unsynced
 changes are lost if the app or local data is removed, or the device is lost.**
-Before erasing or replacing a device, connect and confirm **Pending Sync: None**
+Before erasing or replacing a device, connect and confirm **Waiting to Upload: Nothing**
 in Settings. Synced changes can be restored from your Actual server.
 
 **Background Bank Sync** is off by default on the Settings → Budget & Data →
