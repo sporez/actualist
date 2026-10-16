@@ -285,8 +285,8 @@ struct TransactionEditorSubmissionCoordinatorTests {
             editingIdentity: .creating(transactionID: "new-id")
         )
 
-        #expect(preflight == .rejectedSplitOverflow(message: "The split amounts are too large."))
-        #expect(coordinator.submissionState == .failed("The split amounts are too large."))
+        #expect(preflight == .rejectedSplitOverflow(message: "The split amounts add up to more than this transaction can hold."))
+        #expect(coordinator.submissionState == .failed("The split amounts add up to more than this transaction can hold."))
     }
 
     @Test func preflightRejectsSplitMismatchWithoutStateChange() {

@@ -73,9 +73,9 @@ struct TransactionCSVImportCoordinatorTests {
             repository: repository
         )
         let counts = Dictionary(uniqueKeysWithValues: coordinator.summaryLines.map { ($0.title, $0.count) })
-        #expect(counts["New rows"] == 1)
+        #expect(counts["New transactions"] == 1)
         #expect(counts["Duplicates left unchanged"] == 1)
-        #expect(counts["Matches reconciled rows"] == 1)
+        #expect(counts["Matches reconciled transactions"] == 1)
     }
 
     @Test func onImportedRunsOnceAfterACommittedImport() async throws {
@@ -139,7 +139,7 @@ struct TransactionCSVImportCoordinatorTests {
             budgetID: "group-1",
             repository: repository
         )
-        #expect(coordinator.reviewNotice == "Imported transactions can't be undone.")
+        #expect(coordinator.reviewNotice == "Imported transactions cannot be undone.")
         await coordinator.submit(repository: repository)
         #expect(coordinator.reviewNotice == nil)
     }

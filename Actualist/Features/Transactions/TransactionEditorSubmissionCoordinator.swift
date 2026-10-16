@@ -86,7 +86,7 @@ final class TransactionEditorSubmissionCoordinator {
     ) -> Preflight {
         switch validation {
         case .overflow:
-            let message = "The split amounts are too large."
+            let message = "The split amounts add up to more than this transaction can hold."
             submissionState = .failed(message)
             return .rejectedSplitOverflow(message: message)
         case .mismatch:

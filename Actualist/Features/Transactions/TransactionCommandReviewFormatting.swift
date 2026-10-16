@@ -19,7 +19,7 @@ enum TransactionCommandReviewFormatting {
     }
 
     static func role(isParent: Bool, isChild: Bool, isTransfer: Bool = false) -> String {
-        if isChild { return "Split entry" }
+        if isChild { return "Split part" }
         if isParent { return "Split transaction" }
         if isTransfer { return "Transfer" }
         return "Transaction"

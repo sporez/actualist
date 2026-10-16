@@ -95,7 +95,7 @@ final class TransactionScheduleConversionCoordinator {
                       review.asOfDayID == entryPoint.asOfDayID,
                       let source = review.source,
                       source == entryPoint.source else {
-                    state = .failed("The transaction changed while its review was loading. Review it again.")
+                    state = .failed("The transaction changed while it was being reviewed. Open it and try again.")
                     finish(request)
                     return
                 }
@@ -207,6 +207,6 @@ final class TransactionScheduleConversionCoordinator {
     }
 
     private var conversionSaveFailed: String {
-        "Actualist couldn't convert this transaction. Try again."
+        "Actualist could not convert this transaction. Try again."
     }
 }

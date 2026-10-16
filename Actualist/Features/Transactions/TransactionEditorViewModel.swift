@@ -383,7 +383,7 @@ final class TransactionEditorViewModel {
         do {
             try splitState.autoDistribute(parentSignedAmount: signedAmountCents)
         } catch {
-            errorMessage = "The split amounts are too large."
+            errorMessage = "The split amounts add up to more than this transaction can hold."
         }
     }
 

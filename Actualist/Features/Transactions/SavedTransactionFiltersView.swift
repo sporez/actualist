@@ -9,7 +9,7 @@ struct SavedTransactionFiltersView: View {
             ReviewSheetContent {
                 ReviewSheetHeader(
                     title: "Saved Filters",
-                    subtitle: "Reuse filters for this transaction feed."
+                    subtitle: "Reuse filters for this transaction list."
                 )
                 if coordinator.unavailableMessage == nil {
                     saveCurrentFilterCard
@@ -137,7 +137,7 @@ struct SavedTransactionFiltersView: View {
                     Text(filter.name.isEmpty ? "Unnamed Filter" : filter.name)
                         .font(.headline)
                         .foregroundStyle(ActualistTheme.primaryText)
-                    Text(filter.isSupported ? conditionSummary(filter) : "Contains conditions this version cannot apply")
+                    Text(filter.isSupported ? conditionSummary(filter) : "Includes conditions Actualist does not support yet")
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.secondaryText)
                         .lineLimit(2)

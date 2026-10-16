@@ -12,7 +12,7 @@ struct TransactionFilterSheet: View {
             ReviewSheetContent {
                 ReviewSheetHeader(
                     title: "More Filters",
-                    subtitle: "Refine this transaction feed."
+                    subtitle: "Refine this transaction list."
                 )
                 Button("Reset Filters", systemImage: "arrow.counterclockwise") {
                     workflow.resetDraft()
@@ -82,7 +82,7 @@ struct TransactionFilterSheet: View {
             }
             .pickerStyle(.segmented)
             .accessibilityIdentifier("transaction-filter-join")
-            Text("Status and search filters still apply.")
+            Text("Your status and search filters also apply.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
@@ -154,7 +154,7 @@ struct TransactionFilterSheet: View {
     private var preservedConditionsCard: some View {
         if !workflow.preservedConditionSummaries.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                compactHeading("Existing conditions kept as-is", symbol: "info.circle")
+                compactHeading("Other conditions on this filter", symbol: "info.circle")
                 ForEach(Array(workflow.preservedConditionSummaries.enumerated()), id: \.offset) { _, summary in
                     Text(summary)
                         .font(.footnote)
@@ -190,7 +190,7 @@ struct TransactionFilterSheet: View {
                 .frame(maxWidth: .infinity)
         } else if let errorMessage = workflow.errorMessage {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Some filter options could not be loaded.")
+                Text("Some filter options could not be loaded. Try again.")
                     .font(.headline)
                 Text(errorMessage)
                     .font(.footnote)

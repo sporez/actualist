@@ -18,14 +18,14 @@ struct TransactionCSVImportReviewView: View {
         case .loading:
             TransactionCommandProgressSheet(
                 title: "Reading File",
-                message: "Checking the CSV rows against this account…"
+                message: "Checking the file against this account…"
             )
         case .reviewing(let review):
             reviewSheet(review)
         case .submitting:
             TransactionCommandProgressSheet(
                 title: "Importing",
-                message: "The selected rows are being saved together…"
+                message: "Importing the transactions…"
             )
         case .failed(let message):
             failureSheet(message)
@@ -36,7 +36,7 @@ struct TransactionCSVImportReviewView: View {
         ReviewSheetContent {
             ReviewSheetHeader(
                 title: "Import CSV",
-                subtitle: "Review the rows before anything is added to this account."
+                subtitle: "Review the transactions before anything is added to this account."
             )
             .accessibilityIdentifier("transaction-csv-import-review")
 
@@ -146,7 +146,7 @@ struct TransactionCSVImportReviewView: View {
     private func failureSheet(_ message: String) -> some View {
         ReviewSheetContent {
             ReviewSheetHeader(
-                title: "Couldn't Import",
+                title: "Could Not Import",
                 subtitle: message
             )
             .accessibilityIdentifier("transaction-csv-import-failed")
@@ -168,13 +168,13 @@ struct TransactionCSVImportReviewView: View {
     static func outcomeTitle(_ outcome: TransactionCSVImportReviewRow.Outcome) -> String {
         switch outcome {
         case .insert(_, let isTransfer):
-            return isTransfer ? "New transfer" : "New row"
+            return isTransfer ? "New transfer" : "New transaction"
         case .update:
-            return "Update existing row"
+            return "Update existing transaction"
         case .unchanged:
             return "Duplicate, unchanged"
         case .reconciled:
-            return "Matches a reconciled row"
+            return "Matches a reconciled transaction"
         case .skippedByRule:
             return "Skipped by a rule"
         }

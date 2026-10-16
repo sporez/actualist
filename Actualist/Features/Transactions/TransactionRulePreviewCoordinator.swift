@@ -55,7 +55,7 @@ final class TransactionRulePreviewCoordinator {
                localFirstError == .unsupportedWrite {
                 return .unsupported
             }
-            return .failed("Could not apply payee rules: \(error.localizedDescription)")
+            return .failed("Could not apply your payee rules. \(error.userFacingMessage ?? error.localizedDescription)")
         }
     }
 

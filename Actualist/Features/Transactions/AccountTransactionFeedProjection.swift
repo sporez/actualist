@@ -112,7 +112,7 @@ struct AccountTransactionFeedProjection {
             confirmationTitle: reconciliation?.title ?? "Delete Transaction?",
             actionTitle: reconciliation?.confirmationTitle ?? "Delete Transaction",
             message: reconciliation?.message
-                ?? "Delete \(payeeName(for: transaction))? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription).",
+                ?? "Delete \(payeeName(for: transaction))? The transaction will be deleted from your budget.",
             reconciliationAuthorization: reconciliation?.review.authorization
         )
     }

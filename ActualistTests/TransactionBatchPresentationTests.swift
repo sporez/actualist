@@ -140,7 +140,7 @@ struct TransactionBatchPresentationTests {
         let linked = try #require(row.linkedMembers.first)
         #expect(linked.payee == "Checking")
         #expect(linked.context == "Jul 3, 2026 · Credit Card")
-        #expect(linked.relation == "Affected transfer member")
+        #expect(linked.relation == "Other side of the transfer")
         #expect(linked.effects == [.init(title: "Status", before: "Present", after: "Deleted")])
     }
 

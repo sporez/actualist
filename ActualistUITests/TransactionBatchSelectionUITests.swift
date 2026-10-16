@@ -25,7 +25,7 @@ final class TransactionBatchSelectionUITests: XCTestCase {
         app.buttons["transaction-selection-actions"].tap()
         app.buttons["Clear Transactions"].tap()
 
-        XCTAssertTrue(app.staticTexts["Review Clear Transactions"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Mark as Cleared"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Selected transactions"].exists)
         XCTAssertTrue(firstExactReviewRow(in: app).waitForExistence(timeout: 5))
         attachScreenshot(named: "batch-clear-exact-review-dark-\(layoutName(in: app))", app: app)
@@ -51,7 +51,7 @@ final class TransactionBatchSelectionUITests: XCTestCase {
         attachScreenshot(named: "batch-category-picker-dark-\(layoutName(in: app))", app: app)
         category.tap()
 
-        XCTAssertTrue(app.staticTexts["Review Categorize Transactions"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Change Categories"].waitForExistence(timeout: 10))
         XCTAssertTrue(firstExactReviewRow(in: app).waitForExistence(timeout: 5))
         attachScreenshot(named: "batch-category-exact-review-dark-\(layoutName(in: app))", app: app)
         app.buttons["Cancel"].tap()
@@ -64,7 +64,7 @@ final class TransactionBatchSelectionUITests: XCTestCase {
         app.buttons["transaction-selection-actions"].tap()
         app.buttons["Delete Transactions…"].tap()
 
-        XCTAssertTrue(app.staticTexts["Review Delete Transactions"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Delete Transactions"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Selected transactions"].exists)
         XCTAssertTrue(firstExactReviewRow(in: app).waitForExistence(timeout: 5))
         attachScreenshot(named: "batch-delete-exact-review-\(layoutName(in: app))", app: app)
@@ -104,12 +104,12 @@ final class TransactionBatchSelectionUITests: XCTestCase {
         selectFirstLoadedTransaction(in: app, transactionID: transactionID)
         app.buttons["transaction-selection-actions"].tap()
         app.buttons["Clear Transactions"].tap()
-        XCTAssertTrue(app.staticTexts["Review Clear Transactions"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Mark as Cleared"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Clear"].isEnabled)
         app.buttons["Clear"].tap()
         // Confirming saves and closes right away: no success screen, and
         // selection mode exits with the review.
-        XCTAssertTrue(app.staticTexts["Review Clear Transactions"].waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Mark as Cleared"].waitForNonExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["Changes Saved"].exists)
         XCTAssertTrue(app.staticTexts["transaction-selection-count"].waitForNonExistence(timeout: 10))
         attachScreenshot(named: "batch-clear-saved-dark-\(layoutName(in: app))", app: app)
@@ -145,9 +145,9 @@ final class TransactionBatchSelectionUITests: XCTestCase {
         app.buttons["transaction-selection-actions"].tap()
         app.buttons["Clear Transactions"].tap()
 
-        XCTAssertTrue(app.staticTexts["Review Clear Transactions"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Mark as Cleared"].waitForExistence(timeout: 10))
         let reviewScroll = app.scrollViews.containing(
-            .staticText, identifier: "Review Clear Transactions"
+            .staticText, identifier: "Mark as Cleared"
         ).firstMatch
         XCTAssertTrue(reviewScroll.waitForExistence(timeout: 5))
         let row = firstExactReviewRow(in: app)

@@ -36,7 +36,7 @@ struct TransactionCommandPresentationTests {
         #expect(display.familyDeduplicationMessage == "2 selected transactions belong to one transaction, so Duplicate creates one copy.")
         #expect(display.copyCountText == "2")
         #expect(display.canSubmit)
-        #expect(display.groups.first?.rows.map(\.role) == ["Split transaction", "Split entry"])
+        #expect(display.groups.first?.rows.map(\.role) == ["Split transaction", "Split part"])
     }
 
     @Test func separateDuplicateSelectionsDoNotClaimFamilyDeduplication() throws {
@@ -94,11 +94,11 @@ struct TransactionCommandPresentationTests {
         )
 
         let display = TransactionMergeReviewDisplay(review: review, locale: Locale(identifier: "en_US"), currency: .usd)
-        #expect(display.inputs.map(\.positionLabel) == ["Input 1", "Input 2"])
+        #expect(display.inputs.map(\.positionLabel) == ["Transaction 1", "Transaction 2"])
         #expect(display.inputs.map(\.id) == ["later", "earlier"])
         #expect(display.inputs.map(\.outcomeLabel) == ["Dropped", "Kept"])
-        #expect(display.keptLabel == "Input 2")
-        #expect(display.droppedLabel == "Input 1")
+        #expect(display.keptLabel == "Transaction 2")
+        #expect(display.droppedLabel == "Transaction 1")
         #expect(display.inputs[1].detail == "This transaction is kept.")
         #expect(display.inputs[1].amount == BudgetCurrency.usd.formatted(45_000))
         #expect(display.keptEffects.map(\.title) == ["Notes"])
@@ -110,13 +110,13 @@ struct TransactionCommandPresentationTests {
         let malformed = blockedMergeDisplay(.malformedRow("row"))
         let split = blockedMergeDisplay(.malformedSplit("parent"))
 
-        #expect(child.blockedMessage == "A split entry cannot be merged by itself. Select the whole transaction.")
-        #expect(malformed.blockedMessage == "This transaction cannot be merged because one of its stored values is incomplete.")
-        #expect(split.blockedMessage == "This split cannot be merged because its entries are incomplete.")
+        #expect(child.blockedMessage == "A single part of a split cannot be merged. Select the whole transaction.")
+        #expect(malformed.blockedMessage == "This transaction cannot be merged because some of its details are missing.")
+        #expect(split.blockedMessage == "This split cannot be merged because some of its parts are missing.")
         #expect(child.canSubmit == false)
         #expect(malformed.canSubmit == false)
         #expect(child.authorizationMessage == nil)
-        #expect(child.inputs.map(\.positionLabel) == ["Input 1", "Input 2"])
+        #expect(child.inputs.map(\.positionLabel) == ["Transaction 1", "Transaction 2"])
         #expect(child.inputs.allSatisfy { $0.outcomeLabel == nil })
     }
 

@@ -65,7 +65,7 @@ struct TransactionEditorMutationCoordinatorTests {
 
         #expect(displayedCleared)
         #expect(coordinator.presentation?.intent == .unlock)
-        #expect(coordinator.presentation?.message.contains("keeps the transaction cleared") == true)
+        #expect(coordinator.presentation?.message.contains("stays cleared") == true)
         #expect(coordinator.beginConfirmation())
 
         let outcome = await coordinator.confirmPending(

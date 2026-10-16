@@ -25,7 +25,7 @@ final class SavedTransactionFiltersCoordinator {
     @ObservationIgnored private var generation = 0
 
     var currentConditionsSummary: String {
-        guard let conditions else { return "Some current conditions cannot be saved here" }
+        guard let conditions else { return "Some conditions cannot be saved as a filter" }
         return "\(conditions.count) condition\(conditions.count == 1 ? "" : "s") · \(join.rawValue.uppercased())"
     }
 
@@ -70,7 +70,7 @@ final class SavedTransactionFiltersCoordinator {
             return
         } catch {
             guard generation == request else { return }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage ?? error.localizedDescription
         }
     }
 
@@ -110,7 +110,7 @@ final class SavedTransactionFiltersCoordinator {
             return
         } catch {
             guard generation == request else { return }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage ?? error.localizedDescription
         }
     }
 
@@ -151,7 +151,7 @@ final class SavedTransactionFiltersCoordinator {
             return
         } catch {
             guard generation == request else { return }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage ?? error.localizedDescription
             filterBeingRenamed = filter
         }
     }
@@ -184,7 +184,7 @@ final class SavedTransactionFiltersCoordinator {
             return
         } catch {
             guard generation == request else { return }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage ?? error.localizedDescription
         }
     }
 
@@ -194,7 +194,7 @@ final class SavedTransactionFiltersCoordinator {
             filters = refreshedFilters.filter { !$0.tombstone }
         }
         statusMessage = result.refreshPending && result.changed
-            ? "Saved locally. Reopen this list to refresh it."
+            ? "Saved. Reopen this list to see the update."
             : nil
     }
 }

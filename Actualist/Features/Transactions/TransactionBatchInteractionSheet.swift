@@ -37,7 +37,7 @@ struct TransactionBatchInteractionSheet: View {
     private var reviewContent: some View {
         switch presentation.selection.state {
         case .preparing:
-            progressContent(title: "Preparing Review", message: "Checking the selected transaction rows…")
+            progressContent(title: "Preparing Review", message: "Checking your selection…")
         case .reviewing(let review):
             TransactionBatchReviewSheet(
                 review: review,
@@ -52,7 +52,7 @@ struct TransactionBatchInteractionSheet: View {
                 }
             )
         case .submitting:
-            progressContent(title: "Saving Changes", message: "The selected changes are being saved together…")
+            progressContent(title: "Saving Changes", message: "Saving your changes…")
         case .inactive, .selecting, .failed:
             EmptyView()
         }

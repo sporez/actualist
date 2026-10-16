@@ -55,7 +55,7 @@ final class ReportTransactionDrilldownViewModel {
         guard let budgetID = appState.settings.selectedBudgetID else {
             invalidateActiveLoad()
             snapshot = nil
-            state = .failed("Open a budget before loading these transactions.")
+            state = .failed("No budget is open. Open a budget to see these transactions.")
             return
         }
         await load(
@@ -169,7 +169,7 @@ struct ReportTransactionDrilldownView: View {
     private var transactionList: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                Text("\(viewModel.contributingCount) contributing transaction\(viewModel.contributingCount == 1 ? "" : "s")")
+                Text("\(viewModel.contributingCount) transaction\(viewModel.contributingCount == 1 ? "" : "s") counted")
                     .font(.footnote)
                     .foregroundStyle(ActualistTheme.secondaryText)
                     .frame(maxWidth: .infinity, alignment: .leading)

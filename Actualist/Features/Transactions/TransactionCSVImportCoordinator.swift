@@ -43,7 +43,7 @@ final class TransactionCSVImportCoordinator {
     /// review states it before the user commits.
     var reviewNotice: String? {
         guard case .reviewing = state else { return nil }
-        return "Imported transactions can't be undone."
+        return "Imported transactions cannot be undone."
     }
 
     var isSubmitting: Bool {
@@ -136,12 +136,12 @@ final class TransactionCSVImportCoordinator {
     var summaryLines: [SummaryLine] {
         guard let summary else { return [] }
         var lines = [
-            SummaryLine(title: "New rows", count: summary.insert, symbol: "plus.square"),
-            SummaryLine(title: "Existing rows updated", count: summary.update, symbol: "pencil.line"),
+            SummaryLine(title: "New transactions", count: summary.insert, symbol: "plus.square"),
+            SummaryLine(title: "Existing transactions updated", count: summary.update, symbol: "pencil.line"),
             SummaryLine(title: "Duplicates left unchanged", count: summary.ignored, symbol: "checkmark.circle")
         ]
         if summary.skipped > 0 {
-            lines.append(SummaryLine(title: "Matches reconciled rows", count: summary.skipped, symbol: "lock.circle"))
+            lines.append(SummaryLine(title: "Matches reconciled transactions", count: summary.skipped, symbol: "lock.circle"))
         }
         if summary.byRule > 0 {
             lines.append(SummaryLine(title: "Skipped by a rule", count: summary.byRule, symbol: "minus.circle"))
@@ -157,7 +157,7 @@ final class TransactionCSVImportCoordinator {
     var submitTitle: String {
         guard case .reviewing(let review) = state else { return "Import" }
         let count = review.rows.filter { isIncluded($0) }.count
-        return "Import \(count) Row\(count == 1 ? "" : "s")"
+        return "Import \(count) Transaction\(count == 1 ? "" : "s")"
     }
 
     /// `onImported` runs once after a committed import, so the app can record

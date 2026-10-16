@@ -26,7 +26,7 @@ struct ReportsView: View {
                         ContentUnavailableView(
                             "No Report Data",
                             systemImage: "chart.xyaxis.line",
-                            description: Text("Transactions will appear here after this budget has local history.")
+                            description: Text("Reports appear once this budget has transactions.")
                         )
                         .foregroundStyle(ActualistTheme.secondaryText)
                         .frame(maxWidth: .infinity, minHeight: 360)
@@ -114,7 +114,7 @@ private struct ReportsLoadingView: View {
             ProgressView()
             Text("Building reports from this budget")
                 .font(ActualistTypography.rowTitle(for: density))
-            Text("This uses the local transaction history and works offline after the first load.")
+            Text("Reports are built from your saved transactions and work offline.")
                 .font(ActualistTypography.body(for: density))
                 .multilineTextAlignment(.center)
         }

@@ -45,14 +45,14 @@ struct TransactionScheduleConversionReviewView: View {
             }
             .actualistReviewCard(padding: 12)
             Label(
-                "Saving creates a one-time schedule marked for automatic posting and removes the original transaction.",
+                "Saving replaces this transaction with a one-time schedule that posts automatically.",
                 systemImage: "exclamationmark.triangle.fill"
             )
             .font(.subheadline)
             .foregroundStyle(ActualistTheme.warning)
             .fixedSize(horizontal: false, vertical: true)
             .actualistReviewCard(padding: 12)
-            Text("After a successful sync, this phone posts the schedule when it is due. If that sync does not finish, the schedule stays unposted.")
+            Text("Once your changes sync, this device adds the transaction when it is due. Until they sync, the schedule will not post.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -88,7 +88,7 @@ struct TransactionScheduleConversionReviewView: View {
         ReviewSheetContent {
             ReviewSheetHeader(title: "Creating Schedule")
             Label(
-                "The original transaction and its schedule are being saved together.",
+                "Replacing this transaction with a schedule…",
                 systemImage: "arrow.triangle.2.circlepath"
             )
             .font(.subheadline)
@@ -107,7 +107,7 @@ struct TransactionScheduleConversionReviewView: View {
                 .foregroundStyle(ActualistTheme.danger)
                 .fixedSize(horizontal: false, vertical: true)
                 .actualistReviewCard()
-            Text("No schedule was created. Review the latest transaction before trying again.")
+            Text("No schedule was created. Check the transaction, then try again.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)

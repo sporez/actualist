@@ -24,9 +24,9 @@ struct TransactionMergeReviewDisplay: Equatable {
         let value: String
     }
 
-    let title = "Review Merge Transactions"
+    let title = "Merge Transactions"
     let confirmationTitle = "Merge"
-    let subtitle = "Input 1 is the first transaction you selected. Input 2 is the second."
+    let subtitle = "Transaction 1 is the first one you selected. Transaction 2 is the second."
     let inputCountText: String
     let keptLabel: String?
     let droppedLabel: String?
@@ -72,7 +72,7 @@ struct TransactionMergeReviewDisplay: Equatable {
             return Input(
                 id: transactionID,
                 position: position,
-                positionLabel: "Input \(position)",
+                positionLabel: "Transaction \(position)",
                 outcomeLabel: outcome,
                 isKept: isKept,
                 role: row.map {
@@ -113,7 +113,7 @@ struct TransactionMergeReviewDisplay: Equatable {
                 detail: isKept
                     ? "This transaction is kept."
                     : (isDropped
-                        ? "This transaction will be removed."
+                        ? "This transaction will be deleted."
                         : (row == nil ? "This transaction is unavailable." : "This transaction will not be changed."))
             )
         }
@@ -140,25 +140,25 @@ struct TransactionMergeReviewDisplay: Equatable {
         case .missingRootSnapshot:
             "One of the selected transactions is no longer available."
         case .selectedChild:
-            "A split entry cannot be merged by itself. Select the whole transaction."
+            "A single part of a split cannot be merged. Select the whole transaction."
         case .overlappingGraphs:
             "These transactions are already linked, so they cannot be merged."
         case .malformedRow:
-            "This transaction cannot be merged because one of its stored values is incomplete."
+            "This transaction cannot be merged because some of its details are missing."
         case .missingAccountMetadata, .invalidReferenceMetadata:
-            "This transaction cannot be merged because its account is unavailable."
+            "This transaction cannot be merged because its account is missing."
         case .zeroChildSplit:
-            "An empty split cannot be merged."
+            "A split with no parts cannot be merged."
         case .splitHasError:
-            "A split with an error cannot be merged."
+            "A split with a problem cannot be merged."
         case .malformedSplit:
-            "This split cannot be merged because its entries are incomplete."
+            "This split cannot be merged because some of its parts are missing."
         case .malformedTransfer:
-            "This transfer cannot be merged because its other side is incomplete."
+            "This transfer cannot be merged because its other side is missing."
         case .extraIncomingTransfer:
-            "This transfer cannot be merged because it has an extra linked transaction."
+            "This transfer cannot be merged because it is linked to more than one transaction."
         case .missingTransferDestination:
-            "This transfer cannot be merged because its destination account is missing."
+            "This transfer cannot be merged because the other account is missing."
         case .accountMismatch:
             "These transactions are in different accounts, so they cannot be merged."
         case .amountMismatch:
@@ -166,7 +166,7 @@ struct TransactionMergeReviewDisplay: Equatable {
         case .differentTransferDestinations:
             "These transfers go to different accounts, so they cannot be merged."
         case .invalidProposedParentFields:
-            "This split cannot be merged because the combined transaction would be invalid."
+            "This split cannot be merged because the result would not be valid."
         }
     }
 

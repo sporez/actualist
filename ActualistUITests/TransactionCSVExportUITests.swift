@@ -38,7 +38,7 @@ final class TransactionCSVExportUITests: XCTestCase {
 
         let exportTitle = app.staticTexts["Export CSV"]
         XCTAssertTrue(exportTitle.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Transaction families"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Transactions"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["CSV rows"].waitForExistence(timeout: 5))
         let counts = app.staticTexts.matching(NSPredicate(format: "label MATCHES '^[0-9]+$'"))
         XCTAssertEqual(counts.count, 2)

@@ -168,7 +168,7 @@ final class ReportExplorerViewModel {
     func load(using appState: AppState) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
             bind(to: nil)
-            loadState = .failed("Open a budget before loading this report.")
+            loadState = .failed("No budget is open. Open a budget to see this report.")
             return
         }
         await load(

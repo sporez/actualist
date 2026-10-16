@@ -26,7 +26,7 @@ final class ReportsViewModel {
 
     func load(using appState: AppState, now: Date = ReportClock.now) async {
         guard let budgetID = appState.settings.selectedBudgetID else {
-            errorMessage = "Open a budget before loading reports."
+            errorMessage = "No budget is open. Open a budget to see reports."
             return
         }
         let repository = appState.reportsRepository
@@ -130,26 +130,26 @@ final class ReportsViewModel {
     var cashFlowExpenseText: String { money(displaySnapshot?.cashFlow.expenses ?? 0) }
     var uncategorizedText: String? {
         guard let value = displaySnapshot?.cashFlow.uncategorized, value != 0 else { return nil }
-        return "Uncategorized activity: \(money(value))"
+        return "Uncategorized spending: \(money(value))"
     }
 
     var monthComparisonSubtitle: String {
         guard let report = displaySnapshot?.monthComparison else { return "" }
-        return "Compare \(ReportCalendar.shortMonthTitle(report.currentMonth)) to \(ReportCalendar.shortMonthTitle(report.comparisonMonth))"
+        return "Compare \(ReportCalendar.shortMonthTitle(report.currentMonth)) with \(ReportCalendar.shortMonthTitle(report.comparisonMonth))"
     }
     var monthComparisonHeadline: String { signedMoney(displaySnapshot?.monthComparison.variance ?? 0) }
     var monthComparisonTone: ReportValueTone { overspendingTone(displaySnapshot?.monthComparison.variance ?? 0) }
 
     var budgetOverviewSubtitle: String {
         guard let month = displaySnapshot?.budgetOverview.month else { return "" }
-        return "Compare \(ReportCalendar.shortMonthTitle(month)) to budgeted"
+        return "Compare \(ReportCalendar.shortMonthTitle(month)) with budgeted"
     }
     var budgetOverviewHeadline: String { signedMoney(displaySnapshot?.budgetOverview.variance ?? 0) }
     var budgetOverviewTone: ReportValueTone { overspendingTone(displaySnapshot?.budgetOverview.variance ?? 0) }
 
     var threeMonthAverageSubtitle: String {
         guard let month = displaySnapshot?.threeMonthAverage.month else { return "" }
-        return "Compare \(ReportCalendar.shortMonthTitle(month)) to the last 3 months"
+        return "Compare \(ReportCalendar.shortMonthTitle(month)) with the last 3 months"
     }
     var threeMonthAverageHeadline: String { signedMoney(displaySnapshot?.threeMonthAverage.variance ?? 0) }
     var threeMonthAverageTone: ReportValueTone { overspendingTone(displaySnapshot?.threeMonthAverage.variance ?? 0) }
@@ -196,13 +196,13 @@ final class ReportsViewModel {
         "Cash flow \(cashFlowHeadline), income \(cashFlowIncomeText), expenses \(cashFlowExpenseText), \(cashFlowSubtitle)"
     }
     var monthComparisonAccessibility: String {
-        "This month comparison \(monthComparisonHeadline). \(monthComparisonSubtitle)"
+        "This month: \(monthComparisonHeadline). \(monthComparisonSubtitle)"
     }
     var budgetOverviewAccessibility: String {
-        "Budget overview variance \(budgetOverviewHeadline). \(budgetOverviewSubtitle)"
+        "Budget overview: \(budgetOverviewHeadline). \(budgetOverviewSubtitle)"
     }
     var threeMonthAverageAccessibility: String {
-        "Three month average variance \(threeMonthAverageHeadline). \(threeMonthAverageSubtitle)"
+        "3-month average: \(threeMonthAverageHeadline). \(threeMonthAverageSubtitle)"
     }
 
     private var calendarMaximum: UInt {

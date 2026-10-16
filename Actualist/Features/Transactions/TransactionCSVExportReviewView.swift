@@ -41,7 +41,7 @@ struct TransactionCSVExportReviewView: View {
     private var header: some View {
         ReviewSheetHeader(
             title: "Export CSV",
-            subtitle: "Export every transaction in this account from your local budget."
+            subtitle: "Export every transaction in this account."
         )
     }
 
@@ -53,7 +53,7 @@ struct TransactionCSVExportReviewView: View {
         case .idle:
             EmptyView()
         case .exporting:
-            ProgressView("Preparing local CSV…")
+            ProgressView("Preparing CSV…")
                 .frame(maxWidth: .infinity)
                 .actualistReviewCard()
         case .failed(let message):
@@ -71,9 +71,9 @@ struct TransactionCSVExportReviewView: View {
 
     private func summaryCard(for export: TransactionCSVExport) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            ReviewSummaryRow(title: "Transaction families", value: "\(export.exportedFamilyCount)", symbol: "rectangle.stack")
+            ReviewSummaryRow(title: "Transactions", value: "\(export.exportedFamilyCount)", symbol: "rectangle.stack")
             ReviewSummaryRow(title: "CSV rows", value: "\(export.exportedRowCount)", symbol: "tablecells")
-            Text("A split family counts once above and includes one CSV row for each transaction. This file contains budget data; share it only with people you trust.")
+            Text("A split transaction is counted once above but exported as one CSV row per part. This file contains your budget data, so share it only with people you trust.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)

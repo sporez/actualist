@@ -301,14 +301,14 @@ enum ReportExplorerError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .invalidRange:
-            "The report start date must be on or before its end date."
+            "The start date must be on or before the end date."
         case .rangeTooLarge:
             "That range is too long. Choose up to \(ReportExplorerRangeLimits.maximumDays) days for daily "
                 + "reports or \(ReportExplorerRangeLimits.maximumMonths) months for monthly reports."
         case .spendingAverageRequiresSingleMonth:
-            "Spending Average compares one month at a time."
+            "Spending Average compares one month at a time. Choose a single month."
         case .unsupportedNetWorthCategoryFilter:
-            "Net Worth supports account filters, not category filters."
+            "Net Worth can only be filtered by account."
         }
     }
 }

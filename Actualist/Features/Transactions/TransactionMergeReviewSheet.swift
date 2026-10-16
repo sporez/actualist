@@ -12,7 +12,7 @@ struct TransactionMergeCommandSheet: View {
         case .preparing:
             TransactionCommandProgressSheet(
                 title: "Preparing Review",
-                message: "Checking the selected transaction rows…",
+                message: "Checking your selection…",
                 detents: [.large]
             )
         case .reviewing(let reviewed):
@@ -26,7 +26,7 @@ struct TransactionMergeCommandSheet: View {
         case .submitting:
             TransactionCommandProgressSheet(
                 title: "Saving Changes",
-                message: "The selected transactions are being merged…",
+                message: "Merging the transactions…",
                 detents: [.large]
             )
         case .idle, .failed:

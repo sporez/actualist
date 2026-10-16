@@ -88,7 +88,7 @@ final class ReportExplorerUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["This Month Transactions"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any)["report-drilldown-view"].waitForExistence(timeout: 5))
         let count = app.staticTexts.matching(
-            NSPredicate(format: "label MATCHES %@", "[1-9][0-9]* contributing transactions?")
+            NSPredicate(format: "label MATCHES %@", "[1-9][0-9]* transactions? counted")
         ).firstMatch
         XCTAssertTrue(count.waitForExistence(timeout: 5))
         XCTAssertTrue(elements(in: app, identifierPrefix: "report-drilldown-row-").firstMatch.waitForExistence(timeout: 5))

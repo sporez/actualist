@@ -358,7 +358,7 @@ struct TransactionEditorView: View {
         .tint(ActualistTheme.accent)
         .disabled(!viewModel.canSave)
         .confirmationDialog(
-            "A Rule Would Delete This Transaction",
+            "A Rule Deletes This Transaction",
             isPresented: deleteReviewBinding,
             titleVisibility: .visible
         ) {
@@ -377,8 +377,8 @@ struct TransactionEditorView: View {
         } message: {
             Text(
                 viewModel.isEditing
-                    ? "A matching rule wants to delete this transaction. Delete it, or keep the existing row and leave it unsaved."
-                    : "A matching rule would delete this transaction, so it will not be saved."
+                    ? "One of your rules deletes transactions like this. You can delete it now or keep the original."
+                    : "One of your rules deletes transactions like this, so it will not be saved."
             )
         }
         .padding(.top, 4)

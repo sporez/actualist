@@ -12,7 +12,7 @@ struct TransactionDuplicateCommandSheet: View {
         case .preparing:
             TransactionCommandProgressSheet(
                 title: "Preparing Review",
-                message: "Checking the selected transaction rows…"
+                message: "Checking your selection…"
             )
         case .reviewing(let review):
             TransactionDuplicateReviewSheet(
@@ -25,7 +25,7 @@ struct TransactionDuplicateCommandSheet: View {
         case .submitting:
             TransactionCommandProgressSheet(
                 title: "Saving Changes",
-                message: "The selected copies are being saved together…"
+                message: "Saving the copies…"
             )
         case .idle, .failed:
             EmptyView()

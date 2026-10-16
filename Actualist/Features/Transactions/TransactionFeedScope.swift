@@ -192,7 +192,7 @@ final class CategoryMonthDetailsViewModel {
         let table = details.modeIdentity?.table ?? (isTrackingBudget ? .tracking : .envelope)
         if details.category.isIncome,
            !BudgetActionEligibility.allows(.carryover(isIncome: true), in: table) {
-            carryoverErrorMessage = "Income rollover is unavailable for tracking budgets."
+            carryoverErrorMessage = "Rollover is not available for income in tracking budgets."
             return
         }
 

@@ -61,7 +61,7 @@ struct ReconciledTransactionMutationPresentation: Hashable, Sendable {
         intent: ReconciledTransactionMutationIntent
     ) -> String {
         if intent == .unlock {
-            return "This keeps the transaction cleared and removes its reconciliation lock. You can then edit it normally."
+            return "The transaction stays cleared but is no longer locked, so you can edit it."
         }
 
         let action = switch intent {
@@ -70,14 +70,14 @@ struct ReconciledTransactionMutationPresentation: Hashable, Sendable {
         default: "Deleting"
         }
         if review.targetRequiresUnlock && review.includesPairedTransfer {
-            return "This transaction and the other side of its transfer include reconciled data. \(action) it can change previously balanced accounts."
+            return "This transaction and the other side of its transfer are reconciled. \(action) it may change balances you already reconciled."
         }
         if review.includesPairedTransfer {
-            return "The other side of this transfer is reconciled. \(action) this transaction can change a previously balanced account."
+            return "The other side of this transfer is reconciled. \(action) this transaction may change a balance you already reconciled."
         }
         if review.targetReconciledTransactionIDs.count > 1 {
-            return "This split transaction includes reconciled entries. \(action) it can change a previously balanced account."
+            return "This split transaction includes reconciled parts. \(action) it may change a balance you already reconciled."
         }
-        return "This transaction has been reconciled. \(action) it can change a previously balanced account."
+        return "This transaction is reconciled. \(action) it may change a balance you already reconciled."
     }
 }

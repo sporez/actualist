@@ -152,7 +152,7 @@ final class AccountTransactionsViewModel {
         repository: any TransactionRepositoryProtocol
     ) async {
         guard let transactionID = transaction.id else {
-            errorMessage = "This transaction cannot be deleted because it is missing its transaction ID."
+            errorMessage = "This transaction cannot be deleted because it is incomplete."
             return
         }
 

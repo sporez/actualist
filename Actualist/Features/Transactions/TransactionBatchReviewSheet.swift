@@ -17,7 +17,7 @@ struct TransactionBatchReviewSheet: View {
         ReviewSheetContent {
             ReviewSheetHeader(
                 title: display.title,
-                subtitle: "These are the exact transactions and stored changes that will be saved together."
+                subtitle: "Review these changes. They will all be saved at once."
             )
 
             VStack(spacing: 8) {
@@ -27,7 +27,7 @@ struct TransactionBatchReviewSheet: View {
                     symbol: "checkmark.circle"
                 )
                 ReviewSummaryRow(
-                    title: "Rows changing",
+                    title: "Transactions changing",
                     value: display.changedCountText,
                     symbol: "arrow.left.arrow.right"
                 )
@@ -184,7 +184,7 @@ struct TransactionBatchReviewSheet: View {
     @ViewBuilder
     private func effectList(_ effects: [TransactionBatchReviewDisplay.Effect]) -> some View {
         if effects.isEmpty {
-            Text("No stored values will change.")
+            Text("Nothing will change.")
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         } else {

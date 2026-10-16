@@ -20,7 +20,7 @@ struct TransactionDuplicateReviewDisplay: Equatable {
         let rows: [Row]
     }
 
-    let title = "Review Duplicate Transactions"
+    let title = "Duplicate Transactions"
     let confirmationTitle = "Duplicate"
     let subtitle: String
     let selectedCountText: String
@@ -46,8 +46,8 @@ struct TransactionDuplicateReviewDisplay: Equatable {
             ? nil
             : "These transactions cannot be duplicated."
         subtitle = familyDeduplicationMessage == nil
-            ? "These are the copies that will be saved together."
-            : "Selected rows that belong to the same transaction are copied once."
+            ? "These copies will all be saved at once."
+            : "Parts of the same transaction are copied only once."
         groups = review.groups.enumerated().map { index, group in
             Group(
                 id: group.id,

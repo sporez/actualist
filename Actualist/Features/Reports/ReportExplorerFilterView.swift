@@ -51,7 +51,7 @@ struct ReportExplorerFilterView: View {
                     categorySection
                 }
                 if metric == .budgetOverview {
-                    Text("Account filters change Spending. Budgeted stays based on the selected categories because budgets are not assigned to accounts.")
+                    Text("Account filters only affect Spending. Budgeted follows the selected categories, since budgets are not set per account.")
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.secondaryText)
                         .actualistReviewCard(padding: 12)

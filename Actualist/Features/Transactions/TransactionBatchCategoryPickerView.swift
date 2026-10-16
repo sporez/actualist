@@ -10,7 +10,7 @@ struct TransactionBatchCategoryPickerView: View {
         ReviewSheetContent {
             ReviewSheetHeader(
                 title: "Categorize Transactions",
-                subtitle: "Choose one category for the selected rows."
+                subtitle: "Choose one category for the selected transactions."
             )
 
             TextField("Search Categories", text: $workflow.searchText)

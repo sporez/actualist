@@ -35,7 +35,7 @@ enum TransactionFilterDraftError: LocalizedError, Equatable {
         case .chooseOne(.category): "Choose one category for this condition."
         case .nullRequiresScalar(.payee): "Use “Is” or “Is not” to filter transactions with no payee."
         case .nullRequiresScalar(.category): "Use “Is” or “Is not” to filter uncategorized transactions."
-        case .nullRequiresScalar(.account): "No account conditions cannot be authored here."
+        case .nullRequiresScalar(.account): "You cannot filter for transactions with no account."
         case .invalidDate: "Choose a valid date."
         }
     }
@@ -443,17 +443,17 @@ final class TransactionFilterWorkflow {
             return optionTitle(for: id, in: field)
         }
         let condition = values.isEmpty ? "with no value" : "\(value.operation.displayName) \(values.joined(separator: ", "))"
-        return "\(field.title) \(condition) (kept unchanged)"
+        return "\(field.title) \(condition) (not editable here)"
     }
 
     private func conditionSummary(_ condition: TransactionQueryCondition) -> String {
         switch condition {
         case .date(let value):
-            "Date \(value.operation.displayName) \(TransactionCommandReviewFormatting.dateText(value.day.rawValue, locale: .current)) (kept unchanged)"
+            "Date \(value.operation.displayName) \(TransactionCommandReviewFormatting.dateText(value.day.rawValue, locale: .current)) (not editable here)"
         case .account(let value): summary(field: .account, value: value)
         case .payee(let value): summary(field: .payee, value: value)
         case .category(let value): summary(field: .category, value: value)
-        case .transfer(let value): "\(value ? "Transfer" : "Non-transfer") transactions (kept unchanged)"
+        case .transfer(let value): "\(value ? "Transfer" : "Non-transfer") transactions (not editable here)"
         }
     }
 

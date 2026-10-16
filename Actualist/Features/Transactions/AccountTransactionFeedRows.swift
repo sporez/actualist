@@ -75,7 +75,7 @@ struct AccountTransactionFeedRows: View {
             button
                 .disabled(true)
                 .accessibilityLabel("Selection unavailable")
-                .accessibilityHint("This transaction has no saved identifier and cannot be selected.")
+                .accessibilityHint("This transaction cannot be selected.")
         } else if let entryPoint = row.scheduleConversionEntryPoint {
             button
                 .contextMenu {
@@ -155,7 +155,7 @@ struct AccountTransactionFeedRows: View {
         } message: {
             Text(
                 deletePresentation?.message
-                    ?? "Delete \(row.payeeName)? Actualist will confirm the server update before refreshing \(scope.refreshTargetDescription)."
+                    ?? "Delete \(row.payeeName)? The transaction will be deleted from your budget."
             )
         }
     }

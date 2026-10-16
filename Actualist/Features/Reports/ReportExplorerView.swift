@@ -40,7 +40,7 @@ struct ReportExplorerView: View {
                             layout {
                                 Image(systemName: "list.bullet.rectangle")
                                     .accessibilityHidden(true)
-                                Text("View Contributing Transactions")
+                                Text("View Transactions")
                                     .multilineTextAlignment(.leading)
                                     .fixedSize(horizontal: false, vertical: true)
                             }

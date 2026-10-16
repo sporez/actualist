@@ -93,7 +93,7 @@ struct TransactionBatchReviewDisplay: Equatable {
                 effect = requirement.effect
                 status = "Needs confirmation"
                 tone = .warning
-                explanation = "This change includes reconciled transaction data."
+                explanation = "This includes reconciled transactions."
             case .skipped(let reason):
                 effect = nil
                 status = "Skipped"
@@ -192,10 +192,10 @@ private struct MemberFactory {
             output.append(effect("Transfer", linkText(before.transferID), linkText(after.transferID)))
         }
         if before.parentID != after.parentID {
-            output.append(effect("Split family", linkText(before.parentID), linkText(after.parentID)))
+            output.append(effect("Split link", linkText(before.parentID), linkText(after.parentID)))
         }
         if before.isParent != after.isParent || before.isChild != after.isChild {
-            append(&output, "Split role", splitRole(before), splitRole(after))
+            append(&output, "Role in split", splitRole(before), splitRole(after))
         }
         return output
     }
@@ -275,7 +275,7 @@ private struct MemberFactory {
 
     private func splitRole(_ row: TransactionBatchRowSnapshot) -> String {
         if row.isParent == true { return "Split transaction" }
-        if row.isChild == true { return "Split entry" }
+        if row.isChild == true { return "Split part" }
         return "Transaction"
     }
 
@@ -283,10 +283,10 @@ private struct MemberFactory {
         of row: TransactionBatchRowSnapshot,
         to selected: TransactionBatchRowSnapshot
     ) -> String {
-        if row.id == selected.transferID || row.transferID == selected.id { return "Affected transfer member" }
-        if row.parentID == selected.id || selected.parentID == row.id { return "Affected split member" }
-        if let parentID = row.parentID, parentID == selected.parentID { return "Affected split member" }
-        return "Affected linked member"
+        if row.id == selected.transferID || row.transferID == selected.id { return "Other side of the transfer" }
+        if row.parentID == selected.id || selected.parentID == row.id { return "Part of the same split" }
+        if let parentID = row.parentID, parentID == selected.parentID { return "Part of the same split" }
+        return "Linked transaction"
     }
 
     private func nonempty(_ value: String?) -> String? {
@@ -298,9 +298,9 @@ private struct MemberFactory {
 extension TransactionBatchReview {
     var reviewTitle: String {
         switch intent {
-        case .clear: clearTarget == false ? "Review Unclear Transactions" : "Review Clear Transactions"
-        case .categorize: "Review Categorize Transactions"
-        case .delete: "Review Delete Transactions"
+        case .clear: clearTarget == false ? "Mark as Uncleared" : "Mark as Cleared"
+        case .categorize: "Change Categories"
+        case .delete: "Delete Transactions"
         }
     }
 
