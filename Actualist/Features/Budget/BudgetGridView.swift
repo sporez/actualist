@@ -133,7 +133,7 @@ struct BudgetGridView: View {
             } label: {
                 HStack(spacing: 8) {
                     if let emoji = category.emoji {
-                        Text(emoji).accessibilityHidden(true)
+                        Text(emoji).fixedSize().accessibilityHidden(true)
                     }
                     Text(category.title)
                         .font(ActualistTypography.rowTitle(for: density))

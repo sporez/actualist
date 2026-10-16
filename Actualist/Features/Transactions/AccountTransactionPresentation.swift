@@ -141,7 +141,9 @@ struct TransactionRow: View {
 
                 statusIcon
             }
-            .frame(minWidth: 150, alignment: .trailing)
+            // The amount takes its own width first; the payee and badges get
+            // the rest of the row.
+            .layoutPriority(1)
         }
         .padding(.horizontal, density.rowHorizontalPadding)
         .padding(.vertical, density.transactionRowVerticalPadding)
@@ -164,7 +166,23 @@ struct TransactionRow: View {
         }
     }
 
+    /// One line when both badges fit; otherwise the account badge moves under
+    /// the category so neither long name is cut short by the other.
     private var categoryBadges: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                splitCategoryBadge
+                accountName.map(accountBadge)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                splitCategoryBadge
+                accountName.map(accountBadge)
+            }
+        }
+    }
+
+    private var splitCategoryBadge: some View {
         HStack(spacing: 6) {
             if semantics.isSplitFamily {
                 Image(systemName: "square.split.1x2.fill")
@@ -174,10 +192,6 @@ struct TransactionRow: View {
             }
 
             categoryBadge(semantics.categoryText)
-
-            if let accountName {
-                accountBadge(accountName)
-            }
         }
     }
 

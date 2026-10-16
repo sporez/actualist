@@ -341,8 +341,11 @@ struct BudgetCategoryRow: View {
     private var categoryLabel: some View {
         HStack(spacing: BudgetLayout.emojiNameSpacing) {
             if !isPrivacyModeEnabled, let emoji = nameParts.emoji {
+                // The name's layout priority would otherwise squeeze the emoji
+                // on a long name; it keeps exactly its own width.
                 Text(verbatim: emoji)
                     .font(.actualistEmoji(size: BudgetLayout.emojiSize))
+                    .fixedSize()
                     .accessibilityHidden(true)
             }
 
