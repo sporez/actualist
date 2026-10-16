@@ -54,9 +54,9 @@ struct AccountBalanceAndConnectionRulesTests {
         #expect(LocalDataLossWarning.message(base: "Base.", pendingChangeCount: 0)
             == "Base. Your server data is not changed.")
         #expect(LocalDataLossWarning.message(base: "Base.", pendingChangeCount: 1)
-            == "Base. Warning: 1 local change has not been confirmed by the server and will be permanently lost.")
+            == "Base. 1 change has not uploaded to the server yet and will be lost.")
         #expect(LocalDataLossWarning.message(base: "Base.", pendingChangeCount: 3)
-            .contains("3 local changes have not been confirmed"))
+            .contains("3 changes have not uploaded"))
     }
 
     private static func display(_ id: String, balance: Int?, groupID: String? = nil) -> AccountDisplay {

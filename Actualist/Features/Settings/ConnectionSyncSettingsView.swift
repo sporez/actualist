@@ -16,15 +16,15 @@ struct ConnectionSyncSettingsView: View {
             if appState.isDemoMode {
                 Section {
                     LabeledContent {
-                        Text("Local demo — no server, no sync")
+                        Text("Demo only. No server.")
                             .font(.footnote)
                             .foregroundStyle(ActualistTheme.secondaryText)
                     } label: {
                         Label("Demo Mode", systemImage: "testtube.2")
                             .foregroundStyle(ActualistTheme.primaryText)
                     }
-                    Text("You're exploring Actualist with bundled sample data."
-                        + " Changes stay on this device and never sync."
+                    Text("You are using sample data."
+                        + " Changes stay on this device."
                         + " Exit demo mode to connect to your own Actual server.")
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.secondaryText)
@@ -49,7 +49,7 @@ struct ConnectionSyncSettingsView: View {
                 } header: {
                     Text("Demo")
                 } footer: {
-                    Text("Removes the demo budget and returns to onboarding so you can connect to an Actual server.")
+                    Text("Removes the demo budget so you can connect to your own Actual server.")
                         .font(.caption)
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }
@@ -80,9 +80,9 @@ struct ConnectionSyncSettingsView: View {
 
     private var passwordPrompt: String {
         switch appState.credentialAvailability {
-        case .available: "Re-enter to reconnect"
+        case .available: "Enter to reconnect"
         case .absent: "Required"
-        case .unavailable: "Saved login unavailable"
+        case .unavailable: "Cannot read saved sign-in"
         }
     }
 
@@ -96,7 +96,7 @@ struct ConnectionSyncSettingsView: View {
     private var pendingSyncText: String {
         let count = appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
         if count == 0 {
-            return "None"
+            return "Nothing"
         }
         return count == 1 ? "1 change" : "\(count) changes"
     }
@@ -108,9 +108,9 @@ struct ConnectionSyncSettingsView: View {
 
     private var eraseLocalDataConfirmationMessage: String {
         if appState.isDemoMode {
-            return "Actualist will remove the demo budget and return to onboarding."
+            return "Actualist will remove the demo budget so you can connect to your own Actual server."
         }
-        let base = "Actualist will remove the sync token, cached encryption keys, imported budget files, and local selections from this device."
+        let base = "Actualist will sign you out and remove this budget and your settings from this device."
         return LocalDataLossWarning.message(
             base: base,
             pendingChangeCount: appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0
@@ -159,7 +159,7 @@ struct ConnectionSyncSettingsView: View {
                     .foregroundStyle(ActualistTheme.danger)
             }
 
-            Text("The fallback server is tried automatically when the primary server can't be reached — for example, a Tailscale URL when you're away from home Wi-Fi.")
+            Text("Actualist uses the fallback server when it cannot reach the main server, such as a Tailscale address when you are away from home.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
 
@@ -180,7 +180,7 @@ struct ConnectionSyncSettingsView: View {
             }
 
             if appState.hasSyncCredentials {
-                Text("Your password is not stored. Actualist keeps a sync token and only needs the password again to reconnect.")
+                Text("Actualist does not save your password. You only need it again if you have to reconnect.")
                     .font(.footnote)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -216,7 +216,7 @@ struct ConnectionSyncSettingsView: View {
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
 
-            LabeledContent("Pending Sync") {
+            LabeledContent("Waiting to Upload") {
                 Text(pendingSyncText)
                     .foregroundStyle(pendingSyncForeground)
             }
@@ -282,7 +282,7 @@ struct ConnectionSyncSettingsView: View {
                 isEraseLocalDataConfirmationPresented = true
             } label: {
                 SettingsActionLabel(
-                    title: "Disconnect & Erase Local Data",
+                    title: "Disconnect and Erase Data",
                     systemImage: "trash"
                 )
             }
@@ -295,7 +295,7 @@ struct ConnectionSyncSettingsView: View {
         } header: {
             Text("Danger Zone")
         } footer: {
-            Text("Removes the sync token, cached encryption keys, imported budget files, and local selections from this device. Your server data is not changed.")
+            Text("Signs you out and removes this budget and your settings from this device. Your data on the server is not changed.")
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
@@ -311,7 +311,7 @@ private extension View {
         onConfirm: @escaping () -> Void
     ) -> some View {
         confirmationDialog(
-            isDemoMode ? "Exit Demo Mode?" : "Disconnect & Erase Local Data?",
+            isDemoMode ? "Exit Demo Mode?" : "Disconnect and Erase Data?",
             isPresented: isPresented,
             titleVisibility: .visible
         ) {

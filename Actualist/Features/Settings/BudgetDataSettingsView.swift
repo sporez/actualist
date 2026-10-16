@@ -59,7 +59,7 @@ struct BudgetDataSettingsView: View {
 
                 Toggle(isOn: allCategoriesCarryoverSelection) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Rollover All Overspending")
+                        Text("Rollover Overspending (All)")
                         Text(carryoverControlDetail)
                             .font(.caption)
                             .foregroundStyle(ActualistTheme.secondaryText)
@@ -67,7 +67,7 @@ struct BudgetDataSettingsView: View {
                 }
                 .disabled(isCarryoverControlDisabled)
                 .confirmationDialog(
-                    "Set Rollover for All Categories?",
+                    "Rollover Overspending for All Categories?",
                     isPresented: $isCarryoverConfirmationPresented,
                     titleVisibility: .visible
                 ) {
@@ -95,7 +95,7 @@ struct BudgetDataSettingsView: View {
             } header: {
                 Text("Budget")
             } footer: {
-                Text("Applies from the current month forward to every expense category, including hidden categories.")
+                Text("Applies from this month on to every expense category, including hidden ones.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -127,7 +127,7 @@ struct BudgetDataSettingsView: View {
                 } header: {
                     Text("Data")
                 } footer: {
-                    Text("Deletes the local copy of this budget and downloads a fresh one from the server.")
+                    Text("Replaces the copy on this device with a new download from the server.")
                         .font(.caption)
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }
@@ -246,7 +246,7 @@ struct BudgetDataSettingsView: View {
             }
             Button("Cancel", role: .cancel) { reimportPassword = "" }
         } message: {
-            Text("This budget's encryption settings changed on the server. Enter its current encryption password to download it again.")
+            Text("This budget's encryption changed on the server. Enter its current encryption password to reimport it.")
         }
     }
 
@@ -301,7 +301,7 @@ struct BudgetDataSettingsView: View {
 
     private var exportRowLabel: some View {
         SettingsActionLabel(
-            title: "Share Budget ZIP…",
+            title: "Export Budget…",
             systemImage: "square.and.arrow.up",
             isBusy: exportWorkflow.isPreparing
         )
@@ -324,7 +324,7 @@ struct BudgetDataSettingsView: View {
         if carryoverViewModel.isLoading, carryoverViewModel.status == nil {
             return "Loading categories…"
         }
-        return carryoverViewModel.status?.detail ?? "Unavailable"
+        return carryoverViewModel.status?.detail ?? "Not available"
     }
 
     private var isCarryoverControlDisabled: Bool {
@@ -336,9 +336,9 @@ struct BudgetDataSettingsView: View {
 
     private var carryoverConfirmationMessage: String {
         guard let status = carryoverViewModel.status else {
-            return "Choose whether every expense category should roll overspending into the next month."
+            return "Choose whether every expense category rolls overspending into the next month."
         }
-        return "Changes \(status.categoryCount) expense categories from \(status.monthTitle) forward, including hidden categories. Existing transactions and assignments are not deleted."
+        return "Changes \(status.categoryCount) expense categories from \(status.monthTitle) on, including hidden ones. Your transactions and budgeted amounts stay as they are."
     }
 
     private func applyCarryoverToAllCategories(_ enabled: Bool) {
@@ -362,7 +362,7 @@ struct BudgetDataSettingsView: View {
 
     private var securityText: String {
         if appState.localFirstSyncStatus?.encryptionKeyID != nil {
-            return "Encrypted · Unlocked"
+            return "Encrypted"
         }
         return "Not encrypted"
     }
@@ -401,7 +401,7 @@ struct BudgetDataSettingsView: View {
     }
 
     private var reimportConfirmationMessage: String {
-        let base = "Actualist will delete the local copy of this budget and download a fresh one from the server."
+        let base = "Actualist will replace the copy of this budget on this device with a new download from the server."
         return LocalDataLossWarning.message(
             base: base,
             pendingChangeCount: appState.localFirstSyncStatus?.pendingLocalMessageCount ?? 0

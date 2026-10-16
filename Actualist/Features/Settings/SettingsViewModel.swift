@@ -40,7 +40,7 @@ final class SettingsViewModel {
 
     /// Keychain is read only when the revision or either URL changes, not on
     /// every view-body evaluation. An unreadable Keychain is never cached, so a
-    /// locked device does not stick on "Unavailable".
+    /// locked device does not stick on "Not available".
     @ObservationIgnored private var headersSummaryCache: (key: HeadersSummaryKey, value: String)?
 
     func customHeadersSummary(using store: LocalFirstActualStore) -> String {
@@ -50,7 +50,7 @@ final class SettingsViewModel {
             fallbackServerURLString: fallbackServerURLString
         )
         if let cached = headersSummaryCache, cached.key == key { return cached.value }
-        guard let configuration = try? store.keychain.readCustomHTTPHeaders() else { return "Unavailable" }
+        guard let configuration = try? store.keychain.readCustomHTTPHeaders() else { return "Not available" }
         let urls = [serverURLString, fallbackServerURLString]
         let count = zip(ActualServerEndpointRole.allCases, urls).reduce(0) { count, pair in
             guard let url = URL(string: ActualServerURLNormalizer.normalize(pair.1)),

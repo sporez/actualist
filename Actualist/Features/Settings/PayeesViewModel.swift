@@ -143,7 +143,7 @@ final class PayeesViewModel {
     func deleteSelection(using appState: AppState) async -> Bool {
         let ids = Set(selectedPayees.filter(\.canDelete).map(\.id))
         guard ids.count == selectedPayees.count, !ids.isEmpty else {
-            errorMessage = "Only unused payees without rule references can be deleted."
+            errorMessage = "Only payees that are not used in a transaction or a rule can be deleted."
             return false
         }
         let succeeded = await mutateWithFeedback(using: appState) { repository, budgetID in
@@ -248,11 +248,11 @@ final class PayeesViewModel {
         operation: (any PayeeRepositoryProtocol, String) async throws -> Void
     ) async -> Bool {
         guard !appState.settings.randomizedDisplayValuesEnabled else {
-            errorMessage = "Turn off randomized display data before changing payees."
+            errorMessage = "Turn off Sample Values before changing payees."
             return false
         }
         guard let context = context(using: appState) else {
-            errorMessage = "Payee management is unavailable."
+            errorMessage = "Payees cannot be changed right now."
             return false
         }
         // A second trigger while a write runs would issue a second write; the

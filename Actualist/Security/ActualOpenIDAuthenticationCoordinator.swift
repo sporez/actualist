@@ -23,19 +23,19 @@ enum ActualOpenIDAuthenticationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .alreadyInProgress:
-            "An OpenID sign-in is already in progress."
+            "Another OpenID sign-in is already in progress."
         case .cancelled:
-            "OpenID sign-in was cancelled."
+            "OpenID sign-in was canceled."
         case .invalidAuthorizationURL:
-            "The Actual server returned an invalid OpenID authorization URL."
+            "The Actual server sent an invalid OpenID address. Check the server's OpenID setup and try again."
         case .invalidCallback:
-            "Actualist could not verify the OpenID sign-in response."
+            "Actualist could not verify the OpenID response. Try signing in again."
         case .missingToken:
-            "The OpenID sign-in response did not include an Actual session token."
+            "OpenID sign-in did not finish. Try signing in again."
         case .ambiguousToken:
-            "The OpenID sign-in response included an ambiguous Actual session token."
+            "OpenID sign-in returned an unclear result. Try signing in again."
         case .nonceGenerationFailed:
-            "Actualist could not securely begin OpenID sign-in."
+            "Actualist could not start OpenID sign-in securely. Try again."
         }
     }
 }

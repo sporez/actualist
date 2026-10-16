@@ -16,7 +16,7 @@ struct PayeesView: View {
 
             if viewModel.snapshot.hasUnreadableRuleReferences {
                 Label {
-                    Text("One or more rules could not be inspected. Deleting payees is disabled to protect rule references.")
+                    Text("Actualist could not check your rules, so deleting payees is turned off for now.")
                 } icon: {
                     Image(systemName: "exclamationmark.shield.fill")
                         .foregroundStyle(ActualistTheme.warning)
@@ -70,7 +70,7 @@ struct PayeesView: View {
                                 }
                                 Button("Cancel", role: .cancel) {}
                             } message: {
-                                Text("Only unused payees without rule references can be deleted.")
+                                Text("Only payees that are not used in a transaction or a rule can be deleted.")
                             }
                     }
                 }
@@ -95,7 +95,7 @@ struct PayeesView: View {
                 } header: {
                     Text("Transfer Payees")
                 } footer: {
-                    Text("Transfer payees are linked to accounts and cannot be edited here.")
+                    Text("Transfer payees belong to accounts, so they cannot be edited.")
                 }
                 .settingsSectionChrome()
             }
@@ -113,7 +113,7 @@ struct PayeesView: View {
                     )
                     .disabled(viewModel.isSubmitting)
                 } footer: {
-                    Text("When enabled, Actual may create category rules from repeated payee choices. Disabling it keeps existing rules.")
+                    Text("Actual can create category rules when you often pick the same category for a payee. Turning this off keeps your current rules.")
                 }
                 .settingsSectionChrome()
             }
@@ -203,7 +203,7 @@ struct PayeesView: View {
                             }
                             Button("Cancel", role: .cancel) {}
                         } message: {
-                            Text("Only the selected unused payees without rule references will be removed. You can undo this change while this budget remains open.")
+                            Text("Only selected payees that are not used in a transaction or a rule will be deleted. You can undo this change while this budget stays open.")
                         }
                     }
                 }
@@ -283,7 +283,7 @@ struct PayeesView: View {
 
     private var privacyBanner: some View {
         Label {
-            Text("Payee names and editing are hidden while sample values are on.")
+            Text("Payee names and editing are hidden while Sample Values is on.")
         } icon: {
             Image(systemName: "eye.slash.fill")
                 .foregroundStyle(ActualistTheme.warning)
@@ -420,7 +420,7 @@ private struct PayeeDetailView: View {
                     .tint(ActualistTheme.positive)
                     .disabled(viewModel.isSubmitting)
                 } footer: {
-                    Text("Actual may update this payee's category rule after the same category is used three times among its five latest transactions.")
+                    Text("Actual may update this payee's category rule after you use the same category three times in its last five transactions.")
                 }
                 .settingsSectionChrome()
             }
@@ -463,10 +463,10 @@ private struct PayeeDetailView: View {
                             }
                             Button("Cancel", role: .cancel) {}
                         } message: {
-                            Text("This unused payee will be removed.")
+                            Text("This payee is not used and will be deleted.")
                         }
                     } footer: {
-                        Text("This payee is unused and is not referenced by any rule.")
+                        Text("This payee is not used in any transaction or rule.")
                     }
                     .settingsSectionChrome()
                 } else {
@@ -517,12 +517,12 @@ private struct PayeeDetailView: View {
             return "This payee is in use. Merge it into another payee before deleting it."
         }
         if payee.ruleReferenceCount > 0 {
-            return "This payee is referenced by a rule and cannot be deleted."
+            return "This payee is used in a rule, so it cannot be deleted."
         }
         if viewModel.snapshot.hasUnreadableRuleReferences {
-            return "Deletion is disabled because one or more rules could not be inspected."
+            return "Actualist could not check your rules, so deleting is turned off for now."
         }
-        return "This budget does not support deleting payees."
+        return "This budget does not allow deleting payees."
     }
 }
 

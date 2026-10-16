@@ -18,11 +18,11 @@ enum AppSwitcherPrivacyMode: String, Codable, CaseIterable, Identifiable {
     var detail: String {
         switch self {
         case .off:
-            "Never hide app contents in the app switcher."
+            "Never hide amounts in the app switcher."
         case .whenBackgrounded:
-            "Hide contents after Actualist moves to the background without covering Control Center or system prompts."
+            "Hide amounts when you leave Actualist."
         case .always:
-            "Hide contents whenever Actualist becomes inactive, including for Control Center and most system prompts."
+            "Also hide amounts when Control Center or a system prompt appears."
         }
     }
 }

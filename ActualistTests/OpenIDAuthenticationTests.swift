@@ -213,7 +213,7 @@ extension LocalFirstActualStoreTests {
         }
 
         #expect(await transport.capturedOpenIDReturnURL == nil)
-        #expect(viewModel.unsupportedAuthenticationMessage?.contains("header authentication") == true)
+        #expect(viewModel.unsupportedAuthenticationMessage?.contains("method Actualist does not support") == true)
     }
 
     @Test func onboardingOpenIDFailurePreservesDiscoveredRetryState() async throws {

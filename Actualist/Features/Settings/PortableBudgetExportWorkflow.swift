@@ -64,7 +64,7 @@ final class PortableBudgetExportWorkflow {
                 state = .idle
                 return
             }
-            state = .failed(String(localized: "The export could not be created. Your budget has not been changed."))
+            state = .failed(String(localized: "The export could not be created. Your budget has not been changed. Try again."))
         }
     }
 
@@ -81,7 +81,7 @@ final class PortableBudgetExportWorkflow {
         }
     }
 
-    nonisolated static let baseFooter = "Saves the open budget as a portable ZIP file you can share or import elsewhere. Your server data is not changed."
+    nonisolated static let baseFooter = "Creates a ZIP file of this budget that you can share or import elsewhere. Your server is not changed."
 
     /// Footer copy for the Export section. The ZIP is always plaintext, even
     /// when the budget is end-to-end encrypted on the server.

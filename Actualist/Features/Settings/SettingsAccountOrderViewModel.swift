@@ -62,7 +62,7 @@ final class SettingsAccountOrderViewModel {
         } catch {
             guard generation == request, let message = error.userFacingMessage else { return }
             errorMessage = repository.accountDisplays(budgetID: budgetID).isEmpty
-                ? message : "Could not refresh accounts. Showing cached accounts."
+                ? message : "Could not update accounts. Showing the last saved list."
         }
     }
 

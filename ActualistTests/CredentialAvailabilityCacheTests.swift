@@ -77,7 +77,7 @@ struct CredentialAvailabilityCacheTests {
         let model = SettingsViewModel()
         backend.copyFailureStatus = errSecInteractionNotAllowed
 
-        #expect(model.customHeadersSummary(using: store) == "Unavailable")
+        #expect(model.customHeadersSummary(using: store) == "Not available")
         backend.copyFailureStatus = nil
         #expect(model.customHeadersSummary(using: store) == "0 Configured")
     }

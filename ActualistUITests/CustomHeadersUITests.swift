@@ -25,7 +25,7 @@ final class CustomHeadersUITests: XCTestCase {
         app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/connection"]
         app.launch()
         // Erase only the bundled demo, never a real simulator budget.
-        XCTAssertTrue(app.staticTexts["Local demo — no server, no sync"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Demo only. No server."].waitForExistence(timeout: 15))
         app.buttons["Exit Demo Mode"].tap()
         XCTAssertTrue(app.staticTexts["Exit Demo Mode?"].waitForExistence(timeout: 5))
         let confirm = try XCTUnwrap(app.buttons.matching(identifier: "Exit Demo Mode").allElementsBoundByIndex.first { $0.isHittable })

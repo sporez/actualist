@@ -227,7 +227,7 @@ final class BudgetHoldEntryPointUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
         picker.tap()
         settings.buttons[name].tap()
-        let assigned = settings.switches["Show Total Assigned"]
+        let assigned = settings.switches["Show Total Budgeted"]
         if assigned.waitForExistence(timeout: 3), assigned.value as? String == "1" { assigned.tap() }
         settings.terminate()
     }

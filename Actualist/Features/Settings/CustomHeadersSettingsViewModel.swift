@@ -171,20 +171,20 @@ final class CustomHeadersSettingsViewModel {
         if let error = error as? DraftError { return error.localizedDescription }
         if let error = error as? ActualAPIError {
             switch error {
-            case .serverRejected, .unsupportedAuthenticationMethod: return "The server rejected the connection test."
+            case .serverRejected, .unsupportedAuthenticationMethod: return "The server did not accept the connection."
             default: return error.localizedDescription
             }
         }
-        return "Custom headers could not be saved or tested. Please try again."
+        return "The headers could not be saved. Try again."
     }
 
     private enum DraftError: LocalizedError {
         case reviewOrigin, remoteHTTP, changed
         var errorDescription: String? {
             switch self {
-            case .reviewOrigin: "The server address changed. Review the saved headers before using them for this server."
+            case .reviewOrigin: "The server address changed. Review the saved headers before using them with this server."
             case .remoteHTTP: ActualServerConnectionSecurity.remoteHTTPBlockedMessage
-            case .changed: "Saved headers changed while this editor was open. Reopen Custom Headers before saving."
+            case .changed: "The saved headers changed. Close and reopen Custom Headers, then try again."
             }
         }
     }

@@ -19,7 +19,7 @@ struct WalletImportView: View {
             ReviewSheetListHeader(title: "Review Apple Wallet Activity")
             if !WalletImportAvailability.isFinancialDataAvailable {
                 Section {
-                    Text("Apple Wallet activity isn't available on this iPhone. It needs Apple Card, Apple Cash, or Savings, which are only offered in the United States.")
+                    Text("Apple Wallet activity is not available on this device. It needs Apple Card, Apple Cash, or Savings, which are only offered in the United States.")
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }
                 .settingsSectionChrome()
@@ -91,7 +91,7 @@ struct WalletImportView: View {
                 }
             }
         } footer: {
-            Text("They'll be added to this account and sync with the rest of this budget.")
+            Text("They will be added to this account and uploaded with the rest of this budget.")
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }

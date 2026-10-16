@@ -83,11 +83,11 @@ enum CustomHTTPHeaderError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .invalidName: "Enter a valid HTTP header name using letters, numbers, or HTTP token punctuation."
-        case .invalidValue: "Header values cannot contain line breaks or control characters."
-        case .duplicateName: "Each header name must be unique, regardless of capitalization."
-        case .reservedName: "This header is controlled by Actualist or the network transport."
-        case .unreadableConfiguration: "Saved custom headers could not be read. Unlock this device and try again."
+        case .invalidName: "Enter a valid header name. Use letters, numbers, and hyphens."
+        case .invalidValue: "Header values cannot contain line breaks."
+        case .duplicateName: "Each header name must be different. Capital letters do not count."
+        case .reservedName: "Actualist sets this header itself, so you cannot change it."
+        case .unreadableConfiguration: "Actualist could not read the saved headers. Unlock this device and try again."
         }
     }
 }

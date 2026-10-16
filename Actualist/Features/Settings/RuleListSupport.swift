@@ -8,7 +8,7 @@ struct RuleRowLabel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(rule.isScheduleOwned ? "Schedule · Read-only" : rule.draft?.stage.displayName ?? "Read-only")
+            Text(rule.isScheduleOwned ? "Schedule · View Only" : rule.draft?.stage.displayName ?? "View Only")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(ActualistTheme.secondaryText)
             Text(rule.summary(options: options))
@@ -17,8 +17,8 @@ struct RuleRowLabel: View {
             if !rule.isEditable {
                 Label(
                     rule.isScheduleOwned
-                        ? "Managed by an Actual schedule"
-                        : "Contains fields this version cannot safely edit",
+                        ? "Belongs to a schedule"
+                        : "Cannot be edited in this version",
                     systemImage: "lock.fill"
                 )
                 .font(.caption2)
@@ -80,7 +80,7 @@ private struct RuleDeleteConfirmationModifier: ViewModifier {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Future transactions will no longer be processed by this rule.")
+            Text("This rule will stop applying to new transactions.")
         }
     }
 }

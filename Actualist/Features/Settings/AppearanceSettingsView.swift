@@ -35,7 +35,7 @@ struct AppearanceSettingsView: View {
                 } header: {
                     Text("iPad Budget")
                 } footer: {
-                    Text("Choose how many month columns the iPad budget shows when space allows.")
+                    Text("Choose how many months the iPad budget shows side by side when there is room.")
                         .font(.caption)
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }
@@ -70,7 +70,7 @@ struct AppearanceSettingsView: View {
             } header: {
                 Text("Layout")
             } footer: {
-                Text("Controls row density and amount sizes across the app.")
+                Text("Changes the size of rows and amounts.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -98,13 +98,9 @@ struct AppearanceSettingsView: View {
             .settingsSectionChrome()
 
             Section {
-                Toggle("Green Income Amounts", isOn: greenIncomeTransactionAmountsSelection)
+                Toggle("Show Positive Amounts in Green", isOn: greenIncomeTransactionAmountsSelection)
             } header: {
                 Text("Amounts")
-            } footer: {
-                Text("Show positive transaction amounts in green.")
-                    .font(.caption)
-                    .foregroundStyle(ActualistTheme.secondaryText)
             }
             .settingsSectionChrome()
 
@@ -113,13 +109,13 @@ struct AppearanceSettingsView: View {
                     "Include Rollover in Alerts",
                     isOn: includeCarryoverCategoriesInOverspentAlertsSelection
                 )
-                Toggle("Show Total Assigned", isOn: showTotalAssignedSelection)
-                Toggle("Hide Carryover Arrows", isOn: hideCarryoverArrowsSelection)
+                Toggle("Show Total Budgeted", isOn: showTotalAssignedSelection)
+                Toggle("Hide Rollover Arrows", isOn: hideCarryoverArrowsSelection)
                 Toggle("Swipe Between Months", isOn: monthSwipingSelection)
             } header: {
                 Text("Budget Options")
             } footer: {
-                Text("Controls additional information shown on the Budget screen. Carryover arrows mark categories that roll leftover or overspending into next month.")
+                Text("Choose what the Budget screen shows. Rollover arrows mark categories that roll leftover money or overspending into next month.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }

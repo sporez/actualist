@@ -35,7 +35,7 @@ struct PrivacySettingsView: View {
             } header: {
                 Text("Privacy")
             } footer: {
-                Text("Controls how Actualist protects your financial information when displaying the app or sharing screenshots.")
+                Text("Hide your amounts in the app switcher. Sample Values shows made-up names and amounts instead of your real ones.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -48,7 +48,7 @@ struct PrivacySettingsView: View {
             } header: {
                 Text("System Access")
             } footer: {
-                Text("Shortcuts and Siri can read balances and log transactions in the selected budget. With Allow Logging While Locked on, Log Transaction, Log Transfer and Import Transaction from Text also work while your device is locked. Every other action still asks you to unlock.")
+                Text("Shortcuts and Siri can read balances and log transactions in your budget. With Allow Logging While Locked, logging also works while your device is locked. Everything else needs you to unlock.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -106,8 +106,8 @@ struct PrivacySettingsView: View {
 
     private var transactionAlertsFooterText: String {
         if appState.isDemoMode {
-            return "Background transaction alerts aren't available in demo mode, which never contacts a server."
+            return "Transaction alerts are not available in demo mode."
         }
-        return "Actualist checks for new transactions using background refresh. Notifications must be enabled in Settings."
+        return "Actualist checks for new transactions in the background. To see alerts, allow notifications for Actualist in the iOS Settings app."
     }
 }

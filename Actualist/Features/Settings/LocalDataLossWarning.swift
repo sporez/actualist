@@ -7,7 +7,7 @@ enum LocalDataLossWarning {
         guard pendingChangeCount > 0 else {
             return "\(base) Your server data is not changed."
         }
-        let subject = pendingChangeCount == 1 ? "1 local change has" : "\(pendingChangeCount) local changes have"
-        return "\(base) Warning: \(subject) not been confirmed by the server and will be permanently lost."
+        let subject = pendingChangeCount == 1 ? "1 change has" : "\(pendingChangeCount) changes have"
+        return "\(base) \(subject) not uploaded to the server yet and will be lost."
     }
 }

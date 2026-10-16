@@ -301,7 +301,7 @@ struct SettingsView: View {
 
     private var budgetSubtitle: String {
         guard appState.settings.selectedBudgetID != nil else {
-            return "None"
+            return "Nothing"
         }
         let security = appState.localFirstSyncStatus?.encryptionKeyID != nil
             ? "Encrypted"
@@ -329,7 +329,7 @@ struct SettingsView: View {
     }
 
     private var supportSubtitle: String {
-        "Diagnostics · Bug Report"
+        "Report a Problem"
     }
 
     private var selectedBudgetDisplayName: String {

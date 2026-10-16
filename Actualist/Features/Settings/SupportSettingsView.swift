@@ -13,7 +13,7 @@ struct SupportSettingsView: View {
     var body: some View {
         List {
             Section {
-                Text("Actualist is in beta. If something goes wrong, include a diagnostic report with your bug report so the app, sync, and background state can be investigated.")
+                Text("Actualist is in beta. If something goes wrong, attach a diagnostic report to your bug report to help find the cause.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
 
@@ -64,7 +64,7 @@ struct SupportSettingsView: View {
 
             Section {
                 Label {
-                    Text("Reports exclude credentials, server addresses, identifiers, names, budget contents, transaction details, and financial amounts.")
+                    Text("Reports do not include passwords, server addresses, names, or any budget details.")
                         .font(.caption)
                         .foregroundStyle(ActualistTheme.secondaryText)
                 } icon: {

@@ -44,8 +44,8 @@ struct RuleEditorView: View {
                 } footer: {
                     Text(
                         target.rule?.isScheduleOwned == true
-                            ? "This rule is managed by an Actual schedule. It cannot be edited or deleted here."
-                            : "This rule contains data Actualist cannot round-trip safely. It can still be deleted."
+                            ? "This rule belongs to a schedule. It cannot be edited or deleted here."
+                            : "This rule uses options Actualist cannot edit yet. You can still delete it."
                     )
                 }
             } else {
@@ -155,7 +155,7 @@ struct RuleEditorView: View {
                 ContentUnavailableView(
                     "No Matching Transactions",
                     systemImage: "line.3.horizontal.decrease.circle",
-                    description: Text("No existing transactions match these conditions.")
+                    description: Text("No transactions match these conditions yet.")
                 )
             } else if let preview = viewModel.matchPreview {
                 ForEach(preview.transactions) { transaction in
@@ -164,7 +164,7 @@ struct RuleEditorView: View {
             }
         } header: {
             HStack {
-                Text("This rule applies to the following transactions")
+                Text("This rule applies to these transactions")
                 Spacer()
                 if let count = viewModel.matchPreview?.totalCount {
                     Text(count.formatted())

@@ -86,7 +86,7 @@ struct RuleValueEditor: View {
                 .accessibilityIdentifier("rule-date-picker")
         } else {
             labeledInput("Value") {
-                TextField("YYYY or YYYY-MM or YYYY-MM-DD", text: stringBinding)
+                TextField("Year, month, or full date", text: stringBinding)
                     .keyboardType(.numbersAndPunctuation)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -94,7 +94,7 @@ struct RuleValueEditor: View {
                     .submitLabel(.done)
                     .onSubmit { focus.wrappedValue = nil }
             }
-            Text("Enter a complete date to use the calendar. Year- and month-only matches keep their existing precision.")
+            Text("Enter a full date to use the calendar. Year-only and month-only dates stay as entered.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
@@ -241,7 +241,7 @@ struct RuleValueEditor: View {
     }
 
     private var selectedPayeeName: String {
-        guard let selectedID else { return "None" }
+        guard let selectedID else { return "Nothing" }
         return choices?.first { $0.id == selectedID }?.name
             ?? RulePresentation.deletedValueName(for: field)
     }

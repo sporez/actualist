@@ -63,7 +63,7 @@ private enum BundledLicenseDocument {
     static func load(name: String, fileExtension: String?) -> String {
         guard let url = Bundle.main.url(forResource: name, withExtension: fileExtension),
               let text = try? String(contentsOf: url, encoding: .utf8) else {
-            return "This license document could not be loaded. Visit github.com/sporez/actualist for the complete text."
+            return "This license could not be loaded. You can read it at github.com/sporez/actualist."
         }
 
         return text

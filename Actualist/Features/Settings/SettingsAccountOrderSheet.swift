@@ -36,7 +36,7 @@ struct SettingsAccountOrderSheet: View {
                 .settingsSectionChrome()
             } else if buckets.isEmpty && !model.isLoading {
                 Section("Accounts") {
-                    Text("No accounts loaded.")
+                    Text("No accounts yet.")
                         .font(ActualistTypography.rowTitle(for: density))
                         .foregroundStyle(ActualistTheme.secondaryText)
                 }

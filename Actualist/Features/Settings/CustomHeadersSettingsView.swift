@@ -18,7 +18,7 @@ struct CustomHeadersSettingsView: View {
                     Text(endpoint.serverLabel)
                         .foregroundStyle(ActualistTheme.secondaryText)
                     if endpoint.needsOriginReview && !endpoint.headers.isEmpty {
-                        Text("The server address changed. These saved headers are not being sent to this server.")
+                        Text("The server address changed, so these saved headers are not being sent.")
                             .font(.footnote)
                             .foregroundStyle(ActualistTheme.warning)
                         Button("Use Saved Headers for This Server") {
@@ -65,7 +65,7 @@ struct CustomHeadersSettingsView: View {
                     Text(endpoint.title)
                 } footer: {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Headers are sent with requests to this server. Values are stored securely on this device.")
+                        Text("Headers are added to every request to this server. Values are stored securely on this device.")
                         if let guidance = endpoint.addressGuidance {
                             Text(guidance)
                         }

@@ -8,9 +8,9 @@ enum KeychainReadError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .unavailable:
-            "A saved credential on this device could not be read. Your local data is unchanged. Try again after unlocking your device."
+            "Actualist could not read your saved sign-in. Your budget data has not changed. Unlock your device and try again."
         case .unreadable:
-            "A saved credential on this device is unreadable. Your local data is unchanged."
+            "Actualist could not read your saved sign-in. Your budget data has not changed."
         }
     }
 

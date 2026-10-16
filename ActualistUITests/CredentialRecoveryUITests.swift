@@ -6,12 +6,12 @@ final class CredentialRecoveryUITests: XCTestCase {
 
     func testUnavailableWithoutCacheRetriesToNormalOnboarding() {
         let app = launch("uncached")
-        XCTAssertTrue(app.staticTexts["Saved credentials unavailable"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Saved Sign-In Unavailable"].waitForExistence(timeout: 15))
         XCTAssertFalse(app.textFields["Server URL"].exists)
         capture("credential-blocked-iphone-dark", app: app)
         app.buttons["credentialRecoveryRetry"].tap()
         XCTAssertTrue(app.textFields["Server URL"].waitForExistence(timeout: 15))
-        XCTAssertFalse(app.staticTexts["Saved credentials unavailable"].exists)
+        XCTAssertFalse(app.staticTexts["Saved Sign-In Unavailable"].exists)
     }
 
     func testCachedBudgetStaysOpenAndRetryRemovesWarning() {
@@ -29,7 +29,7 @@ final class CredentialRecoveryUITests: XCTestCase {
 
     func testLightRecoveryAndNormalOnboarding() {
         let blocked = launch("uncached", light: true)
-        XCTAssertTrue(blocked.staticTexts["Saved credentials unavailable"].waitForExistence(timeout: 15))
+        XCTAssertTrue(blocked.staticTexts["Saved Sign-In Unavailable"].waitForExistence(timeout: 15))
         capture("credential-blocked-iphone-light", app: blocked)
         blocked.terminate()
 
@@ -46,9 +46,9 @@ final class CredentialRecoveryUITests: XCTestCase {
     func testWideRecoveryPresentation() {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = launch("uncached")
-        XCTAssertTrue(app.staticTexts["Saved credentials unavailable"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Saved Sign-In Unavailable"].waitForExistence(timeout: 15))
         let explanation = app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "A saved credential on this device")
+            NSPredicate(format: "label BEGINSWITH %@", "Actualist could not read your saved sign-in")
         ).firstMatch
         XCTAssertTrue(explanation.exists)
         XCTAssertLessThanOrEqual(explanation.frame.maxX, app.frame.maxX)
@@ -58,7 +58,7 @@ final class CredentialRecoveryUITests: XCTestCase {
         app.terminate()
 
         let light = launch("uncached", light: true)
-        XCTAssertTrue(light.staticTexts["Saved credentials unavailable"].waitForExistence(timeout: 15))
+        XCTAssertTrue(light.staticTexts["Saved Sign-In Unavailable"].waitForExistence(timeout: 15))
         capture("credential-blocked-ipad-light", app: light)
     }
 
