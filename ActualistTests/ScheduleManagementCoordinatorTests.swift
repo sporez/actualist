@@ -124,7 +124,7 @@ struct ScheduleManagementCoordinatorTests {
 
         #expect(store.createCalls == 0)
         if case .failed(let message) = coordinator.state {
-            #expect(message.contains("budget changed"))
+            #expect(message.contains("You switched budgets"))
         } else {
             Issue.record("A stale session must be presented as recoverable failure")
         }
@@ -156,7 +156,7 @@ struct ScheduleManagementCoordinatorTests {
             Issue.record("A context change while loading must not leave the editor loading")
             return
         }
-        #expect(message.contains("budget changed"))
+        #expect(message.contains("You switched budgets"))
     }
 
     @Test func afterCountMustBePositiveAndSwitchingModesDoesNotResurrectInput() async {

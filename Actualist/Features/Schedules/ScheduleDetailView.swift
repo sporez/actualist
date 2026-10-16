@@ -29,7 +29,7 @@ struct ScheduleDetailView: View {
                 ContentUnavailableView(
                     "Schedule Unavailable",
                     systemImage: "calendar.badge.exclamationmark",
-                    description: Text("This schedule is no longer available in the current budget session.")
+                    description: Text("This schedule no longer exists.")
                 )
             }
         }
@@ -142,7 +142,7 @@ struct ScheduleDetailView: View {
                     .accessibilityIdentifier("schedule-detail-automatic-posting")
             }
             .actualistReviewCard(padding: 12)
-            Text("Automatic posting is shown as stored in the budget. This read-only screen does not post transactions.")
+            Text("This screen only shows the schedule. It does not post transactions.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -168,8 +168,8 @@ struct ScheduleDetailView: View {
             .actualistReviewCard()
             Text(
                 presentation.unsupportedMessages.isEmpty
-                    ? "Viewing this schedule does not change it. Available management actions require a separate review."
-                    : "The original schedule remains readable and unchanged. Unsupported options are not approximated or rewritten."
+                    ? "Viewing this schedule does not change it."
+                    : "Actualist cannot edit some of this schedule’s options, so they stay as they are."
             )
             .font(.footnote)
             .foregroundStyle(ActualistTheme.secondaryText)

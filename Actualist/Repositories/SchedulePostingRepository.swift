@@ -44,11 +44,11 @@ extension SchedulePostingError: LocalizedError {
         case .reviewChanged:
             "This schedule changed during sync. Review its latest details and try again."
         case .occurrenceNoLongerPostable:
-            "This schedule occurrence is no longer available to post."
+            "This payment is no longer available to post."
         case .unsupportedSchedule:
-            "This schedule cannot be posted safely."
+            "Actualist cannot post this schedule."
         case .alreadyInFlight:
-            "A post for this schedule is already in progress."
+            "This schedule is already being posted."
         }
     }
 }

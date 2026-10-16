@@ -138,12 +138,12 @@ final class OnboardingViewModel {
         }
         let identifiers = loginMethods.map(\.identifier)
         if identifiers.contains("header") {
-            return "This server uses header authentication, which Actualist does not support yet."
+            return "This server signs people in with a method Actualist does not support yet."
         }
         if identifiers.isEmpty {
-            return "This server did not advertise a supported authentication method."
+            return "Actualist cannot sign in to this server. It does not offer a sign-in method Actualist supports."
         }
-        return "This server uses an unsupported authentication method: \(identifiers.joined(separator: ", "))."
+        return "This server signs people in with a method Actualist does not support yet."
     }
 
     var connectionSecurityWarning: String? {
@@ -295,7 +295,7 @@ final class BudgetPickerViewModel {
         guard generation == openGeneration, !Task.isCancelled else { return }
 
         if progress.didStall {
-            let message = "Opening this budget is taking too long. Check your connection to the Actual server and try again."
+            let message = "Opening this budget is taking too long. Check your connection and try again."
             appState.lastErrorMessage = message
             openState = .failed(message: message)
         } else {

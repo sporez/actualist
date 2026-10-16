@@ -485,7 +485,7 @@ private struct AccountsEmptyView: View {
             Text("No accounts yet")
                 .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
-            Text("Use the add button to create your first account.")
+            Text("Tap + to add your first account.")
                 .font(ActualistTypography.rowLabel(for: density))
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .multilineTextAlignment(.center)

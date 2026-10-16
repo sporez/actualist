@@ -154,7 +154,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                 ReviewSheetContent {
                     ReviewSheetHeader(
                         title: "Account Review Unavailable",
-                        subtitle: "The account effects could not be loaded."
+                        subtitle: "The account details could not be loaded."
                     )
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .foregroundStyle(ActualistTheme.danger)
@@ -189,7 +189,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                 ReviewSheetContent {
                     ReviewSheetHeader(
                         title: "Reviewing Account",
-                        subtitle: "Checking the effects of closing this account."
+                        subtitle: "Checking what closing this account changes."
                     )
                     ProgressView("Reviewing account…")
                         .frame(maxWidth: .infinity)

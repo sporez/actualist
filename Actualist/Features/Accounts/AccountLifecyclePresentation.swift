@@ -99,8 +99,8 @@ enum AccountLifecyclePresentation {
                 }.joined(separator: ", ")
             ))
             let consequence = review.resolvedAction == .deleteEmptyAccount
-                ? "Scheduled posting stops because this account will be deleted."
-                : "Posting pauses while closed and resumes if the account is reopened."
+                ? "Schedules for this account will stop because it will be deleted."
+                : "Schedules for this account pause while it is closed and resume if it is reopened."
             rows.append(AccountLifecycleConsequenceRow(
                 id: "schedule-posting", label: "Scheduled posting", value: consequence
             ))
@@ -143,12 +143,12 @@ enum AccountLifecyclePresentation {
 
     private static func bankProviderName(_ provider: AccountLifecycleBankProvider) -> String {
         switch provider {
-        case .simpleFIN: "SimpleFIN connection will be removed and cannot be restored from History"
-        case .goCardless: "Unlink GoCardless in a supported client first"
-        case .pluggyAI: "Unlink Pluggy.ai in a supported client first"
-        case .akahu: "Unlink Akahu in a supported client first"
-        case .enableBanking: "Unlink Enable Banking in a supported client first"
-        case .unknown: "Unlink this connection in a supported client first"
+        case .simpleFIN: "The bank connection will be removed. Undo in History cannot bring it back."
+        case .goCardless: "Unlink GoCardless in the Actual web app first"
+        case .pluggyAI: "Unlink Pluggy.ai in the Actual web app first"
+        case .akahu: "Unlink Akahu in the Actual web app first"
+        case .enableBanking: "Unlink Enable Banking in the Actual web app first"
+        case .unknown: "Unlink this bank connection in the Actual web app first"
         }
     }
 
@@ -167,9 +167,9 @@ enum AccountLifecyclePresentation {
         case .categoryUnavailable:
             return "The selected category is no longer available."
         case .unsupportedBankProvider:
-            return "This bank connection cannot be removed safely yet."
+            return "Actualist cannot remove this bank connection yet."
         case .scheduleInspectionUnavailable:
-            return "Active schedules could not be checked."
+            return "Schedules for this account could not be checked. Try again."
         }
     }
 

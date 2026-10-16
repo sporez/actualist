@@ -55,7 +55,7 @@ struct AccountReconciliationCoordinatorTests {
         #expect(coordinator.activeSession == nil)
         #expect(
             coordinator.targetPresentation(privacyModeEnabled: false)?.validationMessage
-                == "This balance has more decimal places than the budget currency supports."
+                == "This balance has too many decimal places for the budget currency."
         )
     }
 
@@ -141,7 +141,7 @@ struct AccountReconciliationCoordinatorTests {
         await ObservedTestState { coordinator.activeErrorMessage != nil }.wait()
 
         #expect(coordinator.activeSession?.snapshot.clearedBalance == 900)
-        #expect(coordinator.activeErrorMessage == "The cleared balance changed. Review the new difference before locking.")
+        #expect(coordinator.activeErrorMessage == "The cleared balance changed. Check the new difference before you finish.")
         #expect(coordinator.panelPresentation(privacyModeEnabled: false)?.primaryAction == .createAdjustment)
     }
 

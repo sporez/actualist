@@ -182,7 +182,7 @@ extension LocalFirstActualStoreTests {
         #expect(match.title == "Coffee Shop")
         #expect(match.dateText == ActualDateDisplay.mediumDay("2026-07-02"))
         #expect(match.changes == [
-            "Attach bank transaction ID",
+            "Link to bank import",
             "Bank payee: None → “Coffee Shop”",
             "Notes: None → “bank memo”",
             "Cleared: No → Yes"
@@ -262,12 +262,12 @@ extension LocalFirstActualStoreTests {
             support: .unsupported,
             phase: .ready,
             isDemoMode: false
-        ).contains("Device-only tokens are not used"))
+        ).contains("Works only when SimpleFIN is set up on your Actual server."))
         #expect(BankSyncCopy.backgroundSyncFooter(
             support: .configured,
             phase: .ready,
             isDemoMode: false
-        ).contains("downloaded and saved automatically"))
+        ).contains("download automatically"))
     }
 
     @MainActor
@@ -331,7 +331,7 @@ extension LocalFirstActualStoreTests {
             Issue.record("expected account metadata failure, got \(model.remoteAccountsStatus)")
             return
         }
-        #expect(message == "Actualist could not read the server response.")
+        #expect(message == "Actualist could not understand the server's reply. Try again later.")
         #expect(model.phase == .ready)
         #expect(model.linkableRemoteAccounts.isEmpty)
     }
@@ -453,7 +453,7 @@ extension LocalFirstActualStoreTests {
         #expect(model.canLinkAccounts)
         // The device-token provider text is shown, not "Not connected".
         #expect(BankSyncCopy.providerText(support: model.serverSupport, hasDeviceKey: model.hasDeviceKey, isDemoMode: false)
-            == "SimpleFIN via a device token")
+            == "SimpleFIN on this device")
     }
 
     @Test func lastRunCaptionNamesTheTriggerAndAge() {

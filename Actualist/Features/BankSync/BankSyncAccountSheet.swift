@@ -63,15 +63,15 @@ struct BankSyncAccountSheet: View {
 
     private var linkedFooterText: String {
         if line.isSyncable {
-            return "Unlinking leaves this account's transactions in place and only clears the bank connection."
+            return "Unlinking keeps this account’s transactions. Only the bank connection is removed."
         }
-        return "This account is linked through another provider. SimpleFIN Bank Sync cannot change that connection."
+        return "This account is linked through another bank provider. Unlink it in the Actual web app first."
     }
 
     private var linkSection: some View {
         Section {
             if !viewModel.canLinkAccounts {
-                Text("Bank accounts cannot be linked because the server has no SimpleFIN setup.")
+                Text("Bank accounts cannot be linked because your server is not set up for SimpleFIN.")
                     .foregroundStyle(ActualistTheme.secondaryText)
             } else {
                 switch viewModel.remoteAccountsStatus {
@@ -83,7 +83,7 @@ struct BankSyncAccountSheet: View {
                         .foregroundStyle(ActualistTheme.danger)
                 case .ready:
                     if viewModel.linkableRemoteAccounts.isEmpty {
-                        Text("No bank accounts are available from the server.")
+                        Text("No bank accounts found.")
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
                 }
@@ -118,7 +118,7 @@ struct BankSyncAccountSheet: View {
         } header: {
             Text("Link a Bank Account")
         } footer: {
-            Text("Linking does not download anything yet. Use Sync All afterwards to download and save transactions.")
+            Text("Linking does not download transactions. Tap Sync All afterward to get them.")
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }

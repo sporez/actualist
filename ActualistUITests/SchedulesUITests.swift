@@ -560,7 +560,7 @@ final class SchedulesUITests: XCTestCase {
         line: UInt = #line
     ) {
         XCTAssertTrue(
-            app.staticTexts["Schedule names, accounts, payees, and amounts use sample values."]
+            app.staticTexts["Sample Values are on, so schedule details are hidden."]
                 .waitForExistence(timeout: 5),
             file: file,
             line: line

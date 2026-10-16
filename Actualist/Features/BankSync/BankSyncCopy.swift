@@ -57,31 +57,31 @@ enum BankSyncCopy {
         case .configured:
             return "SimpleFIN via your server"
         case .notConfigured, .unsupported, nil:
-            return hasDeviceKey ? "SimpleFIN via a device token" : "Not connected"
+            return hasDeviceKey ? "SimpleFIN on this device" : "Not connected"
         }
     }
 
     static func connectionFooter(support: SimpleFINServerSupport?, hasDeviceKey: Bool, isDemoMode: Bool) -> String? {
         if isDemoMode {
-            return "Demo budgets never contact a server, so bank sync is unavailable."
+            return "Demo budgets never contact a server, so Bank Sync is unavailable."
         }
         switch support {
         case .configured:
-            return "This app and the Actual web UI share the same server connection."
+            return "This app and the Actual web app share the same server connection."
         case .notConfigured:
             if hasDeviceKey {
                 return deviceTokenFooter
             }
-            return "Your server has no SimpleFIN setup token yet. Add one on the server, or connect with a SimpleFIN setup token below."
+            return "Your server is not set up for SimpleFIN. Set it up on the server, or paste a setup token below."
         case .unsupported, nil:
             if hasDeviceKey {
                 return deviceTokenFooter
             }
-            return "Your Actual server does not host the SimpleFIN routes. Connect with a SimpleFIN setup token below instead."
+            return "Your Actual server does not support SimpleFIN. Paste a setup token below instead."
         }
     }
 
-    static let deviceTokenFooter = "Connected with a SimpleFIN setup token on this device. The Actual web UI cannot refresh these links, because the access key is only stored here."
+    static let deviceTokenFooter = "Connected on this device only. The Actual web app cannot refresh these links."
 
     static func dayText(_ dayID: String) -> String {
         guard dayID.count == 8 else {
@@ -94,9 +94,9 @@ enum BankSyncCopy {
     static func matchChangeText(_ change: BankSyncReview.MatchChange) -> String {
         switch change.field {
         case .bankIDAttached:
-            return "Attach bank transaction ID"
+            return "Link to bank import"
         case .bankIDReplaced:
-            return "Replace existing bank transaction ID"
+            return "Replace earlier bank import"
         case .payee:
             return "Payee: \(value(change.oldValue, empty: "None")) → \(value(change.newValue, empty: "None"))"
         case .newPayee:
@@ -160,9 +160,9 @@ enum BankSyncCopy {
             return "Checking your server…"
         }
         guard support == .configured else {
-            return "Requires SimpleFIN through your Actual server. Device-only tokens are not used for background sync."
+            return "Works only when SimpleFIN is set up on your Actual server."
         }
-        return "After a background budget sync, linked bank accounts are downloaded and saved automatically. No notification is posted for this."
+        return "After a background sync, linked bank accounts download automatically. You will not get a notification."
     }
 
     /// "Sync All · 2h ago" / "Background sync · just now".

@@ -204,7 +204,7 @@ private struct BankSyncScreen: View {
         } header: {
             Text("SimpleFIN Token")
         } footer: {
-            Text("Paste a one-time setup token from SimpleFIN. It is claimed once and the access key is stored only on this device.")
+            Text("Paste your one-time SimpleFIN setup token. Your connection details stay on this device.")
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }

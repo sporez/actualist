@@ -398,7 +398,7 @@ final class AccountReconciliationCoordinator {
         case .invalid:
             "Enter a valid balance."
         case .tooManyFractionDigits:
-            "This balance has more decimal places than the budget currency supports."
+            "This balance has too many decimal places for the budget currency."
         case .outOfRange:
             "This balance is too large."
         }
@@ -412,11 +412,11 @@ final class AccountReconciliationCoordinator {
         case .unavailable(let reason):
             return reason.message
         case .differenceOverflow:
-            return "The balance difference is too large."
+            return "The difference is too large to reconcile. Check the balance you entered."
         case .alreadyBalanced:
             return "This account is already balanced."
         case .balanceChanged:
-            return "The cleared balance changed. Review the new difference before locking."
+            return "The cleared balance changed. Check the new difference before you finish."
         case .transactionNotFound:
             return "This transaction is no longer available."
         }

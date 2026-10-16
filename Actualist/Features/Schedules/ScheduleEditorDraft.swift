@@ -472,16 +472,16 @@ struct ScheduleEditorDraft: Hashable, Sendable {
             }
             return "Make a supported change before saving."
         }
-        if fields.accountID != .unchanged && !capabilities.canEditAccount { return "The account option cannot be changed safely." }
-        if fields.payeeMappingID != .unchanged && !capabilities.canEditPayee { return "The payee option cannot be changed safely." }
-        if fields.amount != .unchanged && !capabilities.canEditAmount { return "The amount option cannot be changed safely." }
-        if fields.dateRule != .unchanged && !capabilities.canEditDate { return "The date option cannot be changed safely." }
+        if fields.accountID != .unchanged && !capabilities.canEditAccount { return "Actualist cannot change the schedule’s account." }
+        if fields.payeeMappingID != .unchanged && !capabilities.canEditPayee { return "Actualist cannot change the schedule’s payee." }
+        if fields.amount != .unchanged && !capabilities.canEditAmount { return "Actualist cannot change the schedule’s amount." }
+        if fields.dateRule != .unchanged && !capabilities.canEditDate { return "Actualist cannot change the schedule’s date." }
         if fields.dateRule != .unchanged && hasUnsupportedDatePatterns {
-            return "This recurrence pattern is outside the approved editor and must remain unchanged."
+            return "Actualist cannot edit this repeat pattern. It will stay as it is."
         }
         if (fields.name != .unchanged || fields.postsTransaction != nil
             || fields.customUpcomingLength != .unchanged) && !capabilities.canEditMetadata {
-            return "Schedule details cannot be changed safely."
+            return "Actualist cannot change these schedule details."
         }
         return "Make a supported change before saving."
     }

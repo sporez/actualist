@@ -131,7 +131,7 @@ struct AccountReopenSheet: View {
 
                         VStack(alignment: .leading, spacing: 14) {
                             Label {
-                                Text("This account will return to the open account list with its existing history and settings.")
+                                Text("This account will move back to your open accounts, with its history and settings.")
                                     .font(ActualistTypography.body(for: density))
                                     .foregroundStyle(ActualistTheme.secondaryText)
                             } icon: {
@@ -228,12 +228,12 @@ struct AccountLifecycleReviewSheet: View {
                     ReviewSheetContent {
                         ReviewSheetHeader(
                             title: presentation.accountName,
-                            subtitle: "Review the account effects before continuing."
+                            subtitle: "Review what changes before continuing."
                         )
 
                         if didReplaceReview {
                             Label(
-                                "The account changed while you were reviewing it. Check the updated effects before continuing.",
+                                "This account changed while you were reviewing it. Check the updated details, then continue.",
                                 systemImage: "arrow.triangle.2.circlepath"
                             )
                             .font(ActualistTypography.rowTitle(for: density))

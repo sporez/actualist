@@ -46,7 +46,7 @@ struct HistoryView: View {
             .environment(appState)
         }
         .alert(
-            "Couldn't Undo",
+            "Could Not Undo",
             isPresented: undoFailureBinding,
             actions: {
                 Button("OK", role: .cancel) {
@@ -108,7 +108,7 @@ struct HistoryView: View {
     private var emptyState: some View {
         messageRow(
             title: "No Actions Yet",
-            detail: "Assignments, moves, transactions, and other changes you make on this device appear here.",
+            detail: "Budget changes, moves, transactions, and other changes you make on this device appear here.",
             systemImage: "clock"
         )
     }

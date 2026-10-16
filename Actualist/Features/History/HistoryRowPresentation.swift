@@ -48,7 +48,7 @@ struct HistoryUndoReviewPresentation: Identifiable, Equatable, Sendable {
     }
 
     let actionID: String
-    /// Lead of the row being undone, e.g. "Assigned $600.00 to Groceries".
+    /// Lead of the row being undone, e.g. "Budgeted $600.00 in Groceries".
     let gestureSummary: String
     let entries: [Entry]
     let blockReason: String?
@@ -129,7 +129,7 @@ enum HistoryRowPresentation {
                 currency: currency,
                 privacyEnabled: privacyEnabled
             )
-            return "Assigned \(amount) to \(displayName(for: assign.categoryID, categoryNames: categoryNames, privacyEnabled: privacyEnabled))"
+            return "Budgeted \(amount) in \(displayName(for: assign.categoryID, categoryNames: categoryNames, privacyEnabled: privacyEnabled))"
         case .move(let move):
             let amount = moneyText(
                 move.legs.reduce(0) { $0 + $1.amount },
@@ -181,7 +181,7 @@ enum HistoryRowPresentation {
             let linkedCount = max(0, merge.affectedGraphTransactionIDs.count - merge.orderedInputTransactionIDs.count)
             return linkedCount == 0
                 ? "Undo restores the merged transactions"
-                : "Undo restores the merged transactions and \(linkedCount) linked entries"
+                : "Undo restores the merged transactions and \(linkedCount) linked transactions"
         case .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             return metadataTitle(
                 for: record.summary,
@@ -241,7 +241,7 @@ enum HistoryRowPresentation {
         case .transactionMetadata(let metadata):
             let payee = displayPayee(metadata.payeeName, seed: recordID, privacyEnabled: privacyEnabled)
             if metadata.notesChanged && metadata.clearedChanged {
-                return (payee.map { "Updated note and cleared · \($0)" } ?? "Updated note and cleared", "Transaction")
+                return (payee.map { "Updated note and marked cleared · \($0)" } ?? "Updated note and marked cleared", "Transaction")
             }
             if metadata.notesChanged {
                 return (payee.map { "Updated note · \($0)" } ?? "Updated note", "Transaction")
@@ -424,7 +424,7 @@ enum HistoryRowPresentation {
             let name = displayName(for: assign.categoryID, categoryNames: categoryNames, privacyEnabled: privacyEnabled)
             let afterText = moneyText(assign.after, seed: "\(record.id)-assign-after", currency: currency, privacyEnabled: privacyEnabled)
             let beforeText = moneyText(assign.before, seed: "\(record.id)-assign-before", currency: currency, privacyEnabled: privacyEnabled)
-            title = "Assigned \(afterText) to \(name)"
+            title = "Budgeted \(afterText) in \(name)"
             actionDetail = "was \(beforeText)"
             let delta = assign.after - assign.before
             let deltaText = moneyText(abs(delta), seed: "\(record.id)-assign-delta", currency: currency, privacyEnabled: privacyEnabled)
@@ -480,7 +480,7 @@ enum HistoryRowPresentation {
             let payee = displayPayee(edit.payeeName, seed: record.id, privacyEnabled: privacyEnabled)
             title = payee.map { "Edited \(amount) · \($0)" } ?? "Edited \(amount)"
             if edit.unsafeGraph {
-                actionDetail = "Can't undo"
+                actionDetail = "Cannot undo"
             } else if edit.amountAfter != edit.amountBefore {
                 let before = moneyText(edit.amountBefore, seed: "\(record.id)-txn-before", currency: currency, privacyEnabled: privacyEnabled)
                 actionDetail = "was \(before)"

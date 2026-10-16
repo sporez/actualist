@@ -28,7 +28,7 @@ extension LocalFirstActualStoreTests {
         #expect(viewModel.rows.count == 2)
         #expect(viewModel.rows[0].canUndo)
         #expect(!viewModel.rows[1].canUndo)
-        #expect(viewModel.rows[0].title.contains("to Groceries"))
+        #expect(viewModel.rows[0].title.contains("in Groceries"))
         #expect(viewModel.rows[0].amountText == "+20.00")
         #expect(viewModel.rows[0].visual == .assign)
     }
@@ -132,7 +132,7 @@ extension LocalFirstActualStoreTests {
         await viewModel.beginUndo(row, using: appState)
         let review = try #require(viewModel.activeReview)
         #expect(!review.isUndoable)
-        #expect(review.blockReason?.contains("Undo would overwrite the newer change") == true)
+        #expect(review.blockReason?.contains("Undo would overwrite that newer change") == true)
         #expect(review.entries.isEmpty)
 
         viewModel.cancelUndo()
@@ -170,7 +170,7 @@ extension LocalFirstActualStoreTests {
         #expect(appState.localDataRevision == revisionBeforeConfirm)
 
         #expect(viewModel.activeReview == nil)
-        #expect(viewModel.undoFailureMessage?.contains("Undo would overwrite the newer change") == true)
+        #expect(viewModel.undoFailureMessage?.contains("Undo would overwrite that newer change") == true)
         viewModel.dismissUndoFailure()
         #expect(viewModel.undoFailureMessage == nil)
         #expect(viewModel.rows.first?.isUndone == false)

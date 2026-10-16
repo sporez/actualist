@@ -23,19 +23,19 @@ extension SchedulePostingRefusal: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidCommand, .unsupportedOccurrence:
-            "This schedule cannot be posted safely."
+            "Actualist cannot post this schedule."
         case .accountUnavailable, .occurrenceUnavailable:
-            "This schedule occurrence is no longer available to post."
+            "This payment is no longer available to post."
         case .occurrenceDateMismatch, .draftMismatch:
             "This schedule changed during sync. Review its latest details and try again."
         case .unsupportedBudgetSchema:
-            "This budget's file layout does not support posting this schedule."
+            "This budget does not support posting this schedule."
         case .referencedRowUnavailable:
             "This schedule's rule or transfer points to an account, category, or payee that was deleted or closed. Edit the schedule's rule or reopen the account, then post it again."
         case .ruleDeletesTransaction:
             "A matching rule removes this scheduled transaction, so it cannot be posted."
         case .ruleChangedScheduleLink:
-            "A matching rule changed the transaction's schedule link, so Actual will not mark this occurrence as paid. Update the rule to keep it linked to this schedule."
+            "A matching rule changed the transaction's schedule link, so Actual will not mark this payment as paid. Update the rule to keep it linked to this schedule."
         }
     }
 }

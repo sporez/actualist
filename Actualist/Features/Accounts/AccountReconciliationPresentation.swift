@@ -1,7 +1,7 @@
 import Foundation
 
 enum AccountReconciliationCopy {
-    static let balancePrompt = "Enter the current balance of your bank account that you want to reconcile with:"
+    static let balancePrompt = "Enter the balance your bank shows right now."
     static let lastBankBalance = "Last Balance from Bank"
     static let useBankBalance = "Use bank balance"
     static let reconcile = "Reconcile"

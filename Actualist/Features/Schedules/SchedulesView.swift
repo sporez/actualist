@@ -216,7 +216,7 @@ struct SchedulesView: View {
 
     private var privacyNotice: some View {
         Label {
-            Text("Schedule names, accounts, payees, and amounts use sample values.")
+            Text("Sample Values are on, so schedule details are hidden.")
         } icon: {
             Image(systemName: "eye.slash.fill")
                 .foregroundStyle(ActualistTheme.warning)
@@ -258,7 +258,7 @@ struct SchedulesView: View {
 
     private var authoringUnavailableNotice: some View {
         Label {
-            Text("This budget's schedule data is from an older version of Actual, so new schedules can't be added here.")
+            Text("This budget has schedule data from an older version of Actual, so new schedules cannot be added here.")
         } icon: {
             Image(systemName: "lock.fill")
                 .foregroundStyle(ActualistTheme.warning)

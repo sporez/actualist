@@ -155,9 +155,9 @@ extension AccountLifecycleCommandError: LocalizedError {
         case .reviewChanged:
             "This account changed. Review its latest details and try again."
         case .missingAccountSchema, .missingTransactionSchema:
-            "Account maintenance is not available for this budget file."
+            "Account changes are not available for this budget."
         case .invalidPreparedMutation:
-            "The account change could not be validated."
+            "Actualist could not check this account change. Try again."
         }
     }
 }

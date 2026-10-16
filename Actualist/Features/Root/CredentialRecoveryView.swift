@@ -8,9 +8,9 @@ struct CredentialRecoveryView: View {
             Image(systemName: "lock.shield")
                 .font(.largeTitle)
                 .foregroundStyle(ActualistTheme.warning)
-            Text("Saved credentials unavailable")
+            Text("Saved Sign-In Unavailable")
                 .font(.title3.bold())
-            Text(appState.credentialRecoveryMessage ?? "This device could not read its saved credentials.")
+            Text(appState.credentialRecoveryMessage ?? "This device could not read your saved sign-in. Sign in again to continue.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(ActualistTheme.secondaryText)
             Button("Try Again") {

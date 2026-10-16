@@ -34,7 +34,7 @@ struct AccountReconciliationTargetSheet: View {
                 coordinator.cancel()
                 dismiss()
             }
-            .accessibilityLabel("Close Reconcile")
+            .accessibilityLabel("Close Reconciliation")
             if let presentation {
                 ReviewSheetPrimaryButton {
                     coordinator.confirmTarget()

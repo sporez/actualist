@@ -140,13 +140,13 @@ enum ScheduleUnsupportedReason: Hashable, Sendable {
 
     var message: String {
         switch self {
-        case .missingRule: "The linked rule is unavailable."
-        case .malformedConditions, .malformedActions: "The linked rule cannot be read safely."
-        case .missingDate, .unsupportedDate: "The schedule uses date options Actualist cannot safely interpret."
-        case .missingAmount, .unsupportedAmount: "The schedule uses amount options Actualist cannot safely interpret."
-        case .unsupportedActions: "Created with schedule actions Actualist cannot safely edit."
-        case .corruptRuleLinkage: "The linked rule does not point back to this schedule."
-        case .missingNextDate, .ambiguousNextDate: "The next occurrence is unavailable."
+        case .missingRule: "The linked rule is missing."
+        case .malformedConditions, .malformedActions: "Actualist cannot read this schedule's rule."
+        case .missingDate, .unsupportedDate: "This schedule uses date options Actualist cannot read."
+        case .missingAmount, .unsupportedAmount: "This schedule uses amount options Actualist cannot read."
+        case .unsupportedActions: "Uses schedule actions Actualist cannot edit."
+        case .corruptRuleLinkage: "The linked rule does not match this schedule."
+        case .missingNextDate, .ambiguousNextDate: "The next date is not available."
         }
     }
 }

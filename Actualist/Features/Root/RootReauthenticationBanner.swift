@@ -7,7 +7,7 @@ struct RootReauthenticationBanner: View {
         HStack(spacing: 12) {
             Image(systemName: "person.crop.circle.badge.exclamationmark")
                 .foregroundStyle(ActualistTheme.warning)
-            Text("Your Actual session expired. Sign in again to resume syncing.")
+            Text("You have been signed out of your Actual server. Sign in again to keep syncing.")
                 .font(.footnote.weight(.semibold))
                 .foregroundStyle(ActualistTheme.primaryText)
             Spacer(minLength: 8)

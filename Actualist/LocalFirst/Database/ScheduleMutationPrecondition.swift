@@ -44,7 +44,7 @@ extension BudgetDatabase {
             throw ScheduleMutationCommandError.reviewChanged
         }
         guard current.rule.tombstone == false else {
-            throw ScheduleMutationCommandError.unsupportedCapability("The schedule's linked rule is unavailable.")
+            throw ScheduleMutationCommandError.unsupportedCapability("The schedule's linked rule is missing.")
         }
         let projection = ScheduleRuleProjection.read(
             scheduleID: current.scheduleID,
@@ -125,7 +125,7 @@ extension BudgetDatabase {
                 """,
             arguments: [ruleID]
         ) else {
-            throw ScheduleMutationCommandError.unsupportedCapability("The schedule's linked rule is unavailable.")
+            throw ScheduleMutationCommandError.unsupportedCapability("The schedule's linked rule is missing.")
         }
         let rule = ScheduleRuleRevision(
             conditionsJSON: ruleRow["conditions"],

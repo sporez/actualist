@@ -9,7 +9,7 @@ import Testing
 struct BudgetOpenIdleTimeoutTests {
     private let fixtures = LocalFirstActualStoreTests()
     private static let timeoutMessage =
-        "Opening this budget is taking too long. Check your connection to the Actual server and try again."
+        "Opening this budget is taking too long. Check your connection and try again."
 
     private func target() -> (budget: ActualBudget, remote: ActualSyncRemoteFile) {
         (

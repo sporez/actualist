@@ -28,7 +28,7 @@ struct OnboardingView: View {
                             .font(ActualistTypography.sectionTitle(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
 
-                        Text("Enter your server first. Actualist will use its sign-in setup and guide you through the next step.")
+                        Text("Enter your server address. Next, you will be asked to sign in.")
                             .font(ActualistTypography.body(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText.opacity(0.82))
                     }
@@ -69,7 +69,7 @@ struct OnboardingView: View {
                                 SecureField(
                                     "Password",
                                     text: $viewModel.actualPassword,
-                                    prompt: Text("Required").foregroundStyle(ActualistTheme.secondaryText)
+                                    prompt: Text("Password").foregroundStyle(ActualistTheme.secondaryText)
                                 )
                                 .font(ActualistTypography.rowTitle(for: density))
                                 .foregroundStyle(ActualistTheme.primaryText)
@@ -205,7 +205,7 @@ struct OnboardingView: View {
                         .disabled(viewModel.isEnteringDemo || viewModel.isLoadingLoginMethods || viewModel.isConnecting)
                         .accessibilityHint("Explore Actualist with sample data")
                         .confirmationDialog(
-                            "Do you want to enter demo mode?",
+                            "Try With Sample Data?",
                             isPresented: $showDemoConfirmation,
                             titleVisibility: .visible
                         ) {
@@ -214,7 +214,7 @@ struct OnboardingView: View {
                             }
                             Button("Cancel", role: .cancel) {}
                         } message: {
-                            Text("Actualist will load sample budget data. Nothing is sent to a server.")
+                            Text("Explore Actualist with sample data. Nothing is sent to a server.")
                         }
                     }
 

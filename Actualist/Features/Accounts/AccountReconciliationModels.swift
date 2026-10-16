@@ -11,7 +11,7 @@ enum AccountReconciliationUnavailableReason: Hashable, Sendable {
         case .accountNotFound:
             "This account is no longer available."
         case .missingAccountSchema, .missingTransactionSchema, .missingLastReconciledColumn:
-            "Reconciliation is not available for this budget file."
+            "Reconciliation is not available for this budget."
         }
     }
 }

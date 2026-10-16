@@ -106,7 +106,7 @@ final class SchedulePostingCoordinator {
                       review.mutation.scheduleID == scheduleID,
                       schedules.budgetID == expectedBudgetID,
                       let detail = schedules.detail(id: scheduleID) else {
-                    state = .failed("The selected budget or schedule changed. Reopen the schedule and try again.")
+                    state = .failed("You switched budgets or the schedule changed. Reopen the schedule and try again.")
                     finish(request)
                     return
                 }
@@ -132,9 +132,9 @@ final class SchedulePostingCoordinator {
                     reason = availability.reason ?? "Sync this budget before posting."
                 } else if !detail.capabilities.canPost || !eligibleStatus || amount == nil || scheduledDate == nil {
                     reason = detail.unsupportedReasons.first?.message
-                        ?? "This schedule occurrence is not available to post."
+                        ?? "This payment is not available to post."
                 } else if detail.account.availability != .available {
-                    reason = "Choose an available account before posting this schedule."
+                    reason = "Choose an available account before posting this payment."
                 } else {
                     reason = nil
                 }

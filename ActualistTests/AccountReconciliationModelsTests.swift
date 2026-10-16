@@ -114,7 +114,7 @@ struct AccountReconciliationModelsTests {
 
     @Test func entryCopyMatchesActualPWAConcepts() {
         #expect(AccountReconciliationCopy.balancePrompt
-            == "Enter the current balance of your bank account that you want to reconcile with:")
+            == "Enter the balance your bank shows right now.")
         #expect(AccountReconciliationCopy.lastBankBalance == "Last Balance from Bank")
         #expect(AccountReconciliationCopy.useBankBalance == "Use bank balance")
         #expect(AccountReconciliationCopy.reconcile == "Reconcile")

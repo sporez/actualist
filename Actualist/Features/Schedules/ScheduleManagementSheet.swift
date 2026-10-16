@@ -87,7 +87,7 @@ struct ScheduleManagementSheet: View {
         ReviewSheetContent {
             ReviewSheetHeader(title: "Schedule Not Changed")
             noticeCard(message)
-            Text("No new save will be sent from this message. Review the schedule again before trying another change.")
+            Text("Nothing was saved. Reopen the schedule and try again.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -144,11 +144,11 @@ struct ScheduleEditorView: View {
         ReviewSheetContent {
             ReviewSheetHeader(
                 title: session.scheduleID == nil ? "New Schedule" : "Edit Schedule",
-                subtitle: "Changes stay local and are queued for sync."
+                subtitle: "Changes are saved on this device and sync later."
             )
             if let notice = session.notice { noticeCard(notice) }
             if session.isPrivacyModeEnabled {
-                Label("Names and amounts use sample values while privacy mode is on.", systemImage: "eye.slash")
+                Label("Names and amounts are hidden while Sample Values is on.", systemImage: "eye.slash")
                     .font(.footnote)
                     .foregroundStyle(ActualistTheme.warning)
             }
@@ -157,7 +157,7 @@ struct ScheduleEditorView: View {
             dateSection
             postingSection
             if !session.capabilities.canEdit && session.scheduleID != nil {
-                noticeCard("This schedule definition cannot be safely edited in Actualist.")
+                noticeCard("Actualist cannot edit this schedule yet.")
             }
         }
         .accessibilityIdentifier("schedule-editor")
@@ -193,7 +193,7 @@ struct ScheduleEditorView: View {
             .reviewSheetFieldStyle()
             .disabled(session.scheduleID != nil && !session.capabilities.canEditMetadata)
             if session.scheduleID != nil && !session.capabilities.canEditMetadata {
-                Text("Schedule name cannot be changed safely.").font(.footnote).foregroundStyle(ActualistTheme.secondaryText)
+                Text("Actualist cannot change the schedule name.").font(.footnote).foregroundStyle(ActualistTheme.secondaryText)
             }
         }
         .actualistReviewCard()
@@ -303,11 +303,11 @@ struct ScheduleEditorView: View {
             }
             .disabled(!isCreate && !session.capabilities.canEditAmount)
             if draft?.amountWasUnsupported == true && draft?.amountWasChanged == false {
-                Text("Original amount options unchanged.")
+                Text("The original amount stays as it is.")
                     .font(.footnote)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
-            Text("Amounts use the selected budget’s currency and precision.")
+            Text("Amounts use this budget’s currency.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
@@ -443,7 +443,7 @@ struct ScheduleEditorView: View {
     private var monthlyPatternControls: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(draft?.patterns.isEmpty == true
-                ? "By default, this repeats on the start date’s day of the month."
+                ? "By default, this repeats on the same day of the month as the start date."
                 : "Monthly date patterns")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -539,7 +539,7 @@ struct ScheduleEditorView: View {
             ))
             .disabled(!isCreate && !session.capabilities.canEditMetadata)
             if draft?.postsTransaction == true {
-                Text("Automatic posting happens only after a successful sync opportunity.")
+                Text("Transactions post automatically the next time your budget syncs.")
                     .font(.footnote)
                     .foregroundStyle(ActualistTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -603,9 +603,9 @@ struct ScheduleEditorView: View {
 
     private var dateLimitationText: String {
         if draft?.hasUnsupportedDatePatterns == true {
-            return "This schedule has date patterns outside the approved recurrence editor. Its original date rule will remain unchanged."
+            return "Actualist cannot edit this schedule’s dates. They will stay as they are."
         }
-        return "The original date options are unsupported and will remain unchanged."
+        return "Actualist cannot edit these dates. They will stay as they are."
     }
 
     private static let weekdays: [ActualScheduleWeekday] = [

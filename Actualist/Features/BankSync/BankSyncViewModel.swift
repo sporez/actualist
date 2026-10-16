@@ -314,7 +314,7 @@ final class BankSyncViewModel {
                     $0.toLine(accountNames: accountNames, currency: currency, applied: false)
                 }
                 await recordRun(BankSyncRunTally.nothingSavedSummary)
-                phase = .failed("Nothing was saved. Some bank transactions could not be read; see the account details below.")
+                phase = .failed("Nothing was saved. Some bank transactions could not be read. See the details below.")
                 return
             }
             phase = .applying

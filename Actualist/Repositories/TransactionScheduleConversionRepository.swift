@@ -37,13 +37,13 @@ extension ScheduleConversionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .reviewChanged:
-            "This transaction changed or the selected budget session ended. Review it again before converting."
+            "This transaction changed, or you switched budgets. Review it again before converting."
         case .transactionNotFuture:
             "Only a transaction dated after today can be converted to a schedule."
         case .unsupportedSource(let reason): reason
         case .unsupportedSchema: ScheduleMutationUserNotice.unsupportedBudgetSchedules
         case .identityConflict:
-            "This schedule could not be created because its identity is already in use."
+            "This schedule could not be created. Try again."
         }
     }
 }

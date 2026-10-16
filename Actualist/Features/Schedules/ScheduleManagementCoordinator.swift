@@ -90,7 +90,7 @@ final class ScheduleManagementCoordinator {
         do {
             context = try mutationRepository.scheduleMutationSessionContext(budgetID: expectedBudgetID)
             guard contextMatches(context, budgetID: expectedBudgetID, generation: expectedGeneration) else {
-                state = .failed("The selected budget changed. Reopen Schedules before adding a schedule.")
+                state = .failed(ScheduleMutationUserNotice.budgetChanged)
                 finish(request)
                 return
             }
@@ -114,7 +114,7 @@ final class ScheduleManagementCoordinator {
                     expectedGeneration: expectedGeneration,
                     repository: mutationRepository
                 ) else {
-                    state = .failed("The selected budget changed while the editor was loading. Reopen Schedules and try again.")
+                    state = .failed(ScheduleMutationUserNotice.budgetChanged)
                     finish(request)
                     return
                 }
@@ -161,7 +161,7 @@ final class ScheduleManagementCoordinator {
         do {
             context = try mutationRepository.scheduleMutationSessionContext(budgetID: expectedBudgetID)
             guard contextMatches(context, budgetID: expectedBudgetID, generation: expectedGeneration) else {
-                state = .failed("The selected budget changed. Reopen Schedules before editing this schedule.")
+                state = .failed(ScheduleMutationUserNotice.budgetChanged)
                 finish(request)
                 return
             }
@@ -191,7 +191,7 @@ final class ScheduleManagementCoordinator {
                         expectedGeneration: expectedGeneration,
                         repository: mutationRepository
                       ) else {
-                    state = .failed("The selected budget changed while the schedule was loading. Reopen Schedules and try again.")
+                    state = .failed(ScheduleMutationUserNotice.budgetChanged)
                     finish(request)
                     return
                 }
@@ -205,7 +205,7 @@ final class ScheduleManagementCoordinator {
                         repository: mutationRepository
                       ),
                       let currentDetail = loaded.detail(id: detail.id) else {
-                    state = .failed("This schedule is no longer available in the selected budget.")
+                    state = .failed("This schedule no longer exists.")
                     finish(request)
                     return
                 }
@@ -248,7 +248,7 @@ final class ScheduleManagementCoordinator {
         do {
             context = try mutationRepository.scheduleMutationSessionContext(budgetID: expectedBudgetID)
             guard contextMatches(context, budgetID: expectedBudgetID, generation: expectedGeneration) else {
-                state = .failed("The selected budget changed. Reopen Schedules before continuing.")
+                state = .failed(ScheduleMutationUserNotice.budgetChanged)
                 finish(request)
                 return
             }
@@ -266,7 +266,7 @@ final class ScheduleManagementCoordinator {
                 )
                 guard isCurrent(request) else { return }
                 guard reviewed.context == context else {
-                    state = .failed("The selected budget changed while the schedule was loading. Reopen Schedules and try again.")
+                    state = .failed(ScheduleMutationUserNotice.budgetChanged)
                     finish(request)
                     return
                 }
@@ -280,7 +280,7 @@ final class ScheduleManagementCoordinator {
                 ), loaded.budgetID == expectedBudgetID,
                    let currentDetail = loaded.detail(id: detail.id) else {
                     guard isCurrent(request) else { return }
-                    state = .failed("This schedule is no longer available in the selected budget.")
+                    state = .failed("This schedule no longer exists.")
                     finish(request)
                     return
                 }
@@ -291,7 +291,7 @@ final class ScheduleManagementCoordinator {
                 case .complete: allowed = currentDetail.capabilities.canComplete
                 }
                 guard allowed else {
-                    state = .failed("This action is not available for the current schedule definition.")
+                    state = .failed("This action is not available for this schedule.")
                     finish(request)
                     return
                 }
@@ -404,7 +404,7 @@ final class ScheduleManagementCoordinator {
                 expectedGeneration: session.identity.generation,
                 repository: mutationRepository
               ) else {
-            state = .failed("The selected budget changed. Reopen Schedules before saving this schedule.")
+            state = .failed(ScheduleMutationUserNotice.budgetChanged)
             return
         }
         let fields = session.draft.editFields(currency: session.currency, locale: locale)
@@ -482,7 +482,7 @@ final class ScheduleManagementCoordinator {
                 expectedGeneration: review.reviewed.context.generation,
                 repository: mutationRepository
               ) else {
-            state = .failed("The selected budget changed. Reopen Schedules before continuing.")
+            state = .failed(ScheduleMutationUserNotice.budgetChanged)
             return
         }
         let request = beginRequest(title: review.action.title)
@@ -614,10 +614,12 @@ private extension ScheduleEditorSession {
 /// schedules.posts_transaction" from budgets saved by older versions of
 /// Actual) must never reach the UI.
 enum ScheduleMutationUserNotice {
+    static let budgetChanged =
+        "You switched budgets. Reopen Schedules and try again."
     static let unsupportedBudgetSchedules =
-        "This budget's schedule data is from an older version of Actual, so schedules can't be changed in Actualist yet."
+        "This budget has schedule data from an older version of Actual, so schedules cannot be changed in Actualist yet."
     static let saveFailed =
-        "Actualist couldn't save this schedule. Try again."
+        "Actualist could not save this schedule. Try again."
 
     static func commandError(_ error: ScheduleMutationCommandError) -> String {
         switch error {

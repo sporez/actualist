@@ -176,7 +176,7 @@ struct AccountLifecycleCoordinatorTests {
 
         coordinator.loadReview(request: request, repository: repository)
         await ObservedTestState { coordinator.errorMessage != nil }.wait()
-        #expect(coordinator.errorMessage == "Account maintenance is not available for this budget file.")
+        #expect(coordinator.errorMessage == "Account changes are not available for this budget.")
 
         repository.reviewError = nil
         repository.reviewResult = review(request: request)

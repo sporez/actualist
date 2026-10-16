@@ -200,7 +200,7 @@ final class EmptyBudgetPickerCoordinator {
             } else if let message = appState.lastErrorMessage {
                 phase = .failed(message: message)
             } else {
-                phase = .failed(message: String(localized: "The new budget could not be opened."))
+                phase = .failed(message: String(localized: "The new budget could not be opened. Try again."))
             }
         } catch {
             // Cancellation ends the attempt without a user-facing failure.
@@ -230,7 +230,7 @@ final class EmptyBudgetPickerCoordinator {
             } else if let message = appState.lastErrorMessage {
                 phase = .failed(message: message)
             } else {
-                phase = .failed(message: String(localized: "The imported budget could not be opened."))
+                phase = .failed(message: String(localized: "The imported budget could not be opened. Try again."))
             }
         } catch {
             // Cancellation ends the attempt without a user-facing failure.
@@ -357,7 +357,7 @@ private struct EmptyBudgetCreateForm: View {
             )
             ReviewFormCard {
                 ReviewFormFieldRow(title: "Budget Name") {
-                    TextField("Budget Name", text: $budgetName, prompt: Text("Required"))
+                    TextField("Budget Name", text: $budgetName, prompt: Text("Name"))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .reviewSheetFieldStyle()
@@ -365,7 +365,7 @@ private struct EmptyBudgetCreateForm: View {
                 ReviewFormToggleRow(title: "Encrypt Budget", isOn: $encryptionWanted)
                 if encryptionWanted {
                     ReviewFormFieldRow(title: "Encryption Password") {
-                        SecureField("Encryption Password", text: $encryptionPassword, prompt: Text("Required"))
+                        SecureField("Encryption Password", text: $encryptionPassword, prompt: Text("Password"))
                             .reviewSheetFieldStyle()
                     }
                 }

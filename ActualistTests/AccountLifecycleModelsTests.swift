@@ -133,7 +133,7 @@ struct AccountLifecycleModelsTests {
         #expect(!presentation.canConfirm)
         #expect(unprotectedCopy.contains(category.name))
         #expect(unprotectedCopy.contains(schedule.name))
-        #expect(unprotectedCopy.contains("Posting pauses while closed"))
+        #expect(unprotectedCopy.contains("pause while it is closed"))
         #expect(!unprotectedPresentation.isPrivacyProtected)
     }
 

@@ -169,9 +169,9 @@ extension ScheduleMutationCommandError: LocalizedError {
         case .reviewChanged:
             "This schedule changed. Review its latest details and try again."
         case .identityConflict:
-            "This schedule could not be created because its identity is already in use."
+            "This schedule could not be created. Try again."
         case .duplicateName:
-            "A live schedule already uses this name."
+            "Another schedule already uses this name."
         case .unsupportedSchema:
             ScheduleMutationUserNotice.unsupportedBudgetSchedules
         case .unsupportedCapability(let message), .invalidCommand(let message):

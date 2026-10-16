@@ -18,13 +18,13 @@ struct SchedulePostingReviewView: View {
             case .syncing:
                 progressContent(
                     title: "Syncing before post",
-                    message: "Actualist is syncing this budget before it posts the transaction.",
+                    message: "Syncing your budget before posting the transaction.",
                     symbol: "arrow.triangle.2.circlepath"
                 )
             case .submitting:
                 progressContent(
                     title: "Posting transaction",
-                    message: "The transaction is being saved to this budget. Keep this review open until it finishes.",
+                    message: "Saving the transaction. Keep this open until it finishes.",
                     symbol: "square.and.arrow.down"
                 )
             case .failed(let message):
@@ -83,7 +83,7 @@ struct SchedulePostingReviewView: View {
                     .actualistReviewCard(padding: 12)
                     .accessibilityIdentifier("schedule-post-unavailable-reason")
             }
-            Text("Your budget syncs first, so a payment another device already added isn't added twice.")
+            Text("Your budget syncs first so the payment is not added twice.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
