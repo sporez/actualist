@@ -52,8 +52,8 @@ extension BudgetDatabase {
                   plan.review.reviewFingerprint == review.reviewFingerprint,
                   plan.review.groups == review.groups,
                   plan.review.affectedResources == review.affectedResources else {
-                throw LocalFirstError.invalidLocalWrite(
-                    "the selected transactions changed; review the duplicate again"
+                throw LocalFirstError.refusedChange(
+                    "The selected transactions changed. Review the duplicate again."
                 )
             }
             let drafts = try transactionDuplicateDrafts(

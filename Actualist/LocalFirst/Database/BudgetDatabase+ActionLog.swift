@@ -587,7 +587,7 @@ extension BudgetDatabase {
                 }
                 try ensureLocalSyncOutbox(db)
                 guard try tableExists("actualist_action_log", db: db) else {
-                    throw LocalFirstError.invalidLocalWrite("there is nothing to undo")
+                    throw LocalFirstError.refusedChange("There is nothing to undo.")
                 }
                 try requireNewestAppliedUndo(record: record, db: db)
 
@@ -606,7 +606,7 @@ extension BudgetDatabase {
                 var builder = LocalFirstSyncMessageBuilder()
                 let drafts = try undoMessages(for: plan, record: record, db: db, builder: &builder)
                 guard !drafts.isEmpty else {
-                    throw LocalFirstError.invalidLocalWrite("there is nothing to undo")
+                    throw LocalFirstError.refusedChange("There is nothing to undo.")
                 }
                 try beforeBudgetDataMutation()
                 let applied = try applyCommittedDrafts(
@@ -679,7 +679,7 @@ extension BudgetDatabase {
             ]
         )
         guard db.changesCount == 1 else {
-            throw LocalFirstError.invalidLocalWrite("this action is no longer applied")
+            throw LocalFirstError.refusedChange("This action is no longer applied, so it cannot be undone.")
         }
     }
 }

@@ -24,17 +24,17 @@ extension BudgetDatabase {
             try requireCategoryManagementAllowed(isIncome: category.isIncome, kind: "categories", db: db)
             _ = try requiredColumns(table: "categories", required: ["tombstone"], db: db)
             if transferID == nil, try categoryNeedsTransfer(categoryID: id, db: db) {
-                throw LocalFirstError.invalidLocalWrite("category requires a transfer destination")
+                throw LocalFirstError.refusedChange("Choose a category to move this category's transactions to before deleting it.")
             }
 
             var messages: [ActualSyncDecodedMessage] = []
             if let transferID {
                 let destination = try requiredCategory(transferID, db: db)
                 guard destination.id != category.id else {
-                    throw LocalFirstError.invalidLocalWrite("a category cannot transfer to itself")
+                    throw LocalFirstError.refusedChange("Choose a different category to move the transactions to.")
                 }
                 guard destination.isIncome == category.isIncome else {
-                    throw LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")
+                    throw LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")
                 }
                 if !category.isIncome {
                     messages += try categoryBudgetTransferMessages(
@@ -71,20 +71,20 @@ extension BudgetDatabase {
             let liveChildren = try liveCategoryRows(groupID: group.id, db: db)
             if transferID == nil,
                try liveChildren.contains(where: { try categoryNeedsTransfer(categoryID: $0.id, db: db) }) {
-                throw LocalFirstError.invalidLocalWrite("category group requires a transfer destination")
+                throw LocalFirstError.refusedChange("Choose a category to move this group's transactions to before deleting it.")
             }
 
             var messages: [ActualSyncDecodedMessage] = []
             if let transferID {
                 let destination = try requiredCategory(transferID, db: db)
                 guard destination.groupID != group.id else {
-                    throw LocalFirstError.invalidLocalWrite("a category group cannot transfer within itself")
+                    throw LocalFirstError.refusedChange("Choose a category outside this group to move the transactions to.")
                 }
                 guard destination.isIncome == group.isIncome else {
-                    throw LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")
+                    throw LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")
                 }
                 guard allChildren.allSatisfy({ $0.isIncome == destination.isIncome }) else {
-                    throw LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")
+                    throw LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")
                 }
                 let liveChildIDs = liveChildren.map(\.id)
                 let allChildIDs = allChildren.map(\.id)

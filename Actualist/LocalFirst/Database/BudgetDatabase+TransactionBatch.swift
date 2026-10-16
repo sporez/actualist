@@ -53,10 +53,10 @@ extension BudgetDatabase {
                   plan.review.clearTarget == review.clearTarget,
                   plan.review.canSubmit,
                   plan.review.blockedCount == 0 else {
-                throw LocalFirstError.invalidLocalWrite("the selected transactions changed; review the batch again")
+                throw LocalFirstError.refusedChange("The selected transactions changed. Review the batch again.")
             }
             guard authorization == plan.review.authorization else {
-                throw LocalFirstError.invalidLocalWrite("confirm the reconciled transaction warning again")
+                throw LocalFirstError.refusedChange("Confirm the reconciled transaction warning again.")
             }
             let action = ActionLogCommit(
                 descriptor: .transactionBatch(plan.descriptor),

@@ -235,8 +235,8 @@ extension BudgetDatabase {
             arguments: arguments
         )
         if let existingName {
-            throw LocalFirstError.invalidLocalWrite(
-                "An '\(existingName)' account group already exists."
+            throw LocalFirstError.refusedChange(
+                "An account group named \(existingName) already exists."
             )
         }
     }

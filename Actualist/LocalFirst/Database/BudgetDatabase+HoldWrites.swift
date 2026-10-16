@@ -11,12 +11,12 @@ extension BudgetDatabase {
             switch command {
             case .hold(let amount):
                 guard amount > 0, amount <= Money.maximumUserAmountMinorUnits else {
-                    throw LocalFirstError.invalidLocalWrite("invalid hold amount")
+                    throw LocalFirstError.refusedChange("Enter an amount greater than zero to hold.")
                 }
                 // The hold below disables this month's automatic hold, so the money it was
                 // holding is available to hold, as in Actual's reset-then-hold sequence.
                 guard review.holdableAmount > 0 else {
-                    throw LocalFirstError.invalidLocalWrite("no money is available to hold")
+                    throw LocalFirstError.refusedChange("There is no money available to hold.")
                 }
                 let delta = min(amount, review.holdableAmount)
                 let added = review.manualHeldAmount.addingReportingOverflow(delta)

@@ -32,7 +32,7 @@ extension BudgetDatabase {
               AND \(predicateForLiveRows(columns: columns)) AND COALESCE(\(closed), 0) = 0)
             """, arguments: [expected.accountID, expected.remoteAccountID, expected.syncSource]) ?? false
         guard storageID == expected.storageID, matches else {
-            throw LocalFirstError.invalidLocalWrite("the bank link changed; download again")
+            throw LocalFirstError.refusedChange("The bank connection changed. Sync again.")
         }
     }
 
@@ -497,8 +497,8 @@ extension BudgetDatabase {
               BankSyncLinkEligibility.isSimpleFIN(
                 syncSource: link["account_sync_source"] as String?
               ) else {
-            throw LocalFirstError.invalidLocalWrite(
-                "only SimpleFIN-linked accounts can be unlinked here"
+            throw LocalFirstError.refusedChange(
+                "Only SimpleFIN-linked accounts can be unlinked here."
             )
         }
         let clearedColumns = [

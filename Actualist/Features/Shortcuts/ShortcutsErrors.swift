@@ -25,6 +25,8 @@ enum ShortcutsError: LocalizedError, Equatable {
     case currencyMismatch
     case invalidName
     case writeFailed
+    /// A refusal the person can act on; the sentence comes from `LocalFirstError.refusedChange`.
+    case refused(String)
     case templateUnsupported
     case trackingActionUnsupported
     case metricUnavailable
@@ -77,6 +79,8 @@ enum ShortcutsError: LocalizedError, Equatable {
             "Enter a name."
         case .writeFailed:
             "Actualist could not save that change. Try again."
+        case .refused(let sentence):
+            sentence
         case .trackingActionUnsupported:
             "Tracking budgets do not have Move Money or To Budget. Use Set Category Budget or Get Budget Summary instead."
         case .metricUnavailable:
@@ -116,6 +120,8 @@ enum ShortcutsError: LocalizedError, Equatable {
                 return .budgetBusy
             case .invalidLocalWrite, .schemaUnavailable, .referencedRowUnavailable, .unsupportedWrite:
                 return .writeFailed
+            case .refusedChange(let sentence):
+                return .refused(sentence)
             case .unsupportedTemplate:
                 return .templateUnsupported
             default:

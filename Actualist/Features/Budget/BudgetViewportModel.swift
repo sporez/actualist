@@ -187,7 +187,7 @@ final class BudgetViewportModel {
             return
         } catch {
             guard requestGeneration == generation else { return }
-            errorMessage = error.localizedDescription
+            errorMessage = error.userFacingMessage
         }
         if requestGeneration == generation { isLoading = false }
     }
@@ -460,7 +460,7 @@ final class BudgetViewportModel {
             if requestGeneration == generation { isLoading = false }
             return false
         } catch {
-            if requestGeneration == generation { errorMessage = error.localizedDescription }
+            if requestGeneration == generation { errorMessage = error.userFacingMessage }
             return false
         }
         guard requestGeneration == generation else { return false }
@@ -493,7 +493,7 @@ final class BudgetViewportModel {
             } catch where error.isCancellation {
                 throw CancellationError()
             } catch {
-                stagedErrors[month] = error.localizedDescription
+                stagedErrors[month] = error.userFacingMessage ?? UserFacingErrorText.genericFailure
             }
             guard requestGeneration == generation, self.budgetID == id else { return }
         }

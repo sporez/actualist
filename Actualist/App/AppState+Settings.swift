@@ -78,7 +78,7 @@ extension AppState {
             do {
                 try keychain.promoteAllItemsForBackgroundRefresh()
             } catch {
-                lastErrorMessage = error.localizedDescription
+                lastErrorMessage = error.userFacingMessage
                 settings.shortcutsLockedLoggingEnabled = false
                 settingsStore.save(settings)
                 return

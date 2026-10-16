@@ -172,7 +172,7 @@ extension LocalFirstActualStore {
     func undoLastPayeeMutationAndRefresh(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
         guard let messages = lastPayeeUndoMessagesByBudget[budgetID], !messages.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("there is no payee change to undo")
+            throw LocalFirstError.refusedChange("There is no payee change to undo.")
         }
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         lastPayeeUndoMessagesByBudget[budgetID] = nil

@@ -89,7 +89,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         guard !sourcePayeeIDs.isEmpty, !sourcePayeeIDs.contains(targetPayeeID) else {
-            throw LocalFirstError.invalidLocalWrite("choose at least one different payee to merge")
+            throw LocalFirstError.refusedChange("Choose at least one other payee to merge.")
         }
         _ = try requiredColumns(
             table: "payees",
@@ -101,7 +101,7 @@ extension BudgetDatabase {
             _ = try requiredRegularPayee(sourceID, db: db)
         }
         guard let mapping = try usablePayeeMappingColumns(db: db) else {
-            throw LocalFirstError.invalidLocalWrite("this budget does not support payee merging")
+            throw LocalFirstError.refusedChange("This budget does not support merging payees.")
         }
 
         let placeholders = Array(repeating: "?", count: sourcePayeeIDs.count).joined(separator: ",")
@@ -155,8 +155,8 @@ extension BudgetDatabase {
 
         let snapshot = try fetchPayeeManagementSnapshot(in: db)
         guard let payee = snapshot.payees.first(where: { $0.id == payeeID }), payee.canDelete else {
-            throw LocalFirstError.invalidLocalWrite(
-                "only unused payees without rule references can be deleted"
+            throw LocalFirstError.refusedChange(
+                "Only payees that are unused and not part of a rule can be deleted."
             )
         }
         return [
@@ -189,7 +189,7 @@ extension BudgetDatabase {
                 }
                 if let favorite = update.favorite {
                     guard columns.contains("favorite") else {
-                        throw LocalFirstError.invalidLocalWrite("this budget does not support favorite payees")
+                        throw LocalFirstError.refusedChange("This budget does not support favorite payees.")
                     }
                     let oldValue = flexibleBool(row["favorite"])
                     if oldValue != favorite {
@@ -203,7 +203,7 @@ extension BudgetDatabase {
                 }
                 if let learnCategories = update.learnCategories {
                     guard columns.contains("learn_categories") else {
-                        throw LocalFirstError.invalidLocalWrite("this budget does not support category learning")
+                        throw LocalFirstError.refusedChange("This budget does not support category learning for payees.")
                     }
                     let oldValue = row["learn_categories"] == nil
                         ? true
@@ -294,7 +294,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         guard let mapping = try usablePayeeMappingColumns(db: db) else {
-            throw LocalFirstError.invalidLocalWrite("this budget does not support payee merging")
+            throw LocalFirstError.refusedChange("This budget does not support merging payees.")
         }
         let placeholders = Array(repeating: "?", count: sourcePayeeIDs.count).joined(separator: ",")
         let rows = try Row.fetchAll(
@@ -434,8 +434,8 @@ extension BudgetDatabase {
             arguments: arguments
         )
         guard duplicate == nil else {
-            throw LocalFirstError.invalidLocalWrite(
-                "a payee with that name already exists; merge the duplicates instead"
+            throw LocalFirstError.refusedChange(
+                "A payee with that name already exists. Merge the duplicates instead."
             )
         }
     }
@@ -459,7 +459,7 @@ extension BudgetDatabase {
         }
         let transferAccountID = row["transfer_acct"] as String?
         guard transferAccountID == nil else {
-            throw LocalFirstError.invalidLocalWrite("transfer payees are managed with their accounts")
+            throw LocalFirstError.refusedChange("Transfer payees are managed with their accounts.")
         }
         return (row["name"] ?? "", transferAccountID)
     }

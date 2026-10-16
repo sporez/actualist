@@ -17,10 +17,10 @@ struct BudgetCategoryOutlineDraftTests {
         #expect(draft.groups[1].categories.map(\.id) == ["rent", "fuel"])
 
         var duplicate = BudgetCategoryOutlineDraft(groups: duplicateGroups, isTrackingBudget: true)
-        #expect(throws: LocalFirstError.invalidLocalWrite("A category with the name Food already exists.")) {
+        #expect(throws: LocalFirstError.refusedChange("A category with the name Food already exists.")) {
             try duplicate.moveCategory(id: "food", toGroupID: "bills", beforeCategoryID: nil)
         }
-        #expect(throws: LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")) {
+        #expect(throws: LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")) {
             try draft.moveCategory(id: "food", toGroupID: "income", beforeCategoryID: nil)
         }
     }
@@ -32,7 +32,7 @@ struct BudgetCategoryOutlineDraftTests {
         var tracking = BudgetCategoryOutlineDraft(groups: groups, isTrackingBudget: true)
         try tracking.moveGroup(id: "bills", beforeGroupID: "everyday")
         #expect(tracking.groups.map(\.id) == ["bills", "everyday", "income"])
-        #expect(throws: LocalFirstError.invalidLocalWrite("Income and expense groups cannot be mixed.")) {
+        #expect(throws: LocalFirstError.refusedChange("Income and expense groups cannot be mixed.")) {
             try tracking.moveGroup(id: "everyday", beforeGroupID: "income")
         }
     }

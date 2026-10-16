@@ -271,6 +271,6 @@ extension BudgetDatabase {
 
 private extension SavedTransactionFilterMutationError {
     var asLocalFirstError: LocalFirstError {
-        .invalidLocalWrite(errorDescription ?? "The saved filter could not be changed.")
+        .refusedChange(errorDescription ?? "The saved filter could not be changed.")
     }
 }

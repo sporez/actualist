@@ -50,7 +50,7 @@ extension BudgetDatabase {
         }
         let preview = try previewRules(for: resolved)
         if preview.deletesTransaction {
-            throw LocalFirstError.invalidLocalWrite("a matching rule would delete this transaction")
+            throw LocalFirstError.refusedChange("A matching rule would delete this transaction.")
         }
         if let scheduleID = preview.scheduleID {
             resolved.scheduleID = scheduleID

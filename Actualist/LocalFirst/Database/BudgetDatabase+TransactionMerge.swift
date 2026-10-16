@@ -58,20 +58,20 @@ extension BudgetDatabase {
             guard current.review == review,
                   review.canSubmit,
                   let plan = current.plan else {
-                throw LocalFirstError.invalidLocalWrite(
-                    "the selected transactions changed; review the merge again"
+                throw LocalFirstError.refusedChange(
+                    "The selected transactions changed. Review the merge again."
                 )
             }
             guard authorization == transactionMergeAuthorization(for: current.review) else {
-                throw LocalFirstError.invalidLocalWrite(
-                    "confirm the reconciled transaction warning again"
+                throw LocalFirstError.refusedChange(
+                    "Confirm the reconciled transaction warning again."
                 )
             }
 
             var builder = LocalFirstSyncMessageBuilder()
             let messages = try transactionMergeMessages(for: plan, db: db, builder: &builder)
             guard !messages.isEmpty else {
-                throw LocalFirstError.invalidLocalWrite("the merge has no transaction changes")
+                throw LocalFirstError.refusedChange("Merging these transactions would not change anything.")
             }
             let affectedIDs = plan.beforeSnapshots.map(\.id)
             let descriptor = TransactionMergeActionDescriptor(
@@ -109,7 +109,7 @@ extension BudgetDatabase {
         guard orderedTransactionIDs.count == 2,
               orderedTransactionIDs.allSatisfy({ !$0.isEmpty }),
               Set(orderedTransactionIDs).count == 2 else {
-            throw LocalFirstError.invalidLocalWrite("select two different transactions to merge")
+            throw LocalFirstError.refusedChange("Select two different transactions to merge.")
         }
 
         let columns = try resolveTransactionRowColumns(db: db)

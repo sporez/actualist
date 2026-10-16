@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 /// Budget & Data's export: the screen builds the ZIP when it opens (and again
-/// when the open budget changes), so Share Budget ZIP is one tap on a ready plain
+/// when the open budget changes), so Export Budget is one tap on a ready plain
 /// file. A ShareLink over a custom `Transferable` took about five seconds to
 /// open on device even with the file ready; a plain file URL opens at once
 /// (device A/B, 2026-10-09).

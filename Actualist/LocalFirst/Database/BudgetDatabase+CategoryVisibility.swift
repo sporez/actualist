@@ -51,7 +51,7 @@ extension BudgetDatabase {
                     arguments: [groupID]
                    ),
                    flexibleBool(groupRow["hidden"]) {
-                    throw LocalFirstError.invalidLocalWrite("cannot change a category in a hidden group")
+                    throw LocalFirstError.refusedChange("This category is in a hidden group. Show the group before changing it.")
                 }
             }
 
@@ -99,7 +99,7 @@ extension BudgetDatabase {
             }
 
             if flexibleBool(row["is_income"]) {
-                throw LocalFirstError.invalidLocalWrite("income groups cannot be hidden")
+                throw LocalFirstError.refusedChange("Income groups cannot be hidden.")
             }
             if flexibleBool(row["hidden"]) == hidden {
                 return []

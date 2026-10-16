@@ -17,8 +17,4 @@ extension Error {
             || (error.domain == ASWebAuthenticationSessionErrorDomain
                 && error.code == ASWebAuthenticationSessionError.Code.canceledLogin.rawValue)
     }
-
-    var userFacingMessage: String? {
-        isCancellation ? nil : localizedDescription
-    }
 }

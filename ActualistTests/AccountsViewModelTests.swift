@@ -73,8 +73,8 @@ struct AccountsViewModelTests {
 
     @Test func submitDuplicateNameKeepsEditorAndSurfacesTheError() async throws {
         let repository = FakeAccountRepository()
-        repository.createError = LocalFirstError.invalidLocalWrite(
-            "An 'Cash' account group already exists."
+        repository.createError = LocalFirstError.refusedChange(
+            "An account group named Cash already exists."
         )
         let viewModel = AccountsViewModel()
         viewModel.presentCreateGroup()

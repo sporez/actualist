@@ -70,7 +70,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite("income groups cannot be hidden")) {
+        await #expect(throws: LocalFirstError.refusedChange("Income groups cannot be hidden.")) {
             _ = try await database.setCategoryGroupHiddenMessages(
                 groupID: "income-grp",
                 hidden: true,
@@ -87,7 +87,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite("cannot change a category in a hidden group")) {
+        await #expect(throws: LocalFirstError.refusedChange("This category is in a hidden group. Show the group before changing it.")) {
             _ = try await database.setCategoryHiddenMessages(
                 categoryID: "secret",
                 hidden: true,

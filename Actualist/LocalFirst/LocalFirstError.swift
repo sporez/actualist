@@ -35,7 +35,12 @@ enum LocalFirstError: LocalizedError, Equatable {
     case reimportRollbackFailed
     case remoteDataLimitExceeded
     case insufficientStorage
+    /// A write broke an internal invariant. The string is a developer reason for
+    /// tests and diagnostics; people see one generic sentence instead.
     case invalidLocalWrite(String)
+    /// A change was refused for a reason the person can act on, such as a
+    /// duplicate name. The string is a complete, plain sentence shown as is.
+    case refusedChange(String)
     /// The budget file lacks a table or column the write needs. Deterministic per
     /// budget, so schedule posting refuses instead of failing the whole run.
     case schemaUnavailable(String)
@@ -117,8 +122,14 @@ enum LocalFirstError: LocalizedError, Equatable {
             "The server sent more data than Actualist can handle."
         case .insufficientStorage:
             "There is not enough free space on this device to import the budget."
-        case .invalidLocalWrite(let reason), .schemaUnavailable(let reason), .referencedRowUnavailable(let reason):
-            "Actualist could not save this change: \(reason)"
+        case .invalidLocalWrite:
+            "Actualist could not save this change. Try again."
+        case .refusedChange(let reason):
+            reason
+        case .schemaUnavailable:
+            "Actualist cannot make this change in this budget yet."
+        case .referencedRowUnavailable:
+            "An account, category, or payee this change uses was deleted or closed. Check it and try again."
         case .actionUndoBlocked(let reason):
             reason
         case .budgetNotOpened:

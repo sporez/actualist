@@ -40,8 +40,8 @@ extension BudgetDatabase {
         db: Database
     ) throws {
         if let authorization, authorization.transactionID != transactionID {
-            throw LocalFirstError.invalidLocalWrite(
-                "reconciled transaction authorization does not match the transaction"
+            throw LocalFirstError.refusedChange(
+                "Confirm the reconciled transaction warning again."
             )
         }
         guard let review = try reconciledMutationReview(

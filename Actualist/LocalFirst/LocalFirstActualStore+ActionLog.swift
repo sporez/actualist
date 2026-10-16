@@ -49,7 +49,7 @@ extension LocalFirstActualStore {
     func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview {
         let database = try requireDatabase(for: budgetID)
         guard let record = try await database.actionLogRecord(id: actionID) else {
-            throw LocalFirstError.invalidLocalWrite("this action is no longer in history")
+            throw LocalFirstError.refusedChange("This action is no longer in History.")
         }
         return try await database.actionUndoPreview(record: record)
     }
@@ -59,7 +59,7 @@ extension LocalFirstActualStore {
     func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
         guard let record = try await database.actionLogRecord(id: actionID) else {
-            throw LocalFirstError.invalidLocalWrite("this action is no longer in history")
+            throw LocalFirstError.refusedChange("This action is no longer in History.")
         }
         _ = try await database.commitActionUndo(record: record)
         // One reload covers budget, account and every loaded transaction feed.

@@ -467,7 +467,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         guard draft.canRoundTripAndEvaluate else {
-            throw LocalFirstError.invalidLocalWrite("this rule contains fields Actualist cannot safely evaluate")
+            throw LocalFirstError.refusedChange("This rule uses fields Actualist cannot check yet.")
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]

@@ -115,7 +115,7 @@ final class AppSyncCoordinator {
                     return .cancelledOrStale
                 }
                 return .failed(
-                    message: error.localizedDescription,
+                    message: error.userFacingMessage ?? UserFacingErrorText.genericFailure,
                     reason: Self.failureReason(for: error)
                 )
             }

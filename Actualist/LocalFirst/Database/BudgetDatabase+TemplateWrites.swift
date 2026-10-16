@@ -23,7 +23,7 @@ extension BudgetDatabase {
             }
             let columns = try columnSet(for: "categories", db: db)
             guard columns.contains("goal_def"), columns.contains("template_settings") else {
-                throw LocalFirstError.invalidLocalWrite(
+                throw LocalFirstError.refusedChange(
                     BudgetTemplateCategoryLock.Reason.missingColumns.testerFacingReason
                 )
             }
@@ -61,13 +61,13 @@ extension BudgetDatabase {
                 goalDefJSON: currentGoalDef
             )
             if case .readOnly(let reason) = lock {
-                throw LocalFirstError.invalidLocalWrite(reason.testerFacingReason)
+                throw LocalFirstError.refusedChange(reason.testerFacingReason)
             }
 
             let incomingJSON = normalizedGoalDefJSON(goalDefJSON)
             switch BudgetTemplateDefinition.parseEntries(from: incomingJSON) {
             case .failure:
-                throw LocalFirstError.invalidLocalWrite(
+                throw LocalFirstError.refusedChange(
                     BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
                 )
             case .success:
@@ -79,7 +79,7 @@ extension BudgetDatabase {
                           drafts,
                           context: try templateEditorAuthoringContext(db: db)
                       ) else {
-                    throw LocalFirstError.invalidLocalWrite(
+                    throw LocalFirstError.refusedChange(
                         BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
                     )
                 }

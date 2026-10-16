@@ -39,7 +39,7 @@ extension LocalFirstActualStoreTests {
         #expect(groups.first?.sortOrder == 16_384)
 
         await #expect(
-            throws: LocalFirstError.invalidLocalWrite("An 'Cash' account group already exists.")
+            throws: LocalFirstError.refusedChange("An account group named Cash already exists.")
         ) {
             _ = try await database.createAccountGroupMessages(
                 groupID: "cash-2",

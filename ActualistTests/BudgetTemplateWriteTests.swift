@@ -96,7 +96,7 @@ struct BudgetTemplateWriteTests {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite(
+        await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.missingColumns.testerFacingReason
         )) {
             _ = try await database.setCategoryTemplateMessages(
@@ -114,7 +114,7 @@ struct BudgetTemplateWriteTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite(
+        await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.missingColumns.testerFacingReason
         )) {
             _ = try await database.setCategoryTemplateMessages(
@@ -138,7 +138,7 @@ struct BudgetTemplateWriteTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite(
+        await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.staleNotes.testerFacingReason
         )) {
             _ = try await database.setCategoryTemplateMessages(
@@ -163,7 +163,7 @@ struct BudgetTemplateWriteTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite(
+        await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.noteManaged.testerFacingReason
         )) {
             _ = try await database.setCategoryTemplateMessages(
@@ -263,7 +263,7 @@ struct BudgetTemplateWriteTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite(
+        await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
         )) {
             _ = try await database.setCategoryTemplateMessages(

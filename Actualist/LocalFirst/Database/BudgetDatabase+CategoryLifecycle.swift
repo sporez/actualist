@@ -150,7 +150,7 @@ extension BudgetDatabase {
                   Set(desiredCategoryIDs).count == desiredCategoryIDs.count,
                   Set(desiredGroupIDs) == Set(managedGroups.map(\.id)),
                   Set(desiredCategoryIDs) == Set(managedCategories.map(\.id)) else {
-                throw LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")
+                throw LocalFirstError.refusedChange("Your categories changed before this could be saved. Try again.")
             }
 
             let groupsByID = Dictionary(uniqueKeysWithValues: allGroups.map { ($0.id, $0) })
@@ -158,12 +158,12 @@ extension BudgetDatabase {
             let existingKinds = managedGroups.map(\.isIncome)
             let desiredKinds = try desiredGroupIDs.map { id in
                 guard let group = groupsByID[id] else {
-                    throw LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")
+                    throw LocalFirstError.refusedChange("Your categories changed before this could be saved. Try again.")
                 }
                 return group.isIncome
             }
             guard existingKinds == desiredKinds else {
-                throw LocalFirstError.invalidLocalWrite("Income and expense groups cannot be mixed.")
+                throw LocalFirstError.refusedChange("Income and expense groups cannot be mixed.")
             }
 
             for desiredGroup in command.groups {
@@ -172,11 +172,11 @@ extension BudgetDatabase {
                 for categoryID in desiredGroup.categoryIDs {
                     guard let category = categoriesByID[categoryID] else { continue }
                     guard category.isIncome == group.isIncome else {
-                        throw LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")
+                        throw LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")
                     }
                     let folded = category.name.lowercased()
                     guard names.insert(folded).inserted else {
-                        throw LocalFirstError.invalidLocalWrite("A category with the name \(category.name) already exists.")
+                        throw LocalFirstError.refusedChange("A category with the name \(category.name) already exists.")
                     }
                 }
             }
@@ -361,7 +361,7 @@ extension BudgetDatabase {
                 """,
             arguments: arguments
         ) {
-            throw LocalFirstError.invalidLocalWrite("A category with the name \(existing) already exists.")
+            throw LocalFirstError.refusedChange("A category with the name \(existing) already exists.")
         }
     }
 
@@ -380,7 +380,7 @@ extension BudgetDatabase {
             arguments: arguments
         ) {
             let prefix = flexibleBool(row["hidden"]) ? "A hidden category group" : "A category group"
-            throw LocalFirstError.invalidLocalWrite("\(prefix) with the name \(row["name"] as String? ?? name) already exists.")
+            throw LocalFirstError.refusedChange("\(prefix) with the name \(row["name"] as String? ?? name) already exists.")
         }
     }
 }

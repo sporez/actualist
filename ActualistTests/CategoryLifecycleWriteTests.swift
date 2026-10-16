@@ -33,7 +33,7 @@ struct CategoryLifecycleWriteTests {
             localNodeID: "node1"
         )
         var builder = LocalFirstSyncMessageBuilder()
-        await #expect(throws: LocalFirstError.invalidLocalWrite("A category with the name Groceries already exists.")) {
+        await #expect(throws: LocalFirstError.refusedChange("A category with the name Groceries already exists.")) {
             _ = try await database.createCategoryMessages(categoryID: "copy", name: "groceries", groupID: "group", builder: &builder)
         }
         await #expect(throws: LocalFirstError.invalidLocalWrite("income categories cannot be managed in an envelope budget")) {
@@ -96,7 +96,7 @@ struct CategoryLifecycleWriteTests {
         await #expect(throws: LocalFirstError.invalidLocalWrite("category group name cannot be empty")) {
             _ = try await database.createCategoryGroupMessages(groupID: "blank", name: "  ", builder: &builder)
         }
-        await #expect(throws: LocalFirstError.invalidLocalWrite("A hidden category group with the name Archived already exists.")) {
+        await #expect(throws: LocalFirstError.refusedChange("A hidden category group with the name Archived already exists.")) {
             _ = try await database.createCategoryGroupMessages(groupID: "again", name: "archived", builder: &builder)
         }
     }
@@ -116,10 +116,10 @@ struct CategoryLifecycleWriteTests {
         let category = try await database.renameCategoryMessages(categoryID: "fuel", name: " Transport ", builder: &builder)
         #expect(category.map(\.column) == ["name"])
         #expect(category.first?.serializedValue == "S:Transport")
-        await #expect(throws: LocalFirstError.invalidLocalWrite("A category with the name Groceries already exists.")) {
+        await #expect(throws: LocalFirstError.refusedChange("A category with the name Groceries already exists.")) {
             _ = try await database.renameCategoryMessages(categoryID: "fuel", name: "groceries", builder: &builder)
         }
-        await #expect(throws: LocalFirstError.invalidLocalWrite("A category group with the name Everyday already exists.")) {
+        await #expect(throws: LocalFirstError.refusedChange("A category group with the name Everyday already exists.")) {
             _ = try await database.renameCategoryGroupMessages(groupID: "bills", name: "everyday", builder: &builder)
         }
     }
@@ -154,7 +154,7 @@ struct CategoryLifecycleWriteTests {
         #expect(messages.contains { $0.dataset == "categories" && $0.row == "rent" && $0.column == "sort_order" && $0.serializedValue == "N:32768.0" })
 
         let stale = BudgetCategoryOutlineCommand(groups: [.init(id: "bills", categoryIDs: ["missing"])])
-        await #expect(throws: LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")) {
+        await #expect(throws: LocalFirstError.refusedChange("Your categories changed before this could be saved. Try again.")) {
             _ = try await database.applyCategoryOutlineMessages(stale, builder: &builder)
         }
         let trackingDatabase = try BudgetDatabase(
@@ -174,7 +174,7 @@ struct CategoryLifecycleWriteTests {
             .init(id: "bills", categoryIDs: ["fuel", "rent"]),
             .init(id: "income", categoryIDs: [])
         ])
-        await #expect(throws: LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")) {
+        await #expect(throws: LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")) {
             _ = try await trackingDatabase.applyCategoryOutlineMessages(incomeMove, builder: &builder)
         }
     }
@@ -245,7 +245,7 @@ struct CategoryLifecycleWriteTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        await #expect(throws: LocalFirstError.invalidLocalWrite("category requires a transfer destination")) {
+        await #expect(throws: LocalFirstError.refusedChange("Choose a category to move this category's transactions to before deleting it.")) {
             _ = try await database.deleteCategoryMessages(
                 categoryID: "groceries", transferCategoryID: nil, builder: &builder
             )
@@ -331,7 +331,7 @@ struct CategoryLifecycleWriteTests {
             categoryID: "clean", transferCategoryID: "destination", builder: &builder
         )
         #expect(messages.contains { $0.dataset == "category_mapping" && $0.column == "transfer_id" })
-        await #expect(throws: LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")) {
+        await #expect(throws: LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")) {
             _ = try await database.deleteCategoryMessages(
                 categoryID: "clean", transferCategoryID: "income", builder: &builder
             )
@@ -409,7 +409,7 @@ struct CategoryLifecycleWriteTests {
             groupID: "empty", transferCategoryID: nil, builder: &builder
         )
         #expect(emptyMessages.map(\.dataset) == ["category_groups"])
-        await #expect(throws: LocalFirstError.invalidLocalWrite("category group requires a transfer destination")) {
+        await #expect(throws: LocalFirstError.refusedChange("Choose a category to move this group's transactions to before deleting it.")) {
             _ = try await database.deleteCategoryGroupMessages(
                 groupID: "victim", transferCategoryID: nil, builder: &builder
             )
