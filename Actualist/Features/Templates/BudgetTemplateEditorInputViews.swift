@@ -101,7 +101,7 @@ struct BudgetTemplateEditorNoteField: View {
     var body: some View {
         if viewModel.isPrivacyModeEnabled {
             LabeledContent("Note", value: "Hidden in Sample Values")
-            Text("Disable Sample Values to view or edit automation notes.")
+            Text("Turn off Sample Values to see or edit this note.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
         } else {
@@ -117,12 +117,12 @@ struct BudgetTemplateEditorNoteField: View {
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, -5)
                     .focused(focus, equals: .note(itemID))
-                    .accessibilityLabel("Automation note")
+                    .accessibilityLabel("Template note")
                 } else {
                     Text(viewModel.noteText(id: itemID))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
-                        .accessibilityLabel("Automation note")
+                        .accessibilityLabel("Template note")
                 }
             }
             if viewModel.isEditable {

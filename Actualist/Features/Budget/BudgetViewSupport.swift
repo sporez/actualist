@@ -21,11 +21,11 @@ enum BudgetTemplateConfirmation: String, Equatable, Identifiable {
     var message: String {
         switch self {
         case .monthFillEmpty:
-            "This will apply the budget template to empty categories for this month."
+            "Applies templates to categories with no budgeted amount this month."
         case .monthOverwrite:
-            "This will overwrite this month's category budget amounts with the budget template."
+            "Replaces this month's budgeted amounts with the template amounts."
         case .category:
-            "This will apply the template to the selected category."
+            "Applies the template to this category."
         }
     }
 
@@ -110,7 +110,7 @@ struct ConnectionStatusDot: View {
         case .offline:
             return "Server offline"
         case .syncBlocked:
-            return "Server connected; budget sync needs attention"
+            return "Connected, but syncing needs attention"
         }
     }
 }
@@ -212,7 +212,7 @@ struct BudgetAlertBanner: View {
                 if let assignedText {
                     summaryMetric(
                         value: assignedText,
-                        label: "Assigned",
+                        label: "Budgeted",
                         amountFont: ActualistTypography.summarySecondaryAmount(for: density),
                         alignment: .leading
                     )
@@ -267,7 +267,7 @@ struct BudgetAlertBanner: View {
             )
             summaryMetric(
                 value: assignedText,
-                label: "Assigned",
+                label: "Budgeted",
                 amountFont: ActualistTypography.summarySecondaryAmount(for: density),
                 alignment: .trailing
             )

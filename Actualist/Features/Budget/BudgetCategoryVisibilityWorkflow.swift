@@ -24,7 +24,7 @@ final class BudgetCategoryVisibilityWorkflow {
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         if groupHidden {
-            errorMessage = "Show the group before changing a category."
+            errorMessage = "Show the group first to change this category."
             return nil
         }
         return await submit(
@@ -77,7 +77,7 @@ final class BudgetCategoryVisibilityWorkflow {
             return nil
         }
         guard let selectedMonth, let budgetID else {
-            errorMessage = "No budget is open."
+            errorMessage = "Open a budget first."
             return nil
         }
 

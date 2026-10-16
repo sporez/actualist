@@ -255,7 +255,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         app.buttons["Apply Template"].tap()
 
         let apply = app.buttons["template-apply-confirm"]
-        XCTAssertTrue(app.staticTexts["Funding required"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Needed"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any)["template-apply-mode"].waitForExistence(timeout: 5))
 
         app.buttons["Overwrite"].tap()
@@ -295,7 +295,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         app.buttons["Overwrite"].tap()
         XCTAssertEqual(apply.label, "Apply Template Overwrite")
 
-        let funding = app.staticTexts["Funding required"]
+        let funding = app.staticTexts["Needed"]
         let originalY = funding.frame.minY
         for _ in 0..<2 {
             XCUIDevice.shared.press(.home)
@@ -327,7 +327,7 @@ final class CategoryLifecycleUITests: XCTestCase {
         app.buttons["Budget Actions"].tap()
         app.buttons["Templates"].tap()
         app.buttons["Apply Template Overwrite"].tap()
-        XCTAssertTrue(app.staticTexts["Funding required"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Needed"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
         ).firstMatch.waitForExistence(timeout: 5))
@@ -394,7 +394,7 @@ final class CategoryLifecycleUITests: XCTestCase {
     }
 
     private func assertUnfundedTemplatePreview(in app: XCUIApplication) {
-        XCTAssertTrue(app.staticTexts["Still needed"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Still short"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Unfunded"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Template target"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts.matching(

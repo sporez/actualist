@@ -46,7 +46,7 @@ final class BudgetCategoryReorderWorkflow {
     ) async -> LoadedBudgetMonth? {
         guard !isSubmitting, let command = draft?.command else { return nil }
         guard let selectedMonth, let budgetID else {
-            errorMessage = "No budget is open."
+            errorMessage = "Open a budget first."
             return nil
         }
         isSubmitting = true

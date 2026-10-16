@@ -255,7 +255,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         #expect(display.categories[0].targetDetailText == nil)
         #expect(display.categories[0].targetAmountText == BudgetCurrency.usd.formatted(200))
         #expect(!display.hasNonMoneyUpdates)
-        #expect(display.noOpExplanation == "No funds are available for the remaining template targets.")
+        #expect(display.noOpExplanation == "There is not enough money left to fund the remaining templates.")
         #expect(display.hasNoFundsWarning)
     }
 
@@ -283,7 +283,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
 
         let display = BudgetTemplateApplyPreviewDisplay.make(preview: preview, randomized: false)
         #expect(display.categories.map(\.id) == ["savings"])
-        #expect(display.categories[0].targetDetailText == "Goal target \(BudgetCurrency.usd.formatted(10_000)) → \(BudgetCurrency.usd.formatted(12_000))")
+        #expect(display.categories[0].targetDetailText == "Goal \(BudgetCurrency.usd.formatted(10_000)) → \(BudgetCurrency.usd.formatted(12_000))")
         #expect(display.categories[0].priorityText == nil)
         #expect(display.hasNonMoneyUpdates)
         #expect(!display.hasNoFundsWarning)
@@ -294,11 +294,11 @@ struct BudgetTemplateApplyPreviewDisplayTests {
             preview: preview(categories: []),
             randomized: false
         )
-        #expect(display.noOpExplanation == "No eligible templates were found for this month.")
+        #expect(display.noOpExplanation == "No templates apply to this month.")
 
         var fullyFunded = preview(categories: [])
         fullyFunded.hasEligibleTemplates = true
         let funded = BudgetTemplateApplyPreviewDisplay.make(preview: fullyFunded, randomized: false)
-        #expect(funded.noOpExplanation == "Assignments already match their template targets.")
+        #expect(funded.noOpExplanation == "Every category already matches its template.")
     }
 }

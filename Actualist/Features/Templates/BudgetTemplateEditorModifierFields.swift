@@ -8,7 +8,7 @@ struct BudgetTemplateEditorScheduleFields: View {
     var body: some View {
         let options = viewModel.editor.scheduleOptions(for: itemID)
         if options.isEmpty {
-            Text("No schedules to cover. Create a schedule before saving this template.")
+            Text("No schedules yet. Create a schedule first to use this template.")
                 .foregroundStyle(ActualistTheme.secondaryText)
         } else {
             Picker("Schedule", selection: scheduleBinding) {
@@ -22,8 +22,8 @@ struct BudgetTemplateEditorScheduleFields: View {
             .disabled(!viewModel.isEditable)
 
             Picker("Savings mode", selection: fullBinding) {
-                Text("Save up for the next occurrence").tag(false)
-                Text("Cover each occurrence when it occurs").tag(true)
+                Text("Save up before each due date").tag(false)
+                Text("Pay each one when it is due").tag(true)
             }
             .disabled(!viewModel.isEditable)
 

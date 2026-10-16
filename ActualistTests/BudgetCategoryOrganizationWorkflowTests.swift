@@ -28,12 +28,12 @@ struct BudgetCategoryOrganizationWorkflowTests {
         let income = group("income", "Income", true, [])
 
         #expect(await workflow.createGroup(name: "  ", selectedMonth: "2026-07", budgetID: "budget", repository: repository) == nil)
-        #expect(workflow.errorMessage == "Category group name cannot be empty.")
+        #expect(workflow.errorMessage == "Enter a name for the category group.")
         #expect(await workflow.createCategory(
             name: "Salary", group: income, isTrackingBudget: false,
             selectedMonth: "2026-07", budgetID: "budget", repository: repository
         ) == nil)
-        #expect(workflow.errorMessage == "Income categories cannot be managed in an envelope budget.")
+        #expect(workflow.errorMessage == "Income categories cannot be changed in this type of budget.")
         #expect(await repository.createdCategories.isEmpty)
     }
 

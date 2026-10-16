@@ -112,7 +112,7 @@ struct BudgetAssignmentKeypad: View {
                     .buttonStyle(.glassProminent)
                     .tint(ActualistTheme.accent)
                     .disabled(!canSubmit)
-                    .accessibilityLabel("Save assignment")
+                    .accessibilityLabel("Save budgeted amount")
                 }
             }
         }

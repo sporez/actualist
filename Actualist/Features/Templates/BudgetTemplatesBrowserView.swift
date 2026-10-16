@@ -159,7 +159,7 @@ struct BudgetTemplatesCategoryPickerView: View {
             ReviewSheetListHeader(title: "Category")
             if visibleSections.isEmpty && hiddenSection == nil {
                 ContentUnavailableView(
-                    "No Categories",
+                    "Nothing to Add",
                     systemImage: "sparkles",
                     description: Text("Every category already has a template.")
                 )

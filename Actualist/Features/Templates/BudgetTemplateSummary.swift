@@ -63,14 +63,14 @@ enum BudgetTemplateSummary {
             case .weekly: cadence = "week"
             case .monthly: cadence = "month"
             }
-            return value.hold ? "Limit \(amount)/\(cadence) hold" : "Limit \(amount)/\(cadence)"
+            return value.hold ? "Cap \(amount) per \(cadence), keep extra" : "Cap \(amount) per \(cadence)"
         case .refill:
             return "Refill"
         case .copy(let value):
             if value.lookBack == 1 {
                 return "Copy last month"
             }
-            return "Copy \(value.lookBack) months ago"
+            return "Copy from \(value.lookBack) months ago"
         case .average(let value):
             return "\(value.numMonths)-month average\(adjustmentSummary(value.adjustment, currency: currency, randomized: randomized, seed: seed))"
         case .schedule(let value):

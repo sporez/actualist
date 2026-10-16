@@ -511,7 +511,7 @@ final class BudgetViewportModel {
         monthSnapshots = monthSnapshots.filter { $0.value.modeIdentity == currentIdentity }
         staged = staged.filter { $0.value.modeIdentity == currentIdentity }
         for month in staleMonths where staged[month] == nil {
-            stagedErrors[month] = stagedErrors[month] ?? "Budget changed. Refresh this month."
+            stagedErrors[month] = stagedErrors[month] ?? "This budget changed. Refresh to see the latest."
         }
         monthSnapshots.merge(staged) { _, replacement in replacement }
         for month in staged.keys { monthErrors.removeValue(forKey: month) }

@@ -13,9 +13,9 @@ struct BudgetHoldSheet: View {
     var body: some View {
         Group {
             if appState.settings.randomizedDisplayValuesEnabled {
-                ContentUnavailableView("Sample Values", systemImage: "eye.slash", description: Text("Turn off Sample Values to hold or release money."))
+                ContentUnavailableView("Sample Values", systemImage: "eye.slash", description: Text("Sample Values is on. Turn it off to hold or release money."))
             } else if appState.settings.selectedBudgetID != model.target.budgetID {
-                ContentUnavailableView("Budget Changed", systemImage: "calendar", description: Text("Close this sheet and open the selected budget."))
+                ContentUnavailableView("Different Budget Open", systemImage: "calendar", description: Text("Close this and reopen the budget you want to change."))
             } else if model.draft != nil {
                 reviewContent
             } else if model.isLoading {
@@ -25,7 +25,7 @@ struct BudgetHoldSheet: View {
                     if let error = model.errorMessage {
                         Text(error).foregroundStyle(ActualistTheme.danger)
                     } else {
-                        Text("The review is not loaded.")
+                        Text("Could not load this screen.")
                     }
                     Button("Try Again") { Task { await model.load(using: appState) } }
                         .buttonStyle(.glass)
@@ -187,7 +187,7 @@ struct BudgetHoldSheet: View {
                     Text(error)
                         .font(.callout)
                         .foregroundStyle(ActualistTheme.danger)
-                    Button("Refresh Review") { Task { await model.load(using: appState) } }
+                    Button("Refresh") { Task { await model.load(using: appState) } }
                         .buttonStyle(.glass)
                 }
             }

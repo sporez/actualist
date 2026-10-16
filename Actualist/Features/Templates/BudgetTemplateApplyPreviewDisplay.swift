@@ -67,10 +67,10 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
             && !hasGoalOnlyUpdates && preview.stillNeeded > 0
         let noOpExplanation: String? = {
             guard preview.assigned == 0, preview.released == 0, !hasGoalOnlyUpdates else { return nil }
-            if hasNoFundsWarning { return "No funds are available for the remaining template targets." }
+            if hasNoFundsWarning { return "There is not enough money left to fund the remaining templates." }
             return preview.hasEligibleTemplates
-                ? "Assignments already match their template targets."
-                : "No eligible templates were found for this month."
+                ? "Every category already matches its template."
+                : "No templates apply to this month."
         }()
         let availableBefore = preview.availableBefore
         return BudgetTemplateApplyPreviewDisplay(
@@ -111,7 +111,7 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
             hasNonMoneyUpdates: hasGoalOnlyUpdates,
             noOpExplanation: noOpExplanation,
             hasNoFundsWarning: hasNoFundsWarning,
-            warningText: preview.availableAfter < 0 ? "Over budget after Apply." : nil,
+            warningText: preview.availableAfter < 0 ? "You will be over budget after applying." : nil,
             categories: preview.categories.map { category in
                 Category(
                     id: category.categoryID,
@@ -169,7 +169,7 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
 
     private static func status(for category: BudgetTemplateApplyPreview.Category) -> String {
         if category.evaluatedDemand <= 0 {
-            return category.isGoalOnlyUpdate ? "Goal update" : (category.current == category.proposed ? "No assignment change" : "Updated")
+            return category.isGoalOnlyUpdate ? "Goal only" : (category.current == category.proposed ? "No change" : "Will change")
         }
         if category.shortfall == 0 { return "Fully funded" }
         return category.current == category.proposed ? "Unfunded" : "Partially funded"
@@ -188,10 +188,10 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         randomized: Bool
     ) -> String? {
         if category.isGoalOnlyUpdate {
-            guard let goalAfter = category.goalAfter else { return "Goal target removed" }
+            guard let goalAfter = category.goalAfter else { return "Goal removed" }
             let after = money(goalAfter, currency: currency, randomized: randomized)
-            guard let goalBefore = category.goalBefore else { return "Goal target \(after)" }
-            return "Goal target \(money(goalBefore, currency: currency, randomized: randomized)) → \(after)"
+            guard let goalBefore = category.goalBefore else { return "Goal \(after)" }
+            return "Goal \(money(goalBefore, currency: currency, randomized: randomized)) → \(after)"
         }
         return nil
     }

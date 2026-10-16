@@ -97,8 +97,8 @@ struct BudgetHoldViewModelTests {
         #expect(model.availableText == review.currency.formatted(15_000))
         #expect(model.holdExplanation.contains("replaces it"))
         #expect(model.canRelease)
-        #expect(model.releaseTitle == "Disable Current Auto Hold")
-        #expect(model.releaseMessage.contains("future months stay enabled"))
+        #expect(model.releaseTitle == "Turn Off Automatic Hold")
+        #expect(model.releaseMessage.contains("later months stay on"))
     }
 
     @Test func nonpositiveHoldDoesNotOfferRelease() async {
@@ -122,9 +122,9 @@ struct BudgetHoldViewModelTests {
         await model.load(repository: RecordingBudgetRepository(holdReview: { review }))
         #expect(model.canHold)
         #expect(model.canRelease)
-        #expect(model.releaseTitle == "Reset Manual Hold")
+        #expect(model.releaseTitle == "Remove Manual Hold")
         #expect(model.releaseMessage.contains(review.currency.formatted(20_000)))
-        #expect(model.releaseMessage.contains("will take its place"))
+        #expect(model.releaseMessage.contains("will apply instead"))
     }
 
     @Test func wrongMonthAndConvertedReviewsCannotEnableWrites() async {

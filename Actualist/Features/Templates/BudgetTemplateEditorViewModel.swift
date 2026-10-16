@@ -101,11 +101,11 @@ final class BudgetTemplateEditorViewModel {
 
     var previewStatusText: String {
         switch previewState {
-        case .editing: "Finish editing to update this preview."
+        case .editing: "The preview updates when you finish editing."
         case .loading: "Updating preview…"
-        case .invalid: "Complete the template fields to see a preview."
-        case .failed: "Preview unavailable."
-        case .idle, .empty, .ready: "Preview only. Your budget is unchanged."
+        case .invalid: "Fill in the template to see a preview."
+        case .failed: "Could not show a preview."
+        case .idle, .empty, .ready: "Preview only. Nothing is saved."
         }
     }
 
@@ -275,7 +275,7 @@ final class BudgetTemplateEditorViewModel {
         previewState = .loading
         errorMessage = nil
         guard let budgetID else {
-            errorMessage = "No budget is selected."
+            errorMessage = "Open a budget first."
             phase = .ready
             previewState = .empty
             return
@@ -299,7 +299,7 @@ final class BudgetTemplateEditorViewModel {
                 return
             }
             errorMessage = error.userFacingMessage
-            previewState = error.isCancellation ? .idle : .failed("Templates could not be loaded.")
+            previewState = error.isCancellation ? .idle : .failed("Could not load templates. Try again.")
             phase = .ready
         }
     }

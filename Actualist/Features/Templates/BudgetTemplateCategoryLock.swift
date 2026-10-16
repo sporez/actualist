@@ -16,13 +16,13 @@ enum BudgetTemplateCategoryLock: Equatable, Sendable {
         var testerFacingReason: String {
             switch self {
             case .missingColumns:
-                "This budget cannot store templates."
+                "This budget does not support templates yet."
             case .noteManaged:
-                "This category's templates come from the category note, so they can't be edited here."
+                "This category's templates are set in its note, so they cannot be edited here."
             case .staleNotes:
-                "This category's templates no longer match the category note."
+                "This category's templates no longer match its note."
             case .unsupportedType:
-                "This category uses a template type that can't be edited yet."
+                "This category uses a template that cannot be edited here yet."
             }
         }
     }

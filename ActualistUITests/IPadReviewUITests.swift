@@ -21,7 +21,7 @@ final class IPadReviewUITests: XCTestCase {
         overwrite.tap()
 
         let confirm = app.buttons["template-apply-confirm"]
-        XCTAssertTrue(app.staticTexts["Funding required"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Needed"].waitForExistence(timeout: 10))
         XCTAssertEqual(confirm.label, "Apply Template Overwrite")
         app.buttons["Fill Empty"].tap()
         XCTAssertEqual(confirm.label, "Apply Template")
@@ -128,17 +128,17 @@ final class IPadReviewUITests: XCTestCase {
         let cell = try XCTUnwrap(cells.first { $0.identifier.contains(month) })
         let identity = cell.identifier
         cell.tap()
-        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForExistence(timeout: 5))
         app.buttons["7"].tap()
         restoreWindowOnTeardown(window, width: originalWidth)
         try narrow(window, app: app)
-        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForExistence(timeout: 5))
         screenshot("review-assignment-compact-retained")
         restore(window, width: originalWidth)
-        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForExistence(timeout: 8))
         screenshot("review-assignment-wide-retained")
-        app.buttons["Save assignment"].tap()
-        XCTAssertTrue(app.buttons["Save assignment"].waitForNonExistence(timeout: 5))
+        app.buttons["Save budgeted amount"].tap()
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.buttons[identity].label.contains("0.07"))
     }
 
@@ -158,20 +158,20 @@ final class IPadReviewUITests: XCTestCase {
         let cell = try XCTUnwrap(cells.first { $0.identifier.contains(month) && $0.isHittable })
         let identity = cell.identifier
         cell.tap()
-        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForExistence(timeout: 5))
         app.buttons["7"].tap()
         restoreWindowOnTeardown(window, width: originalWidth)
         var removed = false
         for _ in 0..<8 where !removed {
             XCTAssertTrue(resize(window, by: -60))
             XCTAssertGreaterThanOrEqual(window.frame.width, 792)
-            XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.buttons["Save budgeted amount"].waitForExistence(timeout: 5))
             removed = !app.buttons[identity].exists
         }
         XCTAssertTrue(removed)
         screenshot("resize-departing-month-draft")
-        app.buttons["Save assignment"].tap()
-        XCTAssertTrue(app.buttons["Save assignment"].waitForNonExistence(timeout: 5))
+        app.buttons["Save budgeted amount"].tap()
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForNonExistence(timeout: 5))
         restore(window, width: originalWidth)
         XCTAssertTrue(app.buttons[identity].waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons[identity].label.contains("0.07"))

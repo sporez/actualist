@@ -154,7 +154,7 @@ struct CategoryLifecycleWriteTests {
         #expect(messages.contains { $0.dataset == "categories" && $0.row == "rent" && $0.column == "sort_order" && $0.serializedValue == "N:32768.0" })
 
         let stale = BudgetCategoryOutlineCommand(groups: [.init(id: "bills", categoryIDs: ["missing"])])
-        await #expect(throws: LocalFirstError.invalidLocalWrite("the category outline changed before it could be saved")) {
+        await #expect(throws: LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")) {
             _ = try await database.applyCategoryOutlineMessages(stale, builder: &builder)
         }
         let trackingDatabase = try BudgetDatabase(
@@ -174,7 +174,7 @@ struct CategoryLifecycleWriteTests {
             .init(id: "bills", categoryIDs: ["fuel", "rent"]),
             .init(id: "income", categoryIDs: [])
         ])
-        await #expect(throws: LocalFirstError.invalidLocalWrite("income and expense categories cannot be mixed")) {
+        await #expect(throws: LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")) {
             _ = try await trackingDatabase.applyCategoryOutlineMessages(incomeMove, builder: &builder)
         }
     }
@@ -331,7 +331,7 @@ struct CategoryLifecycleWriteTests {
             categoryID: "clean", transferCategoryID: "destination", builder: &builder
         )
         #expect(messages.contains { $0.dataset == "category_mapping" && $0.column == "transfer_id" })
-        await #expect(throws: LocalFirstError.invalidLocalWrite("income and expense categories cannot be mixed")) {
+        await #expect(throws: LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")) {
             _ = try await database.deleteCategoryMessages(
                 categoryID: "clean", transferCategoryID: "income", builder: &builder
             )

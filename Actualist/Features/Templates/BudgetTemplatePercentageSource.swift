@@ -12,6 +12,6 @@ enum BudgetTemplatePercentageSource {
     static let allIncomeID = "all income"
     static let availableFundsID = "available funds"
 
-    static let allIncomeName = "Total of all income"
-    static let availableFundsName = "Available funds to budget"
+    static let allIncomeName = "All income"
+    static let availableFundsName = "Available funds"
 }

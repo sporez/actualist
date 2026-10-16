@@ -767,7 +767,7 @@ struct BudgetView: View {
                 Image(systemName: "list.bullet.rectangle.portrait")
                     .font(.title)
                     .foregroundStyle(ActualistTheme.accent)
-                Text(viewModel.errorMessage ?? "No local budget data is available for this month.")
+                Text(viewModel.errorMessage ?? "No budget data for this month yet.")
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.primaryText)
                     .multilineTextAlignment(.center)

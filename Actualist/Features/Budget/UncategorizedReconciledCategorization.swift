@@ -29,7 +29,7 @@ struct UncategorizedReconciledCategorization: Hashable, Sendable {
             review: first,
             intent: .categorize,
             title: single.title,
-            message: "Some of the selected transactions are reconciled. Categorizing them can change previously balanced accounts.",
+            message: "Some of the selected transactions are reconciled. Categorizing them may change balances you have already checked.",
             confirmationTitle: "Categorize Transactions"
         )
     }

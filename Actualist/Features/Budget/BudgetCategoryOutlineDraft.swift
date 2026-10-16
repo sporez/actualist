@@ -53,14 +53,14 @@ struct BudgetCategoryOutlineDraft: Equatable, Sendable {
         }),
         let categoryIndex = groups[sourceGroupIndex].categories.firstIndex(where: { $0.id == id }),
         let destinationGroupIndex = groups.firstIndex(where: { $0.id == toGroupID }) else {
-            throw LocalFirstError.invalidLocalWrite("the category outline changed before it could be saved")
+            throw LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")
         }
         let category = groups[sourceGroupIndex].categories[categoryIndex]
         if sourceGroupIndex == destinationGroupIndex, beforeCategoryID == id {
             return
         }
         guard category.isIncome == groups[destinationGroupIndex].isIncome else {
-            throw LocalFirstError.invalidLocalWrite("income and expense categories cannot be mixed")
+            throw LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")
         }
         if groups[destinationGroupIndex].categories.contains(where: {
             $0.id != id && $0.name.compare(category.name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
@@ -69,7 +69,7 @@ struct BudgetCategoryOutlineDraft: Equatable, Sendable {
         }
         if let beforeCategoryID,
            !groups[destinationGroupIndex].categories.contains(where: { $0.id == beforeCategoryID }) {
-            throw LocalFirstError.invalidLocalWrite("the category outline changed before it could be saved")
+            throw LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")
         }
 
         groups[sourceGroupIndex].categories.remove(at: categoryIndex)
@@ -82,17 +82,17 @@ struct BudgetCategoryOutlineDraft: Equatable, Sendable {
 
     mutating func moveGroup(id: String, beforeGroupID: String?) throws {
         guard let moving = groups.first(where: { $0.id == id }) else {
-            throw LocalFirstError.invalidLocalWrite("the category outline changed before it could be saved")
+            throw LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")
         }
         if beforeGroupID == id {
             return
         }
         if let beforeGroupID {
             guard let target = groups.first(where: { $0.id == beforeGroupID }) else {
-                throw LocalFirstError.invalidLocalWrite("the category outline changed before it could be saved")
+                throw LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")
             }
             guard target.isIncome == moving.isIncome else {
-                throw LocalFirstError.invalidLocalWrite("income and expense groups cannot be mixed")
+                throw LocalFirstError.invalidLocalWrite("Income and expense groups cannot be mixed.")
             }
         }
 

@@ -131,7 +131,7 @@ struct BudgetTemplateEditorRegressionTests {
         #expect(await vm.save() == false)
         await vm.load(repository: repository, budgetID: nil)
         #expect(vm.editor.items.isEmpty)
-        #expect(vm.errorMessage == "No budget is selected.")
+        #expect(vm.errorMessage == "Open a budget first.")
         #expect(!vm.canSave)
     }
 

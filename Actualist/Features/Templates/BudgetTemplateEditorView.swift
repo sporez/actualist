@@ -42,7 +42,7 @@ struct BudgetTemplateEditorView: View {
                             .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2, reservesSpace: true)
                     }
                     if viewModel.isPrivacyModeEnabled {
-                        Text("Amounts and notes are hidden in Sample Values. Disable it to edit those fields.")
+                        Text("Amounts and notes are hidden while Sample Values is on. Turn it off to edit them.")
                             .font(.footnote)
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }

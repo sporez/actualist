@@ -97,12 +97,12 @@ final class BudgetHoldViewModel {
 
     var holdExplanation: String {
         if let review = draft?.review, review.isAutomaticHold {
-            return "This month has an automatic income hold. Holding an amount replaces it for this month. Future months’ automatic holds stay enabled."
+            return "An automatic hold is set for this month. Holding an amount here replaces it. Automatic holds for later months stay on."
         }
         if (draft?.review.holdableAmount ?? 0) <= 0 {
-            return "There is no unassigned money to hold in this month. You can still release an existing hold."
+            return "There is no money left in To Budget to hold this month. You can still release an existing hold."
         }
-        return "Set aside unassigned money for \(nextMonthName). Bank balances and category assignments won’t change."
+        return "Set aside money from To Budget for \(nextMonthName). Bank balances and category budgets will not change."
     }
 
     var canRelease: Bool {
@@ -125,8 +125,8 @@ final class BudgetHoldViewModel {
 
     var releaseTitle: String {
         guard let review = draft?.review else { return "Release Held Money" }
-        if review.manualHeldAmount != 0 && review.automaticHeldAmount != 0 { return "Reset Manual Hold" }
-        return review.isAutomaticHold ? "Disable Current Auto Hold" : "Release Held Money"
+        if review.manualHeldAmount != 0 && review.automaticHeldAmount != 0 { return "Remove Manual Hold" }
+        return review.isAutomaticHold ? "Turn Off Automatic Hold" : "Release Held Money"
     }
 
     var releaseConfirmationTitle: String {
@@ -136,10 +136,10 @@ final class BudgetHoldViewModel {
     var releaseMessage: String {
         guard let review = draft?.review else { return "" }
         if review.manualHeldAmount != 0 && review.automaticHeldAmount != 0 {
-            return "Reset the manual hold of \(review.currency.formatted(review.manualHeldAmount))? The automatic hold of \(review.currency.formatted(review.automaticHeldAmount)) will take its place. You can then disable that current auto hold separately."
+            return "Remove your manual hold of \(review.currency.formatted(review.manualHeldAmount))? The automatic hold of \(review.currency.formatted(review.automaticHeldAmount)) will apply instead. You can turn that off separately afterward."
         }
         if review.isAutomaticHold {
-            return "Release \(review.currency.formatted(review.heldAmount)) back to \(monthTitle)? Automatic holds for future months stay enabled."
+            return "Release \(review.currency.formatted(review.heldAmount)) back to \(monthTitle)? Automatic holds for later months stay on."
         }
         return "Release the full \(review.currency.formatted(review.heldAmount)) held for next month back to \(monthTitle)?"
     }

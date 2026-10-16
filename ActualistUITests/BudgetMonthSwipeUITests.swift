@@ -22,7 +22,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         XCTAssertEqual(title(app), original)
         drag(scroll, from: .init(dx: 0.65, dy: 0.5), to: .init(dx: 0.15, dy: 0.5))
         XCTAssertEqual(title(app), original)
-        XCTAssertFalse(app.buttons["Save assignment"].exists)
+        XCTAssertFalse(app.buttons["Save budgeted amount"].exists)
         let first = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'budget-category-'" )).firstMatch
         XCTAssertTrue(first.exists)
         let before = first.frame.minY
@@ -59,7 +59,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
             XCTAssertEqual(title(app), originalTitle)
             XCTAssertEqual(row.frame.minX, originalFrame.minX, accuracy: 1)
             XCTAssertEqual(row.frame.minY, originalFrame.minY, accuracy: 1)
-            XCTAssertFalse(app.buttons["Save assignment"].exists)
+            XCTAssertFalse(app.buttons["Save budgeted amount"].exists)
         }
         scroll.coordinate(withNormalizedOffset: .init(dx: 0.99, dy: 0.5)).press(forDuration: 0.1,
             thenDragTo: scroll.coordinate(withNormalizedOffset: .init(dx: 0.64, dy: 0.5)),
@@ -126,7 +126,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         scroll.swipeDown()
         scroll.swipeDown()
         XCTAssertEqual(title(app), original)
-        XCTAssertFalse(app.buttons["Save assignment"].exists)
+        XCTAssertFalse(app.buttons["Save budgeted amount"].exists)
     }
 
     @MainActor func testBottomRubberBandKeepsAddTransactionCollapsedUntilNextGesture() throws {
@@ -167,7 +167,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         let row = app.buttons["budget-category-rent"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         row.tap()
-        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForExistence(timeout: 5))
         let original = title(app)
         app.buttons["7"].tap()
         let scroll = app.scrollViews["budget-compact-scroll"]
@@ -181,9 +181,9 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         origin.withOffset(.init(dx: scroll.frame.width - 4, dy: visibleHeight * 0.5)).press(forDuration: 0.05,
             thenDragTo: origin.withOffset(.init(dx: scroll.frame.width * 0.5, dy: visibleHeight * 0.5)))
         XCTAssertEqual(title(app), original)
-        XCTAssertTrue(app.buttons["Save assignment"].exists)
+        XCTAssertTrue(app.buttons["Save budgeted amount"].exists)
         app.buttons["Dismiss keypad"].tap()
-        XCTAssertTrue(app.buttons["Save assignment"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForNonExistence(timeout: 5))
         scroll.swipeDown()
         row.press(forDuration: 1)
         XCTAssertTrue(app.buttons["Notes"].waitForExistence(timeout: 5))
@@ -301,10 +301,10 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         let row = app.buttons["budget-category-retirement"]
         for _ in 0..<5 where !row.isHittable { scroll.swipeUp() }
         let original = row.frame.maxY
-        for action in ["Clear amount", "Save assignment", "Details"] {
+        for action in ["Clear amount", "Save budgeted amount", "Details"] {
             row.tap()
             XCTAssertTrue(app.buttons["Dismiss keypad"].waitForExistence(timeout: 5))
-            if action == "Save assignment" { app.buttons["0"].tap() }
+            if action == "Save budgeted amount" { app.buttons["0"].tap() }
             app.buttons[action].tap()
             if action == "Details" {
                 XCTAssertTrue(app.buttons["Close Category Details"].waitForExistence(timeout: 5))

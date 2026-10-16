@@ -30,7 +30,7 @@ struct BudgetTemplateEditorDateTargetFields: View {
             )
         }
         priorityField
-        Text("Repeating targets can be anchored in a past month.")
+        Text("Repeating targets can start in a past month.")
             .font(.footnote)
             .foregroundStyle(ActualistTheme.secondaryText)
     }
@@ -127,7 +127,7 @@ struct BudgetTemplateEditorPercentageFields: View {
         }
         .disabled(!viewModel.isEditable)
         priorityField
-        Text("Percentage templates use income from the selected period. Available funds can only use this month.")
+        Text("Uses income from the month you choose. Available funds only works with this month.")
             .font(.footnote)
             .foregroundStyle(ActualistTheme.secondaryText)
     }

@@ -90,7 +90,7 @@ final class BudgetTemplatesBrowserViewModel {
     var emptyDescription: String {
         hasBudget
             ? "Add a template to a category. Categories with templates appear here."
-            : "Select a budget to manage templates."
+            : "Open a budget to manage templates."
     }
 
     func load(repository: any BudgetRepositoryProtocol, budgetID: String?) async {

@@ -34,17 +34,17 @@ final class BudgetCategoryDeletionWorkflow {
         }
 
         var reviewMessage: String {
-            let transfer = "Are you sure you want to delete it? If so, you must select another category to transfer existing transactions and balance to."
+            let transfer = "Choose another category to take over its transactions and balance."
             switch self {
             case .category:
                 let use = isIncome
-                    ? "\(name) is used by existing transactions or it has a positive leftover balance currently."
-                    : "\(name) is used by existing transactions."
+                    ? "\(name) has transactions or a leftover balance."
+                    : "\(name) has transactions."
                 return "\(use) \(transfer)"
             case .group:
                 let use = isIncome
-                    ? "Categories in the group \(name) are used by existing transactions or it has a positive leftover balance currently."
-                    : "Categories in the group \(name) are used by existing transactions."
+                    ? "Categories in \(name) have transactions or a leftover balance."
+                    : "Categories in \(name) have transactions."
                 return "\(use) \(transfer)"
             }
         }
@@ -128,11 +128,11 @@ final class BudgetCategoryDeletionWorkflow {
     ) async -> LoadedBudgetMonth? {
         guard case .ready(let requiresTransfer) = state, let target else { return nil }
         guard let selectedMonth, let budgetID else {
-            errorMessage = "No budget is open."
+            errorMessage = "Open a budget first."
             return nil
         }
         if requiresTransfer, selectedDestinationID == nil {
-            errorMessage = "Choose a category to receive the existing activity and budget."
+            errorMessage = "Choose a category to receive its transactions and balance."
             return nil
         }
         generation += 1
@@ -174,12 +174,12 @@ final class BudgetCategoryDeletionWorkflow {
     ) async {
         guard isTrackingBudget || !target.isIncome else {
             cancel()
-            errorMessage = "Income categories cannot be managed in an envelope budget."
+            errorMessage = "Income categories cannot be changed in this type of budget."
             return
         }
         guard let budgetID else {
             cancel()
-            errorMessage = "No budget is open."
+            errorMessage = "Open a budget first."
             return
         }
         generation += 1

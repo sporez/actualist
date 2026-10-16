@@ -35,33 +35,33 @@ enum BudgetTemplateAuthoringIssue: Equatable, Sendable {
     var message: String {
         switch self {
         case .invalidEntry(let index):
-            "Template \(index + 1) has an invalid value."
+            "Check the amount in template \(index + 1)."
         case .duplicateType(let kind):
             "Only one \(kind.title) template is allowed in this category."
         case .duplicateSpend:
             "Only one early-spending template is allowed in this category."
         case .refillRequiresLimit:
-            "Refill needs a Balance Limit."
+            "Refill needs a balance cap. Add one first."
         case .limitRequiresContributor:
-            "Balance Limit needs a contributing template."
+            "A balance cap needs another template that puts money in. Add one."
         case .multipleLimits:
-            "Only one Balance Limit is allowed in this category."
+            "Only one balance cap is allowed in this category."
         case .scheduleNotFound:
-            "Choose an available schedule."
+            "Choose a schedule."
         case .percentageSourceNotFound:
-            "Choose an available income source."
+            "Choose an income source."
         case .percentageConflict(_, let source):
-            "Percentage templates for \(source.isEmpty ? "this source" : source) cannot total more than 100%."
+            "Percentages for \(source.isEmpty ? "this source" : source) cannot add up to more than 100%."
         case .schedulePriorityMismatch:
-            "Schedule and Save by Date templates must use the same priority."
+            "Cover Schedule and Save by Date templates must have the same priority."
         case .targetMonthMissing:
-            "Choose a valid target month."
+            "Choose a target month."
         case .targetMonthPast:
-            "A one-time target month must not be in the past."
+            "The target month cannot be in the past."
         case .spendStartMissing:
-            "Enter a month to start early spending."
+            "Choose when early spending starts."
         case .spendStartAfterTarget:
-            "Early spending must start on or before the target month."
+            "Early spending cannot start after the target month."
         }
     }
 }

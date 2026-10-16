@@ -16,7 +16,7 @@ struct BudgetCategoryDeleteSheet: View {
 
                 if let target = controller.deletion.target {
                     ReviewFormCard {
-                        ReviewFormFieldRow(title: "Transfer Required") {
+                        ReviewFormFieldRow(title: "Transfer Needed") {
                             Text(target.reviewMessage)
                                 .font(ActualistTypography.body(for: density))
                                 .foregroundStyle(ActualistTheme.primaryText)
@@ -25,7 +25,7 @@ struct BudgetCategoryDeleteSheet: View {
                     }
 
                     ReviewFormCard {
-                        ReviewFormFieldRow(title: "Transfer To") {
+                        ReviewFormFieldRow(title: "Move To") {
                             Picker("Category", selection: destinationBinding) {
                                 Text("Choose a category").tag(String?.none)
                                 ForEach(controller.deletion.destinations) { destination in

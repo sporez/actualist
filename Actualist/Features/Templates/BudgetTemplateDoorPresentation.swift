@@ -30,7 +30,7 @@ enum BudgetTemplateKind: String, CaseIterable, Hashable, Identifiable, Sendable 
         case .monthlyFixed: "Fixed Amount"
         case .dateTarget: "Save by Date"
         case .percentage: "Percentage"
-        case .balanceLimit: "Balance Limit"
+        case .balanceLimit: "Balance Cap"
         case .refill: "Refill"
         case .copy: "Copy Previous Month"
         case .average: "Average"

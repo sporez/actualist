@@ -5,7 +5,7 @@ struct BudgetModePresentation: Hashable {
     var isTracking = false
     var isIncome = false
 
-    var budgetedLabel: String { isTracking ? "Budgeted" : "Assigned" }
+    var budgetedLabel: String { "Budgeted" }
     var activityLabel: String { isIncome ? "Received" : "Spent" }
     var balanceLabel: String { isTracking ? "Balance" : "Available" }
     var showsBalance: Bool { !isTracking || !isIncome }
@@ -22,8 +22,8 @@ struct BudgetModePresentation: Hashable {
 
     var rolloverTitle: String { isTracking ? "Rollover Balance" : "Rollover Overspending" }
     var rolloverExplanation: String {
-        isTracking ? "Carry this category’s balance into the next month."
-            : "Carry this category’s negative balance into following months."
+        isTracking ? "Roll this category’s balance over into the next month."
+            : "Roll this category’s negative balance over into the next month."
     }
     func activityAmount(_ signedActivity: Int) -> Int { isIncome ? signedActivity : -signedActivity }
 }

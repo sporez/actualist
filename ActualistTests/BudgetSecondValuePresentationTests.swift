@@ -6,7 +6,7 @@ struct BudgetSecondValuePresentationTests {
         let envelope = BudgetModePresentation()
         let expense = BudgetModePresentation(isTracking: true)
         let income = BudgetModePresentation(isTracking: true, isIncome: true)
-        #expect(envelope.budgetedLabel == "Assigned")
+        #expect(envelope.budgetedLabel == "Budgeted")
         #expect(expense.budgetedLabel == "Budgeted")
         #expect(income.budgetedLabel == "Budgeted")
         for (semantics, label, amount) in [(envelope, "Available", -123), (expense, "Balance", -123), (income, "Received", 456)] {

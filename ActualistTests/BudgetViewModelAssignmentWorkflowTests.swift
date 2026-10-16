@@ -131,13 +131,13 @@ struct BudgetViewModelAssignmentWorkflowTests {
         )
 
         await model.setCarryover(true, budgetID: "budget", repository: repository)
-        #expect(model.carryoverErrorMessage == "Income rollover is unavailable for tracking budgets.")
+        #expect(model.carryoverErrorMessage == "Rollover is not available for income in tracking budgets.")
         #expect(!model.isCarryoverEnabled)
 
         model.isCarryoverEnabled = true
         model.carryoverErrorMessage = nil
         await model.setCarryover(false, budgetID: "budget", repository: repository)
-        #expect(model.carryoverErrorMessage == "Income rollover is unavailable for tracking budgets.")
+        #expect(model.carryoverErrorMessage == "Rollover is not available for income in tracking budgets.")
         #expect(model.isCarryoverEnabled)
     }
 

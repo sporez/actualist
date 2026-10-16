@@ -55,7 +55,7 @@ struct BudgetGridMonthHeaders: View {
                         Text(savings.expensesText).font(.caption)
                     }
                     if let assigned = month.assignedText {
-                        Text("Assigned \(assigned)")
+                        Text("Budgeted \(assigned)")
                             .font(.caption)
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }

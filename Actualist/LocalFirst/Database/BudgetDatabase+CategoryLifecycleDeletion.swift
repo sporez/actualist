@@ -34,7 +34,7 @@ extension BudgetDatabase {
                     throw LocalFirstError.invalidLocalWrite("a category cannot transfer to itself")
                 }
                 guard destination.isIncome == category.isIncome else {
-                    throw LocalFirstError.invalidLocalWrite("income and expense categories cannot be mixed")
+                    throw LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")
                 }
                 if !category.isIncome {
                     messages += try categoryBudgetTransferMessages(
@@ -81,10 +81,10 @@ extension BudgetDatabase {
                     throw LocalFirstError.invalidLocalWrite("a category group cannot transfer within itself")
                 }
                 guard destination.isIncome == group.isIncome else {
-                    throw LocalFirstError.invalidLocalWrite("income and expense categories cannot be mixed")
+                    throw LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")
                 }
                 guard allChildren.allSatisfy({ $0.isIncome == destination.isIncome }) else {
-                    throw LocalFirstError.invalidLocalWrite("income and expense categories cannot be mixed")
+                    throw LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")
                 }
                 let liveChildIDs = liveChildren.map(\.id)
                 let allChildIDs = allChildren.map(\.id)

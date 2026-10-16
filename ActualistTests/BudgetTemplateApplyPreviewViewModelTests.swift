@@ -198,7 +198,7 @@ struct BudgetTemplateApplyPreviewViewModelTests {
                 overwrite: .ready(.empty)
             ))
         )
-        #expect(viewModel.errorMessage == "Template preview unavailable for this option.")
+        #expect(viewModel.errorMessage == "Could not show a preview. Try again.")
         #expect(!viewModel.canApply)
     }
 

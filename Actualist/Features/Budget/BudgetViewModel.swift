@@ -396,7 +396,7 @@ final class BudgetViewModel {
         let commands = overspentCoverCommands(source: source)
         guard commands.count == selectedOverspentCategoryIDs.count else {
             overspentCoverSelection.finishSubmission(success: false)
-            errorMessage = "One or more selected categories are no longer overspent."
+            errorMessage = "Some selected categories are no longer overspent. Review the list and try again."
             return false
         }
 

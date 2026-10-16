@@ -13,7 +13,7 @@ struct EncryptedBudgetUnlockSheet: View {
 
     var body: some View {
         ReviewSheetContent {
-            ReviewSheetHeader(title: "Unlock Budget", subtitle: "Enter this budget's encryption password.")
+            ReviewSheetHeader(title: "Unlock Budget", subtitle: "Enter the password you set to encrypt this budget.")
             ReviewFormCard {
                 ReviewFormFieldRow(title: "Encryption Password") {
                     SecureField("Encryption Password", text: $encryptionPassword)

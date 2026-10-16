@@ -7,12 +7,12 @@ struct BudgetTemplateReviewContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(spacing: 7) {
-                ReviewSummaryRow(title: "Funding required", value: display.fundingRequiredText, symbol: "dollarsign.circle")
-                ReviewSummaryRow(title: "Will assign", value: display.assignedText, symbol: "plus")
+                ReviewSummaryRow(title: "Needed", value: display.fundingRequiredText, symbol: "dollarsign.circle")
+                ReviewSummaryRow(title: "Will budget", value: display.assignedText, symbol: "plus")
                 if let releasedText = display.releasedText {
                     ReviewSummaryRow(title: display.releasedTitle, value: releasedText, symbol: "arrow.uturn.backward")
                 }
-                ReviewSummaryRow(title: "Still needed", value: display.stillNeededText, symbol: "minus",
+                ReviewSummaryRow(title: "Still short", value: display.stillNeededText, symbol: "minus",
                                  valueColor: display.hasOutstandingFunding ? ActualistTheme.warning : nil)
                 ReviewSummaryRow(title: display.leftoverTitle,
                                  value: "\(display.leftoverBeforeText) → \(display.leftoverAfterText)",
@@ -26,7 +26,7 @@ struct BudgetTemplateReviewContent: View {
                 message(warningText, color: ActualistTheme.danger, symbol: "exclamationmark.circle")
             }
             if display.hasNonMoneyUpdates {
-                Text("Goal targets will also be updated.")
+                Text("Goals will also be updated.")
                     .font(.footnote)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
@@ -191,7 +191,7 @@ private struct BudgetTemplateReviewCategoryCard: View {
             .monospacedDigit()
             .foregroundStyle(ActualistTheme.primaryText)
             .fixedSize()
-            .accessibilityLabel("Assignment \(category.currentText) to \(category.proposedText)")
+            .accessibilityLabel("Budgeted \(category.currentText) to \(category.proposedText)")
     }
 
     private var metricDivider: some View {

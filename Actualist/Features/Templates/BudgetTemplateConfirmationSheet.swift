@@ -94,7 +94,7 @@ struct BudgetTemplateConfirmationSheet: View {
 
     @ViewBuilder
     private var modePicker: some View {
-        Picker("Apply mode", selection: Binding(
+        Picker("How to Apply", selection: Binding(
             get: { viewModel.selectedMode ?? initialMode },
             set: { viewModel.selectMode($0) }
         )) {

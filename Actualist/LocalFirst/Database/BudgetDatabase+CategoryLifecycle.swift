@@ -150,7 +150,7 @@ extension BudgetDatabase {
                   Set(desiredCategoryIDs).count == desiredCategoryIDs.count,
                   Set(desiredGroupIDs) == Set(managedGroups.map(\.id)),
                   Set(desiredCategoryIDs) == Set(managedCategories.map(\.id)) else {
-                throw LocalFirstError.invalidLocalWrite("the category outline changed before it could be saved")
+                throw LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")
             }
 
             let groupsByID = Dictionary(uniqueKeysWithValues: allGroups.map { ($0.id, $0) })
@@ -158,12 +158,12 @@ extension BudgetDatabase {
             let existingKinds = managedGroups.map(\.isIncome)
             let desiredKinds = try desiredGroupIDs.map { id in
                 guard let group = groupsByID[id] else {
-                    throw LocalFirstError.invalidLocalWrite("the category outline changed before it could be saved")
+                    throw LocalFirstError.invalidLocalWrite("Your categories changed before this could be saved. Try again.")
                 }
                 return group.isIncome
             }
             guard existingKinds == desiredKinds else {
-                throw LocalFirstError.invalidLocalWrite("income and expense groups cannot be mixed")
+                throw LocalFirstError.invalidLocalWrite("Income and expense groups cannot be mixed.")
             }
 
             for desiredGroup in command.groups {
@@ -172,7 +172,7 @@ extension BudgetDatabase {
                 for categoryID in desiredGroup.categoryIDs {
                     guard let category = categoriesByID[categoryID] else { continue }
                     guard category.isIncome == group.isIncome else {
-                        throw LocalFirstError.invalidLocalWrite("income and expense categories cannot be mixed")
+                        throw LocalFirstError.invalidLocalWrite("Income and expense categories cannot be mixed.")
                     }
                     let folded = category.name.lowercased()
                     guard names.insert(folded).inserted else {

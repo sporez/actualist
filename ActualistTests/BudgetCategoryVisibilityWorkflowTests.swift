@@ -40,7 +40,7 @@ struct BudgetCategoryVisibilityWorkflowTests {
         )
 
         #expect(loaded == nil)
-        #expect(workflow.errorMessage == "Show the group before changing a category.")
+        #expect(workflow.errorMessage == "Show the group first to change this category.")
         #expect(await repository.recordedCategoryHides().isEmpty)
     }
 

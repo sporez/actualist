@@ -180,7 +180,7 @@ struct BudgetTemplateDefinitionTests {
             lock(source: nil, noteHasDirectives: true, json: json) == .readOnly(.noteManaged)
         )
         #expect(
-            lock(source: "note", json: json).testerFacingReason?.contains("category note") == true
+            lock(source: "note", json: json).testerFacingReason?.contains("set in its note") == true
         )
     }
 
@@ -307,7 +307,7 @@ struct BudgetTemplateDefinitionTests {
                 currency: currency,
                 randomized: false,
                 seed: "a"
-            ) == "\(currency.formatted(2_000))/mo · Limit \(currency.formatted(20_000))/month"
+            ) == "\(currency.formatted(2_000))/mo · Cap \(currency.formatted(20_000)) per month"
         )
         #expect(
             BudgetTemplateSummary.line(
@@ -315,7 +315,7 @@ struct BudgetTemplateDefinitionTests {
                 currency: currency,
                 randomized: false,
                 seed: "b"
-            ) == "Limit \(currency.formatted(100_000))/month hold"
+            ) == "Cap \(currency.formatted(100_000)) per month, keep extra"
         )
         #expect(
             BudgetTemplateSummary.line(
@@ -323,7 +323,7 @@ struct BudgetTemplateDefinitionTests {
                 currency: currency,
                 randomized: false,
                 seed: "c"
-            ) == "Copy last month · Copy 3 months ago · 6-month average · Goal \(currency.formatted(50_000))"
+            ) == "Copy last month · Copy from 3 months ago · 6-month average · Goal \(currency.formatted(50_000))"
         )
         #expect(
             BudgetTemplateSummary.line(

@@ -268,7 +268,7 @@ final class UncategorizedTransactionsViewModel {
         let selected = selectedTransactions
         guard selected.count == selectedTransactionIDs.count,
               selected.allSatisfy(canCategorize) else {
-            errorMessage = "One or more selected transactions can no longer be categorized."
+            errorMessage = "Some selected transactions cannot be categorized anymore."
             return .failed
         }
 

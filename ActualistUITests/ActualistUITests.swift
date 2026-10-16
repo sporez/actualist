@@ -183,7 +183,7 @@ final class ActualistUITests: XCTestCase {
             .firstMatch
         XCTAssertTrue(popover.waitForExistence(timeout: 5))
         app.buttons[before.hasSuffix("0.01") ? "2" : "1"].tap()
-        app.buttons["Save assignment"].tap()
+        app.buttons["Save budgeted amount"].tap()
         XCTAssertTrue(popover.waitForNonExistence(timeout: 5))
         XCTAssertNotEqual(cell.label, before)
         attachScreenshot(named: "wide-assignment-saved", app: app)
@@ -657,7 +657,7 @@ final class ActualistUITests: XCTestCase {
         XCTAssertTrue(group.waitForExistence(timeout: 5))
         XCTAssertTrue(firstCategory.waitForExistence(timeout: 5))
         XCTAssertTrue(group.label.contains("Essentials"))
-        XCTAssertTrue(group.label.contains("Assigned"))
+        XCTAssertTrue(group.label.contains("Budgeted"))
         XCTAssertTrue(group.label.contains("Available"))
         XCTAssertGreaterThan(group.frame.height, 120)
         XCTAssertLessThanOrEqual(group.frame.maxY, firstCategory.frame.minY)

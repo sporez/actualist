@@ -35,7 +35,7 @@ final class TrackingBudgetUITests: XCTestCase {
         app.buttons["1"].tap()
         app.buttons["2"].tap()
         app.buttons["3"].tap()
-        app.buttons["Save assignment"].tap()
+        app.buttons["Save budgeted amount"].tap()
         XCTAssertTrue(income.waitForExistence(timeout: 5))
         capture("tracking-income-saved", app)
         if wide {
@@ -230,9 +230,9 @@ final class TrackingBudgetUITests: XCTestCase {
         let first = assigned.firstMatch
         let before = first.label
         first.tap()
-        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForExistence(timeout: 5))
         app.buttons["7"].tap()
-        XCTAssertTrue(app.buttons["Save assignment"].isEnabled)
+        XCTAssertTrue(app.buttons["Save budgeted amount"].isEnabled)
         app.buttons["Dismiss keypad"].tap()
         XCTAssertEqual(first.label, before)
 
@@ -260,7 +260,7 @@ final class TrackingBudgetUITests: XCTestCase {
         XCTAssertTrue(first.waitForExistence(timeout: 15))
         let before = first.label
         first.tap()
-        XCTAssertTrue(app.buttons["Save assignment"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForExistence(timeout: 5))
         app.typeKey("7", modifierFlags: [])
         let typedSeven = app.staticTexts.matching(identifier: "assignment-popover").matching(NSPredicate(format: "label == '7.00'")).firstMatch
         // The simulator does not deliver hardware key events to the app on every
@@ -269,7 +269,7 @@ final class TrackingBudgetUITests: XCTestCase {
         guard typedSeven.waitForExistence(timeout: 5) else {
             throw XCTSkip("Simulator did not deliver hardware key events; Escape is covered by IPadAssignmentHandoffTests/escapeCancelsTheSharedDraftWithoutWriting")
         }
-        XCTAssertTrue(app.buttons["Save assignment"].isEnabled)
+        XCTAssertTrue(app.buttons["Save budgeted amount"].isEnabled)
         app.typeKey("8", modifierFlags: [])
         XCTAssertTrue(app.staticTexts.matching(identifier: "assignment-popover").matching(NSPredicate(format: "label == '78.00'")).firstMatch.waitForExistence(timeout: 5))
         // Escape is deliberately not asserted here. When this test's keys were delivered
@@ -278,7 +278,7 @@ final class TrackingBudgetUITests: XCTestCase {
         // dropped Escape from an ignored one. The Escape mapping is covered by
         // BudgetAssignmentHardwareInputTests and IPadAssignmentHandoffTests.
         app.buttons["Dismiss keypad"].tap()
-        XCTAssertTrue(app.buttons["Save assignment"].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Save budgeted amount"].waitForNonExistence(timeout: 5))
         XCTAssertEqual(first.label, before)
     }
 

@@ -23,7 +23,7 @@ final class BudgetCategoryOrganizationWorkflow {
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard isTrackingBudget || !group.isIncome else {
-            errorMessage = "Income categories cannot be managed in an envelope budget."
+            errorMessage = "Income categories cannot be changed in this type of budget."
             return nil
         }
         guard let name = validatedName(name, kind: "Category") else { return nil }
@@ -55,7 +55,7 @@ final class BudgetCategoryOrganizationWorkflow {
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard isTrackingBudget || !category.isIncome else {
-            errorMessage = "Income categories cannot be managed in an envelope budget."
+            errorMessage = "Income categories cannot be changed in this type of budget."
             return nil
         }
         guard let name = validatedName(name, kind: "Category"), name != category.name else { return nil }
@@ -75,7 +75,7 @@ final class BudgetCategoryOrganizationWorkflow {
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard isTrackingBudget || !group.isIncome else {
-            errorMessage = "Income groups cannot be managed in an envelope budget."
+            errorMessage = "Income groups cannot be changed in this type of budget."
             return nil
         }
         guard let name = validatedName(name, kind: "Category group"), name != group.name else { return nil }
@@ -89,7 +89,7 @@ final class BudgetCategoryOrganizationWorkflow {
     private func validatedName(_ name: String, kind: String) -> String? {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            errorMessage = "\(kind) name cannot be empty."
+            errorMessage = "Enter a name for the \(kind.lowercased())."
             return nil
         }
         return trimmed
@@ -102,7 +102,7 @@ final class BudgetCategoryOrganizationWorkflow {
     ) async -> LoadedBudgetMonth? {
         guard !isSubmitting else { return nil }
         guard let selectedMonth, let budgetID else {
-            errorMessage = "No budget is open."
+            errorMessage = "Open a budget first."
             return nil
         }
         isSubmitting = true

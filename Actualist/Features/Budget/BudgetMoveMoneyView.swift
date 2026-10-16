@@ -192,7 +192,7 @@ struct BudgetMoveMoneyView: View {
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
                 .disabled(draft.isSubmitting)
-                .accessibilityLabel("Switch move money direction")
+                .accessibilityLabel("Reverse direction")
                 .frame(maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity)

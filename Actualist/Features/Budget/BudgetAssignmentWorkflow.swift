@@ -228,7 +228,7 @@ final class BudgetAssignmentWorkflow {
         }
 
         guard let finalBudgeted = draft.validatedFinalBudgeted else {
-            draft.submissionState = .failed("The assigned amount is too large.")
+            draft.submissionState = .failed("That amount is too large.")
             self.draft = draft
             return nil
         }

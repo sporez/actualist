@@ -126,8 +126,8 @@ struct BudgetCategoryDeletionWorkflowTests {
             id: "income", name: "Paycheck", isIncome: true
         )
 
-        #expect(target.reviewMessage.contains("positive leftover balance currently"))
-        #expect(target.reviewMessage.contains("must select another category"))
+        #expect(target.reviewMessage.contains("has transactions or a leftover balance"))
+        #expect(target.reviewMessage.contains("Choose another category to take over"))
     }
 
     @Test func envelopeIncomeIntentNeverReachesRepository() async {
@@ -142,7 +142,7 @@ struct BudgetCategoryDeletionWorkflowTests {
         )
 
         #expect(workflow.state == .idle)
-        #expect(workflow.errorMessage == "Income categories cannot be managed in an envelope budget.")
+        #expect(workflow.errorMessage == "Income categories cannot be changed in this type of budget.")
         #expect(await repository.transferChecks.isEmpty)
     }
 

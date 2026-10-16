@@ -131,9 +131,9 @@ struct BudgetTemplateEditorItemSection: View {
             }
             .disabled(!viewModel.isEditable)
         }
-        Toggle("Retain existing funds over the cap", isOn: limitHoldBinding)
+        Toggle("Keep money over the cap", isOn: limitHoldBinding)
             .disabled(!viewModel.isEditable)
-        Text("Weekly and daily caps change with the number of days or weeks in each month.")
+        Text("Weekly and daily caps change with the number of weeks or days in each month.")
             .font(.footnote)
             .foregroundStyle(ActualistTheme.secondaryText)
     }
@@ -142,10 +142,10 @@ struct BudgetTemplateEditorItemSection: View {
     private var refillFields: some View {
         inputField("Priority", field: .priority)
         if !viewModel.editor.hasBalanceLimit {
-            Text("Add a Balance Limit to set the refill target.")
+            Text("Refill tops up to the balance cap. Add a balance cap first.")
                 .font(.footnote)
                 .foregroundStyle(ActualistTheme.secondaryText)
-            Button("Add Balance Limit") {
+            Button("Add Balance Cap") {
                 viewModel.edit(.add(.balanceLimit))
             }
             .disabled(!viewModel.canAddBalanceLimit)

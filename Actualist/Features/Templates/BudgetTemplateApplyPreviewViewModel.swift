@@ -83,7 +83,7 @@ final class BudgetTemplateApplyPreviewViewModel {
             return message
         case .paired(let pair, let randomized):
             guard case .failed(let message) = selectedOutcome(in: pair) else { return nil }
-            return randomized ? "Template preview unavailable for this option." : message
+            return randomized ? "Could not show a preview. Try again." : message
         case .idle, .loading, .refreshing, .categoryReady:
             return nil
         }
@@ -198,19 +198,19 @@ final class BudgetTemplateApplyPreviewViewModel {
         }
 
         guard let budgetID, !budgetID.isEmpty else {
-            fail("No budget is selected.", generation: requestGeneration)
+            fail("Open a budget first.", generation: requestGeneration)
             return
         }
         let trimmedMonth = month.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedMonth.isEmpty else {
-            fail("No month is selected.", generation: requestGeneration)
+            fail("Choose a month first.", generation: requestGeneration)
             return
         }
 
         do {
             if confirmation == .category {
                 guard let categoryID, let command = confirmation.command(categoryID: categoryID) else {
-                    fail("No category is selected.", generation: requestGeneration)
+                    fail("Choose a category first.", generation: requestGeneration)
                     return
                 }
                 let preview = try await repository.previewBudgetTemplate(
@@ -240,7 +240,7 @@ final class BudgetTemplateApplyPreviewViewModel {
         } catch {
             guard requestGeneration == loadGeneration, !Task.isCancelled else { return }
             if let message = error.userFacingMessage {
-                fail(randomized ? "Template preview unavailable." : message, generation: requestGeneration)
+                fail(randomized ? "Could not show a preview. Try again." : message, generation: requestGeneration)
             } else {
                 state = .idle
             }
@@ -254,7 +254,7 @@ final class BudgetTemplateApplyPreviewViewModel {
 
     private func selectedOutcome(in pair: BudgetTemplateApplyPreviewPair) -> BudgetTemplatePreviewOutcome {
         guard let selectedMode else {
-            return .failed("No template mode is selected.")
+            return .failed("Choose how to apply templates.")
         }
         return selectedMode == .fillEmpty ? pair.fillEmpty : pair.overwrite
     }
