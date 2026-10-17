@@ -42,7 +42,7 @@ struct RootView: View {
                 }
             }
         }
-        .id("\(appState.settings.theme.rawValue)-\(appState.themeRevision)")
+        .id(appState.themeIdentity)
         .background(theme.background.ignoresSafeArea())
         .tint(theme.chromeForeground)
         .environment(\.actualistDensity, appState.settings.displayDensity)

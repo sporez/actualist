@@ -88,6 +88,10 @@ extension AppState {
         settingsStore.save(settings)
     }
 
+    /// Changes with every theme change. The palette is static, so a view that
+    /// must redraw in a new theme uses this as its `.id`.
+    var themeIdentity: String { "\(settings.theme.rawValue)-\(themeRevision)" }
+
     func updateTheme(_ theme: ActualistThemeOption) {
         settings.theme = theme
         ActualistTheme.activate(theme)
