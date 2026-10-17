@@ -167,6 +167,7 @@ struct SimulatorLaunchApplierTests {
         state.setupPhase = .ready
         state.settings.selectedBudgetID = "real-budget"
         state.settings.selectedLocalFirstFileID = "real-file"
+        state.settings.theme = .coastalSageLight
 
         await SimulatorLaunchApplier.apply(
             SimulatorLaunchCommand(
@@ -180,6 +181,7 @@ struct SimulatorLaunchApplierTests {
 
         #expect(state.isDemoMode == false)
         #expect(state.settings.selectedBudgetID == "real-budget")
+        #expect(state.settings.theme == .coastalSageLight)
         #expect(state.selectedTab == .spending)
         #expect(state.routeCoordinator.pendingRoute == .tab(.spending))
     }
@@ -200,6 +202,90 @@ struct SimulatorLaunchApplierTests {
         #expect(state.setupPhase == .needsConnection)
         #expect(state.settings.selectedLocalFirstFileID == nil)
         #expect(state.settings.selectedLocalFirstGroupID == nil)
+    }
+
+    @Test func replacementFlagResetsPreferencesLeftByAnEarlierDemoSession() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+        state.setupPhase = .ready
+        state.settings.selectedBudgetID = DemoBudget.groupID
+        state.settings.selectedLocalFirstFileID = DemoBudget.fileID
+        state.settings.selectedLocalFirstGroupID = DemoBudget.groupID
+        state.settings.theme = .actualPurpleLight
+        state.settings.randomizedDisplayValuesEnabled = true
+        state.settings.monthSwipingEnabled = true
+        state.settings.categoryGroupExpansionByBudgetID[DemoBudget.groupID] =
+            BudgetGroupExpansion(choices: ["lifestyle": false])
+        state.settings.shortcutsLockedLoggingEnabled = true
+
+        SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(
+            SimulatorLaunchCommand(replaceDemoForUITesting: true),
+            appState: state
+        )
+
+        #expect(state.setupPhase == .needsConnection)
+        #expect(state.settings == AppSettings(shortcutsLockedLoggingEnabled: true))
+        #expect(AppSettingsStore(defaults: defaults).load() == state.settings)
+    }
+
+    @Test func replacementFlagResetsPreferencesAtOnboardingWithNoSelection() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+        state.setupPhase = .needsConnection
+        state.settings.theme = .actualPurpleLight
+        state.settings.appSwitcherPrivacyMode = .always
+
+        SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(
+            SimulatorLaunchCommand(replaceDemoForUITesting: true),
+            appState: state
+        )
+
+        #expect(state.settings == AppSettings())
+    }
+
+    @Test func repeatedReplacementDoesNotRebuildTheRootView() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+        state.setupPhase = .needsConnection
+        state.settings.theme = .actualPurpleLight
+        let replace = SimulatorLaunchCommand(replaceDemoForUITesting: true)
+
+        SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(replace, appState: state)
+        let revision = state.themeRevision
+        SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(replace, appState: state)
+
+        #expect(revision == 1)
+        #expect(state.themeRevision == revision)
+        #expect(state.settings == AppSettings())
+    }
+
+    @Test func replacementWithDefaultThemeKeepsTheRootView() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+        state.setupPhase = .needsConnection
+        state.settings.randomizedDisplayValuesEnabled = true
+
+        SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(
+            SimulatorLaunchCommand(replaceDemoForUITesting: true),
+            appState: state
+        )
+
+        #expect(state.themeRevision == 0)
+        #expect(state.settings == AppSettings())
+    }
+
+    @Test func demoFlagAloneKeepsPreferences() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+        state.setupPhase = .needsConnection
+        state.settings.theme = .actualPurpleLight
+
+        SimulatorLaunchApplier.prepareDemoReplacementIfNeeded(
+            SimulatorLaunchCommand(enterDemo: true),
+            appState: state
+        )
+
+        #expect(state.settings.theme == .actualPurpleLight)
     }
 
     @Test func replacementFlagReinstallsTrackingFixtureOverExistingDemo() async throws {

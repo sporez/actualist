@@ -139,6 +139,25 @@ extension AppState {
         settings.reportCardOrder = ReportCardOrderPreference.defaultOrder
         settingsStore.save(settings)
     }
+
+    #if DEBUG
+    /// UI tests only, with no budget selected. Puts every preference back to
+    /// its default so one test's theme, Sample Values or group expansion
+    /// cannot reach a later test on the same simulator. Locked-logging consent
+    /// is kept because it mirrors the Keychain items' accessibility.
+    /// Launch applies the flag twice. A theme change rebuilds the root view
+    /// and can drop the launch route, so only an actual change re-themes.
+    func resetPreferencesForUITesting() {
+        let defaults = AppSettings(shortcutsLockedLoggingEnabled: settings.shortcutsLockedLoggingEnabled)
+        guard settings != defaults else { return }
+        if settings.theme != defaults.theme {
+            ActualistTheme.activate(defaults.theme)
+            themeRevision += 1
+        }
+        settings = defaults
+        settingsStore.save(settings)
+    }
+    #endif
 }
 
 extension AppState: BudgetGroupExpansionStore {}
