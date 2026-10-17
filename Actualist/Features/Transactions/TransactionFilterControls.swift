@@ -56,12 +56,12 @@ struct TransactionStatusFilterIndicator: View {
                         .font(.caption.weight(.bold))
                 }
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(ActualistTheme.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
             }
             .buttonStyle(.glass)
-            .tint(ActualistTheme.accent)
             .accessibilityLabel("Clear \(selection.title) Filter")
             Spacer(minLength: 0)
         }
@@ -83,12 +83,12 @@ struct TransactionStructuredFilterIndicator: View {
                         .font(.caption.weight(.bold))
                 }
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(ActualistTheme.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
             }
             .buttonStyle(.glass)
-            .tint(ActualistTheme.accent)
             .accessibilityLabel("Clear More Filters, \(conditionCount) \(conditionCount == 1 ? "condition" : "conditions")")
             .accessibilityIdentifier("transaction-filter-clear-structured")
             Spacer(minLength: 0)
