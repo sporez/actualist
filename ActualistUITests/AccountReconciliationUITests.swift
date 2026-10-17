@@ -15,7 +15,7 @@ final class AccountReconciliationUITests: XCTestCase {
         let targetField = app.descendants(matching: .any)["reconciliation-target-field"]
         XCTAssertTrue(targetField.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts[
-            "Enter the current balance of your bank account that you want to reconcile with:"
+            "Enter the balance your bank shows right now."
         ].exists)
         XCTAssertTrue(app.staticTexts["Cleared balance"].exists)
         XCTAssertTrue(app.staticTexts["Last reconciled"].exists)
