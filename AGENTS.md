@@ -621,11 +621,23 @@ Supported entry points:
 
 When `ACTUALIST_TEST_PARALLEL` is unset:
 - `unit` enables parallel testing.
-- `ui` and `all` remain serial.
+- `ui` runs the selected UI suites in parallel on simulator clones
+  (`ACTUALIST_UI_TEST_WORKERS`, default 4), then the serial-only suites in a
+  second, serial pass. `all` adds a parallel unit pass first.
+- The serial-only list is `serial_ui_suites` in `scripts/test.sh`, each with
+  its reason. Today it holds only `LabBudgetSwitchUITests`, which signs in to
+  the shared lab server. Add a suite there only for state a clone cannot
+  isolate, never to hide a flaky test.
 
-Explicit `ACTUALIST_TEST_PARALLEL=1` enables parallel testing for the selected
-mode. Explicit `ACTUALIST_TEST_PARALLEL=0` disables it. Other values, including an
-explicitly empty value, are invalid.
+Explicit `ACTUALIST_TEST_PARALLEL=1` runs the whole selection in one parallel
+pass. Explicit `ACTUALIST_TEST_PARALLEL=0` runs it in one serial pass. Other
+values, including an explicitly empty value, are invalid.
+
+UI tests must not depend on test order. Each test's first launch passes
+`-actualist-replace-demo-for-ui-testing`, which reinstalls the demo and resets
+every app preference. Later launches in the same test omit it to keep what the
+test set. Device state the app cannot reset, such as Reduce Motion in the
+Settings app, is restored in `addTeardownBlock`, never in `defer`.
 
 Use the normal defaults unless the user or an approved diagnostic plan
 explicitly specifies another mode. Serial execution is a diagnostic escape
@@ -682,11 +694,11 @@ that a unit-only run.
   new replay suite follows the same pattern.
 - `scripts/test.sh` keeps the run output in `.artifacts/last-test-run.log` and
   fails when a test host was replaced mid-run (the same host name under a
-  second pid). Swift Testing and the result bundle silently omit the tests that
-  were still running in the replaced host, so a green summary alone is not
-  proof of a complete run. It also fails a run that reports no test at all
-  (exit 4); a Swift Testing method selector needs its `()`, e.g.
-  `Suite/test()`.
+  second pid within one pass). Swift Testing and the result bundle silently
+  omit the tests that were still running in the replaced host, so a green
+  summary alone is not proof of a complete run. It also fails a run that
+  reports no test at all (exit 4); a Swift Testing method selector needs its
+  `()`, e.g. `Suite/test()`.
 - Do not split targets or broadly reorganize fixtures as routine flake recovery.
   A future split needs an approved purpose, dependency analysis, and complete
   before/after test inventories. File prefixes alone are not dependency
