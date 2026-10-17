@@ -5,6 +5,9 @@ import AppIntents
 final class ActualistUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    /// The first launch of each test resets the demo and preferences; later launches keep them.
+    private var hasReplacedDemo = false
+
     @MainActor
     func testCompactBudgetKeepsNativeTabsAndBottomAddTransaction() throws {
         XCUIDevice.shared.orientation = .portrait
@@ -590,13 +593,15 @@ final class ActualistUITests: XCTestCase {
         let reduceMotion = settings.switches["REDUCE_MOTION"]
         XCTAssertTrue(reduceMotion.waitForExistence(timeout: 5))
         let original = reduceMotion.value as? String
+        addTeardownBlock { @MainActor in
+            let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+            settings.activate()
+            let reduceMotion = settings.switches["REDUCE_MOTION"]
+            if reduceMotion.value as? String != original { reduceMotion.switches.firstMatch.tap() }
+        }
         if original != "1" { reduceMotion.switches.firstMatch.tap() }
         let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '1'"), object: reduceMotion)
         XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 5), .completed)
-        defer {
-            settings.activate()
-            if reduceMotion.value as? String != original { reduceMotion.switches.firstMatch.tap() }
-        }
         try testNativeWindowResizeTransitionsThroughWideSidebarAndCompactModes()
     }
 
@@ -620,7 +625,12 @@ final class ActualistUITests: XCTestCase {
         dynamicType: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
+        app.launchArguments = ["-actualist-demo"]
+        if !hasReplacedDemo {
+            app.launchArguments.append("-actualist-replace-demo-for-ui-testing")
+            hasReplacedDemo = true
+        }
+        app.launchArguments += ["-actualist-screen", screen]
         if let dynamicType {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", dynamicType]
         }

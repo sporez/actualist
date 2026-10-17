@@ -8,7 +8,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     func testCompactSettingsCategoriesOpenByTappingRows() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings"]
         app.launch()
         guard app.frame.width < 700 else { throw XCTSkip("Requires compact navigation") }
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 15))
@@ -30,7 +30,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     func testDemoSupportCanShareReportDismissAndReopen() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: try UITestAppIdentity.appIdentifier)
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
 
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
@@ -77,7 +77,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     func testDemoSupportShareWithAlwaysPrivacyInLightTheme() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: try UITestAppIdentity.appIdentifier)
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
 
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
@@ -139,7 +139,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     func testBudgetExportOpensShareSheetWithOneTapOnTheLabel() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: try UITestAppIdentity.appIdentifier)
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/budget-data"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/budget-data"]
         app.launch()
 
         XCTAssertTrue(app.navigationBars["Budget & Data"].waitForExistence(timeout: 15))
@@ -174,7 +174,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     func testWideDemoReentryLeavesSidebarSettings() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/connection"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/connection"]
         app.launch()
         guard app.frame.width >= 1100 else { throw XCTSkip("Requires a wide iPad") }
         XCTAssertTrue(app.navigationBars["Connection & Sync"].waitForExistence(timeout: 15))
@@ -199,7 +199,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     func testWideSettingsKeepsMenuWhileSwitchingDetail() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings"]
         app.launch()
         guard app.frame.width >= 1100 else { throw XCTSkip("Requires a wide iPad") }
         XCTAssertTrue(app.navigationBars["Connection & Sync"].waitForExistence(timeout: 15))
@@ -233,7 +233,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     func testWideSettingsNestedRouteCanSwitchCategory() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/budget-data/payees"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/budget-data/payees"]
         app.launch()
         guard app.frame.width >= 1100 else { throw XCTSkip("Requires a wide iPad") }
         XCTAssertTrue(app.navigationBars["Payees"].waitForExistence(timeout: 15))
@@ -246,7 +246,7 @@ final class AdaptiveSettingsUITests: XCTestCase {
     func testWideBudgetHeaderRemainsVisibleAfterScrolling() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "budget"]
         app.launch()
         guard app.frame.width >= 1100 else { throw XCTSkip("Requires a wide iPad") }
         let grid = app.scrollViews["budget-grid"]

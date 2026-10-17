@@ -9,7 +9,7 @@ final class SpringboardQuickActionsUITests: XCTestCase {
     func testAppIconMenuListsFixedActionsAndRoutesColdAndWarmLaunches() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "budget"]
         app.launch()
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
         let compact = app.usesCompactLayout

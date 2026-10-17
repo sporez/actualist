@@ -6,8 +6,8 @@ final class BudgetHoldEntryPointUITests: XCTestCase {
 
     func testCompactHoldPartialAllAndReleaseCancellation() throws {
         XCUIDevice.shared.orientation = .portrait
-        setTheme("Actual Purple (dark)")
-        let app = launchDemo(replaceDemo: true)
+        setTheme("Actual Purple (dark)", replaceDemo: true)
+        let app = launchDemo()
         try requireCompact(app)
 
         openCompactHold(in: app)
@@ -89,8 +89,8 @@ final class BudgetHoldEntryPointUITests: XCTestCase {
 
     func testCompactFollowingMonthEntryInLightTheme() throws {
         XCUIDevice.shared.orientation = .portrait
-        setTheme("Actual Purple (light)")
-        let app = launchDemo(replaceDemo: true)
+        setTheme("Actual Purple (light)", replaceDemo: true)
+        let app = launchDemo()
         defer {
             app.terminate()
             setTheme("Actual Purple (dark)")
@@ -119,8 +119,8 @@ final class BudgetHoldEntryPointUITests: XCTestCase {
     }
 
     func testWideEntryCapturesTheTappedMonth() throws {
-        setTheme("Actual Purple (dark)")
-        let app = launchDemo(replaceDemo: true)
+        setTheme("Actual Purple (dark)", replaceDemo: true)
+        let app = launchDemo()
         XCUIDevice.shared.orientation = .landscapeLeft
         try requireWide(app)
         XCTAssertTrue(app.scrollViews["budget-grid"].waitForExistence(timeout: 15))
@@ -221,8 +221,9 @@ final class BudgetHoldEntryPointUITests: XCTestCase {
         ) == .completed
     }
 
-    private func setTheme(_ name: String) {
-        let settings = launchDemo(screen: "settings/appearance")
+    /// `replaceDemo` resets the demo and preferences; pass it only on a test's first launch.
+    private func setTheme(_ name: String, replaceDemo: Bool = false) {
+        let settings = launchDemo(screen: "settings/appearance", replaceDemo: replaceDemo)
         let picker = settings.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
         XCTAssertTrue(picker.waitForExistence(timeout: 10))
         picker.tap()

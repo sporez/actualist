@@ -15,7 +15,7 @@ final class CustomHeadersUITests: XCTestCase {
     @MainActor private func exerciseEditor(theme: String, suffix: String) throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
         let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch

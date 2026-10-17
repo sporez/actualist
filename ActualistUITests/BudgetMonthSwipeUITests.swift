@@ -40,11 +40,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         let toggle = settings.switches["REDUCE_MOTION"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         let original = toggle.value as? String
+        restoreReduceMotionAfterTest(original)
         if original == "1" { toggle.switches.firstMatch.tap() }
-        defer {
-            settings.activate()
-            if toggle.value as? String != original { toggle.switches.firstMatch.tap() }
-        }
         let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
@@ -336,7 +333,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
 
     @MainActor func testLightThemeAndLargeTextSwipe() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
         let theme = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
         XCTAssertTrue(theme.waitForExistence(timeout: 15))
@@ -370,11 +367,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         let toggle = settings.switches["REDUCE_MOTION"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         let original = toggle.value as? String
+        restoreReduceMotionAfterTest(original)
         if original != "1" { toggle.switches.firstMatch.tap() }
-        defer {
-            settings.activate()
-            if toggle.value as? String != original { toggle.switches.firstMatch.tap() }
-        }
         let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
@@ -387,7 +381,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     @MainActor func testSidebarSingleAndMultipleMonthsIgnoreEdgeDrags() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
         guard app.frame.width >= 792 else { throw XCTSkip("Requires pinned iPad") }
         for preference in ["1", "Auto"] {
@@ -413,7 +407,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     @MainActor private func launch() throws -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
         try requireCompactLayout(app, wideCoverage: "IPadReviewUITests wide budget grid tests")
@@ -426,6 +420,16 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         }
         app.launch()
         return app
+    }
+
+    /// Teardown blocks run after an aborted test too, unlike `defer`.
+    @MainActor private func restoreReduceMotionAfterTest(_ original: String?) {
+        addTeardownBlock { @MainActor in
+            let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+            settings.activate()
+            let toggle = settings.switches["REDUCE_MOTION"]
+            if toggle.value as? String != original { toggle.switches.firstMatch.tap() }
+        }
     }
 
     @MainActor private func launchFreshDemo() throws -> XCUIApplication {

@@ -8,7 +8,7 @@ final class SettingsAccountOrderUITests: XCTestCase {
     func testAccountOrderLoadsAndDismisses() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/budget-data"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/budget-data"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Budget & Data"].waitForExistence(timeout: 15))
         let accountOrder = app.buttons.containing(.staticText, identifier: "Account Order").firstMatch

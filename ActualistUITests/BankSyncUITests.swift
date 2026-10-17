@@ -7,8 +7,8 @@ final class BankSyncUITests: XCTestCase {
     func testBankSyncIsAvailableWithoutExperimentalSettings() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        for (theme, suffix) in [("Actual Purple (light)", "light"), ("Actual Purple (dark)", "dark")] {
-            app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        for (index, (theme, suffix)) in [("Actual Purple (light)", "light"), ("Actual Purple (dark)", "dark")].enumerated() {
+            app.launchArguments = ["-actualist-demo"] + (index == 0 ? ["-actualist-replace-demo-for-ui-testing"] : []) + ["-actualist-screen", "settings/appearance"]
             app.launch()
             XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
             let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch

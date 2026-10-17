@@ -55,7 +55,7 @@ final class TransactionStructuredFilterUITests: XCTestCase {
         XCTAssertTrue(spending.buttons["Clear Uncleared Filter"].exists)
         XCTAssertEqual(search.value as? String, "market")
 
-        let accounts = launch(screen: "accounts")
+        let accounts = launch(screen: "accounts", replaceDemo: false)
         openCheckingAccount(in: accounts)
         XCTAssertTrue(accounts.navigationBars["Everyday Checking"].waitForExistence(timeout: 5))
         accounts.buttons["Account Actions"].tap()

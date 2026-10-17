@@ -274,9 +274,21 @@ final class TransactionEditorUITests: XCTestCase {
         add(attachment)
     }
 
+    /// The first launch of each test resets the demo and preferences; later launches keep them.
+    private var hasReplacedDemo = false
+
+    private func launchArguments(screen: String) -> [String] {
+        var arguments = ["-actualist-demo"]
+        if !hasReplacedDemo {
+            arguments.append("-actualist-replace-demo-for-ui-testing")
+            hasReplacedDemo = true
+        }
+        return arguments + ["-actualist-screen", screen]
+    }
+
     private func launchDemo() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
+        app.launchArguments = launchArguments(screen: "budget")
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         return app
@@ -352,7 +364,7 @@ final class TransactionEditorUITests: XCTestCase {
 
     func testEditorLightAppearance() {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = launchArguments(screen: "settings/appearance")
         app.launch()
         let theme = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
         XCTAssertTrue(theme.waitForExistence(timeout: 10))
