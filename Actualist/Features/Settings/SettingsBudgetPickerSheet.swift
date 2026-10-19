@@ -87,13 +87,6 @@ struct SettingsBudgetPickerSheet: View {
             let succeeded = await viewModel.loadBudgetsForSelection(using: appState)
             emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
         }
-        .refreshable {
-            guard !appState.isDemoMode else {
-                return
-            }
-            let succeeded = await viewModel.loadBudgetsForSelection(using: appState)
-            emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
-        }
         .sheet(item: $encryptedBudgetPrompt, onDismiss: clearEncryptedBudgetPassword) { budget in
             EncryptedBudgetUnlockSheet(
                 encryptionPassword: $encryptionPassword,

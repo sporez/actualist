@@ -79,10 +79,6 @@ final class HistoryViewModel {
         await load(budgetID: budgetID, repository: appState.budgetRepository)
     }
 
-    func refresh(using appState: AppState) async {
-        await load(using: appState)
-    }
-
     func load(
         budgetID: String,
         repository: any BudgetRepositoryProtocol

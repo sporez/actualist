@@ -197,7 +197,7 @@ extension LocalFirstActualStoreTests {
                 dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:tracking"
             )
         ])
-        await viewModel.refresh(using: appState)
+        await viewModel.load(using: appState)
 
         #expect(viewModel.activeReview == nil)
         #expect(viewModel.isPreparingUndoForRowID == nil)

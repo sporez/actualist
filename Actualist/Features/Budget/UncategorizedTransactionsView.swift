@@ -43,9 +43,6 @@ struct UncategorizedTransactionsView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
-        .refreshable {
-            await viewModel.refresh(month: month, using: appState)
-        }
         .background(ActualistTheme.background)
         .foregroundStyle(ActualistTheme.primaryText)
         .reviewSheetBottomBar {

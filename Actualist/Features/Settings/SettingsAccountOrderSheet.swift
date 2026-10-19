@@ -69,9 +69,6 @@ struct SettingsAccountOrderSheet: View {
         .task {
             await model.load(using: appState)
         }
-        .refreshable {
-            await model.refresh(using: appState)
-        }
         .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
     }
 }

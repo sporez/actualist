@@ -179,9 +179,6 @@ struct SchedulesView: View {
         )) {
             await viewModel.load(context: context, repository: repository)
         }
-        .refreshable {
-            await viewModel.load(context: context, repository: repository)
-        }
         .sheet(item: workflowSheetBinding) { route in
             switch route {
             case .management:
