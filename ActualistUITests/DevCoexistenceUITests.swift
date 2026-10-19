@@ -24,9 +24,11 @@ final class DevCoexistenceUITests: XCTestCase {
 
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         XCTAssertEqual(app.label, try UITestAppIdentity.appDisplayName)
-        let budgetTab = app.tabBars.buttons["Budget"]
-        XCTAssertTrue(budgetTab.waitForExistence(timeout: 15))
-        XCTAssertTrue(budgetTab.isSelected)
+        // Compact shows the Budget tab; the wide iPad layout has a sidebar instead.
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        if app.usesCompactLayout {
+            XCTAssertTrue(app.tabBars.buttons["Budget"].isSelected)
+        }
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "dev-coexistence-budget"

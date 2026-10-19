@@ -48,9 +48,13 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         let row = app.buttons["budget-category-rent"]
         let originalFrame = row.frame
         let originalTitle = title(app)
-        for (start, end) in [(0.99, 0.81), (0.01, 0.19)] {
-            scroll.coordinate(withNormalizedOffset: .init(dx: start, dy: 0.5)).press(forDuration: 0.1,
-                thenDragTo: scroll.coordinate(withNormalizedOffset: .init(dx: end, dy: 0.5)),
+        // BudgetMonthSwipePolicy commits at min(25% of the width, 110 points), so a
+        // short swipe is a fixed 60 points: a fraction of an iPad mini's width
+        // passes 110 and commits.
+        for (start, distance) in [(0.99, -60.0), (0.01, 60.0)] {
+            let from = scroll.coordinate(withNormalizedOffset: .init(dx: start, dy: 0.5))
+            from.press(forDuration: 0.1,
+                thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0)),
                 withVelocity: XCUIGestureVelocity(rawValue: 180), thenHoldForDuration: 0.25)
             XCTAssertTrue(waitForEnabled(row))
             XCTAssertEqual(title(app), originalTitle)
@@ -127,7 +131,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     }
 
     @MainActor func testBottomRubberBandKeepsAddTransactionCollapsedUntilNextGesture() throws {
-        let app = try launchFreshDemo()
+        let app = try launchFreshDemo(scrollableOnIPad: true)
         let scroll = app.scrollViews["budget-compact-scroll"]
         let expanded = app.buttons["budget-add-transaction-expanded"]
         let collapsed = app.buttons["budget-add-transaction-collapsed"]
@@ -432,7 +436,9 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         }
     }
 
-    @MainActor private func launchFreshDemo() throws -> XCUIApplication {
+    /// `scrollableOnIPad` uses large text so the demo is taller than an iPad
+    /// screen, as `launch()` does.
+    @MainActor private func launchFreshDemo(scrollableOnIPad: Bool = false) throws -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
@@ -440,6 +446,9 @@ final class BudgetMonthSwipeUITests: XCTestCase {
             "-actualist-replace-demo-for-ui-testing",
             "-actualist-screen", "budget"
         ]
+        if scrollableOnIPad, UIDevice.current.userInterfaceIdiom == .pad {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
+        }
         app.launch()
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
         try requireCompactLayout(app, wideCoverage: "IPadReviewUITests wide budget grid tests")

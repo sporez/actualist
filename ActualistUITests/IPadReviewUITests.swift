@@ -51,7 +51,9 @@ final class IPadReviewUITests: XCTestCase {
         let editor = app.navigationBars["Add Transaction"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         screenshot("review-wide-spending-add-transaction")
-        editor.buttons.firstMatch.tap()
+        waitForAmountInput(in: app)
+        dismissNumberPadPopover(in: app, editor: editor)
+        app.buttons["transaction-editor-close"].tap()
         XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
     }
 
@@ -280,7 +282,7 @@ final class IPadReviewUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         screenshot("review-account-editor-restored-rotation")
-        editor.buttons.firstMatch.tap()
+        closeEditorDiscardingTypedAmount(editor, in: app)
         XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 5))
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 8))

@@ -112,8 +112,7 @@ final class ActualistUITests: XCTestCase {
         XCTAssertTrue(amount.exists)
         XCTAssertTrue(amount.label.contains("12.34"))
         attachScreenshot(named: "transaction-draft-lower-fields-after-rotation", app: app)
-        editor.buttons.firstMatch.tap()
-        XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
+        closeEditorDiscardingTypedAmount(editor, in: app)
         XCTAssertFalse(budgetGrid(in: app).exists)
         XCTAssertTrue(app.tabBars.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Spending"].firstMatch.exists)
@@ -304,10 +303,7 @@ final class ActualistUITests: XCTestCase {
         XCTAssertTrue(amount.waitForExistence(timeout: 5))
         attachScreenshot(named: "wide-sidebar-savings-editor", app: app)
         dismissNumberPadPopover(in: app, editor: editor)
-        let close = editor.buttons.firstMatch
-        XCTAssertTrue(close.isHittable)
-        close.tap()
-        XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
+        closeEditorDiscardingTypedAmount(editor, in: app)
         XCTAssertTrue(app.navigationBars["High-Yield Savings"].waitForExistence(timeout: 5))
     }
 
@@ -333,10 +329,7 @@ final class ActualistUITests: XCTestCase {
         attachScreenshot(named: "wide-accounts-overview-transaction-editor", app: app)
 
         dismissNumberPadPopover(in: app, editor: editor)
-        let close = editor.buttons.firstMatch
-        XCTAssertTrue(close.isHittable)
-        close.tap()
-        XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
+        closeEditorDiscardingTypedAmount(editor, in: app)
         XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
     }
 
