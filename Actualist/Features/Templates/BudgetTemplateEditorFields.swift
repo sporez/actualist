@@ -21,6 +21,7 @@ struct BudgetTemplateEditorItemSection: View {
                 Button("Delete Template", role: .destructive) {
                     viewModel.edit(.remove(id: item.id))
                 }
+                .buttonStyle(.reviewSheetFormRow)
             }
         } header: {
             let layout = dynamicTypeSize.isAccessibilitySize
@@ -148,6 +149,7 @@ struct BudgetTemplateEditorItemSection: View {
             Button("Add Balance Cap") {
                 viewModel.edit(.add(.balanceLimit))
             }
+            .buttonStyle(.reviewSheetFormRow)
             .disabled(!viewModel.canAddBalanceLimit)
         }
     }

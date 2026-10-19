@@ -129,6 +129,7 @@ struct BudgetTemplateEditorNoteField: View {
                 Button("Clear Note", role: .destructive) {
                     viewModel.edit(.clearNote(id: itemID))
                 }
+                .buttonStyle(.reviewSheetFormRow)
                 .disabled(!viewModel.canEditNotes || !viewModel.editor.hasNote(id: itemID))
             }
         }

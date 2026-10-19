@@ -26,9 +26,8 @@ struct AccountReconciliationTargetSheet: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
-        .actualistKeyboardDone(isVisible: isAmountFocused) {
-            isAmountFocused = false
-        }
+        // Controls inside win their own taps; a tap on empty space ends editing.
+        .onTapGesture { isAmountFocused = false }
         .reviewSheetBottomBar {
             ReviewSheetSecondaryButton {
                 coordinator.cancel()

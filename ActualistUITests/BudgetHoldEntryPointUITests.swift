@@ -209,9 +209,9 @@ final class BudgetHoldEntryPointUITests: XCTestCase {
         app.typeKey("a", modifierFlags: .command)
         app.typeKey(XCUIKeyboardKey.delete, modifierFlags: [])
         app.typeText(text)
-        let done = app.buttons["keyboard-done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 3))
-        done.tap()
+        // Plain text, not a control: the tap ends editing.
+        app.staticTexts["budget-hold-month"].tap()
+        XCTAssertTrue(app.waitUntilKeyboardDismissed())
     }
 
     private func waitForEnabled(_ element: XCUIElement) -> Bool {

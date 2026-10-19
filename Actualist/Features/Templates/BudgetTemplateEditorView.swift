@@ -102,10 +102,9 @@ struct BudgetTemplateEditorView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        // Controls inside win their own taps; a tap on empty space ends editing.
+        .onTapGesture { focusedField = nil }
         .reviewSheetList()
-        .actualistKeyboardDone(isVisible: focusedField != nil) {
-            focusedField = nil
-        }
         .reviewSheetBottomBar {
             if viewModel.isEditable {
                 ReviewSheetSecondaryButton {
