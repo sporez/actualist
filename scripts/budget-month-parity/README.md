@@ -6,7 +6,7 @@ against a synthetic in-memory budget, and the CRDT cells and sheet state they
 produce are recorded as the expected values for the Swift replay.
 
 Domain: `budget-month` in `config/parity/domains.json`. This harness does not
-edit that file; see "Domain registration" below.
+edit that file.
 
 ## Commands
 
@@ -232,7 +232,7 @@ that shows a divergence fails strictly.
 
 ## Domain registration
 
-`config/parity/domains.json` already lists `budget-month` as `partial`. This harness
-does not edit it. `oracleSuites` is empty, so `scripts/parity.sh verify budget-month`
-does not run the Swift replay. Adding `BudgetMonthOracleReplayTests` there, and any
-status change, is a decision for the maintainer and is not made here.
+`config/parity/domains.json` lists `budget-month` as `covered`, with
+`BudgetMonthOracleReplayTests` as its oracle suite, so
+`scripts/parity.sh verify budget-month` runs the Swift replay. This harness does not
+edit that file.

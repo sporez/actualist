@@ -11,8 +11,8 @@ generator and helper hashes, source hash list, fixture hash, schema, and the
 
 Status: the fixture is committed and verified against Actual v26.10.0.
 `ActualistTests/HoldOracleReplayTests.swift` replays it through the production
-hold path (see "Swift replay"). `config/parity/domains.json` still lists `holds`
-as `uncovered`; updating that status is a maintainer decision.
+hold path (see "Swift replay"). `config/parity/domains.json` lists `holds` as
+`covered`, with `HoldOracleReplayTests` as its oracle suite.
 
 ## Commands
 

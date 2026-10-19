@@ -105,7 +105,8 @@ Avoid repeating passing checks when the relevant code is unchanged.
 Helpers use the configured simulator UDID and `.derivedData`.
 `scripts/test.sh --dry-run unit` prints the command without running Xcode.
 
-UI tests run in parallel on four clones of the configured simulator, and the
+UI tests run in parallel on four clones of the configured simulator
+(`ACTUALIST_UI_TEST_WORKERS` changes the count), and the
 suites listed in `serial_ui_suites` at the top of `scripts/test.sh` run after
 them in a serial pass. `ACTUALIST_TEST_PARALLEL=0` forces one serial pass for
 diagnosis. Every UI test starts from a fresh demo with default preferences

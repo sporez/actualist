@@ -9,10 +9,11 @@ against seeded synthetic SQLite budgets and records what they wrote. It writes
 generator, harness and helper hashes, upstream source hash list, fixture hash,
 case IDs and order, and family/funding coverage.
 
-Status: the fixture is verified against Actual v26.10.0 (not yet committed). The Swift
+Status: the fixture is committed and verified against Actual v26.10.0. The Swift
 replay runs every case (see "Swift replay"); its confirmed divergences are
-registered as OP-24 and OP-25. `config/parity/domains.json` still lists
-`apply-templates` without these commands; that edit is a maintainer decision.
+registered as OP-24 and OP-25 and are `intended`. `config/parity/domains.json`
+lists `apply-templates` as `covered`, with `TemplateApplyOracleReplayTests` as
+its oracle suite.
 
 ## Commands
 
