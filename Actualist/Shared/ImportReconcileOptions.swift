@@ -32,11 +32,6 @@ struct ImportReconcileOptions: Equatable, Sendable {
     /// reads the account's `sync-update-dates-<id>` preference, which defaults
     /// to off; only Bank Sync leaves it `nil`, file import never moves dates.
     var updateDates: Bool? = false
-    /// An insert may have a zero amount. Upstream inserts one from either
-    /// source; Actualist allows it for file import, where Actual's own export
-    /// writes a zero-amount row for every split parent. Bank Sync keeps its
-    /// shipped refusal.
-    var allowsZeroAmountInserts = false
 
     /// Bank Sync as shipped in 0.8.1.
     static let bankSync = ImportReconcileOptions(
@@ -54,7 +49,6 @@ struct ImportReconcileOptions: Equatable, Sendable {
         strictIdChecking: true,
         reimportDeleted: nil,
         defaultCleared: true,
-        payeeNameNormalization: .titleCase,
-        allowsZeroAmountInserts: true
+        payeeNameNormalization: .titleCase
     )
 }

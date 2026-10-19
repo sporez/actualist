@@ -170,7 +170,9 @@ extension LocalFirstActualStore {
                     draft,
                     transactionID: transactionID,
                     payeeID: payeeResolution.payeeID,
-                    allowsZeroAmount: options.allowsZeroAmountInserts,
+                    // Upstream inserts a zero-amount row from either source: a
+                    // $0.00 bank line, or a split parent in Actual's own CSV export.
+                    allowsZeroAmount: true,
                     builder: &builder
                 )
             }

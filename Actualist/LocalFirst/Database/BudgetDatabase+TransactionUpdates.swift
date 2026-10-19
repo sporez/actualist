@@ -327,7 +327,7 @@ extension BudgetDatabase {
         return messages
     }
 
-    /// `allowsZeroAmount` is for import inserts only (`ImportReconcileOptions`);
+    /// `allowsZeroAmount` is for import inserts only (`importReconcileWrites`);
     /// an entered or edited transaction needs an amount.
     func validateSimpleTransactionDraft(_ draft: TransactionDraft, allowsZeroAmount: Bool = false) throws {
         guard !draft.isSplit else {
