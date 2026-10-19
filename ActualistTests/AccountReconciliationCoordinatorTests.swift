@@ -303,8 +303,6 @@ private final class ReconciliationCoordinatorRepository: AccountRepositoryProtoc
         self.snapshots = snapshots
     }
 
-    var hasPendingSnapshot: Bool { snapshotContinuation != nil }
-
     func accountDisplays(budgetID: String) -> [AccountDisplay] { [] }
     func accountGroups(budgetID: String) -> [ActualAccountGroup] { [] }
     func refreshAccountsWithBalances(budgetID: String) async throws {}
