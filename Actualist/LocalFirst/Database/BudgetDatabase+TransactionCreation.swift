@@ -69,6 +69,7 @@ extension BudgetDatabase {
         _ draft: TransactionDraft,
         transactionID: String,
         payeeID: String?,
+        allowsZeroAmount: Bool = false,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         try queue.read { db in
@@ -76,6 +77,7 @@ extension BudgetDatabase {
                 draft,
                 transactionID: transactionID,
                 payeeID: payeeID,
+                allowsZeroAmount: allowsZeroAmount,
                 db: db,
                 builder: &builder
             )
@@ -86,10 +88,11 @@ extension BudgetDatabase {
         _ draft: TransactionDraft,
         transactionID: String,
         payeeID: String?,
+        allowsZeroAmount: Bool = false,
         db: Database,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        try validateSimpleTransactionDraft(draft)
+        try validateSimpleTransactionDraft(draft, allowsZeroAmount: allowsZeroAmount)
         if try tableExists("accounts", db: db),
            try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
             throw LocalFirstError.referencedRowUnavailable("missing account")

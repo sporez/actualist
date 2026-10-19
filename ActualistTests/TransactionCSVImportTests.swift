@@ -160,13 +160,14 @@ struct TransactionCSVImportTests {
         }
     }
 
-    @Test func rejectsZeroAmountRowsBecauseTheWriteEngineRequiresNonZero() throws {
-        #expect(throws: TransactionCSVImportError.invalidRow(line: 1, reason: .zeroAmount)) {
-            let table = try TransactionCSVParser().parse(Data(
-                "Date,Payee,Notes,Amount\n2026-09-28,Second Store\n".utf8
-            ))
-            _ = try TransactionCSVImportMapper.map(table)
-        }
+    /// Actual's import modal turns an empty or zero amount into a zero-amount
+    /// row (`parseAmountFields`, then only a null amount is refused).
+    @Test func mapsAnEmptyOrZeroAmountToAZeroAmountRow() throws {
+        let table = try TransactionCSVParser().parse(Data(
+            "Date,Payee,Notes,Amount\n2026-09-28,Second Store\n2026-09-29,Third Store,,0\n".utf8
+        ))
+        let rows = try TransactionCSVImportMapper.map(table)
+        #expect(rows.map(\.amountMinorUnits) == [0, 0])
     }
 
     // MARK: - Apply stage (shared synthetic store fixture)
@@ -228,6 +229,48 @@ struct TransactionCSVImportTests {
         #expect(imported?.payeeName == "Sample Market")
         #expect(imported?.amount == 1_234)
         #expect(imported?.date == "2026-09-27")
+    }
+
+    /// Actual's account export writes each split as a zero-amount parent row
+    /// followed by its children (`exportQueryToCSV`), and Actual's import adds
+    /// every row as its own transaction. A second import changes nothing.
+    @Test func importsActualsSplitExportRowByRowLikeActual() async throws {
+        let bundle = try await makeBundle()
+        let database = try #require(bundle.store.database)
+        let data = csv(
+            """
+            Checking,2026-09-27,Sample Market,(SPLIT INTO 2) ,,,0,-30.00,Not cleared
+            Checking,2026-09-27,Sample Market,(SPLIT 1 OF 2) ,group,Utilities,-10.00,0,Not cleared
+            Checking,2026-09-27,Sample Market,(SPLIT 2 OF 2) ,group,Utilities,-20.00,0,Not cleared
+            """,
+            header: "Account,Date,Payee,Notes,Category_Group,Category,Amount,Split_Amount,Cleared"
+        )
+        let before = try await checkingRows(database).count
+
+        let first = try await bundle.store.applyTransactionCSVImport(
+            TransactionCSVImportApplyRequest(
+                budgetID: "group-1",
+                accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
+                rows: try preparedRows(bundle.store, data: data, accountID: "checking")
+            )
+        )
+        #expect(first.insertedCount == 3)
+        let imported = try await checkingRows(database).filter { $0.importedPayee == "Sample Market" }
+        #expect(imported.compactMap(\.amount).sorted() == [-2_000, -1_000, 0])
+        #expect(try await checkingRows(database).count == before + 3)
+
+        let second = try await bundle.store.applyTransactionCSVImport(
+            TransactionCSVImportApplyRequest(
+                budgetID: "group-1",
+                accountID: "checking",
+                sessionGeneration: bundle.store.budgetSessionGeneration,
+                rows: try preparedRows(bundle.store, data: data, accountID: "checking")
+            )
+        )
+        #expect(second.insertedCount == 0)
+        #expect(second.updatedCount == 0)
+        #expect(try await checkingRows(database).count == before + 3)
     }
 
     @Test func sameFileAppliedTwiceIsNoOpWithoutImportedID() async throws {
@@ -340,7 +383,7 @@ struct TransactionCSVImportTests {
         let bundle = try await makeBundle()
         let database = try #require(bundle.store.database)
         let before = try await checkingRows(database).count
-        let data = csv("2026-09-27,Sample Market,Groceries,12.34\n2026-09-28,Bad Row,abc")
+        let data = csv("2026-09-27,Sample Market,Groceries,12.34\n2026-09-28,Bad Row,,abc")
 
         await #expect(throws: TransactionCSVImportError.self) {
             try await bundle.store.prepareTransactionCSVImport(

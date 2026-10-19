@@ -38,8 +38,10 @@ struct ImportPayeeNameNormalizationTests {
             strictIdChecking: true,
             reimportDeleted: nil,
             defaultCleared: true,
-            payeeNameNormalization: .titleCase
+            payeeNameNormalization: .titleCase,
+            allowsZeroAmountInserts: true
         ))
+        #expect(!ImportReconcileOptions.bankSync.allowsZeroAmountInserts)
         #expect(ImportReconcileOptions.bankSync.isBankSyncAccount)
         #expect(!ImportReconcileOptions.bankSync.strictIdChecking)
         #expect(ImportReconcileOptions.bankSync.reimportDeleted == nil)

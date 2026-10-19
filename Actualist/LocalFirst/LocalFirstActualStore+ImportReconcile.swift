@@ -170,6 +170,7 @@ extension LocalFirstActualStore {
                     draft,
                     transactionID: transactionID,
                     payeeID: payeeResolution.payeeID,
+                    allowsZeroAmount: options.allowsZeroAmountInserts,
                     builder: &builder
                 )
             }

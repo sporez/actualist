@@ -32,7 +32,6 @@ enum TransactionCSVImportRowError: Error, Equatable {
     case missingDate
     case unparseableDate(text: String)
     case unparseableAmount(text: String)
-    case zeroAmount
 
     var message: String {
         switch self {
@@ -42,8 +41,6 @@ enum TransactionCSVImportRowError: Error, Equatable {
             return "the date \"\(text)\" is not an ISO yyyy-mm-dd date"
         case .unparseableAmount(let text):
             return "the amount \"\(text)\" is not a decimal number"
-        case .zeroAmount:
-            return "the amount is zero, and a transaction must have a non-zero amount"
         }
     }
 }
@@ -123,8 +120,9 @@ enum TransactionCSVImportMapper {
             } else {
                 amountRaw = table.value(at: 3, in: fields)
             }
-            // A missing or empty amount is 0 at the parse stage, not a
-            // rejection (oracle case 5).
+            // A missing, empty or zero amount is a zero-amount row, as in
+            // Actual's import (oracle case 5); Actual's own export writes one
+            // for every split parent.
             let amountText = amountRaw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let amountMinorUnits: Int
             if amountText.isEmpty {
@@ -133,12 +131,6 @@ enum TransactionCSVImportMapper {
                 amountMinorUnits = parsed
             } else {
                 throw TransactionCSVImportError.invalidRow(line: line, reason: .unparseableAmount(text: amountText))
-            }
-            // The shared local-first transaction construction rejects
-            // zero-amount simple writes, so a zero row can never apply; with
-            // all-or-nothing semantics it rejects the batch here.
-            guard amountMinorUnits != 0 else {
-                throw TransactionCSVImportError.invalidRow(line: line, reason: .zeroAmount)
             }
 
             let payeeRaw: String?

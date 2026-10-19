@@ -327,7 +327,9 @@ extension BudgetDatabase {
         return messages
     }
 
-    func validateSimpleTransactionDraft(_ draft: TransactionDraft) throws {
+    /// `allowsZeroAmount` is for import inserts only (`ImportReconcileOptions`);
+    /// an entered or edited transaction needs an amount.
+    func validateSimpleTransactionDraft(_ draft: TransactionDraft, allowsZeroAmount: Bool = false) throws {
         guard !draft.isSplit else {
             throw LocalFirstError.unsupportedSplitWrite
         }
@@ -337,7 +339,7 @@ extension BudgetDatabase {
         guard !draft.accountID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
-        guard draft.amountMinorUnits != 0 else {
+        guard allowsZeroAmount || draft.amountMinorUnits != 0 else {
             throw LocalFirstError.invalidLocalWrite("missing amount")
         }
     }
