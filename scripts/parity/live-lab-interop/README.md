@@ -51,3 +51,13 @@ Steps in order (`run.sh <step>` for Node, `scripts/test.sh unit ...` for Swift):
    B and Actualist are compared (`convergence-result.json`).
 
 Delete the `Interop Check` files afterwards (`/sync/delete-user-file`).
+
+## Check 3: sync batches and mid-sync edits
+
+1. `scripts/test.sh unit LiveLabSyncBatchTests` with `TEST_RUNNER_ACTUAL_LAB_SYNC_BATCH=1`
+   (plus the three `TEST_RUNNER_ACTUAL_LAB_*` names): four `Interop Check`
+   budgets, each with an outbox of 500, 501 or 1,600 messages or one edit made
+   during the upload, must each sync in one refresh with nothing left queued.
+   File IDs and expected counts go to `sync-batch.json`.
+2. `run.sh syncBatchCheck`: Actual downloads each budget, syncs, and must see
+   every payee; then it deletes the budgets (`sync-batch-result.json`).

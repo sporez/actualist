@@ -138,6 +138,38 @@ test(`step ${step}`, async () => {
     console.log(JSON.stringify(result));
     expect(result.swiftEqualsNodeA).toBe(true);
     expect(result.nodeAEqualsNodeB).toBe(true);
+  } else if (step === 'syncBatchCheck') {
+    // LiveLabSyncBatchTests: Actual downloads each budget, syncs and counts the
+    // Diag payees; then the budget is deleted from the server.
+    const budgets = readJSON('sync-batch.json');
+    const login = await fetch(`${url}/account/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const token = (await login.json())?.data?.token;
+    if (!token) throw new Error(`login failed (HTTP ${login.status})`);
+    const result = {};
+    for (const [label, entry] of Object.entries(budgets)) {
+      fs.rmSync(path.join(handoff, `node-batch-${label}`), { recursive: true, force: true });
+      result[label] = await withClient(`batch-${label}`, { online: true }, async () => {
+        await openRemote(entry.fileID, path.join(handoff, `node-batch-${label}`));
+        await api.sync();
+        const payees = (await api.getPayees()).filter(p => p.name?.startsWith('Diag ')).length;
+        return { swiftOutcome: entry.outcome, swiftPending: entry.pending, expected: entry.expectedPayees, actualPayees: payees };
+      });
+      await fetch(`${url}/sync/delete-user-file`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-actual-token': token },
+        body: JSON.stringify({ fileId: entry.fileID }),
+      });
+    }
+    writeJSON('sync-batch-result.json', result);
+    console.log(JSON.stringify(result));
+    for (const r of Object.values(result)) {
+      expect(r.swiftOutcome).toBe('ok');
+      expect(r.actualPayees).toBe(r.expected);
+    }
   } else {
     throw new Error(`unknown LAB_STEP ${step}`);
   }
