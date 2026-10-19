@@ -37,10 +37,9 @@ struct MainTabView: View {
         }
         // Settings presents from the shell, not from the Budget tab: on a cold
         // launch routed to Settings, a tab's controller can still be outside the
-        // window when the route arrives, and UIKit drops the presentation. It
-        // comes before the environment modifiers below so Settings still gets
-        // the compact shell's values. The open cover survives the root's theme
-        // rebuild, so its content takes the theme identity to redraw.
+        // window when the route arrives, and UIKit drops the presentation. The
+        // open cover survives the root's theme rebuild, so its content takes the
+        // theme identity to redraw.
         .fullScreenCover(
             isPresented: Binding(
                 get: { appState.routeCoordinator.isSettingsPresented },
