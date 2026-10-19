@@ -231,9 +231,10 @@ actor SyncClient {
     }
 
     /// Upstream `_fullSync`'s loop: after applying a pull, compare the server's
-    /// merkle with this file's and pull again from the first differing minute
-    /// until they match. Late or older messages from other devices arrive this
-    /// way instead of being skipped forever by `since = MAX(timestamp)`.
+    /// merkle with this file's and run another round from the first differing
+    /// minute until they match. Each round re-sends this file's messages after
+    /// that minute and pulls the server's (`resendRound`), so older messages from
+    /// other devices arrive and messages the server lacks reach it.
     private func repullUntilMerkleMatches(
         _ initial: BudgetDatabase.RemoteSyncApplyResult,
         serverMerkle initialMerkle: String,
@@ -268,34 +269,85 @@ actor SyncClient {
                 continue
             }
 
+            let since = SyncTimestamp.wallTimeString(
+                for: Date(timeIntervalSince1970: Double(divergence) / 1_000)
+            ) + "-0000-0000000000000000"
+            let round = try await resendRound(
+                since: since,
+                database: database,
+                client: client,
+                token: token,
+                configuration: configuration,
+                generation: generation,
+                sessionIsCurrent: sessionIsCurrent
+            )
+            total = total.merging(round.applied)
+            server = MerkleTrie(jsonString: round.merkle)
+            count = round.localTimeChanged ? 0 : count + 1
+            previousDivergence = divergence
+        }
+    }
+
+    /// One `_fullSync` round from the divergence: like upstream, it sends every
+    /// `messages_crdt` row after `since` (local and remote alike; the server
+    /// ignores a timestamp it already holds), so messages this file holds that
+    /// the server lacks, such as later outbox batches or a commit made during
+    /// the sync, close the divergence. Upstream sends them in one request; here
+    /// they go in pages of `BudgetDatabase.syncUploadBatchLimit`, the outbox
+    /// upload size. Only the first page asks for the server's messages since the
+    /// divergence; later pages ask from this file's newest so the same messages
+    /// are not returned again. The last response's merkle decides the round.
+    private func resendRound(
+        since: String,
+        database: BudgetDatabase,
+        client: any ActualSyncTransport,
+        token: String,
+        configuration: LocalFirstSyncConfiguration,
+        generation: Int,
+        sessionIsCurrent: @escaping @Sendable () async -> Bool
+    ) async throws -> (applied: BudgetDatabase.RemoteSyncApplyResult, merkle: String, localTimeChanged: Bool) {
+        var applied = BudgetDatabase.RemoteSyncApplyResult.empty
+        var localTimeChanged = false
+        var requestSince = since
+        var cursor = since
+        var isFirstPage = true
+        var merkle = ""
+        while true {
+            let page = try await database.crdtMessagePage(after: cursor, limit: BudgetDatabase.syncUploadBatchLimit)
+            guard isFirstPage || page.rowCount > 0 else { break }
             var request = ActualSync_SyncRequest()
             request.fileID = configuration.fileID
             request.groupID = configuration.groupID ?? ""
             request.keyID = configuration.encryptionKeyID ?? ""
-            request.since = SyncTimestamp.wallTimeString(
-                for: Date(timeIntervalSince1970: Double(divergence) / 1_000)
-            ) + "-0000-0000000000000000"
+            request.since = requestSince
+            request.messages = try LocalFirstSyncMessageBuilder.envelopes(
+                for: page.messages,
+                encryptionContext: configuration.encryptionContext
+            )
+            try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
             let clockBefore = await database.localClockTimestamp
             let responseData = try await client.sync(data: try request.serializedData(), token: token)
             try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
             try validateResponseSize(responseData)
             let response = try ActualSync_SyncResponse(serializedBytes: responseData)
             let messages = try decodedMessages(from: response, configuration: configuration)
-            if messages.isEmpty {
-                // Diverged yet nothing to receive: the server most likely lacks messages this
-                // file holds. Reported only; resending is a separate decision (audit D7d).
-                Self.securityLogger.info("Sync merkle differs but the server returned no messages")
-            }
             // Like upstream, a local commit during the request is not a failed attempt.
-            let localTimeChanged = await database.localClockTimestamp != clockBefore
-            total = total.merging(try await database.applyRemoteSyncMessagesTrackingInserts(messages))
+            // Read before applying: applying remote messages also advances the clock.
+            if await database.localClockTimestamp != clockBefore {
+                localTimeChanged = true
+            }
+            applied = applied.merging(try await database.applyRemoteSyncMessagesTrackingInserts(messages))
             try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
+            merkle = response.merkle
 
-            server = MerkleTrie(jsonString: response.merkle)
-            count = localTimeChanged ? 0 : count + 1
-            previousDivergence = divergence
+            guard page.rowCount == BudgetDatabase.syncUploadBatchLimit, let last = page.lastTimestamp else { break }
+            cursor = last
+            requestSince = try await database.latestSyncTimestamp()
+            isFirstPage = false
         }
+        return (applied, merkle, localTimeChanged)
     }
+
 
     /// Backstop for transports that do not enforce the cap while reading. It
     /// throws the same typed error as the HTTP client's chunked reader, so a

@@ -183,6 +183,57 @@ extension BudgetDatabase {
         return result.mapValues { $0.sorted() }
     }
 
+    /// Messages per sync upload request: an outbox batch, and a page of a
+    /// re-pull round's re-send.
+    static let syncUploadBatchLimit = 500
+
+    struct CRDTMessagePage: Sendable {
+        let messages: [ActualSyncDecodedMessage]
+        /// Rows read, including any left out of `messages`.
+        let rowCount: Int
+        let lastTimestamp: String?
+    }
+
+    /// `messages_crdt` rows after `timestamp`, oldest first, local and remote
+    /// alike: upstream `getMessagesSince`, read one page at a time. A row whose
+    /// cells cannot be read as text is left out rather than sent with a guessed
+    /// value; the merkle then still differs and the out-of-sync guard reports it.
+    func crdtMessagePage(after timestamp: String, limit: Int) throws -> CRDTMessagePage {
+        try queue.read { db in
+            guard try tableExists("messages_crdt", db: db) else {
+                return CRDTMessagePage(messages: [], rowCount: 0, lastTimestamp: nil)
+            }
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT timestamp, dataset, row, column, CAST(value AS TEXT) AS value
+                    FROM messages_crdt
+                    WHERE timestamp > ?
+                    ORDER BY timestamp ASC
+                    LIMIT ?
+                    """,
+                arguments: [timestamp, limit]
+            )
+            let messages = rows.compactMap { row -> ActualSyncDecodedMessage? in
+                guard let timestamp: String = row["timestamp"],
+                      let dataset: String = row["dataset"],
+                      let rowID: String = row["row"],
+                      let column: String = row["column"],
+                      let value: String = row["value"] else {
+                    return nil
+                }
+                return ActualSyncDecodedMessage(
+                    timestamp: timestamp, dataset: dataset, row: rowID, column: column, serializedValue: value
+                )
+            }
+            return CRDTMessagePage(
+                messages: messages,
+                rowCount: rows.count,
+                lastTimestamp: rows.last.flatMap { $0["timestamp"] as String? }
+            )
+        }
+    }
+
     func pendingLocalSyncMessageCount() throws -> Int {
         try queue.read { db in
             guard try tableExists("actualist_outbox", db: db) else {
@@ -238,7 +289,7 @@ extension BudgetDatabase {
         }
     }
 
-    func pendingLocalSyncMessages(limit: Int = 500) throws -> [PendingLocalSyncMessage] {
+    func pendingLocalSyncMessages(limit: Int = syncUploadBatchLimit) throws -> [PendingLocalSyncMessage] {
         try queue.read { db in
             guard try tableExists("actualist_outbox", db: db) else {
                 return []
