@@ -85,7 +85,7 @@ final class IPadReviewUITests: XCTestCase {
                 add(hierarchy)
             }
             XCTAssertTrue(opened)
-            sidebar.staticTexts.matching(identifier: "Accounts").allElementsBoundByIndex.last!.tap()
+            sidebar.staticTexts["All Accounts"].tap()
             XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
             XCTAssertTrue(app.buttons["Add Account"].isHittable)
         }
@@ -288,7 +288,7 @@ final class IPadReviewUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 8))
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 8))
-        app.collectionViews["Sidebar"].staticTexts.matching(identifier: "Accounts").allElementsBoundByIndex.last!.tap()
+        app.collectionViews["Sidebar"].staticTexts["All Accounts"].tap()
         XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
     }
 
