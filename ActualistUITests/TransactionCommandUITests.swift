@@ -127,18 +127,6 @@ final class TransactionCommandUITests: XCTestCase {
         app.buttons["Cancel"].tap()
     }
 
-    func testStaleReviewDoesNotReplaceTheVisibleReview() throws {
-        throw XCTSkip(
-            "The bundled demo cannot delay a review. TransactionDuplicateCoordinatorTests.lateDuplicateReviewDoesNotReplaceANewReview covers stale generation."
-        )
-    }
-
-    func testFailurePreservesSelection() throws {
-        throw XCTSkip(
-            "The bundled demo cannot force a command failure. TransactionDuplicateCoordinatorTests.duplicateFailurePreservesTheSelection and TransactionMergeCoordinatorTests.mergeFailurePreservesTapOrder cover it."
-        )
-    }
-
     func testDuplicateCommitHasOneHistoryUndo() throws {
         let app = launchFreshSpendingDemo()
         selectTransactions(["din-00151"], in: app)

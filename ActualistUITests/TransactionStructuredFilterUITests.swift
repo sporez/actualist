@@ -155,20 +155,8 @@ final class TransactionStructuredFilterUITests: XCTestCase {
         app.buttons["transaction-filter-cancel"].tap()
     }
 
-    func testAccessibilityFilterActionsAndSearchRemainReachable() throws {
-        // At accessibility text sizes the filter menu is taller than the
-        // screen, so "More Filters" sits below the fold and the automation
-        // tree never exposes it (context menus cannot be scrolled by XCUITest).
-        // A human can scroll the menu; this flow needs a smaller-entry menu or
-        // manual verification. Tracked in the private follow-ups list.
-        throw XCTSkip(
-            "The filter menu's More Filters entry is below the fold at accessibility text sizes and cannot be reached by the automation harness."
-        )
-    }
-
     private func launch(
         screen: String,
-        accessibilityText: Bool = false,
         replaceDemo: Bool = true
     ) -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
@@ -176,9 +164,6 @@ final class TransactionStructuredFilterUITests: XCTestCase {
         app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
         if replaceDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")
-        }
-        if accessibilityText {
-            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         }
         app.launch()
         let title: String?
