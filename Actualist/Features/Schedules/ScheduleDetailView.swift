@@ -6,6 +6,10 @@ struct ScheduleDetailView: View {
     let onEdit: (String) -> Void
     let onAction: (ScheduleManagementAction, String) -> Void
     let onPost: ((String) -> Void)?
+    @Environment(\.dismiss) private var dismiss
+    /// Last rendered detail, kept so the pop after a delete slides the schedule
+    /// away instead of the unavailable state.
+    @State private var lastPresentation: ScheduleDetailPresentation?
 
     init(
         scheduleID: String,
@@ -23,7 +27,7 @@ struct ScheduleDetailView: View {
 
     var body: some View {
         Group {
-            if let presentation = viewModel.detailPresentation(id: scheduleID) {
+            if let presentation = viewModel.detailPresentation(id: scheduleID) ?? lastPresentation {
                 detailContent(presentation)
             } else {
                 ContentUnavailableView(
@@ -36,6 +40,13 @@ struct ScheduleDetailView: View {
         .background(ActualistTheme.background)
         .navigationTitle("Schedule Details")
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: viewModel.detailPresentation(id: scheduleID), initial: true) { _, presentation in
+            if let presentation {
+                lastPresentation = presentation
+            } else if viewModel.isScheduleRemoved(id: scheduleID) {
+                dismiss()
+            }
+        }
         .toolbar {
             if let presentation = viewModel.detailPresentation(id: scheduleID),
                hasManagementActions(presentation.capabilities) {
@@ -142,38 +153,22 @@ struct ScheduleDetailView: View {
                     .accessibilityIdentifier("schedule-detail-automatic-posting")
             }
             .actualistReviewCard(padding: 12)
-            Text("This screen only shows the schedule. It does not post transactions.")
-                .font(.footnote)
-                .foregroundStyle(ActualistTheme.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
 
-            Text("Availability")
-                .font(.headline.weight(.bold))
-            VStack(alignment: .leading, spacing: 10) {
-                Label(
-                    hasManagementActions(presentation.capabilities)
-                        ? "Available in Actualist"
-                        : "Read-only in Actualist",
-                    systemImage: hasManagementActions(presentation.capabilities) ? "checkmark.circle" : "lock.fill"
-                )
-                    .foregroundStyle(ActualistTheme.secondaryText)
-
-                ForEach(presentation.unsupportedMessages, id: \.self) { message in
-                    Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(ActualistTheme.warning)
+            if !presentation.unsupportedMessages.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(presentation.unsupportedMessages, id: \.self) { message in
+                        Label(message, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(ActualistTheme.warning)
+                    }
                 }
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+                .actualistReviewCard()
+                Text("Actualist cannot edit some of this schedule’s options, so they stay as they are.")
+                    .font(.footnote)
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .font(.subheadline)
-            .fixedSize(horizontal: false, vertical: true)
-            .actualistReviewCard()
-            Text(
-                presentation.unsupportedMessages.isEmpty
-                    ? "Viewing this schedule does not change it."
-                    : "Actualist cannot edit some of this schedule’s options, so they stay as they are."
-            )
-            .font(.footnote)
-            .foregroundStyle(ActualistTheme.secondaryText)
-            .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityIdentifier("schedule-detail-content")
     }

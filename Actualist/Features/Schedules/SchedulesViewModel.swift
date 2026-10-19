@@ -89,6 +89,13 @@ final class SchedulesViewModel {
         snapshot?.detail(id: id)
     }
 
+    /// True once a loaded snapshot no longer has the schedule (deleted here or
+    /// by sync). A missing snapshot while loading is not a removal.
+    func isScheduleRemoved(id: String) -> Bool {
+        guard let snapshot, !isLoading else { return false }
+        return snapshot.detail(id: id) == nil
+    }
+
     func load(
         context: SchedulesViewContext,
         repository: any ScheduleRepositoryProtocol

@@ -133,8 +133,8 @@ struct SchedulesView: View {
             }
         }
         // Value-based so the pushed detail outlives its row: a delete removes
-        // the row, and the detail then shows its unavailable state instead of
-        // being torn down with the link.
+        // the row, and the detail pops itself instead of being torn down with
+        // the link.
         .navigationDestination(for: ScheduleDetailRoute.self) { route in
             ScheduleDetailView(
                 scheduleID: route.scheduleID,

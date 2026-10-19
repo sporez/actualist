@@ -250,7 +250,11 @@ final class SchedulesUITests: XCTestCase {
         openManagementAction("schedule-delete", in: app)
         app.buttons["schedule-action-confirm"].tap()
         XCTAssertTrue(app.scrollViews["schedule-action-review"].waitForNonExistence(timeout: 8))
-        XCTAssertTrue(app.staticTexts["Schedule Unavailable"].waitForExistence(timeout: 8))
+        XCTAssertTrue(
+            app.navigationBars["Schedules"].waitForExistence(timeout: 8),
+            "Deleting must return to the schedule list"
+        )
+        XCTAssertTrue(scheduleRow(named: "UI Delete Fixture", in: app).waitForNonExistence(timeout: 5))
     }
 
     func testDisposableSchedulePostReviewExplainsDemoRestrictionAndCanCancel() throws {
@@ -419,22 +423,10 @@ final class SchedulesUITests: XCTestCase {
             file: file,
             line: line
         )
-
-        for expectedText in [
-            // Full schedule-write support in the demo schema makes the
-            // fixture's management actions available.
-            "Available in Actualist",
-        ] {
-            scrollToVisible(
-                detailList.descendants(matching: .any)
-                    .matching(NSPredicate(format: "label CONTAINS %@", expectedText)).firstMatch,
-                named: expectedText,
-                in: detailList,
-                file: file,
-                line: line
-            )
-        }
-        attachScreenshot(named: "schedules-\(layout)-dark-detail-availability", app: app)
+        // Full schedule-write support in the demo schema makes the fixture's
+        // management actions available.
+        XCTAssertTrue(app.buttons["schedule-manage"].exists, file: file, line: line)
+        attachScreenshot(named: "schedules-\(layout)-dark-detail-bottom", app: app)
 
         let back = detail.buttons["Schedules"]
         XCTAssertTrue(back.waitForExistence(timeout: 5), file: file, line: line)

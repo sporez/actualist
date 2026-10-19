@@ -381,6 +381,24 @@ struct SchedulesViewModelTests {
         #expect(model.autoPostRefusalRows.isEmpty)
     }
 
+    @Test func scheduleCountsAsRemovedOnlyOnceALoadedSnapshotLacksIt() async {
+        let context = context()
+        let model = SchedulesViewModel(context: context)
+        #expect(!model.isScheduleRemoved(id: "rent"))
+
+        let present = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(budgetID: "budget", ids: ["rent"], detailIDs: ["rent"])
+        ])
+        await model.load(context: context, repository: present)
+        #expect(!model.isScheduleRemoved(id: "rent"))
+
+        let deleted = ScheduleRepositoryFake(cached: [
+            "budget": snapshot(budgetID: "budget", ids: [])
+        ])
+        await model.load(context: context, repository: deleted)
+        #expect(model.isScheduleRemoved(id: "rent"))
+    }
+
     private func refusal(
         _ id: String,
         day: String,
@@ -392,11 +410,13 @@ struct SchedulesViewModelTests {
     private func snapshot(
         budgetID: String,
         ids: [String],
+        detailIDs: [String] = [],
         supportsAuthoring: Bool = true
     ) -> LoadedSchedules {
         snapshot(
             budgetID: budgetID,
             schedules: ids.map { summary(id: $0, name: $0, status: .upcoming) },
+            detailIDs: detailIDs,
             supportsAuthoring: supportsAuthoring
         )
     }
@@ -404,12 +424,13 @@ struct SchedulesViewModelTests {
     private func snapshot(
         budgetID: String,
         schedules: [ScheduleSummary],
+        detailIDs: [String] = [],
         supportsAuthoring: Bool = true
     ) -> LoadedSchedules {
         LoadedSchedules(
             budgetID: budgetID,
             schedules: schedules,
-            detailsByID: [:],
+            detailsByID: Dictionary(uniqueKeysWithValues: detailIDs.map { ($0, detail(id: $0)) }),
             defaultUpcomingLength: "7",
             supportsAuthoring: supportsAuthoring
         )
@@ -433,6 +454,28 @@ struct SchedulesViewModelTests {
             postsTransaction: false,
             sortOrder: nil,
             unsupportedReasons: []
+        )
+    }
+
+    private func detail(id: String) -> ScheduleDetail {
+        ScheduleDetail(
+            id: id, ruleID: "\(id)-rule", name: id, amount: .exact(-100),
+            dateRule: .oneTime(dayID: "2026-09-28", operation: "is"),
+            account: ScheduleAccountReference(id: "account", name: "Checking", availability: .available),
+            payee: SchedulePayeeReference(id: nil, name: nil, isMissing: false),
+            effectiveNextDate: "2026-09-28", status: .upcoming, completed: false,
+            postsTransaction: false, customUpcomingLength: nil, sortOrder: nil,
+            rawConditionsJSON: nil, rawActionsJSON: nil,
+            capabilities: ScheduleMutationCapabilities(
+                canRead: true, canEditMetadata: true, canEditAccount: true,
+                canEditPayee: true, canEditAmount: true, canEditDate: true,
+                canSkip: true, canComplete: true, canDelete: true, canPost: true
+            ),
+            unsupportedReasons: [],
+            occurrenceIdentity: ScheduleOccurrenceIdentity(
+                scheduleID: id, nextDateRowID: "\(id)-next", effectiveNextDate: "2026-09-28",
+                localNextDateTimestamp: "1", baseNextDateTimestamp: "1"
+            )
         )
     }
 
