@@ -32,6 +32,36 @@ enum LiveLab {
         let data = try Data(contentsOf: directory.appending(path: name))
         return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
+
+    /// A production store over `root` with a fake keychain backend. A nil
+    /// factory keeps the production sync client.
+    @MainActor
+    static func makeStore(
+        root: URL,
+        syncTransportFactory: (@Sendable (URL) -> any ActualSyncTransport)? = nil
+    ) -> LocalFirstActualStore {
+        let keychain = KeychainStore(
+            service: "com.sporez.actualist.tests",
+            account: UUID().uuidString,
+            backend: FakeKeychainBackend()
+        )
+        return LocalFirstActualStore(
+            keychain: keychain,
+            fileManager: BudgetFileManager(applicationSupportURL: root),
+            syncTransportFactory: syncTransportFactory
+        )
+    }
+
+    @MainActor
+    static func signIn(_ store: LocalFirstActualStore) async throws -> StagedLocalFirstConnection {
+        let staged = try await store.stageConnection(
+            serverURLString: try #require(url),
+            password: try #require(password),
+            selectedBudgetID: nil
+        )
+        try store.commitConnection(staged)
+        return staged
+    }
 }
 
 /// Wraps the production sync client and counts `/sync/sync` requests so a test
@@ -68,33 +98,17 @@ struct LiveLabInteropTests {
         root: URL,
         counter: SyncRequestCounter = SyncRequestCounter()
     ) -> LocalFirstActualStore {
-        let keychain = KeychainStore(
-            service: "com.sporez.actualist.tests",
-            account: UUID().uuidString,
-            backend: FakeKeychainBackend()
-        )
-        let fileManager = BudgetFileManager(applicationSupportURL: root)
-        return LocalFirstActualStore(
-            keychain: keychain,
-            fileManager: fileManager,
-            syncTransportFactory: { url in
-                CountingSyncTransport(
-                    inner: ActualServerSyncClient(baseURL: url),
-                    counter: counter
-                )
-            }
-        )
+        LiveLab.makeStore(root: root) { url in
+            CountingSyncTransport(
+                inner: ActualServerSyncClient(baseURL: url),
+                counter: counter
+            )
+        }
     }
 
     @MainActor
     private func signIn(_ store: LocalFirstActualStore) async throws -> StagedLocalFirstConnection {
-        let staged = try await store.stageConnection(
-            serverURLString: try #require(LiveLab.url),
-            password: try #require(LiveLab.password),
-            selectedBudgetID: nil
-        )
-        try store.commitConnection(staged)
-        return staged
+        try await LiveLab.signIn(store)
     }
 
     private func persistentRoot() throws -> URL {

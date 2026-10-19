@@ -223,7 +223,7 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift",
         "Actualist/LocalFirst/Database/PortableBudgetSchema.swift"
       ],
-      "notes": "Portable archive tests build their archives in-test (hand-written, not oracle output). The sync reset (OP-03, fixed) is covered by PortableBudgetImportSyncResetTests, not an oracle case."
+      "notes": "Portable archive tests build their archives in-test (hand-written, not oracle output). The sync reset (OP-03, fixed) is covered by PortableBudgetImportSyncResetTests, not an oracle case. The opt-in live-lab harness scripts/parity/live-lab-file-interop/ round-trips real ZIPs both ways with the pinned Actual (LiveLabFileInteropTests)."
     },
     {
       "id": "csv-import-export",
@@ -241,7 +241,7 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCSV*.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+TransactionCSVImport.swift"
       ],
-      "notes": "The interop suite is opt-in and skips without its environment."
+      "notes": "The interop suite is opt-in and skips without its environment. The opt-in live-lab harness scripts/parity/live-lab-file-interop/ also compares exported CSVs and imports in both directions (LiveLabFileInteropTests)."
     },
     {
       "id": "transaction-commands",
