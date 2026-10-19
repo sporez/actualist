@@ -66,12 +66,6 @@ final class SettingsAccountOrderViewModel {
         }
     }
 
-    func refresh(using appState: AppState) async {
-        guard let budgetID = appState.settings.selectedBudgetID else { return }
-        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
-        await load(using: appState)
-    }
-
     func move(
         in bucket: OrderBucket,
         from source: IndexSet,

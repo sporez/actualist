@@ -5,8 +5,9 @@ import Foundation
 /// Parsed from `ProcessInfo` arguments. Absent flags mean a normal user launch.
 /// `-actualist-demo` installs the bundled demo budget only from onboarding; it
 /// never erases a real selected budget. UI tests may additionally request that
-/// an already-selected bundled demo be replaced, but that flag is ignored for
-/// every real budget. Use the simulator helper `--reset` for a clean install.
+/// an already-selected bundled demo be replaced and every preference reset, so
+/// each test starts from the same state; that flag is ignored for every real
+/// budget. Use the simulator helper `--reset` for a clean install.
 ///
 /// `-actualist-screen` takes a slash path, not a closed enum. Roots are tabs,
 /// `settings`, `history`, and `uncategorized`. Nested settings pages use the
@@ -94,9 +95,17 @@ enum SimulatorLaunchApplier {
         _ command: SimulatorLaunchCommand,
         appState: AppState
     ) {
-        if command.replaceDemoForUITesting, appState.isDemoMode {
+        guard command.replaceDemoForUITesting else { return }
+        if appState.isDemoMode {
             appState.disconnectAndEraseLocalDataBeforeFirstSession()
         }
+        #if DEBUG
+        // Preferences outlive the demo erase. Reset them only when no budget is
+        // selected, so a real budget's preferences are never touched.
+        if appState.setupPhase == .needsConnection, appState.settings.selectedLocalFirstFileID == nil {
+            appState.resetPreferencesForUITesting()
+        }
+        #endif
     }
 
     static func apply(_ command: SimulatorLaunchCommand, to appState: AppState) async {

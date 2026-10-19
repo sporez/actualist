@@ -77,6 +77,7 @@ struct RuleEditorView: View {
                             RuleCondition(field: "description", operation: "is", value: .string(target.fallbackPayeeID), type: "id")
                         )
                     }
+                    .buttonStyle(.reviewSheetFormRow)
                 }
                 .settingsSectionChrome()
 
@@ -92,6 +93,7 @@ struct RuleEditorView: View {
                     Button("Add Action", systemImage: "plus") {
                         viewModel.draft.actions.append(RuleAction(operation: "set", field: "category", value: .null, type: "id"))
                     }
+                    .buttonStyle(.reviewSheetFormRow)
                 }
                 .settingsSectionChrome()
 
@@ -106,10 +108,9 @@ struct RuleEditorView: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        // Controls inside win their own taps; a tap on empty space ends editing.
+        .onTapGesture { focusedField = nil }
         .reviewSheetList()
-        .actualistKeyboardDone(isVisible: focusedField != nil) {
-            focusedField = nil
-        }
         .reviewSheetBottomBar {
             if target.rule?.isEditable == false {
                 ReviewSheetSecondaryButton(title: "Done", role: nil) { dismiss() }

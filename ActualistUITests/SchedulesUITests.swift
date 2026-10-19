@@ -123,8 +123,11 @@ final class SchedulesUITests: XCTestCase {
         XCTAssertEqual(sign.value as? String, "Spend")
         app.textFields["schedule-editor-amount"].tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-        app.staticTexts["New Schedule"].tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        // iPad shows a modal number pad; elsewhere a tap outside the field
+        // dismisses the keyboard.
+        dismissNumberPadPopover(in: app, editor: editor)
+        if app.isKeyboardOnScreen { app.staticTexts["New Schedule"].tap() }
+        XCTAssertTrue(app.waitUntilKeyboardDismissed())
         XCTAssertTrue(app.buttons["schedule-save-button"].exists)
         attachScreenshot(named: "schedules-create-editor-dark", app: app)
 
@@ -297,6 +300,8 @@ final class SchedulesUITests: XCTestCase {
         let amount = app.textFields["schedule-editor-amount"]
         amount.tap()
         amount.typeText("12.34")
+        // iPad's modal number pad would swallow the next tap.
+        dismissNumberPadPopover(in: app, editor: editor)
         if repeats {
             app.buttons["Repeating"].tap()
         }
@@ -662,7 +667,10 @@ final class SchedulesUITests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) {
-        guard !isWide(app) else { return }
+        // SettingsView is also a split view inside the compact shell once it is
+        // 700 points wide (iPad mini portrait): the directory then stays visible
+        // beside the page.
+        guard !isWide(app), !app.navigationBars["Settings"].exists else { return }
         let back = app.navigationBars[title].buttons["Settings"]
         XCTAssertTrue(back.waitForExistence(timeout: 5), file: file, line: line)
         back.tap()

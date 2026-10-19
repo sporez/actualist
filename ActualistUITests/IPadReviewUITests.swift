@@ -5,10 +5,13 @@ import UIKit
 final class IPadReviewUITests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
 
+    /// The first launch of each test resets the demo and preferences; later launches keep them.
+    private var hasReplacedDemo = false
+
     @MainActor
     func testWideTemplatePreviewSwitchesAndAppliesSelectedMode() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = launch(replaceDemo: true)
+        let app = launch()
         try requireWide(app)
         XCTAssertTrue(app.scrollViews["budget-grid"].waitForExistence(timeout: 10))
         let monthActions = app.buttons.matching(
@@ -48,7 +51,9 @@ final class IPadReviewUITests: XCTestCase {
         let editor = app.navigationBars["Add Transaction"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         screenshot("review-wide-spending-add-transaction")
-        editor.buttons.firstMatch.tap()
+        waitForAmountInput(in: app)
+        dismissNumberPadPopover(in: app, editor: editor)
+        app.buttons["transaction-editor-close"].tap()
         XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
     }
 
@@ -80,7 +85,7 @@ final class IPadReviewUITests: XCTestCase {
                 add(hierarchy)
             }
             XCTAssertTrue(opened)
-            sidebar.staticTexts.matching(identifier: "Accounts").allElementsBoundByIndex.last!.tap()
+            sidebar.staticTexts["All Accounts"].tap()
             XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
             XCTAssertTrue(app.buttons["Add Account"].isHittable)
         }
@@ -277,22 +282,24 @@ final class IPadReviewUITests: XCTestCase {
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
         screenshot("review-account-editor-restored-rotation")
-        editor.buttons.firstMatch.tap()
+        closeEditorDiscardingTypedAmount(editor, in: app)
         XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 5))
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 8))
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(app.navigationBars["Everyday Checking"].waitForExistence(timeout: 8))
-        app.collectionViews["Sidebar"].staticTexts.matching(identifier: "Accounts").allElementsBoundByIndex.last!.tap()
+        app.collectionViews["Sidebar"].staticTexts["All Accounts"].tap()
         XCTAssertTrue(app.navigationBars["Accounts"].waitForExistence(timeout: 5))
     }
 
-    @MainActor private func launch(screen: String = "budget", replaceDemo: Bool = false) -> XCUIApplication {
+    @MainActor private func launch(screen: String = "budget") -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", screen]
-        if replaceDemo {
+        app.launchArguments = ["-actualist-demo"]
+        if !hasReplacedDemo {
             app.launchArguments.append("-actualist-replace-demo-for-ui-testing")
+            hasReplacedDemo = true
         }
+        app.launchArguments += ["-actualist-screen", screen]
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         return app

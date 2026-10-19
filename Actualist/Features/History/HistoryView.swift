@@ -150,9 +150,6 @@ struct HistoryView: View {
             .frame(maxWidth: .infinity)
         }
         .scrollIndicators(.hidden)
-        .refreshable {
-            await viewModel.refresh(using: appState)
-        }
     }
 }
 

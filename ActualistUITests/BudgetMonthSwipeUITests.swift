@@ -40,20 +40,21 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         let toggle = settings.switches["REDUCE_MOTION"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         let original = toggle.value as? String
+        restoreReduceMotionAfterTest(original)
         if original == "1" { toggle.switches.firstMatch.tap() }
-        defer {
-            settings.activate()
-            if toggle.value as? String != original { toggle.switches.firstMatch.tap() }
-        }
         let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let row = app.buttons["budget-category-rent"]
         let originalFrame = row.frame
         let originalTitle = title(app)
-        for (start, end) in [(0.99, 0.81), (0.01, 0.19)] {
-            scroll.coordinate(withNormalizedOffset: .init(dx: start, dy: 0.5)).press(forDuration: 0.1,
-                thenDragTo: scroll.coordinate(withNormalizedOffset: .init(dx: end, dy: 0.5)),
+        // BudgetMonthSwipePolicy commits at min(25% of the width, 110 points), so a
+        // short swipe is a fixed 60 points: a fraction of an iPad mini's width
+        // passes 110 and commits.
+        for (start, distance) in [(0.99, -60.0), (0.01, 60.0)] {
+            let from = scroll.coordinate(withNormalizedOffset: .init(dx: start, dy: 0.5))
+            from.press(forDuration: 0.1,
+                thenDragTo: from.withOffset(CGVector(dx: distance, dy: 0)),
                 withVelocity: XCUIGestureVelocity(rawValue: 180), thenHoldForDuration: 0.25)
             XCTAssertTrue(waitForEnabled(row))
             XCTAssertEqual(title(app), originalTitle)
@@ -130,7 +131,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     }
 
     @MainActor func testBottomRubberBandKeepsAddTransactionCollapsedUntilNextGesture() throws {
-        let app = try launchFreshDemo()
+        let app = try launchFreshDemo(scrollableOnIPad: true)
         let scroll = app.scrollViews["budget-compact-scroll"]
         let expanded = app.buttons["budget-add-transaction-expanded"]
         let collapsed = app.buttons["budget-add-transaction-collapsed"]
@@ -336,7 +337,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
 
     @MainActor func testLightThemeAndLargeTextSwipe() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
         let theme = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
         XCTAssertTrue(theme.waitForExistence(timeout: 15))
@@ -370,11 +371,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         let toggle = settings.switches["REDUCE_MOTION"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         let original = toggle.value as? String
+        restoreReduceMotionAfterTest(original)
         if original != "1" { toggle.switches.firstMatch.tap() }
-        defer {
-            settings.activate()
-            if toggle.value as? String != original { toggle.switches.firstMatch.tap() }
-        }
         let app = try launch()
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
@@ -387,7 +385,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     @MainActor func testSidebarSingleAndMultipleMonthsIgnoreEdgeDrags() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
         guard app.frame.width >= 792 else { throw XCTSkip("Requires pinned iPad") }
         for preference in ["1", "Auto"] {
@@ -413,7 +411,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     @MainActor private func launch() throws -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
         try requireCompactLayout(app, wideCoverage: "IPadReviewUITests wide budget grid tests")
@@ -428,7 +426,19 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         return app
     }
 
-    @MainActor private func launchFreshDemo() throws -> XCUIApplication {
+    /// Teardown blocks run after an aborted test too, unlike `defer`.
+    @MainActor private func restoreReduceMotionAfterTest(_ original: String?) {
+        addTeardownBlock { @MainActor in
+            let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+            settings.activate()
+            let toggle = settings.switches["REDUCE_MOTION"]
+            if toggle.value as? String != original { toggle.switches.firstMatch.tap() }
+        }
+    }
+
+    /// `scrollableOnIPad` uses large text so the demo is taller than an iPad
+    /// screen, as `launch()` does.
+    @MainActor private func launchFreshDemo(scrollableOnIPad: Bool = false) throws -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
@@ -436,6 +446,9 @@ final class BudgetMonthSwipeUITests: XCTestCase {
             "-actualist-replace-demo-for-ui-testing",
             "-actualist-screen", "budget"
         ]
+        if scrollableOnIPad, UIDevice.current.userInterfaceIdiom == .pad {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
+        }
         app.launch()
         XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
         try requireCompactLayout(app, wideCoverage: "IPadReviewUITests wide budget grid tests")

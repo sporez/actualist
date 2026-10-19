@@ -13,7 +13,7 @@ enum AdaptiveRootDestination: Hashable {
         case .budget: "Budget"
         case .spending: "Spending"
         case .reports: "Reports"
-        case .accounts: "Accounts"
+        case .accounts: "All Accounts"
         case .account(let account):
             privacyEnabled ? PrivacyDisplay.name(for: .account, seed: account.id) : account.name
         case .settings: "Settings"

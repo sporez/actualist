@@ -128,15 +128,6 @@ final class UncategorizedTransactionsViewModel {
         await load(month: month, using: appState)
     }
 
-    func refresh(month: String, using appState: AppState) async {
-        guard let budgetID = appState.settings.selectedBudgetID else {
-            return
-        }
-
-        _ = await appState.refreshLocalFirstData(budgetID: budgetID, force: true)
-        await load(month: month, using: appState)
-    }
-
     func load(
         budgetID: String,
         month: String,

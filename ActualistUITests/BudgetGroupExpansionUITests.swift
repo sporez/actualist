@@ -9,7 +9,7 @@ final class BudgetGroupExpansionUITests: XCTestCase {
     /// failure, because other Budget tests expect its rows.
     func testCollapsedGroupStaysCollapsedAfterRelaunch() throws {
         XCUIDevice.shared.orientation = .portrait
-        var app = launchDemo()
+        var app = launchDemo(replaceDemo: true)
         try requireCompactLayout(app, wideCoverage: "BudgetGroupExpansionTests.wideToggleIsSharedWithCompactThroughTheStore")
         addTeardownBlock { @MainActor in
             let current = XCUIApplication()
@@ -36,9 +36,10 @@ final class BudgetGroupExpansionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["budget-category-rent"].waitForExistence(timeout: 5))
     }
 
-    private func launchDemo() -> XCUIApplication {
+    /// `replaceDemo` resets the demo and preferences; only the test's first launch may pass it.
+    private func launchDemo(replaceDemo: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
+        app.launchArguments = ["-actualist-demo"] + (replaceDemo ? ["-actualist-replace-demo-for-ui-testing"] : []) + ["-actualist-screen", "budget"]
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         return app

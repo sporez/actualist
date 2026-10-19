@@ -31,7 +31,7 @@ final class TransactionStatusFilterUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = [
-            "-actualist-demo", "-actualist-screen", "spending",
+            "-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "spending",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
         ]
         app.launch()
@@ -117,7 +117,7 @@ final class TransactionStatusFilterUITests: XCTestCase {
 
     func testSpendingStatusFiltersInLightAppearance() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 15))
         let theme = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
@@ -129,7 +129,7 @@ final class TransactionStatusFilterUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Appearance"].waitForExistence(timeout: 5))
         app.terminate()
 
-        let spending = launchSpending()
+        let spending = launchSpending(replaceDemo: false)
         openSpendingFilterMenu(in: spending)
         spending.buttons["Reconciled"].tap()
         XCTAssertTrue(spending.buttons["Clear Reconciled Filter"].waitForExistence(timeout: 5))
@@ -157,9 +157,10 @@ final class TransactionStatusFilterUITests: XCTestCase {
         XCTAssertTrue(app.buttons["transaction-actions-menu"].exists)
     }
 
-    private func launchSpending() -> XCUIApplication {
+    /// `replaceDemo` resets the demo and preferences; pass false for a launch after preferences were set.
+    private func launchSpending(replaceDemo: Bool = true) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "spending"]
+        app.launchArguments = ["-actualist-demo"] + (replaceDemo ? ["-actualist-replace-demo-for-ui-testing"] : []) + ["-actualist-screen", "spending"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Spending"].waitForExistence(timeout: 15))
         return app

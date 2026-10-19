@@ -35,6 +35,22 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.reports)
         }
+        // Settings presents from the shell, not from the Budget tab: on a cold
+        // launch routed to Settings, a tab's controller can still be outside the
+        // window when the route arrives, and UIKit drops the presentation. The
+        // open cover survives the root's theme rebuild, so its content takes the
+        // theme identity to redraw.
+        .fullScreenCover(
+            isPresented: Binding(
+                get: { appState.routeCoordinator.isSettingsPresented },
+                set: { appState.routeCoordinator.setSettingsPresented($0) }
+            ),
+            onDismiss: appState.routeCoordinator.settingsDidDismiss
+        ) {
+            SettingsView(showsDismissButton: true)
+                .id(appState.themeIdentity)
+                .appSwitcherPrivacyProtected(using: appState)
+        }
         // The width-selected compact shell keeps native tabs at the bottom on iPad.
         .environment(\.horizontalSizeClass, .compact)
         .environment(\.budgetCurrency, displayedBudgetCurrency)

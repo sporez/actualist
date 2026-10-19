@@ -15,7 +15,7 @@ final class AccountReconciliationUITests: XCTestCase {
         let targetField = app.descendants(matching: .any)["reconciliation-target-field"]
         XCTAssertTrue(targetField.waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts[
-            "Enter the current balance of your bank account that you want to reconcile with:"
+            "Enter the balance your bank shows right now."
         ].exists)
         XCTAssertTrue(app.staticTexts["Cleared balance"].exists)
         XCTAssertTrue(app.staticTexts["Last reconciled"].exists)
@@ -44,7 +44,7 @@ final class AccountReconciliationUITests: XCTestCase {
     }
 
     @MainActor
-    func testTargetAmountTypingReplacesExistingValueAndDoneClearsKeyboard() throws {
+    func testTargetAmountTypingReplacesExistingValueAndTappingEmptySpaceClearsKeyboard() throws {
         let app = launchCheckingAccount()
         openReconciliationTarget(in: app)
 
@@ -52,10 +52,6 @@ final class AccountReconciliationUITests: XCTestCase {
         XCTAssertTrue(targetField.waitForExistence(timeout: 5))
         targetField.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
-
-        let done = app.buttons["keyboard-done"]
-        XCTAssertTrue(done.waitForExistence(timeout: 3))
-        XCTAssertGreaterThan(app.keyboards.firstMatch.frame.minY - done.frame.maxY, 8)
 
         targetField.typeText("12.34")
         let value = targetField.value as? String ?? ""
@@ -67,8 +63,13 @@ final class AccountReconciliationUITests: XCTestCase {
         typingAttachment.lifetime = .keepAlways
         add(typingAttachment)
 
-        done.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        // The sheet title is plain text above the keyboard; the Reconcile
+        // button's label shares its text, so take the topmost match.
+        let title = try XCTUnwrap(app.staticTexts.matching(identifier: "Reconcile").allElementsBoundByIndex
+            .min { $0.frame.minY < $1.frame.minY })
+        XCTAssertLessThan(title.frame.maxY, app.keyboards.firstMatch.frame.minY)
+        title.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.waitUntilKeyboardDismissed())
     }
 
     @MainActor

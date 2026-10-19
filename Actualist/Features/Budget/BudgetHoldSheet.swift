@@ -64,7 +64,6 @@ struct BudgetHoldSheet: View {
                 .accessibilityIdentifier("budget-hold-confirm")
             }
         }
-        .actualistKeyboardDone(isVisible: isAmountFocused) { isAmountFocused = false }
         .frame(idealWidth: 520)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("budget-hold-sheet")
@@ -198,6 +197,8 @@ struct BudgetHoldSheet: View {
         }
         .accessibilityIdentifier("budget-hold-review")
         .scrollDismissesKeyboard(.interactively)
+        // Controls inside win their own taps; a tap on empty space ends editing.
+        .onTapGesture { isAmountFocused = false }
         .foregroundStyle(ActualistTheme.primaryText)
     }
 

@@ -16,6 +16,7 @@ struct BudgetTemplateEditorMonthField: View {
         } label: {
             LabeledContent(title, value: viewModel.monthTitle(for: field, id: itemID, locale: locale))
         }
+        .buttonStyle(.reviewSheetFormRow)
         .disabled(!viewModel.isEditable)
         .accessibilityIdentifier("template-\(field)-month")
         .sheet(isPresented: $isPresented) {

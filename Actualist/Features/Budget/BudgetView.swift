@@ -263,16 +263,6 @@ struct BudgetView: View {
                     SchedulesSheet()
                         .appSwitcherPrivacyProtected(using: appState)
                 }
-                .fullScreenCover(
-                    isPresented: Binding(
-                        get: { appState.routeCoordinator.isSettingsPresented },
-                        set: { appState.routeCoordinator.setSettingsPresented($0) }
-                    ),
-                    onDismiss: appState.routeCoordinator.settingsDidDismiss
-                ) {
-                    SettingsView(showsDismissButton: true)
-                        .appSwitcherPrivacyProtected(using: appState)
-                }
                 .sheet(isPresented: $isUncategorizedTransactionsPresented) {
                     UncategorizedTransactionsView(
                         month: uncategorizedRouteMonth ?? viewModel.selectedMonth ?? viewModel.preferredMonth,

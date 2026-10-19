@@ -37,6 +37,7 @@ struct ActualistApp: App {
     private let simulatorLaunchCommand: SimulatorLaunchCommand?
 
     init() {
+        NumberPadPopoverPolicy.install()
         #if DEBUG
         let appState = SyntheticCredentialFaultHarness.make(arguments: ProcessInfo.processInfo.arguments)
             ?? AppState()

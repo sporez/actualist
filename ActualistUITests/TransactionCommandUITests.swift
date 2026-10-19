@@ -214,12 +214,8 @@ final class TransactionCommandUITests: XCTestCase {
     }
 
     private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        if element.waitForExistence(timeout: 2), element.isHittable { return true }
-        for _ in 0..<8 {
-            app.swipeUp()
-            if element.exists, element.isHittable { return true }
-        }
-        return element.exists && element.isHittable
+        _ = element.waitForExistence(timeout: 2)
+        return element.scrollClearOfScreenEdges(in: app)
     }
 
     private func openBudget(in app: XCUIApplication) {

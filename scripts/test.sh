@@ -1,12 +1,26 @@
 #!/usr/bin/env bash
-# Unit tests run in parallel by default. ui and all stay serial unless
-# ACTUALIST_TEST_PARALLEL is set explicitly. The lock coordinates cooperating
-# scripts/test.sh invocations in this checkout only. It does not cover raw
-# xcodebuild commands, other checkouts, or every simulator process.
+# Unit tests run in parallel by default. UI tests run in parallel across
+# simulator clones by default; the suites in serial_ui_suites run afterwards in
+# a serial pass. ACTUALIST_TEST_PARALLEL overrides both with a single pass. The
+# lock coordinates cooperating scripts/test.sh invocations in this checkout
+# only. It does not cover raw xcodebuild commands, other checkouts, or every
+# simulator process.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT/scripts/lib/load-destinations.sh"
+
+# UI suites that depend on state a simulator clone does not isolate. They run
+# in a serial pass after the parallel one. Give each entry its reason.
+#   LabBudgetSwitchUITests: signs in to the shared lab server and leaves the
+#     device signed in, which no demo reset clears. Skipped unless
+#     TEST_RUNNER_ACTUAL_LAB_URL is set.
+serial_ui_suites=(
+  LabBudgetSwitchUITests
+)
+
+# Simulator clones used by a parallel pass that runs UI tests.
+default_ui_workers=4
 
 usage() {
   cat <<'EOF'
@@ -15,7 +29,7 @@ Usage: scripts/test.sh [--dry-run] unit|ui|all [Suite[/testMethod] ...]
   unit [selectors]  Selected unit suites, or all unit tests when omitted.
   ui selectors      Selected UI suites or methods; at least one is required.
   all               Full unit and UI suites; accepts no selectors.
-  --dry-run         Print the command without invoking Xcode or taking a lock.
+  --dry-run         Print the commands without invoking Xcode or taking a lock.
 
 Selectors omit the target prefix, e.g. BankSyncReconcilerTests.
 Swift Testing methods may include argument labels, e.g. 'ExampleTests/check(_:)'.
@@ -26,11 +40,25 @@ ACTUALIST_TEST_SANITIZER=thread adds -enableThreadSanitizer YES (diagnostic
 runs only; it rebuilds with instrumentation and runs much slower).
 
 ACTUALIST_TEST_PARALLEL:
-  unset   unit runs with -parallel-testing-enabled YES; ui and all use NO.
-  1       -parallel-testing-enabled YES for the selected mode.
-  0       -parallel-testing-enabled NO for the selected mode.
+  unset   unit: one pass with -parallel-testing-enabled YES.
+          ui and all: up to three xcodebuild passes, in this order:
+            unit       all unit tests in parallel (all only)
+            ui-parallel UI suites in parallel on simulator clones
+            ui-serial  the serial-only UI suites listed at the top of this
+                       script, with -parallel-testing-enabled NO
+          A pass with nothing selected is left out.
+  1       one pass with -parallel-testing-enabled YES for the whole selection.
+  0       one pass with -parallel-testing-enabled NO for the whole selection.
   other   error, including an empty value. Help, invalid arguments, invalid
           parallel values, and dry-run do not create or touch a test-run lock.
+ACTUALIST_UI_TEST_WORKERS sets -parallel-testing-worker-count for a parallel
+pass that runs UI tests (default 4).
+
+All passes share one lock and one log. A failing pass does not stop the next,
+so a run reports every selected suite; an interrupted or signal-terminated
+pass stops the run. Exit status: the first failing pass's xcodebuild status;
+3 when a pass replaced a test host mid-run; 4 when a pass succeeded without
+running a test; 2 for usage errors and a held lock.
 
 A run releases its lock when xcodebuild exits on its own, including test or
 build failures (exit status below 128). An interrupted run stops xcodebuild
@@ -66,10 +94,11 @@ case "$mode" in
   *) usage >&2; exit 2 ;;
 esac
 
+# split is the default ui/all plan; YES or NO runs one pass for everything.
 if [[ -z "${ACTUALIST_TEST_PARALLEL+x}" ]]; then
   case "$mode" in
     unit) parallel=YES ;;
-    ui|all) parallel=NO ;;
+    ui|all) parallel=split ;;
   esac
 else
   case "${ACTUALIST_TEST_PARALLEL}" in
@@ -83,37 +112,60 @@ else
   esac
 fi
 
+ui_workers="${ACTUALIST_UI_TEST_WORKERS:-$default_ui_workers}"
+[[ "$ui_workers" =~ ^[1-9][0-9]*$ ]] || fail "ACTUALIST_UI_TEST_WORKERS must be a positive integer"
+
 scheme="${ACTUALIST_SCHEME:-Actualist}"
 case "$scheme" in
   Actualist|"Actualist Dev") ;;
   *) fail "ACTUALIST_SCHEME must be Actualist or Actualist Dev" ;;
 esac
 
-selection=()
+is_serial_ui_suite() {
+  local suite
+  for suite in "${serial_ui_suites[@]}"; do
+    [[ "$1" == "$suite" ]] && return 0
+  done
+  return 1
+}
+
+# The selection, split by the pass that runs it.
+unit_selection=()
+ui_parallel_selection=()
+ui_serial_selection=()
 case "$mode" in
-  unit) target=ActualistTests ;;
-  ui)
-    [[ $# -gt 0 ]] || fail "ui requires a suite or method; use all for full coverage"
-    target=ActualistUITests
+  unit)
+    if [[ $# -eq 0 ]]; then
+      unit_selection=(-only-testing:ActualistTests)
+    fi
     ;;
-  all) [[ $# -eq 0 ]] || fail "all accepts no selectors" ;;
+  ui) [[ $# -gt 0 ]] || fail "ui requires a suite or method; use all for full coverage" ;;
+  all)
+    [[ $# -eq 0 ]] || fail "all accepts no selectors"
+    unit_selection=(-only-testing:ActualistTests)
+    ui_parallel_selection=(-only-testing:ActualistUITests)
+    for suite in "${serial_ui_suites[@]}"; do
+      ui_parallel_selection+=("-skip-testing:ActualistUITests/$suite")
+      ui_serial_selection+=("-only-testing:ActualistUITests/$suite")
+    done
+    ;;
 esac
 
-if [[ "$mode" != "all" ]]; then
-  if [[ $# -eq 0 ]]; then
-    selection+=("-only-testing:$target")
+for selector in "$@"; do
+  [[ "$selector" =~ ^[A-Za-z_][A-Za-z0-9_]*(/[A-Za-z_][A-Za-z0-9_]*(\(([A-Za-z_][A-Za-z0-9_]*:)*\))?)?$ ]] \
+    || fail "invalid suite/method selector: $selector"
+  case "$selector" in
+    ActualistTests|ActualistTests/*)
+      fail "omit the target prefix: $selector" ;;
+  esac
+  if [[ "$mode" == unit ]]; then
+    unit_selection+=("-only-testing:ActualistTests/$selector")
+  elif is_serial_ui_suite "${selector%%/*}"; then
+    ui_serial_selection+=("-only-testing:ActualistUITests/$selector")
   else
-    for selector in "$@"; do
-      [[ "$selector" =~ ^[A-Za-z_][A-Za-z0-9_]*(/[A-Za-z_][A-Za-z0-9_]*(\(([A-Za-z_][A-Za-z0-9_]*:)*\))?)?$ ]] \
-        || fail "invalid suite/method selector: $selector"
-      case "$selector" in
-        ActualistTests|ActualistTests/*)
-          fail "omit the target prefix: $selector" ;;
-      esac
-      selection+=("-only-testing:$target/$selector")
-    done
+    ui_parallel_selection+=("-only-testing:ActualistUITests/$selector")
   fi
-fi
+done
 
 [[ -n "${ACTUALIST_SIMULATOR_ID:-}" ]] \
   || fail "set ACTUALIST_SIMULATOR_ID or configure scripts/lib/destinations.sh"
@@ -124,21 +176,68 @@ case "${ACTUALIST_TEST_SANITIZER:-}" in
   *) fail "ACTUALIST_TEST_SANITIZER must be unset or thread" ;;
 esac
 
-command=(xcodebuild -project Actualist.xcodeproj -scheme "$scheme"
-  -destination "platform=iOS Simulator,id=$ACTUALIST_SIMULATOR_ID"
-  -derivedDataPath "${DERIVED_DATA_PATH:-.derivedData}"
-  -parallel-testing-enabled "$parallel")
-if [[ ${#sanitizer_flags[@]} -gt 0 ]]; then
-  command+=("${sanitizer_flags[@]}")
+# Every pass's xcodebuild words live in pass_words; pass_ends[i] is the offset
+# just past pass i's last word (bash 3.2 has no nested arrays).
+pass_names=()
+pass_words=()
+pass_ends=()
+
+add_pass() {
+  local name="$1" parallel_flag="$2" runs_ui="$3"
+  shift 3
+  pass_names+=("$name")
+  pass_words+=(xcodebuild -project Actualist.xcodeproj -scheme "$scheme"
+    -destination "platform=iOS Simulator,id=$ACTUALIST_SIMULATOR_ID"
+    -derivedDataPath "${DERIVED_DATA_PATH:-.derivedData}"
+    -parallel-testing-enabled "$parallel_flag")
+  if [[ "$parallel_flag" == YES && "$runs_ui" -eq 1 ]]; then
+    pass_words+=(-parallel-testing-worker-count "$ui_workers")
+  fi
+  if [[ ${#sanitizer_flags[@]} -gt 0 ]]; then
+    pass_words+=("${sanitizer_flags[@]}")
+  fi
+  if [[ $# -gt 0 ]]; then
+    pass_words+=("$@")
+  fi
+  pass_words+=(test)
+  pass_ends+=("${#pass_words[@]}")
+}
+
+# Sets command to pass $1's words.
+load_pass_command() {
+  local start=0
+  [[ "$1" -eq 0 ]] || start="${pass_ends[$(($1 - 1))]}"
+  command=("${pass_words[@]:$start:$((pass_ends[$1] - start))}")
+}
+
+if [[ "$parallel" == split ]]; then
+  if [[ ${#unit_selection[@]} -gt 0 ]]; then
+    add_pass unit YES 0 "${unit_selection[@]}"
+  fi
+  if [[ ${#ui_parallel_selection[@]} -gt 0 ]]; then
+    add_pass ui-parallel YES 1 "${ui_parallel_selection[@]}"
+  fi
+  if [[ ${#ui_serial_selection[@]} -gt 0 ]]; then
+    add_pass ui-serial NO 1 "${ui_serial_selection[@]}"
+  fi
+elif [[ "$mode" == all ]]; then
+  # A forced single all pass selects nothing, so it runs every test target.
+  add_pass all "$parallel" 1
+else
+  runs_ui=1
+  [[ "$mode" != unit ]] || runs_ui=0
+  add_pass "$mode" "$parallel" "$runs_ui" \
+    "${unit_selection[@]+"${unit_selection[@]}"}" \
+    "${ui_parallel_selection[@]+"${ui_parallel_selection[@]}"}" \
+    "${ui_serial_selection[@]+"${ui_serial_selection[@]}"}"
 fi
-if [[ ${#selection[@]} -gt 0 ]]; then
-  command+=("${selection[@]}")
-fi
-command+=(test)
 
 if [[ "$dry_run" -eq 1 ]]; then
-  printf '%q ' "${command[@]}"
-  printf '\n'
+  for index in "${!pass_names[@]}"; do
+    load_pass_command "$index"
+    printf '%q ' "${command[@]}"
+    printf '\n'
+  done
   exit 0
 fi
 
@@ -288,14 +387,20 @@ wait_for_run_log() {
   done
 }
 
-# Each test host reports as "<host name> (<pid>)". The same host under a
-# second pid means it was relaunched mid-run: Swift Testing does not report
-# the tests that were still running in the replaced process, and the result
-# bundle omits them too, so the summary alone can look complete.
-report_replaced_hosts() {
+# Prints the run log from line $1 on: the output of the pass that began there.
+pass_output() {
   [[ -f "$run_log" ]] || return 0
-  # A run with no test-host lines (a build failure) has nothing to report.
-  { grep -oE "on '[^']+ \([0-9]+\)'" "$run_log" || true; } \
+  tail -n "+$1" "$run_log"
+}
+
+# Each test host reports as "<host name> (<pid>)". The same host under a
+# second pid within one pass means it was relaunched mid-run: Swift Testing
+# does not report the tests that were still running in the replaced process,
+# and the result bundle omits them too, so the summary alone can look
+# complete. Passes are separate xcodebuild sessions, so each is checked alone.
+report_replaced_hosts() {
+  # A pass with no test-host lines (a build failure) has nothing to report.
+  { pass_output "$1" | grep -oE "on '[^']+ \([0-9]+\)'" || true; } \
     | sed -E "s/^on '(.+) \(([0-9]+)\)'\$/\1|\2/" \
     | sort -u \
     | awk -F'|' '{ pids[$1] = pids[$1] (pids[$1] == "" ? "" : ", ") $2; count[$1]++ }
@@ -308,8 +413,7 @@ report_replaced_hosts() {
 # lines ("Test run with N tests", "Executed N tests") are not counted, because
 # XCTest prints "Executed 0 tests" even when Swift Testing tests ran.
 count_reported_tests() {
-  [[ -f "$run_log" ]] || { echo 0; return 0; }
-  { grep -E "^Test case '|^Test Case '-\[.*\]' (passed|failed|skipped)|^[✔✘↪] Test .* (passed|failed|skipped)" "$run_log" || true; } \
+  { pass_output "$1" | grep -E "^Test case '|^Test Case '-\[.*\]' (passed|failed|skipped)|^[✔✘↪] Test .* (passed|failed|skipped)" || true; } \
     | { grep -vc "^[✔✘↪] Test run with" || true; }
 }
 
@@ -338,59 +442,80 @@ if [[ -d "$clone_set" ]]; then
   clones_before="$(list_clones '[A-Za-z ]+')"
 fi
 trap delete_new_clones EXIT
-# The output is also kept in a log so the run can be checked for a replaced
-# test host after xcodebuild exits (see report_replaced_hosts).
+# The output is also kept in a log so each pass can be checked for a replaced
+# test host after its xcodebuild exits (see report_replaced_hosts).
 run_log="$ROOT/.artifacts/last-test-run.log"
 run_log_done="$ROOT/.artifacts/last-test-run.done"
-rm -f "$run_log_done"
-set +e
-"${command[@]}" > >(tee "$run_log"; touch "$run_log_done") 2>&1 &
-child_pid=$!
-start_status=$?
-set -e
-if [[ "$start_status" -ne 0 || -z "$child_pid" ]]; then
-  recovery_required "could not start xcodebuild"
-  exit 1
-fi
-printf '%s\n' "$child_pid" > "$lockdir/child-pid" || true
-if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
-  exit_interrupted "invocation interrupted (${interrupt_signal:-signal})"
-fi
+: > "$run_log"
+run_status=0
+for index in "${!pass_names[@]}"; do
+  if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
+    exit_interrupted "invocation interrupted (${interrupt_signal:-signal}) before pass ${pass_names[$index]}"
+  fi
+  load_pass_command "$index"
+  pass_first_line=$(( $(wc -l < "$run_log") + 1 ))
+  if [[ ${#pass_names[@]} -gt 1 ]]; then
+    printf '=== scripts/test.sh pass %d of %d: %s ===\n' \
+      "$((index + 1))" "${#pass_names[@]}" "${pass_names[$index]}" | tee -a "$run_log"
+  fi
+  rm -f "$run_log_done"
+  set +e
+  "${command[@]}" > >(tee -a "$run_log"; touch "$run_log_done") 2>&1 &
+  child_pid=$!
+  start_status=$?
+  set -e
+  if [[ "$start_status" -ne 0 || -z "$child_pid" ]]; then
+    recovery_required "could not start xcodebuild"
+    exit 1
+  fi
+  printf '%s\n' "$child_pid" > "$lockdir/child-pid" || true
+  if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
+    exit_interrupted "invocation interrupted (${interrupt_signal:-signal})"
+  fi
 
-set +e
-wait "$child_pid"
-child_status=$?
-set -e
+  set +e
+  wait "$child_pid"
+  child_status=$?
+  set -e
 
-if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
-  exit_interrupted "invocation interrupted (${interrupt_signal:-signal})"
-fi
+  if [[ "$interrupted" -eq 1 || -f "$lockdir/interrupted" ]]; then
+    exit_interrupted "invocation interrupted (${interrupt_signal:-signal})"
+  fi
 
-# xcodebuild ends its own test session before it exits, including after test
-# or build failures. A signal exit (128+) means it was killed mid-run, so test
-# activity may outlive it.
-if [[ "$child_status" -ge 128 ]]; then
-  recovery_required "xcodebuild was terminated (exit $child_status)"
-  exit "$child_status"
-fi
+  # xcodebuild ends its own test session before it exits, including after test
+  # or build failures. A signal exit (128+) means it was killed mid-run, so test
+  # activity may outlive it.
+  if [[ "$child_status" -ge 128 ]]; then
+    recovery_required "xcodebuild was terminated (exit $child_status)"
+    exit "$child_status"
+  fi
+  # This pass's xcodebuild has exited; a later signal has no child to stop.
+  child_pid=""
 
-wait_for_run_log
-replaced_hosts="$(report_replaced_hosts)"
-reported_tests="$(count_reported_tests)"
+  wait_for_run_log
+  pass_label="${pass_names[$index]}"
+  pass_status="$child_status"
+  if [[ "$pass_status" -ne 0 ]]; then
+    echo "error: $pass_label: xcodebuild exited $pass_status" >&2
+  fi
+  replaced_hosts="$(report_replaced_hosts "$pass_first_line")"
+  if [[ -n "$replaced_hosts" ]]; then
+    echo "error: $pass_label: a test host was replaced during the run, so the tests still running in it were never reported:" >&2
+    printf '  %s\n' "$replaced_hosts" >&2
+    echo "error: the run is incomplete; full output is in $run_log" >&2
+    [[ "$pass_status" -ne 0 ]] || pass_status=3
+  fi
+  # A selector that matches nothing (a Swift Testing method named without its
+  # "()", a renamed suite) still ends in TEST SUCCEEDED with no test run.
+  if [[ "$pass_status" -eq 0 && "$(count_reported_tests "$pass_first_line")" -eq 0 ]]; then
+    echo "error: $pass_label: xcodebuild succeeded but no test ran; check the selection (Swift Testing methods need \"()\", e.g. Suite/test())" >&2
+    pass_status=4
+  fi
+  [[ "$run_status" -ne 0 ]] || run_status="$pass_status"
+done
+
 release_lock
-if [[ "$child_status" -ne 0 ]]; then
-  echo "error: xcodebuild exited $child_status; the test-run lock was released" >&2
+if [[ "$run_status" -ne 0 ]]; then
+  echo "error: the run failed (exit $run_status); the test-run lock was released" >&2
 fi
-if [[ -n "$replaced_hosts" ]]; then
-  echo "error: a test host was replaced during the run, so the tests still running in it were never reported:" >&2
-  printf '  %s\n' "$replaced_hosts" >&2
-  echo "error: the run is incomplete; full output is in $run_log" >&2
-  [[ "$child_status" -ne 0 ]] || child_status=3
-fi
-# A selector that matches nothing (a Swift Testing method named without its
-# "()", a renamed suite) still ends in TEST SUCCEEDED with no test run.
-if [[ "$child_status" -eq 0 && "$reported_tests" -eq 0 ]]; then
-  echo "error: xcodebuild succeeded but no test ran; check the selection (Swift Testing methods need \"()\", e.g. Suite/test())" >&2
-  child_status=4
-fi
-exit "$child_status"
+exit "$run_status"

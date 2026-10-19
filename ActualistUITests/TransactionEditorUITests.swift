@@ -248,23 +248,9 @@ final class TransactionEditorUITests: XCTestCase {
         XCTAssertTrue(formattedAmount(containing: "0.07", in: app).waitForExistence(timeout: 5))
     }
 
-    private func waitForAmountInput(in app: XCUIApplication) {
-        let keyboard = app.keyboards.firstMatch
-        if keyboard.waitForExistence(timeout: 3) { return }
-        let floatingNumberPad = app.popovers.containing(.key, identifier: "1").firstMatch
-        XCTAssertTrue(floatingNumberPad.waitForExistence(timeout: 5))
-    }
-
     private func assertNoEditorKeyboard(in app: XCUIApplication) {
-        XCTAssertTrue(waitUntilDismissed(app.keyboards.firstMatch, in: app))
+        XCTAssertTrue(app.waitUntilKeyboardDismissed())
         XCTAssertTrue(app.popovers.containing(.key, identifier: "1").firstMatch.waitForNonExistence(timeout: 5))
-    }
-
-    /// iPhone removes the keyboard element when it hides. iPad keeps an
-    /// off-screen keyboard element, so "dismissed" means absent or outside the window.
-    private func waitUntilDismissed(_ keyboard: XCUIElement, in app: XCUIApplication, timeout: TimeInterval = 5) -> Bool {
-        let dismissed = NSPredicate { _, _ in !keyboard.exists || !keyboard.frame.intersects(app.frame) }
-        return XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: dismissed, object: nil)], timeout: timeout) == .completed
     }
 
     private func captureScreenshot(named name: String) {
@@ -274,9 +260,21 @@ final class TransactionEditorUITests: XCTestCase {
         add(attachment)
     }
 
+    /// The first launch of each test resets the demo and preferences; later launches keep them.
+    private var hasReplacedDemo = false
+
+    private func launchArguments(screen: String) -> [String] {
+        var arguments = ["-actualist-demo"]
+        if !hasReplacedDemo {
+            arguments.append("-actualist-replace-demo-for-ui-testing")
+            hasReplacedDemo = true
+        }
+        return arguments + ["-actualist-screen", screen]
+    }
+
     private func launchDemo() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
+        app.launchArguments = launchArguments(screen: "budget")
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
         return app
@@ -318,12 +316,11 @@ final class TransactionEditorUITests: XCTestCase {
         addTransaction.tap()
         let editorScroll = app.scrollViews["transaction-editor-scroll"]
         XCTAssertTrue(editorScroll.waitForExistence(timeout: 5))
-        if app.windows.firstMatch.frame.width > 700 {
-            // The iPad number pad is a modal popover that a scroll cannot dismiss.
-            dismissNumberPadPopover(in: app, editor: app.navigationBars["Add Transaction"])
-        } else {
-            editorScroll.swipeDown()
-        }
+        // On iPad the amount may open a modal number-pad popover, which a scroll
+        // cannot dismiss, or a docked keyboard, which the same swipe as on
+        // iPhone dismisses.
+        dismissNumberPadPopover(in: app, editor: app.navigationBars["Add Transaction"])
+        if app.isKeyboardOnScreen { editorScroll.swipeDown() }
         assertNoEditorKeyboard(in: app)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -352,7 +349,7 @@ final class TransactionEditorUITests: XCTestCase {
 
     func testEditorLightAppearance() {
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = launchArguments(screen: "settings/appearance")
         app.launch()
         let theme = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Theme'")).firstMatch
         XCTAssertTrue(theme.waitForExistence(timeout: 10))

@@ -114,3 +114,22 @@ extension View {
             .tint(ActualistTheme.accent)
     }
 }
+
+/// A `Form` row button that takes its own tap. A default row button acts
+/// through row selection, which the review sheets' tap-to-end-editing gesture
+/// on the `Form` swallows. Keeps the full-row hit area and palette text.
+struct ReviewSheetFormRowButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(configuration.role == .destructive ? ActualistTheme.danger : ActualistTheme.primaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.5 : isEnabled ? 1 : 0.4)
+    }
+}
+
+extension ButtonStyle where Self == ReviewSheetFormRowButtonStyle {
+    static var reviewSheetFormRow: Self { .init() }
+}
