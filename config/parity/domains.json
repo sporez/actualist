@@ -443,17 +443,26 @@
     },
     {
       "id": "sync-merkle",
-      "title": "Sync merkle trie and CRDT message construction",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "title": "Sync merkle trie, re-pull rounds and CRDT message construction",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/parity/sync-merkle",
+        "generate": "node scripts/parity/sync-merkle/generate.mjs",
+        "verify": "node scripts/parity/sync-merkle/verify.mjs",
+        "check": "node scripts/parity/sync-merkle/generate.mjs --check"
+      },
+      "fixture": "SyncMerkle",
+      "oracleSuites": [
+        "SyncMerkleOracleReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/Sync/MerkleTrie.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+Merkle.swift",
-        "Actualist/LocalFirst/Sync/LocalFirstSyncMessageBuilder.swift"
+        "Actualist/LocalFirst/Sync/LocalFirstSyncMessageBuilder.swift",
+        "Actualist/LocalFirst/Sync/SyncClient.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+Sync.swift"
       ],
-      "notes": "MerkleTrieTests is a hand port of upstream merkle.test.ts, not generated."
+      "notes": "SyncMerkleOracleReplayTests replays 221 cases (21 named, 200 seeded) of upstream _fullSync against its mockSyncServer through LocalFirstActualStore.refresh, comparing outcome, final server and client message sets, merkle agreement and payee rows. Request sequences are not compared (outbox batches, upload confirmation, ten extra rounds after a rebuild). MerkleTrieTests is a hand port of upstream merkle.test.ts, not generated. Encrypted envelopes are not in the fixture."
     }
   ]
 }

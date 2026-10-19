@@ -1,0 +1,162 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/parity/sync-merkle/generate.mjs
+// and removed after the run. Each case builds a client database and a mock sync
+// server, runs upstream's own fullSync, and records every /sync/sync request and
+// the final state of both sides.
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import {
+  fromBinary,
+  getClock,
+  makeClock,
+  merkle,
+  setClock,
+  SyncRequestSchema,
+  SyncResponseSchema,
+  Timestamp,
+} from '@actual-app/crdt';
+import { expect, test } from 'vitest';
+
+import * as db from '#server/db';
+import * as prefs from '#server/prefs';
+import { applyMessages, fullSync, setSyncingMode } from '#server/sync';
+import * as encoder from '#server/sync/encoder';
+import * as mockSyncServer from '#server/tests/mockSyncServer';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const contractPath = __CONTRACT_PATH__;
+const ZERO_SINCE = '1970-01-01T00:00:00.000Z-0000-0000000000000000';
+
+const originalHandler = mockSyncServer.handlers['/sync/sync'];
+const state = { active: false, count: 0, during: [], requests: [], minted: [] };
+
+const rawValue = value => value.slice(2);
+
+// Count, digest of the sorted entries joined by newline, and the entries themselves when short.
+function summarize(entries) {
+  const sorted = [...entries].sort();
+  const summary = { count: sorted.length, sha256: createHash('sha256').update(sorted.join('\n'), 'utf8').digest('hex') };
+  if (sorted.length <= 20) summary.items = sorted;
+  return summary;
+}
+
+async function pushToServer(messages) {
+  const encoded = await encoder.encode(
+    plan.groupId,
+    plan.fileId,
+    ZERO_SINCE,
+    messages.map(entry => ({
+      dataset: plan.dataset,
+      row: entry.row,
+      column: plan.column,
+      value: entry.value,
+      timestamp: entry.timestamp,
+    })),
+  );
+  await originalHandler(encoded);
+}
+
+// Every request of the run under test passes through here: events keyed to the
+// request number run first, then upstream's mock server answers.
+mockSyncServer.handlers['/sync/sync'] = async data => {
+  if (!state.active) return originalHandler(data);
+  state.count += 1;
+  const number = state.count;
+  const request = fromBinary(SyncRequestSchema, data);
+  for (const event of state.during.filter(candidate => candidate.atRequest === number)) {
+    if (event.serverReceives) {
+      await pushToServer(event.serverReceives);
+    } else {
+      const messages = event.clientCommits.map(commit => ({
+        dataset: commit.dataset,
+        row: commit.row,
+        column: commit.column,
+        value: rawValue(commit.value),
+        timestamp: Timestamp.send(),
+      }));
+      await applyMessages(messages);
+      for (const message of messages) {
+        state.minted.push({ atRequest: number, row: message.row, timestamp: message.timestamp.toString() });
+      }
+    }
+  }
+  const response = await originalHandler(data);
+  const sent = request.messages.map(message => message.timestamp).sort();
+  const received = fromBinary(SyncResponseSchema, response).messages.map(message => message.timestamp).sort();
+  state.requests.push({ since: request.since, sentTimestamps: summarize(sent), receivedTimestamps: summarize(received) });
+  return response;
+};
+
+async function runCase(planCase) {
+  state.active = false;
+  state.count = 0;
+  state.requests = [];
+  state.minted = [];
+  state.during = planCase.during;
+
+  mockSyncServer.reset();
+  setSyncingMode('enabled');
+  await global.emptyDatabase()();
+  global.stepForwardInTime(Date.parse(planCase.now));
+  await prefs.loadPrefs();
+  await prefs.savePrefs({
+    groupId: plan.groupId,
+    cloudFileId: plan.fileId,
+    lastSyncedTimestamp: planCase.setup.lastSynced,
+  });
+  setClock(makeClock(new Timestamp(0, 0, plan.clientNode)));
+
+  const { shared, serverOnly, clientPending, clientUnsent, phantom } = planCase.setup;
+  const toLocal = entry => ({
+    dataset: plan.dataset,
+    row: entry.row,
+    column: plan.column,
+    value: rawValue(entry.value),
+    timestamp: Timestamp.parse(entry.timestamp),
+  });
+  await applyMessages([...shared, ...clientUnsent, ...clientPending].map(toLocal));
+  await pushToServer([...shared, ...serverOnly]);
+  for (const timestamp of phantom) {
+    const serverClock = mockSyncServer.getClock();
+    serverClock.merkle = merkle.insert(serverClock.merkle, Timestamp.parse(timestamp));
+  }
+
+  state.active = true;
+  let outcome = 'ok';
+  try {
+    const result = await fullSync();
+    if (result && 'error' in result) {
+      outcome = result.error.reason === 'out-of-sync' ? 'out-of-sync' : `error:${result.error.message}`;
+    }
+  } catch (error) {
+    outcome = `error:${error.message}`;
+  }
+  state.active = false;
+
+  const serverTimestamps = mockSyncServer.getMessages().map(message => message.timestamp.toString()).sort();
+  const clientRows = await db.all('SELECT timestamp FROM messages_crdt');
+  const clientTimestamps = clientRows.map(row => row.timestamp).sort();
+  const payees = await db.all("SELECT id, name FROM payees WHERE id LIKE 'p-%' ORDER BY id");
+  const serverSet = new Set(serverTimestamps);
+  return {
+    outcome,
+    requests: state.requests.map(request => ({ ...request })),
+    mintedCommits: state.minted.map(commit => ({ ...commit })),
+    final: {
+      serverTimestamps: summarize(serverTimestamps),
+      clientTimestamps: summarize(clientTimestamps),
+      merkleEqual: merkle.diff(mockSyncServer.getClock().merkle, getClock().merkle) === null,
+      clientPayees: summarize(payees.map(row => `${row.id}\t${row.name}`)),
+      serverMessagesFromClientCommits: summarize(state.minted.map(commit => commit.timestamp).filter(timestamp => serverSet.has(timestamp))),
+    },
+  };
+}
+
+test('sync merkle oracle', async () => {
+  const records = [];
+  for (const planCase of plan.cases) {
+    records.push({ ...planCase, result: await runCase(planCase) });
+  }
+  writeFileSync(contractPath, JSON.stringify({ records }));
+  expect(records.length).toBe(plan.cases.length);
+}, 3_600_000);
