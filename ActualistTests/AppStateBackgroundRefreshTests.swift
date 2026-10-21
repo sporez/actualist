@@ -69,4 +69,68 @@ extension LocalFirstActualStoreTests {
         #expect(run.message == "Synced budget; no new transactions")
         #expect(state.settings.pendingNewTransactionIDsByAccount["group-1|checking"] == ["cold-open-new"])
     }
+
+    @Test func refreshSupersededByAForegroundReturnStillPublishesItsNewTransactions() async throws {
+        let gate = StubConnectionWaitGate()
+        let transport = PendingAlertGatedTransport(gate: gate)
+        try await transport.inner.seedServerMessages([
+            remoteMessage(index: 0, row: "background-new", column: "acct", value: .string("checking")),
+            remoteMessage(index: 1, row: "background-new", column: "amount", value: .int(-4_200))
+        ])
+        let bundle = try await makeOpenedWritableStoreBundle { _ in transport }
+        try bundle.keychain.saveActualSyncToken("token")
+        let state = try makeAppState(for: bundle)
+        state.settings.backgroundTransactionRefreshEnabled = true
+        state.setupPhase = .ready
+        state.selectedBudget = bundle.budget
+
+        let background = Task { await state.performBackgroundTransactionRefresh() }
+        await gate.waitForEntry()
+        // The foreground return reads SQLite before the run records anything.
+        await state.prepareBackgroundTransactionNotifications()
+        #expect(state.settings.pendingNewTransactionIDsByAccount["group-1|checking"] == nil)
+        await gate.release()
+
+        #expect(await background.value)
+        #expect(state.settings.pendingNewTransactionIDsByAccount["group-1|checking"] == ["background-new"])
+    }
+
+    @Test func notificationTapPublishesNewTransactionsTheProjectionMissed() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle()
+        let database = try #require(bundle.store.database)
+        try await database.recordPendingNewTransactions(.init(
+            transactionIDsByAccount: ["checking": ["tapped-new"]],
+            source: .remoteSync,
+            notificationID: "alert-1",
+            notificationAlreadyAcknowledged: true
+        ))
+        let state = try makeAppState(for: bundle)
+        state.settings.backgroundTransactionRefreshEnabled = true
+        state.setupPhase = .ready
+        state.selectedBudget = bundle.budget
+        state.selectedTab = .accounts
+        #expect(state.settings.pendingNewTransactionIDsByAccount.isEmpty)
+
+        await state.routeToSpendingFromNotification(budgetID: "group-1")
+
+        #expect(state.selectedTab == .spending)
+        #expect(state.settings.pendingNewTransactionIDsByAccount["group-1|checking"] == ["tapped-new"])
+    }
+}
+
+/// Holds the first pull until released, then serves the seeded server messages.
+private actor PendingAlertGatedTransport: ActualSyncTransport {
+    let gate: StubConnectionWaitGate
+    let inner = RecordingSyncTransport()
+    private var calls = 0
+
+    init(gate: StubConnectionWaitGate) {
+        self.gate = gate
+    }
+
+    func sync(data: Data, token: String) async throws -> Data {
+        calls += 1
+        if calls == 1 { await gate.wait() }
+        return try await inner.sync(data: data, token: token)
+    }
 }

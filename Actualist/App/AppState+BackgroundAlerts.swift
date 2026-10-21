@@ -70,9 +70,14 @@ extension AppState {
                 )
             }
         )
-        if identity == backgroundSessionIdentity {
-            backgroundTransactionWorkflow.applyRefreshResult(result, to: &settings)
-        } else { return false }
+        guard identity == backgroundSessionIdentity else { return false }
+        let projectionIsCurrent = backgroundTransactionWorkflow.applyRefreshResult(result, to: &settings)
+        // A newer pending-ID operation (such as a foreground return during this
+        // run) may have read SQLite before this run recorded its transactions.
+        // Re-read so the stale projection does not drop them until a later return.
+        if !projectionIsCurrent, result.outcome == .success {
+            await prepareBackgroundTransactionNotifications()
+        }
         switch result.outcome {
         case .success:
             return true
@@ -171,6 +176,9 @@ extension AppState {
             self.selectedTab = .spending
             self.routeCoordinator.enqueue(.tab(.spending))
         }
+        // A tap is not always a foreground return (Notification Center over the
+        // open app), so the pending projection may predate the run that posted it.
+        await prepareBackgroundTransactionNotifications()
     }
 
     #if DEBUG

@@ -692,7 +692,11 @@ final class BackgroundTransactionWorkflow {
         _ = updateApplicationBadge(in: settings)
     }
 
-    func applyRefreshResult(_ result: RefreshResult, to settings: inout AppSettings) {
+    /// Returns false when a newer pending-ID operation superseded this run's
+    /// projection, which is then left unmerged.
+    @discardableResult
+    func applyRefreshResult(_ result: RefreshResult, to settings: inout AppSettings) -> Bool {
+        let projectionIsCurrent = result.pendingProjectionGeneration == pendingProjectionGeneration
         if let runID = result.runID,
            let run = result.settings.backgroundRefreshDebug.recentRuns.first(where: { $0.id == runID }) {
             if let index = settings.backgroundRefreshDebug.recentRuns.firstIndex(where: { $0.id == runID }) {
@@ -705,8 +709,7 @@ final class BackgroundTransactionWorkflow {
                 )
             }
         }
-        if result.pendingProjectionGeneration == pendingProjectionGeneration,
-           let budgetID = result.budgetID {
+        if projectionIsCurrent, let budgetID = result.budgetID {
             mergePendingProjection(
                 result.settings.pendingNewTransactionIDsByAccount,
                 budgetID: budgetID,
@@ -714,6 +717,7 @@ final class BackgroundTransactionWorkflow {
             )
         }
         settingsStore.save(settings)
+        return projectionIsCurrent
     }
 
     private func beginPendingProjectionOperation() -> Int {
