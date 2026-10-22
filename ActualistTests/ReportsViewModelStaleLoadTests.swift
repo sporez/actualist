@@ -68,25 +68,29 @@ struct ReportsViewModelStaleLoadTests {
         let olderRelease = TestLatch()
         let newerEntered = TestLatch()
         let newerRelease = TestLatch()
+        func releaseAll() {
+            olderEntered.trip(); newerEntered.trip(); olderRelease.trip(); newerRelease.trip()
+        }
+        // refresh takes its token when it starts, and two Tasks need not start
+        // in creation order, so the newer one is created only after the older
+        // one has entered.
         let older = Task {
             await model.refresh(sync: {}, reload: {
                 olderEntered.trip()
                 await olderRelease.wait()
             })
         }
+        defer { older.cancel(); releaseAll() }
+        let olderStarted = await olderEntered.wait(timeout: .seconds(5), onTimeout: releaseAll)
         let newer = Task {
             await model.refresh(sync: {}, reload: {
                 newerEntered.trip()
                 await newerRelease.wait()
             })
         }
-        func releaseAll() {
-            olderEntered.trip(); newerEntered.trip(); olderRelease.trip(); newerRelease.trip()
-        }
-        defer { older.cancel(); newer.cancel(); releaseAll() }
-        let bothStarted = await olderEntered.wait(timeout: .seconds(5), onTimeout: releaseAll)
+        defer { newer.cancel() }
         let newerStarted = await newerEntered.wait(timeout: .seconds(5), onTimeout: releaseAll)
-        #expect(bothStarted && newerStarted)
+        #expect(olderStarted && newerStarted)
 
         olderRelease.trip()
         await older.value
