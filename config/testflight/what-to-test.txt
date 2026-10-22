@@ -12,7 +12,7 @@ What to test:
 Report problems through Settings → Support → Share Diagnostic Report. Include what happened, what you expected, and the steps to reproduce it. Remove personal information from screenshots before sharing.
 
 Known limitations:
-- Bank Sync supports SimpleFIN only. Other providers require another Actual client or your server. Background Bank Sync is experimental and off by default; enabling it saves downloaded changes automatically.
+- Bank Sync supports SimpleFIN only. Other providers require another Actual client or your server.
 - You can add and reconcile accounts, but renaming, closing, reopening, and deleting accounts are not yet supported.
 - Some imported rules, including split rules, cannot be edited here.
 - Templates written in category notes remain read-only. Some advanced template types and options cannot be edited here.
