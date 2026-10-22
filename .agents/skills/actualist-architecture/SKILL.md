@@ -295,7 +295,7 @@ A change that matches a domain's paths requires `scripts/parity.sh verify <domai
 
 - Start with the production type or workflow name under flat `ActualistTests/`: `BudgetViewModel…Tests`, `LocalFirstActualStore…Tests`, `BudgetDatabase…Tests`, `BankSync…Tests`, and so on.
 - Shared test construction lives in files ending in `TestSupport.swift`; reuse it instead of inventing a second fixture style. `LocalFirstActualStoreTests` is also a shared fixture namespace with extensions and external consumers, and it stays `@Suite(.serialized)`. `makeOpenedWritableStoreBundle` and `makeBankSyncStore` default to a fresh `FakeKeychainBackend()` per fixture; keep that.
-- SQLite/schema/oracle fixtures live under `ActualistTests/Fixtures/` (oracle output in `ActualCore<version>/`, hand-written portability fixtures in `Portability/`).
+- SQLite/schema/oracle fixtures live under `ActualistTests/Fixtures/` (oracle output in `ActualCore<version>/`).
 - UI suites under `ActualistUITests/` are named by visible surface or interaction, such as adaptive settings, reconciliation, iPad review, notes, tracking budget, month swipe, category lifecycle, credential recovery, or Springboard quick actions.
 - `scripts/test.sh unit <Suite>...` and `scripts/test.sh ui <Suite[/testMethod]>...` are the supported focused runners.
 - Tests that need to park a store operation use the DEBUG hooks on `store.seams` with `TestLatch`/`ObservedTestState`, not yield loops.
