@@ -33,7 +33,9 @@ Usage: scripts/test.sh [--dry-run] unit|ui|all [Suite[/testMethod] ...]
 
 Selectors omit the target prefix, e.g. BankSyncReconcilerTests.
 Swift Testing methods may include argument labels, e.g. 'ExampleTests/check(_:)'.
-Uses ACTUALIST_SIMULATOR_ID from the environment or local destinations.sh.
+The simulator comes from scripts/lib/simulator.sh: ACTUALIST_SIMULATOR_ID
+while it exists, otherwise the one matching the name, device type and runtime
+in destinations.sh, created when it is missing. A dry run never creates one.
 DERIVED_DATA_PATH defaults to .derivedData in the repository.
 ACTUALIST_SCHEME may be Actualist (the default) or Actualist Dev.
 ACTUALIST_TEST_SANITIZER=thread adds -enableThreadSanitizer YES (diagnostic
@@ -167,8 +169,13 @@ for selector in "$@"; do
   fi
 done
 
-[[ -n "${ACTUALIST_SIMULATOR_ID:-}" ]] \
-  || fail "set ACTUALIST_SIMULATOR_ID or configure scripts/lib/destinations.sh"
+source "$ROOT/scripts/lib/simulator.sh"
+if [[ "$dry_run" -eq 1 ]]; then
+  actualist_resolve_simulator --no-create || exit 2
+  : "${ACTUALIST_SIMULATOR_ID:=<created-at-run-time>}"
+else
+  actualist_resolve_simulator || exit 2
+fi
 
 case "${ACTUALIST_TEST_SANITIZER:-}" in
   "") sanitizer_flags=() ;;
