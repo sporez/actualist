@@ -3,15 +3,14 @@ Actualist {{VERSION}} ({{BUILD}}) — Beta
 Before testing, export a backup of your Actual budget.
 
 What to test:
-- Connect to your server, import a budget, and compare Budget, Spending, Accounts, and Reports with Actual.
-- Create, edit, categorize, split, transfer, and delete test transactions.
-- Edit your envelope or tracking budget and check that changes appear in Actual. Organize categories and groups in Budget. For envelope budgets, also check Move Money.
-- Make a small change offline, reconnect, and check that it syncs without missing or duplicate transactions.
-- Explore this build's changes, your preferred theme and display density, and widgets.
+- Compare Budget, Spending, Accounts and Reports with Actual.
+- Create, edit, split, transfer and delete test transactions, and check that they appear in Actual.
+- Make a change offline, reconnect, and check that it syncs once with nothing missing.
+- Try the new features above.
 
-Report problems through Settings → Support → Share Diagnostic Report. Include what happened, what you expected, and the steps to reproduce it. Remove personal information from screenshots before sharing.
+Report problems in Settings → Support → Share Diagnostic Report. Say what happened, what you expected and how to get there. Remove personal information from screenshots.
 
 Known limitations:
-- Bank Sync supports SimpleFIN only. Other providers require another Actual client or your server.
-- Some imported rules, including split rules, cannot be edited here.
-- Templates written in category notes remain read-only. Some advanced template types and options cannot be edited here.
+- Bank Sync supports SimpleFIN only.
+- Some imported rules, including split rules, can't be edited here.
+- Templates written in category notes are read-only, and some advanced templates can't be edited here.
