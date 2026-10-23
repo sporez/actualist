@@ -46,8 +46,8 @@ and iOS Liquid Glass controls.
   them. Save a filter and reuse it later.
 - CSV import into an account with a review before anything is saved, and CSV
   export of the transactions you are viewing.
-- Schedules under Settings: create, edit, and post them, and turn a
-  transaction into a schedule.
+- Schedules in the Budget actions menu: create, edit, skip, complete, delete,
+  and post them, and turn a transaction into a schedule.
 - Accounts with on-budget, off-budget, and closed balances, plus notes. Add,
   rename, close, reopen, and reconcile accounts, and delete empty ones. Manage
   groups when your Actual server supports them.
