@@ -165,7 +165,7 @@ extension LocalFirstActualStore {
                   bankSyncGenerationByAccount[account.id] == generation else {
                 throw BankSyncStoreError.staleGeneration
             }
-            plans.append(try await makeBankSyncPlan(
+            var plan = try await makeBankSyncPlan(
                 account: account,
                 link: links[index],
                 generation: generation,
@@ -176,7 +176,9 @@ extension LocalFirstActualStore {
                 categoryNames: categoryNames,
                 accountHadLiveTransactions: accountHadLiveTransactions[index],
                 database: database
-            ))
+            )
+            plan.wholeRequestFailure = response.wholeRequestFailure
+            plans.append(plan)
         }
         return plans
     }

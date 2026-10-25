@@ -144,6 +144,10 @@ struct SimpleFINTransactionsResponse: Equatable, Sendable {
     let errorCode: String?
 
     var hasWholeRequestError: Bool { errorCode != nil }
+
+    var wholeRequestFailure: BankSyncWholeRequestFailure? {
+        BankSyncWholeRequestFailure.classify(errorCode: errorCode)
+    }
 }
 
 actor ActualServerSimpleFINClient: SimpleFINServerTransport {

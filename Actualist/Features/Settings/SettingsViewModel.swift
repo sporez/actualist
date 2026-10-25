@@ -115,8 +115,9 @@ final class SettingsViewModel {
         return succeeded
     }
 
-    func copyDiagnosticReport(using appState: AppState) {
-        UIPasteboard.general.string = ActualistDiagnosticReportBuilder.make(appState: appState).text
+    func copyDiagnosticReport(using appState: AppState) async {
+        let bankSync = await appState.localFirstStore.bankSyncDiagnosticSnapshot()
+        UIPasteboard.general.string = ActualistDiagnosticReportBuilder.make(appState: appState, bankSync: bankSync).text
     }
 
     var canSaveConnection: Bool {

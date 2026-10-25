@@ -10,7 +10,7 @@ extension BudgetDatabase {
             guard try tableExists("actualist_bank_sync_last_run", db: db),
                   let row = try Row.fetchOne(
                     db,
-                    sql: "SELECT finished_at, trigger, summary FROM actualist_bank_sync_last_run WHERE id = 1"
+                    sql: "SELECT * FROM actualist_bank_sync_last_run WHERE id = 1"
                   ),
                   let finishedAt = row["finished_at"] as Double?,
                   let trigger = (row["trigger"] as String?).flatMap(BankSyncLastRun.Trigger.init(rawValue:)),
@@ -20,7 +20,9 @@ extension BudgetDatabase {
             return BankSyncLastRun(
                 finishedAt: Date(timeIntervalSince1970: finishedAt),
                 trigger: trigger,
-                summary: summary
+                summary: summary,
+                // A table written before this column existed has no `failure` value.
+                failure: (row["failure"] as String?).flatMap(BankSyncWholeRequestFailure.init(rawValue:))
             )
         }
     }
@@ -32,21 +34,26 @@ extension BudgetDatabase {
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     finished_at REAL NOT NULL,
                     trigger TEXT NOT NULL,
-                    summary TEXT NOT NULL
+                    summary TEXT NOT NULL,
+                    failure TEXT
                 )
                 """)
+            if try !db.columns(in: "actualist_bank_sync_last_run").contains(where: { $0.name == "failure" }) {
+                try db.execute(sql: "ALTER TABLE actualist_bank_sync_last_run ADD COLUMN failure TEXT")
+            }
             // Invalidate the cached miss. Caching true here would survive a transaction rollback.
             tableExistsCache["actualist_bank_sync_last_run"] = nil
             try db.execute(
                 sql: """
-                    INSERT INTO actualist_bank_sync_last_run (id, finished_at, trigger, summary)
-                    VALUES (1, ?, ?, ?)
+                    INSERT INTO actualist_bank_sync_last_run (id, finished_at, trigger, summary, failure)
+                    VALUES (1, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         finished_at = excluded.finished_at,
                         trigger = excluded.trigger,
-                        summary = excluded.summary
+                        summary = excluded.summary,
+                        failure = excluded.failure
                     """,
-                arguments: [run.finishedAt.timeIntervalSince1970, run.trigger.rawValue, run.summary]
+                arguments: [run.finishedAt.timeIntervalSince1970, run.trigger.rawValue, run.summary, run.failure?.rawValue]
             )
         }
     }

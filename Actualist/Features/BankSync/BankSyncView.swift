@@ -107,7 +107,7 @@ private struct BankSyncScreen: View {
                     }
                     Text(lastRun.summary)
                         .font(.subheadline)
-                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .foregroundStyle(lastRun.failure == nil ? ActualistTheme.secondaryText : ActualistTheme.danger)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

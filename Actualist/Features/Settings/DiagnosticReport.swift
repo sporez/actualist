@@ -23,7 +23,8 @@ enum ActualistDiagnosticReportBuilder {
     static func make(
         appState: AppState,
         generatedAt: Date = Date(),
-        reportID: UUID = UUID()
+        reportID: UUID = UUID(),
+        bankSync: BankSyncDiagnosticSnapshot? = nil
     ) -> ActualistDiagnosticReport {
         let settings = appState.settings
         let store = appState.localFirstStore
@@ -204,6 +205,9 @@ enum ActualistDiagnosticReportBuilder {
             }
         }
 
+        lines += ["", "[Bank Sync]"]
+        lines += bankSyncLines(bankSync)
+
         lines += ["", "[Pending Notification Clear History]"]
         if settings.backgroundRefreshDebug.recentPendingIDClears.isEmpty {
             lines.append("No pending notification IDs cleared")
@@ -223,6 +227,24 @@ enum ActualistDiagnosticReportBuilder {
             text: lines.joined(separator: "\n"),
             filename: "Actualist-Diagnostics-\(filenameTimestamp(generatedAt)).txt"
         )
+    }
+
+    private static func bankSyncLines(_ snapshot: BankSyncDiagnosticSnapshot?) -> [String] {
+        guard let snapshot else {
+            return ["Bank Sync details unavailable"]
+        }
+        var lines = ["Linked accounts: \(snapshot.accounts.count)"]
+        for (index, account) in snapshot.accounts.enumerated() {
+            lines.append("\(index + 1). status \(account.status) | last sync \(timestamp(account.lastSync))")
+        }
+        if let run = snapshot.lastRun {
+            lines.append(
+                "Last run: \(timestamp(run.finishedAt)) | \(run.trigger.rawValue) | whole-request failure \(run.failure?.rawValue ?? "none")"
+            )
+        } else {
+            lines.append("Last run: none recorded")
+        }
+        return lines
     }
 
     static func sensitiveValues(appState: AppState) -> [String] {

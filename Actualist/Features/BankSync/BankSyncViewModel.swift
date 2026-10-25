@@ -170,7 +170,7 @@ final class BankSyncViewModel {
             let persistedRun = try? await store.bankSyncLastRun(budgetID: budgetID)
             guard sessionIsCurrent, generation == loadGeneration else { return }
             try Task.checkCancellation()
-            accountLines = rows.map(\.toLine)
+            accountLines = rows.map { $0.toLine(lastRunFailure: persistedRun?.failure) }
             lastRun = persistedRun
             if isDemoMode {
                 serverSupport = nil
@@ -318,6 +318,9 @@ final class BankSyncViewModel {
                 return
             }
             phase = .applying
+            // One cause for the whole run. Each account still commits its
+            // durable status, but no per-account result line says "Failed".
+            let wholeRequestFailure = plans.first?.wholeRequestFailure
             for plan in plans {
                 guard sessionIsCurrent else { return }
                 try Task.checkCancellation()
@@ -332,10 +335,15 @@ final class BankSyncViewModel {
                 }
                 guard sessionIsCurrent else { return }
                 tally.record(result, skipped: plan.durableStatus != .ok)
-                resultLines.append(plan.toLine(accountNames: accountNames, currency: currency, applied: true))
+                if wholeRequestFailure == nil {
+                    resultLines.append(plan.toLine(accountNames: accountNames, currency: currency, applied: true))
+                }
                 if let refreshFailure { throw refreshFailure }
             }
-            await recordRun(tally.completedSummary(plannedCount: plans.count))
+            await recordRun(
+                wholeRequestFailure?.summary ?? tally.completedSummary(plannedCount: plans.count),
+                failure: wholeRequestFailure
+            )
             phase = .ready
         } catch {
             guard sessionIsCurrent else { return }
@@ -354,7 +362,7 @@ final class BankSyncViewModel {
         do {
             let rows = try await store.bankSyncAccountRows(budgetID: budgetID)
             guard sessionIsCurrent else { return }
-            accountLines = rows.map(\.toLine)
+            accountLines = rows.map { $0.toLine(lastRunFailure: lastRun?.failure) }
         } catch {
             // The run outcome remains authoritative if the status read fails.
         }
@@ -365,9 +373,9 @@ final class BankSyncViewModel {
     /// Publishes the run immediately and persists it for later visits. Call
     /// while the phase still rejects Sync All. The record is display-only, so
     /// a failed save keeps the run's own outcome.
-    private func recordRun(_ summary: String?) async {
+    private func recordRun(_ summary: String?, failure: BankSyncWholeRequestFailure? = nil) async {
         guard let summary, sessionIsCurrent else { return }
-        let run = BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: summary)
+        let run = BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: summary, failure: failure)
         lastRun = run
         try? await store.recordBankSyncLastRun(run, budgetID: budgetID)
     }
@@ -488,7 +496,7 @@ final class BankSyncViewModel {
 }
 
 private extension LocalFirstActualStore.BankSyncAccountStatusRow {
-    var toLine: BankSyncViewModel.AccountLine {
+    func toLine(lastRunFailure: BankSyncWholeRequestFailure?) -> BankSyncViewModel.AccountLine {
         BankSyncViewModel.AccountLine(
             id: id,
             name: name,
@@ -499,7 +507,7 @@ private extension LocalFirstActualStore.BankSyncAccountStatusRow {
                 epochMilliseconds: lastSyncEpochMilliseconds,
                 isLinked: isLinked
             ),
-            statusText: BankSyncCopy.statusText(durableStatus: durableStatus),
+            statusText: BankSyncCopy.statusText(durableStatus: durableStatus, lastRunFailure: lastRunFailure),
             statusColorKind: BankSyncCopy.statusColorKind(
                 durableStatus: durableStatus,
                 isLinked: isLinked

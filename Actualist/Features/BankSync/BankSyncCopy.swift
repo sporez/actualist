@@ -15,9 +15,17 @@ enum BankSyncCopy {
         return "Synced " + CompactAgeText.text(since: date, now: Date())
     }
 
-    static func statusText(durableStatus: String?) -> String? {
+    /// A generic failure left by a whole-request failure reads "Not synced":
+    /// the cause is shown once in the last result, not on every account.
+    static func statusText(
+        durableStatus: String?,
+        lastRunFailure: BankSyncWholeRequestFailure? = nil
+    ) -> String? {
         guard let durableStatus, durableStatus != "ok" else {
             return nil
+        }
+        if durableStatus == "failed", lastRunFailure != nil {
+            return "Not synced"
         }
         switch durableStatus {
         case "attention-required":

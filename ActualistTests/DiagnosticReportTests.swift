@@ -162,6 +162,37 @@ struct DiagnosticReportTests {
         #expect(!report.text.contains("429487"))
     }
 
+    @Test func bankSyncSectionListsStatusAndCauseWithoutNamesOrIDs() {
+        let state = makeAppState()
+        let snapshot = BankSyncDiagnosticSnapshot(
+            accounts: [
+                .init(status: "failed", lastSync: Date(timeIntervalSince1970: 1_700_000_000)),
+                .init(status: "reauth-required", lastSync: nil),
+                .init(status: "text from a hostile server", lastSync: nil)
+            ],
+            lastRun: BankSyncLastRun(
+                finishedAt: Date(timeIntervalSince1970: 1_700_000_100),
+                trigger: .background,
+                summary: "My Checking could not sync $4,294.87",
+                failure: .serverDown
+            )
+        )
+        let report = ActualistDiagnosticReportBuilder.make(appState: state, bankSync: snapshot).text
+        #expect(report.contains("[Bank Sync]"))
+        #expect(report.contains("Linked accounts: 3"))
+        #expect(report.contains("1. status failed | last sync 2023-11-14T22:13:20.000Z"))
+        #expect(report.contains("2. status reauth-required | last sync never"))
+        #expect(report.contains("3. status unrecognized | last sync never"))
+        #expect(report.contains("Last run: 2023-11-14T22:15:00.000Z | background | whole-request failure server-down"))
+        #expect(!report.contains("My Checking"))
+        #expect(!report.contains("4,294.87"))
+        #expect(!report.contains("hostile"))
+
+        let none = ActualistDiagnosticReportBuilder.make(appState: state, bankSync: nil).text
+        #expect(none.contains("[Bank Sync]"))
+        #expect(none.contains("Bank Sync details unavailable"))
+    }
+
     @Test func legacyEventIsConservativelyReadAndExportedWithoutChangingMetadata() throws {
         let hostile = "unlabeled-token-qq7 password-qq7 synthetic-payee-qq7 synthetic-address-qq7\r\n"
         let original = LocalFirstSyncDebugEvent(

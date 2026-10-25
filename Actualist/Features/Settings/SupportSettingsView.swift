@@ -34,8 +34,10 @@ struct SupportSettingsView: View {
                 }
 
                 Button {
-                    viewModel.copyDiagnosticReport(using: appState)
-                    diagnosticReportCopied = true
+                    Task {
+                        await viewModel.copyDiagnosticReport(using: appState)
+                        diagnosticReportCopied = true
+                    }
                 } label: {
                     SettingsActionLabel(
                         title: diagnosticReportCopied ? "Diagnostic Report Copied" : "Copy Diagnostic Report",
@@ -82,7 +84,9 @@ struct SupportSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             viewModel.hydrate(from: appState)
-            supportViewModel.prepareDiagnosticReport(using: appState)
+        }
+        .task {
+            await supportViewModel.prepareDiagnosticReport(using: appState)
         }
     }
 }

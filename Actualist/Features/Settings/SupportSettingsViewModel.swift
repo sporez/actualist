@@ -5,7 +5,8 @@ import Observation
 final class SupportSettingsViewModel {
     private(set) var diagnosticReport: ActualistDiagnosticReport?
 
-    func prepareDiagnosticReport(using appState: AppState) {
-        diagnosticReport = ActualistDiagnosticReportBuilder.make(appState: appState)
+    func prepareDiagnosticReport(using appState: AppState) async {
+        let bankSync = await appState.localFirstStore.bankSyncDiagnosticSnapshot()
+        diagnosticReport = ActualistDiagnosticReportBuilder.make(appState: appState, bankSync: bankSync)
     }
 }

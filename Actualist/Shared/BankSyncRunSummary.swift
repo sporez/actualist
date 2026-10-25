@@ -11,6 +11,9 @@ struct BankSyncLastRun: Equatable, Sendable {
     let finishedAt: Date
     let trigger: Trigger
     let summary: String
+    /// Set when the whole request failed, so the screen and the diagnostic
+    /// report name one cause for the run instead of one per account.
+    var failure: BankSyncWholeRequestFailure?
 }
 
 /// Running totals for one Bank Sync run. Sync All and background bank sync

@@ -475,7 +475,12 @@ extension LocalFirstActualStore {
                     insertedTransactionIDsByAccount[accountID, default: []].append(contentsOf: transactionIDs)
                 }
             }
-            await recordBackgroundBankSyncRun(tally.completedSummary(plannedCount: plans.count), in: database)
+            let failure = plans.first?.wholeRequestFailure
+            await recordBackgroundBankSyncRun(
+                failure?.summary ?? tally.completedSummary(plannedCount: plans.count),
+                failure: failure,
+                in: database
+            )
         } catch {
             await recordBackgroundBankSyncRun(
                 tally.stoppedSummary(totalCount: linked.count)
@@ -493,12 +498,17 @@ extension LocalFirstActualStore {
     /// Written to the database the run started on, so a budget switch
     /// mid-run cannot attach the summary to another budget. The record is
     /// display-only; failing to save it must not fail the bank step.
-    private func recordBackgroundBankSyncRun(_ summary: String?, in database: BudgetDatabase) async {
+    private func recordBackgroundBankSyncRun(
+        _ summary: String?,
+        failure: BankSyncWholeRequestFailure? = nil,
+        in database: BudgetDatabase
+    ) async {
         guard let summary else { return }
         try? await database.saveBankSyncLastRun(BankSyncLastRun(
             finishedAt: Date(),
             trigger: .background,
-            summary: summary
+            summary: summary,
+            failure: failure
         ))
     }
 

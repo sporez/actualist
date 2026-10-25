@@ -100,6 +100,10 @@ enum BankSyncReview {
         /// The matched rows (and cascade children) as the review saw them.
         /// Apply refuses the plan when any of them changed since (5.2c).
         var reviewedRows: [BankSyncReconciliation.Existing] = []
+
+        /// Set on every plan of a run whose whole request failed. The durable
+        /// status above is still written per account, as Actual clients do.
+        var wholeRequestFailure: BankSyncWholeRequestFailure?
     }
 
     struct ApplyResult: Equatable, Sendable {
