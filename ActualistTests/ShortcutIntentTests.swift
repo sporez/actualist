@@ -171,8 +171,8 @@ struct ShortcutIntentTests {
         }
     }
 
-    @Test func openIntentsUseDynamicForegroundMode() {
-        let expected = IntentModes.foreground(.dynamic)
+    @Test func openIntentsOpenTheAppBeforeRunning() {
+        let expected = IntentModes.foreground(.immediate)
         #expect(OpenBudgetIntent.supportedModes == expected)
         #expect(OpenAccountsIntent.supportedModes == expected)
         #expect(OpenSpendingIntent.supportedModes == expected)

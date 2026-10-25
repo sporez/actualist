@@ -44,6 +44,14 @@ enum ShortcutMoney {
         return try minorUnits(from: amount.amount, currency: resolved)
     }
 
+    /// Siri on iOS 27.1 passes a required amount it never asked for as 0 (or
+    /// a non-finite value) instead of prompting. Such an amount must be asked
+    /// for, not rejected. Where 0 is a real value (a category budget), only a
+    /// non-finite amount counts as missing.
+    static func isMissing(_ amount: IntentCurrencyAmount, zeroIsMissing: Bool) -> Bool {
+        !amount.amount.isFinite || (zeroIsMissing && amount.amount.isZero)
+    }
+
     static func spoken(
         _ amount: IntentCurrencyAmount?,
         currency: BudgetCurrency? = nil

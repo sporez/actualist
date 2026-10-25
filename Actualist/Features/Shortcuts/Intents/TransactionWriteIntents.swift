@@ -96,7 +96,7 @@ struct LogTransactionIntent: AddOnlyTransactionIntent {
         try await unlockUnlessLoggingWhileLockedIsOn()
         let transaction = try await ShortcutTransactionCommand.log(
             .init(
-                amountMinorUnits: try await session.minorUnits(from: amount),
+                amountMinorUnits: try await session.minorUnits(from: $amount.valueAskingIfMissing(zeroIsMissing: true)),
                 direction: direction.commandDirection,
                 accountID: account?.id,
                 payeeID: payee?.id,
@@ -150,7 +150,7 @@ struct LogTransferIntent: AddOnlyTransactionIntent {
         let transaction = try await ShortcutTransactionCommand.transfer(
             fromAccountID: fromAccount.id,
             toAccountID: toAccount.id,
-            amountMinorUnits: try await session.minorUnits(from: amount),
+            amountMinorUnits: try await session.minorUnits(from: $amount.valueAskingIfMissing(zeroIsMissing: true)),
             date: date,
             notes: notes,
             session: session

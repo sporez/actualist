@@ -37,6 +37,17 @@ struct ShortcutMoneyTests {
         }
     }
 
+    @Test func treatsAnUnaskedIntentAmountAsMissing() {
+        let nan = IntentCurrencyAmount(amount: .nan, currencyCode: "USD")
+        let zero = IntentCurrencyAmount(amount: 0, currencyCode: "USD")
+        let real = IntentCurrencyAmount(amount: Decimal(string: "12.50")!, currencyCode: "USD")
+        #expect(ShortcutMoney.isMissing(nan, zeroIsMissing: false))
+        #expect(ShortcutMoney.isMissing(nan, zeroIsMissing: true))
+        #expect(ShortcutMoney.isMissing(zero, zeroIsMissing: true))
+        #expect(!ShortcutMoney.isMissing(zero, zeroIsMissing: false))
+        #expect(!ShortcutMoney.isMissing(real, zeroIsMissing: true))
+    }
+
     @Test func convertsIntentCurrencyAmountToMinorUnits() throws {
         let amount = IntentCurrencyAmount(
             amount: Decimal(string: "20.00")!,

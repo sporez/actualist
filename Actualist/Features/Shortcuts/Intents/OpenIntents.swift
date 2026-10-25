@@ -3,8 +3,11 @@ import Foundation
 
 protocol ActualistForegroundIntent: AppIntent {}
 
+/// Open actions bring the app forward before `perform()`, like the
+/// `openAppWhenRun = true` they replaced. With `.dynamic`, Siri on iOS 27.1
+/// ran them without foregrounding the app, so the route never showed.
 extension ActualistForegroundIntent {
-    nonisolated static var supportedModes: IntentModes { .foreground(.dynamic) }
+    nonisolated static var supportedModes: IntentModes { .foreground(.immediate) }
 }
 
 struct OpenBudgetIntent: ActualistForegroundIntent {
