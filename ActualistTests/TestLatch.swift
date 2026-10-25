@@ -36,6 +36,10 @@ final class TestLatch: Sendable {
         }
     }
 
+    var isOpen: Bool {
+        state.withLock { $0.open }
+    }
+
     /// Opens the latch and resumes all waiters. Idempotent.
     func trip() {
         let waiters = state.withLock { state -> [CheckedContinuation<Void, Never>] in
@@ -59,6 +63,11 @@ extension TestLatch {
         let timedOut = TimeoutFlag()
         let watchdog = Task { @MainActor [self] in
             do { try await Task.sleep(for: timeout) } catch { return }
+            // On a starved main actor the sleep can finish while the tripped
+            // wait is still queued; cancel() then no longer stops this task.
+            // A latch that opened in time is not a timeout: firing onTimeout
+            // here would release the caller's other gates early.
+            guard !Task.isCancelled, !isOpen else { return }
             timedOut.set()
             onTimeout()
             trip()
