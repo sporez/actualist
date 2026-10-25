@@ -280,6 +280,7 @@ struct AccountTransactionsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(ActualistTheme.background)
+        .modifier(HorizontalSafeAreaContentMargins())
         .modifier(TransactionNavigationTitleModifier(
             title: displayState.title,
             isVisible: !presentation.isCategoryInspector
