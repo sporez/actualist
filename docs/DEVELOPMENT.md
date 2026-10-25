@@ -161,6 +161,7 @@ scripts/parity.sh touched main..HEAD
 scripts/parity.sh verify tracking   # hash check, regenerate-and-diff, Swift suites
 scripts/parity.sh --dry-run verify tracking
 scripts/parity.sh verify-all        # every domain, one Swift test run
+scripts/parity.sh upstream          # is there an Actual release newer than the pin?
 ```
 
 `verify` runs the domain's fixture hash check. When
@@ -174,6 +175,11 @@ then one `scripts/test.sh` run with all of their Swift oracle suites, so Xcode
 starts once. A failing suite fails every domain in that run; use `verify
 <domain>` to find which one. It is for a re-pin or a release check. For an
 ordinary change, run `verify` for each touched domain.
+
+`upstream` lists Actual's release tags with `git ls-remote` and reports any
+newer than `config/parity/oracle-pin.json`. It exits 1 when one exists and 2
+when it cannot reach GitHub. `verify` and `verify-all` print the same line as
+a notice and never fail on it, so a run offline still works.
 
 ### Known divergences
 

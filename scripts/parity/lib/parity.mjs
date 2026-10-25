@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { repositoryRoot, hasOracleRoot, ORACLE_ROOT_VARIABLE, oraclePin, pinnedFixtureDirectory } from './oracle-pin.mjs';
 import { changedFiles, loadDomains, touchedDomains, validateDomains } from './domains.mjs';
 import { isOpen, lint, loadRegistry } from './known-divergences.mjs';
+import { checkUpstreamReleases, describeUpstream } from './upstream-releases.mjs';
 
 const USAGE = `Usage: scripts/parity.sh [--dry-run] <command>
 
@@ -21,6 +22,9 @@ const USAGE = `Usage: scripts/parity.sh [--dry-run] <command>
                          one scripts/test.sh run with every passing domain's
                          suites. For a re-pin or a release, not a routine change.
   verify-hashes          Run every harness's hash check (no oracle, no Xcode).
+  upstream               Check whether Actual has a release newer than the pin.
+                         Exit 1 when one exists, 2 when the check could not run.
+                         verify and verify-all print the same line, never failing.
   divergences            Lint the known-divergence registry and list open entries.
   gate [<range>] [--ack OP-01,OP-02]
                          Fail while an open divergence sits in a domain the range
@@ -135,12 +139,24 @@ function touched(range) {
   return 0;
 }
 
+function upstream() {
+  const check = checkUpstreamReleases();
+  console.log(describeUpstream(check));
+  return check.error ? 2 : check.newer.length ? 1 : 0;
+}
+
+// A newer Actual release means every fixture describes an old pin.
+function upstreamNotice({ dryRun }) {
+  if (!dryRun) console.log(`notice: ${describeUpstream(checkUpstreamReleases())}`);
+}
+
 function verify(id, { dryRun }) {
   const domain = loadDomains().find((candidate) => candidate.id === id);
   if (!domain) {
     console.error(`Unknown domain: ${id}. See scripts/parity.sh status.`);
     return 2;
   }
+  upstreamNotice({ dryRun });
   let { steps, failed } = fixtureSteps(domain, { dryRun });
 
   if ((domain.oracleSuites ?? []).length) {
@@ -167,6 +183,7 @@ function verify(id, { dryRun }) {
 // instead of once per domain. A suite failure fails every domain in that run;
 // rerun `verify <domain>` to attribute it.
 function verifyAll({ dryRun }) {
+  upstreamNotice({ dryRun });
   const allDomains = loadDomains();
   const domains = allDomains.filter((domain) => domain.harness || (domain.oracleSuites ?? []).length);
   const results = domains.map((domain) => ({ domain, ...fixtureSteps(domain, { dryRun }) }));
@@ -316,6 +333,9 @@ try {
       break;
     case 'divergences':
       code = divergences();
+      break;
+    case 'upstream':
+      code = upstream();
       break;
     case 'gate':
       code = gate(rest);
