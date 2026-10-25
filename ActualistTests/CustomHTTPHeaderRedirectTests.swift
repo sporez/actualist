@@ -233,16 +233,21 @@ private final class HeaderRedirectTestServer: Sendable {
         listener.start(queue: queue)
         let settled = listenerSettled
         // Setup only: the listener must report ready before the test proceeds.
-        // The earlier 200 × 10 ms poll stretched under a loaded parallel run; a
-        // hard 2 s limit timed out there (full runs bce881cd and b7b75f7d) while
-        // passing in isolation. Ten seconds matches the suite's other watchdogs.
-        try await withTimeLimit(.seconds(10), timeoutError: URLError(.timedOut)) {
-            await withTaskCancellationHandler {
-                await settled.wait()
-            } onCancel: {
-                settled.trip()
-            }
+        // The wait stays off the main actor. withTimeLimit runs its operation
+        // on the main actor, and a full parallel run keeps the main thread busy
+        // for longer than ten seconds, so the listener was ready on time while
+        // its waiter could not resume. Ten seconds matches the suite's other
+        // watchdogs.
+        let watchdog = Task {
+            do { try await Task.sleep(for: .seconds(10)) } catch { return }
+            settled.trip()
         }
+        await withTaskCancellationHandler {
+            await settled.wait()
+        } onCancel: {
+            settled.trip()
+        }
+        watchdog.cancel()
         guard state.withLock({ $0.ready }) else { throw URLError(.timedOut) }
         try await proveOwnership()
     }

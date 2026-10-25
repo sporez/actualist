@@ -30,7 +30,6 @@ fi
 source "$_script_dir/lib/load-destinations.sh"
 
 CONFIGURATION="${ACTUALIST_CONFIGURATION:-$DEFAULT_CONFIGURATION}"
-SIMULATOR_ID="${ACTUALIST_SIMULATOR_ID:-}"
 SIMULATOR_NAME="${ACTUALIST_SIMULATOR_NAME:-iPhone 17 Pro}"
 BUNDLE_ID="${ACTUALIST_BUNDLE_ID:-}"
 DERIVED_DATA_PATH="${DERIVED_DATA_PATH:-.derivedData}"
@@ -44,7 +43,6 @@ TRACKING_DEMO=0
 SCREEN_NAME=""
 LAUNCH_WAIT_SECONDS="${ACTUALIST_LAUNCH_WAIT_SECONDS:-}"
 
-DESTINATION="platform=iOS Simulator,id=${SIMULATOR_ID}"
 APP_PATH="${DERIVED_DATA_PATH}/Build/Products/${CONFIGURATION}-iphonesimulator/Actualist.app"
 
 usage() {
@@ -69,6 +67,7 @@ Options:
 Environment overrides:
   ACTUALIST_SCHEME (Actualist or Actualist Dev), ACTUALIST_PROJECT,
   ACTUALIST_CONFIGURATION, ACTUALIST_SIMULATOR_ID, ACTUALIST_SIMULATOR_NAME,
+  ACTUALIST_SIMULATOR_DEVICE_TYPE, ACTUALIST_SIMULATOR_RUNTIME (see lib/simulator.sh),
   ACTUALIST_BUNDLE_ID, ACTUALIST_SCREENSHOT_DIR, ACTUALIST_LAUNCH_WAIT_SECONDS,
   DERIVED_DATA_PATH (shared with scripts/test.sh)
 The old unprefixed names (SCHEME, CONFIGURATION, BUNDLE_ID, SIMULATOR_ID, ...)
@@ -137,10 +136,11 @@ if [[ "$BUNDLE_ID" != "$EXPECTED_BUNDLE_ID" ]]; then
   exit 2
 fi
 
-if [[ -z "${SIMULATOR_ID}" ]]; then
-  echo "error: set ACTUALIST_SIMULATOR_ID, or copy scripts/lib/destinations.example.sh to scripts/lib/destinations.sh" >&2
-  exit 2
-fi
+# shellcheck source=lib/simulator.sh
+source "$_script_dir/lib/simulator.sh"
+actualist_resolve_simulator || exit 2
+SIMULATOR_ID="$ACTUALIST_SIMULATOR_ID"
+DESTINATION="platform=iOS Simulator,id=${SIMULATOR_ID}"
 
 if [[ -z "$LAUNCH_WAIT_SECONDS" ]]; then
   if [[ "$ENTER_DEMO" == "1" ]]; then

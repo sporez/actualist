@@ -7,9 +7,13 @@ Use macOS and Xcode 26 or later.
 
 Open `Actualist.xcodeproj`, select the `Actualist` scheme, and run in Xcode.
 
-For the command-line helpers, copy `scripts/lib/destinations.example.sh` to
-`scripts/lib/destinations.sh` and set `ACTUALIST_SIMULATOR_ID` using an ID from
-`xcrun simctl list devices available`. This machine-specific file is gitignored.
+The command-line helpers resolve their simulator through `scripts/lib/simulator.sh`.
+It looks for an available simulator matching `ACTUALIST_SIMULATOR_NAME`,
+`ACTUALIST_SIMULATOR_DEVICE_TYPE` and `ACTUALIST_SIMULATOR_RUNTIME`, and creates
+one when none exists, so deleted simulators come back on the next run.
+`ACTUALIST_SIMULATOR_ID` pins a specific simulator while it exists. Set any of
+these in `scripts/lib/destinations.sh` (copied from
+`scripts/lib/destinations.example.sh`; machine-specific and gitignored).
 
 ```sh
 scripts/run-ios-simulator.sh --boot
@@ -102,7 +106,7 @@ database, or sync changes, and inspect affected screens for UI changes. Releases
 require full unit and UI coverage. Documentation-only changes need no app tests.
 Avoid repeating passing checks when the relevant code is unchanged.
 
-Helpers use the configured simulator UDID and `.derivedData`.
+Helpers use the resolved simulator's UDID and `.derivedData`.
 `scripts/test.sh --dry-run unit` prints the command without running Xcode.
 
 UI tests run in parallel on four clones of the configured simulator
