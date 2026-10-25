@@ -482,7 +482,7 @@ struct FirstConnectionRetryTests {
         FirstConnectionRetryURLProtocol.errorCode = .cancelled
         defer { FirstConnectionRetryURLProtocol.errorCode = .cannotConnectToHost }
         let server = ActualServerSimpleFINClient(baseURL: url, session: session)
-        await #expect(throws: CancellationError.self) { _ = try await server.simpleFINStatus(token: "test") }
+        await #expect(throws: CancellationError.self) { _ = try await server.simpleFINStatus(fileID: "file-id", token: "test") }
         let bridge = SimpleFINBridgeClient(baseURL: url, username: "test", password: "test", session: session)
         await #expect(throws: CancellationError.self) { _ = try await bridge.remoteAccounts() }
         let setupToken = Data("https://bank.example/claim".utf8).base64EncodedString()

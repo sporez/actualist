@@ -509,15 +509,16 @@ private final class SuspendedOneTapTransport: SimpleFINServerTransport, Sendable
         state.withLock { $0.transactionRequestCount }
     }
 
-    func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport {
+    func simpleFINStatus(fileID: String, token: String) async throws -> SimpleFINServerSupport {
         .configured
     }
 
-    func simpleFINAccounts(token: String) async throws -> [SimpleFINRemoteAccount]? {
+    func simpleFINAccounts(fileID: String, token: String) async throws -> [SimpleFINRemoteAccount]? {
         []
     }
 
     func simpleFINTransactions(
+        fileID: String,
         token: String,
         accountIDs: [String],
         startDates: [String]

@@ -35,51 +35,51 @@ struct SimpleFINClientTests {
     @Test func configuredStatusReturnsConfigured() async throws {
         // Actual's server wraps the answer in {status, data}.
         let client = makeClient(statusCode: 200, body: #"{"status": "ok", "data": {"configured": true}}"#)
-        let support = try await client.simpleFINStatus(token: "token")
+        let support = try await client.simpleFINStatus(fileID: "file-id", token: "token")
         #expect(support == .configured)
     }
 
     @Test func flatStatusShapeRemainsSupported() async throws {
         let client = makeClient(statusCode: 200, body: #"{"configured": true}"#)
-        let support = try await client.simpleFINStatus(token: "token")
+        let support = try await client.simpleFINStatus(fileID: "file-id", token: "token")
         #expect(support == .configured)
     }
 
     @Test func unconfiguredStatusReturnsNotConfigured() async throws {
         let client = makeClient(statusCode: 200, body: #"{"status": "ok", "data": {"configured": false}}"#)
-        let support = try await client.simpleFINStatus(token: "token")
+        let support = try await client.simpleFINStatus(fileID: "file-id", token: "token")
         #expect(support == .notConfigured)
     }
 
     @Test func statusRoute404MeansUnsupportedNotAnError() async throws {
         let client = makeClient(statusCode: 404, body: "not found")
-        let support = try await client.simpleFINStatus(token: "token")
+        let support = try await client.simpleFINStatus(fileID: "file-id", token: "token")
         #expect(support == .unsupported)
     }
 
     @Test func statusRoute405MeansUnsupported() async throws {
         let client = makeClient(statusCode: 405, body: "")
-        let support = try await client.simpleFINStatus(token: "token")
+        let support = try await client.simpleFINStatus(fileID: "file-id", token: "token")
         #expect(support == .unsupported)
     }
 
     @Test func statusRoute501MeansUnsupported() async throws {
         let client = makeClient(statusCode: 501, body: "")
-        let support = try await client.simpleFINStatus(token: "token")
+        let support = try await client.simpleFINStatus(fileID: "file-id", token: "token")
         #expect(support == .unsupported)
     }
 
     @Test func unreachableServerThrowsInsteadOfReportingUnsupported() async throws {
         let client = makeClient(statusCode: 0, body: "", failConnect: true)
         await #expect(throws: ActualAPIError.self) {
-            _ = try await client.simpleFINStatus(token: "token")
+            _ = try await client.simpleFINStatus(fileID: "file-id", token: "token")
         }
     }
 
     @Test func otherHTTPStatusesThrow() async throws {
         let client = makeClient(statusCode: 500, body: "boom")
         await #expect(throws: ActualAPIError.self) {
-            _ = try await client.simpleFINStatus(token: "token")
+            _ = try await client.simpleFINStatus(fileID: "file-id", token: "token")
         }
     }
 
@@ -87,7 +87,7 @@ struct SimpleFINClientTests {
         let client = makeClient(statusCode: 200,
                                 body: #"{"status":"error","reason":"unlabeled-token-qq7","details":"synthetic-payee-qq7"}"#)
         do {
-            _ = try await client.simpleFINStatus(token: "synthetic-token")
+            _ = try await client.simpleFINStatus(fileID: "file-id", token: "synthetic-token")
             Issue.record("Expected structured error on HTTP 200")
         } catch let error as ActualAPIError {
             #expect(error.localizedDescription == ActualServerErrorCategory.unknown.description)
@@ -114,7 +114,7 @@ struct SimpleFINClientTests {
         }]}}
         """
         let client = makeClient(statusCode: 200, body: body)
-        let accounts = try await client.simpleFINAccounts(token: "token")
+        let accounts = try await client.simpleFINAccounts(fileID: "file-id", token: "token")
         #expect(accounts?.count == 1)
         #expect(accounts?.first?.accountID == "ACT-friendly")
         #expect(accounts?.first?.name == "Business Blue Cash")
@@ -137,7 +137,7 @@ struct SimpleFINClientTests {
         }]}}
         """
         let accounts = try await makeClient(statusCode: 200, body: body)
-            .simpleFINAccounts(token: "token")
+            .simpleFINAccounts(fileID: "file-id", token: "token")
         #expect(accounts?.first?.accountID == "acct_1")
         #expect(accounts?.first?.institution == "First Bank")
         #expect(accounts?.first?.orgDomain == "firstbank.example")
@@ -150,7 +150,7 @@ struct SimpleFINClientTests {
             body: #"{"status":"ok","data":{"error_type":"INVALID_ACCESS_TOKEN","error_code":"INVALID_ACCESS_TOKEN"}}"#
         )
         await #expect(throws: ActualAPIError.self) {
-            _ = try await client.simpleFINAccounts(token: "token")
+            _ = try await client.simpleFINAccounts(fileID: "file-id", token: "token")
         }
     }
 
@@ -158,7 +158,7 @@ struct SimpleFINClientTests {
         let client = makeClient(statusCode: 200,
                                 body: #"{"status":"ok","data":{"error_type":"SimplefinError","error_code":"INVALID_ACCESS_TOKEN"}}"#)
         do {
-            _ = try await client.simpleFINAccounts(token: "synthetic-token")
+            _ = try await client.simpleFINAccounts(fileID: "file-id", token: "synthetic-token")
             Issue.record("Expected account token rejection")
         } catch let error as ActualAPIError {
             #expect(error.localizedDescription == ActualServerErrorCategory.unknown.description)
@@ -170,7 +170,7 @@ struct SimpleFINClientTests {
     @Test func accountsUnknownErrorTextIsNotExposed() async throws {
         let client = makeClient(statusCode: 200, body: #"{"status":"ok","data":{"error_type":"synthetic-payee-qq7","error_code":"unlabeled-token-qq7"}}"#)
         do {
-            _ = try await client.simpleFINAccounts(token: "test")
+            _ = try await client.simpleFINAccounts(fileID: "file-id", token: "test")
             Issue.record("Expected bank account rejection")
         } catch let error as ActualAPIError {
             #expect(error.localizedDescription == ActualServerErrorCategory.unknown.description)
@@ -189,7 +189,7 @@ struct SimpleFINClientTests {
                                 body: #"{"status":"error","reason":"unlabeled-token-qq7 synthetic-proxy-value"}"#,
                                 customHeaders: headers)
         do {
-            _ = try await client.simpleFINStatus(token: "test")
+            _ = try await client.simpleFINStatus(fileID: "file-id", token: "test")
             Issue.record("Expected gateway rejection")
         } catch let error as ActualAPIError {
             guard case .serverRejected(status: 502, reason: .unknown) = error else {
@@ -202,7 +202,7 @@ struct SimpleFINClientTests {
 
     @Test func accountsRoute404ReturnsNil() async throws {
         let client = makeClient(statusCode: 404, body: "")
-        let accounts = try await client.simpleFINAccounts(token: "token")
+        let accounts = try await client.simpleFINAccounts(fileID: "file-id", token: "token")
         #expect(accounts == nil)
     }
 
@@ -211,8 +211,44 @@ struct SimpleFINClientTests {
         {"data": {"accounts": [{"account_id": "a", "name": "n", "balance": "88.10"}]}}
         """
         let client = makeClient(statusCode: 200, body: body)
-        let accounts = try await client.simpleFINAccounts(token: "token")
+        let accounts = try await client.simpleFINAccounts(fileID: "file-id", token: "token")
         #expect(accounts?.first?.balance == "88.10")
+    }
+
+    // MARK: - Budget identity
+
+    @Test(arguments: ["status", "accounts", "transactions"])
+    func everyRouteSendsTheBudgetFileID(route: String) async throws {
+        let client = makeClient(statusCode: 200, body: #"{"status":"ok","data":{"configured":true,"accounts":[]}}"#)
+        switch route {
+        case "status": _ = try await client.simpleFINStatus(fileID: "budget-file", token: "token")
+        case "accounts": _ = try await client.simpleFINAccounts(fileID: "budget-file", token: "token")
+        default:
+            _ = try await client.simpleFINTransactions(
+                fileID: "budget-file",
+                token: "token",
+                accountIDs: ["acct_1"],
+                startDates: ["2026-06-01"]
+            )
+        }
+        let request = try #require(endpoint.lastRequest)
+        #expect(request.url?.path == "/simplefin/\(route)")
+        #expect(request.value(forHTTPHeaderField: "X-ACTUAL-FILE-ID") == "budget-file")
+    }
+
+    @Test func deletedOrInaccessibleBudgetIsNamedInTheError() async throws {
+        let client = makeClient(statusCode: 403, body: #"{"status":"error","reason":"file-access-denied"}"#)
+        do {
+            _ = try await client.simpleFINStatus(fileID: "budget-file", token: "token")
+            Issue.record("Expected budget access rejection")
+        } catch let error as ActualAPIError {
+            guard case .serverRejected(status: 403, reason: .budgetAccessDenied) = error else {
+                Issue.record("Expected typed budget access rejection, got \(error)")
+                return
+            }
+            #expect(error.localizedDescription == ActualServerErrorCategory.budgetAccessDenied.description)
+            #expect(!error.isAuthenticationFailure)
+        }
     }
 
     // MARK: - Transactions
@@ -220,6 +256,7 @@ struct SimpleFINClientTests {
     @Test func transactionsRequestSendsArraysAlways() async throws {
         let client = makeClient(statusCode: 200, body: "{}")
         _ = try await client.simpleFINTransactions(
+            fileID: "file-id",
             token: "token",
             accountIDs: ["acct_1"],
             startDates: ["2026-06-01"]

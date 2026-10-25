@@ -35,24 +35,24 @@ extension LocalFirstActualStore {
     // MARK: - Server capability
 
     func cachedBankSyncSupport() -> SimpleFINServerSupport? {
-        guard let serverURL = openedServerURLString else {
+        guard let serverURL = openedServerURLString, let fileID = openedCloudFileID else {
             return nil
         }
-        return bankSyncSessionCache.simpleFINSupport(for: serverURL)
+        return bankSyncSessionCache.simpleFINSupport(for: serverURL, fileID: fileID)
     }
 
     func cachedBankSyncRemoteAccounts() -> [SimpleFINRemoteAccount]? {
-        guard let serverURL = openedServerURLString else {
+        guard let serverURL = openedServerURLString, let fileID = openedCloudFileID else {
             return nil
         }
-        return bankSyncSessionCache.simpleFINRemoteAccounts(for: serverURL)
+        return bankSyncSessionCache.simpleFINRemoteAccounts(for: serverURL, fileID: fileID)
     }
 
     func bankSyncSupport(budgetID: String) async throws -> SimpleFINServerSupport {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let context = try bankSyncContext(budgetID: budgetID)
-        let support = try await context.transport.simpleFINStatus(token: context.token)
+        let support = try await context.transport.simpleFINStatus(fileID: context.fileID, token: context.token)
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         rememberBankSyncSupport(support)
         return support
@@ -60,10 +60,17 @@ extension LocalFirstActualStore {
 
     // MARK: - Device-claim provider (plan Phase 5)
 
+    /// One open budget's call identity for the server's SimpleFIN routes.
+    struct SimpleFINServerContext {
+        let transport: any SimpleFINServerTransport
+        let fileID: String
+        let token: String
+    }
+
     /// Where downloads come from: the Actual server's SimpleFIN routes, or
     /// (fallback) the SimpleFIN bridge directly with a device-claimed key.
     enum BankSyncProvider {
-        case server(transport: any SimpleFINServerTransport, token: String)
+        case server(SimpleFINServerContext)
         case device(SimpleFINBridgeClient)
 
         var isDevice: Bool {
@@ -73,8 +80,11 @@ extension LocalFirstActualStore {
 
         func remoteAccounts() async throws -> [SimpleFINRemoteAccount] {
             switch self {
-            case .server(let transport, let token):
-                return try await transport.simpleFINAccounts(token: token) ?? []
+            case .server(let context):
+                return try await context.transport.simpleFINAccounts(
+                    fileID: context.fileID,
+                    token: context.token
+                ) ?? []
             case .device(let client):
                 return try await client.remoteAccounts()
             }
@@ -85,9 +95,10 @@ extension LocalFirstActualStore {
             startDates: [String]
         ) async throws -> SimpleFINTransactionsResponse {
             switch self {
-            case .server(let transport, let token):
-                guard let response = try await transport.simpleFINTransactions(
-                    token: token,
+            case .server(let context):
+                guard let response = try await context.transport.simpleFINTransactions(
+                    fileID: context.fileID,
+                    token: context.token,
                     accountIDs: accountIDs,
                     startDates: startDates
                 ) else { throw BankSyncStoreError.notConfigured }
@@ -112,7 +123,7 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         do {
             let context = try bankSyncContext(budgetID: budgetID)
-            let support = try await context.transport.simpleFINStatus(token: context.token)
+            let support = try await context.transport.simpleFINStatus(fileID: context.fileID, token: context.token)
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             rememberBankSyncSupport(support)
             return try resolvedBankSyncProvider(
@@ -134,11 +145,11 @@ extension LocalFirstActualStore {
     /// repeat the capability probe from the same open.
     private func resolvedBankSyncProvider(
         support: SimpleFINServerSupport,
-        context: (transport: any SimpleFINServerTransport, token: String),
+        context: SimpleFINServerContext,
         deviceFallback: Bool
     ) throws -> BankSyncProvider {
         if support == .configured {
-            return .server(transport: context.transport, token: context.token)
+            return .server(context)
         }
         if !deviceFallback {
             throw BankSyncStoreError.serverCannotBankSync
@@ -562,14 +573,14 @@ extension LocalFirstActualStore {
 
     // MARK: - Context
 
-    private func bankSyncContext(budgetID: String) throws -> (
-        transport: any SimpleFINServerTransport,
-        token: String
-    ) {
+    private func bankSyncContext(budgetID: String) throws -> SimpleFINServerContext {
         _ = try requireDatabase(for: budgetID)
         guard let urlString = openedServerURLString,
               let url = URL(string: urlString) else {
             throw LocalFirstError.missingServerURL
+        }
+        guard let fileID = openedCloudFileID else {
+            throw LocalFirstError.missingBudgetFileID
         }
         let token = try keychain.readActualSyncToken()
         guard let token else {
@@ -578,23 +589,31 @@ extension LocalFirstActualStore {
         let endpoints = failoverEndpoints(for: urlString)
         if let primary = endpoints.primary, let fallback = endpoints.fallback,
            shouldSkipPrimary(primary: primary, fallback: fallback) {
-            return (try simpleFINTransport(for: fallback, role: .fallback), token)
+            return SimpleFINServerContext(
+                transport: try simpleFINTransport(for: fallback, role: .fallback),
+                fileID: fileID,
+                token: token
+            )
         }
-        return (try simpleFINTransport(for: url, role: .primary), token)
+        return SimpleFINServerContext(
+            transport: try simpleFINTransport(for: url, role: .primary),
+            fileID: fileID,
+            token: token
+        )
     }
 
     private func rememberBankSyncSupport(_ support: SimpleFINServerSupport) {
-        guard let serverURL = openedServerURLString else {
+        guard let serverURL = openedServerURLString, let fileID = openedCloudFileID else {
             return
         }
-        bankSyncSessionCache.rememberSimpleFINSupport(support, for: serverURL)
+        bankSyncSessionCache.rememberSimpleFINSupport(support, for: serverURL, fileID: fileID)
     }
 
     private func rememberBankSyncRemoteAccounts(_ accounts: [SimpleFINRemoteAccount]) {
-        guard let serverURL = openedServerURLString else {
+        guard let serverURL = openedServerURLString, let fileID = openedCloudFileID else {
             return
         }
-        bankSyncSessionCache.rememberSimpleFINRemoteAccounts(accounts, for: serverURL)
+        bankSyncSessionCache.rememberSimpleFINRemoteAccounts(accounts, for: serverURL, fileID: fileID)
     }
 
 }

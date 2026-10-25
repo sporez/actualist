@@ -19,6 +19,8 @@ extension LocalFirstActualStoreTests {
         var accountsFailure: ActualAPIError?
         private(set) var transactionsRequests: [(accountIDs: [String], startDates: [String])] = []
         private(set) var statusRequests = 0
+        /// Budget file ID sent with each route, in call order.
+        private(set) var requestedFileIDs: [String] = []
         private(set) var accountsRequests = 0
         /// When set, `simpleFINAccounts` suspends on it after announcing entry.
         private var accountsGate: TestLatch?
@@ -50,16 +52,18 @@ extension LocalFirstActualStoreTests {
             accountsGate = gate
         }
 
-        func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport {
+        func simpleFINStatus(fileID: String, token: String) async throws -> SimpleFINServerSupport {
             statusRequests += 1
+            requestedFileIDs.append(fileID)
             if let failure {
                 throw failure
             }
             return support
         }
 
-        func simpleFINAccounts(token: String) async throws -> [SimpleFINRemoteAccount]? {
+        func simpleFINAccounts(fileID: String, token: String) async throws -> [SimpleFINRemoteAccount]? {
             accountsRequests += 1
+            requestedFileIDs.append(fileID)
             if let gate = accountsGate {
                 accountsEntered.trip()
                 await gate.wait()
@@ -71,11 +75,13 @@ extension LocalFirstActualStoreTests {
         }
 
         func simpleFINTransactions(
+            fileID: String,
             token: String,
             accountIDs: [String],
             startDates: [String]
         ) async throws -> SimpleFINTransactionsResponse? {
             transactionsRequests.append((accountIDs, startDates))
+            requestedFileIDs.append(fileID)
             return response
         }
     }
@@ -633,6 +639,22 @@ extension LocalFirstActualStoreTests {
         let stamps = linkedMessages(messages, row: "savings").filter { $0.column == "last_sync" || $0.column == "bank_sync_status" }
         #expect(stamps.map(\.column) == ["bank_sync_status"])
         #expect(stamps.first?.serializedValue == "S:timed-out")
+    }
+
+    // MARK: - Budget identity
+
+    /// The server picks per-budget SimpleFIN credentials by its file ID, so
+    /// the store sends the cloud file ID, not the group ID it keys budgets by.
+    @Test func everyServerRouteCarriesTheOpenBudgetsFileID() async throws {
+        let transport = StubSimpleFINTransport(remoteAccounts: [remoteAccount()])
+        let bundle = try await makeBankSyncStore(transport: transport)
+
+        _ = try await bundle.store.bankSyncSupport(budgetID: "group-1")
+        _ = try await bundle.store.bankSyncRemoteAccounts(budgetID: "group-1")
+        _ = try await bundle.store.bankSyncProvider(budgetID: "group-1")
+            .transactions(accountIDs: ["sfin-1"], startDates: ["2026-06-01"])
+
+        #expect(await transport.requestedFileIDs == ["file-1", "file-1", "file-1", "file-1"])
     }
 
     // MARK: - Open-path provider cache

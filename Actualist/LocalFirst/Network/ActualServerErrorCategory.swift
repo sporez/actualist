@@ -8,6 +8,7 @@ enum ActualServerErrorCategory: Sendable, Equatable, CaseIterable {
     case sessionExpired
     case passwordAuthenticationDisabled
     case invalidHeader
+    case budgetAccessDenied
     case unknown
 
     static func classify(reason: String?, details: String?) -> Self {
@@ -21,6 +22,9 @@ enum ActualServerErrorCategory: Sendable, Equatable, CaseIterable {
             return .passwordAuthenticationDisabled
         }
         if reason == "invalid-header" { return .invalidHeader }
+        // Bank-sync routes answer a deleted budget, or one this user cannot
+        // open, with 403 `file-access-denied` (Actual #9214, #9266).
+        if reason == "file-access-denied" { return .budgetAccessDenied }
         return .unknown
     }
 
@@ -30,6 +34,7 @@ enum ActualServerErrorCategory: Sendable, Equatable, CaseIterable {
         case .sessionExpired: "Your sign-in has expired. Sign in again to resume syncing."
         case .passwordAuthenticationDisabled: "Password sign-in is turned off on this Actual server."
         case .invalidHeader: "The Actual server rejected a custom header. Check your custom headers."
+        case .budgetAccessDenied: "This budget was deleted on the Actual server, or your account cannot open it."
         case .unknown: "The Actual server rejected the request. Try again later."
         }
     }

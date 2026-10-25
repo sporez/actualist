@@ -636,6 +636,8 @@ enum ActualAPIError: LocalizedError {
         case .httpStatus(let status):
             return status == 401 || status == 403
         case .serverRejected(let status, let reason):
+            // A 403 for a deleted or unshared budget leaves the sign-in valid.
+            if reason == .budgetAccessDenied { return false }
             if let status {
                 return status == 401 || status == 403
             }

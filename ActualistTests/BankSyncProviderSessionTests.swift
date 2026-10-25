@@ -23,17 +23,17 @@ struct BankSyncProviderSessionTests {
             await release.wait()
         }
 
-        func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport {
+        func simpleFINStatus(fileID: String, token: String) async throws -> SimpleFINServerSupport {
             if !pauseAccounts { await pause() }
             return .configured
         }
 
-        func simpleFINAccounts(token: String) async throws -> [SimpleFINRemoteAccount]? {
+        func simpleFINAccounts(fileID: String, token: String) async throws -> [SimpleFINRemoteAccount]? {
             if pauseAccounts { await pause() }
             return []
         }
 
-        func simpleFINTransactions(token: String, accountIDs: [String], startDates: [String]) async throws -> SimpleFINTransactionsResponse? {
+        func simpleFINTransactions(fileID: String,token: String, accountIDs: [String], startDates: [String]) async throws -> SimpleFINTransactionsResponse? {
             .init(downloads: [:], errorType: nil, errorCode: nil)
         }
     }

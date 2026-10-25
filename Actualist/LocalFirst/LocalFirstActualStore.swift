@@ -33,6 +33,8 @@ final class LocalFirstActualStore:
 
     var openedBudgetID: String?
     var openedGroupID: String?
+    /// Server file ID of the open budget. `openedBudgetID` prefers the group ID.
+    var openedCloudFileID: String?
     var database: BudgetDatabase?
     var launchSnapshotFiles: BudgetLaunchSnapshotFiles?
     var launchSnapshotContext: BudgetLaunchSnapshotContext?
@@ -253,6 +255,7 @@ final class LocalFirstActualStore:
         syncLane = ServerSyncLane()
         openedBudgetID = nil
         openedGroupID = nil
+        openedCloudFileID = nil
         openedNodeID = nil
         openedLocalClockWallTime = nil
         openedServerURLString = nil

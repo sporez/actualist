@@ -32,9 +32,9 @@ struct BankSyncCorrectnessInvestigationTests {
             self.operationalFailure = operationalFailure
         }
 
-        func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport { configured }
-        func simpleFINAccounts(token: String) async throws -> [SimpleFINRemoteAccount]? { [] }
-        func simpleFINTransactions(token: String, accountIDs: [String],
+        func simpleFINStatus(fileID: String, token: String) async throws -> SimpleFINServerSupport { configured }
+        func simpleFINAccounts(fileID: String, token: String) async throws -> [SimpleFINRemoteAccount]? { [] }
+        func simpleFINTransactions(fileID: String,token: String, accountIDs: [String],
                                    startDates: [String]) async throws -> SimpleFINTransactionsResponse? {
             if pause && !entered {
                 await withCheckedContinuation { continuation in

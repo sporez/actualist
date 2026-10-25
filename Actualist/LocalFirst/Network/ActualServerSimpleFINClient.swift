@@ -7,20 +7,26 @@ import Foundation
 /// 404 / 405 / 501, which these methods surface as `nil` ("cannot sync"), not
 /// as a thrown error. A connection failure or any other HTTP status throws —
 /// an unreachable server is not the same as an unconfigured one.
+///
+/// `fileID` is the budget's server file ID, sent as `X-ACTUAL-FILE-ID` so a
+/// server with credentials for just this budget uses them (Actual #9214).
+/// Without them the server falls back to its global credentials; servers
+/// that predate per-budget credentials ignore the header.
 protocol SimpleFINServerTransport: Sendable {
     /// `POST /simplefin/status` → whether the server has a SimpleFIN setup
     /// token. `nil` when the routes are unsupported.
-    func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport
+    func simpleFINStatus(fileID: String, token: String) async throws -> SimpleFINServerSupport
 
     /// `POST /simplefin/accounts` → the SimpleFIN-side accounts the server
     /// can see. `nil` when the routes are unsupported.
-    func simpleFINAccounts(token: String) async throws -> [SimpleFINRemoteAccount]?
+    func simpleFINAccounts(fileID: String, token: String) async throws -> [SimpleFINRemoteAccount]?
 
     /// `POST /simplefin/transactions` → account-keyed downloads. `startDate`
     /// and `accountID` arrays are positional and must always be sent as
     /// arrays, even for a single account. `nil` when the routes are
     /// unsupported.
     func simpleFINTransactions(
+        fileID: String,
         token: String,
         accountIDs: [String],
         startDates: [String]
@@ -165,16 +171,16 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         )
     }
 
-    func simpleFINStatus(token: String) async throws -> SimpleFINServerSupport {
-        guard let data = try await post(path: "/simplefin/status", token: token, body: EmptyPayload()) else {
+    func simpleFINStatus(fileID: String, token: String) async throws -> SimpleFINServerSupport {
+        guard let data = try await post(path: "/simplefin/status", fileID: fileID, token: token, body: EmptyPayload()) else {
             return .unsupported
         }
         let response = try Self.decode(SimpleFINStatusResponse.self, from: data)
         return response.configured ? .configured : .notConfigured
     }
 
-    func simpleFINAccounts(token: String) async throws -> [SimpleFINRemoteAccount]? {
-        guard let data = try await post(path: "/simplefin/accounts", token: token, body: EmptyPayload()) else {
+    func simpleFINAccounts(fileID: String, token: String) async throws -> [SimpleFINRemoteAccount]? {
+        guard let data = try await post(path: "/simplefin/accounts", fileID: fileID, token: token, body: EmptyPayload()) else {
             return nil
         }
         let response = try Self.decode(SimpleFINAccountsResponse.self, from: data)
@@ -199,12 +205,14 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
     }
 
     func simpleFINTransactions(
+        fileID: String,
         token: String,
         accountIDs: [String],
         startDates: [String]
     ) async throws -> SimpleFINTransactionsResponse? {
         guard let data = try await post(
             path: "/simplefin/transactions",
+            fileID: fileID,
             token: token,
             body: TransactionsRequestPayload(
                 accountId: accountIDs,
@@ -428,7 +436,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         }
     }
 
-    private func post(path: String, token: String, body: some Encodable) async throws -> Data? {
+    private func post(path: String, fileID: String, token: String, body: some Encodable) async throws -> Data? {
         var request = try Self.endpointURL(baseURL: baseURL, path: path)
         guard redirectDelegate.permits(source: baseURL, destination: request.url) else {
             throw ActualAPIError.invalidURL
@@ -438,6 +446,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         request.timeoutInterval = 60
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
+        request.setValue(fileID, forHTTPHeaderField: "X-ACTUAL-FILE-ID")
         request.httpBody = try JSONEncoder.actual.encode(body)
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 

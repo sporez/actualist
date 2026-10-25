@@ -528,6 +528,7 @@ extension LocalFirstActualStore {
         launchSnapshotFiles = launchFiles
         openedBudgetID = metadata.groupID ?? metadata.cloudFileID
         openedGroupID = metadata.groupID
+        openedCloudFileID = metadata.cloudFileID
         openedNodeID = metadata.nodeID
         openedLocalClockWallTime = localClockWallTime
         openedEncryptionContext = encryptionContext

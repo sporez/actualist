@@ -36,9 +36,9 @@ struct CustomHTTPHeaderTransportTests {
         defer { try? FileManager.default.removeItem(at: destination) }
         try await client.downloadUserFile(fileID: "file", token: "actual-token", to: destination)
         let bank = ActualServerSimpleFINClient(baseURL: url, customHeaders: fields, session: session)
-        _ = try await bank.simpleFINStatus(token: "actual-token")
-        _ = try await bank.simpleFINAccounts(token: "actual-token")
-        _ = try await bank.simpleFINTransactions(token: "actual-token", accountIDs: ["a"], startDates: ["2026-01-01"])
+        _ = try await bank.simpleFINStatus(fileID: "file-id", token: "actual-token")
+        _ = try await bank.simpleFINAccounts(fileID: "file-id", token: "actual-token")
+        _ = try await bank.simpleFINTransactions(fileID: "file-id",token: "actual-token", accountIDs: ["a"], startDates: ["2026-01-01"])
         #expect(HeaderTransportURLProtocol.requests.count == 11)
         for request in HeaderTransportURLProtocol.requests {
             #expect(request.value(forHTTPHeaderField: "X-Primary") == "primary-secret")
@@ -87,7 +87,7 @@ struct CustomHTTPHeaderTransportTests {
         HeaderTransportURLProtocol.mode = .normal
         let url = URL(string: "https://primary.example")!
         _ = try await store.syncTransport(for: url).sync(data: Data(), token: "token")
-        _ = try await store.simpleFINTransport(for: url).simpleFINStatus(token: "token")
+        _ = try await store.simpleFINTransport(for: url).simpleFINStatus(fileID: "file-id", token: "token")
         var updated = try configuration()
         updated.primary = try EndpointCustomHTTPHeaders(url: url, headers: [.init(name: "X-Primary", value: "replacement-secret")])
         store.openedBudgetID = "preserved-budget"
@@ -95,7 +95,7 @@ struct CustomHTTPHeaderTransportTests {
         #expect(store.openedBudgetID == "preserved-budget")
         _ = try await store.connectionTransport(for: url).loginMethods()
         _ = try await store.syncTransport(for: url).sync(data: Data(), token: "token")
-        _ = try await store.simpleFINTransport(for: url).simpleFINStatus(token: "token")
+        _ = try await store.simpleFINTransport(for: url).simpleFINStatus(fileID: "file-id", token: "token")
         #expect(HeaderTransportURLProtocol.requests.suffix(3).allSatisfy { $0.value(forHTTPHeaderField: "X-Primary") == "replacement-secret" })
         _ = try await store.connectionTransport(for: URL(string: "https://changed.example")!).loginMethods()
         #expect(HeaderTransportURLProtocol.requests.last?.value(forHTTPHeaderField: "X-Primary") == nil)
@@ -114,6 +114,7 @@ struct CustomHTTPHeaderTransportTests {
         store.fallbackServerURLString = "https://fallback.example"
         store.openedServerURLString = "https://primary.example"
         store.openedBudgetID = "group-1"
+        store.openedCloudFileID = "file-1"
         store.database = try BudgetDatabase(databaseURL: LocalFirstActualStoreTests().makeSQLiteFixture())
         HeaderTransportURLProtocol.mode = .failPrimary
         _ = try await store.withSyncFailover(serverURLString: "https://primary.example") { transport in
@@ -165,7 +166,7 @@ struct CustomHTTPHeaderTransportTests {
             session: session
         )
         do {
-            _ = try await bank.simpleFINTransactions(token: "token", accountIDs: ["a"], startDates: ["2026-01-01"])
+            _ = try await bank.simpleFINTransactions(fileID: "file-id",token: "token", accountIDs: ["a"], startDates: ["2026-01-01"])
             Issue.record("Expected secret-bearing bank error to be rejected")
         } catch ActualAPIError.invalidResponse {
             // The raw error metadata must never reach the caller.

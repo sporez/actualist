@@ -61,8 +61,8 @@ struct CustomHTTPHeaderRedirectTests {
         }
         #expect(!FileManager.default.fileExists(atPath: destination.path))
         let bank = ActualServerSimpleFINClient(baseURL: origin.url, customHeaders: fields)
-        await Self.expectRefusal { try await bank.simpleFINStatus(token: "token-sentinel") }
-        await Self.expectRefusal { try await bank.simpleFINTransactions(token: "token-sentinel", accountIDs: ["bank-sentinel"], startDates: ["2026-01-01"]) }
+        await Self.expectRefusal { try await bank.simpleFINStatus(fileID: "file-id", token: "token-sentinel") }
+        await Self.expectRefusal { try await bank.simpleFINTransactions(fileID: "file-id",token: "token-sentinel", accountIDs: ["bank-sentinel"], startDates: ["2026-01-01"]) }
         #expect(receiver.requests.isEmpty)
         #expect(origin.requests.count == 7)
         #expect(origin.requests.contains { $0.contains("login-sentinel") })
@@ -135,7 +135,7 @@ struct CustomHTTPHeaderRedirectTests {
         try await client.downloadUserFile(fileID: "file", token: "actual-token", to: destination)
         #expect(try Data(contentsOf: destination) == Data("archive".utf8))
         let bank = ActualServerSimpleFINClient(baseURL: baseURL, customHeaders: fields)
-        #expect(try await bank.simpleFINStatus(token: "actual-token") == .configured)
+        #expect(try await bank.simpleFINStatus(fileID: "file-id", token: "actual-token") == .configured)
         #expect(origin.requests.count == 4)
         let final = origin.requests.filter { $0.contains(" /download-final ") || $0.contains(" /bank-final ") }
         #expect(final.count == 2)

@@ -265,29 +265,40 @@ struct BankSyncSessionCacheTests {
 
     @Test func remembersSimpleFINSupportPerServerURL() {
         var cache = BankSyncSessionCache()
-        cache.rememberSimpleFINSupport(.configured, for: "https://a.example")
-        cache.rememberSimpleFINSupport(.notConfigured, for: "https://b.example")
-        #expect(cache.simpleFINSupport(for: "https://a.example") == .configured)
-        #expect(cache.simpleFINSupport(for: "https://b.example") == .notConfigured)
-        #expect(cache.simpleFINSupport(for: "https://c.example") == nil)
+        cache.rememberSimpleFINSupport(.configured, for: "https://a.example", fileID: "file-1")
+        cache.rememberSimpleFINSupport(.notConfigured, for: "https://b.example", fileID: "file-1")
+        #expect(cache.simpleFINSupport(for: "https://a.example", fileID: "file-1") == .configured)
+        #expect(cache.simpleFINSupport(for: "https://b.example", fileID: "file-1") == .notConfigured)
+        #expect(cache.simpleFINSupport(for: "https://c.example", fileID: "file-1") == nil)
+    }
+
+    @Test func keepsSimpleFINSupportAndRemotesPerBudgetOnOneServer() {
+        var cache = BankSyncSessionCache()
+        cache.rememberSimpleFINSupport(.configured, for: "https://a.example", fileID: "file-1")
+        cache.rememberSimpleFINRemoteAccounts([checking], for: "https://a.example", fileID: "file-1")
+        cache.rememberSimpleFINSupport(.notConfigured, for: "https://a.example", fileID: "file-2")
+        #expect(cache.simpleFINSupport(for: "https://a.example", fileID: "file-1") == .configured)
+        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example", fileID: "file-1")?.map(\.accountID) == ["sfin-1"])
+        #expect(cache.simpleFINSupport(for: "https://a.example", fileID: "file-2") == .notConfigured)
+        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example", fileID: "file-2") == nil)
     }
 
     @Test func changingSimpleFINSupportClearsThatProvidersRemotes() {
         var cache = BankSyncSessionCache()
-        cache.rememberSimpleFINSupport(.configured, for: "https://a.example")
-        cache.rememberSimpleFINRemoteAccounts([checking], for: "https://a.example")
-        cache.rememberSimpleFINSupport(.configured, for: "https://a.example")
-        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example")?.map(\.accountID) == ["sfin-1"])
-        cache.rememberSimpleFINSupport(.notConfigured, for: "https://a.example")
-        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example") == nil)
+        cache.rememberSimpleFINSupport(.configured, for: "https://a.example", fileID: "file-1")
+        cache.rememberSimpleFINRemoteAccounts([checking], for: "https://a.example", fileID: "file-1")
+        cache.rememberSimpleFINSupport(.configured, for: "https://a.example", fileID: "file-1")
+        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example", fileID: "file-1")?.map(\.accountID) == ["sfin-1"])
+        cache.rememberSimpleFINSupport(.notConfigured, for: "https://a.example", fileID: "file-1")
+        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example", fileID: "file-1") == nil)
     }
 
     @Test func clearDropsEveryProvider() {
         var cache = BankSyncSessionCache()
-        cache.rememberSimpleFINSupport(.configured, for: "https://a.example")
-        cache.rememberSimpleFINRemoteAccounts([checking], for: "https://a.example")
+        cache.rememberSimpleFINSupport(.configured, for: "https://a.example", fileID: "file-1")
+        cache.rememberSimpleFINRemoteAccounts([checking], for: "https://a.example", fileID: "file-1")
         cache.clear()
-        #expect(cache.simpleFINSupport(for: "https://a.example") == nil)
-        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example") == nil)
+        #expect(cache.simpleFINSupport(for: "https://a.example", fileID: "file-1") == nil)
+        #expect(cache.simpleFINRemoteAccounts(for: "https://a.example", fileID: "file-1") == nil)
     }
 }
