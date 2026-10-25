@@ -22,7 +22,12 @@ struct LimitedResponseReaderTests {
 
     @Test func overLimitBodyThrowsWithoutDeliveringBeyondLimitPlusSlack() async throws {
         let limit = 16 * chunk
-        let (request, recorder) = request(.init(chunkSize: chunk, chunkCount: nil, declaresLength: false))
+        // Credit pacing: the stub stays at most two chunks ahead of what the
+        // reader has handed on, so delivery measures the reader, not how long
+        // a starved reader takes to cancel.
+        let (request, recorder) = request(.init(
+            chunkSize: chunk, chunkCount: nil, declaresLength: false, pacing: .credit(window: 2 * chunk)
+        ))
         let session = makeSession()
         defer { session.invalidateAndCancel() }
         let received = Mutex(0)
@@ -32,7 +37,10 @@ struct LimitedResponseReaderTests {
                 for: request,
                 session: session,
                 onResponse: { _ in .init(maximumBytes: UInt64(limit)) },
-                onChunk: { piece in received.withLock { $0 += piece.count } }
+                onChunk: { piece in
+                    received.withLock { $0 += piece.count }
+                    recorder.grant(piece.count)
+                }
             )
         }
         await recorder.stopped.wait()
@@ -66,9 +74,14 @@ struct LimitedResponseReaderTests {
         }
     }
 
-    @Test func declaredLengthOverLimitThrowsBeforeReadingTheBody() async throws {
+    /// The body is held back until the load stops, so a reader that waited for
+    /// it instead of refusing the declared length would hang into the limit.
+    @Test(.timeLimit(.minutes(1)))
+    func declaredLengthOverLimitThrowsBeforeReadingTheBody() async throws {
         let limit = 4 * chunk
-        let (request, recorder) = request(.init(chunkSize: chunk, chunkCount: 64, declaresLength: true))
+        let (request, recorder) = request(.init(
+            chunkSize: chunk, chunkCount: 64, declaresLength: true, pacing: .holdBody
+        ))
         let session = makeSession()
         defer { session.invalidateAndCancel() }
 
@@ -76,7 +89,7 @@ struct LimitedResponseReaderTests {
             _ = try await LimitedResponseReader.data(for: request, session: session, maximumBytes: limit)
         }
         await recorder.stopped.wait()
-        #expect(recorder.deliveredBytes <= 8 * chunk)
+        #expect(recorder.deliveredBytes == 0)
     }
 
     @Test func cancellationStopsTheRead() async throws {
@@ -199,16 +212,54 @@ final class ChunkedStubURLProtocol: URLProtocol, @unchecked Sendable {
         /// `nil` keeps sending until the loader is stopped.
         var chunkCount: Int?
         var declaresLength: Bool
+        var pacing: Pacing = .timed
+    }
+
+    enum Pacing: Sendable {
+        /// One chunk per millisecond, whether or not anything is read.
+        case timed
+        /// Sends only while fewer than `window` bytes are ahead of `grant`.
+        case credit(window: Int)
+        /// Sends the response but no body.
+        case holdBody
     }
 
     final class Recorder: Sendable {
+        private struct Credit {
+            var granted = 0
+            var parked: (@Sendable () -> Void)?
+        }
+
         private let delivered = Mutex(0)
+        private let credit = Mutex(Credit())
         let firstChunk = TestLatch()
         let stopped = TestLatch()
         var deliveredBytes: Int { delivered.withLock { $0 } }
         func record(_ count: Int) {
             delivered.withLock { $0 += count }
             firstChunk.trip()
+        }
+
+        /// Credits bytes the reader handed on and wakes a parked sender.
+        func grant(_ bytes: Int) {
+            let parked = credit.withLock { state -> (@Sendable () -> Void)? in
+                state.granted += bytes
+                defer { state.parked = nil }
+                return state.parked
+            }
+            parked?()
+        }
+
+        /// True when `next` more bytes fit in the window; otherwise parks
+        /// `resume` for the next grant. Checked and parked under one lock so
+        /// a grant cannot slip in between.
+        func hasCredit(for next: Int, window: Int, orPark resume: @escaping @Sendable () -> Void) -> Bool {
+            let sent = deliveredBytes
+            return credit.withLock { state in
+                if sent + next <= state.granted + window { return true }
+                state.parked = resume
+                return false
+            }
         }
     }
 
@@ -241,6 +292,7 @@ final class ChunkedStubURLProtocol: URLProtocol, @unchecked Sendable {
             url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        if case .holdBody = script.pacing { return }
         send(script: script, recorder: recorder, sent: 0)
     }
 
@@ -249,6 +301,12 @@ final class ChunkedStubURLProtocol: URLProtocol, @unchecked Sendable {
             if state.withLock({ $0 }) { return }
             if let count = script.chunkCount, sent >= count {
                 client?.urlProtocolDidFinishLoading(self)
+                return
+            }
+            if case .credit(let window) = script.pacing,
+               !recorder.hasCredit(for: script.chunkSize, window: window, orPark: { [self] in
+                   send(script: script, recorder: recorder, sent: sent)
+               }) {
                 return
             }
             recorder.record(script.chunkSize)
