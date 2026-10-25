@@ -55,4 +55,24 @@ struct AdaptiveRootRoutingTests {
         #expect(state.accountNavigationPath.isEmpty)
     }
 
+
+    @Test func spendingSearchRevealsSpendingAndStaysPendingForTheFeed() throws {
+        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID())"))
+        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
+        state.selectedTab = .budget
+        let route = AppRoute.spendingSearch(query: "Costco")
+        #expect(AdaptiveRootRouting.destination(for: route, accounts: []) == .spending)
+        state.routeCoordinator.enqueue(route)
+        #expect(AdaptiveRootRouting.applyPending(using: state, accounts: [], mode: .sidebar) == .spending)
+        #expect(state.selectedTab == .spending)
+        #expect(state.routeCoordinator.pendingRoute == route)
+        #expect(state.routeCoordinator.consume(if: { AppRouteApplication.spendingSearchQuery(from: $0) != nil }) == route)
+        #expect(state.routeCoordinator.pendingRoute == nil)
+    }
+
+    @Test func spokenQueriesAreTrimmedAndEmptyOnesOnlyOpenSpending() {
+        #expect(AppRouteApplication.spendingRoute(searchTerm: "  Costco \n") == .spendingSearch(query: "Costco"))
+        #expect(AppRouteApplication.spendingRoute(searchTerm: "  ") == .tab(.spending))
+        #expect(AppRouteApplication.spendingSearchQuery(from: .tab(.spending)) == nil)
+    }
 }

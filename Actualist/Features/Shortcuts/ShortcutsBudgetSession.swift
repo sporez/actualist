@@ -141,6 +141,9 @@ final class ShortcutsBudgetSession {
         case .tab(let tab):
             appState.accountNavigationPath = []
             appState.selectedTab = tab
+        case .spendingSearch:
+            appState.accountNavigationPath = []
+            appState.selectedTab = .spending
         case .account:
             appState.selectedTab = .accounts
         case .category, .uncategorized, .history, .settings:

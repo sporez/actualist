@@ -331,6 +331,19 @@ final class AccountTransactionsViewModel {
         }
     }
 
+    /// Applies a routed (Siri/Shortcuts) query through the normal search path.
+    /// Returns whether a search started, so the view can reveal its field.
+    func applyRoutedSearch(
+        _ query: String,
+        budgetID: String?,
+        repository: any TransactionRepositoryProtocol
+    ) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let budgetID, readSession.acceptsBudget(budgetID) else { return false }
+        searchTextDidChange(trimmed, budgetID: budgetID, repository: repository)
+        return true
+    }
+
     private func refreshCurrentData(budgetID: String?, repository: any TransactionRepositoryProtocol) async {
         guard let budgetID, readSession.acceptsBudget(budgetID),
               let identity = readIdentity(budgetID: budgetID) else { return }

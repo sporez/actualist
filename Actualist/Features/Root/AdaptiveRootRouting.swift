@@ -7,6 +7,7 @@ enum AdaptiveRootRouting {
         case .tab(let tab): AdaptiveRootDestination(tab: tab)
         case .account(let id): accounts.first { $0.id == id }.map(AdaptiveRootDestination.account)
         case .category, .uncategorized, .history: .budget
+        case .spendingSearch: .spending
         case .settings: .settings
         case .newTransaction: nil
         }

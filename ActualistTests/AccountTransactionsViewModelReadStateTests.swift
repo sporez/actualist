@@ -225,4 +225,24 @@ struct AccountTransactionsViewModelReadStateTests {
         _ = render(pending: ["one"], privacy: true)
         #expect(model.displayProjectionCount == 3)
     }
+
+    @Test func routedSearchRunsThroughTheSearchPathAndIgnoresEmptyQueries() async {
+        let repository = AccountTransactionsRecordingRepository(suspendsSearches: true)
+        let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
+
+        #expect(!model.applyRoutedSearch("   ", budgetID: "budget", repository: repository))
+        #expect(model.searchText.isEmpty)
+        #expect(!model.applyRoutedSearch("market", budgetID: nil, repository: repository))
+
+        #expect(model.applyRoutedSearch(" market ", budgetID: "budget", repository: repository))
+        #expect(model.searchText == "market")
+        await repository.waitForSearch("market|all|0")
+        await repository.finishSearch("market", with: AccountTransactionsViewModelTests.loaded([
+            AccountTransactionsViewModelTests.transaction(id: "routed")
+        ]))
+        await ObservedTestState { !model.isSearching }.wait()
+        let display = model.displayState(budgetID: "budget", repository: repository,
+                                         pendingNewTransactionIDs: [], privacyModeEnabled: false)
+        #expect(display.groups.flatMap(\.rows).map(\.id) == ["routed"])
+    }
 }

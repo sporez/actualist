@@ -125,6 +125,8 @@ enum SimulatorLaunchApplier {
         switch route {
         case .tab(let tab):
             appState.selectedTab = tab
+        case .spendingSearch:
+            appState.selectedTab = .spending
         case .account:
             appState.selectedTab = .accounts
         case .category, .uncategorized, .history, .settings:

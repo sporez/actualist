@@ -396,6 +396,13 @@ struct AccountTransactionsView: View {
                 }
             }
         }
+        .onSpendingSearchRoute(isSpendingFeed: scope == .spending, budgetID: budgetID) { query in
+            guard viewModel.applyRoutedSearch(query, budgetID: budgetID, repository: transactionRepository) else {
+                return false
+            }
+            showSearch()
+            return true
+        }
         .onChange(of: budgetID) { _, _ in
             Task { await viewModel.budgetDidChange(to: budgetID, repository: transactionRepository) }
         }

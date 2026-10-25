@@ -122,7 +122,8 @@ struct ShortcutIntentTests {
             "OpenReportsIntent": "Reports"
         ]
 
-        #expect(Set(actions.keys) == Set(expected.keys))
+        // The schema search intent has no shortcut category; its own test pins it.
+        #expect(Set(actions.keys).subtracting(["SearchSpendingIntent"]) == Set(expected.keys))
         for (identifier, category) in expected {
             let action = try #require(actions[identifier] as? [String: Any])
             let metadata = try #require(action["descriptionMetadata"] as? [String: Any])
@@ -157,7 +158,7 @@ struct ShortcutIntentTests {
             "ImportTransactionFromTextIntent"
         ]
         #expect(alwaysAllowed.isSubset(of: Set(actions.keys)))
-        for (identifier, value) in actions {
+        for (identifier, value) in actions where identifier != "SearchSpendingIntent" {
             let action = try #require(value as? [String: Any])
             let policy = action["authenticationPolicy"] as? Int
             #expect(policy == (alwaysAllowed.contains(identifier) ? 0 : 1), "\(identifier)")
@@ -171,6 +172,26 @@ struct ShortcutIntentTests {
         }
     }
 
+    /// Siri AI finds the search intent only through its registered schema. A
+    /// schema intent needs at least local-device authentication (2) and the
+    /// app foregrounded before it routes.
+    @Test func extractedMetadataRegistersTheSearchInAppSchema() throws {
+        let url = try #require(
+            Bundle.main.url(
+                forResource: "extract",
+                withExtension: "actionsdata",
+                subdirectory: "Metadata.appintents"
+            )
+        )
+        let payload = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        let actions = try #require(payload?["actions"] as? [String: Any])
+        let action = try #require(actions["SearchSpendingIntent"] as? [String: Any])
+        let schemas = try #require(action["assistantDefinedSchemas"] as? [[String: Any]])
+        #expect(schemas.contains { $0["domain"] as? String == "system" && $0["name"] as? String == "SystemSearchInAppIntent" })
+        #expect(action["authenticationPolicy"] as? Int == 2)
+        #expect(action["openAppWhenRun"] as? Bool == true)
+    }
+
     @Test func openIntentsOpenTheAppBeforeRunning() {
         let expected = IntentModes.foreground(.immediate)
         #expect(OpenBudgetIntent.supportedModes == expected)
@@ -181,6 +202,24 @@ struct ShortcutIntentTests {
         #expect(OpenCategoryIntent.supportedModes == expected)
         #expect(OpenUncategorizedIntent.supportedModes == expected)
         #expect(OpenNewTransactionIntent.supportedModes == expected)
+    }
+
+    @Test func searchSpendingIntentOpensSpendingWithTheTrimmedQuery() async throws {
+        guard #available(iOS 27.0, *) else { return }
+        let (session, appState) = try await makeSessionAndAppState()
+        #expect(SearchSpendingIntent.searchScopes == [.general])
+        #expect(SearchSpendingIntent.supportedModes == .foreground(.immediate))
+
+        var intent = SearchSpendingIntent()
+        intent.criteria = StringSearchCriteria(term: "  Costco ")
+        intent.session = session
+        _ = try await intent.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .spendingSearch(query: "Costco"))
+        #expect(appState.selectedTab == .spending)
+
+        intent.criteria = StringSearchCriteria(term: " ")
+        _ = try await intent.perform()
+        #expect(appState.routeCoordinator.pendingRoute == .tab(.spending))
     }
 
     @Test func addOnlyIntentsRunInBackgroundAndCanContinueInForeground() {

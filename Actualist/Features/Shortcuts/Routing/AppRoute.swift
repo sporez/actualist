@@ -6,6 +6,8 @@ enum AppRoute: Equatable {
     case category(id: String, month: String)
     case uncategorized(month: String)
     case history
+    /// Spending with its search field set to `query` (already trimmed, non-empty).
+    case spendingSearch(query: String)
     case settings
     case newTransaction(ShortcutEditorPrefill)
 }
@@ -40,6 +42,19 @@ enum AppRouteApplication {
             return nil
         }
         return (category, month)
+    }
+
+    /// Trims a spoken query. Empty input is just the Spending tab.
+    static func spendingRoute(searchTerm: String) -> AppRoute {
+        let query = searchTerm.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty ? .tab(.spending) : .spendingSearch(query: query)
+    }
+
+    static func spendingSearchQuery(from route: AppRoute?) -> String? {
+        guard case .spendingSearch(let query) = route else {
+            return nil
+        }
+        return query
     }
 
     static func uncategorizedMonth(from route: AppRoute?) -> String? {
