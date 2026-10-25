@@ -93,7 +93,10 @@ enum ScheduleStatefulReplay {
             // The day marker would make a second run on the same day skip; Actual keeps no such marker per call.
             let markerURL = await database.databaseURL.deletingLastPathComponent().appending(path: "metadata.json")
             try? FileManager.default.removeItem(at: markerURL)
-            let result = try await database.advanceSchedules(budgetID: budgetID, today: today, now: now)
+            // `syncSuccess: false` is Actual's `advanceSchedulesService(false)`: advance paid occurrences, post nothing.
+            let result = try await database.advanceSchedules(
+                budgetID: budgetID, today: today, postingAllowed: args["syncSuccess"] as? Bool ?? true, now: now
+            )
             refusals = result.refusals.map { "\($0.scheduleID) \($0.occurrenceDayID) \($0.refusal)" }
         case "skip":
             let review = try await database.scheduleMutationReview(budgetID: budgetID, scheduleID: required(scheduleID))

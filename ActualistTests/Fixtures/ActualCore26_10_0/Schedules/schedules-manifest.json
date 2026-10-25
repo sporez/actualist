@@ -12,7 +12,7 @@
   "helpers": [
     {
       "path": "scripts/schedule-parity/cases.mjs",
-      "sha256": "6d1ae171ea6d116dfcb401cccd75126804b27facf6bd1e7bb52f1844d9431de1"
+      "sha256": "02b8fab14c2360345c1a488d4d02390544060d8c4e9a9677bb10efb3ee93edf6"
     },
     {
       "path": "scripts/schedule-parity/oracle-runner.template",
@@ -100,7 +100,7 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_10_0/Schedules/schedules-contract.json",
-      "sha256": "ed6e204a8881e96befc49fdd26986c4166017689a11b833e470eb329e28c7efd",
+      "sha256": "cdc11e9ef1ddcff86afeb1d7dd60182404b644a8ed6c5e21d3acb8d459ef9214",
       "caseCount": 253,
       "caseIDs": [
         "plain-date-future",
@@ -360,10 +360,6 @@
     }
   ],
   "oracleOnly": [
-    {
-      "id": "advance-sync-failed",
-      "reason": "advanceSchedules has no sync-failure mode; Actual only records failed posts when sync did not succeed."
-    },
     {
       "id": "set-next-date-plain",
       "reason": "setNextDate without exactly one of advance or reset has no production entry point; skipNextDate (advance) and resetNextDate (reset) are its two callers."

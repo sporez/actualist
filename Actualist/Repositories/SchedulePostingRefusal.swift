@@ -3,7 +3,7 @@ import Foundation
 /// A deterministic reason a scheduled occurrence cannot be posted. Thrown at the
 /// source so callers never match on message text, and so automatic advancement
 /// can skip one refused schedule without stopping the others.
-enum SchedulePostingRefusal: Error, Hashable, Sendable {
+enum SchedulePostingRefusal: String, Error, Hashable, Sendable {
     case invalidCommand
     case unsupportedOccurrence
     case accountUnavailable

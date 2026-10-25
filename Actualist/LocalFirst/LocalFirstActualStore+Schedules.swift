@@ -48,6 +48,9 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         let ticket = scheduleRequestIdentity.begin(budgetID: budgetID)
         let loaded = try await database.fetchSchedules(budgetID: budgetID, today: today)
+        // Refusals persist with the budget so a same-day relaunch, which skips
+        // the once-a-day run, still shows them.
+        let storedRefusals = (try? await database.scheduleAutoPostRefusals()) ?? []
         #if DEBUG
         await testSeams?.scheduleReadHook?(budgetID, today)
         #endif
@@ -62,6 +65,12 @@ extension LocalFirstActualStore {
             throw CancellationError()
         }
         schedulesByBudget[budgetID] = loaded
+        let retained = ScheduleAutoPostRefusalReconciler.retained(storedRefusals, in: loaded)
+        scheduleAutoPostRefusals = retained
+        let ended = storedRefusals.filter { !retained.contains($0) }
+        if !ended.isEmpty {
+            try? await database.removeScheduleAutoPostRefusals(ended)
+        }
         return loaded
     }
 

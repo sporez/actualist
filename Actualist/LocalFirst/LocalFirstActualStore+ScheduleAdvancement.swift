@@ -1,12 +1,16 @@
 import Foundation
 
 extension LocalFirstActualStore {
-    /// Called after a successful remote pull. Does not pull, and does not throw
-    /// a posting error back to that caller. Demo reloads must not call this.
-    func advanceSchedulesAfterSuccessfulSync(
+    /// Called after a remote pull, and from its failure path (not for
+    /// cancellation or a changed session). A failed sync passes
+    /// `syncSucceeded: false`: schedules still advance but nothing is posted
+    /// (Actual's `advanceSchedulesService(false)`). Does not pull, and does not
+    /// throw to that caller. Demo reloads must not call this.
+    func advanceSchedulesAfterSync(
         budgetID: String,
         database: BudgetDatabase,
-        generation: Int
+        generation: Int,
+        syncSucceeded: Bool = true
     ) async {
         guard ownsScheduleAdvancementSession(database: database, budgetID: budgetID, generation: generation) else {
             return
@@ -15,7 +19,9 @@ extension LocalFirstActualStore {
         let today = ActualDateOnly.today()
         let result: ScheduleAdvancementResult
         do {
-            result = try await database.advanceSchedules(budgetID: budgetID, today: today)
+            result = try await database.advanceSchedules(
+                budgetID: budgetID, today: today, postingAllowed: syncSucceeded
+            )
         } catch {
             await refreshInterruptedScheduleAdvancement(
                 database: database,
@@ -27,7 +33,7 @@ extension LocalFirstActualStore {
         guard ownsScheduleAdvancementSession(database: database, budgetID: budgetID, generation: generation) else {
             return
         }
-        if !result.skippedForToday {
+        if result.refusalsReplaced {
             scheduleAutoPostRefusals = result.refusals
         }
         await publishScheduleAdvancement(

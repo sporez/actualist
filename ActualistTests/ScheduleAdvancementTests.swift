@@ -330,12 +330,12 @@ struct ScheduleAdvancementTests {
         try JSONSerialization.data(withJSONObject: metadata).write(to: metadataURL, options: .atomic)
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
 
-        await store.advanceSchedulesAfterSuccessfulSync(
+        await store.advanceSchedulesAfterSync(
             budgetID: "group-1",
             database: database,
             generation: store.budgetSessionGeneration + 1
         )
-        await store.advanceSchedulesAfterSuccessfulSync(
+        await store.advanceSchedulesAfterSync(
             budgetID: "other-budget",
             database: database,
             generation: store.budgetSessionGeneration
@@ -345,12 +345,12 @@ struct ScheduleAdvancementTests {
         #expect(try metadataObject(at: metadataURL)["lastScheduleRun"] == nil)
         #expect(store.cachedSchedules(budgetID: "group-1") == nil)
 
-        await store.advanceSchedulesAfterSuccessfulSync(
+        await store.advanceSchedulesAfterSync(
             budgetID: "group-1",
             database: database,
             generation: store.budgetSessionGeneration
         )
-        await store.advanceSchedulesAfterSuccessfulSync(
+        await store.advanceSchedulesAfterSync(
             budgetID: "group-1",
             database: database,
             generation: store.budgetSessionGeneration
@@ -384,7 +384,7 @@ struct ScheduleAdvancementTests {
             expectedMode: nil, categoryID: "groceries", budgeted: 61_000,
             budgetID: "group-1", month: "2026-07"
         ) {}
-        await store.advanceSchedulesAfterSuccessfulSync(
+        await store.advanceSchedulesAfterSync(
             budgetID: "group-1", database: database, generation: store.budgetSessionGeneration
         )
 
@@ -420,7 +420,7 @@ struct ScheduleAdvancementTests {
         #expect(!BudgetActionUndoOrder.participates(kind: .payee, source: .ui))
     }
 
-    private func makeDatabase(
+    func makeDatabase(
         extraSQL: String = "",
         metadata: [String: Any]? = nil
     ) throws -> (url: URL, database: BudgetDatabase) {
@@ -436,7 +436,7 @@ struct ScheduleAdvancementTests {
         databaseURL.deletingLastPathComponent().appending(path: "metadata.json")
     }
 
-    private func metadataObject(beside databaseURL: URL) throws -> [String: Any] {
+    func metadataObject(beside databaseURL: URL) throws -> [String: Any] {
         try metadataObject(at: metadataURL(beside: databaseURL))
     }
 
@@ -444,11 +444,11 @@ struct ScheduleAdvancementTests {
         try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
     }
 
-    private func scheduleTransactionCount(_ scheduleID: String, _ url: URL) throws -> Int {
+    func scheduleTransactionCount(_ scheduleID: String, _ url: URL) throws -> Int {
         try readInt("SELECT COUNT(*) FROM transactions WHERE schedule = '\(scheduleID)'", url)
     }
 
-    private func readInt(_ sql: String, _ url: URL) throws -> Int {
+    func readInt(_ sql: String, _ url: URL) throws -> Int {
         let queue = try DatabaseQueue(path: url.path)
         return try queue.readSync { db in try Int.fetchOne(db, sql: sql) ?? -1 }
     }
@@ -459,11 +459,11 @@ struct ScheduleAdvancementTests {
         return nil
     }
 
-    private static func packed(_ dayID: String) -> Int {
+    static func packed(_ dayID: String) -> Int {
         Int(dayID.replacingOccurrences(of: "-", with: ""))!
     }
 
-    private static func localToday() -> String { TestLocalDay.today() }
+    static func localToday() -> String { TestLocalDay.today() }
 
     func oneTimeScheduleSQL(
         scheduleID: String,
@@ -551,7 +551,7 @@ struct ScheduleAdvancementTests {
         """
     }
 
-    private static var storeScheduleSQL: String {
+    static var storeScheduleSQL: String {
         let today = localToday()
         let packedDay = Self.packed(today)
         return """

@@ -200,6 +200,7 @@ enum ScheduleOracleCaseIDs {
         "advance-posts-missed-weekly",
         "advance-no-post-missed",
         "advance-due-today-posts-once",
+        "advance-sync-failed",
         "advance-paid-recurring-no-post",
         "advance-paid-then-catches-up",
         "advance-one-time-paid-completes",

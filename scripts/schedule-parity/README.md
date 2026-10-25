@@ -145,9 +145,10 @@ Excluded from the replay, each with its reason:
   conditions directly.
 - Transaction `id` (the replay's ids are its own), `sort_order` and `raw_synced_data` (clock- and sync-derived).
 - `completed` in the creation comparison: creation cannot set it.
-- Whole cases listed under `oracleOnly` in the manifest: a step with `advance` and `syncSuccess: false` (no
-  production mode) and a `setNextDate` with neither or both of `advance` and `reset` (no production entry; skip and
-  `resetNextDate` are its two callers). The generator marks any case containing such a step.
+- Whole cases listed under `oracleOnly` in the manifest: a `setNextDate` step with neither or both of `advance` and
+  `reset` (no production entry; skip and `resetNextDate` are its two callers). The generator marks any case
+  containing such a step. An `advance` step with `syncSuccess: false` replays through
+  `advanceSchedules(postingAllowed: false)`.
 
 Known divergences found by the replay are registered as OP-51 to OP-53 in `config/parity/known-divergences.json`.
 

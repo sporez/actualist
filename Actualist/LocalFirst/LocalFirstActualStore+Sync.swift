@@ -544,7 +544,7 @@ extension LocalFirstActualStore {
             // passes false so this pull does not post the occurrence it is
             // about to write, and so advancement cannot re-enter this pull.
             if performsScheduleAdvancement {
-                await advanceSchedulesAfterSuccessfulSync(
+                await advanceSchedulesAfterSync(
                     budgetID: budgetID,
                     database: database,
                     generation: generation
@@ -571,6 +571,14 @@ extension LocalFirstActualStore {
                 endpoint: pullEndpoint,
                 ticket: pullTicket
             )
+            // Actual also advances paid schedules on a sync error or
+            // unauthorized event, and only skips posting. The original error
+            // is rethrown unchanged.
+            if performsScheduleAdvancement, !resolvedError.isCancellation {
+                await advanceSchedulesAfterSync(
+                    budgetID: budgetID, database: database, generation: generation, syncSucceeded: false
+                )
+            }
             throw resolvedError
         }
     }

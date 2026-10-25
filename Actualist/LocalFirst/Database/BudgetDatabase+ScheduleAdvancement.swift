@@ -13,6 +13,9 @@ struct ScheduleAdvancementResult: Sendable {
     let receipts: [SchedulePostingWriteReceipt]
     let scheduleMutated: Bool
     var refusals: [ScheduleAutoPostRefusal] = []
+    /// A finished posting run replaced the persisted refusal set with `refusals`.
+    /// Interrupted and non-posting runs leave the earlier set untouched.
+    var refusalsReplaced = false
     /// The day marker already matched, so nothing ran and refusals are unknown.
     var skippedForToday = false
 }
@@ -26,9 +29,17 @@ extension BudgetDatabase {
     /// `lastScheduleRun` after any successful sync and never retries a refusal
     /// the same day). Cancellation and any other error stop the run with the
     /// marker unset, so the next sync retries.
+    ///
+    /// `postingAllowed` is false after a failed or unauthorized sync. Like Actual
+    /// (`advanceSchedulesService(false)`), a due or missed occurrence is then not
+    /// posted and that schedule's loop ends, while paid occurrences still advance
+    /// and past paid one-time schedules still complete. The run neither writes
+    /// the day marker nor replaces the persisted refusals, so the next
+    /// successful sync still posts today.
     func advanceSchedules(
         budgetID: String,
         today: String,
+        postingAllowed: Bool = true,
         now: Date = Date()
     ) throws -> ScheduleAdvancementResult {
         if scheduleAdvancementDayMarker() == today {
@@ -52,6 +63,7 @@ extension BudgetDatabase {
                     budgetID: budgetID,
                     today: today,
                     now: now,
+                    postingAllowed: postingAllowed,
                     receipts: &receipts,
                     refusals: &refusals,
                     scheduleMutated: &scheduleMutated
@@ -64,17 +76,34 @@ extension BudgetDatabase {
             }
         }
 
-        if Task.isCancelled {
+        if Task.isCancelled || !postingAllowed {
             return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
         }
         // A marker write failure must not hide committed posts. Leaving the
-        // marker unset makes the next successful sync retry.
+        // marker unset makes the next successful sync retry. The refusals are
+        // stored first so a marked day never lacks its refusal set.
         do {
+            try replaceScheduleAutoPostRefusals(refusals)
             try writeScheduleAdvancementDayMarker(today)
         } catch {
             return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
         }
-        return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
+        return ScheduleAdvancementResult(
+            receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals, refusalsReplaced: true
+        )
+    }
+
+    func scheduleAutoPostRefusals() throws -> [ScheduleAutoPostRefusal] {
+        try queue.read { db in try ScheduleAutoPostRefusalTable.read(db) }
+    }
+
+    func removeScheduleAutoPostRefusals(_ refusals: [ScheduleAutoPostRefusal]) throws {
+        guard !refusals.isEmpty else { return }
+        try queue.write { db in try ScheduleAutoPostRefusalTable.remove(refusals, db) }
+    }
+
+    private func replaceScheduleAutoPostRefusals(_ refusals: [ScheduleAutoPostRefusal]) throws {
+        try queue.write { db in try ScheduleAutoPostRefusalTable.replace(with: refusals, db) }
     }
 
     private enum ScheduleAdvancementStep {
@@ -90,6 +119,7 @@ extension BudgetDatabase {
         budgetID: String,
         today: String,
         now: Date,
+        postingAllowed: Bool,
         receipts: inout [SchedulePostingWriteReceipt],
         refusals: inout [ScheduleAutoPostRefusal],
         scheduleMutated: inout Bool
@@ -111,6 +141,8 @@ extension BudgetDatabase {
             case .stop:
                 return .nextSchedule
             case .postScheduledDate:
+                // Actual records `failedToPost` and leaves this schedule.
+                guard postingAllowed else { return .nextSchedule }
                 let statusBefore = detail.status
                 let isRecurring = detail.dateRule.recurrence != nil
                 do {

@@ -239,9 +239,6 @@ function schedule(key, createdOn, date, extra = {}) {
 // A step production cannot run. Its case stays in the fixture and is replayed up to nothing:
 // the whole case becomes oracle-only with this reason.
 export function stepOracleOnlyReason(step) {
-  if (step.op === 'advance' && step.syncSuccess === false) {
-    return 'advanceSchedules has no sync-failure mode; Actual only records failed posts when sync did not succeed.';
-  }
   if (step.op === 'setNextDate' && Boolean(step.advance) === Boolean(step.reset)) {
     return 'setNextDate without exactly one of advance or reset has no production entry point; skipNextDate (advance) and resetNextDate (reset) are its two callers.';
   }
