@@ -374,7 +374,7 @@ final class BackgroundTransactionWorkflow {
                         notificationID: notificationID
                     )
                 }
-                if local.simplefinBackgroundSyncEnabled && liveEligibility().bankSyncEnabled {
+                if result.failureDescription == nil && local.simplefinBackgroundSyncEnabled && liveEligibility().bankSyncEnabled {
                     details.bankOutcome = .running
                     debugRecorder.updateDetails(details, for: debugRunID, in: &local)
                     let bankStep = await runBackgroundBankSync(
@@ -480,6 +480,15 @@ final class BackgroundTransactionWorkflow {
                     }
                 }
 
+                if let failure = result.failureDescription {
+                    // The pull failed after applying transactions; they were
+                    // registered above, and the run still ends as failed.
+                    details.refreshOutcome = .failed
+                    debugRecorder.updateDetails(details, for: debugRunID, in: &local)
+                    debugRecorder.completeRun(debugRunID, succeeded: false, message: failure, in: &local)
+                    return RefreshResult(outcome: .failed(failure), settings: local, runID: debugRunID,
+                        budgetID: refreshBudgetID, pendingProjectionGeneration: projectionGeneration)
+                }
                 details.refreshOutcome = .succeeded
                 debugRecorder.updateDetails(details, for: debugRunID, in: &local)
                 debugRecorder.completeRun(

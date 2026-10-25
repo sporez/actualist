@@ -50,12 +50,40 @@ extension LocalFirstActualStore {
         let lane = syncLane
         let runToken = lane.beginBackgroundRun()
         defer { _ = lane.endBackgroundRun(runToken) }
-        try await pullAndReload(
+        do {
+            try await pullAndReload(
+                budgetID: budgetID,
+                serverURLString: serverURLString
+            )
+        } catch {
+            // A pull that applied transactions and then failed still reports
+            // them; the error travels with them.
+            let insertedByAccount = lane.endBackgroundRun(runToken)
+            guard !error.isCancellation, !insertedByAccount.isEmpty else { throw error }
+            throw BackgroundRefreshPartialFailure(
+                underlying: error,
+                results: try await backgroundRefreshResults(
+                    insertedByAccount: insertedByAccount,
+                    database: refreshedDatabase,
+                    budgetID: budgetID,
+                    generation: generation
+                )
+            )
+        }
+        return try await backgroundRefreshResults(
+            insertedByAccount: lane.endBackgroundRun(runToken),
+            database: refreshedDatabase,
             budgetID: budgetID,
-            serverURLString: serverURLString
+            generation: generation
         )
-        let insertedByAccount = lane.endBackgroundRun(runToken)
+    }
 
+    private func backgroundRefreshResults(
+        insertedByAccount: [String: [String]],
+        database refreshedDatabase: BudgetDatabase,
+        budgetID: String,
+        generation: Int
+    ) async throws -> [BackgroundAccountRefreshResult] {
         try requireSyncSession(database: refreshedDatabase, budgetID: budgetID, generation: generation)
         let accountDisplays: [AccountDisplay]
         if let cachedDisplays = accountsByBudget[budgetID] {
@@ -325,6 +353,7 @@ extension LocalFirstActualStore {
         status.lastSyncAttemptAt = Date()
         syncStatus = status
         let confirmation = UploadConfirmation()
+        let partialApply = PartialSyncApplyRecorder()
         var usedEndpoint = lastSyncEndpoint
         do {
             var result = try await withSyncFailover(
@@ -340,7 +369,8 @@ extension LocalFirstActualStore {
                         database: database,
                         client: client,
                         token: token,
-                        sessionIsCurrent: sessionIsCurrent
+                        sessionIsCurrent: sessionIsCurrent,
+                        appliedRecorder: partialApply
                     )
                     return LocalFirstSyncResult(
                         pushedMessageCount: pending.count,
@@ -363,7 +393,8 @@ extension LocalFirstActualStore {
                         )
                         try await database.deletePendingLocalSyncMessages(pending)
                         await confirmation.markConfirmed()
-                    }
+                    },
+                    appliedRecorder: partialApply
                 )
             }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
@@ -395,6 +426,9 @@ extension LocalFirstActualStore {
                 token: token
             )
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            await PartialSyncApply.settleAfterFailure(partialApply, lane: syncLane) {
+                try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
+            }
             // Confirmed rows were already deleted; this failure is a pull failure.
             if await !confirmation.isConfirmed {
                 try? await database.markPendingLocalSyncMessagesFailed(pending, error: resolvedError)
@@ -444,6 +478,7 @@ extension LocalFirstActualStore {
         syncStatus = status
         var pullTicket: Int?
         var pullEndpoint: LocalFirstSyncDebugEvent.Endpoint?
+        let partialApply = PartialSyncApplyRecorder()
         do {
             let flushedResult = try await flushPendingLocalMessagesSerialized(
                 database: database,
@@ -469,7 +504,8 @@ extension LocalFirstActualStore {
                             await ownsSyncSession(
                                 database: database, budgetID: budgetID, generation: generation
                             )
-                        }
+                        },
+                        appliedRecorder: partialApply
                     )
                 }
                 try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
@@ -522,6 +558,10 @@ extension LocalFirstActualStore {
                 serverURLString: serverURLString,
                 token: token
             )
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            await PartialSyncApply.settleAfterFailure(partialApply, lane: syncLane) {
+                try await reloadAfterRemoteSync(database: database, budgetID: budgetID)
+            }
             try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             await recordSyncStatus(
                 budgetID: budgetID,

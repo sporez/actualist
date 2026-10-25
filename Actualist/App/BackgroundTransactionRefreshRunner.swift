@@ -43,6 +43,9 @@ struct BackgroundTransactionRefreshResult: Sendable {
     let budgetID: String
     let accountCount: Int
     let pendingTransactions: [BackgroundPendingTransactions]
+    /// Set when the pull applied transactions and then failed: the run still
+    /// reports them, then ends as failed with this description.
+    var failureDescription: String?
 
     var newTransactionCount: Int {
         pendingTransactions.reduce(0) { $0 + $1.transactionIDs.count }
@@ -131,11 +134,18 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
             throw CancellationError()
         }
 
-        let results = try await store.syncAndFindNewTransactions(
-            budget: budget,
-            serverURLString: serverURLString,
-            openBudget: openBudget
-        )
+        var failureDescription: String?
+        let results: [BackgroundAccountRefreshResult]
+        do {
+            results = try await store.syncAndFindNewTransactions(
+                budget: budget,
+                serverURLString: serverURLString,
+                openBudget: openBudget
+            )
+        } catch let partial as BackgroundRefreshPartialFailure {
+            failureDescription = SafeSyncDiagnostic.description(for: partial.underlying)
+            results = partial.results
+        }
 
         if Task.isCancelled {
             throw CancellationError()
@@ -157,7 +167,8 @@ struct BackgroundTransactionRefreshRunner: BackgroundTransactionRefreshing {
         return BackgroundTransactionRefreshResult(
             budgetID: budgetID,
             accountCount: results.count,
-            pendingTransactions: pendingTransactions
+            pendingTransactions: pendingTransactions,
+            failureDescription: failureDescription
         )
     }
 

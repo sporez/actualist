@@ -85,7 +85,8 @@ actor SyncClient {
         database: BudgetDatabase,
         client: any ActualSyncTransport,
         token: String,
-        sessionIsCurrent: @escaping @Sendable () async -> Bool
+        sessionIsCurrent: @escaping @Sendable () async -> Bool,
+        appliedRecorder: PartialSyncApplyRecorder? = nil
     ) async throws -> BudgetDatabase.RemoteSyncApplyResult {
         guard let configuration else {
             throw LocalFirstError.budgetNotOpened
@@ -107,6 +108,7 @@ actor SyncClient {
         let messages = try decodedMessages(from: response, configuration: configuration)
         let localTimeChanged = await database.localClockTimestamp != clockBefore
         let applied = try await database.applyRemoteSyncMessagesTrackingInserts(messages)
+        await appliedRecorder?.record(applied)
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
         return try await repullUntilMerkleMatches(
             applied,
@@ -117,7 +119,8 @@ actor SyncClient {
             token: token,
             configuration: configuration,
             generation: generation,
-            sessionIsCurrent: sessionIsCurrent
+            sessionIsCurrent: sessionIsCurrent,
+            appliedRecorder: appliedRecorder
         )
     }
 
@@ -128,7 +131,8 @@ actor SyncClient {
         messages: [ActualSyncDecodedMessage],
         since: String? = nil,
         sessionIsCurrent: @escaping @Sendable () async -> Bool,
-        onUploadConfirmed: (@Sendable () async throws -> Void)? = nil
+        onUploadConfirmed: (@Sendable () async throws -> Void)? = nil,
+        appliedRecorder: PartialSyncApplyRecorder? = nil
     ) async throws -> LocalFirstSyncResult {
         guard let configuration else {
             throw LocalFirstError.budgetNotOpened
@@ -209,6 +213,7 @@ actor SyncClient {
         let remoteMessages = try decodedMessages(from: combinedResponse, configuration: configuration)
         let localTimeChanged = await database.localClockTimestamp != clockBefore
         let firstApply = try await database.applyRemoteSyncMessagesTrackingInserts(remoteMessages)
+        await appliedRecorder?.record(firstApply)
         try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
         let applyResult = try await repullUntilMerkleMatches(
             firstApply,
@@ -219,7 +224,8 @@ actor SyncClient {
             token: token,
             configuration: configuration,
             generation: generation,
-            sessionIsCurrent: sessionIsCurrent
+            sessionIsCurrent: sessionIsCurrent,
+            appliedRecorder: appliedRecorder
         )
 
         return LocalFirstSyncResult(
@@ -244,7 +250,8 @@ actor SyncClient {
         token: String,
         configuration: LocalFirstSyncConfiguration,
         generation: Int,
-        sessionIsCurrent: @escaping @Sendable () async -> Bool
+        sessionIsCurrent: @escaping @Sendable () async -> Bool,
+        appliedRecorder: PartialSyncApplyRecorder?
     ) async throws -> BudgetDatabase.RemoteSyncApplyResult {
         var total = initial
         var server = MerkleTrie(jsonString: initialMerkle)
@@ -279,7 +286,8 @@ actor SyncClient {
                 token: token,
                 configuration: configuration,
                 generation: generation,
-                sessionIsCurrent: sessionIsCurrent
+                sessionIsCurrent: sessionIsCurrent,
+                appliedRecorder: appliedRecorder
             )
             total = total.merging(round.applied)
             server = MerkleTrie(jsonString: round.merkle)
@@ -304,7 +312,8 @@ actor SyncClient {
         token: String,
         configuration: LocalFirstSyncConfiguration,
         generation: Int,
-        sessionIsCurrent: @escaping @Sendable () async -> Bool
+        sessionIsCurrent: @escaping @Sendable () async -> Bool,
+        appliedRecorder: PartialSyncApplyRecorder?
     ) async throws -> (applied: BudgetDatabase.RemoteSyncApplyResult, merkle: String, localTimeChanged: Bool) {
         var applied = BudgetDatabase.RemoteSyncApplyResult.empty
         var localTimeChanged = false
@@ -336,7 +345,9 @@ actor SyncClient {
             if await database.localClockTimestamp != clockBefore {
                 localTimeChanged = true
             }
-            applied = applied.merging(try await database.applyRemoteSyncMessagesTrackingInserts(messages))
+            let pageApplied = try await database.applyRemoteSyncMessagesTrackingInserts(messages)
+            await appliedRecorder?.record(pageApplied)
+            applied = applied.merging(pageApplied)
             try await requireActiveSession(generation: generation, sessionIsCurrent: sessionIsCurrent)
             merkle = response.merkle
 

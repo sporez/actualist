@@ -409,6 +409,30 @@ struct BackgroundTransactionWorkflowTests {
         #expect(!String(describing: run.diagnosticDetails).contains("secret"))
     }
 
+    @Test func aPullThatFailedAfterApplyingStillAlertsAndEndsAsFailed() async throws {
+        let pending = BackgroundPendingTransactions(accountID: "account", transactionIDs: ["pulled"])
+        var synced = BackgroundTransactionRefreshResult(budgetID: "budget", accountCount: 1, pendingTransactions: [pending])
+        synced.failureDescription = "Sync failed"
+        var posted = 0
+        let (workflow, _) = makeWorkflow(
+            runner: FakeBackgroundTransactionRefreshRunner(result: .success(.synced(synced))),
+            bankSyncApplier: FakeBackgroundBankSyncApplier(result: .failure(FakeRefreshError(message: "must not run"))),
+            notificationPoster: { _, _, _ in posted += 1 }
+        )
+        let output = await workflow.performRefresh(
+            timeLimit: .seconds(25), isDemoMode: false,
+            settings: AppSettings(backgroundTransactionRefreshEnabled: true, simplefinBackgroundSyncEnabled: true),
+            selectedBudget: nil, budgets: [], hasSyncCredentials: true, store: makeThrowawayStore()
+        )
+        let run = try #require(output.settings.backgroundRefreshDebug.recentRuns.first)
+        #expect(output.outcome == .failed("Sync failed"))
+        #expect(run.succeeded == false)
+        #expect(posted == 1)
+        #expect(run.diagnosticDetails?.refreshOutcome == .failed)
+        #expect(run.diagnosticDetails?.serverInsertedCount == 1)
+        #expect(run.diagnosticDetails?.bankOutcome == .skipped)
+    }
+
     @Test func failedPostRetriesSameDeterministicRequestIdentifier() async throws {
         let pendingStore = FakePendingTransactionStore()
         let pending = BackgroundPendingTransactions(accountID: "checking", transactionIDs: ["new-1"])
