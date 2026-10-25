@@ -163,7 +163,7 @@ enum LocalFirstError: LocalizedError, Equatable {
         case .invalidSyncValue:
             "Actualist found synced data it could not read."
         case .syncOutOfSync:
-            "Sync could not finish because this device and the Actual server do not agree on the latest changes. Your changes are still on this device. Try again later, or reimport the budget if this keeps happening."
+            "Sync could not finish because this device and the Actual server do not agree on the latest changes. Your changes are still saved on this device, and Actualist will try again on the next sync."
         }
     }
 }
