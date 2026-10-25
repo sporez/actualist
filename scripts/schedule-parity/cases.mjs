@@ -1,4 +1,4 @@
-// The schedule case plan: named and seeded cases in three families.
+// The schedule case plan: named and seeded cases in four families.
 //
 // Pure data. generate.mjs runs every case through Actual's own schedule code;
 // verify.mjs rebuilds this plan without an oracle and compares it with the
@@ -9,6 +9,8 @@
 //   status      getStatus and getUpcomingDays
 //   stateful    createSchedule, advanceSchedulesService, skipNextDate, setNextDate,
 //               updateSchedule and post-transaction on a real in-memory budget
+//   conversion  the web app's createSingleTimeScheduleFromTransaction (Schedule this
+//               future transaction), its server calls forwarded to the real handlers
 
 export const SEED = 20261011;
 export const TIME_ZONE = 'America/New_York';
@@ -478,6 +480,87 @@ function generatedStateCase(seed, index) {
 
 // ---------------------------------------------------------------------------
 
+// Family 4: conversion
+
+// What the register hands to createSingleTimeScheduleFromTransaction: a row from the
+// transactions view, or a parent grouped with its children. Keys name entities the
+// runner creates; amounts are always numbers because the view reads IFNULL(amount, 0).
+function conversionCase(id, description, transaction) {
+  return {
+    id,
+    family: 'conversion',
+    source: 'named',
+    description,
+    seed: null,
+    oracleOnly: null,
+    today: TODAY,
+    setup: {
+      accounts: [CHECKING],
+      payees: [PAYEE, { key: 'grocer', name: 'Synthetic Grocer' }, { key: 'pharmacy', name: 'Synthetic Pharmacy' }],
+      categories: [{ key: 'rent', name: 'Synthetic Rent' }, { key: 'food', name: 'Synthetic Food' }, { key: 'health', name: 'Synthetic Health' }],
+    },
+    transaction: {
+      accountKey: 'checking',
+      date: '2026-10-20',
+      payeeKey: null,
+      payee: null,
+      categoryKey: null,
+      notes: null,
+      ...transaction,
+    },
+  };
+}
+
+const split = (amount, extra = {}) => ({ amount, payeeKey: null, categoryKey: null, notes: null, ...extra });
+
+function conversionCases() {
+  return [
+    conversionCase('convert-plain-full', 'Plain transaction with payee, category and notes', {
+      amount: -12345, payeeKey: 'landlord', categoryKey: 'rent', notes: 'October rent',
+    }),
+    conversionCase('convert-plain-bare', 'Plain transaction with no payee, category or notes', { amount: -500 }),
+    conversionCase('convert-plain-zero-amount', 'Plain zero-amount transaction with a category', {
+      amount: 0, categoryKey: 'food',
+    }),
+    conversionCase('convert-plain-empty-payee-notes-only', 'Empty-string payee is left out; notes only', {
+      amount: -2500, payee: '', notes: 'Notes only',
+    }),
+    conversionCase('convert-plain-income', 'Income with a payee and empty notes', {
+      amount: 250000, payeeKey: 'landlord', notes: '',
+    }),
+    conversionCase('convert-split-payees', 'Split whose children carry their own payees, categories and notes', {
+      amount: -5000, payeeKey: 'landlord', notes: 'Parent memo',
+      subtransactions: [
+        split(-3000, { payeeKey: 'grocer', categoryKey: 'food', notes: 'Child one' }),
+        split(-2000, { payeeKey: 'pharmacy', categoryKey: 'health' }),
+      ],
+    }),
+    conversionCase('convert-split-amounts-only', 'Split children with amounts only, one of them zero', {
+      amount: -1500,
+      subtransactions: [split(-1500), split(0)],
+    }),
+    conversionCase('convert-split-single-child', 'Split with one categorized child and no parent notes', {
+      amount: -900, payeeKey: 'grocer',
+      subtransactions: [split(-900, { categoryKey: 'food' })],
+    }),
+    conversionCase('convert-split-parent-category-ignored', 'A parent category is not copied; children keep theirs', {
+      amount: -4000, categoryKey: 'rent', notes: 'Parent memo',
+      subtransactions: [
+        split(-1000, { categoryKey: 'food', notes: 'Food' }),
+        split(-3000, { categoryKey: 'rent', payeeKey: 'landlord' }),
+      ],
+    }),
+    conversionCase('convert-split-mixed-children', 'Three children mixing payee, category, notes and blanks', {
+      amount: 1000, payeeKey: 'landlord',
+      subtransactions: [
+        split(600, { payeeKey: 'grocer', notes: 'Refund' }),
+        split(500, { categoryKey: 'health' }),
+        split(-100, { payee: '' }),
+      ],
+    }),
+  ];
+}
+
 export function buildPlan() {
   const master = mulberry32(SEED);
   const recurrence = [...namedRecurrenceCases()];
@@ -493,7 +576,7 @@ export function buildPlan() {
     timeZone: TIME_ZONE,
     today: TODAY,
     occurrenceCount: OCCURRENCE_COUNT,
-    cases: [...recurrence, ...statusCases(), ...stateful],
+    cases: [...recurrence, ...statusCases(), ...stateful, ...conversionCases()],
   };
 }
 
@@ -542,6 +625,11 @@ export function expectationFailures(record, planCase) {
   } else if (planCase.family === 'stateful') {
     if (record.steps.length !== planCase.steps.length) failures.push('step count differs');
     if (record.before == null) failures.push('missing before snapshot');
+  } else if (planCase.family === 'conversion') {
+    if (record.error !== null) failures.push(`conversion threw: ${record.error}`);
+    if (record.sent?.scheduleCreate == null) failures.push('schedule/create was not called');
+    if (record.stored?.rule?.actions?.[0]?.op !== 'link-schedule') failures.push('stored rule does not start with link-schedule');
+    if (record.stored?.schedule?.id !== record.returned) failures.push('returned id is not the stored schedule');
   }
   return failures;
 }

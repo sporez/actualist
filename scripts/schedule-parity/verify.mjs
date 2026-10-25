@@ -54,7 +54,7 @@ const manifest = JSON.parse(readFileSync(join(fixtureDirectory, manifestName), '
 const generatedCount = plan.cases.filter(planCase => planCase.source === 'generated').length;
 const namedCount = plan.cases.length - generatedCount;
 const familyCounts = Object.fromEntries(
-  ['recurrence', 'status', 'stateful'].map(family => [
+  ['recurrence', 'status', 'stateful', 'conversion'].map(family => [
     family,
     plan.cases.filter(planCase => planCase.family === family).length,
   ]),
@@ -185,6 +185,18 @@ function checkStateful(record, planCase, where) {
   });
 }
 
+function checkConversion(record, planCase, where) {
+  for (const field of ['today', 'setup', 'transaction']) {
+    if (!sameJSON(record[field], planCase[field])) note(`${where}: ${field} differs from the plan`);
+  }
+  const children = planCase.transaction.subtransactions;
+  if (Boolean(record.input?.is_parent) !== Boolean(children)) note(`${where}: input is_parent differs from the plan`);
+  if ((record.input?.subtransactions?.length ?? 0) !== (children?.length ?? 0)) note(`${where}: input children differ from the plan`);
+  if (!Array.isArray(record.sent?.scheduleCreate?.conditions)) note(`${where}: schedule/create conditions missing`);
+  if (!Array.isArray(record.stored?.rule?.actions)) note(`${where}: stored rule actions missing`);
+  if (/\bid\d+\b/.test(JSON.stringify(record))) note(`${where}: a mock id survived normalization`);
+}
+
 if (!Array.isArray(contract.cases) || contract.cases.length !== plan.cases.length) {
   note(`contract has ${contract.cases?.length} cases, plan has ${plan.cases.length}`);
 } else {
@@ -200,6 +212,7 @@ if (!Array.isArray(contract.cases) || contract.cases.length !== plan.cases.lengt
     }
     if (planCase.family === 'recurrence') checkRecurrence(record, planCase, where);
     else if (planCase.family === 'status') checkStatus(record, planCase, where);
+    else if (planCase.family === 'conversion') checkConversion(record, planCase, where);
     else checkStateful(record, planCase, where);
     for (const failure of expectationFailures(record, planCase)) note(`${where}: ${failure}`);
   });

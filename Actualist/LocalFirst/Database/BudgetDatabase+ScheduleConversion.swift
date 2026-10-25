@@ -94,18 +94,16 @@ extension BudgetDatabase {
                 let accountID = source.account
 
                 var builder = LocalFirstSyncMessageBuilder()
-                let plan = ScheduleTransactionConversionPlanner.plan(from: source)
-                let link = RuleJSONValue.object([
-                    "op": .string("link-schedule"),
-                    "value": .string(review.identity.scheduleID)
-                ])
+                let plan = ScheduleTransactionConversionPlanner.plan(
+                    from: source,
+                    scheduleID: review.identity.scheduleID
+                )
                 let conditionsJSON = try scheduleConversionJSON(plan.conditions)
-                let actionsJSON = try scheduleConversionJSON([link] + plan.actions)
-                let scheduleName = "Auto-created future transaction (\(source.date)) · \(review.identity.scheduleID.prefix(8))"
+                let actionsJSON = try scheduleConversionJSON(plan.actions)
                 var messages = try scheduleCreationMessages(
                     ScheduleCreationMessagePlanRequest(
                         identity: review.identity,
-                        name: scheduleName,
+                        name: plan.name,
                         postsTransaction: plan.postsTransaction,
                         customUpcomingLength: nil,
                         conditionsJSON: conditionsJSON,

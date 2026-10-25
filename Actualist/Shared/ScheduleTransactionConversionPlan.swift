@@ -1,14 +1,22 @@
 import Foundation
 
-/// Pinned Actual conversion fields for a one-time schedule definition.
+/// Pinned Actual conversion fields for a one-time schedule definition, as the
+/// web app's `createSingleTimeScheduleFromTransaction` builds them. Replayed
+/// against the Schedules oracle's `conversion` family.
 struct ScheduleTransactionConversionPlan: Hashable, Sendable {
+    let name: String
     let conditions: [RuleJSONValue]
+    /// `link-schedule` first, then the copied fields, the order Actual's
+    /// `rule-update` leaves them in.
     let actions: [RuleJSONValue]
     let postsTransaction: Bool
 }
 
 enum ScheduleTransactionConversionPlanner {
-    static func plan(from transaction: ActualTransaction) -> ScheduleTransactionConversionPlan {
+    static func plan(
+        from transaction: ActualTransaction,
+        scheduleID: String
+    ) -> ScheduleTransactionConversionPlan {
         var conditions: [RuleJSONValue] = [condition("date", value: .string(transaction.date))]
         // Actual's transaction AQL view exposes IFNULL(amount, 0); nullable
         // SQLite values therefore become an exact zero condition upstream.
@@ -22,7 +30,10 @@ enum ScheduleTransactionConversionPlanner {
             conditions.append(condition("account", value: .string(transaction.account)))
         }
 
-        var actions: [RuleJSONValue] = []
+        var actions: [RuleJSONValue] = [.object([
+            "op": .string("link-schedule"),
+            "value": .string(scheduleID)
+        ])]
         if transaction.isParent {
             if let notes = nonempty(transaction.notes) {
                 actions.append(setAction(
@@ -66,6 +77,7 @@ enum ScheduleTransactionConversionPlanner {
         }
 
         return ScheduleTransactionConversionPlan(
+            name: "Auto-created future transaction (\(transaction.date)) · \(scheduleID.prefix(8))",
             conditions: conditions,
             actions: actions,
             postsTransaction: true

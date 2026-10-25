@@ -1,9 +1,20 @@
 // @ts-strict-ignore
 // Written into the pinned Actual checkout by scripts/schedule-parity/generate.mjs
 // and removed after the run. Pure cases call Actual's schedule functions directly;
-// stateful cases run Actual's schedule handlers on an in-memory budget.
+// stateful cases run Actual's schedule handlers on an in-memory budget; conversion
+// cases run the web app's createSingleTimeScheduleFromTransaction on one.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, vi } from 'vitest';
+
+// The web app talks to the server through send(). Conversion cases forward every
+// call to the server handler of the same name and record it.
+const connection = vi.hoisted(() => ({ calls: [], forward: null }));
+vi.mock('@actual-app/core/platform/client/connection', () => ({
+  send: async (name, args) => {
+    connection.calls.push({ name, args: JSON.parse(JSON.stringify(args ?? null)) });
+    return connection.forward(name, args);
+  },
+}));
 
 import { aqlQuery } from '#server/aql';
 import * as db from '#server/db';
@@ -334,6 +345,105 @@ async function statefulRecord(planCase) {
   }
 }
 
+// ---------------------------------------------------------------- conversion
+
+async function conversionRecord(planCase) {
+  await resetDatabase();
+  schedulesApp.startServices();
+  try {
+    setClock(planCase.today);
+    const ids = { accounts: {}, payees: {}, categories: {} };
+    for (const account of planCase.setup.accounts) {
+      ids.accounts[account.key] = await db.insertAccount({
+        name: account.name,
+        offbudget: account.offbudget ? 1 : 0,
+        closed: account.closed ? 1 : 0,
+      });
+    }
+    for (const payee of planCase.setup.payees) {
+      ids.payees[payee.key] = await db.insertPayee({ name: payee.name });
+    }
+    const group = await db.insertCategoryGroup({ name: 'Synthetic Group' });
+    for (const category of planCase.setup.categories) {
+      ids.categories[category.key] = await db.insertCategory({ name: category.name, cat_group: group });
+    }
+
+    const planned = planCase.transaction;
+    const payeeOf = entry => (entry.payeeKey != null ? ids.payees[entry.payeeKey] : entry.payee);
+    const categoryOf = entry => (entry.categoryKey != null ? ids.categories[entry.categoryKey] : null);
+    const parentID = 'source-parent';
+    const base = {
+      id: parentID,
+      account: ids.accounts[planned.accountKey],
+      date: planned.date,
+      amount: planned.amount,
+      payee: payeeOf(planned),
+      category: categoryOf(planned),
+      notes: planned.notes,
+      is_parent: Boolean(planned.subtransactions),
+      is_child: false,
+    };
+    const input = planned.subtransactions
+      ? {
+          ...base,
+          subtransactions: planned.subtransactions.map((child, index) => ({
+            id: `source-child-${index + 1}`,
+            account: base.account,
+            date: base.date,
+            amount: child.amount,
+            payee: payeeOf(child),
+            category: categoryOf(child),
+            notes: child.notes,
+            is_parent: false,
+            is_child: true,
+            parent_id: parentID,
+          })),
+        }
+      : base;
+
+    connection.calls = [];
+    connection.forward = (name, args) => runHandler(handlers[name], args, { name });
+    let returned = null;
+    let error = null;
+    try {
+      const { createSingleTimeScheduleFromTransaction } = await import(
+        '../../../../desktop-client/src/util/schedule-actions'
+      );
+      returned = await createSingleTimeScheduleFromTransaction(input);
+    } catch (caught) {
+      error = message(caught);
+    }
+    const sentCall = name => connection.calls.find(call => call.name === name)?.args ?? null;
+    const scheduleCreate = sentCall('schedule/create');
+    const ruleUpdate = sentCall('rule-update');
+    const scheduleRow = returned
+      ? await db.first('SELECT id, name, rule, posts_transaction, completed FROM schedules WHERE id = ?', [returned])
+      : null;
+    const ruleRow = scheduleRow
+      ? await db.first('SELECT id, conditions, actions FROM rules WHERE id = ?', [scheduleRow.rule])
+      : null;
+    return {
+      input,
+      returned,
+      error,
+      calls: connection.calls.map(call => call.name),
+      sent: {
+        scheduleCreate,
+        ruleUpdateActions: ruleUpdate?.actions ?? null,
+      },
+      stored: {
+        schedule: scheduleRow,
+        rule: ruleRow
+          ? { id: ruleRow.id, conditions: parseJSON(ruleRow.conditions), actions: parseJSON(ruleRow.actions) }
+          : null,
+      },
+    };
+  } finally {
+    connection.forward = null;
+    await schedulesApp.stopServices();
+  }
+}
+
 // ------------------------------------------------------------- normalization
 
 // Mock UUIDs look like id123. They are renumbered uuid-N in order of first
@@ -381,6 +491,8 @@ test('schedule oracle contract', async () => {
         body = { condition: planCase.condition, ...(await recurrenceRecord(planCase)) };
       } else if (planCase.family === 'status') {
         body = statusRecord(planCase);
+      } else if (planCase.family === 'conversion') {
+        body = { today: planCase.today, setup: planCase.setup, transaction: planCase.transaction, ...(await conversionRecord(planCase)) };
       } else {
         body = { setup: planCase.setup, ...(await statefulRecord(planCase)) };
       }

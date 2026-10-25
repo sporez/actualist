@@ -342,7 +342,7 @@
     },
     {
       "id": "schedules",
-      "title": "Schedule next date, occurrences, posting and advancement",
+      "title": "Schedule next date, occurrences, posting, advancement and conversion",
       "status": "covered",
       "harness": {
         "dir": "scripts/schedule-parity",
@@ -361,9 +361,10 @@
         "Actualist/Shared/ScheduleOccurrencePlanner.swift",
         "Actualist/Shared/ActualScheduleRecurrence.swift",
         "Actualist/Shared/ScheduleUpcomingLength.swift",
+        "Actualist/Shared/ScheduleTransactionConversionPlan.swift",
         "Actualist/Repositories/ScheduleModels.swift"
       ],
-      "notes": "253 cases (recurrence, status, stateful). ScheduleOracleReplayTests replays recurrence and status through ScheduleRuleProjection/ScheduleRuleMutation and ScheduleStatus.resolve; ScheduleOracleStatefulReplayTests replays create, advance, skip, update and post through BudgetDatabase. Oracle-only: set-next-date-plain. Occurrence lists, upcoming dates and preview are oracle-only fields."
+      "notes": "263 cases (recurrence, status, stateful, conversion). ScheduleOracleReplayTests replays recurrence and status through ScheduleRuleProjection/ScheduleRuleMutation and ScheduleStatus.resolve, and conversion (Schedule this future transaction) through ScheduleTransactionConversionPlanner; ScheduleOracleStatefulReplayTests replays create, advance, skip, update and post through BudgetDatabase. Oracle-only: set-next-date-plain. Occurrence lists, upcoming dates and preview are oracle-only fields."
     },
     {
       "id": "bank-sync-matching",

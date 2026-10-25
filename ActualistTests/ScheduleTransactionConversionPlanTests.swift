@@ -17,14 +17,16 @@ struct ScheduleTransactionConversionPlanTests {
             cleared: nil
         )
 
-        let plan = ScheduleTransactionConversionPlanner.plan(from: transaction)
+        let plan = ScheduleTransactionConversionPlanner.plan(from: transaction, scheduleID: "schedule-1")
         let conditionFields = plan.conditions.compactMap(\.objectValue)
         #expect(conditionFields.contains { $0["field"] == .string("date") })
         #expect(conditionFields.contains { $0["field"] == .string("account") })
         #expect(conditionFields.contains { $0["field"] == .string("payee") && $0["value"] == .string("actual-target-id") })
         #expect(!conditionFields.contains { $0["field"] == .string("description") })
         #expect(conditionFields.contains { $0["field"] == .string("amount") && $0["value"] == .number(0) })
-        #expect(plan.actions.count == 2)
+        #expect(plan.actions.count == 3)
+        #expect(plan.actions.first == .object(["op": .string("link-schedule"), "value": .string("schedule-1")]))
+        #expect(plan.name == "Auto-created future transaction (2026-10-15) · schedule")
         #expect(plan.postsTransaction)
     }
 
@@ -42,11 +44,11 @@ struct ScheduleTransactionConversionPlanTests {
             cleared: nil
         )
 
-        let plan = ScheduleTransactionConversionPlanner.plan(from: transaction)
+        let plan = ScheduleTransactionConversionPlanner.plan(from: transaction, scheduleID: "schedule-1")
         let condition = try #require(plan.conditions.compactMap(\.objectValue)
             .first { $0["field"] == .string("amount") })
         #expect(condition["value"] == .number(0))
-        #expect(plan.actions.compactMap(\.objectValue).map { $0["field"] } == [.string("category")])
+        #expect(plan.actions.dropFirst().compactMap(\.objectValue).map { $0["field"] } == [.string("category")])
     }
 
     @Test func splitConversionUsesParentZeroAndOneBasedChildActionIndices() throws {
@@ -79,8 +81,8 @@ struct ScheduleTransactionConversionPlanTests {
             isParent: true
         )
 
-        let plan = ScheduleTransactionConversionPlanner.plan(from: parent)
-        let actions = plan.actions.compactMap(\.objectValue)
+        let plan = ScheduleTransactionConversionPlanner.plan(from: parent, scheduleID: "schedule-1")
+        let actions = plan.actions.dropFirst().compactMap(\.objectValue)
         #expect(actions.count == 4)
         #expect(actions[0]["options"]?.objectValue?["splitIndex"] == .number(0))
         #expect(actions[1]["op"] == .string("set-split-amount"))
@@ -101,11 +103,11 @@ struct ScheduleTransactionConversionPlanTests {
             cleared: nil, subtransactions: [child], isParent: true
         )
 
-        let plan = ScheduleTransactionConversionPlanner.plan(from: parent)
+        let plan = ScheduleTransactionConversionPlanner.plan(from: parent, scheduleID: "schedule-1")
         let amount = try #require(plan.conditions.compactMap(\.objectValue)
             .first { $0["field"] == .string("amount") })
         #expect(amount["value"] == .number(0))
-        #expect(plan.actions.compactMap(\.objectValue).first?["value"] == .number(0))
+        #expect(plan.actions.dropFirst().compactMap(\.objectValue).first?["value"] == .number(0))
     }
 }
 

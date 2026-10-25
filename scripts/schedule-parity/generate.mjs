@@ -55,6 +55,8 @@ const expectedSourceHashes = {
     'f24756558fd2aadc3cbff1fd23514b5908ef6b319c1ad7d8eefeb5ee649f538f',
   'packages/loot-core/src/server/accounts/sync.ts':
     '5561e484d09691308640864ece5e3c3ec07365d68bb0ed4e08f01e18ed364a0f',
+  'packages/desktop-client/src/util/schedule-actions.ts':
+    '3911e4b0326b648261d7da92edd6a1e52006db4ae5bf41dbcd64ff09cb571220',
   'packages/loot-core/vitest.config.ts':
     '9e003d80211596a03ac02b1d923629d5481faf9e54de02a292893390fca8245f',
 };
@@ -191,12 +193,12 @@ const manifestText = JSON.stringify({
   seed: SEED,
   timeZone: TIME_ZONE,
   today: TODAY,
-  familyCounts: Object.fromEntries(['recurrence', 'status', 'stateful'].map(family => [family, records.filter(record => record.family === family).length])),
+  familyCounts: Object.fromEntries(['recurrence', 'status', 'stateful', 'conversion'].map(family => [family, records.filter(record => record.family === family).length])),
   generatedCaseCount: generatedCount,
   namedCaseCount: namedCount,
   caseCount: records.length,
   amountUnits: 'integer minor units; dates are ISO day strings in results and integer YYYYMMDD in raw table columns',
-  execution: 'Actual shared schedule functions called directly, and schedule handlers on an offline in-memory SQLite database, in a vitest run with TZ pinned and the Date clock faked to local noon; currentDay restored to the production rule',
+  execution: 'Actual shared schedule functions called directly, and schedule handlers on an offline in-memory SQLite database, in a vitest run with TZ pinned and the Date clock faked to local noon; currentDay restored to the production rule; conversion cases run desktop-client createSingleTimeScheduleFromTransaction with send() forwarded to the server handlers',
   scope: 'synthetic local schedule data only; no server round trip',
   normalization: [
     'mock UUIDs (id<number>) become uuid-<number> by first appearance within a case, in record key order',

@@ -180,12 +180,3 @@ struct TransactionCommandOracleReplayTests {
         return directory
     }
 }
-
-private extension OracleValue {
-    func field(_ key: String) -> OracleValue? {
-        guard case .object(let fields) = self else {
-            return nil
-        }
-        return fields[key]
-    }
-}

@@ -639,6 +639,18 @@
       "status": "intended",
       "decided": "2026-10-12",
       "reason": "User decision 2026-10-12: keep the category chosen on an off-budget to on-budget transfer on the on-budget leg. Actual's off-budget register shows no category field, so its users categorize the deposit afterwards; Actualist reaches that end state in one step. The on-budget to on-budget shape ends in the same row state."
+    },
+    {
+      "cases": [
+        "ScheduleOracleReplayTests/replaysConversionCase"
+      ],
+      "domain": "schedules",
+      "id": "OP-87",
+      "opened": "2026-10-25",
+      "status": "intended",
+      "decided": "2026-10-25",
+      "summary": "Schedule this future transaction names the new schedule \"Auto-created future transaction (2026-10-20) \u00b7 1a2b3c4d\" (ISO date, first 8 characters of the schedule id), where the pinned Actual names it \"Auto-created future transaction (Oct 20, 2026) - 1791734401000\" (monthUtils.format 'MMM dd, yyyy' and Date.now()). Conditions, actions and posting match. Cause: ScheduleTransactionConversionPlanner.plan(from:scheduleID:) in ScheduleTransactionConversionPlan.swift; upstream createSingleTimeScheduleFromTransaction in desktop-client/src/util/schedule-actions.ts.",
+      "reason": "User decision 2026-10-25: keep Actualist's name. Nothing in Actual or Actualist reads the auto-created name; it is only the label in the Schedules list, and neither suffix means anything to a person."
     }
   ]
 }

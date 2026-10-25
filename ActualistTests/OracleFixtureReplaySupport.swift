@@ -85,6 +85,14 @@ enum OracleValue: Equatable, Sendable {
         }
         return id
     }
+
+    /// The named field of an object value; nil for any other value.
+    func field(_ key: String) -> OracleValue? {
+        guard case .object(let fields) = self else {
+            return nil
+        }
+        return fields[key]
+    }
 }
 
 struct ReplayMismatch: Equatable, Sendable {

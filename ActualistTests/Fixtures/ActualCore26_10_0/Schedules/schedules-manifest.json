@@ -7,16 +7,16 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/schedule-parity/generate.mjs",
-    "sha256": "4cd21375a38cf43adb937c290a855397a6099a91917d1703aa392e72032eeba3"
+    "sha256": "645789dc8caf7ac6f51227fc4a1c77f97955d6b89a74d6053e01ed2ec44d4d4e"
   },
   "helpers": [
     {
       "path": "scripts/schedule-parity/cases.mjs",
-      "sha256": "02b8fab14c2360345c1a488d4d02390544060d8c4e9a9677bb10efb3ee93edf6"
+      "sha256": "715efc7794e7d4a5d1a3c3f6f05d13060e1c0ede56bd8bba7786c07beb14ae25"
     },
     {
       "path": "scripts/schedule-parity/oracle-runner.template",
-      "sha256": "03c2444f005c0a89e21f6c6d722a42122c115bb4f583f962406029213bb3436a"
+      "sha256": "7c364d74a0924bdf75663780942a21326da50db9451889fe337e334b62eebfdc"
     },
     {
       "path": "scripts/parity/lib/oracle-pin.mjs",
@@ -33,13 +33,14 @@
   "familyCounts": {
     "recurrence": 136,
     "status": 49,
-    "stateful": 68
+    "stateful": 68,
+    "conversion": 10
   },
   "generatedCaseCount": 134,
-  "namedCaseCount": 119,
-  "caseCount": 253,
+  "namedCaseCount": 129,
+  "caseCount": 263,
   "amountUnits": "integer minor units; dates are ISO day strings in results and integer YYYYMMDD in raw table columns",
-  "execution": "Actual shared schedule functions called directly, and schedule handlers on an offline in-memory SQLite database, in a vitest run with TZ pinned and the Date clock faked to local noon; currentDay restored to the production rule",
+  "execution": "Actual shared schedule functions called directly, and schedule handlers on an offline in-memory SQLite database, in a vitest run with TZ pinned and the Date clock faked to local noon; currentDay restored to the production rule; conversion cases run desktop-client createSingleTimeScheduleFromTransaction with send() forwarded to the server handlers",
   "scope": "synthetic local schedule data only; no server round trip",
   "normalization": [
     "mock UUIDs (id<number>) become uuid-<number> by first appearance within a case, in record key order",
@@ -93,6 +94,10 @@
       "sha256": "5561e484d09691308640864ece5e3c3ec07365d68bb0ed4e08f01e18ed364a0f"
     },
     {
+      "path": "packages/desktop-client/src/util/schedule-actions.ts",
+      "sha256": "3911e4b0326b648261d7da92edd6a1e52006db4ae5bf41dbcd64ff09cb571220"
+    },
+    {
       "path": "packages/loot-core/vitest.config.ts",
       "sha256": "9e003d80211596a03ac02b1d923629d5481faf9e54de02a292893390fca8245f"
     }
@@ -100,8 +105,8 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_10_0/Schedules/schedules-contract.json",
-      "sha256": "cdc11e9ef1ddcff86afeb1d7dd60182404b644a8ed6c5e21d3acb8d459ef9214",
-      "caseCount": 253,
+      "sha256": "e88c1413f980318b54c49fc6b897fbb7676f411b8e8a6e3bbf5b8350d8068740",
+      "caseCount": 263,
       "caseIDs": [
         "plain-date-future",
         "plain-date-past",
@@ -355,7 +360,17 @@
         "gen-state-020",
         "gen-state-021",
         "gen-state-022",
-        "gen-state-023"
+        "gen-state-023",
+        "convert-plain-full",
+        "convert-plain-bare",
+        "convert-plain-zero-amount",
+        "convert-plain-empty-payee-notes-only",
+        "convert-plain-income",
+        "convert-split-payees",
+        "convert-split-amounts-only",
+        "convert-split-single-child",
+        "convert-split-parent-category-ignored",
+        "convert-split-mixed-children"
       ]
     }
   ],

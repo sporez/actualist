@@ -1,7 +1,8 @@
 # Schedule Parity
 
 Oracle harness for Actual's schedule engine: next date, occurrence lists,
-status, and advancement after posting. Expected values come only from running
+status, advancement after posting, and turning a future transaction into a
+one-time schedule. Expected values come only from running
 the pinned Actual release (see `config/parity/oracle-pin.json`). The committed
 fixture is `ActualistTests/Fixtures/ActualCore26_10_0/Schedules/`:
 
@@ -46,6 +47,7 @@ removes it. A full run takes about 4 seconds.
 | --- | --- | --- |
 | `recurrence` (136) | `getNextDate`, `getNextDateAfter`, the oracle's rschedule occurrence list, and the `schedule/get-upcoming-dates` handler, at several `from` days per condition | per `from`: `nextDate`, `nextDateNoSkipWeekend`, `nextDateAfter`, 6 `occurrences` (`raw` and weekend-`adjusted`), `upcoming`; each outcome as `{value, error}` |
 | `status` (49) | `getStatus` and `getUpcomingDays` over today offsets, completed/paid flags and upcoming lengths (`7`, `1`, `14`, `oneMonth`, `currentMonth`, `2-week`, `3-day`, `1-month`, `12-month`, `1-year`, `0-day`, `5-week`, and the default) | per row: `status`, `error` |
+| `conversion` (10) | the web app's `createSingleTimeScheduleFromTransaction` (`desktop-client/src/util/schedule-actions.ts`, "Schedule this future transaction") on an in-memory budget, its `send()` calls forwarded to the server handlers of the same name | `input` (the register row passed in), `calls`, `sent.scheduleCreate` (conditions and schedule fields), `sent.ruleUpdateActions`, and the `stored` schedule and rule rows |
 | `stateful` (68) | `createSchedule`, `advanceSchedulesService`, `skipNextDate`, `setNextDate`, `updateSchedule` and `schedule/post-transaction` on an in-memory budget, with the schedule json-path service running | `before` and, after every step, `after`: `schedules`, `nextDates`, `paths`, `rules`, `transactions`, `effective` (next date, completed, has-transaction, status) and `preview` |
 
 Recurrence: 26 named (3 of them plain dates) plus 110 seeded. Seeded configs
@@ -54,6 +56,12 @@ cross daily/weekly/monthly/yearly, intervals 1 to 12, day-of-month patterns
 patterns, skip-weekend before/after, and all three end modes, with start dates
 at month ends, 2028-02-29 and year end. `from` days sit before the start, on
 the start, between occurrences, near the end and after the end.
+
+Conversion cases pass rows shaped like the transactions view (a parent grouped
+with its children), so amounts are always numbers (`IFNULL(amount, 0)`). They
+cover plain rows with and without payee, category and notes, an empty-string
+payee, zero and income amounts, and splits whose children carry their own
+payees, categories and notes.
 
 Stateful scenarios build their schedules through upstream's own
 `createSchedule` at the schedule's `createdOn` day, then move the clock. No
@@ -113,6 +121,7 @@ Oracle function to production seam:
 | `updateSchedule` date or amount edit | `updateSchedule` with `ScheduleEditFields.dateRule` / `.amount` |
 | `schedule/post-transaction` | `BudgetDatabase.postScheduleOccurrence(...)`, with the draft built as `LocalFirstActualStore.postSchedule` builds it |
 | `createSchedule` | `BudgetDatabase.createSchedule(_:now:)` with `asOfDayID` the case's `createdOn` |
+| `createSingleTimeScheduleFromTransaction` | `ScheduleTransactionConversionPlanner.plan(from:scheduleID:)`, the whole definition `BudgetDatabase.convertFutureTransaction` stores |
 
 How each family compares:
 
@@ -128,6 +137,11 @@ How each family compares:
   transaction column listed in the support file, and the date, amount, payee and account of each schedule rule. A
   step that throws, and an automatic-posting refusal, are compared too (`completes`, `refusals`). A `payNextDate`
   step is an oracle input, so only its snapshot is re-read.
+- **Conversion:** the planner's conditions against `sent.scheduleCreate.conditions` and its actions against the
+  server's `link-schedule` (by `op` and `value`) followed by the client's copied actions from `rule-update`, both in
+  order, plus `posts_transaction` and the name (intended difference OP-87). The `stored` rows are kept for reference:
+  Actual stores internal field names (`description`, `acct`) and adds `type`, which belongs to the creation path, not
+  the planner.
 - **Creation:** `createSchedule` replays each setup schedule on a fresh database (accounts and payees seeded from
   the fixture) and compares schedule fields, next-date rows and rule summaries with the `before` snapshot.
 
@@ -150,7 +164,8 @@ Excluded from the replay, each with its reason:
   containing such a step. An `advance` step with `syncSuccess: false` replays through
   `advanceSchedules(postingAllowed: false)`.
 
-Known divergences found by the replay are registered as OP-51 to OP-53 in `config/parity/known-divergences.json`.
+Known divergences found by the replay are registered as OP-51 to OP-53 and OP-87 in
+`config/parity/known-divergences.json`.
 
 ## Upstream behavior worth knowing
 

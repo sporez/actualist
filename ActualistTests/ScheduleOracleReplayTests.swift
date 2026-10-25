@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Replays the Schedules oracle contract through production schedule code: recurrence and status here, the
-/// stateful operations in `ScheduleOracleStatefulReplayTests`. The partition test accounts for every case; see
+/// Replays the Schedules oracle contract through production schedule code: recurrence, status and conversion
+/// here, the stateful operations in `ScheduleOracleStatefulReplayTests`. The partition test accounts for every case; see
 /// `scripts/schedule-parity/README.md` ("Swift replay") for the compared and excluded fields. Mismatches a
 /// registered divergence accounts for are split off by exact path; every other mismatch stays a strict failure.
 struct ScheduleOracleReplayTests {
@@ -16,6 +16,7 @@ struct ScheduleOracleReplayTests {
             fileName: ScheduleOracleFixture.fileName
         )
         let replayed = ScheduleOracleCaseIDs.recurrence + ScheduleOracleCaseIDs.status + ScheduleOracleCaseIDs.stateful
+            + ScheduleOracleCaseIDs.conversion
         let problems = manifest.partitionProblems(fixtureIDs: cases.ids, replayed: replayed)
         #expect(problems.isEmpty, Comment(rawValue: problems.joined(separator: "\n")))
     }
@@ -45,5 +46,20 @@ struct ScheduleOracleReplayTests {
         let cases = try ScheduleOracleFixture.cases()
         let mismatches = try ScheduleStatusReplay.replay(try cases.entry(caseID))
         #expect(mismatches.isEmpty, Comment(rawValue: OracleComparison.report(caseID, mismatches)))
+    }
+
+    @Test(arguments: ScheduleOracleCaseIDs.conversion)
+    func replaysConversionCase(caseID: String) throws {
+        let cases = try ScheduleOracleFixture.cases()
+        let split = KnownDivergenceSplit(
+            try ScheduleConversionReplay.replay(try cases.entry(caseID)),
+            knownPaths: ["name"]
+        )
+        #expect(split.strict.isEmpty, Comment(rawValue: OracleComparison.report(caseID, split.strict)))
+        if !split.known.isEmpty {
+            withKnownIssue("OP-87: a converted schedule is named with an ISO date and an id prefix, where Actual uses a spelled-out date and a timestamp") {
+                #expect(split.known.isEmpty, Comment(rawValue: OracleComparison.report(caseID, split.known)))
+            }
+        }
     }
 }

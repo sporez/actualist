@@ -265,4 +265,18 @@ enum ScheduleOracleCaseIDs {
         "gen-state-022",
         "gen-state-023",
     ]
+
+    /// Conversion cases: Schedule this future transaction.
+    nonisolated static let conversion: [String] = [
+        "convert-plain-full",
+        "convert-plain-bare",
+        "convert-plain-zero-amount",
+        "convert-plain-empty-payee-notes-only",
+        "convert-plain-income",
+        "convert-split-payees",
+        "convert-split-amounts-only",
+        "convert-split-single-child",
+        "convert-split-parent-category-ignored",
+        "convert-split-mixed-children",
+    ]
 }

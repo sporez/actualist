@@ -154,3 +154,88 @@ enum ScheduleStatusReplay {
         return comparison.mismatches
     }
 }
+
+// MARK: Conversion
+
+/// Replays the web app's `createSingleTimeScheduleFromTransaction` through `ScheduleTransactionConversionPlanner`,
+/// the whole schedule definition `BudgetDatabase.convertFutureTransaction` stores. The oracle's `send` calls are the
+/// expected values: `schedule/create` carries the conditions, name and `posts_transaction`; `rule-update` carries
+/// the server's `link-schedule` entries followed by the copied fields (no `rule-update` when nothing is copied). The
+/// link is compared by `op` and `value`; its `field` and `type` are added by the server's `createSchedule`, which
+/// Actualist's creation path owns, not the planner.
+enum ScheduleConversionReplay {
+    static func replay(_ entry: [String: Any]) throws -> [ReplayMismatch] {
+        let scheduleID = try OracleJSON.string(entry, "returned")
+        let sent = try OracleJSON.object(entry["sent"], "sent")
+        let create = try OracleJSON.object(sent["scheduleCreate"], "sent.scheduleCreate")
+        let schedule = try OracleJSON.object(create["schedule"], "sent.scheduleCreate.schedule")
+        let copied = try (sent["ruleUpdateActions"] as? [Any] ?? [])
+            .map { try OracleValue(json: $0) }
+            .filter { $0.field("op") != .string("link-schedule") }
+        let link = OracleValue.object(["op": .string("link-schedule"), "value": .string(scheduleID)])
+
+        let plan = ScheduleTransactionConversionPlanner.plan(
+            from: try transaction(OracleJSON.object(entry["input"], "input")),
+            scheduleID: scheduleID
+        )
+        var comparison = OracleComparison()
+        comparison.compare(
+            expected: try OracleValue(json: create["conditions"] ?? NSNull()),
+            actual: .array(plan.conditions.map(OracleValue.init(rule:))),
+            path: "conditions"
+        )
+        comparison.compare(
+            expected: .array([link] + copied),
+            actual: .array(plan.actions.map(OracleValue.init(rule:))),
+            path: "actions"
+        )
+        comparison.compare(
+            expected: try OracleValue(json: schedule["posts_transaction"] ?? NSNull()),
+            actual: .number(plan.postsTransaction ? 1 : 0),
+            path: "postsTransaction"
+        )
+        comparison.compare(
+            expected: try OracleValue(json: schedule["name"] ?? NSNull()),
+            actual: .string(plan.name),
+            path: "name"
+        )
+        return comparison.mismatches
+    }
+
+    /// The register row the oracle passed in, read as production reads a transaction for conversion.
+    private static func transaction(_ row: [String: Any]) throws -> ActualTransaction {
+        let children = try (row["subtransactions"] as? [Any] ?? []).map {
+            try transaction(OracleJSON.object($0, "subtransactions[]"))
+        }
+        return ActualTransaction(
+            id: row["id"] as? String,
+            account: try OracleJSON.string(row, "account"),
+            date: try OracleJSON.string(row, "date"),
+            amount: OracleJSON.int(row["amount"]),
+            payee: row["payee"] as? String,
+            payeeName: nil,
+            importedPayee: nil,
+            category: row["category"] as? String,
+            notes: row["notes"] as? String,
+            cleared: nil,
+            subtransactions: children,
+            isParent: row["is_parent"] as? Bool ?? false,
+            isChild: row["is_child"] as? Bool ?? false,
+            parentID: row["parent_id"] as? String
+        )
+    }
+}
+
+private extension OracleValue {
+    /// JSON booleans read as numbers in `OracleValue(json:)`, so `true` is 1 here too.
+    init(rule value: RuleJSONValue) {
+        switch value {
+        case .null: self = .null
+        case .bool(let flag): self = .number(flag ? 1 : 0)
+        case .number(let number): self = .number(number)
+        case .string(let text): self = .string(text)
+        case .array(let items): self = .array(items.map(OracleValue.init(rule:)))
+        case .object(let fields): self = .object(fields.mapValues(OracleValue.init(rule:)))
+        }
+    }
+}
