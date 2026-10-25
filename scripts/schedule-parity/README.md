@@ -139,9 +139,10 @@ How each family compares:
   step is an oracle input, so only its snapshot is re-read.
 - **Conversion:** the planner's conditions against `sent.scheduleCreate.conditions` and its actions against the
   server's `link-schedule` (by `op` and `value`) followed by the client's copied actions from `rule-update`, both in
-  order, plus `posts_transaction` and the name (intended difference OP-87). The `stored` rows are kept for reference:
-  Actual stores internal field names (`description`, `acct`) and adds `type`, which belongs to the creation path, not
-  the planner.
+  order, plus `posts_transaction` and the name (intended difference OP-87). The payee condition's field is taken from
+  the `stored` rule: Actual saves `payee` as `description`, and its unused-payee query matches only that name, so the
+  planner writes it that way. Other stored differences (`acct`, the added `type`) are read back the same by Actual and
+  are not compared.
 - **Creation:** `createSchedule` replays each setup schedule on a fresh database (accounts and payees seeded from
   the fixture) and compares schedule fields, next-date rows and rule summaries with the `before` snapshot.
 

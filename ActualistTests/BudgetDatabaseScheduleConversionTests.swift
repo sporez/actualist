@@ -28,7 +28,7 @@ struct BudgetDatabaseScheduleConversionTests {
         #expect(try readInt("SELECT COUNT(*) FROM actualist_outbox", fixture.url) == receipt.appliedMessageCount)
         let conditions = try decodeRuleJSON("SELECT conditions FROM rules WHERE id = '\(review.identity.ruleID)'", fixture.url)
         let fields = conditions.compactMap(\.objectValue)
-        #expect(fields.map { $0["field"] } == [.string("date"), .string("amount"), .string("payee"), .string("account")])
+        #expect(fields.map { $0["field"] } == [.string("date"), .string("amount"), .string("description"), .string("account")])
         #expect(fields[1]["value"] == .number(0))
         #expect(fields[2]["value"] == .string("canonical-payee"))
         let actions = try decodeRuleJSON("SELECT actions FROM rules WHERE id = '\(review.identity.ruleID)'", fixture.url)

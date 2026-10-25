@@ -22,9 +22,10 @@ enum ScheduleTransactionConversionPlanner {
         // SQLite values therefore become an exact zero condition upstream.
         conditions.append(condition("amount", value: .number(Double(transaction.amount ?? 0))))
         if let payeeID = transaction.payee, !payeeID.isEmpty {
-            // Pinned desktop conversion writes the transaction's AQL payee value
-            // under `payee`; do not rewrite it as `description` or display text.
-            conditions.append(condition("payee", value: .string(payeeID)))
+            // The transaction's AQL payee ID under the stored field name: Actual's
+            // server saves `payee` as `description`, and its unused-payee query
+            // (db/index.ts orphanedPayeesQuery) matches only that name.
+            conditions.append(condition("description", value: .string(payeeID)))
         }
         if !transaction.account.isEmpty {
             conditions.append(condition("account", value: .string(transaction.account)))
