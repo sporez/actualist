@@ -41,6 +41,7 @@ struct AdaptiveRootShell: View {
 
     @Environment(RootTransactionEditorPresenter.self) private var transactionPresenter
     @State private var isClosedAccountsExpanded = false
+    @State private var widestSidebarLabel: CGFloat = 0
 
     var body: some View {
         Group {
@@ -78,7 +79,6 @@ struct AdaptiveRootShell: View {
                 }
             }
         }
-        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 320)
         .environment(\.budgetCurrency, displayedBudgetCurrency)
         .environment(\.budgetSidebarLayoutActive, true)
         .environment(\.budgetRootWidth, rootWidth)
@@ -131,11 +131,34 @@ struct AdaptiveRootShell: View {
         }
         .tint(ActualistTheme.accent)
         .navigationTitle("Actualist")
+        .background {
+            // Closed accounts count too, so expanding them never resizes the column.
+            VStack(alignment: .leading) {
+                ForEach(sidebarDestinations, id: \.self) { destinationLabel($0) }
+            }
+            .fixedSize()
+            .hidden()
+            .accessibilityHidden(true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { widestSidebarLabel = $0 }
+        }
+        // Only honored on a column's own content, not on the split view.
+        .navigationSplitViewColumnWidth(
+            min: AdaptiveSidebarWidth.minimum,
+            ideal: AdaptiveSidebarWidth.ideal(forLabelWidth: widestSidebarLabel),
+            max: AdaptiveSidebarWidth.maximum
+        )
     }
 
-    @ViewBuilder
-    private func destinationRow(_ destination: AdaptiveRootDestination) -> some View {
+    private var sidebarDestinations: [AdaptiveRootDestination] {
+        [.budget, .spending, .reports, .accounts, .settings] + accountDisplays.map { .account($0.account) }
+    }
+
+    private func destinationLabel(_ destination: AdaptiveRootDestination) -> some View {
         Label(destination.title(privacyEnabled: appState.settings.randomizedDisplayValuesEnabled), systemImage: destination.symbolName)
+    }
+
+    private func destinationRow(_ destination: AdaptiveRootDestination) -> some View {
+        destinationLabel(destination)
             .tag(destination)
     }
 

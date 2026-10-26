@@ -40,3 +40,17 @@ enum AdaptiveRootTransition {
         return AdaptiveRootDestination(tab: appTab)
     }
 }
+
+/// Sizes the root sidebar to its widest row label, within bounds the budget
+/// layout can afford next to it.
+enum AdaptiveSidebarWidth {
+    static let minimum: CGFloat = 220
+    static let maximum: CGFloat = 280
+    /// List insets and row padding around a row's icon and title.
+    static let rowChrome: CGFloat = 68
+
+    static func ideal(forLabelWidth labelWidth: CGFloat) -> CGFloat {
+        guard labelWidth.isFinite, labelWidth > 0 else { return BudgetLayoutMetrics.defaultSidebarWidth }
+        return min(max(labelWidth.rounded(.up) + rowChrome, minimum), maximum)
+    }
+}

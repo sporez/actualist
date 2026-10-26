@@ -10,6 +10,20 @@ final class AdaptiveRootPresentationModeTests: XCTestCase {
         XCTAssertEqual(AdaptiveRootPresentationMode.mode(for: 792), .sidebar)
     }
 
+    func testSidebarWidthFollowsWidestLabelWithinBounds() {
+        let chrome = AdaptiveSidebarWidth.rowChrome
+        XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 180), 180 + chrome)
+        XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 180.2), 181 + chrome)
+        XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 40), AdaptiveSidebarWidth.minimum)
+        XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 600), AdaptiveSidebarWidth.maximum)
+    }
+
+    func testSidebarWidthFallsBackBeforeLabelsAreMeasured() {
+        XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 0), BudgetLayoutMetrics.defaultSidebarWidth)
+        XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: .infinity), BudgetLayoutMetrics.defaultSidebarWidth)
+        XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: .nan), BudgetLayoutMetrics.defaultSidebarWidth)
+    }
+
     func testSidebarDestinationsPreserveCompactTabContext() {
         XCTAssertEqual(AdaptiveRootDestination(tab: .budget).appTab, .budget)
         XCTAssertEqual(AdaptiveRootDestination(tab: .spending).appTab, .spending)
