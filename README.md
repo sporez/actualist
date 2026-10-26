@@ -187,9 +187,10 @@ open Actualist.xcodeproj
 
 Resolve Swift packages in Xcode, select the `Actualist` scheme, and run the app.
 
-For the simulator helper, first copy `scripts/lib/destinations.example.sh` to
-`scripts/lib/destinations.sh` and set `ACTUALIST_SIMULATOR_ID` to an installed
-simulator ID from `xcrun simctl list devices available`. Then run:
+By default the simulator helper uses an iPhone 17 Pro simulator on the iOS 26.3
+runtime, and creates it when none exists. To pin a specific simulator, copy `scripts/lib/destinations.example.sh`
+to `scripts/lib/destinations.sh` and set `ACTUALIST_SIMULATOR_ID` to an ID from
+`xcrun simctl list devices available`. Then run:
 
 ```sh
 scripts/run-ios-simulator.sh --boot
