@@ -78,12 +78,16 @@ struct AccountTransactionFeedRows: View {
                 .accessibilityLabel("Selection unavailable")
                 .accessibilityHint("This transaction cannot be selected.")
         } else if let share = TransactionShareContent(row: row, currency: currency) {
-            button
-                .contextMenu {
-                    TransactionShareButton(content: share)
-                        .accessibilityIdentifier("transaction-share-\(share.link.transactionID)")
-                    scheduleConversionButton(for: row)
-                }
+            TransactionShareHost(share: share) { present in
+                button
+                    .contextMenu {
+                        Button(action: present) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        .accessibilityIdentifier("transaction-share-\(share.id)")
+                        scheduleConversionButton(for: row)
+                    }
+            }
         } else if row.scheduleConversionEntryPoint != nil {
             button
                 .contextMenu { scheduleConversionButton(for: row) }

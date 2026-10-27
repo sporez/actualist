@@ -1,18 +1,18 @@
-import CoreTransferable
-import ImageIO
 import SwiftUI
-import UniformTypeIdentifiers
 
-/// What sharing a saved transaction sends: a link that opens it, one line of
-/// text, and a card. Payee, amount and date are the real values even with
+/// What sharing a saved transaction sends: a link that opens it and a card
+/// showing its payee, amount and date. They are the real values even with
 /// privacy mode on, because the user chooses to send them.
-struct TransactionShareContent: Equatable, Sendable {
+struct TransactionShareContent: Equatable, Sendable, Identifiable {
+    /// The caption Messages shows under the card; the card already carries the details.
+    static let previewTitle = "Shared from Actualist"
+
     let link: SharedTransactionLink
     let payee: String
     let amount: String
     let date: String
 
-    var message: String { "\(payee) · \(amount) · \(date)" }
+    var id: String { link.transactionID }
 
     init?(
         transactionID: String?,
@@ -71,43 +71,7 @@ extension TransactionShareContent {
     }
 }
 
-/// The shared link. Exporting it asks the sender's own waiting changes to
-/// upload, so the recipient's sync can find the transaction; the share
-/// sheet never waits for that upload.
-struct TransactionShareItem: Transferable, Sendable {
-    let url: URL
-    let requestUpload: @Sendable () -> Void
-
-    static var transferRepresentation: some TransferRepresentation {
-        ProxyRepresentation { (item: TransactionShareItem) in
-            item.requestUpload()
-            return item.url
-        }
-    }
-}
-
-/// The Share control for the editor toolbar and the row menu.
-struct TransactionShareButton: View {
-    @Environment(AppState.self) private var appState
-    let content: TransactionShareContent
-
-    var body: some View {
-        let store = appState.localFirstStore
-        ShareLink(
-            item: TransactionShareItem(url: content.url()) {
-                Task { @MainActor in await store.retryPendingLocalMessageFlush() }
-            },
-            subject: Text(content.payee),
-            message: Text(content.message),
-            preview: SharePreview(content.message, image: TransactionShareCardImage(content: content))
-        ) {
-            Label("Share", systemImage: "square.and.arrow.up")
-        }
-    }
-}
-
-/// The card shown in the share sheet and, when Messages keeps it, in the
-/// recipient's conversation.
+/// The card shown in the share sheet and in the recipient's conversation.
 struct TransactionShareCard: View {
     let content: TransactionShareContent
 
@@ -134,31 +98,5 @@ struct TransactionShareCard: View {
         .frame(width: 320, height: 320)
         .background(ActualistTheme.background)
         .environment(\.colorScheme, .dark)
-    }
-}
-
-/// The card as a PNG, drawn only when the share sheet asks for it, so a list
-/// of rows with Share in their menus never draws one card per row.
-struct TransactionShareCardImage: Transferable, Sendable {
-    let content: TransactionShareContent
-
-    static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .png) { (image: TransactionShareCardImage) in
-            try await image.pngData()
-        }
-    }
-
-    @MainActor
-    private func pngData() throws -> Data {
-        let renderer = ImageRenderer(content: TransactionShareCard(content: content))
-        renderer.scale = 2
-        let data = NSMutableData()
-        guard let image = renderer.cgImage,
-              let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-        CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else { throw CocoaError(.fileWriteUnknown) }
-        return data as Data
     }
 }

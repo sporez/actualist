@@ -18,6 +18,7 @@ struct TransactionEditorView: View {
     @State private var childPayeePickerRowID: String?
     @State private var childCategoryPickerRowID: String?
     @State private var isDiscardConfirmationPresented = false
+    @State private var sharing: TransactionShareContent?
     @FocusState private var focusedField: TransactionEditorField?
 
     let session: TransactionEditorSession
@@ -78,9 +79,14 @@ struct TransactionEditorView: View {
                 if viewModel.isEditing {
                     ToolbarItem(placement: .topBarTrailing) {
                         if let content = TransactionShareContent(editor: viewModel) {
-                            TransactionShareButton(content: content)
-                                .labelStyle(.iconOnly)
-                                .accessibilityIdentifier("transaction-editor-share")
+                            Button {
+                                sharing = content
+                            } label: {
+                                Label("Share", systemImage: "square.and.arrow.up")
+                            }
+                            .labelStyle(.iconOnly)
+                            .accessibilityIdentifier("transaction-editor-share")
+                            .transactionShareSheet($sharing)
                         } else {
                             Label("Share", systemImage: "square.and.arrow.up")
                                 .labelStyle(.iconOnly)

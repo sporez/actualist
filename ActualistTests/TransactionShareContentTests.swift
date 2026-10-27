@@ -1,4 +1,5 @@
 import Foundation
+import LinkPresentation
 import Testing
 @testable import Actualist
 
@@ -33,10 +34,22 @@ struct TransactionShareContentTests {
         )
     }
 
-    @Test func spendingIsOneLineWithTheAmountAsAPositiveNumber() throws {
+    @Test func spendingShowsTheAmountAsAPositiveNumber() throws {
         let share = try #require(content())
-        #expect(share.message == "Costco · \(BudgetCurrency.usd.formatted(8412)) · Oct 20")
-        #expect(!share.amount.hasPrefix("-"))
+        #expect(share.payee == "Costco")
+        #expect(share.amount == BudgetCurrency.usd.formatted(8412))
+        #expect(share.date == "Oct 20")
+    }
+
+    @Test @MainActor func theShareSheetHandsMessagesAFinishedPreview() throws {
+        let share = try #require(content())
+        let source = TransactionLinkItemSource.make(content: share)
+
+        #expect(source.url == share.url())
+        #expect(source.metadata.url == share.url())
+        #expect(source.metadata.originalURL == share.url())
+        #expect(source.metadata.title == "Shared from Actualist")
+        #expect(source.metadata.imageProvider != nil)
     }
 
     @Test func incomeIsMarkedWithAPlus() throws {

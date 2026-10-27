@@ -34,6 +34,9 @@ fi
 section "Liquid Glass"
 "$ROOT/scripts/lint-liquid-glass.sh" || status=1
 
+section "UIKit views"
+"$ROOT/scripts/lint-uikit-views.sh" || status=1
+
 section "Concurrency escape hatches"
 "$ROOT/scripts/lint-concurrency-escape-hatches.sh" || status=1
 

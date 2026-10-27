@@ -17,7 +17,7 @@ Glass-aware, and optimized for repeated budget review.
 - Development pipeline: `docs/DEVELOPMENT.md`.
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change, or
   reuse an applicable result when its relevant inputs are unchanged. It covers
-  whitespace, Liquid Glass, concurrency escape hatches (`@unchecked Sendable`,
+  whitespace, Liquid Glass, UIKit views, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
   `// Invariant:` comment), private identifiers (patterns from an optional
   gitignored list), TestFlight notes, parity fixture hashes and the
@@ -139,7 +139,11 @@ an implementation seam.
 ## Development Defaults
 
 - Use Swift and SwiftUI only for app UI.
-- Do not introduce UIKit UI code.
+- Do not introduce UIKit UI code. One exception:
+  `Features/Transactions/TransactionShareSheet.swift` wraps
+  `UIActivityViewController`, because only it lets an app hand Messages a
+  finished link preview (`LPLinkMetadata`); SwiftUI `ShareLink` sends a bare
+  link. `scripts/lint-uikit-views.sh` keeps UIKit views out of every other file.
 - Use a standard Xcode SwiftUI app project unless the user explicitly changes
   direction.
 - Target iOS 26+.
