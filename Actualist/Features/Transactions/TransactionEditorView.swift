@@ -75,6 +75,21 @@ struct TransactionEditorView: View {
                         Button("Keep Editing", role: .cancel) {}
                     }
                 }
+                if viewModel.isEditing {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        if let content = TransactionShareContent(editor: viewModel) {
+                            TransactionShareButton(content: content)
+                                .labelStyle(.iconOnly)
+                                .accessibilityIdentifier("transaction-editor-share")
+                        } else {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                                .labelStyle(.iconOnly)
+                                .foregroundStyle(.secondary)
+                                .accessibilityHint("Save your changes to share this transaction.")
+                                .accessibilityIdentifier("transaction-editor-share")
+                        }
+                    }
+                }
             }
             .navigationTitle(viewModel.title)
             .navigationBarTitleDisplayMode(.inline)

@@ -90,6 +90,33 @@ final class TransactionEditorUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Discard Changes"].exists)
     }
 
+    func testShareIsOfferedForSavedTransactionsOnly() {
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = launchArguments(screen: "spending")
+        app.launch()
+        let row = app.buttons["transaction-row-din-00151"]
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+
+        let addTitle = openAddTransaction(in: app)
+        XCTAssertFalse(app.buttons["transaction-editor-share"].exists)
+        XCTAssertFalse(app.otherElements["transaction-editor-share"].exists)
+        app.buttons["transaction-editor-close"].tap()
+        XCTAssertTrue(addTitle.waitForNonExistence(timeout: 5))
+
+        row.tap()
+        let editTitle = app.navigationBars["Edit Transaction"]
+        XCTAssertTrue(editTitle.waitForExistence(timeout: 5))
+        let share = app.buttons["transaction-editor-share"]
+        XCTAssertTrue(share.waitForExistence(timeout: 5))
+        XCTAssertEqual(share.label, "Share")
+        app.buttons["transaction-editor-close"].tap()
+        XCTAssertTrue(editTitle.waitForNonExistence(timeout: 5))
+
+        row.press(forDuration: 1)
+        XCTAssertTrue(app.buttons["transaction-share-din-00151"].waitForExistence(timeout: 5))
+    }
+
     private func openAddTransaction(in app: XCUIApplication) -> XCUIElement {
         let addTransaction = app.buttons["Add Transaction"]
         XCTAssertTrue(addTransaction.waitForExistence(timeout: 10))

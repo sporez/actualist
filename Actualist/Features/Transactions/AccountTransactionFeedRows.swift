@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AccountTransactionFeedRows: View {
     @Environment(\.actualistDensity) private var density
+    @Environment(\.budgetCurrency) private var currency
 
     let groups: AccountTransactionFeedGroups
     let scope: TransactionFeedScope
@@ -76,18 +77,30 @@ struct AccountTransactionFeedRows: View {
                 .disabled(true)
                 .accessibilityLabel("Selection unavailable")
                 .accessibilityHint("This transaction cannot be selected.")
-        } else if let entryPoint = row.scheduleConversionEntryPoint {
+        } else if let share = TransactionShareContent(row: row, currency: currency) {
             button
                 .contextMenu {
-                    Button {
-                        onConvertToSchedule(entryPoint)
-                    } label: {
-                        Label("Convert to Schedule…", systemImage: "calendar.badge.plus")
-                    }
-                    .accessibilityIdentifier("transaction-convert-to-schedule-\(entryPoint.transactionID)")
+                    TransactionShareButton(content: share)
+                        .accessibilityIdentifier("transaction-share-\(share.link.transactionID)")
+                    scheduleConversionButton(for: row)
                 }
+        } else if row.scheduleConversionEntryPoint != nil {
+            button
+                .contextMenu { scheduleConversionButton(for: row) }
         } else {
             button
+        }
+    }
+
+    @ViewBuilder
+    private func scheduleConversionButton(for row: AccountTransactionRowPresentation) -> some View {
+        if let entryPoint = row.scheduleConversionEntryPoint {
+            Button {
+                onConvertToSchedule(entryPoint)
+            } label: {
+                Label("Convert to Schedule…", systemImage: "calendar.badge.plus")
+            }
+            .accessibilityIdentifier("transaction-convert-to-schedule-\(entryPoint.transactionID)")
         }
     }
 
