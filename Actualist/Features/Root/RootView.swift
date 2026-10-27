@@ -60,7 +60,12 @@ struct RootView: View {
             reconcileTransactionPresenter()
         }
         .onChange(of: transactionPresenter.presentation?.id) { _, id in
-            if id == nil { transactionPresenter.consumeNewTransaction(using: appState) }
+            guard id == nil else { return }
+            if !transactionPresenter.consumeNewTransaction(using: appState) {
+                transactionPresenter.presentPendingSharedEdit(
+                    currentContext: TransactionEditorSession.Context(appState: appState)
+                )
+            }
         }
         .onChange(of: appState.routeCoordinator.readyAccountLifecycleReceiptID) { _, id in
             guard let id else { return }
@@ -157,6 +162,10 @@ struct RootView: View {
             RootTransactionEditorContent(presentation: presentation)
                 .appSwitcherPrivacyProtected(using: appState)
         }
+        .modifier(SharedTransactionLinkStatus(
+            resolver: transactionPresenter.sharedLinks,
+            onCancel: transactionPresenter.cancelSharedLink
+        ))
     }
 
     private func requestSessionUpdate(mode: AdaptiveRootPresentationMode) {

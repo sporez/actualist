@@ -75,7 +75,7 @@ struct ActualistApp: App {
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                 }
                 .onOpenURL { url in
-                    WidgetDeepLinkRouter.handle(url, appState: appState)
+                    AppDeepLinkRouter.handle(url, appState: appState)
                 }
                 .task {
                     LaunchSignpost.event(LaunchStage.foregroundSessionStart)

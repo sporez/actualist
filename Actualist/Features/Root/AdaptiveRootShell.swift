@@ -219,6 +219,7 @@ struct AdaptiveRootShell: View {
             selection = destination
         }
         _ = transactionPresenter.consumeNewTransaction(using: appState)
+        transactionPresenter.consumeSharedTransaction(using: appState)
     }
 
 }

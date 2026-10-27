@@ -97,7 +97,7 @@ struct WidgetFinancialSnapshotTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
         state.routeCoordinator.presentSettings()
-        WidgetDeepLinkRouter.handle(WidgetDeepLink.url(.account(id: "fixture-account")), appState: state)
+        AppDeepLinkRouter.handle(WidgetDeepLink.url(.account(id: "fixture-account")), appState: state)
         #expect(state.routeCoordinator.pendingRoute == nil)
         state.routeCoordinator.settingsDidDismiss()
         #expect(state.selectedTab == .accounts)

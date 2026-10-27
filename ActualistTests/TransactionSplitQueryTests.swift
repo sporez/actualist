@@ -52,6 +52,33 @@ struct TransactionSplitQueryTests {
         #expect(none.transactions.first { $0.id == "parent" }?.subtransactions.isEmpty == true)
     }
 
+    @Test func sharedLinkLookupOpensParentAndSeparatesDeletedFromMissing() async throws {
+        let database = try exactSchemaDatabase(extraSQL: """
+            INSERT INTO transactions (
+                id, isParent, isChild, acct, category, amount, description, notes, date,
+                sort_order, tombstone, parent_id
+            ) VALUES
+            ('simple', 0, 0, 'checking', 'groceries', -1000, NULL, NULL, 20260820, 3, 0, NULL),
+            ('parent', 1, 0, 'checking', NULL, -5000, NULL, NULL, 20260815, 2, 0, NULL),
+            ('child', 0, 1, 'checking', 'groceries', -5000, NULL, NULL, 20260815, 1, 0, 'parent'),
+            ('deleted', 0, 0, 'checking', 'groceries', -700, NULL, NULL, 20260810, 0, 1, NULL),
+            ('dead-parent', 1, 0, 'checking', NULL, -900, NULL, NULL, 20260805, 0, 1, NULL),
+            ('orphan', 0, 1, 'checking', 'groceries', -900, NULL, NULL, 20260805, 0, 0, 'dead-parent');
+            """)
+
+        guard case .found(let simple) = try await database.sharedTransactionLookup(id: "simple"),
+              case .found(let parent) = try await database.sharedTransactionLookup(id: "child") else {
+            Issue.record("Live rows should be found")
+            return
+        }
+        #expect(simple.id == "simple")
+        #expect(parent.id == "parent")
+        #expect(parent.subtransactions.map(\.id) == ["child"])
+        #expect(try await database.sharedTransactionLookup(id: "deleted") == .deleted)
+        #expect(try await database.sharedTransactionLookup(id: "orphan") == .deleted)
+        #expect(try await database.sharedTransactionLookup(id: "not-synced") == .missing)
+    }
+
     @Test func searchAllReturnsMatchingChildAndGroupedReturnsFamily() async throws {
         let database = try exactSchemaDatabase(extraSQL: """
             INSERT INTO transactions (

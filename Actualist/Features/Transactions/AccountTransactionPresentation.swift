@@ -15,6 +15,16 @@ struct TransactionEditorPresentation: Identifiable, Hashable {
         )
     }
 
+    /// The editor resolves payee and category names from their IDs when it loads.
+    static func edit(_ transaction: ActualTransaction) -> TransactionEditorPresentation {
+        TransactionEditorPresentation(
+            id: "edit-\(transaction.rowID)",
+            transaction: transaction,
+            payeeName: nil,
+            categoryName: nil
+        )
+    }
+
     static func edit(
         _ transaction: ActualTransaction,
         payeeName: String,

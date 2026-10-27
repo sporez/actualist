@@ -9,7 +9,7 @@ enum AdaptiveRootRouting {
         case .category, .uncategorized, .history: .budget
         case .spendingSearch: .spending
         case .settings: .settings
-        case .newTransaction: nil
+        case .newTransaction, .sharedTransaction: nil
         }
     }
 

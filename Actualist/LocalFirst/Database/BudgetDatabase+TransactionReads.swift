@@ -26,6 +26,23 @@ extension BudgetDatabase {
         try queue.read { db in try fetchTransaction(id: id, db: db) }
     }
 
+    /// One read, so a deleted row is never mistaken for one that hasn't synced yet.
+    func sharedTransactionLookup(id: String) throws -> SharedTransactionLookup {
+        try queue.read { db in
+            if let transaction = try fetchTransaction(id: id, db: db) {
+                guard transaction.isChild, let parentID = transaction.parentID else { return .found(transaction) }
+                return try fetchTransaction(id: parentID, db: db).map(SharedTransactionLookup.found) ?? .deleted
+            }
+            guard try tableExists("transactions", db: db) else { return .missing }
+            let exists = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM transactions WHERE id = ?)",
+                arguments: [id]
+            ) ?? false
+            return exists ? .deleted : .missing
+        }
+    }
+
     /// Reads through `db`, so a write transaction can read the live row it is about to change.
     func fetchTransaction(id: String, db: Database) throws -> ActualTransaction? {
         let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)

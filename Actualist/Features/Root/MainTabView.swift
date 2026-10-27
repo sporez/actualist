@@ -79,6 +79,7 @@ struct MainTabView: View {
             return false
         }
         _ = transactionPresenter.consumeNewTransaction(using: appState)
+        transactionPresenter.consumeSharedTransaction(using: appState)
     }
 
     private var selectedTab: Binding<AppTab> {

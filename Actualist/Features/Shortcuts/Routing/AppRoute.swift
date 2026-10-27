@@ -10,6 +10,8 @@ enum AppRoute: Equatable {
     case spendingSearch(query: String)
     case settings
     case newTransaction(ShortcutEditorPrefill)
+    /// A shared link's transaction, opened in the editor once a budget is presented.
+    case sharedTransaction(id: String)
 }
 
 struct ShortcutEditorPrefill: Equatable {

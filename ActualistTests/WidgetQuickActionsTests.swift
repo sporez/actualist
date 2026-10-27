@@ -84,10 +84,10 @@ struct WidgetQuickActionRouteTests {
         let routes = state.routeCoordinator
         routes.presentSettings()
         routes.settingsPath = [.appearance]
-        WidgetDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.addExpense)), appState: state)
+        AppDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.addExpense)), appState: state)
         #expect(!routes.isSettingsPresented)
         #expect(routes.pendingRoute == nil)
-        WidgetDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.accounts)), appState: state)
+        AppDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.accounts)), appState: state)
         routes.setSettingsPresented(false)
         #expect(routes.pendingRoute == nil)
         routes.settingsDidDismiss()
@@ -116,13 +116,13 @@ struct WidgetQuickActionRouteTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
         state.settings.shortcutsEnabled = false
-        WidgetDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.rules)), appState: state)
+        AppDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.rules)), appState: state)
         #expect(state.routeCoordinator.pendingRoute == .settings)
         #expect(state.routeCoordinator.settingsPath == [.rules])
         #expect(state.setupPhase == .needsConnection)
-        WidgetDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.appearance)), appState: state)
+        AppDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.appearance)), appState: state)
         #expect(state.routeCoordinator.settingsPath == [.appearance])
-        WidgetDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.accounts)), appState: state)
+        AppDeepLinkRouter.handle(WidgetDeepLink.url(.quickAction(.accounts)), appState: state)
         #expect(state.selectedTab == .accounts)
         #expect(state.routeCoordinator.settingsPath.isEmpty)
         #expect(state.routeCoordinator.pendingRoute == .tab(.accounts))

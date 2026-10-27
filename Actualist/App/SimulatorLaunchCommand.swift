@@ -131,7 +131,7 @@ enum SimulatorLaunchApplier {
             appState.selectedTab = .accounts
         case .category, .uncategorized, .history, .settings:
             appState.selectedTab = .budget
-        case .newTransaction:
+        case .newTransaction, .sharedTransaction:
             break
         }
         appState.routeCoordinator.enqueue(route)

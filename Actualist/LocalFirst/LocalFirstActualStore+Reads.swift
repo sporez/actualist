@@ -139,6 +139,11 @@ extension LocalFirstActualStore {
         return try await database.fetchTransaction(id: id)
     }
 
+    func sharedTransactionLookup(budgetID: String, id: String) async throws -> SharedTransactionLookup {
+        let database = try requireDatabase(for: budgetID)
+        return try await database.sharedTransactionLookup(id: id)
+    }
+
     func cachedCategoryTransactions(
         budgetID: String,
         categoryID: String,

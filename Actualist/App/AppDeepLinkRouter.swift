@@ -1,8 +1,15 @@
 import Foundation
 
-enum WidgetDeepLinkRouter {
+/// Every URL the app opens: widget and Quick Action links, and shared-transaction links.
+enum AppDeepLinkRouter {
     @MainActor
     static func handle(_ url: URL, appState: AppState) {
+        if let shared = SharedTransactionLink.parse(url) {
+            appState.routeCoordinator.afterDismissingSettings { [weak appState] in
+                appState?.routeCoordinator.enqueue(.sharedTransaction(id: shared.transactionID))
+            }
+            return
+        }
         guard let link = WidgetDeepLink.parse(url) else {
             return
         }

@@ -18,7 +18,7 @@ struct WidgetDeepLinkTests {
         ]
         let url = WidgetDeepLink.url(.category(id: "groceries", month: "2026-07"))
 
-        WidgetDeepLinkRouter.handle(url, appState: appState)
+        AppDeepLinkRouter.handle(url, appState: appState)
 
         #expect(appState.selectedTab == .budget)
         #expect(appState.accountNavigationPath.isEmpty)

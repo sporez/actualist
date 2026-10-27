@@ -55,7 +55,7 @@ final class SpringboardQuickActionCoordinator {
     }
 
     private func route(_ action: WidgetQuickAction, using appState: AppState) {
-        WidgetDeepLinkRouter.handle(
+        AppDeepLinkRouter.handle(
             WidgetDeepLink.url(.quickAction(action)),
             appState: appState
         )

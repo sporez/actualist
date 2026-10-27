@@ -148,7 +148,7 @@ final class ShortcutsBudgetSession {
             appState.selectedTab = .accounts
         case .category, .uncategorized, .history, .settings:
             appState.selectedTab = .budget
-        case .newTransaction:
+        case .newTransaction, .sharedTransaction:
             break
         }
     }
