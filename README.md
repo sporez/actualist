@@ -44,6 +44,9 @@ and iOS Liquid Glass controls.
   split, transfer, and eligible undo actions. Select several transactions to
   clear, categorize, or delete them together, duplicate them, or merge
   them. Save a filter and reuse it later.
+- Share a transaction from the transaction editor or by pressing and holding
+  it. Messages shows a card with its payee, amount, and date, and the link
+  opens that transaction in Actualist on another device with the same budget.
 - CSV import into an account with a review before anything is saved, and CSV
   export of the transactions you are viewing.
 - Schedules in the Budget actions menu: create, edit, skip, complete, delete,
@@ -172,6 +175,8 @@ Report security issues privately as described in [SECURITY.md](SECURITY.md).
 Actualist has no advertising, tracking, analytics SDK, or developer-operated
 backend. It connects to your chosen Actual Budget server and, if you configure a
 SimpleFIN device token, directly to SimpleFIN.
+A shared transaction goes only where you send it, and its link never sends the
+transaction to the website.
 See the full [Privacy Policy](PRIVACY.md) for its local storage, TestFlight, and
 bug-reporting disclosures.
 

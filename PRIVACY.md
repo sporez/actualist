@@ -27,6 +27,15 @@ Files you export leave the app only through the iOS share sheet, to the place
 you pick. An exported budget ZIP is not encrypted, so share it only with people
 and places you trust.
 
+## Sharing a Transaction
+
+When you share a transaction, the message carries a picture of its payee,
+amount, and date and a link to actualist.app. It goes only to the people and
+apps you pick in the share sheet. The link holds only the transaction's ID,
+after the "#", so it is never sent to the website. It opens the transaction
+only in Actualist on a device that already has that budget. Opened in a
+browser, the link shows a plain page that collects nothing.
+
 ## Services You Choose
 
 Your server and any identity, financial-data, hosting, or other service you
