@@ -6,17 +6,23 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
     struct Category: Equatable, Identifiable, Sendable {
         var id: String
         var name: String
-        var currentText: String
-        var proposedText: String
+        /// Signed change to this month's Budgeted amount.
+        var budgetedChangeText: String
         var metricTitle: String
         var metricBeforeText: String
         var metricAfterText: String
         var statusText: String
+        var statusTone: StatusTone
         var priorityText: String?
         var shortfallText: String?
         var targetAmountText: String?
         var targetDetailText: String?
         var contributions: [Contribution]
+    }
+
+    enum StatusTone: Equatable, Sendable {
+        case positive
+        case caution
     }
 
     struct Contribution: Equatable, Identifiable, Sendable {
@@ -116,16 +122,9 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
                 Category(
                     id: category.categoryID,
                     name: name(category, randomized: randomized),
-                    currentText: money(
-                        category.current,
-                        currency: currency,
-                        randomized: randomized
-                    ),
-                    proposedText: money(
-                        category.proposed,
-                        currency: currency,
-                        randomized: randomized
-                    ),
+                    budgetedChangeText: randomized
+                        ? "Hidden"
+                        : currency.signedFormatted(category.proposed - category.current),
                     metricTitle: category.metric.title,
                     metricBeforeText: money(
                         category.metric.before,
@@ -138,6 +137,7 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
                         randomized: isPrivate
                     ),
                     statusText: status(for: category),
+                    statusTone: statusTone(for: category),
                     priorityText: priorityText(for: category.priorityLevels),
                     shortfallText: category.shortfall > 0 ? money(
                         category.shortfall,
@@ -168,11 +168,16 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
     }
 
     private static func status(for category: BudgetTemplateApplyPreview.Category) -> String {
+        if category.proposed < category.current { return "Will reduce" }
         if category.evaluatedDemand <= 0 {
             return category.isGoalOnlyUpdate ? "Goal only" : (category.current == category.proposed ? "No change" : "Will change")
         }
         if category.shortfall == 0 { return "Fully funded" }
         return category.current == category.proposed ? "Unfunded" : "Partially funded"
+    }
+
+    private static func statusTone(for category: BudgetTemplateApplyPreview.Category) -> StatusTone {
+        category.shortfall > 0 || category.proposed < category.current ? .caution : .positive
     }
 
     private static func priorityText(for levels: [Int]) -> String? {

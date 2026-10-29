@@ -88,6 +88,12 @@ struct BudgetCurrency: Hashable, Sendable {
         Money(minorUnits: minorUnits).formatted(using: self)
     }
 
+    /// A change amount: `+` before an increase, the formatter's minus before a
+    /// decrease, and no sign on zero.
+    func signedFormatted(_ minorUnits: Int) -> String {
+        minorUnits > 0 ? "+\(formatted(minorUnits))" : formatted(minorUnits)
+    }
+
     func editableAmountText(fromMinorUnits value: Int) -> String {
         let style = Decimal.FormatStyle
             .number

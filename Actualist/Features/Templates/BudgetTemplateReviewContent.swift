@@ -169,11 +169,10 @@ private struct BudgetTemplateReviewCategoryCard: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Text(category.statusText)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(category.shortfallText == nil ? ActualistTheme.positive : ActualistTheme.warning)
+                    .foregroundStyle(statusColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background((category.shortfallText == nil ? ActualistTheme.positive : ActualistTheme.warning)
-                        .opacity(0.13), in: Capsule())
+                    .background(statusColor.opacity(0.13), in: Capsule())
                     .fixedSize()
             }
             if let priorityText = category.priorityText {
@@ -185,13 +184,20 @@ private struct BudgetTemplateReviewCategoryCard: View {
         }
     }
 
+    private var statusColor: Color {
+        switch category.statusTone {
+        case .positive: ActualistTheme.positive
+        case .caution: ActualistTheme.warning
+        }
+    }
+
     private var assignment: some View {
-        Text("\(category.currentText) → \(category.proposedText)")
+        Text(category.budgetedChangeText)
             .font(.subheadline)
             .monospacedDigit()
             .foregroundStyle(ActualistTheme.primaryText)
             .fixedSize()
-            .accessibilityLabel("Budgeted \(category.currentText) to \(category.proposedText)")
+            .accessibilityLabel("Budgeted change \(category.budgetedChangeText)")
     }
 
     private var metricDivider: some View {

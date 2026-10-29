@@ -28,8 +28,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         #expect(display.leftoverBeforeText == currency.formatted(12_445))
         #expect(display.leftoverAfterText == currency.formatted(200))
         let row = display.categories[0]
-        #expect(row.currentText == currency.formatted(100))
-        #expect(row.proposedText == currency.formatted(12_345))
+        #expect(row.budgetedChangeText == "+" + currency.formatted(12_245))
         #expect(row.metricBeforeText == currency.formatted(-100))
         #expect(row.metricAfterText == currency.formatted(12_145))
         #expect(row.shortfallText == currency.formatted(500))
@@ -80,8 +79,8 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         #expect(display.leftoverAfterText == BudgetCurrency.usd.formatted(12_000))
         #expect(display.changeCountText == "1 category")
         #expect(display.categories.map(\.name) == ["Groceries"])
-        #expect(display.categories[0].currentText == BudgetCurrency.usd.formatted(0))
-        #expect(display.categories[0].proposedText == BudgetCurrency.usd.formatted(40_000))
+        #expect(display.categories[0].budgetedChangeText == "+" + BudgetCurrency.usd.formatted(40_000))
+        #expect(display.categories[0].statusTone == .positive)
         #expect(display.categories[0].contributions.isEmpty)
         #expect(display.categories[0].priorityText == "Priority 4")
     }
@@ -158,7 +157,7 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         #expect(display.releasedText == "Hidden")
         #expect(display.assignedText == "Hidden")
         #expect(display.leftoverAfterText == "Hidden")
-        #expect(display.categories[0].proposedText == "Hidden")
+        #expect(display.categories[0].budgetedChangeText == "Hidden")
         #expect(display.categories[0].name != "Groceries")
         #expect(display.categories[0].metricBeforeText == "Hidden")
         #expect(display.categories[0].metricAfterText == "Hidden")
@@ -251,6 +250,8 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         #expect(display.leftoverBeforeText == BudgetCurrency.usd.formatted(100))
         #expect(display.leftoverAfterText == BudgetCurrency.usd.formatted(0))
         #expect(display.categories[0].statusText == "Unfunded")
+        #expect(display.categories[0].budgetedChangeText == BudgetCurrency.usd.formatted(0))
+        #expect(display.categories[0].statusTone == .caution)
         #expect(display.categories[0].shortfallText == BudgetCurrency.usd.formatted(100))
         #expect(display.categories[0].targetDetailText == nil)
         #expect(display.categories[0].targetAmountText == BudgetCurrency.usd.formatted(200))
@@ -300,5 +301,54 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         fullyFunded.hasEligibleTemplates = true
         let funded = BudgetTemplateApplyPreviewDisplay.make(preview: fullyFunded, randomized: false)
         #expect(funded.noOpExplanation == "Every category already matches its template.")
+    }
+
+    @Test(arguments: [BudgetCurrency.usd, .jpy])
+    func reductionShowsNegativeChangeWithCautionStatus(_ currency: BudgetCurrency) {
+        var category = BudgetTemplateApplyPreview.Category(
+            categoryID: "rent", name: "Rent", current: 18_007, proposed: 0,
+            perTemplate: [0], drafts: [], metric: .init(kind: .available, before: 140_000, after: 121_993)
+        )
+        category.evaluatedDemand = 0
+        var snapshot = preview(categories: [category])
+        snapshot.currency = currency
+        let row = BudgetTemplateApplyPreviewDisplay.make(preview: snapshot, randomized: false).categories[0]
+        #expect(row.budgetedChangeText == currency.formatted(-18_007))
+        #expect(!row.budgetedChangeText.hasPrefix("+"))
+        #expect(row.statusText == "Will reduce")
+        #expect(row.statusTone == .caution)
+
+        // A reduction that also funds part of a demand still reads as a reduction.
+        category.proposed = 9_200
+        category.evaluatedDemand = 9_200
+        snapshot.categories = [category]
+        let funded = BudgetTemplateApplyPreviewDisplay.make(preview: snapshot, randomized: false).categories[0]
+        #expect(funded.statusText == "Will reduce")
+        #expect(funded.budgetedChangeText == currency.formatted(-8_807))
+
+        let hidden = BudgetTemplateApplyPreviewDisplay.make(preview: snapshot, randomized: true).categories[0]
+        #expect(hidden.budgetedChangeText == "Hidden")
+        #expect(hidden.statusText == "Will reduce")
+    }
+
+    @Test func zeroAndGoalOnlyChangesShowUnsignedZero() {
+        let goalOnly = BudgetTemplateApplyPreview.Category(
+            categoryID: "savings", name: "Savings", current: 500, proposed: 500,
+            perTemplate: [], drafts: [], isGoalOnlyUpdate: true, goalBefore: 1, goalAfter: 2,
+            metric: .init(kind: .available, before: 500, after: 500)
+        )
+        let row = BudgetTemplateApplyPreviewDisplay.make(
+            preview: preview(categories: [goalOnly]), randomized: false
+        ).categories[0]
+        #expect(row.budgetedChangeText == BudgetCurrency.usd.formatted(0))
+        #expect(row.statusText == "Goal only")
+        #expect(row.statusTone == .positive)
+    }
+
+    @Test func signedFormattedMarksOnlyIncreases() {
+        #expect(BudgetCurrency.usd.signedFormatted(9_200) == "+" + BudgetCurrency.usd.formatted(9_200))
+        #expect(BudgetCurrency.usd.signedFormatted(-18_007) == BudgetCurrency.usd.formatted(-18_007))
+        #expect(BudgetCurrency.usd.signedFormatted(0) == BudgetCurrency.usd.formatted(0))
+        #expect(BudgetCurrency.jpy.signedFormatted(1_200) == "+" + BudgetCurrency.jpy.formatted(1_200))
     }
 }
