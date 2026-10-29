@@ -72,6 +72,9 @@ struct TransactionCSVEncoder {
         return "\"" + value.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
 
+    /// Fixed two places, not `BudgetCurrency`: Actual's export (`integerToAmount`) and
+    /// import (`amountToInteger`) both use their default of 2 whatever the currency, so a
+    /// zero-decimal budget's file still round-trips with Actual and with our importer.
     private static func actualAmount(_ minorUnits: Int) -> String {
         NSDecimalNumber(decimal: Decimal(minorUnits) / Decimal(100)).stringValue
     }
