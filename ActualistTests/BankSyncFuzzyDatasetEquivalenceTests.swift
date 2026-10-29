@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Phase 5: the fuzzy dataset parses each row's day once. The previous
+/// The fuzzy dataset parses each row's day once. The previous
 /// per-pair `dayDistance` filter and sort is the oracle.
 struct BankSyncFuzzyDatasetEquivalenceTests {
     private struct SeededGenerator: RandomNumberGenerator {

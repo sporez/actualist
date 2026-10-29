@@ -82,7 +82,7 @@ struct MerkleClockPersistenceTests {
             """)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node")
 
-        // Opening does not rebuild (F-8): the stored clock and marker are untouched until first use.
+        // Opening does not rebuild: the stored clock and marker are untouched until first use.
         #expect(try storedTrie(url)?.hash == 777)
         #expect(try count("SELECT COUNT(*) FROM actualist_local_migrations WHERE name = 'merkle-v1'", url) == 0)
 

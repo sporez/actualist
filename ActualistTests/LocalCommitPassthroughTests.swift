@@ -64,7 +64,7 @@ struct LocalCommitPassthroughTests {
         }
     }
 
-    // MARK: Session write fence (main-to-dev 2.1)
+    // MARK: Session write fence
 
     private func invalidatedDatabase() throws -> BudgetDatabase {
         let database = try makeDatabase()

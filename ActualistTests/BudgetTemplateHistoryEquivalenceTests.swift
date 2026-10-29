@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Phase 5.1: template inputs read history once per plan (shared by the
+/// Template inputs read history once per plan (shared by the
 /// preview pair) instead of per category and per month. The digests below were
 /// captured from the pre-Phase-5 implementation on this exact fixture.
 @MainActor
@@ -81,8 +81,8 @@ struct BudgetTemplateHistoryEquivalenceTests {
         )
     }
 
-    /// Before Phase 5 one pair ran 24 spending scans and 42 budget scans on
-    /// this fixture (a lone preview about half of each).
+    /// Before the batching change one pair ran 24 spending scans and 42 budget scans on this
+    /// fixture (a lone preview about half of each).
     @Test func previewPairReadsHistoryOnce() async throws {
         let database = try database(tracking: false)
         let single = try await scanCounts(database) {

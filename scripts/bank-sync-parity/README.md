@@ -1,9 +1,8 @@
 # Bank Sync / import matching parity harness
 
 Generates the BankSync fixture from Actual's own reconcile path at the pinned
-release (`config/parity/oracle-pin.json`, v26.10.0). Phase 5 of the oracle
-parity plan. This directory holds only the generator side; the Swift replay is
-separate.
+release (`config/parity/oracle-pin.json`, v26.10.0). This directory holds only the generator side; the Swift replay
+is separate.
 
 - `generate.mjs`: runs the plan inside the oracle checkout under vitest and
   writes the fixture. `--check` regenerates into a temporary directory and
@@ -104,7 +103,7 @@ One synthetic budget, optional rules, and one reconcile call.
 
 484 cases, seed `20261011`.
 
-- **Named (104)**: from `reference/mistakes.md` and the plan.
+- **Named (104)**: from known upstream behavior.
   - Rules before matching: account-moving rules, no category learning, transfer
     payees from a rule (insert and matched plain row), off-budget category
     stripping (insert, match, split children), matched transfers keeping a nil

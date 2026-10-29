@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Phase 5.2: schedule advancement reads one schedule's detail per step
+/// Schedule advancement reads one schedule's detail per step
 /// instead of loading every schedule. The all-schedules read is the oracle.
 @MainActor
 struct ScheduleDetailReadEquivalenceTests {

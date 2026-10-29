@@ -5,8 +5,7 @@ import Testing
 
 /// Apply Templates follows upstream `schedule-template.ts`: `getNextDate` honors a
 /// schedule's end condition (and falls back to the last occurrence once it has
-/// ended), so a schedule created with an end date must not abort the whole plan
-/// (main-to-dev audit F-7, decision D8, remediation item 4.5).
+/// ended), so a schedule created with an end date must not abort the whole plan.
 @MainActor
 @Suite("Budget template ended schedules")
 struct BudgetTemplateEndedScheduleTests {

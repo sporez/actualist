@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Phase 5.4: Bank Sync apply reads existing rows only for the matched
+/// Bank Sync apply reads existing rows only for the matched
 /// updates it will rewrite, and only those rows. The unfiltered read is the
 /// oracle for the by-id read.
 @MainActor

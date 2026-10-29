@@ -1,7 +1,7 @@
 # Rules-engine parity harness
 
 Generates the rules fixture from Actual's own `runRules` at the pinned release
-(`config/parity/oracle-pin.json`, v26.10.0). Phase 4 of the oracle parity plan.
+(`config/parity/oracle-pin.json`, v26.10.0).
 This directory holds only the generator side; the Swift replay is separate.
 
 - `generate.mjs`: runs the plan inside the oracle checkout under vitest and

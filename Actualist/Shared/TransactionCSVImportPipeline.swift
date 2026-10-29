@@ -1,6 +1,6 @@
 import Foundation
 
-/// Import size caps (plan decision D6c). They bound memory and the time spent
+/// Import size caps. They bound memory and the time spent
 /// on parse and match; a larger file is rejected before prepare is called.
 enum TransactionCSVImportLimits {
     static let maxFileBytes = 10 * 1024 * 1024

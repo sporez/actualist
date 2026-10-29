@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Audit 2.14 (D7k): the Uncategorized screen asks for the same confirmation
+/// The Uncategorized screen asks for the same confirmation
 /// as an edit before categorizing a reconciled row.
 @MainActor
 struct UncategorizedReconciledCategorizationTests {

@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Audit 2.10: a simple-row edit writes only the cells that differ from the
+/// A simple-row edit writes only the cells that differ from the
 /// caller's loaded baseline, so a stale edit cannot overwrite a remote change or
 /// resurrect a row deleted elsewhere (loot-core `diffItems` / `updateTransfer`).
 extension LocalFirstActualStoreTests {

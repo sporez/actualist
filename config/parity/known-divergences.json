@@ -359,7 +359,7 @@
       ],
       "id": "OP-58",
       "opened": "2026-10-11",
-      "summary": "A matched row in an off-budget account never takes the category a rule or download supplies, where the pinned Actual writes it (it strips categories only on inserts). Cause: mergedCategoryID returns the row's own category for off-budget accounts (BankSyncReconciler.swift:370-383). Deliberate: reference/mistakes.md 2026-09-16 'Bank Sync must not categorize off-budget accounts'.",
+      "summary": "A matched row in an off-budget account never takes the category a rule or download supplies, where the pinned Actual writes it (it strips categories only on inserts). Cause: mergedCategoryID returns the row's own category for off-budget accounts (BankSyncReconciler.swift:370-383). Deliberate: Bank Sync never categorizes rows in off-budget accounts.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: off-budget accounts carry no categories, so a matched off-budget row keeps none (2026-09-16 guard)."
@@ -376,7 +376,7 @@
       ],
       "id": "OP-59",
       "opened": "2026-10-11",
-      "summary": "The first-sync Starting Balance amount is the current balance minus the planned inserts, where the pinned Actual subtracts every raw downloaded transaction, including ones a rule changes and, with import-pending off, pending ones that are skipped. Cause: BankSyncReconciliation.openingBalance subtracts the inserts only (BankSyncReconciler.swift:480-489). Deliberate: reference/mistakes.md 2026-09-06 'Bank Sync forgets deleted bank IDs and balances before reconciliation' (derive opening balance from planned inserts).",
+      "summary": "The first-sync Starting Balance amount is the current balance minus the planned inserts, where the pinned Actual subtracts every raw downloaded transaction, including ones a rule changes and, with import-pending off, pending ones that are skipped. Cause: BankSyncReconciliation.openingBalance subtracts the inserts only (BankSyncReconciler.swift:480-489). Deliberate: the opening balance is derived from the planned inserts.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: the Starting Balance plus the rows actually imported equals the bank balance; Actual also subtracts rows a rule drops or pending rows it skips."
@@ -415,7 +415,7 @@
       ],
       "id": "OP-61",
       "opened": "2026-10-11",
-      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:197-204) fed by bankSyncSuppressedFinancialIDs (LocalFirstActualStore+ImportReconcile.swift:50-58). Deliberate: reference/mistakes.md 2026-09-06 (deleted IDs are used only for exact dedupe, never for updates).",
+      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:197-204) fed by bankSyncSuppressedFinancialIDs (LocalFirstActualStore+ImportReconcile.swift:50-58). Deliberate: deleted IDs are used only for exact dedupe, never for updates.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: leave deleted rows untouched; with reimport-deleted off, both apps ignore the download and the visible result is identical."

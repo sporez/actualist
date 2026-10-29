@@ -88,7 +88,7 @@ struct LocalFirstActualStoreCommitTailTests {
         #expect(fixture.queuedCount == 1)
     }
 
-    // MARK: A committed write is never reported as cancelled (main-to-dev 2.2)
+    // MARK: A committed write is never reported as cancelled
 
     @Test func cancelledCallerDuringReloadStillReportsCreateAsCommitted() async throws {
         let (store, fixture) = try await makeStore()

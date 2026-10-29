@@ -5,7 +5,7 @@ import Testing
 
 /// Undo of a delete, batch or merge restores rows into an account and category.
 /// If either was deleted since, the undo is refused with a typed block instead of
-/// resurrecting rows inside a deleted container (main-to-dev audit F-6, item 4.4).
+/// resurrecting rows inside a deleted container.
 @Suite @MainActor struct ActionUndoReferencedRowTests {
     private typealias Refs = BudgetActionUndo.RestoredReferences
     private let support = LocalFirstActualStoreTests()

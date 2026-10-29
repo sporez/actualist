@@ -20,7 +20,7 @@ struct ImportReconcileWrites {
 }
 
 /// The account-agnostic import reconcile step shared by Bank Sync and CSV
-/// import (main-to-dev D4, upstream `reconcileTransactions`, sync.ts):
+/// import (upstream `reconcileTransactions`, sync.ts):
 /// rule projection (`ImportReconcileProjection`) → `reconcileProjectedImport`
 /// → `importReconcileWrites`. The caller owns what is specific to its source:
 /// Bank Sync's link identity, generation, opening balance and completion

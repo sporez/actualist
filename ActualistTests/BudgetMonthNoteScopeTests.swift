@@ -4,7 +4,7 @@ import Synchronization
 import Testing
 @testable import Actualist
 
-/// Phase 5.5: a month fetch reads only the notes it can look up (that month,
+/// A month fetch reads only the notes it can look up (that month,
 /// category groups and categories), not every account, payee and month note.
 @MainActor
 struct BudgetMonthNoteScopeTests {

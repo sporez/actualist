@@ -370,7 +370,7 @@ struct ScheduleAdvancementTests {
         #expect(store.openedServerURLString == nil)
     }
 
-    /// Main-to-dev audit F-5: a background post is not a user gesture. It is logged
+    /// A background post is not a user gesture. It is logged
     /// as `.automatic`, stays visible, is not undoable, and does not take the
     /// strict-LIFO undo slot from the user's earlier gesture.
     @Test func automaticPostIsLoggedAutomaticAndDoesNotBlockEarlierUserUndo() async throws {

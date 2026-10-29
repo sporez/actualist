@@ -6,7 +6,7 @@ import Foundation
 /// owns what used to be loose store state: the flush-running flag, the
 /// "flush again" request, the waiters, the scheduled-flush task handle, the
 /// status-ordering tickets and the inserted-id accumulation of a background
-/// run (D16, in memory only).
+/// run (in memory only).
 ///
 /// A session owns one lane; `closeOpenBudget()` invalidates it and installs a
 /// fresh one, so an operation that finishes after a session change releases its
@@ -85,7 +85,7 @@ final class ServerSyncLane {
         return ticketCounter
     }
 
-    // MARK: Background-run attribution (D16)
+    // MARK: Background-run attribution
 
     func beginBackgroundRun() -> UUID {
         let token = UUID()

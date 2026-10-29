@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// One `imported_id` rule for every importer (main-to-dev D6, audit F-9):
+/// One `imported_id` rule for every importer:
 /// ids compare exactly, as upstream's `imported_id = ?` does (sync.ts ~850);
 /// only surrounding whitespace is trimmed. `A1` and `a1` are different ids.
 ///

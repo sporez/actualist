@@ -20,7 +20,7 @@ struct TransactionCSVImportPreparationRequest: Sendable {
 }
 
 /// One parsed row with the outcome the shared import reconcile decided for it
-/// (the same rules and matching Bank Sync uses; main-to-dev D4).
+/// (the same rules and matching Bank Sync uses).
 struct TransactionCSVImportReviewRow: Identifiable, Equatable, Sendable {
     enum Outcome: Equatable, Sendable {
         /// Unmatched; inserted. The candidate is the row after rules, and

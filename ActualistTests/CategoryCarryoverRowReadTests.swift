@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Phase 5.9: "Enable rollover for all" reads the budget rows once. The
+/// "Enable rollover for all" reads the budget rows once. The
 /// per-category, per-month `budgetRowID` lookup is the oracle for which row id
 /// each message targets. A month with a row gets only its carryover cell; a month
 /// without one also gets its month (as text) and category cells, as in Actual.

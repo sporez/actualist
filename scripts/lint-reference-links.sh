@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Reference doc link lint. Archiving a plan into reference/plans/done/ changes
-# its relative depth; outgoing relative links silently break (see
-# reference/mistakes.md, "Archiving a plan changes its relative evidence
-# paths"). reference/ is fully gitignored, so git-based touch detection does
+# its relative depth, so outgoing relative links silently break.
+# reference/ is fully gitignored, so git-based touch detection does
 # not work here; scans the whole tree instead.
 #
 # - reference-internal links (targets that resolve inside reference/) must

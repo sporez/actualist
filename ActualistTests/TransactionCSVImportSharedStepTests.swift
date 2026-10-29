@@ -3,9 +3,9 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// CSV import runs the same rules and reconcile as Bank Sync (main-to-dev D4,
-/// audit F-2 and F-9): rules before matching, upstream CSV defaults, and an
-/// exact `imported_id` commit precondition.
+/// CSV import runs the same rules and reconcile as Bank Sync: rules before
+/// matching, upstream CSV defaults, and an exact `imported_id` commit
+/// precondition.
 @MainActor
 struct TransactionCSVImportSharedStepTests {
     private typealias Bundle = LocalFirstActualStoreTests.OpenedWritableStoreBundle
@@ -108,7 +108,7 @@ struct TransactionCSVImportSharedStepTests {
         try scalar(bundle, sql, arguments).flatMap(Int.init) ?? -1
     }
 
-    // MARK: - F-2: rules run before matching
+    // MARK: Rules run before matching
 
     @Test func anImportedRowThatMatchesAPostingScheduleLinksItAndPaysIt() async throws {
         let bundle = try await makeBundle()
@@ -197,7 +197,7 @@ struct TransactionCSVImportSharedStepTests {
         #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE id = 'txn'") == nil)
     }
 
-    // MARK: - F-9: one imported_id rule
+    // MARK: One imported_id rule
 
     @Test func aBankSyncRowLandingAfterReviewBlocksTheImport() async throws {
         let bundle = try await makeBundle()

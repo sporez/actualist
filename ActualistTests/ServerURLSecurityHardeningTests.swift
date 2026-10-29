@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Phase 3.1: the primary and fallback server URLs share one rule, and a bad
+/// The primary and fallback server URLs share one rule, and a bad
 /// fallback is rejected at save, ignored at hydration, and redacted from reports.
 @MainActor
 struct ServerURLSecurityHardeningTests {

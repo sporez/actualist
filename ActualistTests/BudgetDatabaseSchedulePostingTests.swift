@@ -96,7 +96,7 @@ struct BudgetDatabaseSchedulePostingTests {
     }
 
     /// A rule that points at a deleted category is a liveness failure the user can
-    /// fix, not a budget-layout gap (main-to-dev audit F-3).
+    /// fix, not a budget-layout gap.
     @Test func ruleSettingTombstonedCategoryRefusesAsReferencedRowUnavailable() async throws {
         let fixture = try makeFixture(extraSQL: """
             INSERT INTO categories VALUES ('gone', 'Gone', 'group', 0, 0, 1, 2);

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Phase 5.6: the overspent options are read many times per render; the view
+/// The overspent options are read many times per render; the view
 /// model builds one list per distinct month and settings.
 /// `BudgetOverspendingPresentation.options` is the oracle.
 @MainActor

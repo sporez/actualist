@@ -78,7 +78,7 @@ enum ReportExplorerRangePreset: String, CaseIterable, Hashable, Sendable {
     }
 }
 
-/// Caps the number of periods one explorer query can generate (D6c).
+/// Caps the number of periods one explorer query can generate.
 enum ReportExplorerRangeLimits {
     static let maximumDays = 1_100
     static let maximumMonths = 600

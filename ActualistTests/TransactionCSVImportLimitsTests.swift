@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Import size caps (plan decision D6c): 10 MB and 50,000 rows. The pipeline
+/// Import size caps: 10 MB and 50,000 rows. The pipeline
 /// entry points take the caps as parameters, so the boundary is exercised with
 /// a few bytes rather than a 10 MB file.
 @MainActor

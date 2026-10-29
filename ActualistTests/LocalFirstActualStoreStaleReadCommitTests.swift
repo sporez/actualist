@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Audit 2.13: a gesture must build its CRDT messages from the rows of the
+/// A gesture must build its CRDT messages from the rows of the
 /// write transaction, not from a read taken before a remote change landed.
 /// `userActionBeforeCommitHook` lands that remote change between the old
 /// pre-read and the commit.

@@ -5,7 +5,7 @@ import Testing
 
 /// Transfer schedules *into* a closing account reference it through its transfer
 /// payee (directly, or through `payee_mapping` after a payee merge), not through
-/// an account condition (main-to-dev audit F-3, remediation item 4.2).
+/// an account condition.
 @MainActor
 struct AccountLifecycleTransferScheduleTests {
     private let support = LocalFirstActualStoreTests()

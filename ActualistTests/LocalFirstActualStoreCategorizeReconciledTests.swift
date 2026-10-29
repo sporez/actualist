@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Audit 2.14: categorize must honor the reconciled-transaction guard that
+/// Categorize must honor the reconciled-transaction guard that
 /// edit and delete already enforce, inside the same write transaction.
 extension LocalFirstActualStoreTests {
     private static let reconciledCategorizeFixtureSQL = """

@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Phase 5.7: a reload serves every cached category and uncategorized feed from
+/// A reload serves every cached category and uncategorized feed from
 /// one transaction-table read. The single-key refresh calls are the oracle.
 @MainActor
 struct CachedFeedReloadEquivalenceTests {

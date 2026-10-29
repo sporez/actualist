@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Phase 5.11: the category recurrence runs forward once from the first month
+/// The category recurrence runs forward once from the first month
 /// with real data. The naive loop from the earliest stored month is the oracle.
 @MainActor
 struct CategoryValueTimelineEquivalenceTests {

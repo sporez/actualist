@@ -23,7 +23,7 @@ extension BudgetDatabase {
     }
 }
 
-/// Phase 5.8: BALANCE_OF reads each account once per batch and resolves every
+/// BALANCE_OF reads each account once per batch and resolves every
 /// draft's cutoff in memory. An independent in-memory model of the cutoff is the oracle (the
 /// per-draft SQL SUM it replaced agreed with this batch on the same fixtures
 /// before it was removed).

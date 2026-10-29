@@ -43,7 +43,7 @@ struct ImportReconcileOptions: Equatable, Sendable {
         updateDates: nil
     )
 
-    /// Upstream `transactions-import` defaults (main-to-dev D5).
+    /// Upstream `transactions-import` defaults.
     static let csv = ImportReconcileOptions(
         isBankSyncAccount: false,
         strictIdChecking: true,

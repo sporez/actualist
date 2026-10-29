@@ -14,9 +14,9 @@ struct DurableCommitTailOutcome<Value: Sendable>: Sendable {
 /// then schedule an outbox flush. The flush is scheduled even when the reload
 /// fails, because the committed messages are already enqueued and must still
 /// reach the server. A failed or cancelled reload is reported as
-/// `refreshPending` (D9a) instead of turning a durable write into a failed one.
+/// `refreshPending` instead of turning a durable write into a failed one.
 ///
-/// The tail rule (main-to-dev D9): a write that has committed is never reported
+/// The tail rule: a write that has committed is never reported
 /// as cancelled or failed, whichever tail it uses.
 /// - User-repeatable writes (create, update, delete, categorize, assign, Move
 ///   Money, Holds, Wallet import) finish through `finishDurableCommit`, whose

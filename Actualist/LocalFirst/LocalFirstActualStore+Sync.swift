@@ -45,7 +45,7 @@ extension LocalFirstActualStore {
         let budgetID = budget.syncID
         let refreshedDatabase = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        // D16: every apply during this run counts toward its alert, including
+        // Every apply during this run counts toward its alert, including
         // a scheduled flush that lands before or while this run's own pull.
         let lane = syncLane
         let runToken = lane.beginBackgroundRun()

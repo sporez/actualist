@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Phase 6.3: the merge and duplicate planners each validated a packed
+/// The merge and duplicate planners each validated a packed
 /// `YYYYMMDD` before taking its month. They share `YearMonth`'s validator; the
 /// verbatim old bodies are the oracle over the boundary inputs.
 struct YearMonthPackedDateValidationTests {

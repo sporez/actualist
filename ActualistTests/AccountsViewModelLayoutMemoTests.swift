@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Phase 5.6: a render asks for the account sections many times; the view
+/// A render asks for the account sections many times; the view
 /// model builds one layout per distinct inputs. `AccountListLayout.sections`
 /// is the oracle.
 @MainActor

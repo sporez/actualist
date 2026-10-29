@@ -3,7 +3,7 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Phase 5.8: rule `matches` patterns compile once, and a batch resolves
+/// Rule `matches` patterns compile once, and a batch resolves
 /// unknown payee names against one payee read.
 @MainActor
 struct RuleBatchReadReuseTests {

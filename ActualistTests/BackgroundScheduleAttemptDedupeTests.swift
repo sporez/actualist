@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Phase 5.10: an unchanged schedule is not recorded again. The recorder's
+/// An unchanged schedule is not recorded again. The recorder's
 /// attempt count is the work count (each record rewrites the settings JSON).
 @MainActor
 struct BackgroundScheduleAttemptDedupeTests {

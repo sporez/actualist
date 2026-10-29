@@ -80,9 +80,8 @@ every case starts from are recorded once as top-level `referenceData`.
 
 ## Ratified contract
 
-The September sprint's admitted contract
-(`reference/plans/done/dev-sprint-2026-09/transaction-commands-implementation-admission.md`)
-is the user's decision, ratified 2026-10-11. Where Actualist deliberately differs
+The admitted transaction-command contract is the maintainer's decision,
+ratified 2026-10-11. Where Actualist deliberately differs
 from this fixture, the difference is intended:
 
 - Duplicating a malformed split is refused (Actual clones it).

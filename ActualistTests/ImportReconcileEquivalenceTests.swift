@@ -3,13 +3,13 @@ import Testing
 @testable import Actualist
 
 /// CSV matching cases on the shared reconciler (`BankSyncReconciliation.plan`),
-/// the one reconcile CSV import and Bank Sync share (main-to-dev D4).
+/// the one reconcile CSV import and Bank Sync share.
 ///
-/// Phase 3.1 replayed every case of the CSV-only matcher through the shared
-/// reconciler and found it agreed row for row, apart from the divergences below
-/// (each right by upstream: pinned Actual v26.9.0,
-/// `packages/loot-core/src/server/accounts/sync.ts`). Phase 3.5 deleted that
-/// matcher; the cases it was replayed with stay here with their expected
+/// Every case of the former CSV-only matcher was replayed through the shared
+/// reconciler and agreed row for row, apart from the divergences below (each
+/// right by upstream: pinned Actual v26.9.0,
+/// `packages/loot-core/src/server/accounts/sync.ts`). That matcher has since
+/// been deleted; the cases it was replayed with stay here with their expected
 /// outcomes.
 ///
 /// Divergences from the deleted matcher (shared reconciler = upstream; the

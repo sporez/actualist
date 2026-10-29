@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// The shared import reconcile step (main-to-dev 3.2): rule projection and the
+/// The shared import reconcile step: rule projection and the
 /// widened read the Bank Sync and CSV callers both use.
 @MainActor
 struct ImportReconcileStepTests {

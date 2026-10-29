@@ -3,9 +3,9 @@ import GRDB
 import Testing
 @testable import Actualist
 
-/// Main-to-dev Phase 3.2 gate: the plan and the stored result of a Bank Sync
-/// download are captured before the import reconcile step is extracted from
-/// Bank Sync planning, and must stay byte-identical afterwards. One scenario
+/// The plan and the stored result of a Bank Sync download are captured before
+/// the import reconcile step is extracted from Bank Sync planning, and must
+/// stay byte-identical afterwards. One scenario
 /// covers every outcome the shared step produces: an exact-id match, a fuzzy
 /// same-payee match, a reconciled match, a matched transfer, inserts that create
 /// and reuse payees, a rule that renames and categorizes, and a pending row.
@@ -134,7 +134,7 @@ struct BankSyncImportEquivalenceTests {
         #expect(captured == Self.golden)
     }
 
-    /// Captured from the pre-extraction implementation (main-to-dev 3.2).
+    /// Captured from the pre-extraction implementation.
     private static let golden = #"""
 status ok
 insert Candidate(financialID: Optional("bank-new1"), dayID: "20260305", amountMinorUnits: -555, payeeID: nil, payeeName: Optional("New Merchant"), notes: Optional("coffee ##latte"), categoryID: nil, cleared: true, importedPayee: Optional("New Merchant"), splits: [], scheduleID: nil, clearedIsExplicit: true, deletedByRule: false)

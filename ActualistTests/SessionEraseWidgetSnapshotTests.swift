@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Actualist
 
-/// Phase 3.3: the widget snapshot is cleared synchronously on sign-out.
+/// The widget snapshot is cleared synchronously on sign-out.
 @MainActor
 struct SessionEraseWidgetSnapshotTests {
     private func makeSnapshot() -> WidgetSnapshot {

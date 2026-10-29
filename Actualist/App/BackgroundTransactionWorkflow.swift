@@ -355,7 +355,7 @@ final class BackgroundTransactionWorkflow {
             try Task.checkCancellation()
 
             if case .synced(let result) = outcome {
-                // Phase 6: after a successful pull, optionally run the
+                // After a successful pull, optionally run the
                 // time-boxed server SimpleFIN download + auto-apply. A
                 // failure or timeout appends to the run message and never
                 // fails the parent refresh. Inserted transactions join the

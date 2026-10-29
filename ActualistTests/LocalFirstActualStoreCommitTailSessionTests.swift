@@ -3,7 +3,7 @@ import Testing
 @testable import Actualist
 
 /// An attached-tail reload that awaits a read must not publish into caches a
-/// retired session already cleared (main-to-dev 2.3).
+/// retired session already cleared.
 @MainActor
 struct LocalFirstActualStoreCommitTailSessionTests {
     private let support = LocalFirstActualStoreTests()
