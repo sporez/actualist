@@ -369,6 +369,9 @@ final class AppState {
         settings.selectedLocalFirstFileID = nil
         settings.selectedLocalFirstGroupID = nil
         settings.pendingNewTransactionIDsByAccount = [:]
+        settings.accountOrderByBudgetID = [:]
+        settings.defaultAccountIDByBudgetID = [:]
+        settings.categoryGroupExpansionByBudgetID = [:]
         updateApplicationBadge()
         settings.backgroundTransactionRefreshEnabled = false
         settings.simplefinBackgroundSyncEnabled = false
