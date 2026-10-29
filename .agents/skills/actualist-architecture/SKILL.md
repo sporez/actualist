@@ -42,7 +42,7 @@ Build settings that affect where code runs: the app target sets no default actor
 | `Actualist/Security/` | Keychain, OpenID authentication, custom HTTP headers, and transport-security checks. |
 | `Actualist/DesignSystem/` | Theme, palette, glass surfaces, and small presentation utilities. |
 | `Actualist/Resources/` | Bundled demo budgets (`DemoBudget.zip`, `TrackingDemoBudget.zip`). |
-| `Actualist/Widgets/` | App-side widget snapshot construction/storage, deep links, shared widget models, and publication coordination. |
+| `Actualist/Widgets/` | App-side widget snapshot construction/storage, widget deep-link values, shared widget models, and publication coordination. The app-wide deep-link router is `Actualist/App/AppDeepLinkRouter.swift`. |
 | `ActualistWidget/` | Widget extension entry points, timeline providers, configuration intents, and widget views. |
 | `ActualistTests/` | Unit/integration tests and synthetic SQLite/Actual-core fixtures. Tests are flat and named after the production type or workflow. |
 | `ActualistUITests/` | End-to-end UI regressions grouped by visible surface. |
@@ -97,6 +97,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Store writes: `LocalFirstActualStore+TransactionMutations.swift` and related mutation extensions.
 - Database reads/writes: `BudgetDatabase+TransactionReads.swift`, `+TransactionCreation.swift`, `+TransactionUpdates.swift`, `+TransactionCategorization.swift`, and `+TransactionSplit*.swift`.
 - Split-family invariants: `Actualist/LocalFirst/SplitTransactionFamily.swift`.
+- Sharing a transaction: link format and parsing in `Actualist/Shared/SharedTransactionLink.swift`, routed by `Actualist/App/AppDeepLinkRouter.swift`; opening a link (lookup, one sync, messages) in `SharedTransactionLinkResolver.swift` over `BudgetDatabase.sharedTransactionLookup(id:)`; the card in `TransactionShareContent.swift`; and `TransactionShareSheet.swift`, the app's one UIKit view (see `AGENTS.md`).
 
 ### Accounts and reconciliation
 
@@ -156,7 +157,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 ### Widgets
 
-- App-side publication: `Actualist/Widgets/WidgetSnapshotCoordinator.swift`, snapshot builders/models/store, deep-link routing, theme, and quick-action definitions.
+- App-side publication: `Actualist/Widgets/WidgetSnapshotCoordinator.swift`, snapshot builders/models/store, widget deep-link values (routed by `Actualist/App/AppDeepLinkRouter.swift`), theme, and quick-action definitions.
 - Extension UI/timelines: `ActualistWidget/`.
 - Shared target membership: curated in `Actualist.xcodeproj/project.pbxproj`; do not assume every app-side widget file is compiled into the extension.
 

@@ -30,7 +30,10 @@ Glass-aware, and optimized for repeated budget review.
   Skill-aware clients expose it as `skill://actualist-architecture`.
 - Machine-specific simulator/device configuration: gitignored
   `scripts/lib/destinations.sh`, based on
-  `scripts/lib/destinations.example.sh`. Pin destinations by UDID, never by
+  `scripts/lib/destinations.example.sh`. The scripts resolve the simulator from
+  its name, device type and runtime through `scripts/lib/simulator.sh`, and
+  create it when it is missing; `ACTUALIST_SIMULATOR_ID` is an optional pin.
+  The resolved simulator and any device still reach Xcode by UDID, never by
   display name.
 - Optional maintainer guidance: a gitignored local overlay may supplement this
   file. Private planning references and machine-specific procedures belong
@@ -548,9 +551,11 @@ current task.
 
 ## Simulator Builds And Visual Verification
 
-Pin simulator and device destinations by UDID from the local destination
-configuration, not by display name. Use the current configuration and actual
-device list; do not assume a historically healthy destination remains healthy.
+Simulator and device destinations reach Xcode by UDID, not by display name.
+`scripts/lib/simulator.sh` resolves the simulator (an optional
+`ACTUALIST_SIMULATOR_ID` pin, else name, device type and runtime) and creates
+it when it is missing. Use the current configuration and actual device list;
+do not assume a historically healthy destination remains healthy.
 
 Do not start a build, test, launch, or screenshot workflow against shared
 simulator/DerivedData resources while another invocation is using them.
