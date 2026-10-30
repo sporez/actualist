@@ -434,13 +434,13 @@ extension BudgetDatabase {
         isIncome: Bool,
         db: Database
     ) throws -> BudgetTemplateEngine.ResolvedSchedule {
-        let missing = entry.missingScheduleReason
+        let missing = entry.missingScheduleError
         guard try tableExists("schedules", db: db), try tableExists("rules", db: db) else {
-            throw LocalFirstError.unsupportedTemplate(missing)
+            throw missing
         }
         let scheduleColumns = try columnSet(for: "schedules", db: db)
         guard scheduleColumns.contains("name") else {
-            throw LocalFirstError.unsupportedTemplate(missing)
+            throw missing
         }
         let completedColumn = scheduleColumns.contains("completed") ? "completed" : "0"
         let ruleColumn = scheduleColumns.contains("rule") ? "rule" : "NULL"
@@ -449,7 +449,7 @@ extension BudgetDatabase {
         let identityArgument: String
         if let scheduleID = entry.presentScheduleID {
             guard scheduleColumns.contains("id") else {
-                throw LocalFirstError.unsupportedTemplate(missing)
+                throw missing
             }
             identityPredicate = "id = ?"
             identityArgument = scheduleID
@@ -471,7 +471,7 @@ extension BudgetDatabase {
             arguments: [identityArgument]
         )
         guard let row else {
-            throw LocalFirstError.unsupportedTemplate(missing)
+            throw missing
         }
         let completed = flexibleBool(row["completed"])
         guard let ruleID = row["rule"] as String?, !ruleID.isEmpty else {

@@ -394,9 +394,7 @@ struct BudgetTemplateEngine {
         if let categoryID = monthSources.incomeCategoryIDByLocalizedName[lowered] {
             return .incomeCategory(categoryID)
         }
-        throw LocalFirstError.unsupportedTemplate(
-            "Category \"\(raw)\" is not found in available income categories"
-        )
+        throw LocalFirstError.templateIncomeSourceMissing
     }
 
     enum PercentageSource: Equatable {
@@ -519,9 +517,7 @@ struct BudgetTemplateEngine {
             )
         }
         guard monthsRemaining >= 0 else {
-            throw LocalFirstError.unsupportedTemplate(
-                "by target month \(BudgetTemplateCalendar.monthID(initialTargetMonth)) has passed"
-            )
+            throw LocalFirstError.templateTargetMonthPassed
         }
 
         return (

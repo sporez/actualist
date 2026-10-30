@@ -53,14 +53,10 @@ struct BudgetTemplateEntry: Decodable, Equatable, Sendable {
         presentScheduleID ?? trimmedScheduleName
     }
 
-    var missingScheduleReason: String {
-        if let id = presentScheduleID {
-            return "Schedule \(name ?? id) does not exist"
-        }
-        if let trimmed = trimmedScheduleName {
-            return "Schedule \(trimmed) does not exist"
-        }
-        return "Schedule template has no scheduleId or name"
+    var missingScheduleError: LocalFirstError {
+        scheduleLookupKey == nil
+            ? .unsupportedTemplate("Schedule template has no scheduleId or name")
+            : .templateScheduleMissing
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -143,4 +139,23 @@ struct BudgetTemplateLimit: Decodable, Equatable, Sendable {
     let period: String?
     let hold: Bool?
     let start: String?
+}
+
+/// Template problems a person can fix. As `.refusedChange` they reach
+/// `userFacingMessage` as written. They name no category or schedule because
+/// the review shows them on its tiles under Sample Values too.
+extension LocalFirstError {
+    static let templateTargetMonthPassed = LocalFirstError.refusedChange(
+        "The target month is before this budget month. Choose a later month or remove this template."
+    )
+    static let templateScheduleMissing = LocalFirstError.refusedChange(
+        "This template uses a schedule that no longer exists. Choose another one or remove this template."
+    )
+    static let templateIncomeSourceMissing = LocalFirstError.refusedChange(
+        "This template uses an income source that isn't available. Choose another one or remove this template."
+    )
+
+    static func template(_ issue: BudgetTemplateAuthoringIssue) -> LocalFirstError {
+        .refusedChange(issue.message)
+    }
 }

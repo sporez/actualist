@@ -107,6 +107,41 @@ struct BudgetTemplateExclusionPreviewTests {
         #expect(try zeroBudgetAmount("groceries", at: url) == 50_000)
     }
 
+    @Test(arguments: [
+        #"{"directive":"template","type":"by","amount":100,"month":"2026-06","priority":1}"#,
+        // Actual checks a spend target only beside a schedule or by template.
+        #"{"directive":"template","type":"by","amount":100,"month":"2026-09","priority":1},"#
+            + #"{"directive":"template","type":"spend","amount":100,"month":"2026-06","from":"2026-01","priority":1}"#
+    ])
+    func passedTargetMonthBlocksOnlyThatCategoryAndSaysWhy(entry: String) async throws {
+        let (database, _) = try makeDatabase(extraSQL: """
+            UPDATE categories SET goal_def = '[\(entry)]' WHERE id = 'rent';
+            """)
+        let pair = try await database.previewBudgetTemplatePair(month: "2026-07")
+        let sentence = try #require(LocalFirstError.templateTargetMonthPassed.errorDescription)
+        for outcome in [pair.fillEmpty, pair.overwrite] {
+            let preview = try ready(outcome)
+            #expect(preview.blocked == [.init(categoryID: "rent", name: "Rent", reason: .refused(sentence))])
+            #expect(preview.excludedCategoryIDs == ["rent"])
+        }
+    }
+
+    @Test func monthRunNamesTheCategoryItRefusedAndACategoryRunDoesNot() async throws {
+        let (database, _) = try makeDatabase(extraSQL: """
+            UPDATE categories
+            SET goal_def = '[{"directive":"template","type":"by","amount":100,"month":"2026-06","priority":1}]'
+            WHERE id = 'rent';
+            """)
+        let sentence = try #require(LocalFirstError.templateTargetMonthPassed.errorDescription)
+        var builder = LocalFirstSyncMessageBuilder()
+        await #expect(throws: LocalFirstError.refusedChange("Rent: \(sentence)")) {
+            _ = try await database.budgetTemplateApply(command: .overwrite, month: "2026-07", builder: &builder)
+        }
+        await #expect(throws: LocalFirstError.templateTargetMonthPassed) {
+            _ = try await database.budgetTemplateApply(command: .category("rent"), month: "2026-07", builder: &builder)
+        }
+    }
+
     @Test func unsupportedTemplateIsBlockedAndTheRestCanApply() async throws {
         let (database, url) = try makeDatabase(extraSQL: """
             UPDATE categories SET goal_def = 'not-json' WHERE id = 'rent';

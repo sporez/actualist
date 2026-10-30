@@ -213,8 +213,8 @@ extension LocalFirstActualStoreTests {
                 builder: &builder
             ).messages
             Issue.record("Expected a non-income percentage source to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason.contains("Food"))
+        } catch let error as LocalFirstError {
+            #expect(error == .templateIncomeSourceMissing)
         }
 
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
@@ -343,8 +343,8 @@ extension LocalFirstActualStoreTests {
                 builder: &builder
             ).messages
             Issue.record("Expected an invalid scheduleId to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason.contains("Schedule Rent does not exist"))
+        } catch let error as LocalFirstError {
+            #expect(error == .templateScheduleMissing)
         }
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
         #expect(try storedCRDTMessages(at: fixtureURL).isEmpty)
@@ -365,8 +365,8 @@ extension LocalFirstActualStoreTests {
                 builder: &builder
             ).messages
             Issue.record("Expected a missing scheduleId to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason.contains("Schedule missing does not exist"))
+        } catch let error as LocalFirstError {
+            #expect(error == .templateScheduleMissing)
         }
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
         #expect(try storedCRDTMessages(at: fixtureURL).isEmpty)
@@ -389,8 +389,8 @@ extension LocalFirstActualStoreTests {
                 builder: &builder
             ).messages
             Issue.record("Expected a missing schedule to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason.contains("Schedule Rent does not exist"))
+        } catch let error as LocalFirstError {
+            #expect(error == .templateScheduleMissing)
         }
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
         #expect(try storedCRDTMessages(at: fixtureURL).isEmpty)

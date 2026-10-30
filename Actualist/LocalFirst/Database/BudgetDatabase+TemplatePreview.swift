@@ -506,6 +506,14 @@ extension BudgetDatabase {
                         )
                     }
                 }
+            } catch LocalFirstError.refusedChange(let sentence) {
+                if collectBlocked {
+                    blocked.append((categoryID, .refused(sentence)))
+                    continue
+                }
+                // A month run has to say which category; a category run already does.
+                let name = (categoryNames[categoryID] ?? categoryID).actualistCategoryNameParts.name
+                throw LocalFirstError.refusedChange(targeted.isEmpty ? "\(name): \(sentence)" : sentence)
             } catch LocalFirstError.unsupportedTemplate(let reason) {
                 if collectBlocked {
                     blocked.append((categoryID, .unsupported))

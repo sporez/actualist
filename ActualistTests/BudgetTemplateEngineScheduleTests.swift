@@ -136,8 +136,8 @@ struct BudgetTemplateEngineScheduleTests {
                 monthSources: .init()
             )
             Issue.record("Expected a missing schedule to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason.contains("Schedule Rent does not exist"))
+        } catch let error as LocalFirstError {
+            #expect(error == .templateScheduleMissing)
         }
     }
 
@@ -214,8 +214,8 @@ struct BudgetTemplateEngineScheduleTests {
                 )
             )
             Issue.record("Expected an invalid scheduleId to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason == "Schedule Rent does not exist")
+        } catch let error as LocalFirstError {
+            #expect(error == .templateScheduleMissing)
         }
     }
 
@@ -257,8 +257,8 @@ struct BudgetTemplateEngineScheduleTests {
                 monthSources: .init(activeScheduleIDs: ["rent-1"])
             )
             Issue.record("Expected a missing scheduleId to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason == "Schedule missing does not exist")
+        } catch let error as LocalFirstError {
+            #expect(error == .templateScheduleMissing)
         }
     }
 
@@ -275,9 +275,8 @@ struct BudgetTemplateEngineScheduleTests {
                 activeScheduleNames: ["Rent"]
             )
             Issue.record("Expected mixed schedule and by priorities to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason.contains("same priority level"))
-            #expect(reason.contains("1"))
+        } catch let error as LocalFirstError {
+            #expect(error == .template(.schedulePriorityMismatch))
         }
     }
 

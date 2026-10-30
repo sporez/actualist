@@ -72,7 +72,7 @@ extension BudgetTemplateEngine {
         for entry in entries where entry.type == "schedule" {
             guard let key = entry.scheduleLookupKey,
                   let resolved = category.resolvedSchedules[key] else {
-                throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
+                throw entry.missingScheduleError
             }
             if resolved.completed || resolved.monthsUntil < 0 {
                 continue

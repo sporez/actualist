@@ -352,6 +352,27 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         #expect(BudgetCurrency.jpy.signedFormatted(1_200) == "+" + BudgetCurrency.jpy.formatted(1_200))
     }
 
+    @Test func blockedTilesSayWhyTheyWereLeftOut() {
+        var snapshot = preview(categories: [])
+        snapshot.blocked = [
+            .init(categoryID: "tv", name: "TV", reason: .refused("The reason.")),
+            .init(categoryID: "gym", name: "Gym", reason: .staleNote),
+            .init(categoryID: "rent", name: "Rent", reason: .unsupported)
+        ]
+        let tiles = BudgetTemplateApplyPreviewDisplay.make(preview: snapshot, randomized: false).categories
+        #expect(tiles.map(\.statusText) == ["Not applied", "Template out of date", "Template not supported"])
+        #expect(tiles.map(\.blockedReasonText) == [
+            "The reason.",
+            BudgetTemplateCategoryLock.Reason.staleNotes.testerFacingReason,
+            nil
+        ])
+
+        // Refusal sentences carry no names, so Sample Values can show them.
+        let hidden = BudgetTemplateApplyPreviewDisplay.make(preview: snapshot, randomized: true).categories
+        #expect(hidden[0].name != "TV")
+        #expect(hidden[0].blockedReasonText == "The reason.")
+    }
+
     @Test func reviewTilesKeepFullRunOrderThenAddedThenBlocked() {
         func category(_ id: String, proposed: Int) -> BudgetTemplateApplyPreview.Category {
             .init(categoryID: id, name: id.capitalized, current: 0, proposed: proposed, perTemplate: [proposed],

@@ -81,6 +81,8 @@ struct BudgetTemplateApplyPreview: Equatable, Sendable {
         enum Reason: Equatable, Sendable {
             case staleNote
             case unsupported
+            /// A problem the person can fix, as a sentence with no names in it.
+            case refused(String)
         }
 
         var categoryID: String

@@ -313,9 +313,8 @@ struct BudgetTemplateEngineAggregateTests {
                 availableBudget: 100_000
             )
             Issue.record("Expected a non-income percentage source to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason.contains("Food"))
-            #expect(reason.contains("not found in available income categories"))
+        } catch let error as LocalFirstError {
+            #expect(error == .templateIncomeSourceMissing)
         }
     }
 
@@ -330,8 +329,8 @@ struct BudgetTemplateEngineAggregateTests {
                     """
             )
             Issue.record("Expected two goals to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason.contains("Only one #goal is allowed per category"))
+        } catch let error as LocalFirstError {
+            #expect(error == .template(.duplicateType(.goal)))
         }
     }
 
@@ -346,8 +345,8 @@ struct BudgetTemplateEngineAggregateTests {
                     """
             )
             Issue.record("Expected two spend templates to be refused")
-        } catch LocalFirstError.unsupportedTemplate(let reason) {
-            #expect(reason.contains("Only one spend template is allowed per category"))
+        } catch let error as LocalFirstError {
+            #expect(error == .template(.duplicateSpend))
         }
     }
 

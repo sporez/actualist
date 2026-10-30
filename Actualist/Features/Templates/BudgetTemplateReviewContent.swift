@@ -91,7 +91,7 @@ private struct BudgetTemplateReviewCategoryCard: View {
         // tile's texts into one accessibility label. VoiceOver toggles the
         // tile through its name instead.
         card
-            .opacity(category.state == .included ? 1 : 0.45)
+            .opacity(category.state == .skipped ? 0.45 : 1)
             .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .onTapGesture { toggle?(category.id) }
     }
@@ -99,10 +99,19 @@ private struct BudgetTemplateReviewCategoryCard: View {
     @ViewBuilder
     private var card: some View {
         if category.state == .blocked {
-            title
-                .actualistReviewCard()
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("template-preview-category-\(category.id)")
+            VStack(alignment: .leading, spacing: 6) {
+                title
+                    .opacity(0.45)
+                if let blockedReasonText = category.blockedReasonText {
+                    Text(blockedReasonText)
+                        .font(.caption)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .actualistReviewCard()
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("template-preview-category-\(category.id)")
         } else {
             details
         }

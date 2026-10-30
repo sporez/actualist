@@ -141,7 +141,7 @@ extension BudgetTemplateEngine {
                 throw LocalFirstError.unsupportedTemplate("schedule")
             }
             guard entry.scheduleLookupKey != nil else {
-                throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
+                throw entry.missingScheduleError
             }
         case "goal":
             guard entry.amount != nil else {
@@ -166,23 +166,21 @@ extension BudgetTemplateEngine {
         for entry in entries where entry.type == "schedule" {
             if let scheduleID = entry.presentScheduleID {
                 guard activeScheduleIDs.contains(scheduleID) else {
-                    throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
+                    throw entry.missingScheduleError
                 }
             } else if let name = entry.trimmedScheduleName {
                 guard activeScheduleNames.contains(name) else {
-                    throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
+                    throw entry.missingScheduleError
                 }
             } else {
-                throw LocalFirstError.unsupportedTemplate(entry.missingScheduleReason)
+                throw entry.missingScheduleError
             }
         }
 
         let priorities = scheduleAndBy.compactMap { $0.priority }
         if let lowest = priorities.min() {
             for entry in scheduleAndBy where entry.priority != lowest {
-                throw LocalFirstError.unsupportedTemplate(
-                    "Schedule and By templates must be the same priority level. Fix by setting all Schedule and By templates to priority level \(lowest)"
-                )
+                throw LocalFirstError.template(.schedulePriorityMismatch)
             }
         }
 
@@ -196,9 +194,7 @@ extension BudgetTemplateEngine {
                 to: target
             )
             if distance < 0, entry.repeatInterval == nil, entry.annual != true {
-                throw LocalFirstError.unsupportedTemplate(
-                    "Target month has passed, remove or update the target month"
-                )
+                throw LocalFirstError.templateTargetMonthPassed
             }
         }
     }
@@ -217,18 +213,14 @@ extension BudgetTemplateEngine {
             $0.directive == "goal" && $0.type == "goal"
         }.count
         guard goalCount <= 1 else {
-            throw LocalFirstError.unsupportedTemplate(
-                "Only one #goal is allowed per category"
-            )
+            throw LocalFirstError.template(.duplicateType(.goal))
         }
     }
 
     func validateOneSpend(_ entries: [BudgetTemplateEntry]) throws {
         let spendCount = entries.filter { $0.type == "spend" }.count
         guard spendCount <= 1 else {
-            throw LocalFirstError.unsupportedTemplate(
-                "Only one spend template is allowed per category"
-            )
+            throw LocalFirstError.template(.duplicateSpend)
         }
     }
 
@@ -237,23 +229,17 @@ extension BudgetTemplateEngine {
             entries.filter { $0.type == "by" }.compactMap(\.priority)
         )
         guard byPriorities.count <= 1 else {
-            throw LocalFirstError.unsupportedTemplate(
-                "all by templates in a category must use the same priority"
-            )
+            throw LocalFirstError.template(.schedulePriorityMismatch)
         }
 
         let limits = entries.filter(Self.hasEffectiveLimit)
         guard limits.count <= 1 else {
-            throw LocalFirstError.unsupportedTemplate(
-                "only one up-to limit is supported per category"
-            )
+            throw LocalFirstError.template(.multipleLimits)
         }
 
         if entries.contains(where: { $0.type == "refill" }) {
             guard limits.count == 1 else {
-                throw LocalFirstError.unsupportedTemplate(
-                    "refill requires exactly one up-to limit"
-                )
+                throw LocalFirstError.template(.refillRequiresLimit)
             }
         }
     }

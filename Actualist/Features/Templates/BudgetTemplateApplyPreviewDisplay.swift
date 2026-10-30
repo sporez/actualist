@@ -20,6 +20,8 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         var shortfallText: String?
         var targetAmountText: String?
         var targetDetailText: String?
+        /// Why a blocked tile was left out and what to do about it.
+        var blockedReasonText: String? = nil
         var contributions: [Contribution]
     }
 
@@ -174,6 +176,7 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
                 metricAfterText: "",
                 statusText: blockedStatus(blocked.reason),
                 statusTone: .caution,
+                blockedReasonText: blockedReasonText(blocked.reason),
                 contributions: []
             )
         }
@@ -184,6 +187,15 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         switch reason {
         case .staleNote: "Template out of date"
         case .unsupported: "Template not supported"
+        case .refused: "Not applied"
+        }
+    }
+
+    private static func blockedReasonText(_ reason: BudgetTemplateApplyPreview.BlockedCategory.Reason) -> String? {
+        switch reason {
+        case .staleNote: BudgetTemplateCategoryLock.Reason.staleNotes.testerFacingReason
+        case .unsupported: nil
+        case .refused(let sentence): sentence
         }
     }
 
