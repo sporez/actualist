@@ -5,7 +5,7 @@ enum WidgetPreviewData {
     static var snapshot: WidgetSnapshot {
         let now = Date()
         func money(_ amount: Int) -> WidgetMoney {
-            WidgetMoney(minorUnits: amount, formatted: String(format: "$%.2f", Double(amount) / 100))
+            WidgetMoney(minorUnits: amount, formatted: (Double(amount) / 100).formatted(.currency(code: "USD")))
         }
         let names = ["Groceries", "Dining", "Transport", "Utilities", "Travel", "Home", "Gifts", "Health", "Shopping", "Savings", "Fuel", "Subscriptions", "Pets", "Insurance", "Education", "Fun"]
         let accounts = ["Checking", "Savings", "Credit Card", "Cash", "Brokerage", "Travel Card", "Reserve", "Joint Checking"]

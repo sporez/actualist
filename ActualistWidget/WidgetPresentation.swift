@@ -31,6 +31,8 @@ struct WidgetEmptyView: View {
     let title: String
     var detail = "Open Actualist to refresh this widget."
     var symbol = "arrow.clockwise"
+    /// For widgets that disable the system content margins.
+    var margin: CGFloat = 0
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
@@ -41,6 +43,7 @@ struct WidgetEmptyView: View {
                 Text(detail).font(.caption).foregroundStyle(palette.secondaryText).multilineTextAlignment(.center)
             }
         }
+        .padding(WidgetSizeSupport.isAccessory(family) ? 0 : margin)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

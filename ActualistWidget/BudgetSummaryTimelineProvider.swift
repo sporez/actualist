@@ -16,7 +16,10 @@ struct BudgetSummaryTimelineProvider: TimelineProvider {
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<BudgetSummaryEntry>) -> Void) {
         let value = entry()
-        completion(Timeline(entries: [value], policy: .after(WidgetMonthID.nextBoundary(after: value.date))))
+        let days = WidgetMonthID.dailyBoundaries(after: value.date).map {
+            BudgetSummaryEntry(date: $0, snapshot: value.snapshot, theme: value.theme)
+        }
+        completion(Timeline(entries: [value] + days, policy: .after(WidgetMonthID.nextBoundary(after: value.date))))
     }
     private func entry() -> BudgetSummaryEntry {
         BudgetSummaryEntry(date: .now, snapshot: WidgetFinancialProjection.currentSnapshot(WidgetSnapshotStore.live.load()), theme: WidgetThemeStore.live.load())
@@ -25,7 +28,8 @@ struct BudgetSummaryTimelineProvider: TimelineProvider {
 
 struct WidgetSummaryShell<Content: View>: View {
     @Environment(\.widgetPalette) private var palette
-    let title: String
+    /// Nil gives the content the whole widget, without the header and Updated line.
+    var title: String?
     let snapshot: WidgetSnapshot?
     let destination: URL
     @ViewBuilder let content: (WidgetSnapshot) -> Content
@@ -34,18 +38,18 @@ struct WidgetSummaryShell<Content: View>: View {
     var body: some View {
         Group {
             if let snapshot {
-                VStack(alignment: .leading, spacing: 8) {
-                    if !WidgetSizeSupport.isAccessory(family) {
+                VStack(alignment: .leading, spacing: title == nil ? 0 : 8) {
+                    if let title, !WidgetSizeSupport.isAccessory(family) {
                         Text(title).font(.caption.weight(.semibold)).foregroundStyle(palette.secondaryText)
                             .lineLimit(1).minimumScaleFactor(0.6)
                     }
                     content(snapshot)
-                    if WidgetSizeSupport.size(family) == .large || WidgetSizeSupport.size(family) == .extraLarge {
+                    if title != nil, WidgetSizeSupport.size(family) == .large || WidgetSizeSupport.size(family) == .extraLarge {
                         WidgetUpdatedLabel(date: snapshot.updatedAt)
                     }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
-                WidgetEmptyView(title: "Nothing to Show Yet")
+                WidgetEmptyView(title: "Nothing to Show Yet", margin: title == nil ? 16 : 0)
             }
         }
         .widgetURL(destination)
