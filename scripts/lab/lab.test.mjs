@@ -9,6 +9,7 @@ import path from 'node:path';
 import * as api from '@harness/api';
 import { buildBasic, buildLarge, buildPair, setAnchor } from './profiles.mjs';
 import { buildStandard } from './standard.mjs';
+import { buildTemplates } from './templates.mjs';
 
 const MANAGED_PREFIX = 'Lab · ';
 const url = (process.env.ACTUAL_LAB_URL ?? '').replace(/\/+$/, '');
@@ -128,6 +129,12 @@ async function create(rest) {
       return createBudget(named('Lab · Tracking'), () => buildBasic({ tracking: true }));
     case 'standard':
       return createBudget(named('Lab · Standard'), () => buildStandard({ months: intOpt(rest, '--months', 24) }));
+    case 'templates':
+      return createBudget(named('Lab · Templates'), () => buildTemplates({ tracking: false }));
+    case 'templates-tracking':
+      return createBudget(named('Lab · Templates Tracking'), () => buildTemplates({ tracking: true }));
+    case 'templates-notes':
+      return createBudget(named('Lab · Templates Notes'), () => buildTemplates({ notes: true }));
     case 'empty':
       return createBudget(named('Lab · Empty'), async () => {});
     case 'pair': {
@@ -141,7 +148,7 @@ async function create(rest) {
       return createBudget(named(`Lab · Large ${months}m x ${perMonth}`), () => buildLarge({ months, perMonth }));
     }
     default:
-      throw new Error(`unknown profile "${profile}" (basic, standard, tracking, pair, large, empty)`);
+      throw new Error(`unknown profile "${profile}" (basic, standard, tracking, templates, templates-tracking, templates-notes, pair, large, empty)`);
   }
 }
 
@@ -189,6 +196,60 @@ async function download(rest) {
   out(`downloaded "${name}" (fileId=${f.fileId}) to ${dir}: db.sqlite, metadata.json`);
 }
 
+// Opens a budget in a fresh upstream client, so it sees everything on the
+// server: unlike `download`, this includes messages other clients synced after
+// the last file upload.
+async function withClient(name, body) {
+  const f = (await listFiles()).find(x => x.name === name);
+  if (!f) throw new Error(`no budget named "${name}"`);
+  const dataDir = fs.mkdtempSync(path.join(scratchRoot, 'client-'));
+  await api.init({ dataDir, serverURL: url, password });
+  try {
+    await api.downloadBudget(f.groupId);
+    await api.sync();
+    await body();
+  } finally {
+    try { await api.shutdown(); } catch {}
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+}
+
+async function printMonth(key) {
+  const m = await api.getBudgetMonth(key);
+  out(`month ${key}  toBudget=${m.toBudget}  totalBudgeted=${m.totalBudgeted}  totalBalance=${m.totalBalance}`);
+  for (const group of m.categoryGroups) {
+    for (const c of group.categories) out(`${c.name}|budgeted=${c.budgeted}|spent=${c.spent}|balance=${c.balance}|received=${c.received ?? ''}`);
+  }
+}
+
+async function month(rest) {
+  const [name, key] = rest;
+  if (!name || !/^\d{4}-\d{2}$/.test(key ?? '')) throw new Error('month needs a name and YYYY-MM');
+  await withClient(name, () => printMonth(key));
+}
+
+// Runs Actual's own engine on the named categories of a managed budget, which
+// makes that budget a reference for what Actualist wrote on its twin. Upstream's
+// subset handler always overwrites, so a Fill Empty comparison passes only the
+// categories Fill Empty would touch.
+async function actualApply(rest) {
+  const [name, key, list] = rest;
+  if (!isManaged(name)) throw new Error(`refusing to apply to "${name}": only budgets named "${MANAGED_PREFIX}..." are managed`);
+  if (!/^\d{4}-\d{2}$/.test(key ?? '') || !list) throw new Error('apply needs a name, YYYY-MM and comma-separated category names');
+  await withClient(name, async () => {
+    const categories = await api.getCategories();
+    const categoryIds = list.split(',').map(wanted => {
+      const c = categories.find(x => x.name === wanted);
+      if (!c) throw new Error(`no category named "${wanted}"`);
+      return c.id;
+    });
+    const result = await api.internal.send('budget/apply-multiple-templates', { month: key, categoryIds });
+    out(`actual: ${result?.message ?? 'no result'}${result?.pre ? ` ${result.pre}` : ''}`);
+    await api.sync();
+    await printMonth(key);
+  });
+}
+
 test(`lab ${args[0]}`, async () => {
   if (!url) throw new Error('ACTUAL_LAB_URL is not set');
   fs.mkdirSync(scratchRoot, { recursive: true });
@@ -198,5 +259,7 @@ test(`lab ${args[0]}`, async () => {
   else if (cmd === 'delete') await del(rest);
   else if (cmd === 'wipe') await wipe(rest);
   else if (cmd === 'download') await download(rest);
+  else if (cmd === 'month') await month(rest);
+  else if (cmd === 'apply') await actualApply(rest);
   else throw new Error(`unknown command ${cmd}`);
 });

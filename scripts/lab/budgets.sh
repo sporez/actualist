@@ -1,11 +1,13 @@
 #!/bin/bash
 # Manage test budgets on the disposable lab Actual server. See README.md.
 #   budgets.sh list
-#   budgets.sh create <standard|basic|tracking|pair|large|empty> [--name <suffix>] [--anchor YYYY-MM] [--months N] [--per-month N]
+#   budgets.sh create <standard|basic|tracking|templates|templates-tracking|templates-notes|pair|large|empty> [--name <suffix>] [--anchor YYYY-MM] [--months N] [--per-month N]
 #   budgets.sh delete <name> | --all-managed
 #   budgets.sh reset
 #   budgets.sh wipe --yes        (deletes EVERY budget on the server)
 #   budgets.sh download <name> <dir>
+#   budgets.sh month <name> YYYY-MM
+#   budgets.sh apply <name> YYYY-MM <category,category>
 set -euo pipefail
 # /bin/pwd returns the on-disk case; bash's builtin keeps a mistyped one (cc vs CC),
 # and vitest then matches no test file.
@@ -17,9 +19,10 @@ if [ -f "$LAB_ENV" ]; then
   # shellcheck disable=SC1090
   source "$LAB_ENV"
 fi
+export ACTUALIST_PARITY_ORACLE_ROOT
 : "${ACTUAL_LAB_URL:?set ACTUAL_LAB_URL (or scripts/lib/lab.env); see scripts/lab/README.md}"
 : "${ACTUAL_LAB_PASSWORD:?set ACTUAL_LAB_PASSWORD (or scripts/lib/lab.env)}"
-usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 1 ] || usage
 CMD="$1"; shift
 
@@ -74,7 +77,7 @@ case "$CMD" in
   reset)
     announce
     run_node "$(json_args delete --all-managed)"
-    for p in standard tracking pair; do create_one "$p"; done
+    for p in standard tracking templates templates-tracking templates-notes pair; do create_one "$p"; done
     run_node "$(json_args list)" ;;
   wipe)
     [ "${1:-}" = "--yes" ] || { echo 'wipe deletes every budget on the lab server; pass --yes' >&2; exit 2; }
@@ -84,5 +87,12 @@ case "$CMD" in
     [ $# -eq 2 ] || usage
     mkdir -p "$2"
     run_node "$(json_args download "$1" "$(cd "$2" && /bin/pwd -P)")" ;;
+  month)
+    [ $# -eq 2 ] || usage
+    run_node "$(json_args month "$1" "$2")" ;;
+  apply)
+    [ $# -eq 3 ] || usage
+    announce
+    run_node "$(json_args apply "$1" "$2" "$3")" ;;
   *) usage ;;
 esac

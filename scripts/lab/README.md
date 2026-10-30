@@ -12,9 +12,11 @@ scripts/lab/budgets.sh list
 scripts/lab/budgets.sh create <profile> [--name <suffix>] [--anchor YYYY-MM] [--months N] [--per-month N]
 scripts/lab/budgets.sh delete "<name>"        # a managed name only
 scripts/lab/budgets.sh delete --all-managed
-scripts/lab/budgets.sh reset                  # delete all managed, create standard + tracking + pair
+scripts/lab/budgets.sh reset                  # delete all managed, create standard + tracking + the templates set + pair
 scripts/lab/budgets.sh wipe --yes             # delete EVERY budget on the server (empty-server flows)
 scripts/lab/budgets.sh download "<name>" <dir>
+scripts/lab/budgets.sh month "<name>" YYYY-MM   # read a month through Actual's own client
+scripts/lab/budgets.sh apply "<name>" YYYY-MM "<cat>,<cat>"   # run Actual's engine on those categories
 ```
 
 ## Configuration
@@ -61,6 +63,9 @@ the file is re-uploaded so a fresh download already contains the data.
 | `tracking` | `Lab · Tracking` | Same shape as `basic`, tracking (report) budget type. |
 | `pair` | `Lab · Pair A`, `Lab · Pair B` | Two small budgets for budget-switching checks. |
 | `large` | `Lab · Large <months>m x <per-month>` | Multi-year history for upgrade timing. `--months` (default 36), `--per-month` (default 150). Prints the `messages_crdt` count. |
+| `templates` | `Lab · Templates` | Fixed Apply Templates scenario (envelope): 6,000 income, a mix of empty and budgeted categories, a Save by Date, a Remainder, and one template whose target month has passed. |
+| `templates-tracking` | `Lab · Templates Tracking` | The same scenario in a tracking budget, plus an income template. |
+| `templates-notes` | `Lab · Templates Notes` | The envelope scenario written as note templates in Actual's own syntax, plus one category whose note changed after Actual stored it, so it really is out of date. |
 | `empty` | `Lab · Empty` | A new, empty budget. |
 
 `--name <suffix>` names the budget `Lab · <suffix>` (not for `pair`).
@@ -76,6 +81,25 @@ upgrade-timing harness:
 scripts/lab/budgets.sh download "Lab · Standard" .artifacts/lab/dl
 sqlite3 .artifacts/lab/dl/db.sqlite 'SELECT COUNT(*) FROM messages_crdt'
 ```
+
+## Comparing an Apply Templates run with Actual
+
+Create the scenario twice, apply in Actualist to one copy and with `apply` to
+the other, then compare `month` output. `month` syncs a fresh upstream client,
+so it sees what Actualist uploaded; `download` does not, because the server
+file only changes on a full upload.
+
+```sh
+scripts/lab/budgets.sh create templates
+scripts/lab/budgets.sh create templates --name "Templates Twin"
+# Apply in Actualist to "Lab · Templates", then:
+scripts/lab/budgets.sh apply "Lab · Templates Twin" 2026-10 "Rent,Car Fund,Savings"
+scripts/lab/budgets.sh month "Lab · Templates" 2026-10
+scripts/lab/budgets.sh month "Lab · Templates Twin" 2026-10
+```
+
+Upstream's subset handler always overwrites. For a Fill Empty comparison, list
+only the categories Fill Empty would touch.
 
 ## Notes on the implementation
 
