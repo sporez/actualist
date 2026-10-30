@@ -351,4 +351,26 @@ struct BudgetTemplateApplyPreviewDisplayTests {
         #expect(BudgetCurrency.usd.signedFormatted(0) == BudgetCurrency.usd.formatted(0))
         #expect(BudgetCurrency.jpy.signedFormatted(1_200) == "+" + BudgetCurrency.jpy.formatted(1_200))
     }
+
+    @Test func reviewTilesKeepFullRunOrderThenAddedThenBlocked() {
+        func category(_ id: String, proposed: Int) -> BudgetTemplateApplyPreview.Category {
+            .init(categoryID: id, name: id.capitalized, current: 0, proposed: proposed, perTemplate: [proposed],
+                  drafts: [], metric: .init(kind: .available, before: 0, after: proposed))
+        }
+        var snapshot = preview(categories: [category("rent", proposed: 10_000), category("fun", proposed: 500)])
+        snapshot.baselineTileIDs = ["groceries", "rent"]
+        snapshot.skipped = [category("groceries", proposed: 2_000)]
+        snapshot.blocked = [.init(categoryID: "gym", name: "Gym", reason: .staleNote)]
+        let tiles = BudgetTemplateApplyPreviewDisplay.make(preview: snapshot, randomized: false).categories
+        #expect(tiles.map(\.id) == ["groceries", "rent", "fun", "gym"])
+        #expect(tiles.map(\.state) == [.skipped, .included, .included, .blocked])
+        #expect(tiles.map(\.isToggleable) == [true, true, false, false])
+        // A skipped tile keeps the content the full run showed for it.
+        #expect(tiles[0].budgetedChangeText == "+" + BudgetCurrency.usd.formatted(2_000))
+        #expect(tiles[3].statusText == "Template out of date")
+        #expect(tiles.map(\.state.accessibilityValue) == ["Skipped", "Included", "Included", "Skipped"])
+
+        let hidden = BudgetTemplateApplyPreviewDisplay.make(preview: snapshot, randomized: true).categories
+        #expect(hidden[3].name != "Gym")
+    }
 }

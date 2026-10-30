@@ -8,7 +8,7 @@ struct BudgetTemplateConfirmationSheet: View {
     let modeIdentity: BudgetModeIdentity?
     let localDataRevision: UInt64
     let cancel: () -> Void
-    let apply: (BudgetTemplateConfirmation, BudgetTemplateReviewRevision) -> Void
+    let apply: (BudgetTemplateConfirmation, BudgetTemplateReviewRevision, Set<String>) -> Void
 
     @State private var viewModel = BudgetTemplateApplyPreviewViewModel()
 
@@ -21,6 +21,7 @@ struct BudgetTemplateConfirmationSheet: View {
         let budgetID: String?
         let localDataRevision: UInt64
         let randomized: Bool
+        let skippedCategoryIDs: Set<String>
     }
 
     private var loadKey: LoadKey {
@@ -31,7 +32,8 @@ struct BudgetTemplateConfirmationSheet: View {
             modeIdentity: modeIdentity,
             budgetID: appState.settings.selectedBudgetID,
             localDataRevision: localDataRevision,
-            randomized: appState.settings.randomizedDisplayValuesEnabled
+            randomized: appState.settings.randomizedDisplayValuesEnabled,
+            skippedCategoryIDs: viewModel.skippedCategoryIDs
         )
     }
 
@@ -49,7 +51,10 @@ struct BudgetTemplateConfirmationSheet: View {
                 }
 
                 if let display = viewModel.display {
-                    BudgetTemplateReviewContent(display: display)
+                    BudgetTemplateReviewContent(
+                        display: display,
+                        toggle: isMonthConfirmation ? { viewModel.toggleCategory($0) } : nil
+                    )
                 } else if viewModel.phase == .loading {
                     ProgressView("Loading preview")
                         .frame(maxWidth: .infinity)
@@ -74,7 +79,7 @@ struct BudgetTemplateConfirmationSheet: View {
                     tint: selectedConfirmation.buttonTint
                 ) {
                     guard let reviewRevision = viewModel.reviewRevision else { return }
-                    apply(selectedConfirmation, reviewRevision)
+                    apply(selectedConfirmation, reviewRevision, viewModel.reviewedExclusions)
                 } label: {
                     Text(selectedConfirmation.actionTitle)
                 }

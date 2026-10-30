@@ -354,13 +354,15 @@ struct BudgetView: View {
 
     private func applyTemplate(
         _ confirmation: BudgetTemplateConfirmation,
-        reviewRevision: BudgetTemplateReviewRevision
+        reviewRevision: BudgetTemplateReviewRevision,
+        excluded: Set<String>
     ) {
         Task {
             guard let budgetID = appState.settings.selectedBudgetID else { return }
             let applied = await BudgetTemplateWorkflow.applyReviewed(
                 confirmation,
                 revision: reviewRevision,
+                excluding: excluded,
                 model: viewModel,
                 budgetID: budgetID,
                 repository: appState.budgetRepository

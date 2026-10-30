@@ -281,6 +281,65 @@ final class CategoryLifecycleUITests: XCTestCase {
         XCTAssertTrue(apply.waitForNonExistence(timeout: 10))
     }
 
+    func testCompactTemplatePreviewSkipsATileAndAppliesTheRest() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        guard app.frame.width < 792 else { throw XCTSkip("Requires a compact native window") }
+        XCTAssertTrue(app.buttons["Budget Actions"].waitForExistence(timeout: 15))
+        app.buttons["Budget Actions"].tap()
+        app.buttons["Templates"].tap()
+        app.buttons["Apply Template Overwrite"].tap()
+
+        let apply = app.buttons["template-apply-confirm"]
+        let tiles = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
+        )
+        XCTAssertTrue(tiles.firstMatch.waitForExistence(timeout: 10))
+        // Tiles load lazily, so count from the review's own Categories label.
+        let countLabel = app.staticTexts.matching(
+            NSPredicate(format: "label ENDSWITH ' categories'")
+        ).firstMatch
+        XCTAssertTrue(countLabel.waitForExistence(timeout: 5), "The demo month needs at least two template tiles")
+        let tileCount = try XCTUnwrap(Int(countLabel.label.split(separator: " ")[0]))
+        let tile = tiles.element(boundBy: 0)
+        let name = tile.descendants(matching: .any)["template-review-tile-name"]
+        XCTAssertEqual(name.value as? String, "Included")
+
+        tile.tap()
+        XCTAssertTrue(waitForValue("Skipped", of: name))
+        XCTAssertTrue(tile.exists, "A skipped tile stays in the list")
+        XCTAssertTrue(app.staticTexts[Self.categoryCount(tileCount - 1)].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForEnabled(apply))
+        attachScreenshot(named: "template-preview-skipped-tile")
+
+        tile.tap()
+        XCTAssertTrue(waitForValue("Included", of: name))
+        XCTAssertTrue(app.staticTexts[Self.categoryCount(tileCount)].firstMatch.waitForExistence(timeout: 5))
+        tile.tap()
+        XCTAssertTrue(waitForValue("Skipped", of: name))
+        XCTAssertTrue(waitForEnabled(apply))
+        apply.tap()
+        XCTAssertTrue(apply.waitForNonExistence(timeout: 10))
+    }
+
+    private static func categoryCount(_ count: Int) -> String {
+        count == 1 ? "1 category" : "\(count) categories"
+    }
+
+    private func waitForValue(_ value: String, of element: XCUIElement) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", value), object: element
+        )
+        return XCTWaiter().wait(for: [expectation], timeout: 5) == .completed
+    }
+
+    private func waitForEnabled(_ element: XCUIElement) -> Bool {
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == true"), object: element
+        )
+        return XCTWaiter().wait(for: [expectation], timeout: 10) == .completed
+    }
+
     func testCompactTemplatePreviewSurvivesAppSwitcherReturn() throws {
         XCUIDevice.shared.orientation = .portrait
         let app = launchDemo()
@@ -332,6 +391,12 @@ final class CategoryLifecycleUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
         ).firstMatch.waitForExistence(timeout: 5))
         attachScreenshot(named: "template-preview-light-overwrite")
+        let firstTile = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
+        ).firstMatch
+        firstTile.tap()
+        XCTAssertTrue(waitForValue("Skipped", of: firstTile.descendants(matching: .any)["template-review-tile-name"]))
+        attachScreenshot(named: "template-preview-light-skipped-tile")
         app.buttons["Cancel"].tap()
         app.terminate()
 

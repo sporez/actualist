@@ -3,6 +3,8 @@ import SwiftUI
 /// Presentation only: all amounts, statuses and explanatory copy are prepared by the preview display.
 struct BudgetTemplateReviewContent: View {
     let display: BudgetTemplateApplyPreviewDisplay
+    /// Skips or includes a tile; the view model decides which tiles can.
+    var toggle: ((String) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -53,7 +55,10 @@ struct BudgetTemplateReviewContent: View {
 
                 LazyVStack(spacing: 10) {
                     ForEach(display.categories) { category in
-                        BudgetTemplateReviewCategoryCard(category: category)
+                        BudgetTemplateReviewCategoryCard(
+                            category: category,
+                            toggle: category.isToggleable ? toggle : nil
+                        )
                     }
                 }
             }
@@ -79,8 +84,31 @@ struct BudgetTemplateReviewContent: View {
 
 private struct BudgetTemplateReviewCategoryCard: View {
     let category: BudgetTemplateApplyPreviewDisplay.Category
+    let toggle: ((String) -> Void)?
 
     var body: some View {
+        // A plain tap area rather than a Button: a Button would merge the
+        // tile's texts into one accessibility label. VoiceOver toggles the
+        // tile through its name instead.
+        card
+            .opacity(category.state == .included ? 1 : 0.45)
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .onTapGesture { toggle?(category.id) }
+    }
+
+    @ViewBuilder
+    private var card: some View {
+        if category.state == .blocked {
+            title
+                .actualistReviewCard()
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("template-preview-category-\(category.id)")
+        } else {
+            details
+        }
+    }
+
+    private var details: some View {
         VStack(alignment: .leading, spacing: 10) {
             ViewThatFits(in: .horizontal) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -163,10 +191,7 @@ private struct BudgetTemplateReviewCategoryCard: View {
     private var title: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                Text(category.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(ActualistTheme.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                name
                 Text(category.statusText)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(statusColor)
@@ -188,6 +213,26 @@ private struct BudgetTemplateReviewCategoryCard: View {
         switch category.statusTone {
         case .positive: ActualistTheme.positive
         case .caution: ActualistTheme.warning
+        }
+    }
+
+    /// The name carries the tile's Included/Skipped state for VoiceOver.
+    @ViewBuilder
+    private var name: some View {
+        let text = Text(category.name)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(ActualistTheme.primaryText)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("template-review-tile-name")
+        if let toggle {
+            text
+                .accessibilityValue(category.state.accessibilityValue)
+                .accessibilityAddTraits(.isToggle)
+                .accessibilityAction { toggle(category.id) }
+        } else if category.state != .included {
+            text.accessibilityValue(category.state.accessibilityValue)
+        } else {
+            text
         }
     }
 

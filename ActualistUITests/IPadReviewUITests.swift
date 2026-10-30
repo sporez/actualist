@@ -34,7 +34,17 @@ final class IPadReviewUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
         ).firstMatch.waitForExistence(timeout: 5))
         screenshot("review-wide-template-overwrite")
-        XCTAssertTrue(confirm.isEnabled)
+        let tile = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'template-preview-category-'")
+        ).firstMatch
+        tile.tap()
+        let skipped = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == 'Skipped'"), object: tile.descendants(matching: .any)["template-review-tile-name"]
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [skipped], timeout: 5), .completed)
+        let enabled = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isEnabled == true"), object: confirm)
+        XCTAssertEqual(XCTWaiter().wait(for: [enabled], timeout: 10), .completed)
+        screenshot("review-wide-template-skipped-tile")
         confirm.tap()
         XCTAssertTrue(confirm.waitForNonExistence(timeout: 10))
     }

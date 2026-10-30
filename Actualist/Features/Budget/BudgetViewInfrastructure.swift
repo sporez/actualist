@@ -52,7 +52,7 @@ struct BudgetTemplateConfirmationModifier: ViewModifier {
     var month: String?
     var modeIdentity: BudgetModeIdentity?
     var localDataRevision: UInt64
-    let apply: (BudgetTemplateConfirmation, BudgetTemplateReviewRevision) -> Void
+    let apply: (BudgetTemplateConfirmation, BudgetTemplateReviewRevision, Set<String>) -> Void
 
     func body(content: Content) -> some View {
         content.sheet(item: $confirmation) { confirmation in
@@ -65,9 +65,9 @@ struct BudgetTemplateConfirmationModifier: ViewModifier {
                 cancel: {
                     self.confirmation = nil
                 },
-                apply: { selectedConfirmation, reviewRevision in
+                apply: { selectedConfirmation, reviewRevision, excluded in
                     self.confirmation = nil
-                    apply(selectedConfirmation, reviewRevision)
+                    apply(selectedConfirmation, reviewRevision, excluded)
                 }
             )
             .presentationDetents([.large])

@@ -108,15 +108,49 @@ final class BudgetTemplateApplyPreviewViewModel {
     }
 
     var canApply: Bool {
-        phase == .ready && errorMessage == nil && reviewRevision != nil
+        phase == .ready && errorMessage == nil && reviewRevision != nil && leavesSomethingToApply
+    }
+
+    /// The categories the reviewed apply must leave out: the selected mode's
+    /// skipped and blocked tiles, exactly as its preview priced them.
+    var reviewedExclusions: Set<String> {
+        guard case .paired(let pair, _) = state else { return [] }
+        return selectedPreview(in: pair)?.excludedCategoryIDs ?? []
+    }
+
+    /// False when every tile is skipped or blocked, so Apply would do nothing
+    /// the user can see.
+    private var leavesSomethingToApply: Bool {
+        guard case .paired(let pair, _) = state, let preview = selectedPreview(in: pair) else { return true }
+        return !preview.categories.isEmpty || (preview.skipped.isEmpty && preview.blocked.isEmpty)
     }
 
     func cancel() {
         loadGeneration += 1
         state = .idle
         selectedMode = nil
+        skippedCategoryIDs = []
         requestContext = nil
         completedRequest = nil
+    }
+
+    /// Skips a tile, or includes it again. Only tiles the full run shows can
+    /// be toggled; blocked tiles and tiles only the reduced run adds cannot.
+    /// The sheet reloads the preview because the skip set is part of its key.
+    func toggleCategory(_ categoryID: String) {
+        guard let preview = displayedMonthPreview(in: state),
+              preview.baselineTileIDs.contains(categoryID) else { return }
+        if skippedCategoryIDs.remove(categoryID) == nil {
+            skippedCategoryIDs.insert(categoryID)
+        }
+    }
+
+    private func displayedMonthPreview(in state: State) -> BudgetTemplateApplyPreview? {
+        switch state {
+        case .refreshing(let previous): displayedMonthPreview(in: previous)
+        case .paired(let pair, _): selectedPreview(in: pair)
+        case .idle, .loading, .categoryReady, .failed: nil
+        }
     }
 
     func selectMode(_ mode: Mode) {
@@ -143,7 +177,8 @@ final class BudgetTemplateApplyPreviewViewModel {
                 modeIdentity: modeIdentity,
                 randomized: randomized
             ),
-            revision: revision
+            revision: revision,
+            skippedCategoryIDs: skippedCategoryIDs
         )
         guard completedRequest != request else { return }
         let expectedGeneration = loadGeneration + 1
@@ -157,7 +192,8 @@ final class BudgetTemplateApplyPreviewViewModel {
             repository: repository
         )
         if !Task.isCancelled, loadGeneration == expectedGeneration,
-           requestContext == request.context, phase != .idle {
+           requestContext == request.context, skippedCategoryIDs == request.skippedCategoryIDs,
+           phase != .idle {
             completedRequest = request
         }
     }
@@ -183,6 +219,10 @@ final class BudgetTemplateApplyPreviewViewModel {
         )
         let sameContext = requestContext == context
         let shouldResetSelection = !sameContext || selectedMode == nil
+        // Skips belong to one budget, month and review; Sample Values keep them.
+        if requestContext?.reviewIdentity != context.reviewIdentity {
+            skippedCategoryIDs = []
+        }
         requestContext = context
         if shouldResetSelection {
             selectedMode = mode(for: confirmation)
@@ -308,10 +348,18 @@ final class BudgetTemplateApplyPreviewViewModel {
         let budgetID: String?
         let modeIdentity: BudgetModeIdentity?
         let randomized: Bool
+
+        var reviewIdentity: RequestContext {
+            RequestContext(
+                confirmation: confirmation, categoryID: categoryID, month: month,
+                budgetID: budgetID, modeIdentity: modeIdentity, randomized: false
+            )
+        }
     }
 
     private struct PreviewRequest: Equatable {
         let context: RequestContext
         let revision: UInt64
+        let skippedCategoryIDs: Set<String>
     }
 }

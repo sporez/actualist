@@ -119,9 +119,11 @@ final class BudgetTemplateWorkflow {
 
     /// Routes a reviewed sheet action through the workflow that owns its
     /// submission state; the view only supplies the selected intent and context.
+    /// `excluding` holds the categories the review left out of a month apply.
     static func applyReviewed(
         _ confirmation: BudgetTemplateConfirmation,
         revision: BudgetTemplateReviewRevision,
+        excluding excluded: Set<String> = [],
         model: BudgetViewModel,
         budgetID: String,
         repository: any BudgetRepositoryProtocol
@@ -134,12 +136,12 @@ final class BudgetTemplateWorkflow {
         switch confirmation {
         case .monthFillEmpty:
             return await model.applyMonthTemplate(
-                .fillEmpty, budgetID: budgetID, expectedMode: revision.modeIdentity,
+                .fillEmpty.excluding(excluded), budgetID: budgetID, expectedMode: revision.modeIdentity,
                 reviewRevision: revision, repository: repository
             )
         case .monthOverwrite:
             return await model.applyMonthTemplate(
-                .overwrite, budgetID: budgetID, expectedMode: revision.modeIdentity,
+                .overwrite.excluding(excluded), budgetID: budgetID, expectedMode: revision.modeIdentity,
                 reviewRevision: revision, repository: repository
             )
         case .category:

@@ -19,8 +19,12 @@ struct BudgetWorkspaceSheets: ViewModifier {
                 month: actions.actionMonth,
                 modeIdentity: viewport.modeIdentity,
                 localDataRevision: appState.localDataRevision,
-                apply: { confirmation, reviewRevision in
-                    Task { await actions.applyConfirmation(confirmation, reviewRevision: reviewRevision, using: appState) }
+                apply: { confirmation, reviewRevision, excluded in
+                    Task {
+                        await actions.applyConfirmation(
+                            confirmation, reviewRevision: reviewRevision, excluding: excluded, using: appState
+                        )
+                    }
                 }
             ))
             .sensoryFeedback(.success, trigger: actions.categoryLifecycle.successFeedback)

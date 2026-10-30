@@ -279,6 +279,7 @@ final class BudgetWorkspaceActions {
     func applyConfirmation(
         _ confirmation: BudgetTemplateConfirmation,
         reviewRevision: BudgetTemplateReviewRevision,
+        excluding excluded: Set<String> = [],
         using appState: AppState
     ) async {
         guard let actionModel, let actionBudgetID, let actionMonth else {
@@ -293,6 +294,7 @@ final class BudgetWorkspaceActions {
         let succeeded = await BudgetTemplateWorkflow.applyReviewed(
             confirmation,
             revision: reviewRevision,
+            excluding: excluded,
             model: actionModel,
             budgetID: actionBudgetID,
             repository: viewport.repository

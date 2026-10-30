@@ -6,6 +6,9 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
     struct Category: Equatable, Identifiable, Sendable {
         var id: String
         var name: String
+        var state: TileState = .included
+        /// Only tiles of the month review that the full run shows can be skipped.
+        var isToggleable = false
         /// Signed change to this month's Budgeted amount.
         var budgetedChangeText: String
         var metricTitle: String
@@ -18,6 +21,17 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         var targetAmountText: String?
         var targetDetailText: String?
         var contributions: [Contribution]
+    }
+
+    enum TileState: Equatable, Sendable {
+        case included
+        case skipped
+        /// The template can't be applied, so the category is left out.
+        case blocked
+
+        var accessibilityValue: String {
+            self == .included ? "Included" : "Skipped"
+        }
     }
 
     enum StatusTone: Equatable, Sendable {
@@ -71,8 +85,11 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         let hasGoalOnlyUpdates = preview.categories.contains { $0.isGoalOnlyUpdate }
         let hasNoFundsWarning = preview.assigned == 0 && preview.released == 0
             && !hasGoalOnlyUpdates && preview.stillNeeded > 0
+        let leavesTilesOut = !preview.skipped.isEmpty || !preview.blocked.isEmpty
         let noOpExplanation: String? = {
             guard preview.assigned == 0, preview.released == 0, !hasGoalOnlyUpdates else { return nil }
+            // Skipped or blocked tiles already explain an empty apply.
+            if leavesTilesOut, preview.categories.isEmpty { return nil }
             if hasNoFundsWarning { return "There is not enough money left to fund the remaining templates." }
             return preview.hasEligibleTemplates
                 ? "Every category already matches its template."
@@ -118,43 +135,88 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
             noOpExplanation: noOpExplanation,
             hasNoFundsWarning: hasNoFundsWarning,
             warningText: preview.availableAfter < 0 ? "You will be over budget after applying." : nil,
-            categories: preview.categories.map { category in
-                Category(
-                    id: category.categoryID,
-                    name: name(category, randomized: randomized),
-                    budgetedChangeText: randomized
-                        ? "Hidden"
-                        : currency.signedFormatted(category.proposed - category.current),
-                    metricTitle: category.metric.title,
-                    metricBeforeText: money(
-                        category.metric.before,
-                        currency: currency,
-                        randomized: isPrivate
-                    ),
-                    metricAfterText: money(
-                        category.metric.after,
-                        currency: currency,
-                        randomized: isPrivate
-                    ),
-                    statusText: status(for: category),
-                    statusTone: statusTone(for: category),
-                    priorityText: priorityText(for: category.priorityLevels),
-                    shortfallText: category.shortfall > 0 ? money(
-                        category.shortfall,
-                        currency: currency,
-                        randomized: isPrivate
-                    ) : nil,
-                    targetAmountText: category.shortfall > 0 ? category.goalAfter.map {
-                        money($0, currency: currency, randomized: isPrivate)
-                    } : nil,
-                    targetDetailText: targetDetailText(for: category, currency: currency, randomized: isPrivate),
-                    contributions: contributions(
-                        category,
-                        currency: currency,
-                        randomized: randomized
-                    )
-                )
+            categories: tiles(preview, currency: currency, randomized: randomized)
+        )
+    }
+
+    /// The full run's tiles in its order, each included or skipped, then any
+    /// tile only the reduced run adds, then blocked categories.
+    private static func tiles(
+        _ preview: BudgetTemplateApplyPreview,
+        currency: BudgetCurrency,
+        randomized: Bool
+    ) -> [Category] {
+        let included = Dictionary(uniqueKeysWithValues: preview.categories.map { ($0.categoryID, $0) })
+        let skipped = Dictionary(uniqueKeysWithValues: preview.skipped.map { ($0.categoryID, $0) })
+        let baseline = preview.baselineTileIDs
+        var tiles: [Category] = baseline.compactMap { id in
+            if let category = skipped[id] {
+                return tile(category, state: .skipped, isToggleable: true, currency: currency, randomized: randomized)
             }
+            return included[id].map {
+                tile($0, state: .included, isToggleable: true, currency: currency, randomized: randomized)
+            }
+        }
+        let listed = Set(baseline)
+        tiles += preview.categories.filter { !listed.contains($0.categoryID) }.map {
+            tile($0, state: .included, isToggleable: false, currency: currency, randomized: randomized)
+        }
+        tiles += preview.blocked.map { blocked in
+            Category(
+                id: blocked.categoryID,
+                name: randomized
+                    ? PrivacyDisplay.name(for: .category, seed: "template-apply-category-\(blocked.categoryID)")
+                    : blocked.name.actualistCategoryNameParts.name,
+                state: .blocked,
+                budgetedChangeText: "",
+                metricTitle: "",
+                metricBeforeText: "",
+                metricAfterText: "",
+                statusText: blockedStatus(blocked.reason),
+                statusTone: .caution,
+                contributions: []
+            )
+        }
+        return tiles
+    }
+
+    private static func blockedStatus(_ reason: BudgetTemplateApplyPreview.BlockedCategory.Reason) -> String {
+        switch reason {
+        case .staleNote: "Template out of date"
+        case .unsupported: "Template not supported"
+        }
+    }
+
+    private static func tile(
+        _ category: BudgetTemplateApplyPreview.Category,
+        state: TileState,
+        isToggleable: Bool,
+        currency: BudgetCurrency,
+        randomized: Bool
+    ) -> Category {
+        let isPrivate = randomized
+        return Category(
+            id: category.categoryID,
+            name: name(category, randomized: randomized),
+            state: state,
+            isToggleable: isToggleable,
+            budgetedChangeText: randomized
+                ? "Hidden"
+                : currency.signedFormatted(category.proposed - category.current),
+            metricTitle: category.metric.title,
+            metricBeforeText: money(category.metric.before, currency: currency, randomized: isPrivate),
+            metricAfterText: money(category.metric.after, currency: currency, randomized: isPrivate),
+            statusText: status(for: category),
+            statusTone: statusTone(for: category),
+            priorityText: priorityText(for: category.priorityLevels),
+            shortfallText: category.shortfall > 0
+                ? money(category.shortfall, currency: currency, randomized: isPrivate)
+                : nil,
+            targetAmountText: category.shortfall > 0 ? category.goalAfter.map {
+                money($0, currency: currency, randomized: isPrivate)
+            } : nil,
+            targetDetailText: targetDetailText(for: category, currency: currency, randomized: isPrivate),
+            contributions: contributions(category, currency: currency, randomized: randomized)
         )
     }
 

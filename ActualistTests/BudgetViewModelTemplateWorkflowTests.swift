@@ -30,6 +30,15 @@ struct BudgetViewModelTemplateWorkflowTests {
         #expect(await repo.recordedTemplates().count == 2)
     }
 
+    @Test func reviewedMonthModeCarriesTheReviewsExclusions() async throws {
+        let (model, repo, revision, _) = try reviewedFixture()
+        #expect(await BudgetTemplateWorkflow.applyReviewed(
+            .monthFillEmpty, revision: revision, excluding: ["dining", "rent"], model: model,
+            budgetID: "fixture", repository: repo
+        ))
+        #expect(await repo.recordedTemplates().map(\.command) == [.fillEmpty.excluding(["dining", "rent"])])
+    }
+
     @Test func reviewedCategoryUsesCapturedDraftAndReviewedRepository() async throws {
         let (model, repo, revision, loaded) = try reviewedFixture()
         let category = try #require(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "mortgage" })
