@@ -64,6 +64,29 @@ struct BudgetTemplateApplyPreview: Equatable, Sendable {
     var hasEligibleTemplates: Bool = false
     /// The exact SQLite revision used to calculate this preview.
     var reviewRevision: BudgetTemplateReviewRevision? = nil
+    /// Month review only. Categories the review skipped, with the content the
+    /// full run showed for them. `categories` and the totals leave them out.
+    var skipped: [Category] = []
+    /// Month review only. Categories whose template can't be applied. They are
+    /// left out of the run instead of failing the whole review.
+    var blocked: [BlockedCategory] = []
+    /// Month review only. Every category this preview left out (skipped and
+    /// blocked); the reviewed apply must exclude exactly these.
+    var excludedCategoryIDs: Set<String> = []
+    /// Month review only. The tiles the full run shows, in its order. Only
+    /// these can be skipped. Empty for a single-category preview.
+    var baselineTileIDs: [String] = []
+
+    struct BlockedCategory: Equatable, Sendable {
+        enum Reason: Equatable, Sendable {
+            case staleNote
+            case unsupported
+        }
+
+        var categoryID: String
+        var name: String
+        var reason: Reason
+    }
 
     struct Category: Equatable, Sendable {
         var categoryID: String

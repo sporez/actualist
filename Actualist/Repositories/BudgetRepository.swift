@@ -129,9 +129,12 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgetID: String,
         month: String
     ) async throws -> BudgetTemplateApplyPreview
+    /// `excluding` holds the categories the review has skipped; each mode
+    /// applies only the ones it lists (see `BudgetTemplateApplyPreview`).
     func previewBudgetTemplatePair(
         budgetID: String,
-        month: String
+        month: String,
+        excluding: Set<String>
     ) async throws -> BudgetTemplateApplyPreviewPair
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
         command: BudgetMoveMoneyCommand,
@@ -253,7 +256,8 @@ extension BudgetRepositoryProtocol {
 
     func previewBudgetTemplatePair(
         budgetID: String,
-        month: String
+        month: String,
+        excluding: Set<String>
     ) async throws -> BudgetTemplateApplyPreviewPair {
         throw LocalFirstError.unsupportedWrite
     }
@@ -339,11 +343,21 @@ enum BudgetTemplateApplicationMode: String, Codable, Hashable, Sendable {
 struct BudgetTemplateCommand: Hashable, Sendable {
     let mode: BudgetTemplateApplicationMode
     let categoryIDs: [String]
+    /// Categories left out of the run. Their budgets and goals are not
+    /// written, and their existing budgets stay spent from To Budget, as with
+    /// Actual's `apply-multiple-templates` over the remaining categories.
+    var excludedCategoryIDs: Set<String> = []
 
     static let fillEmpty = BudgetTemplateCommand(mode: .fillEmpty, categoryIDs: [])
     static let overwrite = BudgetTemplateCommand(mode: .overwrite, categoryIDs: [])
 
     static func category(_ categoryID: String) -> BudgetTemplateCommand {
         BudgetTemplateCommand(mode: .overwrite, categoryIDs: [categoryID])
+    }
+
+    func excluding(_ categoryIDs: Set<String>) -> BudgetTemplateCommand {
+        var command = self
+        command.excludedCategoryIDs = categoryIDs
+        return command
     }
 }

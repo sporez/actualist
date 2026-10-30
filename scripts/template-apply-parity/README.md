@@ -33,8 +33,8 @@ committed files through `scripts/parity/lib/fixture-diff.mjs`. Without the oracl
 it exits non-zero. `verify.mjs` needs no oracle. Any edit to `generate.mjs` or
 the harness changes its hash, so regenerate, then run `--check` and `verify.mjs`.
 
-The oracle run takes about 4 seconds for 135 cases on the pinned checkout. The
-committed contract is about 1.6 MB.
+The oracle run takes about 5 seconds for 166 cases on the pinned checkout. The
+committed contract is about 2 MB.
 
 ## Scope
 
@@ -44,12 +44,13 @@ committed contract is about 1.6 MB.
   UI template amounts are display units, as Actual parses them.
 - The date seam is `global.currentMonth = '2026-10'`. Schedule targets use
   `current_month`, so no clock mock is needed.
-- Operation months are 2026-10 through 2027-01. Each case applies or overwrites
-  one of them.
+- Operation months are 2026-10 through 2027-01. Each case applies, overwrites
+  or runs a subset apply (see "Excluding cases") in one of them.
 
 ## Cases
 
-135 cases: 120 generated and 15 named.
+166 cases: 135 whole-month cases (120 generated and 15 named), followed by 31
+excluding cases (see "Excluding cases").
 
 Generated cases cover 8 families (`fixed`, `priority`, `schedule`,
 `average-copy`, `percent`, `remainder`, `goal-by`, `limit-refill`) crossed with
@@ -78,6 +79,72 @@ Named cases are fixed:
 | `tapply-named-apply-skips-budgeted` | Apply leaves a category that already has a budget unchanged |
 | `tapply-named-no-templates` | Apply with no template definitions reports up to date |
 | `tapply-named-orphan-goal-reset` | A stored goal with no template definition is reset |
+
+## Excluding cases
+
+The last 31 cases call `budget/apply-multiple-templates` over a subset of the
+month's categories. They are the oracle for an apply that skips chosen
+categories. They are appended after the 135 whole-month cases, which keep their
+IDs, order and content (their recorded output is byte-identical).
+
+Each case records this operation:
+
+```json
+{ "kind": "overwrite-excluding" | "fill-empty-excluding", "month": "YYYY-MM",
+  "excludedCategoryIds": ["..."], "categoryIds": ["..."] }
+```
+
+`excludedCategoryIds` is fixed by the case. `categoryIds` is the exact list given
+to the handler, computed in the harness from the seeded state just before the
+operation:
+
+- `overwrite-excluding`: the whole-month scope minus the excluded categories.
+  The whole-month scope is what Actual's whole-month apply iterates
+  (`getCategories()` in `goal-template.ts`: visible groups, visible
+  categories, tombstones dropped, and income categories dropped unless the
+  budget is tracking), in that order.
+- `fill-empty-excluding`: the same list minus every category that has a stored
+  template and a nonzero budget in the month. Plain apply skips those, but the
+  subset handler always forces and would overwrite them. A category with no
+  template stays in the list, because the orphan-goal reset runs for it
+  whatever its budget.
+- An empty list fails the generator: Actual falls back to every category when
+  it gets none.
+
+An excluding case also records `order`: `wholeMonth` (the order of
+`categoryIds`) and `handler` (the order the handler iterates them).
+
+All excluding cases store UI-sourced definitions (`template_settings`
+`{"source":"ui"}`), never notes, so none depend on note regeneration (OP-24).
+The harness computes the list around the funding step's note-template store
+and restore, so an excluding case must not rely on note-only templates.
+
+Order. The handler loads its categories with `q('categories')` and no explicit
+sort, so they come back by the aql default `sort_order, id` across all groups
+(`aql/schema/index.ts` `customizeQuery`). The whole-month run walks
+`q('category_groups')` (default `is_income, sort_order, id`) and each group's
+categories by `sort_order, id`. The two orders agree only when category sort
+orders follow group order. They decide who receives the last cent of a
+Remainder split and which category a priority clamp reaches first. The two
+`order-*` cases give a second group's categories lower sort orders than the
+first group's, so the orders differ. Production runs a month apply with
+excluded categories in the handler's `sort_order, id` order, and the Swift
+replay checks it against these cases.
+
+Named: `tapply-named-excluding-` plus `priority-levels` (the higher-priority
+category skipped), `remainder-split`, `budgeted-category` (an excluded
+category's budget stays spent), `orphan-goals` (kept goal reset, excluded goal
+untouched), `tracking-income` (income category excluded), `fill-empty-mixed`,
+`priority-clamp`, `all-but-one`, `invalid-template` (an excluded category names
+a schedule that does not exist, which makes Actual reject the whole-month run;
+the subset run applies the rest), `order-remainder` and
+`order-priority-clamp`.
+
+Generated: `tapply-generated-excluding-<family>-<state>-1` for the families
+`fixed`, `priority`, `remainder` and `percent` crossed with the 5 funding
+states (20 cases). They use their own random stream (`seed + 1`), choose one
+excluded category, and pick `overwrite-excluding` or `fill-empty-excluding`. Funding counts only the
+categories in `categoryIds`.
 
 ### How funding is set
 
@@ -123,13 +190,15 @@ Values are not rounded or converted, and amounts are compared exactly.
 
 ## Swift replay
 
-`ActualistTests/TemplateApplyOracleReplayTests.swift` replays all 135 cases
+`ActualistTests/TemplateApplyOracleReplayTests.swift` replays all 166 cases
 through the production apply path. The support is in
 `TemplateApplyOracleReplaySupport.swift`. Each case seeds the starter schema
 from `input`, then runs `budgetTemplateApply(command:month:currentMonth:db:builder:)`
 inside `commitUserActionPlan(source: .ui, expectedMode:)`, as
 `applyBudgetTemplateAndRefresh` does. Apply maps to `.fillEmpty` and overwrite to
-`.overwrite`. `currentMonth` is read from the fixture's `syntheticData`, not the
+`.overwrite`. `fill-empty-excluding` and `overwrite-excluding` map to the same
+modes with `excluding(excludedCategoryIds)`; production derives the remaining
+list itself, so `categoryIds` is not passed in. `currentMonth` is read from the fixture's `syntheticData`, not the
 clock. The store path passes no `currentMonth`, so the replay exercises the
 engine's date parameter rather than the store's.
 
@@ -139,7 +208,7 @@ messages. `notification` and `error` are not compared. Actualist does not
 produce the upstream message strings (`templates-applied`,
 `templates-up-to-date`, `template-errors`), so they stay oracle-only until the
 product decides whether to surface them. A partition test checks that the
-replayed IDs and the manifest's oracle-only IDs cover all 135 cases.
+replayed IDs and the manifest's oracle-only IDs cover all 166 cases.
 
 ### Two replays
 
@@ -160,7 +229,9 @@ replayed IDs and the manifest's oracle-only IDs cover all 135 cases.
 
 The oracle's harness creates a zero budget row for every live expense category
 when it loads the sheet (upstream `createAllBudgets`). The replay seeds the same
-rows for the operation month wherever the case supplies none. Tracking budgets
+rows for the operation month wherever the case supplies none. An excluding case
+leaves no row for a category outside its `categoryIds`, so the replay seeds only
+those categories there. Tracking budgets
 (`preferences` `budgetType = tracking`) use `reflect_budgets`, and envelope
 budgets use `zero_budgets`. Those rows are harness setup, not production
 behavior.
@@ -168,17 +239,18 @@ behavior.
 ### Units
 
 No unit conversion or rounding is applied. Oracle `goal_def` amounts are display
-units, and Test B agrees with the oracle in 134 cases, so the stored and oracle
+units, and Test B agrees with the oracle in 165 cases, so the stored and oracle
 units match.
 
 ### Results
 
-Confirmed against Actual v26.10.0 on 2026-10-11:
+Confirmed against Actual v26.10.0 on 2026-10-11, and with the excluding cases on
+2026-10-29:
 
-- Test A: 2 pass (`tapply-named-no-templates`, `tapply-named-schedule-by-id`);
-  133 known-issue results, which are the note-only candidates. 132 are OP-24 and
-  `tapply-named-stale-note-goal-def` is OP-25.
-- Test B: 134 pass; `tapply-named-stale-note-goal-def` is the one known-issue
+- Test A: 33 pass (`tapply-named-no-templates`, `tapply-named-schedule-by-id`
+  and the 31 excluding cases); 133 known-issue results, which are the note-only
+  candidates. 132 are OP-24 and `tapply-named-stale-note-goal-def` is OP-25.
+- Test B: 165 pass; `tapply-named-stale-note-goal-def` is the one known-issue
   result, under OP-25.
 
 The OP-24 entry in `config/parity/known-divergences.json` lists the 132 cases.

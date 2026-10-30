@@ -96,10 +96,11 @@ extension LocalFirstActualStore {
 
     func previewBudgetTemplatePair(
         budgetID: String,
-        month: String
+        month: String,
+        excluding: Set<String>
     ) async throws -> BudgetTemplateApplyPreviewPair {
         let database = try requireDatabase(for: budgetID)
-        return try await database.previewBudgetTemplatePair(month: month)
+        return try await database.previewBudgetTemplatePair(month: month, excluding: excluding)
     }
 
     func applyReviewedBudgetTemplateAndRefresh(

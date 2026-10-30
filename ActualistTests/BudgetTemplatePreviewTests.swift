@@ -253,7 +253,7 @@ struct BudgetTemplatePreviewTests {
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
     }
 
-    @Test func pairedPreviewKeepsUnfundedRowsAndIsolatedModeErrors() async throws {
+    @Test func pairedPreviewKeepsUnfundedRowsAndBlocksAnUnreadableTemplate() async throws {
         let fixtures = LocalFirstActualStoreTests()
         let fixtureURL = try fixtures.makeSQLiteFixture(extraSQL: """
             ALTER TABLE categories ADD COLUMN goal_def TEXT;
@@ -271,11 +271,16 @@ struct BudgetTemplatePreviewTests {
             Issue.record("Expected Fill Empty preview to be ready")
             return
         }
-        guard case .failed(let errorMessage) = pair.overwrite else {
-            Issue.record("Expected Overwrite preview to fail")
+        // Fill Empty skips budgeted Groceries; Overwrite leaves its unreadable
+        // template out instead of failing the whole review.
+        #expect(fill.blocked.isEmpty)
+        guard case .ready(let overwrite) = pair.overwrite else {
+            Issue.record("Expected Overwrite preview to be ready")
             return
         }
-        #expect(!errorMessage.isEmpty)
+        #expect(overwrite.blocked.map(\.categoryID) == ["groceries"])
+        #expect(overwrite.blocked.first?.reason == .unsupported)
+        #expect(overwrite.excludedCategoryIDs == ["groceries"])
         let dining = try #require(fill.categories.first { $0.categoryID == "dining" })
         #expect(dining.current == 0)
         #expect(dining.proposed == 0)

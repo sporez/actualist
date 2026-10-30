@@ -523,6 +523,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
     var pair: BudgetTemplateApplyPreviewPair?
     private var calls = 0
     private var pairCalls = 0
+    private var pairExclusions: [Set<String>] = []
     private var shouldSuspendPair = false
     private var pairContinuation: CheckedContinuation<BudgetTemplateApplyPreviewPair, Never>?
     private var pairCallLatches: [Int: TestLatch] = [:]
@@ -539,6 +540,7 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
 
     func previewCallCount() -> Int { calls }
     func previewPairCallCount() -> Int { pairCalls }
+    func recordedPairExclusions() -> [Set<String>] { pairExclusions }
 
     func suspendNextPair() { shouldSuspendPair = true }
 
@@ -571,9 +573,11 @@ private actor ApplyPreviewRepository: BudgetRepositoryProtocol {
 
     func previewBudgetTemplatePair(
         budgetID: String,
-        month: String
+        month: String,
+        excluding: Set<String>
     ) async throws -> BudgetTemplateApplyPreviewPair {
         pairCalls += 1
+        pairExclusions.append(excluding)
         pairCallLatches[pairCalls]?.trip()
         if let error { throw error }
         if shouldSuspendPair {

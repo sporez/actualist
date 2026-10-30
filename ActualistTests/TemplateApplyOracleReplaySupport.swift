@@ -72,12 +72,13 @@ enum TemplateApplyOracleReplay {
         let operation = try OracleJSON.object(entry["operation"], "operation")
         let expectedFields = try OracleJSON.object(entry["expected"], "expected")
         let month = try OracleJSON.string(operation, "month")
-        let command: BudgetTemplateCommand = try OracleJSON.string(operation, "kind") == "overwrite"
-            ? .overwrite
-            : .fillEmpty
+        let command = try replayCommand(operation)
         let oracleDefinitions = seedGoalDefsFromOracle ? try definitionsByID(expectedFields) : [:]
         let monthValue = try BudgetDatabase.actualMonthValue(month)
-        let rows = try seedRows(input: input, month: monthValue, oracleDefinitions: oracleDefinitions)
+        let rows = try seedRows(
+            input: input, month: monthValue, oracleDefinitions: oracleDefinitions,
+            iteratedCategoryIDs: operation["categoryIds"] as? [String]
+        )
         let cleared = seedTables.filter { input[$0] != nil }
 
         let directory = FileManager.default.temporaryDirectory
@@ -129,6 +130,26 @@ enum TemplateApplyOracleReplay {
         )
     }
 
+    /// Excluding kinds replay as the month command without the skipped
+    /// categories. The oracle ran `apply-multiple-templates` over the rest
+    /// (`categoryIds`); production derives that list itself.
+    private static func replayCommand(_ operation: [String: Any]) throws -> BudgetTemplateCommand {
+        switch try OracleJSON.string(operation, "kind") {
+        case "apply": return .fillEmpty
+        case "overwrite": return .overwrite
+        case "fill-empty-excluding": return .fillEmpty.excluding(try excludedIDs(operation))
+        case "overwrite-excluding": return .overwrite.excluding(try excludedIDs(operation))
+        case let kind: throw OracleReplayError.malformedFixture("unknown operation kind \(kind)")
+        }
+    }
+
+    private static func excludedIDs(_ operation: [String: Any]) throws -> Set<String> {
+        guard let ids = operation["excludedCategoryIds"] as? [String], !ids.isEmpty else {
+            throw OracleReplayError.malformedFixture("excluding operation without excludedCategoryIds")
+        }
+        return Set(ids)
+    }
+
     // MARK: Seeding
 
     private static func definitionsByID(_ expected: [String: Any]) throws -> [String: Any] {
@@ -142,7 +163,9 @@ enum TemplateApplyOracleReplay {
         return definitions
     }
 
-    private static func seedRows(input: [String: Any], month: Int, oracleDefinitions: [String: Any]) throws -> [SeedRow] {
+    private static func seedRows(
+        input: [String: Any], month: Int, oracleDefinitions: [String: Any], iteratedCategoryIDs: [String]?
+    ) throws -> [SeedRow] {
         var rows: [SeedRow] = []
         for table in seedTables {
             for var row in try OracleJSON.objects(input[table] ?? [], table) {
@@ -162,14 +185,18 @@ enum TemplateApplyOracleReplay {
                 ))
             }
         }
-        rows += try zeroBudgetRows(input: input, month: month)
+        rows += try zeroBudgetRows(input: input, month: month, iteratedCategoryIDs: iteratedCategoryIDs)
         return rows
     }
 
     /// The oracle's harness creates a zero budget row for every live expense category when it loads
     /// the sheet (upstream `createAllBudgets`), before the apply runs. Seed the same rows for the
     /// operation month wherever the case supplies none, in the table its `budgetType` preference names.
-    private static func zeroBudgetRows(input: [String: Any], month: Int) throws -> [SeedRow] {
+    /// An excluding case (`apply-multiple-templates`) leaves no row for a category outside its
+    /// `categoryIds`, so only those categories are seeded there.
+    private static func zeroBudgetRows(
+        input: [String: Any], month: Int, iteratedCategoryIDs: [String]?
+    ) throws -> [SeedRow] {
         let tracking = try OracleJSON.objects(input["preferences"] ?? [], "preferences").contains {
             $0["id"] as? String == "budgetType" && $0["value"] as? String == "tracking"
         }
@@ -185,7 +212,8 @@ enum TemplateApplyOracleReplay {
             }
             return id
         }
-        return expenseCategories.filter { !supplied.contains($0) }.map { category in
+        let iterated = iteratedCategoryIDs.map(Set.init)
+        return expenseCategories.filter { !supplied.contains($0) && iterated?.contains($0) != false }.map { category in
             SeedRow(
                 sql: "INSERT INTO \(table) (id, amount, carryover, category, goal, long_goal, month) VALUES (?, 0, 0, ?, NULL, NULL, ?)",
                 values: ["\(month)-\(category)".databaseValue, category.databaseValue, month.databaseValue]

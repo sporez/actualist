@@ -13,6 +13,9 @@ struct BudgetTemplatePreparedPlan: Sendable {
     var table: BudgetTable
     var columns: Set<String>
     var initialAvailableBudget: Int
+    /// Filled only when the plan collects blocked categories instead of
+    /// refusing them; they are left out of `compute`.
+    var blocked: [(categoryID: String, reason: BudgetTemplateApplyPreview.BlockedCategory.Reason)] = []
 }
 
 extension BudgetDatabase {
@@ -96,24 +99,28 @@ extension BudgetDatabase {
 
     /// Calculates both month-wide Apply modes while holding one SQLite read
     /// snapshot. Each scenario catches its own template validation failure.
+    /// `excluding` holds the categories the review skipped.
     func previewBudgetTemplatePair(
         month: String,
+        excluding requested: Set<String> = [],
         currentMonth: String? = nil,
         now: Date = Date()
     ) throws -> BudgetTemplateApplyPreviewPair {
         try queue.read { db in
             // Both modes read the same snapshot, so they share one history.
             let history = TemplateHistory()
-            let fillEmpty = previewBudgetTemplateOutcome(
+            let fillEmpty = previewBudgetTemplateReviewOutcome(
                 command: .fillEmpty,
+                excluding: requested,
                 month: month,
                 currentMonth: currentMonth,
                 now: now,
                 history: history,
                 db: db
             )
-            let overwrite = previewBudgetTemplateOutcome(
+            let overwrite = previewBudgetTemplateReviewOutcome(
                 command: .overwrite,
+                excluding: requested,
                 month: month,
                 currentMonth: currentMonth,
                 now: now,
@@ -124,8 +131,13 @@ extension BudgetDatabase {
         }
     }
 
-    private func previewBudgetTemplateOutcome(
+    /// One month mode on the review. The full run decides the tiles. A skip
+    /// counts only for a tile this mode shows, so a skip kept from the other
+    /// mode can't quietly change this mode's result. A category whose template
+    /// can't be applied is left out instead of failing the review.
+    private func previewBudgetTemplateReviewOutcome(
         command: BudgetTemplateCommand,
+        excluding requested: Set<String>,
         month: String,
         currentMonth: String?,
         now: Date,
@@ -133,16 +145,37 @@ extension BudgetDatabase {
         db: Database
     ) -> BudgetTemplatePreviewOutcome {
         do {
-            return .ready(
-                try makeBudgetTemplateApplyPreview(
-                    command: command,
-                    month: month,
-                    currentMonth: currentMonth,
-                    now: now,
-                    history: history,
-                    db: db
-                )
+            var baseline = try makeBudgetTemplateApplyPreview(
+                command: command,
+                month: month,
+                currentMonth: currentMonth,
+                now: now,
+                history: history,
+                collectBlocked: true,
+                db: db
             )
+            let tileIDs = baseline.categories.map(\.categoryID)
+            baseline.baselineTileIDs = tileIDs
+            let skippedIDs = requested.intersection(tileIDs)
+            let excludedIDs = skippedIDs.union(baseline.excludedCategoryIDs)
+            // Anything left out, blocked included, is priced with the same
+            // excluding command the reviewed apply will run.
+            guard !excludedIDs.isEmpty else { return .ready(baseline) }
+            var selected = try makeBudgetTemplateApplyPreview(
+                command: command.excluding(excludedIDs),
+                month: month,
+                currentMonth: currentMonth,
+                now: now,
+                history: history,
+                collectBlocked: true,
+                listed: Set(tileIDs).subtracting(skippedIDs),
+                db: db
+            )
+            selected.blocked = baseline.blocked
+            selected.skipped = baseline.categories.filter { skippedIDs.contains($0.categoryID) }
+            selected.excludedCategoryIDs = excludedIDs
+            selected.baselineTileIDs = tileIDs
+            return .ready(selected)
         } catch {
             return .failed(error.userFacingMessage ?? "The template preview could not be loaded.")
         }
@@ -154,6 +187,8 @@ extension BudgetDatabase {
         currentMonth: String?,
         now: Date,
         history: TemplateHistory = TemplateHistory(),
+        collectBlocked: Bool = false,
+        listed: Set<String> = [],
         db: Database
     ) throws -> BudgetTemplateApplyPreview {
         let prepared = try budgetTemplatePlan(
@@ -164,6 +199,7 @@ extension BudgetDatabase {
             goalDefOverrides: [:],
             skipStaleCheck: false,
             history: history,
+            collectBlocked: collectBlocked,
             db: db
         )
         let names = try templateCategoryNames(db: db)
@@ -206,7 +242,7 @@ extension BudgetDatabase {
             let isGoalOnly = entries.isGoalOnly
             let isOrphanGoal = prepared.orphanGoalCategoryIDs.contains(categoryID)
             let isGoalOnlyUpdate = isGoalOnly && goalChanged || isOrphanGoal
-            guard current != proposed || shortfall > 0 || goalChanged else {
+            guard current != proposed || shortfall > 0 || goalChanged || listed.contains(categoryID) else {
                 continue
             }
 
@@ -325,7 +361,15 @@ extension BudgetDatabase {
             availableAfter: availableAfter,
             hasNonMoneyUpdates: hasNonMoneyUpdates,
             hasEligibleTemplates: !prepared.entriesByCategory.isEmpty,
-            reviewRevision: reviewRevision
+            reviewRevision: reviewRevision,
+            blocked: prepared.blocked.map { item in
+                BudgetTemplateApplyPreview.BlockedCategory(
+                    categoryID: item.categoryID,
+                    name: names[item.categoryID] ?? item.categoryID,
+                    reason: item.reason
+                )
+            },
+            excludedCategoryIDs: command.excludedCategoryIDs.union(prepared.blocked.map(\.categoryID))
         )
     }
 
@@ -337,6 +381,7 @@ extension BudgetDatabase {
         goalDefOverrides: [String: String],
         skipStaleCheck: Bool,
         history: TemplateHistory = TemplateHistory(),
+        collectBlocked: Bool = false,
         db: Database
     ) throws -> BudgetTemplatePreparedPlan {
         let monthValue = try Self.actualMonthValue(month)
@@ -363,17 +408,35 @@ extension BudgetDatabase {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
         )
-        let scope: [String]
-        if targeted.isEmpty {
+        var scope: [String]
+        if targeted.isEmpty, command.excludedCategoryIDs.isEmpty {
             scope = try templateCategoryIDsInBudgetOrder(
                 db: db,
                 includeIncome: isTracking,
                 includeHidden: false
             )
+        } else if targeted.isEmpty {
+            // A month run without some categories is Actual's
+            // `apply-multiple-templates` over the rest. That handler reads
+            // categories by `sort_order, id` across groups, not in budget
+            // order, and the order decides priority clamps and the last
+            // Remainder cent.
+            let monthScope = Set(try templateCategoryIDsInBudgetOrder(
+                db: db,
+                includeIncome: isTracking,
+                includeHidden: false
+            ))
+            scope = try templateCategoryIDsInCategoryOrder(db: db)
+                .filter { monthScope.contains($0) }
         } else {
             scope = try templateCategoryIDsInCategoryOrder(db: db)
                 .filter { targeted.contains($0) }
         }
+        // Excluded categories leave the scope entirely: no stale or template
+        // validation, no budget or goal write, and their budget is not
+        // returned to the available funds.
+        scope.removeAll { command.excludedCategoryIDs.contains($0) }
+        var blocked: [(categoryID: String, reason: BudgetTemplateApplyPreview.BlockedCategory.Reason)] = []
 
         if !skipStaleCheck {
             let staleSource = goalDefsRaw.filter { scope.contains($0.key) && goalDefOverrides[$0.key] == nil }
@@ -381,7 +444,11 @@ extension BudgetDatabase {
                 goalDefsRaw: staleSource,
                 db: db
             )
-            if !stale.isEmpty {
+            if collectBlocked, !stale.isEmpty {
+                let staleIDs = Set(stale.map(\.categoryID))
+                blocked += scope.filter { staleIDs.contains($0) }.map { ($0, .staleNote) }
+                scope.removeAll { staleIDs.contains($0) }
+            } else if !stale.isEmpty {
                 let described = stale
                     .map { (categoryNames[$0.categoryID] ?? $0.categoryID) + " — " + $0.reason }
                     .sorted()
@@ -440,11 +507,19 @@ extension BudgetDatabase {
                     }
                 }
             } catch LocalFirstError.unsupportedTemplate(let reason) {
+                if collectBlocked {
+                    blocked.append((categoryID, .unsupported))
+                    continue
+                }
                 unsupported.append(
                     "\(categoryNames[categoryID] ?? categoryID) (\(reason))"
                 )
                 continue
             } catch {
+                if collectBlocked {
+                    blocked.append((categoryID, .unsupported))
+                    continue
+                }
                 unsupported.append(
                     "\(categoryNames[categoryID] ?? categoryID) (unreadable template definition)"
                 )
@@ -492,7 +567,8 @@ extension BudgetDatabase {
             orphanGoalCategoryIDs: orphanGoalCategoryIDs,
             table: table,
             columns: columns,
-            initialAvailableBudget: initialAvailableBudget
+            initialAvailableBudget: initialAvailableBudget,
+            blocked: blocked
         )
     }
 }

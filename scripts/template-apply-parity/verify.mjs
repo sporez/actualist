@@ -27,6 +27,21 @@ const NAMED_CASE_IDS = [
   'tapply-named-no-templates',
   'tapply-named-orphan-goal-reset',
 ];
+const EXCLUDING_NAMED_CASE_IDS = [
+  'tapply-named-excluding-priority-levels',
+  'tapply-named-excluding-remainder-split',
+  'tapply-named-excluding-budgeted-category',
+  'tapply-named-excluding-orphan-goals',
+  'tapply-named-excluding-tracking-income',
+  'tapply-named-excluding-fill-empty-mixed',
+  'tapply-named-excluding-priority-clamp',
+  'tapply-named-excluding-all-but-one',
+  'tapply-named-excluding-invalid-template',
+  'tapply-named-excluding-order-remainder',
+  'tapply-named-excluding-order-priority-clamp',
+];
+const EXCLUDING_FAMILIES = ['fixed', 'priority', 'remainder', 'percent'];
+const EXCLUDING_KINDS = ['overwrite-excluding', 'fill-empty-excluding'];
 const REQUIRED_SOURCES = [
   'packages/loot-core/src/server/budget/goal-template.ts',
   'packages/loot-core/src/server/budget/category-template-context.ts',
@@ -116,7 +131,12 @@ for (const [key, value] of [
 }
 if (contract.syntheticData?.only !== true) fail('fixture is not marked synthetic-only');
 
-const expectedCaseCount = NAMED_CASE_IDS.length + FAMILIES.length * FUNDING_STATES.length * GENERATED_PER_COMBINATION;
+const EXCLUDING_GENERATED_IDS = EXCLUDING_FAMILIES.flatMap(family =>
+  FUNDING_STATES.map(state => `tapply-generated-excluding-${family}-${state}-1`),
+);
+const expectedCaseCount =
+  NAMED_CASE_IDS.length + FAMILIES.length * FUNDING_STATES.length * GENERATED_PER_COMBINATION +
+  EXCLUDING_NAMED_CASE_IDS.length + EXCLUDING_GENERATED_IDS.length;
 if (!Array.isArray(contract.cases) || contract.cases.length !== expectedCaseCount) {
   fail(`fixture must contain ${expectedCaseCount} cases, found ${contract.cases?.length}`);
 }
@@ -134,14 +154,39 @@ if (JSON.stringify(manifest.coverage?.namedCaseIDs) !== JSON.stringify(NAMED_CAS
   fail('manifest named case IDs do not match the reviewed list');
 }
 
+// The 135 whole-month cases keep their positions; excluding cases follow them.
+const wholeMonthCount = ids.length - EXCLUDING_NAMED_CASE_IDS.length - EXCLUDING_GENERATED_IDS.length;
+if (JSON.stringify(ids.slice(wholeMonthCount)) !== JSON.stringify([...EXCLUDING_NAMED_CASE_IDS, ...EXCLUDING_GENERATED_IDS])) {
+  fail('excluding cases are not the trailing cases in the reviewed order');
+}
+if (JSON.stringify(manifest.coverage?.excludingNamedCaseIDs) !== JSON.stringify(EXCLUDING_NAMED_CASE_IDS)) {
+  fail('manifest excluding named case IDs do not match the reviewed list');
+}
+if (JSON.stringify(manifest.coverage?.excludingGeneratedCaseIDs) !== JSON.stringify(EXCLUDING_GENERATED_IDS)) {
+  fail('manifest excluding generated case IDs do not match the reviewed list');
+}
+
 const seen = new Set();
 for (const entry of contract.cases) {
-  if (!entry.operation || !['apply', 'overwrite'].includes(entry.operation.kind)) {
+  if (!entry.operation || !['apply', 'overwrite', ...EXCLUDING_KINDS].includes(entry.operation.kind)) {
     fail(`case ${entry.id} has no operation kind`);
+  }
+  if (EXCLUDING_KINDS.includes(entry.operation.kind)) {
+    const { excludedCategoryIds, categoryIds } = entry.operation;
+    if (!Array.isArray(excludedCategoryIds) || excludedCategoryIds.length === 0) {
+      fail(`case ${entry.id} excludes no category`);
+    }
+    if (!Array.isArray(categoryIds) || categoryIds.length === 0) fail(`case ${entry.id} has an empty category list`);
+    if (categoryIds.some(id => excludedCategoryIds.includes(id))) fail(`case ${entry.id} lists an excluded category`);
+    if (!entry.order || JSON.stringify(entry.order.wholeMonth) !== JSON.stringify(categoryIds)) {
+      fail(`case ${entry.id} does not record the whole-month order of its category list`);
+    }
+  } else if (entry.order !== undefined) {
+    fail(`case ${entry.id} records an order but is not an excluding case`);
   }
   if (!FUNDING_STATES.includes(entry.funding?.state)) fail(`case ${entry.id} has no funding state`);
   if (!entry.input || !entry.before || !entry.expected) fail(`case ${entry.id} is missing input, before, or expected`);
-  if (entry.id.startsWith('tapply-generated-')) {
+  if (entry.id.startsWith('tapply-generated-') && !entry.id.startsWith('tapply-generated-excluding-')) {
     if (!FAMILIES.includes(entry.family)) fail(`case ${entry.id} has an unknown family`);
     seen.add(`${entry.family}/${entry.funding.state}`);
   }

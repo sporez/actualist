@@ -5,6 +5,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { test } from 'vitest';
 
+import { aqlQuery } from '#server/aql';
 import * as budget from '#server/budget/base';
 import { dryRunCategoryTemplate } from '#server/budget/goal-template';
 import { storeNoteTemplates } from '#server/budget/template-notes';
@@ -16,6 +17,7 @@ import * as sheet from '#server/sheet';
 import { setSyncingMode } from '#server/sync';
 import { loadRules } from '#server/transactions/transaction-rules';
 import * as monthUtils from '#shared/months';
+import { q } from '#shared/query';
 
 const DUMP_TABLES = [
   'category_groups',
@@ -79,6 +81,11 @@ async function seedCase(testCase) {
     if (category.deleted) {
       db.runQuery('UPDATE categories SET tombstone = 1 WHERE id = ?', [category.id]);
     }
+  }
+  // Cases that need a global category order different from group order set it
+  // here, after every insert has assigned its default sort_order.
+  for (const entry of testCase.sortOrders ?? []) {
+    db.runQuery('UPDATE categories SET sort_order = ? WHERE id = ?', [entry.sortOrder, entry.category]);
   }
   for (const transaction of testCase.transactions) {
     await db.insertTransaction({
@@ -180,7 +187,7 @@ function readCategoryState(testCase, month) {
 // Demand is what the operation would budget before the priority clamp, so the
 // funding target can be placed relative to it. Remainder and goal-only
 // categories do not draw on To Budget in the same way and are left out.
-async function demandFor(testCase) {
+async function demandFor(testCase, scopeIDs) {
   const month = testCase.operation.month;
   const rows = await db.all(
     'SELECT id, goal_def, is_income FROM categories WHERE goal_def IS NOT NULL AND tombstone = 0',
@@ -188,15 +195,63 @@ async function demandFor(testCase) {
   let total = 0;
   for (const row of rows) {
     if (row.is_income && testCase.budgetType !== 'tracking') continue;
+    if (scopeIDs !== null && !scopeIDs.includes(row.id)) continue;
     const templates = JSON.parse(row.goal_def);
     if (templates.some(template => template.type === 'remainder')) continue;
     if (templates.every(template => template.type === 'goal')) continue;
     const budgeted = cellValue(month, `budget-${row.id}`) ?? 0;
-    if (testCase.operation.kind !== 'overwrite' && budgeted !== 0) continue;
+    if (!forces(testCase) && budgeted !== 0) continue;
     const result = await dryRunCategoryTemplate({ month, categoryId: row.id, templates });
     total += result.budgeted;
   }
   return total;
+}
+
+function isExcluding(testCase) {
+  return testCase.operation.kind.endsWith('-excluding');
+}
+
+// Overwrite and the subset handler (force = true) replace existing budgets.
+function forces(testCase) {
+  return testCase.operation.kind === 'overwrite' || isExcluding(testCase);
+}
+
+// The categories Actual's whole-month apply iterates (goal-template.ts
+// getCategories plus the computeTemplates filter), in the same order: visible
+// groups in group order, visible categories within each group.
+async function wholeMonthScope(testCase) {
+  const { data: groups } = await aqlQuery(q('category_groups').filter({ hidden: false }).select('*'));
+  const tracking = testCase.budgetType === 'tracking';
+  return groups
+    .flatMap(group => group.categories || [])
+    .filter(category => !category.hidden)
+    .filter(category => tracking || !category.is_income)
+    .map(category => category.id);
+}
+
+// The exact list handed to budget/apply-multiple-templates: the whole-month
+// scope minus the skipped categories. For fill-empty-excluding, categories that
+// have a stored template and a nonzero budget are also removed, because plain
+// apply skips them but the subset handler (force = true) would overwrite them.
+// Needs the template definitions stored (call after storeNoteTemplates) and a
+// loaded sheet. An empty list would make Actual process every category.
+async function subsetCategoryIds(testCase) {
+  const scope = await wholeMonthScope(testCase);
+  const excluded = testCase.operation.excludedCategoryIds;
+  for (const id of excluded) {
+    if (!scope.includes(id)) throw new Error(`${testCase.id}: excluded ${id} is not in the whole-month scope`);
+  }
+  let ids = scope.filter(id => !excluded.includes(id));
+  if (testCase.operation.kind === 'fill-empty-excluding') {
+    const templated = new Set(
+      (await db.all('SELECT id FROM categories WHERE goal_def IS NOT NULL AND tombstone = 0')).map(row => row.id),
+    );
+    ids = ids.filter(
+      id => !(templated.has(id) && (cellValue(testCase.operation.month, `budget-${id}`) ?? 0) !== 0),
+    );
+  }
+  if (ids.length === 0) throw new Error(`${testCase.id}: the subset is empty`);
+  return ids;
 }
 
 function fundingTarget(funding, demand) {
@@ -224,7 +279,8 @@ async function solveFunding(testCase) {
   const name = balanceCell(testCase);
   const snapshot = await db.all('SELECT id, goal_def, template_settings, cleanup_def FROM categories');
   await storeNoteTemplates();
-  const demand = await demandFor(testCase);
+  const windowIDs = isExcluding(testCase) ? await subsetCategoryIds(testCase) : null;
+  const demand = await demandFor(testCase, windowIDs);
   const probe = cellValue(month, name);
   if (probe === null) throw new Error(`${testCase.id}: no ${name} cell for ${month}`);
   for (const row of snapshot) {
@@ -259,6 +315,12 @@ async function solveFunding(testCase) {
   const solved = cellValue(month, name);
   if (solved !== target) {
     throw new Error(`${testCase.id}: funding solved to ${solved}, expected ${target}`);
+  }
+  if (windowIDs !== null) {
+    const finalIDs = await subsetCategoryIds(testCase);
+    if (JSON.stringify(finalIDs) !== JSON.stringify(windowIDs)) {
+      throw new Error(`${testCase.id}: the subset changed while funding was solved`);
+    }
   }
   return { state: testCase.funding.state, demand, probe, target, neededIncome: needed };
 }
@@ -311,14 +373,31 @@ async function runCase(testCase) {
     categories: readCategoryState(testCase, testCase.operation.month),
   };
 
-  const handlerName =
+  let handlerName =
     testCase.operation.kind === 'overwrite'
       ? 'budget/overwrite-goal-template'
       : 'budget/apply-goal-template';
+  let handlerArguments = { month: testCase.operation.month };
+  let operation = testCase.operation;
+  let order = null;
+  if (isExcluding(testCase)) {
+    // Excluding cases must use stored (UI) definitions: the subset is computed
+    // twice around the note-template store/restore of the funding step.
+    const categoryIds = await subsetCategoryIds(testCase);
+    handlerName = 'budget/apply-multiple-templates';
+    handlerArguments = { month: testCase.operation.month, categoryIds };
+    operation = { ...testCase.operation, categoryIds };
+    // The handler loads its categories with its own query, so the order it
+    // iterates in can differ from the whole-month order the list was built in.
+    const { data: handlerCategories } = await aqlQuery(
+      q('categories').filter({ id: { $oneof: categoryIds } }).select('id'),
+    );
+    order = { wholeMonth: categoryIds, handler: handlerCategories.map(row => row.id) };
+  }
   let returned = null;
   let error = null;
   try {
-    returned = await runHandler(handlers[handlerName], { month: testCase.operation.month }, { name: handlerName });
+    returned = await runHandler(handlers[handlerName], handlerArguments, { name: handlerName });
   } catch (caught) {
     error = caught instanceof Error ? caught.message : String(caught);
   }
@@ -337,7 +416,8 @@ async function runCase(testCase) {
     id: testCase.id,
     description: testCase.description,
     family: testCase.family,
-    operation: testCase.operation,
+    operation,
+    ...(order === null ? {} : { order }),
     funding,
     input,
     before,

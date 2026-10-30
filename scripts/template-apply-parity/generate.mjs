@@ -60,6 +60,10 @@ const manifestName = 'template-apply-manifest.json';
 const FAMILIES = ['fixed', 'priority', 'schedule', 'average-copy', 'percent', 'remainder', 'goal-by', 'limit-refill'];
 const FUNDING_STATES = ['above', 'below', 'exact', 'zero', 'negative'];
 const OPERATION_MONTHS = ['2026-10', '2026-11', '2026-12', '2027-01'];
+// Excluding cases (budget/apply-multiple-templates over a computed subset) use
+// their own random stream so the 135 earlier cases keep their content.
+const EXCLUDING_SEED = SEED + 1;
+const EXCLUDING_FAMILIES = ['fixed', 'priority', 'remainder', 'percent'];
 
 if (!hasOracleRoot()) {
   console.error(`Oracle required: set ${ORACLE_ROOT_VARIABLE} to a clean checkout of Actual ${EXPECTED_TAG}.`);
@@ -152,7 +156,23 @@ function baseCase({ id, description, family, operation, funding, budgetType = 'e
     buffered: [],
     notes: [],
     storedGoals: [],
+    sortOrders: [],
   };
+}
+
+// Stored (UI-sourced) template definitions, so excluding cases do not depend on
+// note regeneration.
+const ui = {
+  simple: (monthly, priority = 0) => ({ type: 'simple', monthly, priority, directive: 'template' }),
+  remainder: weight => ({ type: 'remainder', weight, priority: null, directive: 'template' }),
+  percentage: (percent, priority = 0) => ({
+    type: 'percentage', percent, previous: true, category: 'cat-salary', priority, directive: 'template',
+  }),
+  schedule: (name, priority = 0) => ({ type: 'schedule', name, priority, directive: 'template', full: false }),
+};
+
+function store(c, category, ...templates) {
+  c.storedGoals.push({ category, source: 'ui', templates });
 }
 
 function note(c, category, text) {
@@ -380,6 +400,197 @@ function namedCases() {
   return cases;
 }
 
+// Subset applies through budget/apply-multiple-templates. Every definition is a
+// stored UI definition. The excluded category list is fixed per case; the
+// harness derives the handler's category list from the seeded state.
+function excludingNamedCases() {
+  const cases = [];
+  const named = (name, description, options, build) => {
+    const c = baseCase({ id: `tapply-named-excluding-${name}`, description, family: 'fixed', ...options });
+    build(c);
+    cases.push(c);
+  };
+  const exactFunding = { state: 'exact', delta: 0 };
+  const overwrite = (excluded, month = '2026-11') => ({
+    kind: 'overwrite-excluding', month, excludedCategoryIds: excluded,
+  });
+  const fillEmpty = (excluded, month = '2026-11') => ({
+    kind: 'fill-empty-excluding', month, excludedCategoryIds: excluded,
+  });
+
+  named('priority-levels', 'Two priority levels with the higher-priority category excluded.', {
+    family: 'priority', operation: overwrite(['cat-rent']), funding: { state: 'below', delta: 30000 },
+  }, c => {
+    store(c, 'cat-rent', ui.simple(1000, 1));
+    store(c, 'cat-groceries', ui.simple(800, 2));
+    store(c, 'cat-utilities', ui.simple(300, 2));
+    store(c, 'cat-fun', ui.simple(200, 3));
+  });
+
+  named('remainder-split', 'One remainder category is excluded and the others split the leftover.', {
+    family: 'remainder', operation: overwrite(['cat-savings']), funding: { state: 'above', delta: 10001 },
+  }, c => {
+    store(c, 'cat-groceries', ui.simple(300));
+    store(c, 'cat-savings', ui.remainder(2));
+    store(c, 'cat-fun', ui.remainder(1));
+    store(c, 'cat-utilities', ui.remainder(1));
+  });
+
+  named('budgeted-category', 'An excluded category keeps its existing budget, which stays spent from To Budget.', {
+    operation: overwrite(['cat-groceries']), funding: { state: 'above', delta: 5000 },
+  }, c => {
+    c.budgets.push({ category: 'cat-groceries', month: '2026-11', amount: 12345 });
+    store(c, 'cat-groceries', ui.simple(300));
+    store(c, 'cat-rent', ui.simple(900));
+    store(c, 'cat-fun', ui.remainder(1));
+  });
+
+  named('orphan-goals', 'A kept category with a stored goal and no template is reset; an excluded one is untouched.', {
+    operation: overwrite(['cat-utilities']), funding: exactFunding,
+  }, c => {
+    c.orphanGoals.push({ category: 'cat-fun', month: '2026-11', goal: 50000 });
+    c.orphanGoals.push({ category: 'cat-utilities', month: '2026-11', goal: 30000 });
+    store(c, 'cat-rent', ui.simple(300));
+    store(c, 'cat-groceries', ui.simple(200));
+  });
+
+  named('tracking-income', 'A tracking budget with its income category excluded.', {
+    operation: overwrite(['cat-salary']), funding: { state: 'above', delta: 20000 }, budgetType: 'tracking',
+  }, c => {
+    store(c, 'cat-salary', ui.simple(400, 1));
+    store(c, 'cat-rent', ui.simple(500, 1));
+    store(c, 'cat-groceries', ui.simple(300, 2));
+  });
+
+  named('fill-empty-mixed', 'Fill Empty: a budgeted templated category is dropped from the list, an excluded empty one stays out.', {
+    operation: fillEmpty(['cat-utilities']), funding: { state: 'above', delta: 7001 },
+  }, c => {
+    c.budgets.push({ category: 'cat-groceries', month: '2026-11', amount: 25000 });
+    store(c, 'cat-rent', ui.simple(900, 1));
+    store(c, 'cat-groceries', ui.simple(300, 1));
+    store(c, 'cat-utilities', ui.simple(150, 2));
+    store(c, 'cat-fun', ui.remainder(1));
+  });
+
+  named('priority-clamp', 'The excluded category would have consumed the To Budget headroom.', {
+    family: 'priority', operation: overwrite(['cat-rent']), funding: { state: 'below', delta: 50000 },
+  }, c => {
+    store(c, 'cat-rent', ui.simple(1000, 1));
+    store(c, 'cat-groceries', ui.simple(800, 2));
+    store(c, 'cat-utilities', ui.simple(600, 3));
+  });
+
+  named('all-but-one', 'Every category except one is excluded.', {
+    operation: overwrite(['cat-rent', 'cat-utilities', 'cat-fun', 'cat-savings']), funding: exactFunding,
+  }, c => {
+    store(c, 'cat-rent', ui.simple(900));
+    store(c, 'cat-groceries', ui.simple(300));
+    store(c, 'cat-utilities', ui.simple(150));
+    store(c, 'cat-fun', ui.remainder(1));
+    store(c, 'cat-savings', ui.simple(200));
+  });
+
+  // Actual rejects a schedule template that names no active schedule when it
+  // builds the category's context, and one rejection aborts the whole run.
+  named('invalid-template', 'A category with a template Actual rejects is excluded; the rest apply.', {
+    family: 'schedule', operation: overwrite(['cat-utilities']), funding: exactFunding,
+  }, c => {
+    store(c, 'cat-utilities', ui.schedule('Missing Gym', 1));
+    store(c, 'cat-rent', ui.simple(900, 1));
+    store(c, 'cat-groceries', ui.simple(300, 2));
+  });
+
+  // Category order. The handler loads its categories ordered by sort_order, id
+  // across all groups; the whole-month run walks groups first. Here the second
+  // group's categories sort before the first group's, so the two orders differ.
+  const reorder = c => {
+    c.groups.push({ id: 'grp-extras', name: 'Synthetic Extras', is_income: 0 });
+    for (const id of ['cat-fun', 'cat-savings']) c.categories.find(entry => entry.id === id).group = 'grp-extras';
+    c.sortOrders = [
+      { category: 'cat-fun', sortOrder: 100 },
+      { category: 'cat-savings', sortOrder: 200 },
+      { category: 'cat-rent', sortOrder: 1000 },
+      { category: 'cat-groceries', sortOrder: 2000 },
+      { category: 'cat-utilities', sortOrder: 3000 },
+    ];
+  };
+
+  named('order-remainder', 'Remainder rounding across groups whose order differs from category sort order.', {
+    family: 'remainder', operation: overwrite(['cat-savings']), funding: { state: 'above', delta: 10001 },
+  }, c => {
+    reorder(c);
+    store(c, 'cat-groceries', ui.simple(300));
+    store(c, 'cat-savings', ui.simple(200));
+    store(c, 'cat-rent', ui.remainder(1));
+    store(c, 'cat-utilities', ui.remainder(1));
+    store(c, 'cat-fun', ui.remainder(1));
+  });
+
+  named('order-priority-clamp', 'Priority clamping across groups whose order differs from category sort order.', {
+    family: 'priority', operation: overwrite(['cat-savings']), funding: { state: 'below', delta: 50000 },
+  }, c => {
+    reorder(c);
+    store(c, 'cat-rent', ui.simple(1000, 1));
+    store(c, 'cat-fun', ui.simple(800, 1));
+    store(c, 'cat-groceries', ui.simple(300, 2));
+    store(c, 'cat-savings', ui.simple(200, 1));
+  });
+
+  return cases;
+}
+
+const uiFamilyBuilders = {
+  fixed(rng, c) {
+    store(c, 'cat-rent', ui.simple(rng.int(500, 2500)));
+    store(c, 'cat-groceries', ui.simple(rng.int(50, 600)));
+    store(c, 'cat-fun', ui.simple(rng.int(20, 200)));
+  },
+  priority(rng, c) {
+    store(c, 'cat-rent', ui.simple(rng.int(500, 1500), 1));
+    store(c, 'cat-groceries', ui.simple(rng.int(200, 900), 2));
+    store(c, 'cat-utilities', ui.simple(rng.int(50, 400), 2));
+    store(c, 'cat-fun', ui.simple(rng.int(20, 200), 3));
+  },
+  remainder(rng, c) {
+    store(c, 'cat-savings', ui.remainder(rng.int(1, 3)));
+    store(c, 'cat-fun', ui.remainder(rng.int(1, 3)));
+    store(c, 'cat-utilities', ui.remainder(rng.int(1, 3)));
+    store(c, 'cat-groceries', ui.simple(rng.int(100, 500)));
+  },
+  percent(rng, c, operationMonth) {
+    store(c, 'cat-savings', ui.percentage(rng.pick([5, 10, 15, 20, 25, 50])));
+    store(c, 'cat-rent', ui.simple(rng.int(500, 1500)));
+    addPreviousIncome(c, operationMonth, rng.int(200000, 450000));
+  },
+};
+
+function excludingGeneratedCases() {
+  const rng = createRandom(EXCLUDING_SEED);
+  const scope = ['cat-rent', 'cat-groceries', 'cat-utilities', 'cat-fun', 'cat-savings'];
+  const cases = [];
+  for (const family of EXCLUDING_FAMILIES) {
+    for (const state of FUNDING_STATES) {
+      const operationMonth = rng.pick(OPERATION_MONTHS);
+      const kind = rng.chance(0.5) ? 'overwrite-excluding' : 'fill-empty-excluding';
+      const excluded = rng.pick(scope);
+      const c = baseCase({
+        id: `tapply-generated-excluding-${family}-${state}-1`,
+        description: `Generated ${family} templates with ${state} To Budget and one category excluded.`,
+        family,
+        operation: { kind, month: operationMonth, excludedCategoryIds: [excluded] },
+        funding: { state, delta: rng.int(500, 40000) },
+      });
+      uiFamilyBuilders[family](rng, c, operationMonth);
+      if (rng.chance(kind === 'fill-empty-excluding' ? 0.7 : 0.3)) {
+        const target = rng.pick(c.storedGoals.map(goal => goal.category));
+        c.budgets.push({ category: target, month: operationMonth, amount: rng.int(1000, 5000) * 100 });
+      }
+      cases.push(c);
+    }
+  }
+  return cases;
+}
+
 function generatedCases() {
   const rng = createRandom(SEED);
   const cases = [];
@@ -410,7 +621,10 @@ function generatedCases() {
 // Generated cases draw from one random stream; named cases are fixed.
 const named = namedCases();
 const generated = generatedCases();
-const cases = [...named, ...generated];
+const excludingNamed = excludingNamedCases();
+const excludingGenerated = excludingGeneratedCases();
+// The 135 earlier cases keep their position; excluding cases are appended.
+const cases = [...named, ...generated, ...excludingNamed, ...excludingGenerated];
 const caseIDs = cases.map(testCase => testCase.id);
 if (new Set(caseIDs).size !== caseIDs.length) throw new Error('Duplicate template apply case ids');
 
@@ -521,6 +735,10 @@ const manifestText = JSON.stringify({
     namedCaseIDs: named.map(testCase => testCase.id),
     generatedCaseCount: generated.length,
     namedCaseCount: named.length,
+    excludingFamilies: EXCLUDING_FAMILIES,
+    excludingSeed: EXCLUDING_SEED,
+    excludingNamedCaseIDs: excludingNamed.map(testCase => testCase.id),
+    excludingGeneratedCaseIDs: excludingGenerated.map(testCase => testCase.id),
   },
   caseCount: recorded.cases.length,
   upstreamSources: sourceFiles,

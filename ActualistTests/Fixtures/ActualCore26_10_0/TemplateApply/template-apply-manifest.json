@@ -7,11 +7,11 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/template-apply-parity/generate.mjs",
-    "sha256": "19f3912cb992ad22e12eb0313ad6d873de939789559a0a0362cea021726129c8"
+    "sha256": "a1be33cb7a794422fd53895226bcca0a6e6c799f04aebf256241d7a7c920ddc6"
   },
   "harness": {
     "path": "scripts/template-apply-parity/harness/template-apply-parity.test.ts",
-    "sha256": "ab05468fe970d20d8f645255a2a9d135f6730f6c633414cae8e7d11bc13648ae"
+    "sha256": "1269739679e88a38e40d286a9f56b790e457f9219c266ca252c114a141faaa82"
   },
   "helpers": [
     {
@@ -77,9 +77,51 @@
       "tapply-named-orphan-goal-reset"
     ],
     "generatedCaseCount": 120,
-    "namedCaseCount": 15
+    "namedCaseCount": 15,
+    "excludingFamilies": [
+      "fixed",
+      "priority",
+      "remainder",
+      "percent"
+    ],
+    "excludingSeed": 20261012,
+    "excludingNamedCaseIDs": [
+      "tapply-named-excluding-priority-levels",
+      "tapply-named-excluding-remainder-split",
+      "tapply-named-excluding-budgeted-category",
+      "tapply-named-excluding-orphan-goals",
+      "tapply-named-excluding-tracking-income",
+      "tapply-named-excluding-fill-empty-mixed",
+      "tapply-named-excluding-priority-clamp",
+      "tapply-named-excluding-all-but-one",
+      "tapply-named-excluding-invalid-template",
+      "tapply-named-excluding-order-remainder",
+      "tapply-named-excluding-order-priority-clamp"
+    ],
+    "excludingGeneratedCaseIDs": [
+      "tapply-generated-excluding-fixed-above-1",
+      "tapply-generated-excluding-fixed-below-1",
+      "tapply-generated-excluding-fixed-exact-1",
+      "tapply-generated-excluding-fixed-zero-1",
+      "tapply-generated-excluding-fixed-negative-1",
+      "tapply-generated-excluding-priority-above-1",
+      "tapply-generated-excluding-priority-below-1",
+      "tapply-generated-excluding-priority-exact-1",
+      "tapply-generated-excluding-priority-zero-1",
+      "tapply-generated-excluding-priority-negative-1",
+      "tapply-generated-excluding-remainder-above-1",
+      "tapply-generated-excluding-remainder-below-1",
+      "tapply-generated-excluding-remainder-exact-1",
+      "tapply-generated-excluding-remainder-zero-1",
+      "tapply-generated-excluding-remainder-negative-1",
+      "tapply-generated-excluding-percent-above-1",
+      "tapply-generated-excluding-percent-below-1",
+      "tapply-generated-excluding-percent-exact-1",
+      "tapply-generated-excluding-percent-zero-1",
+      "tapply-generated-excluding-percent-negative-1"
+    ]
   },
-  "caseCount": 135,
+  "caseCount": 166,
   "upstreamSources": [
     {
       "path": "packages/loot-core/src/server/budget/goal-template.ts",
@@ -185,8 +227,8 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_10_0/TemplateApply/template-apply-contract.json",
-      "sha256": "2cd03621b6b925d993b4e88e27d44e5af327026d4c6b3cd876bcf318b43c64be",
-      "caseCount": 135,
+      "sha256": "6bf123e7becb92e88663b3b9c6200a214a8fc1a7ce21fad116815c21aee6b87d",
+      "caseCount": 166,
       "caseIDs": [
         "tapply-named-ended-schedule",
         "tapply-named-deleted-category",
@@ -322,7 +364,38 @@
         "tapply-generated-limit-refill-zero-3",
         "tapply-generated-limit-refill-negative-1",
         "tapply-generated-limit-refill-negative-2",
-        "tapply-generated-limit-refill-negative-3"
+        "tapply-generated-limit-refill-negative-3",
+        "tapply-named-excluding-priority-levels",
+        "tapply-named-excluding-remainder-split",
+        "tapply-named-excluding-budgeted-category",
+        "tapply-named-excluding-orphan-goals",
+        "tapply-named-excluding-tracking-income",
+        "tapply-named-excluding-fill-empty-mixed",
+        "tapply-named-excluding-priority-clamp",
+        "tapply-named-excluding-all-but-one",
+        "tapply-named-excluding-invalid-template",
+        "tapply-named-excluding-order-remainder",
+        "tapply-named-excluding-order-priority-clamp",
+        "tapply-generated-excluding-fixed-above-1",
+        "tapply-generated-excluding-fixed-below-1",
+        "tapply-generated-excluding-fixed-exact-1",
+        "tapply-generated-excluding-fixed-zero-1",
+        "tapply-generated-excluding-fixed-negative-1",
+        "tapply-generated-excluding-priority-above-1",
+        "tapply-generated-excluding-priority-below-1",
+        "tapply-generated-excluding-priority-exact-1",
+        "tapply-generated-excluding-priority-zero-1",
+        "tapply-generated-excluding-priority-negative-1",
+        "tapply-generated-excluding-remainder-above-1",
+        "tapply-generated-excluding-remainder-below-1",
+        "tapply-generated-excluding-remainder-exact-1",
+        "tapply-generated-excluding-remainder-zero-1",
+        "tapply-generated-excluding-remainder-negative-1",
+        "tapply-generated-excluding-percent-above-1",
+        "tapply-generated-excluding-percent-below-1",
+        "tapply-generated-excluding-percent-exact-1",
+        "tapply-generated-excluding-percent-zero-1",
+        "tapply-generated-excluding-percent-negative-1"
       ]
     }
   ],

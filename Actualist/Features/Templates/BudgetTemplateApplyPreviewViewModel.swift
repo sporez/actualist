@@ -35,6 +35,9 @@ final class BudgetTemplateApplyPreviewViewModel {
     }
 
     private(set) var selectedMode: Mode?
+    /// Tiles the user skipped. Kept across the mode switch; each mode's
+    /// preview applies only the ones it shows.
+    private(set) var skippedCategoryIDs: Set<String> = []
 
     private var state: State = .loading
     private var loadGeneration = 0
@@ -229,7 +232,8 @@ final class BudgetTemplateApplyPreviewViewModel {
             } else {
                 let pair = try await repository.previewBudgetTemplatePair(
                     budgetID: budgetID,
-                    month: trimmedMonth
+                    month: trimmedMonth,
+                    excluding: skippedCategoryIDs
                 )
                 guard requestGeneration == loadGeneration, !Task.isCancelled else { return }
                 state = .paired(
