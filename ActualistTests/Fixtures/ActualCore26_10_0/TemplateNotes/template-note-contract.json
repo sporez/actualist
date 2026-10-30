@@ -1,0 +1,1309 @@
+{
+  "schemaVersion": 1,
+  "oracle": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "syntheticData": {
+    "only": true
+  },
+  "cases": [
+    {
+      "id": "form-simple-template-500",
+      "group": "form-simple",
+      "note": "#template 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-500-5",
+      "group": "form-simple",
+      "note": "#template 500.5",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500.5,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500.5,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-8-40",
+      "group": "form-simple",
+      "note": "#template 8.40",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":8.4,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":8.4,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-5",
+      "group": "form-simple",
+      "note": "#template 5.",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":5,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":5,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-50",
+      "group": "form-simple",
+      "note": "#template -50",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":-50,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":-50,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-500-2",
+      "group": "form-simple",
+      "note": "#template $500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-12-34",
+      "group": "form-simple",
+      "note": "#template € 12.34",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":12.34,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":12.34,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-2-500",
+      "group": "form-simple",
+      "note": "#template-2 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":2,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":2,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-0-500",
+      "group": "form-simple",
+      "note": "#template-0 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template500",
+      "group": "form-simple",
+      "note": "#template500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-500-3",
+      "group": "form-simple",
+      "note": "   #template 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-text-before-template-500",
+      "group": "form-simple",
+      "note": "Text before #template 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-500-up-to-1000",
+      "group": "form-simple",
+      "note": "#template 500 up to 1000",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-500-up-to-1000-2",
+      "group": "form-simple",
+      "note": "#template 500 UP TO 1000",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-500-up-to-1000-hold",
+      "group": "form-simple",
+      "note": "#template 500 up to 1000 hold",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":true,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":true,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-50-up-to-20-per-day",
+      "group": "form-simple",
+      "note": "#template 50 up to 20 per day",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":20,\"hold\":null,\"period\":\"daily\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":20,\"hold\":null,\"period\":\"daily\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-50-up-to-20-per-day-hold",
+      "group": "form-simple",
+      "note": "#template 50 up to 20 per day hold",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":20,\"hold\":true,\"period\":\"daily\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":20,\"hold\":true,\"period\":\"daily\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-50-up-to-100-per-week-starting-2026-10-",
+      "group": "form-simple",
+      "note": "#template 50 up to 100 per week starting 2026-10-05",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":100,\"hold\":null,\"period\":\"weekly\",\"start\":\"2026-10-05\"},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":100,\"hold\":null,\"period\":\"weekly\",\"start\":\"2026-10-05\"},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-50-up-to-100-per-week-starting-2026-10--2",
+      "group": "form-simple",
+      "note": "#template 50 up to 100 per week starting 2026-10-05 hold",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":100,\"hold\":true,\"period\":\"weekly\",\"start\":\"2026-10-05\"},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":100,\"hold\":true,\"period\":\"weekly\",\"start\":\"2026-10-05\"},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-up-to-1000",
+      "group": "form-simple",
+      "note": "#template up to 1000",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":null,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":null,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-up-to-20-per-day-hold",
+      "group": "form-simple",
+      "note": "#template up to 20 per day hold",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":null,\"limit\":{\"amount\":20,\"hold\":true,\"period\":\"daily\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":null,\"limit\":{\"amount\":20,\"hold\":true,\"period\":\"daily\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-simple-template-0-up-to-300",
+      "group": "form-simple",
+      "note": "#template 0 up to 300",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":0,\"limit\":{\"amount\":300,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":0,\"limit\":{\"amount\":300,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-by-template-600-by-2027-01",
+      "group": "form-by",
+      "note": "#template 600 by 2027-01",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-by-template-600-by-2027-01-2",
+      "group": "form-by",
+      "note": "#template $600 by 2027-01",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-by-template-2-600-by-2027-01",
+      "group": "form-by",
+      "note": "#template-2 600 by 2027-01",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":2,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":2,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-by-template-600-by-2027-01-3",
+      "group": "form-by",
+      "note": "#template 600 BY 2027-01",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-by-template-600-by-2027-01-repeat-every-year",
+      "group": "form-by",
+      "note": "#template 600 by 2027-01 repeat every year",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":true,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":true,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-by-template-600-by-2027-01-repeat-every-2-years",
+      "group": "form-by",
+      "note": "#template 600 by 2027-01 repeat every 2 years",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":true,\"repeat\":2,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":true,\"repeat\":2,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-by-template-600-by-2027-01-repeat-every-month",
+      "group": "form-by",
+      "note": "#template 600 by 2027-01 repeat every month",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":false,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":false,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-by-template-600-by-2027-01-repeat-every-3-months",
+      "group": "form-by",
+      "note": "#template 600 by 2027-01 repeat every 3 months",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":false,\"repeat\":3,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":false,\"repeat\":3,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-spend-template-500-by-2027-06-spend-from-2026-07",
+      "group": "form-spend",
+      "note": "#template 500 by 2027-06 spend from 2026-07",
+      "goalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-spend-template-500-by-2027-06-spend-from-2026-07-repea",
+      "group": "form-spend",
+      "note": "#template 500 by 2027-06 spend from 2026-07 repeat every month",
+      "goalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"annual\":false,\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"annual\":false,\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-spend-template-500-by-2027-06-spend-from-2026-07-repea-2",
+      "group": "form-spend",
+      "note": "#template 500 by 2027-06 spend from 2026-07 repeat every year",
+      "goalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"annual\":true,\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"annual\":true,\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-spend-template-500-by-2027-06-spend-from-2026-07-repea-3",
+      "group": "form-spend",
+      "note": "#template 500 by 2027-06 spend from 2026-07 repeat every 2 years",
+      "goalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"annual\":true,\"repeat\":2,\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"annual\":true,\"repeat\":2,\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-spend-template-1-500-by-2027-06-spend-from-2026-07",
+      "group": "form-spend",
+      "note": "#template-1 500 by 2027-06 spend from 2026-07",
+      "goalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"from\":\"2026-07\",\"priority\":1,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"from\":\"2026-07\",\"priority\":1,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-periodic-template-100-repeat-every-week-starting-2026-10-",
+      "group": "form-periodic",
+      "note": "#template 100 repeat every week starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-periodic-template-100-repeat-every-2-weeks-starting-2026-",
+      "group": "form-periodic",
+      "note": "#template 100 repeat every 2 weeks starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":2},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":2},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-periodic-template-100-repeat-every-day-starting-2026-10-0",
+      "group": "form-periodic",
+      "note": "#template 100 repeat every day starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"day\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"day\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-periodic-template-100-repeat-every-3-days-starting-2026-1",
+      "group": "form-periodic",
+      "note": "#template 100 repeat every 3 days starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"day\",\"amount\":3},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"day\",\"amount\":3},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-periodic-template-100-repeat-every-3-months-starting-2026",
+      "group": "form-periodic",
+      "note": "#template 100 repeat every 3 months starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"month\",\"amount\":3},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"month\",\"amount\":3},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-periodic-template-100-repeat-every-year-starting-2026-10-",
+      "group": "form-periodic",
+      "note": "#template 100 repeat every year starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"year\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"year\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-periodic-template-100-repeat-every-2-years-starting-2026-",
+      "group": "form-periodic",
+      "note": "#template 100 repeat every 2 years starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"year\",\"amount\":2},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"year\",\"amount\":2},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-periodic-template-100-repeat-every-week-starting-2026-10--2",
+      "group": "form-periodic",
+      "note": "#template 100 repeat every week starting 2026-10-05 up to 500",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":{\"amount\":500,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":{\"amount\":500,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-periodic-template-1-100-repeat-every-week-starting-2026-1",
+      "group": "form-periodic",
+      "note": "#template-1 100 repeat every week starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":1,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":1,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-percentage-template-10-of-all-income",
+      "group": "form-percentage",
+      "note": "#template 10% of all income",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"all income\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"all income\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-percentage-template-10-of-income",
+      "group": "form-percentage",
+      "note": "#template 10 % of income",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"income\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"income\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-percentage-template-12-5-of-available-funds",
+      "group": "form-percentage",
+      "note": "#template 12.5% of available funds",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":12.5,\"previous\":false,\"category\":\"available funds\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":12.5,\"previous\":false,\"category\":\"available funds\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-percentage-template-10-of-previous-all-income",
+      "group": "form-percentage",
+      "note": "#template 10% of previous all income",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":true,\"category\":\"all income\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":true,\"category\":\"all income\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-percentage-template-10-of-salary",
+      "group": "form-percentage",
+      "note": "#template 10% of Salary",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"Salary\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"Salary\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-percentage-template-10-of-side-hustle-pay",
+      "group": "form-percentage",
+      "note": "#template 10% of Side Hustle Pay",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"Side Hustle Pay\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"Side Hustle Pay\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-percentage-template-1-5-of-salary",
+      "group": "form-percentage",
+      "note": "#template-1 5% of Salary",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":5,\"previous\":false,\"category\":\"Salary\",\"priority\":1,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":5,\"previous\":false,\"category\":\"Salary\",\"priority\":1,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-rent",
+      "group": "form-schedule",
+      "note": "#template schedule Rent",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-car-insurance",
+      "group": "form-schedule",
+      "note": "#template schedule Car Insurance",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Car Insurance\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Car Insurance\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-full-rent",
+      "group": "form-schedule",
+      "note": "#template schedule full Rent",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":true}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":true}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-full-car-insurance",
+      "group": "form-schedule",
+      "note": "#template schedule full Car Insurance",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Car Insurance\",\"priority\":0,\"directive\":\"template\",\"full\":true}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Car Insurance\",\"priority\":0,\"directive\":\"template\",\"full\":true}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-rent-increase-10",
+      "group": "form-schedule",
+      "note": "#template schedule Rent [increase 10%]",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":10,\"adjustmentType\":\"percent\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":10,\"adjustmentType\":\"percent\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-rent-decrease-5",
+      "group": "form-schedule",
+      "note": "#template schedule Rent [decrease 5%]",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":-5,\"adjustmentType\":\"percent\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":-5,\"adjustmentType\":\"percent\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-rent-increase-25",
+      "group": "form-schedule",
+      "note": "#template schedule Rent [increase 25]",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":25,\"adjustmentType\":\"fixed\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":25,\"adjustmentType\":\"fixed\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-car-insurance-increase-2-5",
+      "group": "form-schedule",
+      "note": "#template schedule Car Insurance [increase 2.5%]",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Car Insurance\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":2.5,\"adjustmentType\":\"percent\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Car Insurance\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":2.5,\"adjustmentType\":\"percent\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-1-schedule-rent",
+      "group": "form-schedule",
+      "note": "#template-1 schedule Rent",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":1,\"directive\":\"template\",\"full\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":1,\"directive\":\"template\",\"full\":null}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-fullerton-water",
+      "group": "form-schedule",
+      "note": "#template schedule Fullerton Water",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"erton Water\",\"priority\":0,\"directive\":\"template\",\"full\":true}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"erton Water\",\"priority\":0,\"directive\":\"template\",\"full\":true}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-50-rent",
+      "group": "form-schedule",
+      "note": "#template schedule 50% Rent",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"50% Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"50% Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-rent-increase-2000",
+      "group": "form-schedule",
+      "note": "#template schedule Rent [increase 2000%]",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template schedule Rent [increase 2000%]\",\"error\":\"Invalid adjustment percentage (2000%). Must be between -100% and 1000%\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template schedule Rent [increase 2000%]\",\"error\":\"Invalid adjustment percentage (2000%). Must be between -100% and 1000%\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-schedule-template-schedule-rent-decrease-100",
+      "group": "form-schedule",
+      "note": "#template schedule Rent [decrease 100%]",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template schedule Rent [decrease 100%]\",\"error\":\"Invalid adjustment percentage (-100%). Must be between -100% and 1000%\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template schedule Rent [decrease 100%]\",\"error\":\"Invalid adjustment percentage (-100%). Must be between -100% and 1000%\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-remainder-template-remainder",
+      "group": "form-remainder",
+      "note": "#template remainder",
+      "goalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":null}]",
+      "stale": false
+    },
+    {
+      "id": "form-remainder-template-remainder-3",
+      "group": "form-remainder",
+      "note": "#template remainder 3",
+      "goalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":3,\"limit\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":3,\"limit\":null}]",
+      "stale": false
+    },
+    {
+      "id": "form-remainder-template-remainder-up-to-500",
+      "group": "form-remainder",
+      "note": "#template remainder up to 500",
+      "goalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":{\"amount\":500,\"hold\":null,\"period\":\"monthly\",\"start\":null}}]",
+      "regeneratedGoalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":{\"amount\":500,\"hold\":null,\"period\":\"monthly\",\"start\":null}}]",
+      "stale": false
+    },
+    {
+      "id": "form-remainder-template-remainder-2-up-to-500",
+      "group": "form-remainder",
+      "note": "#template remainder 2 up to 500",
+      "goalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":2,\"limit\":{\"amount\":500,\"hold\":null,\"period\":\"monthly\",\"start\":null}}]",
+      "regeneratedGoalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":2,\"limit\":{\"amount\":500,\"hold\":null,\"period\":\"monthly\",\"start\":null}}]",
+      "stale": false
+    },
+    {
+      "id": "form-remainder-template-3-remainder",
+      "group": "form-remainder",
+      "note": "#template-3 remainder",
+      "goalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":null}]",
+      "stale": false
+    },
+    {
+      "id": "form-average-template-average-3-months",
+      "group": "form-average",
+      "note": "#template average 3 months",
+      "goalDef": "[{\"type\":\"average\",\"numMonths\":3,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"average\",\"numMonths\":3,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-average-template-average-6",
+      "group": "form-average",
+      "note": "#template average 6",
+      "goalDef": "[{\"type\":\"average\",\"numMonths\":6,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"average\",\"numMonths\":6,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-average-template-average-3-months-increase-10",
+      "group": "form-average",
+      "note": "#template average 3 months [increase 10%]",
+      "goalDef": "[{\"type\":\"average\",\"numMonths\":3,\"priority\":0,\"directive\":\"template\",\"adjustment\":10,\"adjustmentType\":\"percent\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"average\",\"numMonths\":3,\"priority\":0,\"directive\":\"template\",\"adjustment\":10,\"adjustmentType\":\"percent\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-average-template-average-3-months-decrease-20",
+      "group": "form-average",
+      "note": "#template average 3 months [decrease 20]",
+      "goalDef": "[{\"type\":\"average\",\"numMonths\":3,\"priority\":0,\"directive\":\"template\",\"adjustment\":-20,\"adjustmentType\":\"fixed\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"average\",\"numMonths\":3,\"priority\":0,\"directive\":\"template\",\"adjustment\":-20,\"adjustmentType\":\"fixed\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-average-template-average-3-increase-2000",
+      "group": "form-average",
+      "note": "#template average 3 [increase 2000%]",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template average 3 [increase 2000%]\",\"error\":\"Invalid adjustment percentage (2000%). Must be between -100% and 1000%\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template average 3 [increase 2000%]\",\"error\":\"Invalid adjustment percentage (2000%). Must be between -100% and 1000%\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-copy-template-copy-from-1-months-ago",
+      "group": "form-copy",
+      "note": "#template copy from 1 months ago",
+      "goalDef": "[{\"type\":\"copy\",\"priority\":0,\"directive\":\"template\",\"lookBack\":1,\"limit\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"copy\",\"priority\":0,\"directive\":\"template\",\"lookBack\":1,\"limit\":null}]",
+      "stale": false
+    },
+    {
+      "id": "form-copy-template-copy-from-3-months-ago",
+      "group": "form-copy",
+      "note": "#template copy from 3 months ago",
+      "goalDef": "[{\"type\":\"copy\",\"priority\":0,\"directive\":\"template\",\"lookBack\":3,\"limit\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"copy\",\"priority\":0,\"directive\":\"template\",\"lookBack\":3,\"limit\":null}]",
+      "stale": false
+    },
+    {
+      "id": "form-copy-template-copy-from-3-months-ago-up-to-100",
+      "group": "form-copy",
+      "note": "#template copy from 3 months ago up to 100",
+      "goalDef": "[{\"type\":\"copy\",\"priority\":0,\"directive\":\"template\",\"lookBack\":3,\"limit\":{\"amount\":100,\"hold\":null,\"period\":\"monthly\",\"start\":null}}]",
+      "regeneratedGoalDef": "[{\"type\":\"copy\",\"priority\":0,\"directive\":\"template\",\"lookBack\":3,\"limit\":{\"amount\":100,\"hold\":null,\"period\":\"monthly\",\"start\":null}}]",
+      "stale": false
+    },
+    {
+      "id": "form-goal-goal-500",
+      "group": "form-goal",
+      "note": "#goal 500",
+      "goalDef": "[{\"type\":\"goal\",\"amount\":500,\"priority\":null,\"directive\":\"goal\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"goal\",\"amount\":500,\"priority\":null,\"directive\":\"goal\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-goal-goal-1000-50",
+      "group": "form-goal",
+      "note": "#goal 1000.50",
+      "goalDef": "[{\"type\":\"goal\",\"amount\":1000.5,\"priority\":null,\"directive\":\"goal\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"goal\",\"amount\":1000.5,\"priority\":null,\"directive\":\"goal\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-goal-goal-500-2",
+      "group": "form-goal",
+      "note": "#goal $500",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#goal $500\",\"error\":\"Expected amount but \\\" \\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#goal $500\",\"error\":\"Expected amount but \\\" \\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-multiple-template-100-template-200",
+      "group": "form-multiple",
+      "note": "#template 100\n#template 200",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-multiple-keep-this-template-100",
+      "group": "form-multiple",
+      "note": "Keep this.\n#template 100",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\",\"description\":\"Keep this.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\",\"description\":\"Keep this.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-multiple-template-100-goal-500",
+      "group": "form-multiple",
+      "note": "#template 100\n#goal 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"goal\",\"amount\":500,\"priority\":null,\"directive\":\"goal\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"goal\",\"amount\":500,\"priority\":null,\"directive\":\"goal\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-multiple-template-100-text-template-2-200",
+      "group": "form-multiple",
+      "note": "#template 100\n\nText\n#template-2 200",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":2,\"directive\":\"template\",\"description\":\"Text\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":2,\"directive\":\"template\",\"description\":\"Text\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-multiple-template-100-template-200-2",
+      "group": "form-multiple",
+      "note": "#template 100\r\n#template 200",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template",
+      "group": "form-malformed",
+      "note": "#template",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template\",\"error\":\"Expected \\\"-\\\", \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but end of input found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template\",\"error\":\"Expected \\\"-\\\", \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but end of input found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-bad",
+      "group": "form-malformed",
+      "note": "#template bad",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template bad\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"b\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template bad\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"b\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-templates-100",
+      "group": "form-malformed",
+      "note": "#templates 100",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#templates 100\",\"error\":\"Expected \\\"-\\\", \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"s\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#templates 100\",\"error\":\"Expected \\\"-\\\", \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"s\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-500-monthly",
+      "group": "form-malformed",
+      "note": "#template 500 monthly",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 500 monthly\",\"error\":\"Expected \\\"by\\\", \\\"repeat\\\", or \\\"up\\\" but \\\"m\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 500 monthly\",\"error\":\"Expected \\\"by\\\", \\\"repeat\\\", or \\\"up\\\" but \\\"m\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-by-2026-12-200",
+      "group": "form-malformed",
+      "note": "#template by 2026-12 200",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template by 2026-12 200\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"b\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template by 2026-12 200\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"b\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-spend-300-from-2026-07-to-2026-09",
+      "group": "form-malformed",
+      "note": "#template spend 300 from 2026-07 to 2026-09",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template spend 300 from 2026-07 to 2026-09\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"s\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template spend 300 from 2026-07 to 2026-09\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"s\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-500-by-2026-1",
+      "group": "form-malformed",
+      "note": "#template 500 by 2026-1",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 500 by 2026-1\",\"error\":\"Expected month but \\\"2\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 500 by 2026-1\",\"error\":\"Expected month but \\\"2\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-1-000",
+      "group": "form-malformed",
+      "note": "#template 1,000",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 1,000\",\"error\":\"Expected \\\"by\\\", \\\"repeat\\\", \\\"up\\\", or end of input but \\\",\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 1,000\",\"error\":\"Expected \\\"by\\\", \\\"repeat\\\", \\\"up\\\", or end of input but \\\",\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-goal",
+      "group": "form-malformed",
+      "note": "#goal",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#goal\",\"error\":\"Expected amount but end of input found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#goal\",\"error\":\"Expected amount but end of input found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-goals-5",
+      "group": "form-malformed",
+      "note": "#goals 5",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#goals 5\",\"error\":\"Expected amount but \\\"s\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#goals 5\",\"error\":\"Expected amount but \\\"s\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-goal-500-by-2026-12",
+      "group": "form-malformed",
+      "note": "#goal 500 by 2026-12",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#goal 500 by 2026-12\",\"error\":\"Expected end of input but \\\" \\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#goal 500 by 2026-12\",\"error\":\"Expected end of input but \\\" \\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-1-234",
+      "group": "form-malformed",
+      "note": "#template 1.234",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 1.234\",\"error\":\"Expected \\\"by\\\", \\\"repeat\\\", \\\"up\\\", or end of input but \\\"4\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 1.234\",\"error\":\"Expected \\\"by\\\", \\\"repeat\\\", \\\"up\\\", or end of input but \\\"4\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-100-repeat-every-week",
+      "group": "form-malformed",
+      "note": "#template 100 repeat every week",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 100 repeat every week\",\"error\":\"Expected \\\"starting\\\" but end of input found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 100 repeat every week\",\"error\":\"Expected \\\"starting\\\" but end of input found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-100-repeat-every-month-starting-2026-01",
+      "group": "form-malformed",
+      "note": "#template 100 repeat every month starting 2026-01-01",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 100 repeat every month starting 2026-01-01\",\"error\":\"Expected \\\"day\\\", \\\"week\\\", \\\"year\\\", or number but \\\"m\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 100 repeat every month starting 2026-01-01\",\"error\":\"Expected \\\"day\\\", \\\"week\\\", \\\"year\\\", or number but \\\"m\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-x-100",
+      "group": "form-malformed",
+      "note": "#template-x 100",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template-x 100\",\"error\":\"Expected number but \\\"x\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template-x 100\",\"error\":\"Expected number but \\\"x\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-copy",
+      "group": "form-malformed",
+      "note": "#template copy",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template copy\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"c\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template copy\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"c\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-500-up-to",
+      "group": "form-malformed",
+      "note": "#template 500 up to",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 500 up to\",\"error\":\"Expected amount but end of input found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 500 up to\",\"error\":\"Expected amount but end of input found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-malformed-template-100-by-2027-01-repeat-every",
+      "group": "form-malformed",
+      "note": "#template 100 by 2027-01 repeat every",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 100 by 2027-01 repeat every\",\"error\":\"Expected repeat interval but end of input found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template 100 by 2027-01 repeat every\",\"error\":\"Expected repeat interval but end of input found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "form-no-directive-plain-note",
+      "group": "form-no-directive",
+      "note": "Plain note",
+      "goalDef": null,
+      "regeneratedGoalDef": null,
+      "stale": false
+    },
+    {
+      "id": "form-no-directive-not-a-directive",
+      "group": "form-no-directive",
+      "note": "# not a directive",
+      "goalDef": null,
+      "regeneratedGoalDef": null,
+      "stale": false
+    },
+    {
+      "id": "form-no-directive-cleanup-source",
+      "group": "form-no-directive",
+      "note": "#cleanup source",
+      "goalDef": null,
+      "regeneratedGoalDef": null,
+      "stale": false
+    },
+    {
+      "id": "change-amount-template-8-41",
+      "group": "change-amount",
+      "note": "#template 8.41",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":8.4,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":8.41,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-amount-template-501",
+      "group": "change-amount",
+      "note": "#template 501",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":501,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-amount-template-601-by-2027-01",
+      "group": "change-amount",
+      "note": "#template 601 by 2027-01",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":601,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-priority-template-2-500",
+      "group": "change-priority",
+      "note": "#template-2 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":2,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-priority-template-3-500",
+      "group": "change-priority",
+      "note": "#template-3 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":2,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":3,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-priority-template-2-600-by-2027-01",
+      "group": "change-priority",
+      "note": "#template-2 600 by 2027-01",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":2,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-priority-template-2-schedule-rent",
+      "group": "change-priority",
+      "note": "#template-2 schedule Rent",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":2,\"directive\":\"template\",\"full\":null}]",
+      "stale": true
+    },
+    {
+      "id": "change-target-template-600-by-2027-02",
+      "group": "change-target",
+      "note": "#template 600 by 2027-02",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-02\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-target-template-600-by-2027-01-repeat-every-year",
+      "group": "change-target",
+      "note": "#template 600 by 2027-01 repeat every year",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":true,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-target-template-600-by-2027-01-repeat-every-3-years",
+      "group": "change-target",
+      "note": "#template 600 by 2027-01 repeat every 3 years",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":true,\"repeat\":2,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":true,\"repeat\":3,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-target-template-600-by-2027-01-repeat-every-3-months",
+      "group": "change-target",
+      "note": "#template 600 by 2027-01 repeat every 3 months",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":false,\"repeat\":2,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":false,\"repeat\":3,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-target-template-600-by-2027-01-repeat-every-year-2",
+      "group": "change-target",
+      "note": "#template 600 by 2027-01 repeat every year",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":false,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"annual\":true,\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-spend-template-500-by-2027-06-spend-from-2026-08",
+      "group": "change-spend",
+      "note": "#template 500 by 2027-06 spend from 2026-08",
+      "goalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"from\":\"2026-08\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-spend-template-500-by-2027-06",
+      "group": "change-spend",
+      "note": "#template 500 by 2027-06",
+      "goalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":500,\"month\":\"2027-06\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-spend-template-500-by-2027-06-spend-from-2026-07-repea",
+      "group": "change-spend",
+      "note": "#template 500 by 2027-06 spend from 2026-07 repeat every year",
+      "goalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"spend\",\"amount\":500,\"month\":\"2027-06\",\"annual\":true,\"from\":\"2026-07\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-periodic-template-100-repeat-every-week-starting-2026-10-",
+      "group": "change-periodic",
+      "note": "#template 100 repeat every week starting 2026-10-12",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-12\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-periodic-template-100-repeat-every-2-weeks-starting-2026-",
+      "group": "change-periodic",
+      "note": "#template 100 repeat every 2 weeks starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":2},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-periodic-template-100-repeat-every-3-months-starting-2026",
+      "group": "change-periodic",
+      "note": "#template 100 repeat every 3 months starting 2026-10-05",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"day\",\"amount\":3},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"month\",\"amount\":3},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-percentage-template-11-of-all-income",
+      "group": "change-percentage",
+      "note": "#template 11% of all income",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"all income\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":11,\"previous\":false,\"category\":\"all income\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-percentage-template-10-of-previous-all-income",
+      "group": "change-percentage",
+      "note": "#template 10% of previous all income",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"all income\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":true,\"category\":\"all income\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-percentage-template-10-of-bonus",
+      "group": "change-percentage",
+      "note": "#template 10% of Bonus",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"Salary\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"Bonus\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-percentage-template-10-of-all-income",
+      "group": "change-percentage",
+      "note": "#template 10% of all income",
+      "goalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"income\",\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"percentage\",\"percent\":10,\"previous\":false,\"category\":\"all income\",\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-schedule-template-schedule-mortgage",
+      "group": "change-schedule",
+      "note": "#template schedule Mortgage",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Mortgage\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "stale": true
+    },
+    {
+      "id": "change-schedule-template-schedule-car-payment",
+      "group": "change-schedule",
+      "note": "#template schedule Car Payment",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Car Insurance\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Car Payment\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "stale": true
+    },
+    {
+      "id": "change-schedule-template-schedule-full-rent",
+      "group": "change-schedule",
+      "note": "#template schedule full Rent",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":true}]",
+      "stale": true
+    },
+    {
+      "id": "change-schedule-template-schedule-rent-increase-20",
+      "group": "change-schedule",
+      "note": "#template schedule Rent [increase 20%]",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":10,\"adjustmentType\":\"percent\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":20,\"adjustmentType\":\"percent\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-schedule-template-schedule-rent-decrease-10",
+      "group": "change-schedule",
+      "note": "#template schedule Rent [decrease 10%]",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":10,\"adjustmentType\":\"percent\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":-10,\"adjustmentType\":\"percent\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-schedule-template-schedule-rent-increase-10",
+      "group": "change-schedule",
+      "note": "#template schedule Rent [increase 10]",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":10,\"adjustmentType\":\"percent\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":10,\"adjustmentType\":\"fixed\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-schedule-template-schedule-rent",
+      "group": "change-schedule",
+      "note": "#template schedule Rent",
+      "goalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null,\"adjustment\":10,\"adjustmentType\":\"percent\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"schedule\",\"name\":\"Rent\",\"priority\":0,\"directive\":\"template\",\"full\":null}]",
+      "stale": true
+    },
+    {
+      "id": "change-limit-template-500-up-to-1000",
+      "group": "change-limit",
+      "note": "#template 500 up to 1000",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-limit-template-500",
+      "group": "change-limit",
+      "note": "#template 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-limit-template-500-up-to-2000",
+      "group": "change-limit",
+      "note": "#template 500 up to 2000",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":2000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-limit-template-500-up-to-1000-hold",
+      "group": "change-limit",
+      "note": "#template 500 up to 1000 hold",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":{\"amount\":1000,\"hold\":true,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-limit-template-50-up-to-20",
+      "group": "change-limit",
+      "note": "#template 50 up to 20",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":20,\"hold\":null,\"period\":\"daily\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":20,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-limit-template-50-up-to-100-per-week-starting-2026-10-",
+      "group": "change-limit",
+      "note": "#template 50 up to 100 per week starting 2026-10-12",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":100,\"hold\":null,\"period\":\"weekly\",\"start\":\"2026-10-05\"},\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":50,\"limit\":{\"amount\":100,\"hold\":null,\"period\":\"weekly\",\"start\":\"2026-10-12\"},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-limit-template-remainder-up-to-500",
+      "group": "change-limit",
+      "note": "#template remainder up to 500",
+      "goalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":{\"amount\":500,\"hold\":null,\"period\":\"monthly\",\"start\":null}}]",
+      "stale": true
+    },
+    {
+      "id": "change-limit-template-100-repeat-every-week-starting-2026-10-",
+      "group": "change-limit",
+      "note": "#template 100 repeat every week starting 2026-10-05 up to 500",
+      "goalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"periodic\",\"amount\":100,\"period\":{\"period\":\"week\",\"amount\":1},\"starting\":\"2026-10-05\",\"limit\":{\"amount\":500,\"hold\":null,\"period\":\"monthly\",\"start\":null},\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-other-template-remainder-2",
+      "group": "change-other",
+      "note": "#template remainder 2",
+      "goalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":2,\"limit\":null}]",
+      "stale": true
+    },
+    {
+      "id": "change-other-template-average-6-months",
+      "group": "change-other",
+      "note": "#template average 6 months",
+      "goalDef": "[{\"type\":\"average\",\"numMonths\":3,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"average\",\"numMonths\":6,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-other-template-average-3-months-increase-10",
+      "group": "change-other",
+      "note": "#template average 3 months [increase 10%]",
+      "goalDef": "[{\"type\":\"average\",\"numMonths\":3,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"average\",\"numMonths\":3,\"priority\":0,\"directive\":\"template\",\"adjustment\":10,\"adjustmentType\":\"percent\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-other-template-copy-from-2-months-ago",
+      "group": "change-other",
+      "note": "#template copy from 2 months ago",
+      "goalDef": "[{\"type\":\"copy\",\"priority\":0,\"directive\":\"template\",\"lookBack\":1,\"limit\":null}]",
+      "regeneratedGoalDef": "[{\"type\":\"copy\",\"priority\":0,\"directive\":\"template\",\"lookBack\":2,\"limit\":null}]",
+      "stale": true
+    },
+    {
+      "id": "change-other-goal-600",
+      "group": "change-other",
+      "note": "#goal 600",
+      "goalDef": "[{\"type\":\"goal\",\"amount\":500,\"priority\":null,\"directive\":\"goal\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"goal\",\"amount\":600,\"priority\":null,\"directive\":\"goal\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-other-goal-500",
+      "group": "change-other",
+      "note": "#goal 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"goal\",\"amount\":500,\"priority\":null,\"directive\":\"goal\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-other-template-remainder",
+      "group": "change-other",
+      "note": "#template remainder",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"remainder\",\"priority\":null,\"directive\":\"template\",\"weight\":1,\"limit\":null}]",
+      "stale": true
+    },
+    {
+      "id": "change-other-template-500-by-2027-01",
+      "group": "change-other",
+      "note": "#template 500 by 2027-01",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":500,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-lines-template-100-template-200",
+      "group": "change-lines",
+      "note": "#template 100\n#template 200",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-lines-template-100",
+      "group": "change-lines",
+      "note": "#template 100",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-lines-template-200-template-100",
+      "group": "change-lines",
+      "note": "#template 200\n#template 100",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":200,\"limit\":null,\"priority\":0,\"directive\":\"template\"},{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-lines-plain-note",
+      "group": "change-lines",
+      "note": "Plain note",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": null,
+      "stale": true
+    },
+    {
+      "id": "change-lines-template-bad",
+      "group": "change-lines",
+      "note": "#template bad",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template bad\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"b\\\" found.\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-lines-template-100-2",
+      "group": "change-lines",
+      "note": "#template 100",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template bad\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"b\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": true
+    },
+    {
+      "id": "change-equivalent-new-text-template-100",
+      "group": "change-equivalent",
+      "note": "New text\n#template 100",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\",\"description\":\"Old text\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\",\"description\":\"New text\"}]",
+      "stale": false
+    },
+    {
+      "id": "change-equivalent-template-worse",
+      "group": "change-equivalent",
+      "note": "#template worse",
+      "goalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template bad\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"b\\\" found.\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"error\",\"directive\":\"error\",\"line\":\"#template worse\",\"error\":\"Expected \\\"average\\\", \\\"copy from\\\", \\\"remainder\\\", \\\"schedule\\\", \\\"up\\\", amount, or percentage but \\\"w\\\" found.\"}]",
+      "stale": false
+    },
+    {
+      "id": "change-equivalent-template-100",
+      "group": "change-equivalent",
+      "note": "   #template 100",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":100,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "change-equivalent-template-500",
+      "group": "change-equivalent",
+      "note": "#template 500",
+      "goalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"simple\",\"monthly\":500,\"limit\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    },
+    {
+      "id": "change-equivalent-template-600-by-2027-01",
+      "group": "change-equivalent",
+      "note": "#template 600 BY 2027-01",
+      "goalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "regeneratedGoalDef": "[{\"type\":\"by\",\"amount\":600,\"month\":\"2027-01\",\"from\":null,\"priority\":0,\"directive\":\"template\"}]",
+      "stale": false
+    }
+  ]
+}

@@ -68,7 +68,6 @@
       "paths": [
         "Actualist/LocalFirst/Database/BudgetTemplateEngine*.swift",
         "Actualist/LocalFirst/Database/BudgetTemplateCalendar.swift",
-        "Actualist/LocalFirst/Database/BudgetTemplateNoteParser.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TemplateApply.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TemplatePreview.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TemplateInputs.swift",
@@ -77,6 +76,26 @@
         "Actualist/LocalFirst/BudgetTemplatePreview.swift"
       ],
       "notes": "TemplateApplyOracleReplayTests replays all 135 cases: test A from the fixture input as-is, test B with stored definitions seeded from the oracle to isolate engine math. BudgetTemplateEngineParityTests is hand-written, not oracle evidence."
+    },
+    {
+      "id": "template-notes",
+      "title": "Template note parsing for the stale-definition guard",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/template-note-parity",
+        "generate": "node scripts/template-note-parity/generate.mjs",
+        "verify": "node scripts/template-note-parity/verify.mjs",
+        "check": "node scripts/template-note-parity/generate.mjs --check"
+      },
+      "fixture": "TemplateNotes",
+      "oracleSuites": [
+        "TemplateNoteOracleReplayTests"
+      ],
+      "paths": [
+        "Actualist/LocalFirst/Database/BudgetTemplateNoteParser.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateNoteSync.swift"
+      ],
+      "notes": "Actual's storeNoteTemplates decides each case. A note must match the definition Actual stores for it, and a changed note must read as stale."
     },
     {
       "id": "budget-month",

@@ -20,20 +20,20 @@ extension LocalFirstActualStoreTests {
     @Test func noteParserClassifiesKeywordTypes() {
         let note = """
         #template remainder
-        #template copy
+        #template copy from 1 months ago
         #template average 3
         #template schedule Rent
-        #template spend 300 from 2026-07 to 2026-09
-        #template by 2026-12 200
+        #template 300 by 2026-09 spend from 2026-07
+        #template 200 by 2026-12
         #template up to 1000
         #template 10% of income
-        #template 500 monthly
+        #template 500 repeat every 2 months starting 2026-01-01
         """
         let directives = BudgetTemplateNoteParser.directives(in: note)
         let types = directives.map(\.type)
         #expect(types == [
             "remainder", "copy", "average", "schedule",
-            "spend", "by", "limit", "percentage", "periodic"
+            "spend", "by", "simple", "percentage", "periodic"
         ])
     }
 
@@ -361,6 +361,9 @@ extension LocalFirstActualStoreTests {
             return false
         } catch LocalFirstError.unsupportedTemplate(let reason) {
             return reason.contains("stale")
+        } catch LocalFirstError.refusedChange {
+            // The note matched, and a later check refused the template.
+            return false
         }
     }
 
@@ -373,43 +376,43 @@ extension LocalFirstActualStoreTests {
 
     @Test func percentageTemplateRefusesStaleNoteAndAllowsMatching() async throws {
         let def = #"[{"directive":"template","type":"percentage","percent":10,"previous":false,"category":"all income","priority":0}]"#
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template 25% of income") == true)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 25% of all income") == true)
         #expect(try await applyStalenessFired(goalDef: def, note: "#template 10% of Food") == true)
         #expect(try await applyStalenessFired(goalDef: def, note: "plain note") == true)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template 10% of income") == false)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 10% of income") == true)
         #expect(try await applyStalenessFired(goalDef: def, note: "#template 10% of all income") == false)
     }
 
     @Test func spendTemplateRefusesStaleNoteAndAllowsMatching() async throws {
         let def = #"[{"directive":"template","type":"spend","amount":300,"month":"2026-09","from":"2026-07","priority":0}]"#
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template spend 999 from 2026-07 to 2026-09") == true)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template spend 300 from 2026-08 to 2026-10") == true)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 999 by 2026-09 spend from 2026-07") == true)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 300 by 2026-10 spend from 2026-08") == true)
         #expect(try await applyStalenessFired(goalDef: def, note: "removed") == true)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template spend 300 from 2026-07 to 2026-09") == false)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 300 by 2026-09 spend from 2026-07") == false)
     }
 
     @Test func byTemplateRefusesStaleNoteAndAllowsMatching() async throws {
         let def = #"[{"directive":"template","type":"by","amount":200,"month":"2026-12","priority":0}]"#
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template by 2026-12 999") == true)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template by 2026-11 200") == true)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 999 by 2026-12") == true)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 200 by 2026-11") == true)
         #expect(try await applyStalenessFired(goalDef: def, note: "removed") == true)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template by 2026-12 200") == false)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 200 by 2026-12") == false)
     }
 
     @Test func periodicTemplateRefusesStaleNoteAndAllowsMatching() async throws {
-        let def = #"[{"directive":"template","type":"periodic","amount":500,"period":{"amount":1,"period":"month"},"priority":0}]"#
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template 700 monthly") == true)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template 500 weekly") == true)
+        let def = #"[{"directive":"template","type":"periodic","amount":500,"period":{"amount":1,"period":"month"},"starting":"2026-01-01","priority":0}]"#
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 700 repeat every 1 months starting 2026-01-01") == true)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 500 repeat every week starting 2026-01-01") == true)
         #expect(try await applyStalenessFired(goalDef: def, note: "removed") == true)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template 500 monthly") == false)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 500 repeat every 1 months starting 2026-01-01") == false)
     }
 
     @Test func copyTemplateRefusesStaleNoteAndAllowsMatching() async throws {
         let def = #"[{"directive":"template","type":"copy","lookBack":1,"priority":0}]"#
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template copy 3") == true)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template copy from 3 months ago") == true)
         #expect(try await applyStalenessFired(goalDef: def, note: "removed") == true)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template copy") == false)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template copy 1") == false)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template copy") == true)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template copy from 1 months ago") == false)
     }
 
     @Test func averageTemplateRefusesStaleNoteAndAllowsMatching() async throws {
@@ -432,7 +435,7 @@ extension LocalFirstActualStoreTests {
         #expect(try await applyStalenessFired(goalDef: def, note: "#template up to 1000 daily") == true)
         #expect(try await applyStalenessFired(goalDef: def, note: "removed") == true)
         #expect(try await applyStalenessFired(goalDef: def, note: "#template up to 1000") == false)
-        #expect(try await applyStalenessFired(goalDef: def, note: "#template up to 1000 monthly") == false)
+        #expect(try await applyStalenessFired(goalDef: def, note: "#template 0 up to 1000") == false)
     }
 
     @Test func simpleTemplateWithAttachedLimitRefusesStaleNote() async throws {

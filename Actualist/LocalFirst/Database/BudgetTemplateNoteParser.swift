@@ -1,5 +1,7 @@
 // Pure note-directive parser for the note-managed template staleness guard.
 // See BudgetDatabase+TemplateNoteSync.swift for the guard and DB reads.
+// Follows Actual's goal-template.pegjs and template-notes.ts line for line;
+// scripts/template-note-parity pins the result against Actual's own parser.
 import Foundation
 
 // MARK: - Pure note-directive parser (comparison only)
@@ -8,63 +10,45 @@ enum BudgetTemplateNoteParser {
     /// One `#template` / `#goal` line scanned from a category note, parsed into
     /// the behaviorally-relevant fields Actual stores in `goal_def`.
     ///
-    /// `type` is `nil` when the line is malformed or uses a syntax this scanner
-    /// cannot classify (for example multi-line YAML). A `nil` type is treated
-    /// as a parse failure and reconciled against `goal_def` error entries.
+    /// `type` is `nil` when Actual's grammar rejects the line. Actual stores such
+    /// a line as an error entry, so a `nil` type is reconciled against those.
     struct Directive: Equatable {
-        let keyword: String        // "template" | "goal"
-        let type: String?          // detected template type, nil if untypeable
-        let monthly: Double?
-        let amount: Double?
-        let percent: Double?
-        let previous: Bool
-        let sourceCategory: String?
-        let numMonths: Int?
-        let lookBack: Int?
-        let weight: Double?
-        let periodAmount: Int?
-        let periodPeriod: String?
-        let starting: String?
-        let month: String?
-        let fromMonth: String?
-        let annual: Bool
-        let repeatInterval: Int?
-        let scheduleName: String?
-        let scheduleId: String?
-        let full: Bool
-        let adjustment: Double?
-        let adjustmentType: String?
-        let limitAmount: Double?
-        let limitPeriod: String?
-        let limitStart: String?
+        var keyword: String        // "template" | "goal"
+        var type: String?          // detected template type, nil if untypeable
+        var priority: Int? = nil
+        var monthly: Double? = nil
+        var amount: Double? = nil
+        var percent: Double? = nil
+        var previous = false
+        var sourceCategory: String? = nil
+        var numMonths: Int? = nil
+        var lookBack: Int? = nil
+        var weight: Double? = nil
+        var periodAmount: Int? = nil
+        var periodPeriod: String? = nil
+        var starting: String? = nil
+        var month: String? = nil
+        var fromMonth: String? = nil
+        var annual = false
+        var repeatInterval: Int? = nil
+        var scheduleName: String? = nil
+        var full = false
+        var adjustment: Double? = nil
+        var adjustmentType: String? = nil
+        var limit: BudgetTemplateLimit? = nil
     }
 
-    /// Compiled once: the pattern is constant and the expression is immutable.
-    private static let directiveRegex = try? NSRegularExpression(
-        pattern: #"^\s*#(template|goal)(?:[ \t]+(.*))?$"#,
-        options: [.anchorsMatchLines]
-    )
-
     /// Scans every `#template` / `#goal` directive line in `note`, in order.
+    /// Actual reads a line from its first `#`, so text may come before a directive.
     static func directives(in note: String) -> [Directive] {
-        guard let regex = directiveRegex else { return [] }
-
-        let nsNote = note as NSString
-        let matches = regex.matches(
-            in: note,
-            range: NSRange(location: 0, length: nsNote.length)
-        )
-        return matches.map { match -> Directive in
-            let keyword = nsNote.substring(with: match.range(at: 1))
-            let argument: String
-            if match.range(at: 2).location == NSNotFound {
-                argument = ""
-            } else {
-                argument = nsNote.substring(with: match.range(at: 2))
-                    .trimmingCharacters(in: .whitespaces)
+        note.replacingOccurrences(of: "\r\n", with: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .compactMap { line -> Directive? in
+                let directive = line[(line.firstIndex(of: "#") ?? line.startIndex)...]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard directive.hasPrefix("#template") || directive.hasPrefix("#goal") else { return nil }
+                return parse(directive)
             }
-            return parse(keyword: keyword, argument: argument)
-        }
     }
 
     /// Returns a human-readable staleness reason when the scanned note
@@ -122,105 +106,87 @@ enum BudgetTemplateNoteParser {
         if noteDirective.keyword != goalDirective {
             return "the category note directive changed between #template and #goal"
         }
+        // Actual writes a stored cap into a note as `#template up to` or `#template 0 up to`.
+        if goalEntry.type == "limit", noteDirective.type == "simple", (noteDirective.monthly ?? 0) == 0 {
+            return limitMismatch(noteDirective.limit, goalEntry.standaloneLimit)
+        }
         if noteDirective.type != goalEntry.type {
             return "the category note template type changed"
+        }
+        if noteDirective.priority != nil, noteDirective.priority != goalEntry.priority ?? 0 {
+            return "the category note priority changed"
         }
 
         switch noteDirective.type {
         case "simple":
-            if !equal(noteDirective.monthly, goalEntry.monthly) {
+            if noteDirective.monthly != goalEntry.monthly {
                 return "the category note template amount changed"
             }
-            if let limitReason = limitMismatch(noteDirective, goalEntry.limit) {
-                return limitReason
-            }
+            return limitMismatch(noteDirective.limit, goalEntry.limit)
         case "periodic":
-            if !equal(noteDirective.amount, goalEntry.amount) {
+            if noteDirective.amount != goalEntry.amount {
                 return "the category note periodic amount changed"
             }
-            if !equalInt(noteDirective.periodAmount, goalEntry.period?.amount) {
+            if noteDirective.periodAmount != goalEntry.period?.amount {
                 return "the category note periodic interval changed"
             }
-            if normalized(noteDirective.periodPeriod) != normalized(goalEntry.period?.period) {
+            if noteDirective.periodPeriod != goalEntry.period?.period {
                 return "the category note periodic period changed"
             }
-            if normalized(noteDirective.starting) != normalized(goalEntry.starting) {
+            if noteDirective.starting != goalEntry.starting {
                 return "the category note periodic start date changed"
             }
-            if let limitReason = limitMismatch(noteDirective, goalEntry.limit) {
-                return limitReason
-            }
+            return limitMismatch(noteDirective.limit, goalEntry.limit)
         case "copy":
-            if !equalInt(noteDirective.lookBack, goalEntry.lookBack) {
+            if noteDirective.lookBack != goalEntry.lookBack {
                 return "the category note copy look-back changed"
             }
         case "average":
-            if !equalInt(noteDirective.numMonths, goalEntry.numMonths) {
+            if noteDirective.numMonths != goalEntry.numMonths {
                 return "the category note average window changed"
             }
+            return adjustmentMismatch(noteDirective, goalEntry)
         case "remainder":
-            if !equal(noteDirective.weight, goalEntry.weight) {
+            if noteDirective.weight != goalEntry.weight {
                 return "the category note remainder weight changed"
             }
-            if let limitReason = limitMismatch(noteDirective, goalEntry.limit) {
-                return limitReason
-            }
+            return limitMismatch(noteDirective.limit, goalEntry.limit)
         case "percentage":
-            if !equal(noteDirective.percent, goalEntry.percentageAmount) {
+            if noteDirective.percent != goalEntry.percentageAmount {
                 return "the category note percentage changed"
             }
             if noteDirective.previous != (goalEntry.previous ?? false) {
                 return "the category note percentage previous flag changed"
             }
-            if normalizeSourceCategory(noteDirective.sourceCategory)
-                != normalizeSourceCategory(goalEntry.sourceCategory) {
+            if noteDirective.sourceCategory != goalEntry.sourceCategory {
                 return "the category note percentage source changed"
             }
         case "schedule":
-            if let reason = scheduleMismatch(noteDirective, goalEntry) {
-                return reason
+            if noteDirective.scheduleName != goalEntry.name {
+                return "the category note schedule reference changed"
             }
-        case "spend":
-            if !equal(noteDirective.amount, goalEntry.amount) {
-                return "the category note spend amount changed"
+            if noteDirective.full != (goalEntry.full ?? false) {
+                return "the category note schedule full flag changed"
             }
-            if normalized(noteDirective.month) != normalized(goalEntry.month) {
-                return "the category note spend target month changed"
+            return adjustmentMismatch(noteDirective, goalEntry)
+        case "by", "spend":
+            let name = noteDirective.type ?? ""
+            if noteDirective.amount != goalEntry.amount {
+                return "the category note \(name) amount changed"
             }
-            if normalized(noteDirective.fromMonth) != normalized(goalEntry.fromMonth) {
-                return "the category note spend start month changed"
+            if noteDirective.month != goalEntry.month {
+                return "the category note \(name) target month changed"
             }
-        case "by":
-            if !equal(noteDirective.amount, goalEntry.amount) {
-                return "the category note by amount changed"
+            if noteDirective.fromMonth != goalEntry.fromMonth {
+                return "the category note \(name) start month changed"
             }
-            if normalized(noteDirective.month) != normalized(goalEntry.month) {
-                return "the category note by target month changed"
-            }
-            if noteDirective.annual != (goalEntry.annual ?? false) {
-                return "the category note by annual flag changed"
-            }
-        case "limit":
-            let goalLimit = goalEntry.standaloneLimit
-            if !equal(noteDirective.limitAmount, goalLimit?.amount) {
-                return "the category note up-to limit amount changed"
-            }
-            if normalized(noteDirective.limitPeriod) != normalized(goalLimit?.period) {
-                return "the category note up-to limit period changed"
-            }
-            if normalized(noteDirective.limitStart) != normalized(goalLimit?.start) {
-                return "the category note up-to limit start date changed"
+            if noteDirective.annual != (goalEntry.annual ?? false)
+                || noteDirective.repeatInterval != goalEntry.repeatInterval {
+                return "the category note \(name) repeat changed"
             }
         case "goal":
-            if !equal(noteDirective.amount, goalEntry.amount) {
+            if noteDirective.amount != goalEntry.amount {
                 return "the category note goal amount changed"
-            }
-            // The goal target month is only compared when both sides express
-            // it; Actual may store the target on `long_goal` instead.
-            if let noteMonth = normalized(noteDirective.month),
-               normalized(goalEntry.month) != nil,
-               noteMonth != normalized(goalEntry.month) {
-                return "the category note goal target month changed"
             }
         default:
             // Unknown stored type: cannot verify, treat as stale rather than
@@ -230,490 +196,399 @@ enum BudgetTemplateNoteParser {
         return nil
     }
 
-    private static func limitMismatch(
-        _ noteDirective: Directive,
-        _ goalLimit: BudgetTemplateLimit?
-    ) -> String? {
-        // A limit clause is optional on simple/periodic/remainder. Only
-        // compare when the note expresses one.
-        guard noteDirective.limitAmount != nil || noteDirective.limitPeriod != nil
-            || noteDirective.limitStart != nil else { return nil }
-        if !equal(noteDirective.limitAmount, goalLimit?.amount) {
-            return "the category note up-to limit amount changed"
-        }
-        if normalized(noteDirective.limitPeriod) != normalized(goalLimit?.period) {
-            return "the category note up-to limit period changed"
-        }
-        if normalized(noteDirective.limitStart) != normalized(goalLimit?.start) {
-            return "the category note up-to limit start date changed"
-        }
-        return nil
+    private static func limitMismatch(_ note: BudgetTemplateLimit?, _ stored: BudgetTemplateLimit?) -> String? {
+        let matches = note?.amount == stored?.amount && note?.period == stored?.period
+            && note?.start == stored?.start && (note?.hold ?? false) == (stored?.hold ?? false)
+        return matches ? nil : "the category note up-to limit changed"
     }
 
-    private static func scheduleMismatch(
-        _ noteDirective: Directive,
-        _ goalEntry: BudgetTemplateEntry
-    ) -> String? {
-        // Identity: scheduleId if present, else name.
-        if let parsedID = noteDirective.scheduleId {
-            if parsedID != (goalEntry.scheduleId ?? "") {
-                return "the category note schedule reference changed"
-            }
-        } else if let parsedName = noteDirective.scheduleName {
-            if normalized(parsedName) != normalized(goalEntry.name) {
-                return "the category note schedule reference changed"
-            }
-        } else {
-            return "the category note schedule reference changed"
-        }
-        if noteDirective.full != (goalEntry.full ?? false) {
-            return "the category note schedule full flag changed"
-        }
-        if !equal(noteDirective.adjustment, goalEntry.adjustment)
-            || normalized(noteDirective.adjustmentType) != normalized(goalEntry.adjustmentType) {
-            return "the category note schedule adjustment changed"
-        }
-        return nil
-    }
-
-    // MARK: Comparison helpers
-
-    private static func equal(_ a: Double?, _ b: Double?, tolerance: Double = 0.01) -> Bool {
-        switch (a, b) {
-        case let (x?, y?): return abs(x - y) < tolerance
-        case (nil, nil): return true
-        default: return false
-        }
-    }
-
-    private static func equalInt(_ a: Int?, _ b: Int?) -> Bool {
-        switch (a, b) {
-        case let (x?, y?): return x == y
-        case (nil, nil): return true
-        default: return false
-        }
-    }
-
-    private static func normalized(_ s: String?) -> String? {
-        guard let s else { return nil }
-        let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private static func normalizeSourceCategory(_ s: String?) -> String? {
-        guard var trimmed = normalized(s) else { return nil }
-        let lower = trimmed.lowercased()
-        if lower == "income" || lower == "all income" {
-            trimmed = "all income"
-        }
-        return trimmed
+    private static func adjustmentMismatch(_ noteDirective: Directive, _ goalEntry: BudgetTemplateEntry) -> String? {
+        noteDirective.adjustment == goalEntry.adjustment && noteDirective.adjustmentType == goalEntry.adjustmentType
+            ? nil
+            : "the category note adjustment changed"
     }
 
     // MARK: Parsing
 
-    private static func parse(keyword: String, argument: String) -> Directive {
-        if keyword == "goal" {
-            return parseGoal(argument: argument)
+    /// Actual's grammar: the first alternative that matches wins, and the line
+    /// is rejected when anything is left after it.
+    private static func parse(_ line: String) -> Directive {
+        let keyword = line.hasPrefix("#goal") ? "goal" : "template"
+        var cursor = NoteCursor(line.dropFirst(keyword.count + 1))
+        guard let directive = keyword == "goal" ? parseGoal(&cursor) : parseTemplate(&cursor),
+              cursor.isAtEnd,
+              isValidAdjustment(directive) else {
+            return Directive(keyword: keyword, type: nil)
         }
-        return parseTemplate(argument: argument)
+        return directive
     }
 
-    private static func parseGoal(argument: String) -> Directive {
-        let tokens = tokenize(argument)
-        guard let amountToken = tokens.first, let amount = parseNumber(amountToken) else {
-            return malformed(keyword: "goal")
-        }
-        var month: String?
-        if let byIndex = tokens.firstIndex(of: "by"), byIndex + 1 < tokens.count {
-            month = tokens[byIndex + 1]
-        }
-        return Directive(
-            keyword: "goal", type: "goal", monthly: nil, amount: amount,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-            lookBack: nil, weight: nil, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: month, fromMonth: nil, annual: false,
-            repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-            adjustment: nil, adjustmentType: nil,
-            limitAmount: nil, limitPeriod: nil, limitStart: nil
-        )
+    /// `storeNoteTemplates` rejects these after parsing, so they store as errors.
+    private static func isValidAdjustment(_ directive: Directive) -> Bool {
+        guard directive.adjustmentType == "percent", let adjustment = directive.adjustment else { return true }
+        return adjustment > -100 && adjustment <= 1000
     }
 
-    private static func parseTemplate(argument: String) -> Directive {
-        let tokens = tokenize(argument)
-        guard let first = tokens.first else { return malformed(keyword: "template") }
-        let lowered = first.lowercased()
-
-        switch lowered {
-        case "remainder":
-            return parseRemainder(tokens: tokens)
-        case "copy":
-            return parseCopy(tokens: tokens)
-        case "average":
-            return parseAverage(tokens: tokens)
-        case "schedule":
-            return parseSchedule(tokens: tokens)
-        case "spend":
-            return parseSpend(tokens: tokens)
-        case "by":
-            return parseBy(tokens: tokens)
-        case "up":
-            // `up to ...` standalone limit.
-            return parseStandaloneLimit(tokens: tokens)
-        default:
-            break
-        }
-
-        if argument.contains("%") {
-            return parsePercentage(tokens: tokens)
-        }
-
-        // Number-led: simple or periodic.
-        guard let value = parseNumber(first) else { return malformed(keyword: "template") }
-
-        if let period = periodFromTokens(tokens, after: 0) {
-            return Directive(
-                keyword: "template", type: "periodic", monthly: nil, amount: value,
-                percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-                lookBack: nil, weight: nil,
-                periodAmount: period.amount, periodPeriod: period.period,
-                starting: nil, month: nil, fromMonth: nil, annual: false,
-                repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-                adjustment: nil, adjustmentType: nil,
-                limitAmount: nil, limitPeriod: nil, limitStart: nil
-            )
-        }
-
-        // Simple, optionally with an attached limit.
-        let limit = limitFromTokens(tokens, after: 0)
-        return Directive(
-            keyword: "template", type: "simple", monthly: value, amount: nil,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-            lookBack: nil, weight: nil, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: nil, fromMonth: nil, annual: false,
-            repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-            adjustment: nil, adjustmentType: nil,
-            limitAmount: limit?.amount, limitPeriod: limit?.period, limitStart: limit?.start
-        )
+    private static func parseGoal(_ cursor: inout NoteCursor) -> Directive? {
+        cursor.amount().map { Directive(keyword: "goal", type: "goal", amount: $0) }
     }
 
-    private static func parseRemainder(tokens: [String]) -> Directive {
-        // `remainder` optionally followed by a weight and/or an up-to limit.
-        var weight: Double? = nil
-        var rest = Array(tokens.dropFirst())
-        if let first = rest.first, let n = parseNumber(first), !isLimitStart(first) {
-            weight = n
-            rest = Array(rest.dropFirst())
+    private static func parseTemplate(_ cursor: inout NoteCursor) -> Directive? {
+        var priority = 0
+        if cursor.take("-") {
+            guard let value = Int(cursor.digits()) else { return nil }
+            priority = value
         }
-        let limit = limitFromTokens(rest, after: -1)
-        return Directive(
-            keyword: "template", type: "remainder", monthly: nil, amount: nil,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-            lookBack: nil, weight: weight ?? 1, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: nil, fromMonth: nil, annual: false,
-            repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-            adjustment: nil, adjustmentType: nil,
-            limitAmount: limit?.amount, limitPeriod: limit?.period, limitStart: limit?.start
-        )
-    }
-
-    private static func parseCopy(tokens: [String]) -> Directive {
-        var lookBack: Int? = nil
-        if let next = tokens.dropFirst().first, let n = parseNumber(next) {
-            lookBack = Int(n)
-        }
-        return Directive(
-            keyword: "template", type: "copy", monthly: nil, amount: nil,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-            lookBack: lookBack ?? 1, weight: nil, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: nil, fromMonth: nil, annual: false,
-            repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-            adjustment: nil, adjustmentType: nil,
-            limitAmount: nil, limitPeriod: nil, limitStart: nil
-        )
-    }
-
-    private static func parseAverage(tokens: [String]) -> Directive {
-        guard let next = tokens.dropFirst().first, let n = parseNumber(next) else {
-            return malformed(keyword: "template")
-        }
-        return Directive(
-            keyword: "template", type: "average", monthly: nil, amount: nil,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: Int(n),
-            lookBack: nil, weight: nil, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: nil, fromMonth: nil, annual: false,
-            repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-            adjustment: nil, adjustmentType: nil,
-            limitAmount: nil, limitPeriod: nil, limitStart: nil
-        )
-    }
-
-    private static func parseSchedule(tokens: [String]) -> Directive {
-        // `schedule <ref> [full] [<adjustment>]`
-        var rest = Array(tokens.dropFirst())
-        guard let ref = rest.first else { return malformed(keyword: "template") }
-        rest = Array(rest.dropFirst())
-
-        var scheduleId: String?
-        var scheduleName: String?
-        if ref.lowercased().hasPrefix("id:") {
-            scheduleId = String(ref.dropFirst(3))
-        } else {
-            scheduleName = ref
-        }
-
-        var full = false
-        var adjustment: Double?
-        var adjustmentType: String?
-        for token in rest {
-            if token.lowercased() == "full" {
-                full = true
-            } else if let adj = parseAdjustment(token) {
-                adjustment = adj.value
-                adjustmentType = adj.type
+        let alternatives = [
+            parsePercentage, parsePeriodic, parseTarget, parseSimple, parseCapOnly,
+            parseSchedule, parseRemainder, parseAverage, parseCopy
+        ]
+        for alternative in alternatives {
+            var attempt = cursor
+            attempt.skipSpaces()
+            if var directive = alternative(&attempt) {
+                cursor = attempt
+                // Actual stores a remainder without a priority.
+                directive.priority = directive.type == "remainder" ? nil : priority
+                return directive
             }
         }
+        return nil
+    }
+
+    private static func parsePercentage(_ cursor: inout NoteCursor) -> Directive? {
+        guard let percent = cursor.percent() else { return nil }
+        cursor.skipSpaces()
+        guard cursor.take("of") else { return nil }
+        cursor.skipSpaces()
+        let previous = cursor.take("previous")
+        cursor.skipSpaces()
+        let source = cursor.takeName()
+        guard !source.isEmpty else { return nil }
         return Directive(
-            keyword: "template", type: "schedule", monthly: nil, amount: nil,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-            lookBack: nil, weight: nil, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: nil, fromMonth: nil, annual: false,
-            repeatInterval: nil, scheduleName: scheduleName, scheduleId: scheduleId,
-            full: full, adjustment: adjustment, adjustmentType: adjustmentType,
-            limitAmount: nil, limitPeriod: nil, limitStart: nil
+            keyword: "template", type: "percentage",
+            percent: percent, previous: previous, sourceCategory: source
         )
     }
 
-    private static func parseSpend(tokens: [String]) -> Directive {
-        // `spend <amount> from <start> to <end>`
-        let rest = Array(tokens.dropFirst())
-        guard let amount = rest.first.flatMap(parseNumber) else {
-            return malformed(keyword: "template")
-        }
-        let from = tokenAfter(rest, keyword: "from")
-        let to = tokenAfter(rest, keyword: "to")
+    private static func parsePeriodic(_ cursor: inout NoteCursor) -> Directive? {
+        guard let amount = cursor.amount() else { return nil }
+        cursor.skipSpaces()
+        guard cursor.takeRepeatEvery(), let period = cursor.periodCount() else { return nil }
+        cursor.skipSpaces()
+        guard cursor.take("starting") else { return nil }
+        cursor.skipSpaces()
+        guard let starting = cursor.date() else { return nil }
         return Directive(
-            keyword: "template", type: "spend", monthly: nil, amount: amount,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-            lookBack: nil, weight: nil, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: to, fromMonth: from, annual: false,
-            repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-            adjustment: nil, adjustmentType: nil,
-            limitAmount: nil, limitPeriod: nil, limitStart: nil
+            keyword: "template", type: "periodic", amount: amount,
+            periodAmount: period.amount, periodPeriod: period.period, starting: starting,
+            limit: parseLimit(&cursor)
         )
     }
 
-    private static func parseBy(tokens: [String]) -> Directive {
-        // `by <month> <amount> [repeat every year]`
-        let rest = Array(tokens.dropFirst())
-        guard let month = rest.first else { return malformed(keyword: "template") }
-        let afterMonth = Array(rest.dropFirst())
-        guard let amount = afterMonth.first.flatMap(parseNumber) else {
-            return malformed(keyword: "template")
-        }
-        let annual = containsAnnualKeyword(afterMonth)
-        return Directive(
-            keyword: "template", type: "by", monthly: nil, amount: amount,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-            lookBack: nil, weight: nil, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: month, fromMonth: nil, annual: annual,
-            repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-            adjustment: nil, adjustmentType: nil,
-            limitAmount: nil, limitPeriod: nil, limitStart: nil
-        )
-    }
+    /// `<amount> by <month> [spend from <month>] [repeat every ...]`.
+    private static func parseTarget(_ cursor: inout NoteCursor) -> Directive? {
+        guard let amount = cursor.amount() else { return nil }
+        cursor.skipSpaces()
+        guard cursor.take("by") else { return nil }
+        cursor.skipSpaces()
+        guard let month = cursor.month() else { return nil }
 
-    private static func parseStandaloneLimit(tokens: [String]) -> Directive {
-        // `up to <amount> [daily|weekly|monthly] [starting <date>]`
-        guard tokens.first?.lowercased() == "up",
-              tokens.count > 1, tokens[1].lowercased() == "to" else {
-            return malformed(keyword: "template")
-        }
-        let rest = Array(tokens.dropFirst(2))
-        guard let amount = rest.first.flatMap(parseNumber) else {
-            return malformed(keyword: "template")
-        }
-        let afterAmount = Array(rest.dropFirst())
-        let period = periodKeywordFromTokens(afterAmount) ?? "monthly"
-        let start = tokenAfter(afterAmount, keyword: "starting")
-        return Directive(
-            keyword: "template", type: "limit", monthly: nil, amount: nil,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-            lookBack: nil, weight: nil, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: nil, fromMonth: nil, annual: false,
-            repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-            adjustment: nil, adjustmentType: nil,
-            limitAmount: amount, limitPeriod: period, limitStart: start
-        )
-    }
-
-    private static func parsePercentage(tokens: [String]) -> Directive {
-        // `<pct>% [of] [previous] <source>` / `previous <pct>% of income`
-        var previous = false
-        var percent: Double?
-        var source: String?
-
-        for token in tokens {
-            if token.lowercased() == "previous" {
-                previous = true
-                continue
-            }
-            if token.contains("%") {
-                let digits = token.replacingOccurrences(of: "%", with: "")
-                percent = parseNumber(digits)
-                continue
-            }
-            if token.lowercased() == "of" { continue }
-            if source == nil {
-                source = token
-            } else {
-                source = source! + " " + token
-            }
-        }
-        guard percent != nil else { return malformed(keyword: "template") }
-        return Directive(
-            keyword: "template", type: "percentage", monthly: nil, amount: nil,
-            percent: percent, previous: previous, sourceCategory: source,
-            numMonths: nil, lookBack: nil, weight: nil, periodAmount: nil,
-            periodPeriod: nil, starting: nil, month: nil, fromMonth: nil,
-            annual: false, repeatInterval: nil, scheduleName: nil, scheduleId: nil,
-            full: false, adjustment: nil, adjustmentType: nil,
-            limitAmount: nil, limitPeriod: nil, limitStart: nil
-        )
-    }
-
-    // MARK: Token helpers
-
-    /// Splits an argument into whitespace-separated tokens, treating quoted
-    /// substrings as a single token (quotes stripped).
-    private static func tokenize(_ argument: String) -> [String] {
-        var tokens: [String] = []
-        var current = ""
-        var inQuotes = false
-        for ch in argument {
-            if ch == "\"" {
-                inQuotes.toggle()
-                continue
-            }
-            if ch.isWhitespace && !inQuotes {
-                if !current.isEmpty {
-                    tokens.append(current)
-                    current = ""
+        var directive = Directive(keyword: "template", type: "by", amount: amount, month: month)
+        var spend = cursor
+        spend.skipSpaces()
+        if spend.take("spend") {
+            spend.skipSpaces()
+            if spend.take("from") {
+                spend.skipSpaces()
+                if let from = spend.month() {
+                    directive.type = "spend"
+                    directive.fromMonth = from
+                    cursor = spend
                 }
-            } else {
-                current.append(ch)
             }
         }
-        if !current.isEmpty { tokens.append(current) }
-        return tokens
-    }
-
-    private static func parseNumber(_ token: String) -> Double? {
-        let cleaned = token.trimmingCharacters(in: .whitespaces)
-        return Double(cleaned)
-    }
-
-    private static func parseAdjustment(_ token: String) -> (value: Double, type: String)? {
-        guard !token.isEmpty else { return nil }
-        let isPercent = token.hasSuffix("%")
-        var body = token
-        if isPercent { body.removeLast() }
-        guard let sign = body.first, sign == "+" || sign == "-" else { return nil }
-        guard let value = Double(body) else { return nil }
-        return (value, isPercent ? "percent" : "fixed")
-    }
-
-    private static let periodKeywords: [String: (amount: Int, period: String)] = [
-        "daily": (1, "day"), "day": (1, "day"), "days": (1, "day"),
-        "weekly": (1, "week"), "week": (1, "week"), "weeks": (1, "week"),
-        "monthly": (1, "month"), "month": (1, "month"), "months": (1, "month"),
-        "yearly": (1, "year"), "year": (1, "year"), "years": (1, "year")
-    ]
-
-    /// Limit periods use Actual's adjectival vocabulary (`monthly` / `daily` /
-    /// `weekly`), distinct from the periodic noun vocabulary
-    /// (`month` / `day` / `week` / `year`).
-    private static let limitPeriodKeywords: [String: String] = [
-        "daily": "daily", "day": "daily", "days": "daily",
-        "weekly": "weekly", "week": "weekly", "weeks": "weekly",
-        "monthly": "monthly", "month": "monthly", "months": "monthly"
-    ]
-
-    /// Parses a period expression beginning at `start` in `tokens`, supporting
-    /// `<word>`, `every <word>`, and `every <n> <word>`.
-    private static func periodFromTokens(
-        _ tokens: [String],
-        after start: Int
-    ) -> (amount: Int, period: String)? {
-        var i = start + 1
-        if i < tokens.count, tokens[i].lowercased() == "every" { i += 1 }
-        // `every <n> <unit>`
-        if i < tokens.count, let n = parseNumber(tokens[i]),
-           i + 1 < tokens.count, let period = periodKeywords[tokens[i + 1].lowercased()] {
-            return (max(Int(n), 1), period.period)
+        var repeating = cursor
+        repeating.skipSpaces()
+        if repeating.takeRepeatEvery(), let interval = repeating.repeatInterval() {
+            directive.annual = interval.annual
+            directive.repeatInterval = interval.count
+            cursor = repeating
         }
-        if i < tokens.count, let period = periodKeywords[tokens[i].lowercased()] {
-            return (period.amount, period.period)
+        return directive
+    }
+
+    private static func parseSimple(_ cursor: inout NoteCursor) -> Directive? {
+        guard let monthly = cursor.amount() else { return nil }
+        return Directive(keyword: "template", type: "simple", monthly: monthly, limit: parseLimit(&cursor))
+    }
+
+    private static func parseCapOnly(_ cursor: inout NoteCursor) -> Directive? {
+        parseLimit(&cursor).map { Directive(keyword: "template", type: "simple", limit: $0) }
+    }
+
+    private static func parseSchedule(_ cursor: inout NoteCursor) -> Directive? {
+        guard cursor.take("schedule") else { return nil }
+        cursor.skipSpaces()
+        let full = cursor.take("full")
+        cursor.skipSpaces()
+        guard let name = cursor.scheduleName() else { return nil }
+        var directive = Directive(keyword: "template", type: "schedule", scheduleName: name, full: full)
+        applyAdjustment(&cursor, to: &directive)
+        return directive
+    }
+
+    private static func parseRemainder(_ cursor: inout NoteCursor) -> Directive? {
+        guard cursor.take("remainder") else { return nil }
+        cursor.skipSpaces()
+        let weight = cursor.positive().map(Double.init) ?? 1
+        return Directive(keyword: "template", type: "remainder", weight: weight, limit: parseLimit(&cursor))
+    }
+
+    private static func parseAverage(_ cursor: inout NoteCursor) -> Directive? {
+        guard cursor.take("average") else { return nil }
+        cursor.skipSpaces()
+        guard let months = cursor.positive() else { return nil }
+        cursor.skipSpaces()
+        _ = cursor.take("months")
+        var directive = Directive(keyword: "template", type: "average", numMonths: months)
+        applyAdjustment(&cursor, to: &directive)
+        return directive
+    }
+
+    private static func parseCopy(_ cursor: inout NoteCursor) -> Directive? {
+        guard cursor.take("copy from") else { return nil }
+        cursor.skipSpaces()
+        guard let lookBack = cursor.positive() else { return nil }
+        cursor.skipSpaces()
+        guard cursor.take("months ago") else { return nil }
+        // Actual stores a limit here and ignores it, so it does not change the result.
+        _ = parseLimit(&cursor)
+        return Directive(keyword: "template", type: "copy", lookBack: lookBack)
+    }
+
+    /// `up to <amount> [per week starting <date> | per day] [hold]`.
+    private static func parseLimit(_ cursor: inout NoteCursor) -> BudgetTemplateLimit? {
+        var attempt = cursor
+        attempt.skipSpaces()
+        guard attempt.take("up") else { return nil }
+        attempt.skipSpaces()
+        guard attempt.take("to") else { return nil }
+        attempt.skipSpaces()
+        guard let amount = attempt.amount() else { return nil }
+
+        var period = "monthly"
+        var start: String?
+        var clause = attempt
+        clause.skipSpaces()
+        if clause.take("per week starting") {
+            clause.skipSpaces()
+            if let date = clause.date() {
+                period = "weekly"
+                start = date
+                attempt = clause
+            }
+        } else if clause.take("per day") {
+            period = "daily"
+            attempt = clause
+        }
+        attempt.skipSpaces()
+        let hold = attempt.take("hold")
+        cursor = attempt
+        return BudgetTemplateLimit(amount: amount, period: period, hold: hold, start: start)
+    }
+
+    private static func applyAdjustment(_ cursor: inout NoteCursor, to directive: inout Directive) {
+        var attempt = cursor
+        attempt.skipSpaces()
+        guard attempt.take("["), let adjustment = attempt.adjustment(), attempt.take("]") else { return }
+        directive.adjustment = adjustment.value
+        directive.adjustmentType = adjustment.type
+        cursor = attempt
+    }
+}
+
+/// Walks one directive line. Keywords match case-insensitively and need no word
+/// boundary, as in Actual's grammar.
+private struct NoteCursor {
+    private var rest: Substring
+
+    init(_ text: Substring) { rest = text }
+
+    var isAtEnd: Bool { rest.isEmpty }
+
+    mutating func skipSpaces() {
+        rest = rest.drop { $0 == " " || $0 == "\t" }
+    }
+
+    /// `text` is lowercase.
+    mutating func take(_ text: String) -> Bool {
+        guard rest.prefix(text.count).lowercased() == text else { return false }
+        rest = rest.dropFirst(text.count)
+        return true
+    }
+
+    mutating func takeRepeatEvery() -> Bool {
+        guard take("repeat") else { return false }
+        skipSpaces()
+        guard take("every") else { return false }
+        skipSpaces()
+        return true
+    }
+
+    mutating func digits() -> Substring {
+        let run = rest.prefix { $0.isASCII && $0.isNumber }
+        rest = rest.dropFirst(run.count)
+        return run
+    }
+
+    /// `[1-9][0-9]*`.
+    mutating func positive() -> Int? {
+        guard let first = rest.first, first != "0", first.isNumber else { return nil }
+        return Int(digits())
+    }
+
+    /// `[currency symbol] -?digits[.[d[d]]]`.
+    mutating func amount() -> Double? {
+        var attempt = self
+        if attempt.rest.first?.unicodeScalars.first?.properties.generalCategory == .currencySymbol {
+            attempt.rest.removeFirst()
+        }
+        attempt.skipSpaces()
+        var text = attempt.take("-") ? "-" : ""
+        let whole = attempt.digits()
+        guard !whole.isEmpty else { return nil }
+        text += whole
+        if attempt.take(".") {
+            let cents = attempt.rest.prefix(2).prefix { $0.isASCII && $0.isNumber }
+            attempt.rest = attempt.rest.dropFirst(cents.count)
+            text += "." + cents + "0"
+        }
+        self = attempt
+        return Double(text)
+    }
+
+    /// `digits[.digits] %`.
+    mutating func percent() -> Double? {
+        var attempt = self
+        guard let value = attempt.decimal() else { return nil }
+        attempt.skipSpaces()
+        guard attempt.take("%") else { return nil }
+        self = attempt
+        return value
+    }
+
+    /// `[increase|decrease] <number>[%]`.
+    mutating func adjustment() -> (value: Double, type: String)? {
+        var attempt = self
+        let sign: Double
+        if attempt.take("increase") {
+            sign = 1
+        } else if attempt.take("decrease") {
+            sign = -1
+        } else {
+            return nil
+        }
+        attempt.skipSpaces()
+        guard let value = attempt.decimal() else { return nil }
+        var marker = attempt
+        marker.skipSpaces()
+        let isPercent = marker.take("%")
+        self = isPercent ? marker : attempt
+        return (sign * value, isPercent ? "percent" : "fixed")
+    }
+
+    private mutating func decimal() -> Double? {
+        let whole = digits()
+        guard !whole.isEmpty else { return nil }
+        guard take(".") else { return Double(whole) }
+        return Double(whole + "." + digits() + "0")
+    }
+
+    /// `YYYY-MM`.
+    mutating func month() -> String? {
+        var attempt = self
+        guard let year = attempt.fixedDigits(4), attempt.take("-"), let month = attempt.fixedDigits(2) else {
+            return nil
+        }
+        self = attempt
+        return "\(year)-\(month)"
+    }
+
+    /// `YYYY-MM-DD`.
+    mutating func date() -> String? {
+        var attempt = self
+        guard let month = attempt.month(), attempt.take("-"), let day = attempt.fixedDigits(2) else {
+            return nil
+        }
+        self = attempt
+        return "\(month)-\(day)"
+    }
+
+    private mutating func fixedDigits(_ count: Int) -> Substring? {
+        let run = rest.prefix(count)
+        guard run.count == count, run.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        rest = rest.dropFirst(count)
+        return run
+    }
+
+    mutating func periodCount() -> (amount: Int, period: String)? {
+        if take("day") { return (1, "day") }
+        if take("week") { return (1, "week") }
+        if take("year") { return (1, "year") }
+        var attempt = self
+        guard let count = Int(attempt.digits()) else { return nil }
+        attempt.skipSpaces()
+        for (word, period) in [("days", "day"), ("weeks", "week"), ("months", "month"), ("years", "year")]
+        where attempt.take(word) {
+            self = attempt
+            return (count, period)
         }
         return nil
     }
 
-    private static func periodKeywordFromTokens(_ tokens: [String]) -> String? {
-        for token in tokens {
-            if let p = limitPeriodKeywords[token.lowercased()] {
-                return p
-            }
-            if token.lowercased() == "starting" { break }
+    mutating func repeatInterval() -> (annual: Bool, count: Int?)? {
+        if take("month") { return (false, nil) }
+        if take("year") { return (true, nil) }
+        var attempt = self
+        guard let count = attempt.positive() else { return nil }
+        attempt.skipSpaces()
+        if attempt.take("months") {
+            self = attempt
+            return (false, count)
+        }
+        if attempt.take("years") {
+            self = attempt
+            return (true, count)
         }
         return nil
     }
 
-    private static func isLimitStart(_ token: String) -> Bool {
-        token.lowercased() == "up" || token.lowercased() == "to"
+    /// Everything up to a tab.
+    mutating func takeName() -> String {
+        let name = rest.prefix { $0 != "\t" && !$0.isNewline }
+        rest = rest.dropFirst(name.count)
+        return String(name)
     }
 
-    /// Parses an `up to <amount> [period] [starting <date>]` clause beginning
-    /// anywhere in `tokens` after `start`.
-    private static func limitFromTokens(
-        _ tokens: [String],
-        after start: Int
-    ) -> (amount: Double, period: String?, start: String?)? {
-        var search = start + 1
-        while search < tokens.count - 1 {
-            if tokens[search].lowercased() == "up",
-               tokens[search + 1].lowercased() == "to" {
-                let after = Array(tokens.dropFirst(search + 2))
-                guard let amount = after.first.flatMap(parseNumber) else { return nil }
-                let afterAmount = Array(after.dropFirst())
-                let period = periodKeywordFromTokens(afterAmount) ?? "monthly"
-                let startStr = tokenAfter(afterAmount, keyword: "starting")
-                return (amount, period, startStr)
-            }
-            search += 1
+    /// Runs to the end of the line or to an `[increase ...]` / `[decrease ...]`.
+    mutating func scheduleName() -> String? {
+        guard let first = rest.first, first != " ", first != "\t", !startsAdjustment(rest) else { return nil }
+        var end = rest.index(after: rest.startIndex)
+        while end < rest.endIndex {
+            var probe = NoteCursor(rest[end...])
+            probe.skipSpaces()
+            if startsAdjustment(probe.rest) { break }
+            end = rest.index(after: end)
         }
-        return nil
+        let name = rest[..<end]
+        rest = rest[end...]
+        return name.trimmingCharacters(in: .whitespaces)
     }
 
-    private static func tokenAfter(_ tokens: [String], keyword: String) -> String? {
-        guard let index = tokens.firstIndex(where: { $0.lowercased() == keyword }),
-              index + 1 < tokens.count else { return nil }
-        return tokens[index + 1]
-    }
-
-    private static func containsAnnualKeyword(_ tokens: [String]) -> Bool {
-        tokens.contains { $0.lowercased() == "year" || $0.lowercased() == "yearly" }
-            || (tokens.contains { $0.lowercased() == "repeat" }
-                && tokens.contains { $0.lowercased() == "year" })
-    }
-
-    private static func malformed(keyword: String) -> Directive {
-        Directive(
-            keyword: keyword, type: nil, monthly: nil, amount: nil,
-            percent: nil, previous: false, sourceCategory: nil, numMonths: nil,
-            lookBack: nil, weight: nil, periodAmount: nil, periodPeriod: nil,
-            starting: nil, month: nil, fromMonth: nil, annual: false,
-            repeatInterval: nil, scheduleName: nil, scheduleId: nil, full: false,
-            adjustment: nil, adjustmentType: nil,
-            limitAmount: nil, limitPeriod: nil, limitStart: nil
-        )
+    private func startsAdjustment(_ text: Substring) -> Bool {
+        var probe = NoteCursor(text)
+        guard probe.take("[") else { return false }
+        return probe.take("increase") || probe.take("decrease")
     }
 }

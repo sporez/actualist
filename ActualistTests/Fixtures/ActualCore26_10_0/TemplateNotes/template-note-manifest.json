@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.10.0",
+    "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
+    "packageVersion": "26.10.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/template-note-parity/generate.mjs",
+    "sha256": "670fee666a6efe0d353b1cc3b551eec554fc583c70f4e99973a311a2d5555ca9"
+  },
+  "harness": {
+    "path": "scripts/template-note-parity/harness/template-note-parity.test.ts",
+    "sha256": "05d48edefb9726bc6c0b6028431428753a39dc4c7ffb3fd1ef81dc06a9165f84"
+  },
+  "helpers": [
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": null,
+  "caseCount": 162,
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/budget/goal-template.pegjs",
+      "sha256": "2c5fa12d17f80935f49e29b12c2bef35b35c349ecfd0268c05ae05b5538e8f02"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/template-notes.ts",
+      "sha256": "2d889727f62f254825c295abc8bf1397be7a1fad834ea18db46b463530edf3ce"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/goal-template.ts",
+      "sha256": "54121dc4e25e33439d5acfffef7a6a6405f17ef537dc3114afa7e49061eaef9d"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_10_0/TemplateNotes/template-note-contract.json",
+      "sha256": "420d77a5068c95a4f76c560f2df61924de0d244639879d7243ca523b010c646d",
+      "caseCount": 162
+    }
+  ]
+}
