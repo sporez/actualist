@@ -71,17 +71,17 @@ struct RecentTransactionsWidgetView: View {
     }
 
     private func latest(_ transaction: WidgetTransactionSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(dayText(transaction)).font(.caption.weight(.semibold)).foregroundStyle(palette.secondaryText)
-            Spacer(minLength: 4)
-            Text(transaction.payee).font(.subheadline.weight(.semibold)).lineLimit(typeSize.isAccessibilitySize ? 1 : 2)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(transaction.payee).font(.headline).lineLimit(typeSize.isAccessibilitySize ? 1 : 2)
                 .minimumScaleFactor(0.7)
-            Text(transaction.amount?.formatted ?? "Unavailable").font(.widgetHero(28)).monospacedDigit()
-                .lineLimit(1).minimumScaleFactor(0.5)
-                .foregroundStyle(amountColor(transaction.amount))
             if !typeSize.isAccessibilitySize {
                 Text(transaction.accountName).font(.caption).foregroundStyle(palette.secondaryText).lineLimit(1)
             }
+            Spacer(minLength: 2)
+            Text(dayText(transaction)).font(.caption.weight(.semibold)).foregroundStyle(palette.secondaryText)
+            Text(transaction.amount?.formatted ?? "Unavailable").font(.widgetHero(44)).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.4)
+                .foregroundStyle(amountColor(transaction.amount))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }

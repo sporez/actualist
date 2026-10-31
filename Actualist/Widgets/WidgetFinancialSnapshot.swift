@@ -7,6 +7,9 @@ struct WidgetMoney: Codable, Equatable, Sendable {
     var tone: WidgetAmountTone {
         minorUnits < 0 ? .negative : (minorUnits == 0 ? .zero : .positive)
     }
+
+    /// Names a category's balance, which a bare amount leaves ambiguous.
+    var availabilityTitle: String { minorUnits < 0 ? "Overspent" : "Available" }
 }
 
 struct WidgetAccountSnapshot: Codable, Equatable, Sendable, Identifiable {

@@ -87,10 +87,10 @@ struct NeedsAttentionWidgetView: View {
     private var caughtUp: some View {
         WidgetStatusPlate(status: .positive) {
             VStack(alignment: .leading, spacing: 2) {
-                Image(systemName: "checkmark.circle.fill").font(.title2.weight(.semibold)).widgetAccentable()
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 44, weight: .semibold)).widgetAccentable()
                 Spacer(minLength: 4)
-                Text("All Caught Up").font(.widgetHero(family == .systemSmall ? 22 : 30))
-                    .lineLimit(1).minimumScaleFactor(0.6)
+                Text("All Caught Up").font(.widgetHero(family == .systemSmall ? 26 : 34))
+                    .lineLimit(2).minimumScaleFactor(0.6)
                 if family != .systemSmall {
                     Text("No overspent categories or uncategorized transactions.")
                         .font(.caption.weight(.medium)).opacity(0.75)
@@ -103,9 +103,10 @@ struct NeedsAttentionWidgetView: View {
 
     private var heroFont: Font {
         switch family {
-        case .systemSmall: .widgetHero(34)
-        case .systemMedium: .widgetHero(48)
-        default: .widgetHero(56)
+        case .systemSmall: .widgetHero(40)
+        case .systemMedium: .widgetHero(68)
+        case .systemLarge: .widgetHero(76)
+        default: .widgetHero(110)
         }
     }
 

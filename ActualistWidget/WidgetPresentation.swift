@@ -128,15 +128,25 @@ struct WidgetBalanceListView: View {
 
     private func hero(_ item: WidgetBalanceItem, amountColor: Color) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(item.name).font(.subheadline.weight(.semibold))
+            Text(item.name).font(.headline)
                 .lineLimit(typeSize.isAccessibilitySize ? 1 : 2).minimumScaleFactor(0.65)
-            Spacer(minLength: 4)
-            Text(item.amount?.formatted ?? "Unavailable").font(.widgetHero(30)).monospacedDigit()
-                .lineLimit(1).minimumScaleFactor(0.5)
+            Spacer(minLength: 2)
+            if !typeSize.isAccessibilitySize {
+                Text(heroTitle(item)).font(.caption.weight(.semibold)).opacity(0.75).lineLimit(1)
+            }
+            Text(item.amount?.formatted ?? "Unavailable").font(.widgetHero(56)).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.35)
                 .foregroundStyle(amountColor)
                 .widgetAccentable()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func heroTitle(_ item: WidgetBalanceItem) -> String {
+        switch style {
+        case .status: item.amount?.availabilityTitle ?? "Available"
+        case .plain: "Balance"
+        }
     }
 
     private func plainColor(_ item: WidgetBalanceItem) -> Color {

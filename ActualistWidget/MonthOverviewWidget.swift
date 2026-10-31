@@ -74,10 +74,10 @@ struct MonthOverviewWidgetView: View {
 
     private var heroFont: Font {
         switch family {
-        case .systemSmall: .widgetHero(26)
-        case .systemMedium: .widgetHero(30)
-        case .systemLarge: .widgetHero(44)
-        default: .widgetHero(52)
+        case .systemSmall: .widgetHero(30)
+        case .systemMedium: .widgetHero(40)
+        case .systemLarge: .widgetHero(56)
+        default: .widgetHero(76)
         }
     }
 
@@ -91,7 +91,7 @@ struct MonthOverviewWidgetView: View {
                 Text(summary.kind.title).font(.caption.weight(.semibold)).opacity(0.75)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 Text(summary.amount.formatted).font(heroFont).monospacedDigit()
-                    .lineLimit(1).minimumScaleFactor(0.5)
+                    .lineLimit(1).minimumScaleFactor(0.4)
                     .widgetAccentable()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -102,11 +102,12 @@ struct MonthOverviewWidgetView: View {
         _ overview: WidgetMonthOverviewSnapshot, _ progress: WidgetMonthProgress?
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if family != .systemSmall { Spacer(minLength: 0) }
+            if family == .systemMedium { Spacer(minLength: 0) }
             spending(overview, progress)
+                .padding(.top, usesRows ? 8 : 0)
             if usesRows {
-                Spacer(minLength: 8)
                 rows(overview)
+                    .padding(.top, 8)
             } else if family == .systemMedium && !typeSize.isAccessibilitySize {
                 Spacer(minLength: 8)
                 totals(overview)
@@ -132,7 +133,7 @@ struct MonthOverviewWidgetView: View {
                 .foregroundStyle(amount.tone == .negative ? palette.danger : palette.primaryText)
         }
         .font(.subheadline)
-        .frame(minHeight: WidgetSizeSupport.size(family) == .extraLarge ? 40 : 30)
+        .frame(minHeight: 30, maxHeight: .infinity)
     }
 
     private func spending(_ overview: WidgetMonthOverviewSnapshot, _ progress: WidgetMonthProgress?) -> some View {

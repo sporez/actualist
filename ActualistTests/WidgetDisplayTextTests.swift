@@ -109,6 +109,12 @@ struct WidgetDisplayTextTests {
         #expect(widget.plateForeground(.negative) == .primary)
     }
 
+    @Test func balanceTitleNamesOverspending() {
+        #expect(money(1).availabilityTitle == "Available")
+        #expect(money(0).availabilityTitle == "Available")
+        #expect(money(-1).availabilityTitle == "Overspent")
+    }
+
     @Test func statusFollowsAmountTone() {
         #expect(WidgetStatus(.positive) == .positive)
         #expect(WidgetStatus(.zero) == .neutral)
