@@ -60,7 +60,14 @@ All passes share one lock and one log. A failing pass does not stop the next,
 so a run reports every selected suite; an interrupted or signal-terminated
 pass stops the run. Exit status: the first failing pass's xcodebuild status;
 3 when a pass replaced a test host mid-run; 4 when a pass succeeded without
-running a test; 2 for usage errors and a held lock.
+running a test, or a selector in it matched no test; 2 for usage errors, a
+selector that names nothing in the test target, and a held lock.
+
+Selectors are checked twice, because xcodebuild accepts a name that matches
+nothing and still reports success. Before anything builds, each name must be
+declared in the target's sources. After a pass, each selector must have reported
+a result. Serial Swift Testing output names no suite, so a pass with that output
+relies on the first check.
 
 A run releases its lock when xcodebuild exits on its own, including test or
 build failures (exit status below 128). An interrupted run stops xcodebuild
@@ -153,6 +160,25 @@ case "$mode" in
     ;;
 esac
 
+# Fails on a selector that names nothing in the target. Runs before the build,
+# so a mistyped suite costs no compile. A test file named like a suite may only
+# extend another one, which is the suite to select.
+check_selector_declared() {
+  local selector="$1" target="$2" suite="${selector%%/*}" member file extended
+  local before='(^|[^A-Za-z0-9_])' after='([^A-Za-z0-9_]|$)'
+  if ! grep -rqE --include='*.swift' "${before}(struct|class|actor|enum)[[:space:]]+$suite$after" "$ROOT/$target"; then
+    file="$(find "$ROOT/$target" -name "$suite.swift" -print -quit)"
+    extended="$([[ -z "$file" ]] || sed -nE 's/^extension ([A-Za-z0-9_]+).*/\1/p' "$file" | head -n 1)"
+    [[ -z "$extended" ]] || fail "$suite is not a suite: $suite.swift extends $extended, so select $extended"
+    fail "no suite named $suite in $target"
+  fi
+  [[ "$selector" != "$suite" ]] || return 0
+  member="${selector#*/}"
+  member="${member%%(*}"
+  grep -rqE --include='*.swift' "${before}(func|struct|class|actor|enum)[[:space:]]+$member$after" "$ROOT/$target" \
+    || fail "no test named $member in $target (selector $selector)"
+}
+
 for selector in "$@"; do
   [[ "$selector" =~ ^[A-Za-z_][A-Za-z0-9_]*(/[A-Za-z_][A-Za-z0-9_]*(\(([A-Za-z_][A-Za-z0-9_]*:)*\))?)?$ ]] \
     || fail "invalid suite/method selector: $selector"
@@ -161,8 +187,12 @@ for selector in "$@"; do
       fail "omit the target prefix: $selector" ;;
   esac
   if [[ "$mode" == unit ]]; then
+    check_selector_declared "$selector" ActualistTests
     unit_selection+=("-only-testing:ActualistTests/$selector")
-  elif is_serial_ui_suite "${selector%%/*}"; then
+    continue
+  fi
+  check_selector_declared "$selector" ActualistUITests
+  if is_serial_ui_suite "${selector%%/*}"; then
     ui_serial_selection+=("-only-testing:ActualistUITests/$selector")
   else
     ui_parallel_selection+=("-only-testing:ActualistUITests/$selector")
@@ -424,6 +454,36 @@ count_reported_tests() {
     | { grep -vc "^[✔✘↪] Test run with" || true; }
 }
 
+# Prints the selectors in $command that reported no result in the pass that
+# began at line $1. Result lines take three shapes: Swift Testing in parallel
+# ("Test case 'Suite/test()'"), XCTest in parallel ("Test case 'Suite.test()'"),
+# and XCTest in series ("Test Case '-[Target.Suite test]'"). Serial Swift Testing
+# prints only the test's own name, so such a pass cannot be checked here.
+report_unmatched_selectors() {
+  local results serial word path target selector suite method patterns
+  results="$(pass_output "$1" | grep -E "^Test case '|^Test Case '-\[" || true)"
+  serial="$(pass_output "$1" | grep -E "^[✔✘↪] Test " | grep -v "^[✔✘↪] Test run with" || true)"
+  [[ -z "$serial" ]] || return 0
+  for word in "${command[@]}"; do
+    case "$word" in
+      -only-testing:*/*) ;;
+      *) continue ;;
+    esac
+    path="${word#-only-testing:}"
+    target="${path%%/*}"
+    selector="${path#*/}"
+    suite="${selector%%/*}"
+    if [[ "$selector" == "$suite" ]]; then
+      patterns=(-e "Test case '$suite/" -e "Test case '$suite." -e "-[$target.$suite ")
+    else
+      method="${selector#*/}"
+      method="${method%%(*}"
+      patterns=(-e "Test case '$selector'" -e "Test case '$suite.$method()'" -e "-[$target.$suite $method]")
+    fi
+    grep -qF "${patterns[@]}" <<<"$results" || echo "$selector"
+  done
+}
+
 trap 'on_signal 2' INT
 trap 'on_signal 15' TERM
 trap 'on_signal 1' HUP
@@ -517,6 +577,17 @@ for index in "${!pass_names[@]}"; do
   if [[ "$pass_status" -eq 0 && "$(count_reported_tests "$pass_first_line")" -eq 0 ]]; then
     echo "error: $pass_label: xcodebuild succeeded but no test ran; check the selection (Swift Testing methods need \"()\", e.g. Suite/test())" >&2
     pass_status=4
+  fi
+  # The check above passes when any selector ran, so one bad name beside a good
+  # one needs its own.
+  if [[ "$pass_status" -eq 0 ]]; then
+    unmatched="$(report_unmatched_selectors "$pass_first_line")"
+    if [[ -n "$unmatched" ]]; then
+      echo "error: $pass_label: these selectors matched no test, so they did not run:" >&2
+      printf '%s\n' "$unmatched" | sed 's/^/  /' >&2
+      echo "error: Swift Testing methods need \"()\", e.g. Suite/test(); a helper type is not a suite" >&2
+      pass_status=4
+    fi
   fi
   [[ "$run_status" -ne 0 ]] || run_status="$pass_status"
 done

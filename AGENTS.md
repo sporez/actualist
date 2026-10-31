@@ -706,8 +706,11 @@ that a unit-only run.
   second pid within one pass). Swift Testing and the result bundle silently
   omit the tests that were still running in the replaced host, so a green
   summary alone is not proof of a complete run. It also fails a run that
-  reports no test at all (exit 4); a Swift Testing method selector needs its
-  `()`, e.g. `Suite/test()`.
+  reports no test at all, and a run where any selector matched no test
+  (exit 4), because xcodebuild accepts such a name and still succeeds. A
+  selector naming nothing in the target's sources fails before the build
+  (exit 2). A Swift Testing method selector needs its `()`, e.g. `Suite/test()`,
+  and a file of tests in an `extension` is selected by the suite it extends.
 - Do not split targets or broadly reorganize fixtures as routine flake recovery.
   A future split needs an approved purpose, dependency analysis, and complete
   before/after test inventories. File prefixes alone are not dependency
