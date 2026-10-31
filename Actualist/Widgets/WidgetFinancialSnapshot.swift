@@ -23,6 +23,14 @@ struct WidgetAttentionSnapshot: Codable, Equatable, Sendable {
 
     var issueCount: Int { uncategorizedCount + overspentCategoryIDs.count }
 
+    var reviewText: String {
+        switch issueCount {
+        case 0: "All caught up"
+        case 1: "1 budget item to review"
+        default: "\(issueCount) budget items to review"
+        }
+    }
+
     var status: WidgetStatus {
         if !overspentCategoryIDs.isEmpty { return .negative }
         return uncategorizedCount > 0 ? .caution : .positive

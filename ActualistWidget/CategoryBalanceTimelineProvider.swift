@@ -12,7 +12,9 @@ struct CategoryBalanceTimelineProvider: AppIntentTimelineProvider {
         in context: Context
     ) async -> CategoryBalanceEntry {
         if context.isPreview, configuration.categories?.isEmpty != false {
-            return placeholder(in: context)
+            var sample = placeholder(in: context)
+            sample.state = .ready
+            return sample
         }
         return entry(for: configuration, family: context.family)
     }

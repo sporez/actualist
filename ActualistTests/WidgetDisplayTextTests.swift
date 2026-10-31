@@ -60,6 +60,12 @@ struct WidgetDisplayTextTests {
         #expect(WidgetAttentionSnapshot(uncategorizedCount: 3, overspentCategoryIDs: ["a"]).status == .negative)
     }
 
+    @Test func reviewTextMatchesTheCount() {
+        #expect(WidgetAttentionSnapshot(uncategorizedCount: 0, overspentCategoryIDs: []).reviewText == "All caught up")
+        #expect(WidgetAttentionSnapshot(uncategorizedCount: 1, overspentCategoryIDs: []).reviewText == "1 budget item to review")
+        #expect(WidgetAttentionSnapshot(uncategorizedCount: 2, overspentCategoryIDs: ["a"]).reviewText == "3 budget items to review")
+    }
+
     @Test func wholeWidgetTapGoesToTheOnlyIssue() {
         #expect(WidgetAttentionSnapshot(uncategorizedCount: 3, overspentCategoryIDs: []).primaryAction == .uncategorized)
         #expect(WidgetAttentionSnapshot(uncategorizedCount: 3, overspentCategoryIDs: ["a"]).primaryAction == .budget)

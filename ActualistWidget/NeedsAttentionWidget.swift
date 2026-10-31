@@ -42,9 +42,19 @@ struct NeedsAttentionWidgetView: View {
     @ViewBuilder private func content(_ snapshot: WidgetSnapshot, _ attention: WidgetAttentionSnapshot) -> some View {
         switch family {
         case .accessoryInline:
-            Text("\(attention.issueCount) budget items to review")
+            Text(attention.reviewText)
         case .accessoryCircular:
-            VStack { Image(systemName: "exclamationmark.circle"); Text("\(attention.issueCount)").bold() }
+            ZStack {
+                AccessoryWidgetBackground()
+                if attention.issueCount == 0 {
+                    Image(systemName: "checkmark").font(.title3.weight(.bold))
+                } else {
+                    VStack(spacing: 0) {
+                        Image(systemName: "exclamationmark.circle").font(.caption2.weight(.semibold))
+                        Text("\(attention.issueCount)").font(.widgetHero(20)).lineLimit(1).minimumScaleFactor(0.5)
+                    }
+                }
+            }
         case .accessoryRectangular:
             if attention.issueCount == 0 {
                 Label("All Caught Up", systemImage: "checkmark.circle")

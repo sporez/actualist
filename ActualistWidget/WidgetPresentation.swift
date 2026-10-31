@@ -55,10 +55,17 @@ struct WidgetBalanceItem: Identifiable {
     let destination: URL
 }
 
-/// Shared layout keeps Account Balances a visual clone of Category Balances.
+/// Shared layout for Category and Account Balances. Only categories report a
+/// status: a negative account balance, such as a credit card, is normal.
 struct WidgetBalanceListView: View {
+    enum Style {
+        case status
+        case plain
+    }
+
     @Environment(\.widgetPalette) private var palette
     let items: [WidgetBalanceItem]
+    var style = Style.status
     var margin = WidgetPlateMetrics.contentMargin
     var singleColumn = false
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -83,7 +90,8 @@ struct WidgetBalanceListView: View {
         .privacySensitive()
     }
 
-    private var columnLimit: Int { typeSize.isAccessibilitySize ? 4 : 8 }
+    /// Splits evenly, so a short list does not stretch across the whole width.
+    private var columnLimit: Int { (visibleItems.count + 1) / 2 }
     private var visibleItems: [WidgetBalanceItem] {
         let limit: Int
         if typeSize.isAccessibilitySize {
@@ -98,18 +106,17 @@ struct WidgetBalanceListView: View {
         if family == .accessoryInline {
             Text("\(item.name): \(item.amount?.formatted ?? "Unavailable")")
         } else if family == .systemSmall {
-            WidgetStatusPlate(status: WidgetStatus(item.amount?.tone ?? .zero)) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(item.name).font(.subheadline.weight(.semibold))
-                        .lineLimit(typeSize.isAccessibilitySize ? 1 : 2).minimumScaleFactor(0.65)
-                    Spacer(minLength: 4)
-                    Text(item.amount?.formatted ?? "Unavailable").font(.widgetHero(30)).monospacedDigit()
-                        .lineLimit(1).minimumScaleFactor(0.5)
-                        .widgetAccentable()
+            switch style {
+            case .status:
+                let status = WidgetStatus(item.amount?.tone ?? .zero)
+                WidgetStatusPlate(status: status) {
+                    hero(item, amountColor: palette.plateForeground(status))
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .padding(WidgetPlateMetrics.inset)
+            case .plain:
+                hero(item, amountColor: plainColor(item))
+                    .padding(WidgetPlateMetrics.contentMargin)
             }
-            .padding(WidgetPlateMetrics.inset)
         } else {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name).font(.headline).lineLimit(1).minimumScaleFactor(0.65)
@@ -119,6 +126,23 @@ struct WidgetBalanceListView: View {
         }
     }
 
+    private func hero(_ item: WidgetBalanceItem, amountColor: Color) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(item.name).font(.subheadline.weight(.semibold))
+                .lineLimit(typeSize.isAccessibilitySize ? 1 : 2).minimumScaleFactor(0.65)
+            Spacer(minLength: 4)
+            Text(item.amount?.formatted ?? "Unavailable").font(.widgetHero(30)).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.5)
+                .foregroundStyle(amountColor)
+                .widgetAccentable()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func plainColor(_ item: WidgetBalanceItem) -> Color {
+        item.amount?.tone == .negative ? palette.danger : palette.primaryText
+    }
+
     private func column(_ rows: [WidgetBalanceItem]) -> some View {
         VStack(spacing: 0) {
             ForEach(rows) { item in
@@ -126,10 +150,10 @@ struct WidgetBalanceListView: View {
                     HStack(spacing: 8) {
                         Text(item.name).font(.subheadline.weight(.medium)).lineLimit(1)
                         Spacer(minLength: 4)
-                        pill(item)
+                        amount(item)
                     }
                     .foregroundStyle(palette.primaryText)
-                    .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 48)
+                    .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 72)
                     .contentShape(Rectangle())
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(item.name), \(item.amount?.formatted ?? "Balance unavailable")")
@@ -141,13 +165,19 @@ struct WidgetBalanceListView: View {
         }
     }
 
-    private func pill(_ item: WidgetBalanceItem) -> some View {
-        let status = WidgetStatus(item.amount?.tone ?? .zero)
-        return Text(item.amount?.formatted ?? "—")
+    @ViewBuilder private func amount(_ item: WidgetBalanceItem) -> some View {
+        let text = Text(item.amount?.formatted ?? "—")
             .font(.subheadline.bold().monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
-            .padding(.horizontal, 9).padding(.vertical, 4)
-            .foregroundStyle(palette.plateForeground(status))
-            .background(palette.plateFill(status) ?? palette.track, in: Capsule())
+        switch style {
+        case .status:
+            let status = WidgetStatus(item.amount?.tone ?? .zero)
+            text
+                .padding(.horizontal, 9).padding(.vertical, 4)
+                .foregroundStyle(palette.plateForeground(status))
+                .background(palette.plateFill(status) ?? palette.track, in: Capsule())
+        case .plain:
+            text.foregroundStyle(plainColor(item))
+        }
     }
 }
 

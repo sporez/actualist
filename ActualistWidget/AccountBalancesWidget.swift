@@ -100,7 +100,7 @@ struct AccountBalancesWidgetView: View {
             } else {
                 WidgetBalanceListView(items: entry.accounts.map {
                     WidgetBalanceItem(id: $0.id, name: $0.name, amount: $0.balance, destination: WidgetDeepLink.url(.account(id: $0.id)))
-                })
+                }, style: .plain)
             }
         }
     }
