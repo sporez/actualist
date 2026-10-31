@@ -41,4 +41,17 @@ struct WidgetCategorySnapshot: Codable, Equatable, Sendable, Identifiable {
     var isHidden: Bool
     var availableMinorUnits: Int
     var formattedAvailable: String
+    /// Absent in snapshots written before this field existed.
+    var spending: WidgetCategorySpending?
+}
+
+/// This month's assignment and spending, kept together so neither appears alone.
+struct WidgetCategorySpending: Codable, Equatable, Sendable {
+    let budgeted: WidgetMoney
+    /// Positive when money left the category.
+    let spent: WidgetMoney
+
+    var share: WidgetSpendingShare? {
+        WidgetSpendingShare(spent: spent.minorUnits, budget: budgeted.minorUnits)
+    }
 }

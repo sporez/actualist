@@ -28,6 +28,7 @@ struct WidgetCategoryBalanceRow: Equatable, Identifiable, Sendable {
     var formattedAvailable: String
     var availableMinorUnits: Int
     var month: String
+    var spending: WidgetCategorySpending?
 
     var tone: WidgetAmountTone {
         if availableMinorUnits < 0 {
@@ -80,7 +81,8 @@ enum WidgetCategoryBalanceProjection {
                 name: category.displayName,
                 formattedAvailable: category.formattedAvailable,
                 availableMinorUnits: category.availableMinorUnits,
-                month: snapshot.month
+                month: snapshot.month,
+                spending: category.spending
             )
         }
         .prefix(max(limit, 0))

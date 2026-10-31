@@ -53,6 +53,7 @@ struct WidgetBalanceItem: Identifiable {
     let name: String
     let amount: WidgetMoney?
     let destination: URL
+    var spending: WidgetCategorySpending?
 }
 
 /// Shared layout for Category and Account Balances. Only categories report a
@@ -110,7 +111,11 @@ struct WidgetBalanceListView: View {
             case .status:
                 let status = WidgetStatus(item.amount?.tone ?? .zero)
                 WidgetStatusPlate(status: status) {
-                    hero(item, amountColor: palette.plateForeground(status))
+                    if let spending = item.spending, let share = spending.share, !typeSize.isAccessibilitySize {
+                        spendingHero(item, spending: spending, share: share, status: status)
+                    } else {
+                        hero(item, amountColor: palette.plateForeground(status))
+                    }
                 }
                 .padding(WidgetPlateMetrics.inset)
             case .plain:
@@ -138,6 +143,28 @@ struct WidgetBalanceListView: View {
                 .lineLimit(1).minimumScaleFactor(0.35)
                 .foregroundStyle(amountColor)
                 .widgetAccentable()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
+    private func spendingHero(
+        _ item: WidgetBalanceItem, spending: WidgetCategorySpending, share: WidgetSpendingShare, status: WidgetStatus
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(item.name).font(.headline).lineLimit(1).minimumScaleFactor(0.65)
+            Spacer(minLength: 2)
+            Text(heroTitle(item)).font(.caption.weight(.semibold)).opacity(0.75).lineLimit(1)
+            Text(item.amount?.formatted ?? "Unavailable").font(.widgetHero(40)).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.45)
+                .foregroundStyle(palette.plateForeground(status))
+                .widgetAccentable()
+            WidgetSpendingMeter(share: share, height: 7, plate: status)
+                .accessibilityLabel("Spent \(share.text) of this month's budget")
+                .padding(.top, 5)
+            Text("Spent \(spending.spent.formatted) of \(spending.budgeted.formatted)")
+                .font(.caption2.weight(.medium)).opacity(0.75).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }

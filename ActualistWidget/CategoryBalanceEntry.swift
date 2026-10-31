@@ -16,10 +16,14 @@ struct CategoryBalanceEntry: TimelineEntry {
             ("rent", "Rent", 150_000), ("fun", "Fun Money", -2_150), ("travel", "Travel", 64_000),
             ("gifts", "Gifts", 12_000), ("home", "Home", 27_500)
         ].map { id, name, amount in
-            WidgetCategoryBalanceRow(
+            func money(_ value: Int) -> WidgetMoney {
+                WidgetMoney(minorUnits: value, formatted: (Double(value) / 100).formatted(.currency(code: "USD")))
+            }
+            return WidgetCategoryBalanceRow(
                 id: id, name: name,
-                formattedAvailable: (Double(amount) / 100).formatted(.currency(code: "USD")),
-                availableMinorUnits: amount, month: "2026-07"
+                formattedAvailable: money(amount).formatted,
+                availableMinorUnits: amount, month: "2026-07",
+                spending: WidgetCategorySpending(budgeted: money(60_000), spent: money(60_000 - amount))
             )
         },
         budgetName: "Sample Budget"

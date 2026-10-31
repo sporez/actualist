@@ -14,10 +14,8 @@ enum WidgetSnapshotBuilder {
             isEnabled: privacyEnabled,
             currency: currency
         ) ?? month
-        let projectedBalances = Dictionary(
-            uniqueKeysWithValues: displayMonth.categoryGroups.flatMap(\.categories).map {
-                ($0.id, $0.balance)
-            }
+        let projectedCategories = Dictionary(
+            uniqueKeysWithValues: displayMonth.categoryGroups.flatMap(\.categories).map { ($0.id, $0) }
         )
 
         var categories: [WidgetCategorySnapshot] = []
@@ -26,7 +24,8 @@ enum WidgetSnapshotBuilder {
                 ? PrivacyDisplay.name(for: .categoryGroup, seed: group.id)
                 : group.name
             for category in group.categories where !category.isIncome {
-                let available = projectedBalances[category.id] ?? category.balance
+                let projected = projectedCategories[category.id] ?? category
+                let available = projected.balance
                 let displayName = privacyEnabled
                     ? PrivacyDisplay.name(for: .category, seed: category.id)
                     : category.name
@@ -40,7 +39,15 @@ enum WidgetSnapshotBuilder {
                             group: group
                         ),
                         availableMinorUnits: available,
-                        formattedAvailable: currency.formatted(available)
+                        formattedAvailable: currency.formatted(available),
+                        spending: WidgetCategorySpending(
+                            budgeted: WidgetMoney(
+                                minorUnits: projected.budgeted, formatted: currency.formatted(projected.budgeted)
+                            ),
+                            spent: WidgetMoney(
+                                minorUnits: -projected.spent, formatted: currency.formatted(-projected.spent)
+                            )
+                        )
                     )
                 )
             }

@@ -47,7 +47,7 @@ struct MonthOverviewWidgetView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(summary.kind.title).font(.caption.weight(.medium)).foregroundStyle(palette.secondaryText)
             Text(summary.amount.formatted).font(.headline).monospacedDigit().lineLimit(1).minimumScaleFactor(0.6)
-            if let progress { WidgetMonthMeter(progress: progress, height: 4) }
+            if let progress { meter(progress, height: 4) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -145,7 +145,7 @@ struct MonthOverviewWidgetView: View {
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
             if let progress {
-                WidgetMonthMeter(progress: progress)
+                meter(progress, height: 6)
                 if family != .systemSmall {
                     HStack {
                         Text(usesRows ? usedText(progress) : baseText(overview, progress))
@@ -156,6 +156,12 @@ struct MonthOverviewWidgetView: View {
                 }
             }
         }
+    }
+
+    private func meter(_ progress: WidgetMonthProgress, height: CGFloat) -> some View {
+        WidgetSpendingMeter(share: progress.spending, tick: progress.monthFraction, height: height)
+            .accessibilityLabel("Spent \(progress.spending.text) of the month's \(progress.base == .budgeted ? "budget" : "income")")
+            .accessibilityValue(progress.daysLeftText)
     }
 
     private var amountFont: Font {
@@ -170,7 +176,7 @@ struct MonthOverviewWidgetView: View {
     }
 
     private func usedText(_ progress: WidgetMonthProgress) -> String {
-        "\(progress.spentShareText) of \(progress.base == .budgeted ? "budget" : "income")"
+        "\(progress.spending.text) of \(progress.base == .budgeted ? "budget" : "income")"
     }
 
     private func totals(_ overview: WidgetMonthOverviewSnapshot) -> some View {

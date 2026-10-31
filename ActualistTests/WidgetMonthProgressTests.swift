@@ -18,11 +18,19 @@ struct WidgetMonthProgressTests {
             WidgetMonthProgress(spent: 3_000, budgeted: 6_000, income: 9_000, now: date(9, 15), calendar: calendar)
         )
         #expect(progress.base == .budgeted)
-        #expect(progress.spentFraction == 0.5)
-        #expect(!progress.isOverBase)
+        #expect(progress.spending.barFraction == 0.5)
+        #expect(!progress.spending.isOver)
         #expect(progress.monthFraction == 0.5)
         #expect(progress.daysLeft == 15)
         #expect(progress.daysLeftText == "15 days left")
+    }
+
+    @Test func spendingShareNeedsAPositiveBudget() throws {
+        #expect(WidgetSpendingShare(spent: 100, budget: 0) == nil)
+        #expect(WidgetSpendingShare(spent: 100, budget: -5) == nil)
+        let half = try #require(WidgetSpendingShare(spent: 500, budget: 1_000))
+        #expect(half.share == 0.5)
+        #expect(half.text == 0.5.formatted(.percent.precision(.fractionLength(0))))
     }
 
     @Test func fallsBackToIncomeWithoutABudget() throws {
@@ -30,7 +38,7 @@ struct WidgetMonthProgressTests {
             WidgetMonthProgress(spent: 2_500, budgeted: 0, income: 10_000, now: date(9, 15), calendar: calendar)
         )
         #expect(progress.base == .income)
-        #expect(progress.spentFraction == 0.25)
+        #expect(progress.spending.barFraction == 0.25)
     }
 
     @Test func hasNoScaleWithoutABudgetOrIncome() {
@@ -42,22 +50,22 @@ struct WidgetMonthProgressTests {
         let over = try #require(
             WidgetMonthProgress(spent: 7_000, budgeted: 6_000, income: 0, now: date(9, 15), calendar: calendar)
         )
-        #expect(over.spentFraction == 1)
-        #expect(over.spentShare > 1)
-        #expect(over.isOverBase)
+        #expect(over.spending.barFraction == 1)
+        #expect(over.spending.share > 1)
+        #expect(over.spending.isOver)
 
         let exact = try #require(
             WidgetMonthProgress(spent: 6_000, budgeted: 6_000, income: 0, now: date(9, 15), calendar: calendar)
         )
-        #expect(exact.spentFraction == 1)
-        #expect(!exact.isOverBase)
+        #expect(exact.spending.barFraction == 1)
+        #expect(!exact.spending.isOver)
 
         let refunds = try #require(
             WidgetMonthProgress(spent: -400, budgeted: 6_000, income: 0, now: date(9, 15), calendar: calendar)
         )
-        #expect(refunds.spentShare == 0)
-        #expect(refunds.spentFraction == 0)
-        #expect(!refunds.isOverBase)
+        #expect(refunds.spending.share == 0)
+        #expect(refunds.spending.barFraction == 0)
+        #expect(!refunds.spending.isOver)
     }
 
     @Test(arguments: [(29, 1, "1 day left"), (30, 0, "Last day"), (28, 2, "2 days left")])

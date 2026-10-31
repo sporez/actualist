@@ -11,7 +11,8 @@ struct CategoryBalanceWidgetView: View {
                     WidgetBalanceItem(
                         id: $0.id, name: $0.name,
                         amount: WidgetMoney(minorUnits: $0.availableMinorUnits, formatted: $0.formattedAvailable),
-                        destination: WidgetDeepLink.url(.category(id: $0.id, month: $0.month))
+                        destination: WidgetDeepLink.url(.category(id: $0.id, month: $0.month)),
+                        spending: $0.spending
                     )
                 }).redacted(reason: entry.state == .placeholder ? .placeholder : [])
             case .needsCategories:
