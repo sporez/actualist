@@ -28,14 +28,16 @@ struct WidgetPalette: Sendable {
         }
     }
 
-    /// Nil outside full color, where the system owns the widget's tint.
+    /// Nil outside full color, where the system owns the widget's tint. Neutral is
+    /// tinted from the text color because some themes' `neutral` carries a hue close
+    /// to their danger color, which reads as overspent at this size.
     func plateFill(_ status: WidgetStatus) -> Color? {
         guard usesThemeColors else { return nil }
         return switch status {
         case .positive: colors.positive
         case .caution: colors.warning
         case .negative: colors.danger
-        case .neutral: colors.neutral
+        case .neutral: track
         }
     }
 
@@ -45,7 +47,7 @@ struct WidgetPalette: Sendable {
         case .positive: colors.positiveForeground
         case .caution: colors.warningForeground
         case .negative: colors.dangerForeground
-        case .neutral: colors.neutralForeground
+        case .neutral: colors.primaryText
         }
     }
 }

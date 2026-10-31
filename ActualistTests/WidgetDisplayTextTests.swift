@@ -98,8 +98,9 @@ struct WidgetDisplayTextTests {
         #expect(widget.plateFill(.positive) == app.positive)
         #expect(widget.plateFill(.caution) == app.warning)
         #expect(widget.plateFill(.negative) == app.danger)
-        #expect(widget.plateFill(.neutral) == app.neutral)
+        #expect(widget.plateFill(.neutral) == widget.track)
         #expect(widget.plateForeground(.caution) == app.warningForeground)
+        #expect(widget.plateForeground(.neutral) == app.primaryText)
     }
 
     @Test func platesDropTheirFillWhenTheSystemTintsTheWidget() {
