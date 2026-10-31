@@ -13,5 +13,6 @@ struct CategoryBalanceWidget: Widget {
         .configurationDisplayName("Category Balances")
         .description("Keep an eye on the categories that matter most.")
         .supportedFamilies(WidgetSizeSupport.home + [.accessoryInline, .accessoryRectangular])
+        .contentMarginsDisabled()
     }
 }

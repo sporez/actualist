@@ -27,29 +27,27 @@ struct BudgetSummaryTimelineProvider: TimelineProvider {
 }
 
 struct WidgetSummaryShell<Content: View>: View {
-    @Environment(\.widgetPalette) private var palette
-    /// Nil gives the content the whole widget, without the header and Updated line.
-    var title: String?
     let snapshot: WidgetSnapshot?
+    let now: Date
     let destination: URL
+    /// For widgets that disable the system content margins.
+    var margin: CGFloat = 0
     @ViewBuilder let content: (WidgetSnapshot) -> Content
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
         Group {
             if let snapshot {
-                VStack(alignment: .leading, spacing: title == nil ? 0 : 8) {
-                    if let title, !WidgetSizeSupport.isAccessory(family) {
-                        Text(title).font(.caption.weight(.semibold)).foregroundStyle(palette.secondaryText)
-                            .lineLimit(1).minimumScaleFactor(0.6)
-                    }
+                VStack(alignment: .leading, spacing: 0) {
                     content(snapshot)
-                    if title != nil, WidgetSizeSupport.size(family) == .large || WidgetSizeSupport.size(family) == .extraLarge {
-                        WidgetUpdatedLabel(date: snapshot.updatedAt)
+                    if WidgetSizeSupport.size(family) == .large || WidgetSizeSupport.size(family) == .extraLarge {
+                        WidgetStaleLabel(updatedAt: snapshot.updatedAt, now: now)
+                            .padding(.horizontal, margin)
+                            .padding(.bottom, margin / 2)
                     }
                 }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
-                WidgetEmptyView(title: "Nothing to Show Yet", margin: title == nil ? 16 : 0)
+                WidgetEmptyView(title: "Nothing to Show Yet", margin: margin)
             }
         }
         .widgetURL(destination)

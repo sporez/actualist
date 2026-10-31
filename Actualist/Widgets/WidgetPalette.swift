@@ -15,6 +15,7 @@ struct WidgetPalette: Sendable {
     var secondaryText: Color { usesThemeColors ? colors.secondaryText : .secondary }
     var accent: Color { usesThemeColors ? colors.accent : .primary }
     var positive: Color { usesThemeColors ? colors.positive : .primary }
+    var warning: Color { usesThemeColors ? colors.warning : .primary }
     var danger: Color { usesThemeColors ? colors.danger : .primary }
 
     var track: Color { primaryText.opacity(0.14) }
@@ -28,21 +29,23 @@ struct WidgetPalette: Sendable {
     }
 
     /// Nil outside full color, where the system owns the widget's tint.
-    func plateFill(_ tone: WidgetAmountTone) -> Color? {
+    func plateFill(_ status: WidgetStatus) -> Color? {
         guard usesThemeColors else { return nil }
-        return switch tone {
+        return switch status {
         case .positive: colors.positive
-        case .zero: colors.neutral
+        case .caution: colors.warning
         case .negative: colors.danger
+        case .neutral: colors.neutral
         }
     }
 
-    func plateForeground(_ tone: WidgetAmountTone) -> Color {
+    func plateForeground(_ status: WidgetStatus) -> Color {
         guard usesThemeColors else { return .primary }
-        return switch tone {
+        return switch status {
         case .positive: colors.positiveForeground
-        case .zero: colors.neutralForeground
+        case .caution: colors.warningForeground
         case .negative: colors.dangerForeground
+        case .neutral: colors.neutralForeground
         }
     }
 }

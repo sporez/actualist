@@ -12,28 +12,16 @@ struct CategoryBalanceEntry: TimelineEntry {
         date: Date(),
         state: .placeholder,
         rows: [
+            ("groceries", "Groceries", 32_500), ("dining", "Dining Out", 8_425), ("fuel", "Fuel", 0),
+            ("rent", "Rent", 150_000), ("fun", "Fun Money", -2_150), ("travel", "Travel", 64_000),
+            ("gifts", "Gifts", 12_000), ("home", "Home", 27_500)
+        ].map { id, name, amount in
             WidgetCategoryBalanceRow(
-                id: "groceries",
-                name: "Groceries",
-                formattedAvailable: "$325.00",
-                availableMinorUnits: 32_500,
-                month: "2026-07"
-            ),
-            WidgetCategoryBalanceRow(
-                id: "dining",
-                name: "Dining Out",
-                formattedAvailable: "$84.25",
-                availableMinorUnits: 8_425,
-                month: "2026-07"
-            ),
-            WidgetCategoryBalanceRow(
-                id: "fuel",
-                name: "Fuel",
-                formattedAvailable: "$0.00",
-                availableMinorUnits: 0,
-                month: "2026-07"
+                id: id, name: name,
+                formattedAvailable: (Double(amount) / 100).formatted(.currency(code: "USD")),
+                availableMinorUnits: amount, month: "2026-07"
             )
-        ],
+        },
         budgetName: "Sample Budget"
     )
 }

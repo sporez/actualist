@@ -7,7 +7,7 @@ struct CategoryBalanceWidgetView: View {
         Group {
             switch entry.state {
             case .placeholder, .ready:
-                WidgetBalanceListView(title: "Category Balances", items: entry.rows.map {
+                WidgetBalanceListView(items: entry.rows.map {
                     WidgetBalanceItem(
                         id: $0.id, name: $0.name,
                         amount: WidgetMoney(minorUnits: $0.availableMinorUnits, formatted: $0.formattedAvailable),
@@ -15,11 +15,11 @@ struct CategoryBalanceWidgetView: View {
                     )
                 }).redacted(reason: entry.state == .placeholder ? .placeholder : [])
             case .needsCategories:
-                WidgetEmptyView(title: "Choose Categories", detail: "Edit this widget to select your categories.", symbol: "list.bullet.rectangle.portrait")
+                WidgetEmptyView(title: "Choose Categories", detail: "Edit this widget to select your categories.", symbol: "list.bullet.rectangle.portrait", margin: WidgetPlateMetrics.contentMargin)
             case .needsApp:
-                WidgetEmptyView(title: "Nothing to Show Yet")
+                WidgetEmptyView(title: "Nothing to Show Yet", margin: WidgetPlateMetrics.contentMargin)
             case .categoriesUnavailable:
-                WidgetEmptyView(title: "Choose Categories Again", detail: "Edit this widget to choose categories from your current budget.")
+                WidgetEmptyView(title: "Choose Categories Again", detail: "Edit this widget to choose categories from your current budget.", margin: WidgetPlateMetrics.contentMargin)
             }
         }
         .accessibilityLabel(entry.budgetName.isEmpty ? "Category balances" : "Category balances for \(entry.budgetName)")

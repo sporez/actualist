@@ -83,6 +83,7 @@ struct AccountBalancesWidget: Widget {
         .configurationDisplayName("Account Balances")
         .description("Balances for the accounts you choose.")
         .supportedFamilies(WidgetSizeSupport.home + [.accessoryInline, .accessoryRectangular])
+        .contentMarginsDisabled()
     }
 }
 
@@ -91,13 +92,13 @@ struct AccountBalancesWidgetView: View {
     var body: some View {
         Group {
             if entry.needsSelection {
-                WidgetEmptyView(title: "Choose Accounts", detail: "Edit this widget to select your accounts.", symbol: "building.columns")
+                WidgetEmptyView(title: "Choose Accounts", detail: "Edit this widget to select your accounts.", symbol: "building.columns", margin: WidgetPlateMetrics.contentMargin)
             } else if entry.unavailable {
-                WidgetEmptyView(title: "Nothing to Show Yet")
+                WidgetEmptyView(title: "Nothing to Show Yet", margin: WidgetPlateMetrics.contentMargin)
             } else if entry.accounts.isEmpty {
-                WidgetEmptyView(title: "Choose Accounts Again", detail: "Edit this widget to choose accounts from your current budget.")
+                WidgetEmptyView(title: "Choose Accounts Again", detail: "Edit this widget to choose accounts from your current budget.", margin: WidgetPlateMetrics.contentMargin)
             } else {
-                WidgetBalanceListView(title: "Account Balances", items: entry.accounts.map {
+                WidgetBalanceListView(items: entry.accounts.map {
                     WidgetBalanceItem(id: $0.id, name: $0.name, amount: $0.balance, destination: WidgetDeepLink.url(.account(id: $0.id)))
                 })
             }

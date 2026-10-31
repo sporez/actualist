@@ -58,8 +58,9 @@ struct WidgetBalanceItem: Identifiable {
 /// Shared layout keeps Account Balances a visual clone of Category Balances.
 struct WidgetBalanceListView: View {
     @Environment(\.widgetPalette) private var palette
-    let title: String
     let items: [WidgetBalanceItem]
+    var margin = WidgetPlateMetrics.contentMargin
+    var singleColumn = false
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.widgetFamily) private var family
 
@@ -67,13 +68,15 @@ struct WidgetBalanceListView: View {
         Group {
             if let item = visibleItems.first, WidgetSizeSupport.size(family) == .small {
                 single(item)
-            } else if family == .systemExtraLarge {
+            } else if family == .systemExtraLarge && !singleColumn {
                 HStack(alignment: .top, spacing: 24) {
                     column(Array(visibleItems.prefix(columnLimit)))
                     column(Array(visibleItems.dropFirst(columnLimit)))
                 }
+                .padding(margin)
             } else {
                 column(visibleItems)
+                    .padding(margin)
             }
         }
         .widgetURL(items.first?.destination)
@@ -94,16 +97,24 @@ struct WidgetBalanceListView: View {
     @ViewBuilder private func single(_ item: WidgetBalanceItem) -> some View {
         if family == .accessoryInline {
             Text("\(item.name): \(item.amount?.formatted ?? "Unavailable")")
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(item.name).font(.headline).lineLimit(typeSize.isAccessibilitySize ? 1 : (family == .systemSmall ? 2 : 1)).minimumScaleFactor(0.65)
-                Text(item.amount?.formatted ?? "Unavailable")
-                    .font(family == .systemSmall ? .title2.bold() : .headline)
-                    .monospacedDigit().minimumScaleFactor(0.65).lineLimit(1)
-                    .foregroundStyle(palette.color(item.amount?.tone ?? .zero))
-                if family == .systemSmall && !typeSize.isAccessibilitySize {
-                    Text(title).font(.caption).foregroundStyle(palette.secondaryText)
+        } else if family == .systemSmall {
+            WidgetStatusPlate(status: WidgetStatus(item.amount?.tone ?? .zero)) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(item.name).font(.subheadline.weight(.semibold))
+                        .lineLimit(typeSize.isAccessibilitySize ? 1 : 2).minimumScaleFactor(0.65)
+                    Spacer(minLength: 4)
+                    Text(item.amount?.formatted ?? "Unavailable").font(.widgetHero(30)).monospacedDigit()
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                        .widgetAccentable()
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            }
+            .padding(WidgetPlateMetrics.inset)
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name).font(.headline).lineLimit(1).minimumScaleFactor(0.65)
+                Text(item.amount?.formatted ?? "Unavailable")
+                    .font(.headline).monospacedDigit().minimumScaleFactor(0.65).lineLimit(1)
             }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
@@ -115,13 +126,10 @@ struct WidgetBalanceListView: View {
                     HStack(spacing: 8) {
                         Text(item.name).font(.subheadline.weight(.medium)).lineLimit(1)
                         Spacer(minLength: 4)
-                        Text(item.amount?.formatted ?? "—")
-                            .font(.subheadline.bold().monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(palette.color(item.amount?.tone ?? .zero).opacity(0.18), in: Capsule())
+                        pill(item)
                     }
                     .foregroundStyle(palette.primaryText)
-                    .frame(maxWidth: .infinity, minHeight: 34)
+                    .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 48)
                     .contentShape(Rectangle())
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(item.name), \(item.amount?.formatted ?? "Balance unavailable")")
@@ -132,12 +140,27 @@ struct WidgetBalanceListView: View {
             Spacer(minLength: 0)
         }
     }
+
+    private func pill(_ item: WidgetBalanceItem) -> some View {
+        let status = WidgetStatus(item.amount?.tone ?? .zero)
+        return Text(item.amount?.formatted ?? "—")
+            .font(.subheadline.bold().monospacedDigit()).lineLimit(1).minimumScaleFactor(0.7)
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .foregroundStyle(palette.plateForeground(status))
+            .background(palette.plateFill(status) ?? palette.track, in: Capsule())
+    }
 }
 
-struct WidgetUpdatedLabel: View {
+/// Appears only once the data is from an earlier day, so a fresh widget stays quiet.
+struct WidgetStaleLabel: View {
     @Environment(\.widgetPalette) private var palette
-    let date: Date
+    let updatedAt: Date
+    let now: Date
+
     var body: some View {
-        Text("Updated \(date, style: .date)").font(.caption2).foregroundStyle(palette.secondaryText)
+        if !WidgetMonthID.gregorianCalendar().isDate(updatedAt, inSameDayAs: now) {
+            Text("Updated \(updatedAt, format: .dateTime.month(.abbreviated).day())")
+                .font(.caption2).foregroundStyle(palette.secondaryText)
+        }
     }
 }

@@ -6,6 +6,22 @@ enum WidgetAmountTone: String, Sendable, Equatable {
     case negative
 }
 
+/// What a status plate or balance pill reports. Caution has no amount tone of its own.
+enum WidgetStatus: Sendable, Equatable {
+    case positive
+    case caution
+    case negative
+    case neutral
+
+    init(_ tone: WidgetAmountTone) {
+        switch tone {
+        case .positive: self = .positive
+        case .zero: self = .neutral
+        case .negative: self = .negative
+        }
+    }
+}
+
 struct WidgetCategoryBalanceRow: Equatable, Identifiable, Sendable {
     var id: String
     var name: String

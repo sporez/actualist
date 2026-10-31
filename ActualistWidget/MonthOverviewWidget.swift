@@ -20,7 +20,7 @@ struct MonthOverviewWidgetView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        WidgetSummaryShell(snapshot: entry.snapshot, destination: WidgetDeepLink.url(.quickAction(.budget))) { snapshot in
+        WidgetSummaryShell(snapshot: entry.snapshot, now: entry.date, destination: WidgetDeepLink.url(.quickAction(.budget)), margin: WidgetPlateMetrics.contentMargin) { snapshot in
             if let overview = snapshot.overview, let summary = overview.displayedSummary {
                 switch family {
                 case .accessoryInline:
@@ -31,17 +31,15 @@ struct MonthOverviewWidgetView: View {
                     home(snapshot, overview, summary)
                 }
             } else {
-                WidgetEmptyView(title: "Nothing to Show Yet", margin: 16)
+                WidgetEmptyView(title: "Nothing to Show Yet", margin: WidgetPlateMetrics.contentMargin)
             }
         }
     }
 
     private func progress(_ overview: WidgetMonthOverviewSnapshot) -> WidgetMonthProgress? {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        return WidgetMonthProgress(
+        WidgetMonthProgress(
             spent: overview.spent.minorUnits, budgeted: overview.budgeted.minorUnits,
-            income: overview.income.minorUnits, now: entry.date, calendar: calendar
+            income: overview.income.minorUnits, now: entry.date, calendar: WidgetMonthID.gregorianCalendar()
         )
     }
 
@@ -56,44 +54,18 @@ struct MonthOverviewWidgetView: View {
 
     // MARK: - Home Screen
 
-    private var isSideBySide: Bool { family == .systemMedium || family == .systemExtraLarge }
-
     @ViewBuilder private func home(
         _ snapshot: WidgetSnapshot, _ overview: WidgetMonthOverviewSnapshot, _ summary: WidgetSummaryMetric
     ) -> some View {
-        let progress = progress(overview)
         if family == .systemSmall && typeSize.isAccessibilitySize {
             plate(snapshot, summary)
                 .padding(WidgetPlateMetrics.inset)
-        } else if isSideBySide {
-            HStack(spacing: 0) {
-                plate(snapshot, summary)
-                    .padding(WidgetPlateMetrics.inset)
-                    .frame(maxWidth: .infinity)
-                details(snapshot, overview, progress)
-                    .padding(.vertical, WidgetPlateMetrics.detailVertical)
-                    .padding(.leading, 6)
-                    .padding(.trailing, 16)
-                    .frame(maxWidth: .infinity)
-            }
         } else {
-            VStack(spacing: 0) {
+            WidgetPlateLayout {
                 plate(snapshot, summary)
-                    .padding(WidgetPlateMetrics.inset)
-                    .frame(height: plateHeight)
-                details(snapshot, overview, progress)
-                    .padding(.top, 2)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, WidgetPlateMetrics.detailVertical)
+            } details: {
+                details(overview, progress(overview))
             }
-        }
-    }
-
-    private var plateHeight: CGFloat {
-        switch family {
-        case .systemSmall: 92
-        case .systemLarge: 148
-        default: 208
         }
     }
 
@@ -101,17 +73,16 @@ struct MonthOverviewWidgetView: View {
     private var usesRows: Bool { WidgetSizeSupport.size(family) != .small && family != .systemMedium }
 
     private var heroFont: Font {
-        let size: CGFloat = switch family {
-        case .systemSmall: 26
-        case .systemMedium: 30
-        case .systemLarge: 44
-        default: 52
+        switch family {
+        case .systemSmall: .widgetHero(26)
+        case .systemMedium: .widgetHero(30)
+        case .systemLarge: .widgetHero(44)
+        default: .widgetHero(52)
         }
-        return .system(size: size, weight: .bold, design: .rounded)
     }
 
     private func plate(_ snapshot: WidgetSnapshot, _ summary: WidgetSummaryMetric) -> some View {
-        WidgetStatusPlate(tone: summary.amount.tone) {
+        WidgetStatusPlate(status: WidgetStatus(summary.amount.tone)) {
             VStack(alignment: .leading, spacing: 0) {
                 if family != .systemSmall, let month = WidgetMonthID.displayName(snapshot.month) {
                     Text(month).font(.subheadline.weight(.semibold))
@@ -128,7 +99,7 @@ struct MonthOverviewWidgetView: View {
     }
 
     @ViewBuilder private func details(
-        _ snapshot: WidgetSnapshot, _ overview: WidgetMonthOverviewSnapshot, _ progress: WidgetMonthProgress?
+        _ overview: WidgetMonthOverviewSnapshot, _ progress: WidgetMonthProgress?
     ) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if family != .systemSmall { Spacer(minLength: 0) }
@@ -136,7 +107,6 @@ struct MonthOverviewWidgetView: View {
             if usesRows {
                 Spacer(minLength: 8)
                 rows(overview)
-                staleness(snapshot)
             } else if family == .systemMedium && !typeSize.isAccessibilitySize {
                 Spacer(minLength: 8)
                 totals(overview)
@@ -218,16 +188,4 @@ struct MonthOverviewWidgetView: View {
                 .foregroundStyle(amount.tone == .negative ? palette.danger : palette.primaryText)
         }
     }
-
-    @ViewBuilder private func staleness(_ snapshot: WidgetSnapshot) -> some View {
-        if !Calendar.autoupdatingCurrent.isDate(snapshot.updatedAt, inSameDayAs: entry.date) {
-            Text("Updated \(snapshot.updatedAt, format: .dateTime.month(.abbreviated).day())")
-                .font(.caption2).foregroundStyle(palette.secondaryText).padding(.top, 6)
-        }
-    }
-}
-
-private enum WidgetPlateMetrics {
-    static let inset: CGFloat = 6
-    static let detailVertical: CGFloat = 12
 }

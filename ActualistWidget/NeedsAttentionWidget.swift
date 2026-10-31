@@ -9,6 +9,7 @@ struct NeedsAttentionWidget: Widget {
         .configurationDisplayName("Needs Attention")
         .description("Overspent categories and transactions waiting for a category.")
         .supportedFamilies(WidgetSizeSupport.home + [.accessoryInline, .accessoryRectangular, .accessoryCircular])
+        .contentMarginsDisabled()
     }
 }
 
@@ -19,52 +20,157 @@ struct NeedsAttentionWidgetView: View {
     @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
-        WidgetSummaryShell(title: "Needs Attention", snapshot: entry.snapshot, destination: WidgetDeepLink.url(.quickAction(.budget))) { snapshot in
+        WidgetSummaryShell(snapshot: entry.snapshot, now: entry.date, destination: destination, margin: WidgetPlateMetrics.contentMargin) { snapshot in
             if let attention = snapshot.attention {
-                if family == .accessoryInline {
-                    Text("\(attention.issueCount) budget items to review")
-                } else if family == .accessoryCircular {
-                    VStack { Image(systemName: "exclamationmark.circle"); Text("\(attention.issueCount)").bold() }
-                } else if family == .systemSmall && typeSize.isAccessibilitySize {
-                    Text("\(attention.issueCount)").font(.largeTitle.bold()).minimumScaleFactor(0.6).lineLimit(1)
-                    Text(attention.issueCount == 0 ? "All Caught Up" : "To Review").font(.caption).lineLimit(1).minimumScaleFactor(0.7)
-                } else if attention.issueCount == 0 {
-                    WidgetEmptyView(title: "All Caught Up", detail: "No overspent categories or uncategorized transactions.", symbol: "checkmark.circle")
-                } else {
-                    counts(attention)
-                    if !attention.overspentCategoryIDs.isEmpty,
-                       WidgetSizeSupport.size(family) == .large || WidgetSizeSupport.size(family) == .extraLarge {
-                        Text("Overspent categories").font(.caption).foregroundStyle(palette.secondaryText)
-                        WidgetBalanceListView(title: "Overspent", items: overspentItems(snapshot, attention: attention))
-                    }
-                }
+                content(snapshot, attention)
             } else {
-                WidgetEmptyView(title: "Nothing to Show Yet")
+                WidgetEmptyView(title: "Nothing to Show Yet", margin: WidgetPlateMetrics.contentMargin)
             }
         }
     }
 
-    private func counts(_ attention: WidgetAttentionSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var destination: URL {
+        WidgetDeepLink.url(.quickAction(entry.snapshot?.attention?.primaryAction ?? .budget))
+    }
+
+    private var canHostLinks: Bool { family != .systemSmall }
+
+    private var isTall: Bool {
+        family == .systemLarge || WidgetSizeSupport.size(family) == .extraLarge
+    }
+
+    @ViewBuilder private func content(_ snapshot: WidgetSnapshot, _ attention: WidgetAttentionSnapshot) -> some View {
+        switch family {
+        case .accessoryInline:
+            Text("\(attention.issueCount) budget items to review")
+        case .accessoryCircular:
+            VStack { Image(systemName: "exclamationmark.circle"); Text("\(attention.issueCount)").bold() }
+        case .accessoryRectangular:
+            if attention.issueCount == 0 {
+                Label("All Caught Up", systemImage: "checkmark.circle")
+            } else {
+                issues(attention)
+            }
+        default:
+            if attention.issueCount == 0 {
+                caughtUp
+            } else if family == .systemSmall && typeSize.isAccessibilitySize {
+                plate(attention)
+                    .padding(WidgetPlateMetrics.inset)
+            } else {
+                WidgetPlateLayout {
+                    plate(attention)
+                } details: {
+                    VStack(spacing: 0) {
+                        issues(attention)
+                        if isTall && !attention.overspentCategoryIDs.isEmpty {
+                            WidgetBalanceListView(
+                                items: overspentItems(snapshot, attention: attention), margin: 0, singleColumn: true
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var caughtUp: some View {
+        WidgetStatusPlate(status: .positive) {
+            VStack(alignment: .leading, spacing: 2) {
+                Image(systemName: "checkmark.circle.fill").font(.title2.weight(.semibold)).widgetAccentable()
+                Spacer(minLength: 4)
+                Text("All Caught Up").font(.widgetHero(family == .systemSmall ? 22 : 30))
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                if family != .systemSmall {
+                    Text("No overspent categories or uncategorized transactions.")
+                        .font(.caption.weight(.medium)).opacity(0.75)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        }
+        .padding(WidgetPlateMetrics.inset)
+    }
+
+    private var heroFont: Font {
+        switch family {
+        case .systemSmall: .widgetHero(34)
+        case .systemMedium: .widgetHero(48)
+        default: .widgetHero(56)
+        }
+    }
+
+    private func plate(_ attention: WidgetAttentionSnapshot) -> some View {
+        WidgetStatusPlate(status: attention.status) {
+            VStack(alignment: .leading, spacing: 0) {
+                if family != .systemSmall {
+                    Image(systemName: "exclamationmark.circle.fill").font(.title3.weight(.semibold))
+                    Spacer(minLength: 4)
+                }
+                Text("\(attention.issueCount)").font(heroFont).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.5)
+                    .widgetAccentable()
+                Text("To Review").font(.caption.weight(.semibold)).opacity(0.75)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        }
+    }
+
+    /// Each warning is gated by its own count; a positive total does not imply both.
+    private func issues(_ attention: WidgetAttentionSnapshot) -> some View {
+        VStack(spacing: 0) {
             if !attention.overspentCategoryIDs.isEmpty {
-                Link(destination: WidgetDeepLink.url(.quickAction(.budget))) {
-                    Label("\(attention.overspentCategoryIDs.count) overspent", systemImage: "exclamationmark.circle.fill")
-                        .foregroundStyle(palette.danger)
-                }.buttonStyle(.plain)
+                issue(
+                    "\(attention.overspentCategoryIDs.count) overspent",
+                    symbol: "exclamationmark.circle.fill", color: palette.danger, action: .budget
+                )
+            }
+            if !attention.overspentCategoryIDs.isEmpty && attention.uncategorizedCount > 0 {
+                Divider()
             }
             if attention.uncategorizedCount > 0 {
-                Link(destination: WidgetDeepLink.url(.quickAction(.uncategorized))) {
-                    Label("\(attention.uncategorizedCount) uncategorized", systemImage: "tray.fill")
-                        .foregroundStyle(palette.primaryText)
-                }.buttonStyle(.plain)
+                issue(
+                    "\(attention.uncategorizedCount) uncategorized",
+                    symbol: "tray.fill", color: palette.warning, action: .uncategorized
+                )
             }
-        }.font(.subheadline.weight(.semibold)).widgetAccentable()
+        }
+        .widgetAccentable()
+    }
+
+    @ViewBuilder private func issue(
+        _ text: String, symbol: String, color: Color, action: WidgetQuickAction
+    ) -> some View {
+        let row = HStack(spacing: 8) {
+            Image(systemName: symbol).foregroundStyle(color)
+            Text(text).lineLimit(1).minimumScaleFactor(0.7)
+            Spacer(minLength: 4)
+            if canHostLinks && !WidgetSizeSupport.isAccessory(family) {
+                Image(systemName: "chevron.right").font(.caption2.weight(.bold)).foregroundStyle(palette.secondaryText)
+            }
+        }
+        .font(family == .systemSmall ? .footnote.weight(.semibold) : .subheadline.weight(.semibold))
+        .foregroundStyle(palette.primaryText)
+        .frame(minHeight: isTall ? 40 : nil)
+        .frame(maxHeight: isTall ? nil : .infinity)
+        .contentShape(Rectangle())
+
+        if canHostLinks {
+            Link(destination: WidgetDeepLink.url(.quickAction(action))) { row }
+                .buttonStyle(.plain)
+        } else {
+            row
+        }
+    }
+
+    private var overspentLimit: Int {
+        if typeSize.isAccessibilitySize { return family == .systemLarge ? 1 : 3 }
+        return family == .systemLarge ? 3 : 6
     }
 
     private func overspentItems(_ snapshot: WidgetSnapshot, attention: WidgetAttentionSnapshot) -> [WidgetBalanceItem] {
         WidgetCategoryBalanceProjection.rows(
-            selectedIDs: attention.overspentCategoryIDs, snapshot: snapshot,
-            limit: typeSize.isAccessibilitySize ? (family == .systemLarge ? 1 : 3) : WidgetCategoryBalanceCapacity.maximum(for: WidgetSizeSupport.size(family)) - 2
+            selectedIDs: attention.overspentCategoryIDs, snapshot: snapshot, limit: overspentLimit
         ).map {
             WidgetBalanceItem(id: $0.id, name: $0.name,
                 amount: WidgetMoney(minorUnits: $0.availableMinorUnits, formatted: $0.formattedAvailable),

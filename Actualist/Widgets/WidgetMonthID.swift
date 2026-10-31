@@ -48,7 +48,7 @@ enum WidgetMonthID {
         return (1900...9999).contains(year) && (1...12).contains(month)
     }
 
-    private static func gregorianCalendar() -> Calendar {
+    static func gregorianCalendar() -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .autoupdatingCurrent
         calendar.locale = .autoupdatingCurrent

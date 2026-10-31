@@ -46,15 +46,10 @@ struct QuickActionsWidget: Widget {
 
 struct QuickActionsWidgetView: View {
     let entry: QuickActionsEntry
-    @Environment(\.widgetPalette) private var palette
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("ACTUALIST")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(palette.secondaryText)
-            QuickActionsRow(actions: entry.configuration.actions)
-        }
+        QuickActionsRow(actions: entry.configuration.actions)
+            .frame(maxHeight: .infinity)
     }
 }
 

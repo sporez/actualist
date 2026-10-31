@@ -22,6 +22,16 @@ struct WidgetAttentionSnapshot: Codable, Equatable, Sendable {
     let overspentCategoryIDs: [String]
 
     var issueCount: Int { uncategorizedCount + overspentCategoryIDs.count }
+
+    var status: WidgetStatus {
+        if !overspentCategoryIDs.isEmpty { return .negative }
+        return uncategorizedCount > 0 ? .caution : .positive
+    }
+
+    /// Where a whole-widget tap goes, for sizes that cannot host separate links.
+    var primaryAction: WidgetQuickAction {
+        overspentCategoryIDs.isEmpty && uncategorizedCount > 0 ? .uncategorized : .budget
+    }
 }
 
 struct WidgetMonthOverviewSnapshot: Codable, Equatable, Sendable {
@@ -63,6 +73,24 @@ struct WidgetTransactionSnapshot: Codable, Equatable, Sendable, Identifiable {
     let payee: String
     let date: String
     let amount: WidgetMoney?
+
+    /// Today, Yesterday, or a short date. Stored text that is not a date is shown as is.
+    func dayText(now: Date, calendar: Calendar) -> String {
+        let parts = date.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3,
+              let day = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])) else {
+            return date
+        }
+        if calendar.isDate(day, inSameDayAs: now) { return "Today" }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+           calendar.isDate(day, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+        var style = Date.FormatStyle.dateTime.month(.abbreviated).day()
+        style.timeZone = calendar.timeZone
+        style.locale = calendar.locale ?? .autoupdatingCurrent
+        return day.formatted(style)
+    }
 }
 
 struct WidgetNetWorthPoint: Codable, Equatable, Sendable, Identifiable {
@@ -76,4 +104,17 @@ struct WidgetNetWorthSnapshot: Codable, Equatable, Sendable {
     let change: WidgetMoney
     let period: String
     let points: [WidgetNetWorthPoint]
+
+    var changeText: String {
+        change.minorUnits > 0 ? "+\(change.formatted)" : change.formatted
+    }
+
+    /// Keeps the line off the plot's edges, including for a flat history.
+    var chartDomain: ClosedRange<Int> {
+        let amounts = points.map(\.amount.minorUnits)
+        let low = amounts.min() ?? 0
+        let high = amounts.max() ?? 0
+        let span = max(high - low, 100)
+        return (low - span / 3)...(high + span / 8)
+    }
 }
