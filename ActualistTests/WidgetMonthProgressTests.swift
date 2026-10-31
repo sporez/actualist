@@ -26,9 +26,9 @@ struct WidgetMonthProgressTests {
     }
 
     @Test func spendingShareNeedsAPositiveBudget() throws {
-        #expect(WidgetSpendingShare(spent: 100, budget: 0) == nil)
-        #expect(WidgetSpendingShare(spent: 100, budget: -5) == nil)
-        let half = try #require(WidgetSpendingShare(spent: 500, budget: 1_000))
+        #expect(WidgetSpendingShare(spent: 100, base: 0) == nil)
+        #expect(WidgetSpendingShare(spent: 100, base: -5) == nil)
+        let half = try #require(WidgetSpendingShare(spent: 500, base: 1_000))
         #expect(half.share == 0.5)
         #expect(half.text == 0.5.formatted(.percent.precision(.fractionLength(0))))
     }

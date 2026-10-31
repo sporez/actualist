@@ -45,13 +45,15 @@ struct WidgetCategorySnapshot: Codable, Equatable, Sendable, Identifiable {
     var spending: WidgetCategorySpending?
 }
 
-/// This month's assignment and spending, kept together so neither appears alone.
+/// This month's spending against everything the category had to spend, including
+/// rollover, so the bar always agrees with the balance beside it.
 struct WidgetCategorySpending: Codable, Equatable, Sendable {
-    let budgeted: WidgetMoney
     /// Positive when money left the category.
     let spent: WidgetMoney
+    /// Spent plus what is still available.
+    let total: WidgetMoney
 
     var share: WidgetSpendingShare? {
-        WidgetSpendingShare(spent: spent.minorUnits, budget: budgeted.minorUnits)
+        WidgetSpendingShare(spent: spent.minorUnits, base: total.minorUnits)
     }
 }

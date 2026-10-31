@@ -23,7 +23,7 @@ struct CategoryBalanceEntry: TimelineEntry {
                 id: id, name: name,
                 formattedAvailable: money(amount).formatted,
                 availableMinorUnits: amount, month: "2026-07",
-                spending: WidgetCategorySpending(budgeted: money(60_000), spent: money(60_000 - amount))
+                spending: WidgetCategorySpending(spent: money(40_000), total: money(40_000 + amount))
             )
         },
         budgetName: "Sample Budget"

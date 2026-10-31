@@ -1,7 +1,7 @@
 import Foundation
 
-/// Spending as a share of its budget. Above 1 when overspent; never below 0, so
-/// refunds read as nothing spent.
+/// Spending as a share of the money it drew on. Above 1 when overspent; never
+/// below 0, so refunds read as nothing spent.
 struct WidgetSpendingShare: Equatable, Sendable {
     let share: Double
 
@@ -10,10 +10,10 @@ struct WidgetSpendingShare: Equatable, Sendable {
     var isOver: Bool { share > 1 }
     var text: String { share.formatted(.percent.precision(.fractionLength(0))) }
 
-    /// Nil without a positive budget, which leaves spending no scale.
-    init?(spent: Int, budget: Int) {
-        guard budget > 0 else { return nil }
-        share = max(Double(spent) / Double(budget), 0)
+    /// Nil without a positive base, which leaves spending no scale.
+    init?(spent: Int, base: Int) {
+        guard base > 0 else { return nil }
+        share = max(Double(spent) / Double(base), 0)
     }
 }
 
@@ -41,7 +41,7 @@ struct WidgetMonthProgress: Equatable, Sendable {
     /// Nil when neither a budget nor income gives the spending a scale.
     init?(spent: Int, budgeted: Int, income: Int, now: Date, calendar: Calendar) {
         guard let days = calendar.range(of: .day, in: .month, for: now)?.count,
-              let spending = WidgetSpendingShare(spent: spent, budget: budgeted > 0 ? budgeted : income) else {
+              let spending = WidgetSpendingShare(spent: spent, base: budgeted > 0 ? budgeted : income) else {
             return nil
         }
         let day = calendar.component(.day, from: now)

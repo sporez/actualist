@@ -159,12 +159,13 @@ struct WidgetBalanceListView: View {
                 .foregroundStyle(palette.plateForeground(status))
                 .widgetAccentable()
             WidgetSpendingMeter(share: share, height: 7, plate: status)
-                .accessibilityLabel("Spent \(share.text) of this month's budget")
+                .accessibilityLabel("Spent \(share.text) of this category's money")
                 .padding(.top, 5)
-            Text("Spent \(spending.spent.formatted) of \(spending.budgeted.formatted)")
+            Text("\(spending.spent.formatted) of \(spending.total.formatted)")
                 .font(.caption2.weight(.medium)).opacity(0.75).monospacedDigit()
-                .lineLimit(1).minimumScaleFactor(0.7)
+                .lineLimit(1).minimumScaleFactor(0.6)
                 .padding(.top, 4)
+                .accessibilityLabel("Spent \(spending.spent.formatted) of \(spending.total.formatted)")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }

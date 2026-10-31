@@ -26,6 +26,8 @@ enum WidgetSnapshotBuilder {
             for category in group.categories where !category.isIncome {
                 let projected = projectedCategories[category.id] ?? category
                 let available = projected.balance
+                let spent = -projected.spent
+                let total = spent + available
                 let displayName = privacyEnabled
                     ? PrivacyDisplay.name(for: .category, seed: category.id)
                     : category.name
@@ -41,12 +43,8 @@ enum WidgetSnapshotBuilder {
                         availableMinorUnits: available,
                         formattedAvailable: currency.formatted(available),
                         spending: WidgetCategorySpending(
-                            budgeted: WidgetMoney(
-                                minorUnits: projected.budgeted, formatted: currency.formatted(projected.budgeted)
-                            ),
-                            spent: WidgetMoney(
-                                minorUnits: -projected.spent, formatted: currency.formatted(-projected.spent)
-                            )
+                            spent: WidgetMoney(minorUnits: spent, formatted: currency.formatted(spent)),
+                            total: WidgetMoney(minorUnits: total, formatted: currency.formatted(total))
                         )
                     )
                 )
