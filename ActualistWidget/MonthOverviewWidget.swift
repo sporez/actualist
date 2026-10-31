@@ -164,7 +164,7 @@ struct MonthOverviewWidgetView: View {
 
     private func baseText(_ overview: WidgetMonthOverviewSnapshot, _ progress: WidgetMonthProgress) -> String {
         switch progress.base {
-        case .budgeted: "of \(overview.budgeted.formatted)"
+        case .budgeted: "of \(overview.budgeted.formatted) budgeted"
         case .income: "of \(overview.income.formatted) income"
         }
     }
