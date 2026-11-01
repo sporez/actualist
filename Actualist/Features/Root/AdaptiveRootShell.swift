@@ -144,7 +144,12 @@ struct AdaptiveRootShell: View {
         // Only honored on a column's own content, not on the split view.
         .navigationSplitViewColumnWidth(
             min: AdaptiveSidebarWidth.minimum,
-            ideal: AdaptiveSidebarWidth.ideal(forLabelWidth: widestSidebarLabel),
+            ideal: AdaptiveSidebarWidth.ideal(
+                forLabelWidth: widestSidebarLabel,
+                rowChrome: UIDevice.current.userInterfaceIdiom == .phone
+                    ? AdaptiveSidebarWidth.phoneRowChrome
+                    : AdaptiveSidebarWidth.padRowChrome
+            ),
             max: AdaptiveSidebarWidth.maximum
         )
     }

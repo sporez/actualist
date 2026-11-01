@@ -47,9 +47,12 @@ enum AdaptiveSidebarWidth {
     static let minimum: CGFloat = 220
     static let maximum: CGFloat = 280
     /// List insets and row padding around a row's icon and title.
-    static let rowChrome: CGFloat = 68
+    static let padRowChrome: CGFloat = 68
+    /// iPhone Duo's sidebar rows have more padding. iPad keeps the smaller value
+    /// because a wider sidebar can cost it a budget month in portrait.
+    static let phoneRowChrome: CGFloat = 80
 
-    static func ideal(forLabelWidth labelWidth: CGFloat) -> CGFloat {
+    static func ideal(forLabelWidth labelWidth: CGFloat, rowChrome: CGFloat = padRowChrome) -> CGFloat {
         guard labelWidth.isFinite, labelWidth > 0 else { return BudgetLayoutMetrics.defaultSidebarWidth }
         return min(max(labelWidth.rounded(.up) + rowChrome, minimum), maximum)
     }

@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import Actualist
 
 final class AdaptiveRootPresentationModeTests: XCTestCase {
@@ -11,11 +12,29 @@ final class AdaptiveRootPresentationModeTests: XCTestCase {
     }
 
     func testSidebarWidthFollowsWidestLabelWithinBounds() {
-        let chrome = AdaptiveSidebarWidth.rowChrome
+        let chrome = AdaptiveSidebarWidth.padRowChrome
         XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 180), 180 + chrome)
         XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 180.2), 181 + chrome)
         XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 40), AdaptiveSidebarWidth.minimum)
         XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 600), AdaptiveSidebarWidth.maximum)
+    }
+
+    func testPhoneSidebarAllowsForItsLargerRowPadding() {
+        let phone = AdaptiveSidebarWidth.phoneRowChrome
+        XCTAssertGreaterThan(phone, AdaptiveSidebarWidth.padRowChrome)
+        XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 178, rowChrome: phone), 178 + phone)
+        XCTAssertEqual(AdaptiveSidebarWidth.ideal(forLabelWidth: 600, rowChrome: phone), AdaptiveSidebarWidth.maximum)
+    }
+
+    func testPadSidebarWidthLeavesRoomForTwoMonthsInPortrait() {
+        // A 13-inch iPad at the default text size has about 2 pt to spare.
+        let sidebar = AdaptiveSidebarWidth.ideal(forLabelWidth: 177)
+        let metrics = BudgetLayoutMetrics.resolve(BudgetLayoutInputs(
+            rootWidth: 1032,
+            budgetDetailWidth: 1032 - sidebar - 10,
+            dynamicTypeScale: DynamicTypeSize.large.budgetLayoutScale
+        ))
+        XCTAssertEqual(metrics.visibleMonthCount, 2)
     }
 
     func testSidebarWidthFallsBackBeforeLabelsAreMeasured() {
