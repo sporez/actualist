@@ -113,7 +113,6 @@ struct RootView: View {
                     case .compact:
                         MainTabView(budgetViewModel: budgetSession.compactModel)
                             .environment(\.budgetRootWidth, proxy.size.width)
-                            .environment(\.budgetSidebarLayoutActive, false)
                             .transition(hasPresentedInitialBudget ? .opacity : .identity)
                             .onAppear {
                                 hasPresentedInitialBudget = true

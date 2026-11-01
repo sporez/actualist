@@ -4,7 +4,6 @@ import SwiftUI
 /// and Budget screen banner options.
 struct AppearanceSettingsView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.budgetSidebarLayoutActive) private var budgetSidebarLayoutActive
 
     @State private var viewModel = SettingsViewModel()
     @State private var isAppIconPickerPresented = false
@@ -23,24 +22,6 @@ struct AppearanceSettingsView: View {
                 ThemePreviewStrip(theme: appState.settings.theme)
             }
             .settingsSectionChrome()
-
-            if budgetSidebarLayoutActive {
-                Section {
-                    Picker("Months Shown", selection: monthDisplayPreferenceSelection) {
-                        ForEach(MonthDisplayPreference.allCases) { preference in
-                            Text(preference.title).tag(preference)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                } header: {
-                    Text("iPad Budget")
-                } footer: {
-                    Text("Choose how many months the iPad budget shows side by side when there is room.")
-                        .font(.caption)
-                        .foregroundStyle(ActualistTheme.secondaryText)
-                }
-                .settingsSectionChrome()
-            }
 
             Section {
                 VStack(alignment: .leading, spacing: 10) {
@@ -149,14 +130,6 @@ struct AppearanceSettingsView: View {
             appState.settings.theme
         } set: { theme in
             appState.updateTheme(theme)
-        }
-    }
-
-    private var monthDisplayPreferenceSelection: Binding<MonthDisplayPreference> {
-        Binding {
-            appState.settings.monthDisplayPreference
-        } set: { preference in
-            appState.updateMonthDisplayPreference(preference)
         }
     }
 

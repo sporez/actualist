@@ -129,6 +129,38 @@ struct BudgetLayoutMetricsTests {
         #expect(metrics.categoryColumnWidth + metrics.monthColumnWidth <= 268)
     }
 
+    @Test func monthChoicesOfferOnlyWhatFits() {
+        #expect(MonthDisplayPreference.choices(monthsThatFit: 1).isEmpty)
+        #expect(MonthDisplayPreference.choices(monthsThatFit: 2) == [.automatic, .fixed(1), .fixed(2)])
+        #expect(MonthDisplayPreference.choices(monthsThatFit: 5).count == 6)
+        #expect(MonthDisplayPreference.choices(monthsThatFit: 99).count == 6)
+    }
+
+    @Test func displayedChoiceMatchesTheScreenWithoutChangingTheSavedCeiling() {
+        let saved = MonthDisplayPreference.fixed(3)
+
+        #expect(saved.displayed(monthsThatFit: 2) == .fixed(2))
+        #expect(saved.displayed(monthsThatFit: 5) == .fixed(3))
+        #expect(MonthDisplayPreference.automatic.displayed(monthsThatFit: 2) == .automatic)
+        #expect(saved.resolvedCount == 3)
+    }
+
+    @Test func displayedChoiceIsAlwaysOffered() {
+        for fit in 2...5 {
+            let choices = MonthDisplayPreference.choices(monthsThatFit: fit)
+            for preference in MonthDisplayPreference.allCases {
+                #expect(choices.contains(preference.displayed(monthsThatFit: fit)))
+            }
+        }
+    }
+
+    @Test func monthsThatFitIgnoresTheChosenCount() {
+        let inputs = BudgetLayoutInputs(rootWidth: 1_500, budgetDetailWidth: 1_200, preference: .fixed(1))
+
+        #expect(BudgetLayoutMetrics.resolve(inputs).visibleMonthCount == 1)
+        #expect(BudgetLayoutMetrics.monthsThatFit(inputs) >= 3)
+    }
+
     @Test func invalidStoredPreferenceDecodesAsAutomatic() throws {
         let value = try JSONDecoder().decode(MonthDisplayPreference.self, from: Data("\"99\"".utf8))
         #expect(value == .automatic)

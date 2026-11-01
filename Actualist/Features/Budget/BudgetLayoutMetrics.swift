@@ -142,6 +142,13 @@ struct BudgetLayoutMetrics: Equatable {
         )
     }
 
+    /// How many months this space holds, whatever month count was chosen.
+    static func monthsThatFit(_ inputs: BudgetLayoutInputs) -> Int {
+        var automatic = inputs
+        automatic.preference = .automatic
+        return resolve(automatic).visibleMonthCount
+    }
+
     private static func finiteNonnegative(_ value: CGFloat) -> CGFloat {
         value.isFinite ? max(value, 0) : 0
     }
@@ -168,16 +175,5 @@ extension DynamicTypeSize {
         case .accessibility5: 2.6
         @unknown default: 1
         }
-    }
-}
-
-private struct BudgetSidebarLayoutActiveKey: EnvironmentKey {
-    static let defaultValue = false
-}
-
-extension EnvironmentValues {
-    var budgetSidebarLayoutActive: Bool {
-        get { self[BudgetSidebarLayoutActiveKey.self] }
-        set { self[BudgetSidebarLayoutActiveKey.self] = newValue }
     }
 }

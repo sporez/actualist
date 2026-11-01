@@ -12,6 +12,20 @@ enum MonthDisplayPreference: Codable, Equatable, Hashable, CaseIterable, Identif
     var title: String { self == .automatic ? "Auto" : rawValue }
     var resolvedCount: Int { if case .fixed(let count) = self { return min(max(count, 1), 5) }; return 5 }
 
+    /// The choices worth offering now. Empty when only one month fits, because
+    /// no choice would change anything.
+    static func choices(monthsThatFit: Int) -> [Self] {
+        guard monthsThatFit > 1 else { return [] }
+        return [.automatic] + (1...min(monthsThatFit, 5)).map(Self.fixed)
+    }
+
+    /// The choice that matches the screen. A saved count acts as a ceiling, so a
+    /// larger value shows as the most that fits and returns when there is room.
+    func displayed(monthsThatFit: Int) -> Self {
+        guard case .fixed(let count) = self else { return self }
+        return .fixed(min(count, max(monthsThatFit, 1)))
+    }
+
     init(rawValue: String) {
         if rawValue == "auto" { self = .automatic }
         else if let count = Int(rawValue), (1...5).contains(count) { self = .fixed(count) }

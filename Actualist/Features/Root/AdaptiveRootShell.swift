@@ -80,7 +80,6 @@ struct AdaptiveRootShell: View {
             }
         }
         .environment(\.budgetCurrency, displayedBudgetCurrency)
-        .environment(\.budgetSidebarLayoutActive, true)
         .environment(\.budgetRootWidth, rootWidth)
         .safeAreaInset(edge: .top, spacing: 0) {
             if appState.requiresReauthentication { RootReauthenticationBanner() }

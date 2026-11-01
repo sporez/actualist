@@ -8,6 +8,7 @@ struct BudgetWorkspaceView: View {
     let compactModel: BudgetViewModel
     @State private var actions: BudgetWorkspaceActions
     @State private var isMonthPickerPresented = false
+    @State private var monthsThatFit = 1
 
     init(viewport: BudgetViewportModel, compactModel: BudgetViewModel) {
         self.viewport = viewport
@@ -59,6 +60,9 @@ struct BudgetWorkspaceView: View {
                                 }
                             }
                     }
+                }
+                .onChange(of: BudgetLayoutMetrics.monthsThatFit(inputs), initial: true) { _, count in
+                    monthsThatFit = count
                 }
                 .task(id: LoadID(budgetID: appState.settings.selectedBudgetID, count: capacity.visibleMonthCount, route: appState.routeCoordinator.pendingRoute)) {
                     await actions.activate(using: appState, compactModel: compactModel, monthCount: capacity.visibleMonthCount)
@@ -161,15 +165,18 @@ struct BudgetWorkspaceView: View {
                     .accessibilityIdentifier("budget-new-group")
                     Divider()
                 }
-                Picker("Months Shown", selection: Binding(
-                    get: { appState.settings.monthDisplayPreference },
-                    set: { appState.updateMonthDisplayPreference($0) }
-                )) {
-                    ForEach(MonthDisplayPreference.allCases) { option in
-                        Text(option.title).tag(option)
+                let monthChoices = MonthDisplayPreference.choices(monthsThatFit: monthsThatFit)
+                if !monthChoices.isEmpty {
+                    Picker("Months Shown", selection: Binding(
+                        get: { appState.settings.monthDisplayPreference.displayed(monthsThatFit: monthsThatFit) },
+                        set: { appState.updateMonthDisplayPreference($0) }
+                    )) {
+                        ForEach(monthChoices) { option in
+                            Text(option.title).tag(option)
+                        }
                     }
+                    .pickerStyle(.menu)
                 }
-                .pickerStyle(.menu)
                 Button("History", systemImage: "clock.arrow.circlepath") { actions.openHistory() }
                 Button("Schedules", systemImage: "calendar.badge.clock") { actions.openSchedules() }
                     .accessibilityIdentifier("budget-schedules-open")
