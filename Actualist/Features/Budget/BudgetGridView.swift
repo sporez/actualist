@@ -17,9 +17,13 @@ struct BudgetGridView: View {
                     groupRow(group)
                         .id(group.id)
                     if viewport.expandedGroupIDs.contains(group.id) {
-                        ForEach(group.categories) { category in
-                            categoryRow(category, group: group)
-                                .id(category.id)
+                        ForEach(Array(group.categories.enumerated()), id: \.element.id) { index, category in
+                            categoryRow(
+                                category,
+                                group: group,
+                                position: .init(index: index, count: group.categories.count)
+                            )
+                            .id(category.id)
                         }
                     }
                 }
@@ -58,6 +62,7 @@ struct BudgetGridView: View {
                         Image(systemName: "note.text").font(.caption)
                     }
                 }
+                .padding(.leading, BudgetLayout.rowHorizontalPadding)
                 .frame(maxWidth: .infinity, minHeight: sizing.groupHeight, alignment: .leading)
                 .contentShape(Rectangle())
             }
@@ -124,7 +129,11 @@ struct BudgetGridView: View {
             .accessibilityLabel("\(group.title), \(month.title), \(label), \(value ?? "Unavailable")")
     }
 
-    private func categoryRow(_ category: BudgetGridPresentation.Category, group: BudgetGridPresentation.Group) -> some View {
+    private func categoryRow(
+        _ category: BudgetGridPresentation.Category,
+        group: BudgetGridPresentation.Group,
+        position: BudgetGridPresentation.RowPosition
+    ) -> some View {
         HStack(spacing: 0) {
             Button {
                 if let month = viewport.anchorMonth {
@@ -199,11 +208,28 @@ struct BudgetGridView: View {
             }
         }
         .foregroundStyle(ActualistTheme.primaryText)
-        .background(ActualistTheme.surface)
         .opacity(BudgetCategoryVisibility.isEffectivelyHidden(category: category.source, group: group.source) ? 0.5 : 1)
+        .background(ActualistTheme.surface, in: rowShape(position))
         .overlay(alignment: .bottom) {
-            Rectangle().fill(ActualistTheme.separator).frame(height: 0.5)
+            if position.showsSeparator {
+                Rectangle()
+                    .fill(ActualistTheme.separator)
+                    .frame(height: 0.5)
+                    .padding(.leading, BudgetLayout.rowHorizontalPadding)
+            }
         }
+    }
+
+    private func rowShape(_ position: BudgetGridPresentation.RowPosition) -> UnevenRoundedRectangle {
+        let top = position.isFirst ? BudgetLayout.groupCornerRadius : 0
+        let bottom = position.isLast ? BudgetLayout.groupCornerRadius : 0
+        return UnevenRoundedRectangle(
+            topLeadingRadius: top,
+            bottomLeadingRadius: bottom,
+            bottomTrailingRadius: bottom,
+            topTrailingRadius: top,
+            style: .continuous
+        )
     }
 }
 

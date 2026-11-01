@@ -5,6 +5,7 @@ enum BudgetLayout {
     static let sectionSpacing: CGFloat = 14
     static let rowSpacing: CGFloat = 8
     static let rowHorizontalPadding: CGFloat = 10
+    static let groupCornerRadius: CGFloat = 18
     static let chevronWidth: CGFloat = 24
     static let emojiSize: CGFloat = 20
     static let emojiNameSpacing: CGFloat = 6

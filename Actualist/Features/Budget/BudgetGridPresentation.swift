@@ -43,6 +43,20 @@ struct BudgetGridPresentation {
         var id: String { source.id }
     }
 
+    /// Where a category row sits in its group. The grid's rows are siblings in
+    /// one lazy stack, so each row draws its own share of the group's card.
+    struct RowPosition: Equatable {
+        let isFirst: Bool
+        let isLast: Bool
+
+        init(index: Int, count: Int) {
+            isFirst = index == 0
+            isLast = index == count - 1
+        }
+
+        var showsSeparator: Bool { !isLast }
+    }
+
     let months: [Month]
     let groups: [Group]
     let rangeTitle: String

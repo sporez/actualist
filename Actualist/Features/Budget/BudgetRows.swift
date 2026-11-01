@@ -128,7 +128,7 @@ struct BudgetGroupSection: View {
                         .id(BudgetScrollTarget.category(category.id))
                     }
                 }
-                .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: BudgetLayout.groupCornerRadius, style: .continuous))
             }
         }
     }
