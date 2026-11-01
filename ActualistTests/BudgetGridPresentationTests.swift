@@ -2,6 +2,30 @@ import Testing
 @testable import Actualist
 
 struct BudgetGridPresentationTests {
+    @Test func rowPositionMarksTheEndsOfAGroupCard() {
+        let only = BudgetGridPresentation.RowPosition(index: 0, count: 1)
+        #expect(only.isFirst && only.isLast && !only.showsSeparator)
+
+        let first = BudgetGridPresentation.RowPosition(index: 0, count: 3)
+        #expect(first.isFirst && !first.isLast && first.showsSeparator)
+
+        let middle = BudgetGridPresentation.RowPosition(index: 1, count: 3)
+        #expect(!middle.isFirst && !middle.isLast && middle.showsSeparator)
+
+        let last = BudgetGridPresentation.RowPosition(index: 2, count: 3)
+        #expect(!last.isFirst && last.isLast && !last.showsSeparator)
+    }
+
+    @Test func onlyTrackingIncomeGroupsKeepTheirOwnLabels() {
+        let envelope = BudgetModePresentation(isTracking: false)
+        let tracking = BudgetModePresentation(isTracking: true)
+
+        #expect(!BudgetModePresentation(isTracking: false, isIncome: false).needsOwnLabels(under: envelope))
+        #expect(!BudgetModePresentation(isTracking: false, isIncome: true).needsOwnLabels(under: envelope))
+        #expect(!BudgetModePresentation(isTracking: true, isIncome: false).needsOwnLabels(under: tracking))
+        #expect(BudgetModePresentation(isTracking: true, isIncome: true).needsOwnLabels(under: tracking))
+    }
+
     @Test func oneCategoryAxisIsSharedAcrossVisibleMonthsAndValuesStayExact() throws {
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: -5,

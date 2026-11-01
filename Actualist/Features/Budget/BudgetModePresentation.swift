@@ -11,6 +11,11 @@ struct BudgetModePresentation: Hashable {
     var showsBalance: Bool { !isTracking || !isIncome }
     var secondValueLabel: String { isTracking && isIncome ? activityLabel : balanceLabel }
 
+    /// Whether a row's values mean something other than its column heading says.
+    func needsOwnLabels(under column: BudgetModePresentation) -> Bool {
+        budgetedLabel != column.budgetedLabel || secondValueLabel != column.secondValueLabel
+    }
+
     func secondValue(balance: Int, activity: Int, carryover: Bool = false, currency: BudgetCurrency) -> BudgetSecondValuePresentation {
         BudgetSecondValuePresentation(
             amount: isTracking && isIncome ? activity : balance,

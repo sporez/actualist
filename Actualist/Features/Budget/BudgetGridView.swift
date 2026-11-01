@@ -9,6 +9,7 @@ struct BudgetGridView: View {
     let actions: BudgetWorkspaceActions
     let presentation: BudgetGridPresentation
     let metrics: BudgetLayoutMetrics
+    @State private var isScrolled = false
 
     var body: some View {
         ScrollView(.vertical) {
@@ -33,11 +34,15 @@ struct BudgetGridView: View {
             .padding(.bottom, 24)
         }
         .accessibilityIdentifier("budget-grid")
+        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > 1 } action: { _, scrolled in
+            isScrolled = scrolled
+        }
         .safeAreaBar(edge: .top, spacing: 0) {
             BudgetGridMonthHeaders(
                 presentation: presentation,
                 metrics: metrics,
-                actions: actions
+                actions: actions,
+                showsMonthWhileScrolled: isScrolled
             )
             .padding(.horizontal, BudgetLayoutMetrics.defaultHorizontalMargins / 2)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -100,9 +105,10 @@ struct BudgetGridView: View {
             ForEach(presentation.months) { month in
                 let values = presentation.group(group.id, month: month)
                 let semantics = BudgetModePresentation(isTracking: month.semantics.isTracking, isIncome: group.source.isIncome)
+                let showsLabels = semantics.needsOwnLabels(under: month.semantics)
                 HStack(spacing: 8) {
-                    total(values.map { month.currency.formatted($0.budgeted) }, label: semantics.budgetedLabel, group: group, month: month)
-                    total(values.map { semantics.secondValue(balance: $0.balance, activity: $0.spent, currency: month.currency).text }, label: semantics.secondValueLabel, group: group, month: month)
+                    total(values.map { month.currency.formatted($0.budgeted) }, label: semantics.budgetedLabel, showsLabel: showsLabels, group: group, month: month)
+                    total(values.map { semantics.secondValue(balance: $0.balance, activity: $0.spent, currency: month.currency).text }, label: semantics.secondValueLabel, showsLabel: showsLabels, group: group, month: month)
                 }
                 .padding(.horizontal, sizing.cellPadding)
                 .frame(width: metrics.monthColumnWidth)
@@ -113,11 +119,13 @@ struct BudgetGridView: View {
         .padding(.top, sizing.headerSpacing)
     }
 
-    private func total(_ value: String?, label: String, group: BudgetGridPresentation.Group, month: BudgetGridPresentation.Month) -> some View {
+    private func total(_ value: String?, label: String, showsLabel: Bool, group: BudgetGridPresentation.Group, month: BudgetGridPresentation.Month) -> some View {
         VStack(alignment: .trailing, spacing: 3) {
-            Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(ActualistTheme.secondaryText)
+            if showsLabel {
+                Text(label)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+            }
             Text(value ?? "—")
         }
             .font(ActualistTypography.rowValue(for: density))
