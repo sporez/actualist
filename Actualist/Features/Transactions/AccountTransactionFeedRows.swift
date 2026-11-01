@@ -19,6 +19,9 @@ struct AccountTransactionFeedRows: View {
     let onRequestDelete: (ActualTransaction) -> Void
     let onConfirmDelete: (ActualTransaction) -> Void
 
+    /// Matches the 16 point inset of the feed's other sections.
+    private static let cardMargin: CGFloat = 16
+
     var body: some View {
         if let selectionFailureMessage {
             Text(selectionFailureMessage)
@@ -37,19 +40,23 @@ struct AccountTransactionFeedRows: View {
                 .textCase(nil)
                 .padding(.top, 16)
                 .padding(.bottom, 8)
-                .padding(.horizontal, density.rowHorizontalPadding)
+                .padding(.horizontal, Self.cardMargin + density.rowHorizontalPadding)
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
 
             ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
-                transactionButton(
-                    for: row,
-                    showsBottomSeparator: index < group.rows.count - 1
-                )
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(ActualistTheme.surface)
+                let position = GroupedRowPosition(index: index, count: group.rows.count)
+                transactionButton(for: row, showsBottomSeparator: position.showsSeparator)
+                    // A new row paints its own highlight, which must not pass the corners.
+                    .clipShape(position.shape)
+                    .listRowInsets(EdgeInsets(top: 0, leading: Self.cardMargin, bottom: 0, trailing: Self.cardMargin))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(
+                        position.shape
+                            .fill(ActualistTheme.surface)
+                            .padding(.horizontal, Self.cardMargin)
+                    )
             }
         }
     }

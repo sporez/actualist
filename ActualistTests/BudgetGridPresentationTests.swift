@@ -3,16 +3,16 @@ import Testing
 
 struct BudgetGridPresentationTests {
     @Test func rowPositionMarksTheEndsOfAGroupCard() {
-        let only = BudgetGridPresentation.RowPosition(index: 0, count: 1)
+        let only = GroupedRowPosition(index: 0, count: 1)
         #expect(only.isFirst && only.isLast && !only.showsSeparator)
 
-        let first = BudgetGridPresentation.RowPosition(index: 0, count: 3)
+        let first = GroupedRowPosition(index: 0, count: 3)
         #expect(first.isFirst && !first.isLast && first.showsSeparator)
 
-        let middle = BudgetGridPresentation.RowPosition(index: 1, count: 3)
+        let middle = GroupedRowPosition(index: 1, count: 3)
         #expect(!middle.isFirst && !middle.isLast && middle.showsSeparator)
 
-        let last = BudgetGridPresentation.RowPosition(index: 2, count: 3)
+        let last = GroupedRowPosition(index: 2, count: 3)
         #expect(!last.isFirst && last.isLast && !last.showsSeparator)
     }
 

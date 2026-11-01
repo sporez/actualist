@@ -140,7 +140,7 @@ struct BudgetGridView: View {
     private func categoryRow(
         _ category: BudgetGridPresentation.Category,
         group: BudgetGridPresentation.Group,
-        position: BudgetGridPresentation.RowPosition
+        position: GroupedRowPosition
     ) -> some View {
         HStack(spacing: 0) {
             Button {
@@ -217,7 +217,7 @@ struct BudgetGridView: View {
         }
         .foregroundStyle(ActualistTheme.primaryText)
         .opacity(BudgetCategoryVisibility.isEffectivelyHidden(category: category.source, group: group.source) ? 0.5 : 1)
-        .background(ActualistTheme.surface, in: rowShape(position))
+        .background(ActualistTheme.surface, in: position.shape)
         .overlay(alignment: .bottom) {
             if position.showsSeparator {
                 Rectangle()
@@ -226,18 +226,6 @@ struct BudgetGridView: View {
                     .padding(.leading, BudgetLayout.rowHorizontalPadding)
             }
         }
-    }
-
-    private func rowShape(_ position: BudgetGridPresentation.RowPosition) -> UnevenRoundedRectangle {
-        let top = position.isFirst ? BudgetLayout.groupCornerRadius : 0
-        let bottom = position.isLast ? BudgetLayout.groupCornerRadius : 0
-        return UnevenRoundedRectangle(
-            topLeadingRadius: top,
-            bottomLeadingRadius: bottom,
-            bottomTrailingRadius: bottom,
-            topTrailingRadius: top,
-            style: .continuous
-        )
     }
 }
 
