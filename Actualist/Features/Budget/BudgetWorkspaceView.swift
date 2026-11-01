@@ -103,13 +103,13 @@ struct BudgetWorkspaceView: View {
     @ToolbarContentBuilder
     private func navigationToolbar(_ display: BudgetGridPresentation) -> some ToolbarContent {
         ToolbarItemGroup(placement: .topBarLeading) {
-            Button { Task { await viewport.moveAnchor(by: -1) } } label: {
-                Image(systemName: "chevron.left")
+            Button("Previous Month", systemImage: "chevron.left") {
+                Task { await viewport.moveAnchor(by: -1) }
             }
             .accessibilityLabel("Previous month")
             .keyboardShortcut("[", modifiers: .command)
-            Button { Task { await viewport.moveAnchor(by: 1) } } label: {
-                Image(systemName: "chevron.right")
+            Button("Next Month", systemImage: "chevron.right") {
+                Task { await viewport.moveAnchor(by: 1) }
             }
             .accessibilityLabel("Next month")
             .keyboardShortcut("]", modifiers: .command)
@@ -139,9 +139,13 @@ struct BudgetWorkspaceView: View {
             }
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button("Today") { Task { await viewport.jumpToCurrentMonth() } }
-                .accessibilityLabel("Current month")
-            Menu {
+            // iPhone Duo's side bar only takes items with a symbol, and overflow
+            // menus show the title, so every item here carries both.
+            Button("Today", systemImage: "calendar") {
+                Task { await viewport.jumpToCurrentMonth() }
+            }
+            .accessibilityLabel("Current month")
+            Menu("Budget Actions", systemImage: "ellipsis") {
                 if !appState.settings.randomizedDisplayValuesEnabled {
                     Button("New Category…", systemImage: "plus") {
                         actions.openCreateCategory()
@@ -173,8 +177,6 @@ struct BudgetWorkspaceView: View {
                     get: { appState.settings.showHiddenCategories },
                     set: { appState.updateShowHiddenCategories($0) }
                 ))
-            } label: {
-                Image(systemName: "ellipsis")
             }
             .accessibilityLabel("Budget Actions")
         }
