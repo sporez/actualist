@@ -114,7 +114,7 @@ struct BudgetLayoutMetricsTests {
 
     @Test func narrowRootRemainsCompactAndSingleMonthHasInspectorCapacity() {
         let compact = BudgetLayoutMetrics.resolve(BudgetLayoutInputs(rootWidth: 699, budgetDetailWidth: 900))
-        let single = BudgetLayoutMetrics.resolve(BudgetLayoutInputs(rootWidth: 900, budgetDetailWidth: 700))
+        let single = BudgetLayoutMetrics.resolve(BudgetLayoutInputs(rootWidth: 900, budgetDetailWidth: 660))
 
         #expect(compact.presentationMode == .compact)
         #expect(single.presentationMode == .splitSingleMonth)
@@ -149,6 +149,75 @@ struct BudgetLayoutMetricsTests {
 }
 
 extension BudgetLayoutMetricsTests {
+    private static let defaultTextScale: CGFloat = 1.1
+    private static let preferredCategoryWidth = BudgetLayoutMetrics.preferredCategoryColumnWidth * defaultTextScale
+    private static let categoryFloor = BudgetLayoutMetrics.compressedCategoryColumnWidth * defaultTextScale
+
+    private func portraitMetrics(detailWidth: CGFloat, preference: MonthDisplayPreference = .automatic) -> BudgetLayoutMetrics {
+        BudgetLayoutMetrics.resolve(BudgetLayoutInputs(
+            rootWidth: 1_032,
+            budgetDetailWidth: detailWidth,
+            dynamicTypeScale: Self.defaultTextScale,
+            preference: preference
+        ))
+    }
+
+    @Test func categoryColumnGivesUpOnlyWhatASecondMonthNeeds() {
+        // A 13-inch iPad in portrait beside the widest sidebar.
+        let metrics = portraitMetrics(detailWidth: 742)
+
+        #expect(metrics.visibleMonthCount == 2)
+        #expect(metrics.categoryColumnWidth < Self.preferredCategoryWidth)
+        #expect(metrics.categoryColumnWidth >= Self.categoryFloor)
+        #expect(abs(metrics.tableWidth - (742 - BudgetLayoutMetrics.defaultHorizontalMargins)) < 0.001)
+    }
+
+    @Test func categoryColumnKeepsItsWidthWhenTwoMonthsAlreadyFit() {
+        let metrics = portraitMetrics(detailWidth: 777)
+
+        #expect(metrics.visibleMonthCount == 2)
+        #expect(metrics.categoryColumnWidth == Self.preferredCategoryWidth)
+    }
+
+    @Test func categoryColumnStopsAtItsFloorAndTheBudgetStaysOnOneMonth() {
+        let atFloor = Self.categoryFloor + BudgetLayoutMetrics.minimumMonthGroupWidth * Self.defaultTextScale * 2
+            + BudgetLayoutMetrics.defaultHorizontalMargins
+        let justBelow = portraitMetrics(detailWidth: atFloor - 1)
+        let justAbove = portraitMetrics(detailWidth: atFloor + 1)
+
+        #expect(justBelow.visibleMonthCount == 1)
+        #expect(justBelow.categoryColumnWidth == Self.preferredCategoryWidth)
+        #expect(justAbove.visibleMonthCount == 2)
+        #expect(justAbove.categoryColumnWidth >= Self.categoryFloor)
+    }
+
+    @Test func categoryColumnNeverShrinksForAThirdMonth() {
+        // An 11-inch iPad in landscape.
+        let metrics = portraitMetrics(detailWidth: 955)
+
+        #expect(metrics.visibleMonthCount == 2)
+        #expect(metrics.categoryColumnWidth == Self.preferredCategoryWidth)
+    }
+
+    @Test func choosingOneMonthKeepsTheFullCategoryColumn() {
+        let metrics = portraitMetrics(detailWidth: 742, preference: .fixed(1))
+
+        #expect(metrics.visibleMonthCount == 1)
+        #expect(metrics.categoryColumnWidth == Self.preferredCategoryWidth)
+    }
+
+    @Test func aPendingSingleMonthKeepsTheFullCategoryColumn() {
+        let inputs = BudgetLayoutInputs(
+            rootWidth: 1_032,
+            budgetDetailWidth: 742,
+            dynamicTypeScale: Self.defaultTextScale
+        )
+        let pending = BudgetLayoutMetrics.resolve(inputs, renderedMonthCount: 1)
+
+        #expect(pending.visibleMonthCount == 1)
+        #expect(pending.categoryColumnWidth == Self.preferredCategoryWidth)
+    }
+
     @Test func everyDensityFitsAndRetainsFixedPreference() {
         for density in ActualistDisplayDensity.allCases {
             for width in [520.0, 760, 1100, 1400] {

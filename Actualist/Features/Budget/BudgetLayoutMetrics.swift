@@ -52,6 +52,8 @@ struct BudgetLayoutMetrics: Equatable {
     static let minimumCategoryColumnWidth: CGFloat = 180
     static let preferredCategoryColumnWidth: CGFloat = 240
     static let maximumCategoryColumnWidth: CGFloat = 300
+    /// The narrowest the category column may go to make room for a second month.
+    static let compressedCategoryColumnWidth: CGFloat = 205
     static let maximumSingleMonthTableWidth: CGFloat = 760
     static let supportedMonthRange = 1...5
 
@@ -99,18 +101,28 @@ struct BudgetLayoutMetrics: Equatable {
             )
         }
 
-        let availableForMonths = max(detailWidth - categoryWidth, 0)
         let minimumGroupWidth = max(minimumMonthGroupWidth, minimumMoneyColumnWidth * moneyColumns) * moneyScale
-        let physicallyPossible = max(1, min(supportedMonthRange.upperBound, Int(floor(availableForMonths / minimumGroupWidth))))
+        let monthsAtPreferredWidth = Int(floor(max(detailWidth - categoryWidth, 0) / minimumGroupWidth))
+        // A second month may take a little of the category column. Further months may not.
+        let categoryWidthForTwoMonths = detailWidth - minimumGroupWidth * 2
+        let canCompressForSecondMonth = monthsAtPreferredWidth < 2
+            && categoryWidthForTwoMonths >= compressedCategoryColumnWidth * categoryScale
+        let physicallyPossible = canCompressForSecondMonth
+            ? 2
+            : max(1, min(supportedMonthRange.upperBound, monthsAtPreferredWidth))
         let requested = inputs.preference.resolvedCount
         let capacity = min(max(requested, supportedMonthRange.lowerBound), physicallyPossible)
         let visibleCount = renderedMonthCount.map { min(max($0, 1), supportedMonthRange.upperBound) } ?? capacity
         let mode: BudgetPresentationMode = visibleCount > 1 ? .multiMonth : .splitSingleMonth
+        let fittedCategoryWidth = canCompressForSecondMonth && visibleCount == 2
+            ? categoryWidthForTwoMonths
+            : categoryWidth
+        let availableForMonths = max(detailWidth - fittedCategoryWidth, 0)
         let maximumTableWidth = maximumSingleMonthTableWidth * scale
         let tableWidth = visibleCount == 1 ? min(detailWidth, maximumTableWidth) : detailWidth
         let tableCategoryWidth = visibleCount == 1
             ? min(categoryWidth, max(tableWidth - minimumMoneyColumnWidth * moneyColumns * moneyScale, 0))
-            : categoryWidth
+            : fittedCategoryWidth
         let tableMonthWidth = max(tableWidth - tableCategoryWidth, 0)
         let naturalMonthWidth = visibleCount == 1
             ? tableMonthWidth
