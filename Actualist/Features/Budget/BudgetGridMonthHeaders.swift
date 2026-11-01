@@ -57,7 +57,7 @@ struct BudgetGridMonthHeaders: View {
 
     private func inlineSummary(_ month: BudgetGridPresentation.Month) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 14) {
-            summaryButton(month, isInline: true)
+            summaryButton(month)
             detailTexts(month)
         }
     }
@@ -67,29 +67,35 @@ struct BudgetGridMonthHeaders: View {
             Color.clear.frame(width: metrics.categoryColumnWidth, height: 0)
 
             ForEach(presentation.months) { month in
-                VStack(spacing: sizing.headerSpacing) {
-                    monthMenu(month, showsTitle: true)
+                VStack(alignment: .trailing, spacing: 0) {
                     ViewThatFits(in: .horizontal) {
-                        summaryButton(month, isInline: true)
-                        summaryButton(month, isInline: false)
+                        HStack(spacing: 10) {
+                            monthMenu(month, showsTitle: true)
+                            Spacer(minLength: 0)
+                            summaryButton(month)
+                        }
+                        VStack(alignment: .trailing, spacing: 0) {
+                            monthMenu(month, showsTitle: true)
+                            summaryButton(month)
+                        }
                     }
                     if month.savings != nil || month.assignedText != nil {
                         ViewThatFits(in: .horizontal) {
                             HStack(spacing: 10) { detailTexts(month) }
-                            VStack(spacing: sizing.headerSpacing) { detailTexts(month) }
+                            VStack(alignment: .trailing, spacing: sizing.headerSpacing) { detailTexts(month) }
                         }
                     }
                     if !month.alerts.isEmpty {
                         ViewThatFits(in: .horizontal) {
                             HStack(spacing: 10) { alerts(month) }
-                            VStack(spacing: 0) { alerts(month) }
+                            VStack(alignment: .trailing, spacing: 0) { alerts(month) }
                         }
                     }
                     status(month)
                 }
                 .padding(.horizontal, sizing.cellPadding)
-                .padding(.vertical, sizing.headerPadding)
-                .frame(width: metrics.monthColumnWidth)
+                .padding(.vertical, sizing.headerPadding / 2)
+                .frame(width: metrics.monthColumnWidth, alignment: .trailing)
                 .transition(.opacity)
             }
         }
@@ -141,7 +147,7 @@ struct BudgetGridMonthHeaders: View {
                 }
                 Image(systemName: "ellipsis").font(.caption)
             }
-            .frame(minWidth: 44, maxWidth: presentation.months.count > 1 ? .infinity : nil, minHeight: 32)
+            .frame(minWidth: 44, minHeight: 32)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -149,17 +155,17 @@ struct BudgetGridMonthHeaders: View {
     }
 
     @ViewBuilder
-    private func summaryButton(_ month: BudgetGridPresentation.Month, isInline: Bool) -> some View {
+    private func summaryButton(_ month: BudgetGridPresentation.Month) -> some View {
         if actions.canOpenHold(month.id, using: appState) {
             Button {
                 actions.openHold(month.id, using: appState)
             } label: {
-                summaryLabel(month, isInline: isInline)
+                summaryLabel(month)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("budget-hold-open-\(month.id)")
         } else {
-            summaryLabel(month, isInline: isInline)
+            summaryLabel(month)
         }
     }
 
@@ -202,31 +208,18 @@ struct BudgetGridMonthHeaders: View {
         }
     }
 
-    private func summaryLabel(_ month: BudgetGridPresentation.Month, isInline: Bool) -> some View {
+    private func summaryLabel(_ month: BudgetGridPresentation.Month) -> some View {
         let summary = month.summary
-        return Group {
-            if isInline {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    summaryText(summary)
-                }
-            } else {
-                VStack(spacing: 2) {
-                    summaryText(summary)
-                }
-            }
+        return HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(summary.text)
+                .font(ActualistTypography.rowTitle(for: density).bold())
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+            Text(summary.title).font(.caption)
         }
         .foregroundStyle(summary.amount < 0 ? (summary.isTracking ? ActualistTheme.danger : ActualistTheme.warning) : summary.amount == 0 ? ActualistTheme.secondaryText : ActualistTheme.positive)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(month.title), \(summary.title), \(summary.text)")
-    }
-
-    @ViewBuilder
-    private func summaryText(_ summary: BudgetGridPresentation.Summary) -> some View {
-        Text(summary.text)
-            .font(ActualistTypography.rowTitle(for: density).bold())
-            .monospacedDigit()
-            .lineLimit(1)
-            .minimumScaleFactor(0.85)
-        Text(summary.title).font(.caption)
     }
 }
