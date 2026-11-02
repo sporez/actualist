@@ -157,7 +157,8 @@ final class ActualistUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 3))
         picker.tap()
         XCTAssertTrue(app.buttons["Auto"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons["5"].exists)
+        // The menu lists only the counts that fit, and no iPad fits five months.
+        XCTAssertFalse(app.buttons["5"].exists)
         app.buttons["1"].tap()
         XCTAssertTrue(budgetGrid(in: app).waitForExistence(timeout: 3))
         XCTAssertEqual(visibleMonthCount(in: app), 1)
@@ -398,7 +399,8 @@ final class ActualistUITests: XCTestCase {
     @MainActor
     func testWideCategoryInspectorPreservesScrolledGridPosition() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = launchDemo()
+        // The demo budget fits a large iPad. Large text makes the grid scroll.
+        let app = launchDemo(dynamicType: "UICTContentSizeCategoryAccessibilityM")
         try requireWide(app)
         let grid = budgetGrid(in: app)
         XCTAssertTrue(grid.waitForExistence(timeout: 15))
@@ -601,7 +603,7 @@ final class ActualistUITests: XCTestCase {
     @MainActor
     func testWideBudgetLargeTextKeepsColumnsAligned() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
-        let app = launchDemo(dynamicType: "UICTContentSizeCategoryXXXL")
+        let app = launchDemo(dynamicType: "UICTContentSizeCategoryAccessibilityM")
         try requireWide(app)
         XCTAssertTrue(budgetGrid(in: app).waitForExistence(timeout: 15))
         let assigned = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'assigned-' AND identifier ENDSWITH '-groceries'")).firstMatch

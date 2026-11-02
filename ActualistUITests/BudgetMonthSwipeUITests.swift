@@ -385,26 +385,22 @@ final class BudgetMonthSwipeUITests: XCTestCase {
     @MainActor func testSidebarSingleAndMultipleMonthsIgnoreEdgeDrags() throws {
         XCUIDevice.shared.orientation = .landscapeLeft
         let app = XCUIApplication()
-        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "settings/appearance"]
+        app.launchArguments = ["-actualist-demo", "-actualist-replace-demo-for-ui-testing", "-actualist-screen", "budget"]
         app.launch()
         guard app.frame.width >= 792 else { throw XCTSkip("Requires pinned iPad") }
+        let grid = app.scrollViews["budget-grid"]
+        XCTAssertTrue(grid.waitForExistence(timeout: 15))
         for preference in ["1", "Auto"] {
+            app.buttons["Budget Actions"].tap()
             let picker = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Months Shown'")).firstMatch
             XCTAssertTrue(picker.waitForExistence(timeout: 15))
             picker.tap()
             app.buttons[preference].tap()
-            app.terminate()
-            app.launchArguments = ["-actualist-demo", "-actualist-screen", "budget"]
-            app.launch()
-            let grid = app.scrollViews["budget-grid"]
             XCTAssertTrue(grid.waitForExistence(timeout: 15))
             let original = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'assigned-'" )).allElementsBoundByIndex.map(\.identifier)
             drag(grid, from: .init(dx: 0.99, dy: 0.5), to: .init(dx: 0.5, dy: 0.5))
             XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'assigned-'" )).allElementsBoundByIndex.map(\.identifier), original)
             capture("month-sidebar-\(preference)", app)
-            app.terminate()
-            app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/appearance"]
-            app.launch()
         }
     }
 
