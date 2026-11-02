@@ -113,6 +113,14 @@ final class IPadReviewUITests: XCTestCase {
             let slider = settings.sliders.firstMatch
             XCTAssertTrue(slider.waitForExistence(timeout: 5))
             slider.adjust(toNormalizedSliderPosition: CGFloat(index) / 3)
+            let settled = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", "\(index)"),
+                object: slider
+            )
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [settled], timeout: 5), .completed,
+                "Slider stayed at \(String(describing: slider.value)), wanted \(index)"
+            )
             settings.terminate()
             let app = launch()
             XCTAssertTrue(app.scrollViews["budget-grid"].waitForExistence(timeout: 10))
