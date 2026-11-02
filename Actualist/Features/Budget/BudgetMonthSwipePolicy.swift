@@ -31,16 +31,21 @@ struct BudgetMonthSwipePolicy {
     }
 
     func update(_ drag: inout Drag, start: CGPoint, translation: CGSize, viewport: CGSize, enabled: Bool, revision: Int = 0) {
+        // A vertical drag belongs to the scroll view. Nothing may reject it, because
+        // a rejected drag disables the scroll view under the finger.
+        if drag.recognition == .vertical { return }
+        // The viewport's height follows the navigation bar as the budget scrolls,
+        // so only a width change is a resize, and only the touch-down must be inside.
         guard enabled, viewport.width > edgeWidth * 2,
               drag.revision == nil || drag.revision == revision,
-              drag.viewport == nil || drag.viewport == viewport,
-              start.y >= 0, start.y <= viewport.height else {
+              drag.viewport == nil || drag.viewport?.width == viewport.width,
+              drag.viewport != nil || (start.y >= 0 && start.y <= viewport.height) else {
             drag.recognition = .rejected
             return
         }
         drag.viewport = viewport
         drag.revision = revision
-        guard drag.recognition != .rejected && drag.recognition != .vertical else { return }
+        guard drag.recognition != .rejected else { return }
         if drag.recognition == .pending {
             guard max(abs(translation.width), abs(translation.height)) >= recognitionDistance else { return }
             guard abs(translation.width) >= horizontalDominance * abs(translation.height) else {
@@ -49,7 +54,7 @@ struct BudgetMonthSwipePolicy {
             }
             let direction: Direction
             if (0...edgeWidth).contains(start.x) { direction = .previous }
-            else if ((viewport.width - edgeWidth)...viewport.width).contains(start.x) { direction = .next }
+            else if start.x >= viewport.width - edgeWidth { direction = .next }
             else { drag.recognition = .rejected; return }
             guard translation.width * direction.translationSign >= recognitionDistance else {
                 drag.recognition = .rejected

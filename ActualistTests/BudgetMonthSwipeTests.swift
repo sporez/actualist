@@ -19,6 +19,7 @@ struct BudgetMonthSwipePolicyTests {
         #expect(policy.committedDirection(sample(startX: 379, x: -150)) == nil)
         #expect(policy.committedDirection(sample(startX: 0, x: 99)) == nil)
         #expect(policy.committedDirection(sample(startX: 400, x: -99)) == nil)
+        #expect(policy.committedDirection(sample(startX: 484, x: -110)) == .next)
         #expect(sample(startX: 0, x: -120).recognition == .rejected)
         #expect(sample(startX: 400, x: 120).recognition == .rejected)
     }
@@ -38,6 +39,22 @@ struct BudgetMonthSwipePolicyTests {
         #expect(vertical.recognition == .vertical)
         #expect(!policy.suppressesControls(vertical))
         #expect(policy.suppressesControls(sample(startX: 200, x: 50)))
+    }
+
+    @Test func viewportHeightChangeDuringScrollDoesNotRejectTheDrag() {
+        var drag = BudgetMonthSwipePolicy.Drag()
+        let start = CGPoint(x: 200, y: 200)
+        policy.update(&drag, start: start, translation: .init(width: 0, height: -2), viewport: viewport, enabled: true)
+        policy.update(&drag, start: start, translation: .init(width: 0, height: -6),
+                      viewport: .init(width: 400, height: 704), enabled: true)
+        #expect(drag.recognition == .pending)
+        policy.update(&drag, start: start, translation: .init(width: 0, height: -20),
+                      viewport: .init(width: 400, height: 708), enabled: true)
+        #expect(drag.recognition == .vertical)
+        policy.update(&drag, start: .init(x: 200, y: -10), translation: .init(width: 0, height: -40),
+                      viewport: .init(width: 400, height: 712), enabled: true)
+        #expect(drag.recognition == .vertical)
+        #expect(!policy.suppressesControls(drag))
     }
 
     @Test func shortAndReversedDragsDoNotCommit() {

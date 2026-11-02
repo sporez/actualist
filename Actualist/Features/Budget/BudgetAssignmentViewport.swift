@@ -10,6 +10,8 @@ struct BudgetAssignmentViewport<Content: View, Keypad: View, Floating: View>: Vi
     @ViewBuilder let content: () -> Content
     @ViewBuilder let keypad: () -> Keypad
     @ViewBuilder let floating: (Bool) -> Floating
+    // Measured here because the slide moves the swiped view through the inset.
+    @State private var trailingSafeAreaInset: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -36,7 +38,8 @@ struct BudgetAssignmentViewport<Content: View, Keypad: View, Floating: View>: Vi
             }
             .modifier(BudgetMonthSwipeModifier(model: viewModel,
                 presentationBlocked: monthSwipeBlocked || presentation.phase != .idle,
-                verticalOffset: presentation.sample.visibleOffset))
+                verticalOffset: presentation.sample.visibleOffset,
+                trailingReach: trailingSafeAreaInset))
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 Color.clear.frame(height: presentation.floatingHeight)
             }
@@ -57,6 +60,7 @@ struct BudgetAssignmentViewport<Content: View, Keypad: View, Floating: View>: Vi
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.trailing } action: { trailingSafeAreaInset = $0 }
         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
             presentation.viewportBottom = $0
         }

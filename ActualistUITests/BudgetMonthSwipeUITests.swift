@@ -88,7 +88,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
             drag(scroll, from: .init(dx: 0.99, dy: 0.5), to: .init(dx: 0.9, dy: 0.5))
         }
         for (index, row) in rows.enumerated() {
-            XCTAssertTrue(row.isEnabled)
+            XCTAssertTrue(waitForEnabled(row))
             XCTAssertEqual(try brightness(row.screenshot()) / before[index], 1, accuracy: 0.03, identifiers[index])
         }
         capture("settled-row-brightness", app)
@@ -156,7 +156,7 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         let scroll = app.scrollViews["budget-compact-scroll"]
         XCTAssertTrue(scroll.waitForExistence(timeout: 15))
         let original = title(app)
-        drag(scroll, from: .init(dx: 0.5, dy: 0.7), to: .init(dx: 0.2, dy: 0.5))
+        drag(scroll, from: .init(dx: 0.5, dy: 0.7), to: .init(dx: 0.2, dy: 0.7))
         XCTAssertEqual(title(app), original)
         app.navigationBars.buttons.matching(NSPredicate(format: "label CONTAINS %@", original)).firstMatch.tap()
         XCTAssertTrue(app.buttons["Jan"].waitForExistence(timeout: 5))
@@ -327,8 +327,8 @@ final class BudgetMonthSwipeUITests: XCTestCase {
         last.tap()
         XCTAssertTrue(app.buttons["Dismiss keypad"].waitForExistence(timeout: 5))
         app.buttons["budget-category-shopping"].tap()
-        app.tabBars.buttons["Spending"].tap()
-        app.tabBars.buttons["Budget"].tap()
+        app.buttons["Spending"].firstMatch.tap()
+        app.buttons["Budget"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Dismiss keypad"].waitForExistence(timeout: 5))
         app.buttons["Dismiss keypad"].tap()
         let restored = NSPredicate { _, _ in abs(last.frame.maxY - original) < 3 }

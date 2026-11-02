@@ -16,6 +16,8 @@ struct BudgetMonthSwipeModifier: ViewModifier {
     let model: BudgetViewModel
     let presentationBlocked: Bool
     let verticalOffset: CGFloat
+    /// Beside a side-docked tab bar, lets a swipe start under the tab column's gaps.
+    let trailingReach: CGFloat
     private let policy = BudgetMonthSwipePolicy()
 
     private var surfaceAvailable: Bool {
@@ -33,7 +35,7 @@ struct BudgetMonthSwipeModifier: ViewModifier {
         content
             // Native buttons must cancel their pending tap when a drag wins.
             .disabled((enabled && policy.suppressesControls(drag)) || transition.isReleased)
-            .contentShape(Rectangle())
+            .contentShape(BudgetMonthSwipeSurface(trailingReach: trailingReach))
             .visualEffect { content, _ in content.offset(x: offset) }
             .overlay(alignment: .topLeading) {
                 if !reduceMotion, let preview = transition.preview, let request = transition.request {
@@ -129,5 +131,14 @@ struct BudgetMonthSwipeModifier: ViewModifier {
         gestureRevision += 1
         transition.cancel()
         slideOffset = 0
+    }
+}
+
+/// Native bar buttons sit above this shape, so they keep their own touches.
+private struct BudgetMonthSwipeSurface: Shape {
+    let trailingReach: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        Path(CGRect(x: rect.minX, y: rect.minY, width: rect.width + trailingReach, height: rect.height))
     }
 }
