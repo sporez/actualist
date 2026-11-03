@@ -390,11 +390,7 @@ extension LocalFirstActualStore {
             openingBalance = nil
         }
 
-        let updates = reconciliation.entries.compactMap { entry in
-            if case .update(let update) = entry { return update }
-            return nil
-        }
-        let reviewedIDs = Set(updates.flatMap { [$0.existingID] + $0.childIDs + $0.dateChildIDs })
+        let updates = outcome.matchedUpdates
         let matchDetails = BankSyncMatchReview.details(
             updates: updates,
             existing: existing,
@@ -424,7 +420,7 @@ extension LocalFirstActualStore {
             openingBalance: openingBalance,
             balanceDisposition: balanceDisposition,
             generation: generation,
-            reviewedRows: existing.filter { reviewedIDs.contains($0.id) }
+            reviewedRows: outcome.reviewedRows
         )
     }
 

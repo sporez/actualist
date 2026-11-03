@@ -462,12 +462,16 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
         LoadedAccountTransactions(transactions: [], balance: nil, categoryNames: [:], payeeNames: [:], transferPayeeIDs: [], reachedEnd: true)
     }
 
-    /// Replaces `existingImportedIDs` when set; receives the requested account id.
-    var existingImportedIDsHook: (@MainActor (String) async -> Set<String>)?
+    /// Replaces `importWalletTransactions` when set; receives the candidates and account id.
+    var importWalletTransactionsHook: (@MainActor ([WalletTransactionCandidate], String) async throws -> WalletTransactionImportResult)?
 
-    func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String> {
-        guard let existingImportedIDsHook else { return [] }
-        return await existingImportedIDsHook(accountID)
+    func importWalletTransactions(
+        _ candidates: [WalletTransactionCandidate],
+        intoAccountID accountID: String,
+        budgetID: String
+    ) async throws -> WalletTransactionImportResult {
+        guard let importWalletTransactionsHook else { throw LocalFirstError.unsupportedWrite }
+        return try await importWalletTransactionsHook(candidates, accountID)
     }
 
     private var loadedResponses: [LoadedUncategorizedTransactions]

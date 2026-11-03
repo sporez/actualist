@@ -5,6 +5,20 @@ import Foundation
 struct ImportReconcileOutcome: Sendable {
     let plan: BankSyncReconciliation.Plan
     let existing: [BankSyncReconciliation.Existing]
+
+    var matchedUpdates: [BankSyncReconciliation.MatchedUpdate] {
+        plan.entries.compactMap { entry in
+            if case .update(let update) = entry { return update }
+            return nil
+        }
+    }
+
+    /// The rows the matched updates write, which the commit re-checks are
+    /// still as read (`MatchedRowsUnchanged`).
+    var reviewedRows: [BankSyncReconciliation.Existing] {
+        let ids = Set(matchedUpdates.flatMap { [$0.existingID] + $0.childIDs + $0.dateChildIDs })
+        return existing.filter { ids.contains($0.id) }
+    }
 }
 
 /// The messages and counters for a plan's matched updates and inserts.

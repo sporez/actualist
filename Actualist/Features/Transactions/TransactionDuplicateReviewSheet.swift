@@ -108,7 +108,7 @@ struct TransactionDuplicateReviewSheet: View {
             .accessibilityIdentifier("transaction-duplicate-confirm")
         }
         .background(ActualistTheme.background)
-        .presentationDetents([.medium, .large])
+        .toolbarlessSheetDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 

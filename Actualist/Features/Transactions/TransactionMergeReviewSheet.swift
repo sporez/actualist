@@ -239,7 +239,7 @@ struct TransactionCommandProgressSheet: View {
         .padding(.horizontal, 22)
         .padding(.vertical, 16)
         .background(ActualistTheme.background)
-        .presentationDetents(detents)
+        .toolbarlessSheetDetents(detents)
         .presentationDragIndicator(.visible)
     }
 }

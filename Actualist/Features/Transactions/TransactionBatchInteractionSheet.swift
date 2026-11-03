@@ -68,7 +68,7 @@ struct TransactionBatchInteractionSheet: View {
         .padding(.horizontal, 22)
         .padding(.vertical, 16)
         .background(ActualistTheme.background)
-        .presentationDetents([.medium, .large])
+        .toolbarlessSheetDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 }

@@ -36,7 +36,7 @@ private struct TransactionShareSheetModifier: ViewModifier {
     func body(content view: Content) -> some View {
         view.sheet(item: $content) { share in
             TransactionActivitySheet(content: share)
-                .presentationDetents([.medium, .large])
+                .toolbarlessSheetDetents([.medium, .large])
                 .task { await appState.localFirstStore.retryPendingLocalMessageFlush() }
         }
     }

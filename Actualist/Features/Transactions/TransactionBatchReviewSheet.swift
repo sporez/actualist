@@ -75,7 +75,7 @@ struct TransactionBatchReviewSheet: View {
             .disabled(!display.canSubmit)
         }
         .background(ActualistTheme.background)
-        .presentationDetents([.medium, .large])
+        .toolbarlessSheetDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 

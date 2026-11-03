@@ -93,7 +93,7 @@ extension LocalFirstActualStoreTests {
             [candidate], intoAccountID: "checking", budgetID: "group-1"
         )
 
-        #expect(result == WalletTransactionImportResult(importedCount: 0, duplicateCount: 1))
+        #expect(result == WalletTransactionImportResult(addedCount: 0, matchedCount: 1))
         #expect(try importedRowCount(at: url, financialID: uuid) == 1)
     }
 

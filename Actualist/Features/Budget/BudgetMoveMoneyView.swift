@@ -11,6 +11,9 @@ struct BudgetMoveMoneyView: View {
     @State private var didAutoPresentDestinationPicker = false
     @State private var isNumberPadVisible = false
     @State private var closeButtonTrailingEdge: CGFloat = 0
+    @State private var containerHeight: CGFloat = 0
+    @State private var cardHeight: CGFloat = 0
+    @State private var headerContentHeight: CGFloat = 0
 
     private var display: BudgetMoveMoneyDisplay {
         BudgetMoveMoneyDisplay(
@@ -43,12 +46,15 @@ struct BudgetMoveMoneyView: View {
                                     }
                                 }
                                 .padding(.bottom, 4)
+                                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardHeight = $0 }
                             }
                             .scrollIndicators(.hidden)
                             .frame(maxHeight: max(148, proxy.size.height - reservedBottomHeight))
 
                             if isNumberPadVisible {
                                 BudgetMoveMoneyNumberPad(
+                                    keyHeight: fit.keypadKeyHeight,
+                                    topPadding: fit.keypadTopPadding,
                                     canSubmit: viewModel.canSubmitMoveMoney,
                                     isSubmitting: viewModel.isSubmittingMoveMoney,
                                     appendDigit: { viewModel.appendMoveMoneyDigit($0) },
@@ -65,8 +71,10 @@ struct BudgetMoveMoneyView: View {
                     }
                     .padding(.horizontal, 22)
                     .padding(.top, -BudgetMoveMoneyLayout.cardHeaderOverlap)
-                    .padding(.bottom, 10)
+                    .padding(.bottom, BudgetMoveMoneyLayout.contentBottomPadding)
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { containerHeight = $0 }
+                .animation(.snappy(duration: 0.24), value: fit)
             }
         }
         .presentationDetents([.large])
@@ -118,7 +126,16 @@ struct BudgetMoveMoneyView: View {
     }
 
     private var reservedBottomHeight: CGFloat {
-        isNumberPadVisible ? BudgetMoveMoneyLayout.numberPadReservedHeight : BudgetMoveMoneyLayout.compactSubmitReservedHeight
+        fit.bottomReservedHeight(isNumberPadVisible: isNumberPadVisible)
+    }
+
+    private var fit: BudgetMoveMoneyFit {
+        BudgetMoveMoneyFit.resolve(
+            containerHeight: containerHeight,
+            cardHeight: cardHeight,
+            headerContentHeight: headerContentHeight,
+            isNumberPadVisible: isNumberPadVisible
+        )
     }
 
     private var compactSubmitButton: some View {
@@ -171,6 +188,7 @@ struct BudgetMoveMoneyView: View {
                             .background(Color.black.opacity(0.26), in: Capsule())
                     }
                 }
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerContentHeight = $0 }
 
                 // Centered in the green left visible between the amount and
                 // the card that overlaps the header's bottom edge.
@@ -196,7 +214,7 @@ struct BudgetMoveMoneyView: View {
                 .frame(maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, BudgetMoveMoneyLayout.headerTopInset)
+            .padding(.top, fit.headerTopInset)
             .padding(.bottom, BudgetMoveMoneyLayout.cardHeaderOverlap)
             .padding(.horizontal, BudgetMoveMoneyLayout.headerHorizontalPadding)
 
@@ -220,11 +238,11 @@ struct BudgetMoveMoneyView: View {
                     closeButtonTrailingEdge = $0
                 }
             }
-            .padding(.top, BudgetMoveMoneyLayout.closeButtonTopInset)
+            .padding(.top, fit.closeButtonTopInset)
             .padding(.leading, BudgetMoveMoneyLayout.closeButtonLeadingInset)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 332)
+        .frame(height: fit.headerHeight)
         .coordinateSpace(.named(BudgetMoveMoneyLayout.headerCoordinateSpace))
         .background(
             UnevenRoundedRectangle(
@@ -412,22 +430,11 @@ private enum BudgetMoveMoneyHeaderStyle {
     static let secondaryText = Color.white.opacity(0.78)
 }
 
-private enum BudgetMoveMoneyLayout {
-    static let headerTopInset: CGFloat = 56
-    static let closeButtonTopInset: CGFloat = 54
-    static let closeButtonLeadingInset: CGFloat = 34
-    static let headerHorizontalPadding: CGFloat = 34
-    static let closeButtonSize: CGFloat = 54
-    static let cardHeaderOverlap: CGFloat = 28
-    static let headerNameCloseButtonGap: CGFloat = 8
-    static let headerCoordinateSpace = "move-money-header"
-    static let numberPadReservedHeight: CGFloat = 302
-    static let compactSubmitReservedHeight: CGFloat = 78
-}
-
 private struct BudgetMoveMoneyNumberPad: View {
     @Environment(\.actualistDensity) private var density
 
+    let keyHeight: CGFloat
+    let topPadding: CGFloat
     let canSubmit: Bool
     let isSubmitting: Bool
     let appendDigit: (Int) -> Void
@@ -466,7 +473,7 @@ private struct BudgetMoveMoneyNumberPad: View {
                         .font(ActualistTypography.keypadSymbol(for: density))
                         .foregroundStyle(ActualistTheme.accent)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
+                        .frame(height: keyHeight)
                 }
                 .buttonStyle(BudgetKeypadPressStyle())
                 .accessibilityLabel("Clear amount")
@@ -481,7 +488,7 @@ private struct BudgetMoveMoneyNumberPad: View {
                         .font(ActualistTypography.control(for: density))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
+                        .frame(height: keyHeight)
                         .background(ActualistTheme.accent, in: Capsule())
                 }
                 .buttonStyle(.plain)
@@ -491,7 +498,7 @@ private struct BudgetMoveMoneyNumberPad: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.top, 22)
+        .padding(.top, topPadding)
         .sensoryFeedback(.impact(weight: .heavy, intensity: 1.0), trigger: keyPressCount)
     }
 
@@ -504,7 +511,7 @@ private struct BudgetMoveMoneyNumberPad: View {
                 .font(ActualistTypography.keypadDigit(for: density))
                 .foregroundStyle(ActualistTheme.primaryText)
                 .frame(maxWidth: .infinity)
-                .frame(height: 54)
+                .frame(height: keyHeight)
                 .contentShape(Rectangle())
         }
         .buttonStyle(BudgetKeypadPressStyle())

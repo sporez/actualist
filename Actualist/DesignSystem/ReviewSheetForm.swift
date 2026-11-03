@@ -9,19 +9,74 @@ extension View {
         detents: Set<PresentationDetent> = [.large],
         appState: AppState
     ) -> some View {
-        modifier(ReviewSheetPresentationModifier(detents: detents))
+        reviewSheetDetents(detents)
             .appSwitcherPrivacyAwareDragIndicator()
             .presentationBackground(ActualistTheme.background)
             .appSwitcherPrivacyProtected(using: appState)
     }
+
+    /// Review-sheet detents on their own, for sheets that set the rest of their
+    /// chrome themselves or track the selected detent.
+    func reviewSheetDetents(
+        _ detents: Set<PresentationDetent>,
+        selection: Binding<PresentationDetent>? = nil
+    ) -> some View {
+        modifier(ReviewSheetDetentsModifier(detents: detents, selection: selection))
+    }
+
+    /// Detents for a sheet with no toolbar of its own. On iPhone Duo's front
+    /// screen every sheet gets a vertical bar beside its content; with no
+    /// toolbar items it holds only the status bar, so a shorter sheet shows an
+    /// empty column that pushes its content off the grabber's centre.
+    /// Disabling the bar centres the content but moves the status bar above
+    /// the sheet, which costs a full-height sheet 74 points of the short
+    /// screen. Only sheets that can sit below full height disable it.
+    func toolbarlessSheetDetents(
+        _ detents: Set<PresentationDetent>,
+        selection: Binding<PresentationDetent>? = nil
+    ) -> some View {
+        modifier(ToolbarlessSheetDetentsModifier(detents: detents, selection: selection))
+    }
 }
 
-private struct ReviewSheetPresentationModifier: ViewModifier {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+private struct ToolbarlessSheetDetentsModifier: ViewModifier {
     let detents: Set<PresentationDetent>
+    let selection: Binding<PresentationDetent>?
 
     func body(content: Content) -> some View {
-        content.presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : detents)
+        Group {
+            if let selection {
+                content.presentationDetents(detents, selection: selection)
+            } else {
+                content.presentationDetents(detents)
+            }
+        }
+        .modifier(SheetVerticalBarModifier(isDisabled: detents != [.large]))
+    }
+}
+
+private struct SheetVerticalBarModifier: ViewModifier {
+    let isDisabled: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 27.1, *), isDisabled {
+            content.toolbarVerticalBehavior(.disabled)
+        } else {
+            content
+        }
+    }
+}
+
+private struct ReviewSheetDetentsModifier: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let detents: Set<PresentationDetent>
+    let selection: Binding<PresentationDetent>?
+
+    func body(content: Content) -> some View {
+        content.toolbarlessSheetDetents(
+            dynamicTypeSize.isAccessibilitySize ? [.large] : detents,
+            selection: selection
+        )
     }
 }
 

@@ -90,13 +90,9 @@ struct WalletTransactionMappingTests {
 
         #expect(candidate.importedPayee == "SQ * SQUARE COFFEE #12345")
         #expect(candidate.payeeName == "Square Coffee")
-        let draft = WalletTransactionMapper.draft(
-            from: candidate,
-            accountID: "checking",
-            sortOrder: 1
-        )
-        #expect(draft.importedPayee == "SQ * SQUARE COFFEE #12345")
-        #expect(draft.payeeName == "Square Coffee")
+        let reconcile = WalletTransactionMapper.reconcileCandidate(from: candidate, payeeID: nil)
+        #expect(reconcile.importedPayee == "SQ * SQUARE COFFEE #12345")
+        #expect(reconcile.payeeName == "Square Coffee")
     }
 
     @Test func amountOverflowAndNonFiniteValuesReturnNil() {
@@ -183,17 +179,49 @@ struct WalletTransactionMappingTests {
 
     @Test func importSummaryUsesPluralization() {
         #expect(
-            WalletTransactionImportResult(importedCount: 1, duplicateCount: 0).summaryText
-                == "Added 1 transaction, skipped 0 already on this account."
+            WalletTransactionImportResult(addedCount: 1, matchedCount: 0).summaryText
+                == "Added 1 transaction, found 0 already on this account."
         )
         #expect(
-            WalletTransactionImportResult(importedCount: 3, duplicateCount: 2).summaryText
-                == "Added 3 transactions, skipped 2 already on this account."
+            WalletTransactionImportResult(addedCount: 3, matchedCount: 2).summaryText
+                == "Added 3 transactions, found 2 already on this account."
         )
         #expect(
-            WalletTransactionImportResult(importedCount: 0, duplicateCount: 1).summaryText
-                == "Added 0 transactions, skipped 1 already on this account."
+            WalletTransactionImportResult(addedCount: 0, matchedCount: 1, skippedCount: 2).summaryText
+                == "Added 0 transactions, found 1 already on this account. Skipped 2."
         )
+    }
+
+    /// The match window and rules see the local calendar day Wallet import has
+    /// always written, also east of UTC where local midnight is the day before in UTC.
+    @Test(arguments: ["America/New_York", "Pacific/Auckland", "Pacific/Kiritimati", "Etc/GMT+12"])
+    func reconcileCandidateUsesTheLocalCalendarDay(identifier: String) throws {
+        let zone = try #require(TimeZone(identifier: identifier))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        for hour in [0, 12, 23] {
+            let date = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 19, hour: hour, minute: 30)))
+            let candidate = try #require(WalletTransactionMapper.map(WalletTransactionFields(
+                id: Self.fixedID,
+                amount: 90,
+                creditDebitIndicator: .debit,
+                merchantName: "Utility",
+                transactionDescription: "Utility",
+                transactionDate: date,
+                status: .pending
+            )))
+            let reconcile = WalletTransactionMapper.reconcileCandidate(
+                from: candidate, payeeID: "payee-1", timeZone: zone
+            )
+            #expect(reconcile.dayID == "20261019")
+            #expect(reconcile.financialID == Self.fixedID.uuidString.lowercased())
+            #expect(reconcile.amountMinorUnits == -9_000)
+            #expect(reconcile.payeeID == "payee-1")
+            #expect(reconcile.cleared == false)
+            #expect(reconcile.categoryID == nil)
+            let draftDate = try #require(BankSyncAmounts.date(fromDayID: reconcile.dayID, timeZone: zone))
+            #expect(try BudgetDatabase.actualDateValue(draftDate, timeZone: zone) == 20261019)
+        }
     }
 
     private static let fixedID = UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!
@@ -220,7 +248,7 @@ struct WalletTransactionMappingTests {
 struct WalletImportAccountPreferenceTests {
     @Test func prefersTheConfiguredDefaultWhenItIsOpen() {
         #expect(
-            WalletImportViewModel.preferredAccountID(
+            WalletImportPlanning.suggestedAccountID(
                 defaultAccountID: "credit",
                 openAccountIDs: ["checking", "credit", "savings"]
             ) == "credit"
@@ -229,13 +257,13 @@ struct WalletImportAccountPreferenceTests {
 
     @Test func fallsBackToTheFirstOpenAccountWhenDefaultIsMissing() {
         #expect(
-            WalletImportViewModel.preferredAccountID(
+            WalletImportPlanning.suggestedAccountID(
                 defaultAccountID: nil,
                 openAccountIDs: ["checking", "credit"]
             ) == "checking"
         )
         #expect(
-            WalletImportViewModel.preferredAccountID(
+            WalletImportPlanning.suggestedAccountID(
                 defaultAccountID: "closed",
                 openAccountIDs: ["checking", "credit"]
             ) == "checking"

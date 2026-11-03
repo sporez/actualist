@@ -87,7 +87,7 @@ struct AccountRenameSheet: View {
             .background(ActualistTheme.background)
             .toolbar(.hidden, for: .navigationBar)
         }
-        .presentationDetents([.medium])
+        .toolbarlessSheetDetents([.medium])
     }
 
     private var nameBinding: Binding<String> {
@@ -193,7 +193,7 @@ struct AccountReopenSheet: View {
             .background(ActualistTheme.background)
             .toolbar(.hidden, for: .navigationBar)
         }
-        .presentationDetents([.medium])
+        .toolbarlessSheetDetents([.medium])
     }
 
     private var accountName: String {

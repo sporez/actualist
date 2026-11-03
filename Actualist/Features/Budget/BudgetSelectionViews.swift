@@ -4,7 +4,6 @@ struct BudgetOverspentCategoriesView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Bindable var viewModel: BudgetViewModel
 
@@ -82,7 +81,7 @@ struct BudgetOverspentCategoriesView: View {
                 }
             }
         }
-        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large], selection: $selectedDetent)
+        .reviewSheetDetents([.medium, .large], selection: $selectedDetent)
         .appSwitcherPrivacyAwareDragIndicator()
         .presentationBackground(ActualistTheme.background)
         .appSwitcherPrivacyProtected(using: appState)

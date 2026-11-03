@@ -52,6 +52,9 @@ struct AppSettings: Codable, Equatable {
     var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
     var defaultAccountIDByBudgetID: [String: String] = [:]
+    /// Wallet import: budget → FinanceKit account ID → Actual account ID.
+    /// Device-local, because FinanceKit IDs differ on every device.
+    var walletAccountLinksByBudgetID: [String: [String: String]] = [:]
     var categoryGroupExpansionByBudgetID: [String: BudgetGroupExpansion] = [:]
     var reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder
     var backgroundTransactionRefreshEnabled: Bool = false
@@ -87,6 +90,7 @@ struct AppSettings: Codable, Equatable {
         developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
         defaultAccountIDByBudgetID: [String: String] = [:],
+        walletAccountLinksByBudgetID: [String: [String: String]] = [:],
         categoryGroupExpansionByBudgetID: [String: BudgetGroupExpansion] = [:],
         reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder,
         backgroundTransactionRefreshEnabled: Bool = false,
@@ -117,6 +121,7 @@ struct AppSettings: Codable, Equatable {
         self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
         self.defaultAccountIDByBudgetID = defaultAccountIDByBudgetID
+        self.walletAccountLinksByBudgetID = walletAccountLinksByBudgetID
         self.categoryGroupExpansionByBudgetID = categoryGroupExpansionByBudgetID
         self.reportCardOrder = ReportCardOrderPreference.normalized(reportCardOrder)
         self.backgroundTransactionRefreshEnabled = backgroundTransactionRefreshEnabled
@@ -187,6 +192,10 @@ struct AppSettings: Codable, Equatable {
         defaultAccountIDByBudgetID = container.lenient(
             [String: String].self,
             forKey: .defaultAccountIDByBudgetID
+        ) ?? [:]
+        walletAccountLinksByBudgetID = container.lenient(
+            [String: [String: String]].self,
+            forKey: .walletAccountLinksByBudgetID
         ) ?? [:]
         categoryGroupExpansionByBudgetID = container.lenient(
             [String: BudgetGroupExpansion].self,

@@ -183,7 +183,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                 }
                 .toolbar(.hidden, for: .navigationBar)
             }
-            .presentationDetents([.medium])
+            .toolbarlessSheetDetents([.medium])
         } else {
             NavigationStack {
                 ReviewSheetContent {
@@ -207,7 +207,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                 }
                 .toolbar(.hidden, for: .navigationBar)
             }
-            .presentationDetents([.medium])
+            .toolbarlessSheetDetents([.medium])
         }
     }
 }

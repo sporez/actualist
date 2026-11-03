@@ -415,7 +415,7 @@
       ],
       "id": "OP-61",
       "opened": "2026-10-11",
-      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:197-204) fed by bankSyncSuppressedFinancialIDs (LocalFirstActualStore+ImportReconcile.swift:50-58). Deliberate: deleted IDs are used only for exact dedupe, never for updates.",
+      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:197-204) fed by bankSyncSuppressedFinancialIDs (LocalFirstActualStore+ImportReconcile.swift:64-72). Deliberate: deleted IDs are used only for exact dedupe, never for updates.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: leave deleted rows untouched; with reimport-deleted off, both apps ignore the download and the visible result is identical."
