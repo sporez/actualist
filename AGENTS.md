@@ -549,6 +549,29 @@ current task.
 - Closed accounts and hidden categories should be collapsed by default when
   present.
 
+### Sheets And iPhone Duo
+
+- Size a sheet by its content. A short question or review uses `.medium`, a
+  sheet that can grow uses `[.medium, .large]`, and only a sheet whose content
+  needs the height uses `.large` alone. Never make a sheet full height by
+  default.
+- Set detents only through the helpers in
+  `Actualist/DesignSystem/ReviewSheetForm.swift`:
+  `reviewSheetPresentation(detents:appState:)`, `reviewSheetDetents`, or
+  `toolbarlessSheetDetents`. Do not call `.presentationDetents` directly. The
+  helpers force `.large` at accessibility text sizes and handle iPhone Duo.
+- On iPhone Duo's front screen (iOS 27.1 and later), every sheet gets a
+  vertical bar beside its content. The bar holds the status bar and any
+  toolbar items. A toolbar-less sheet that can sit below full height turns the
+  bar off, so its content centres under the grabber. A full-height sheet keeps
+  the bar, because turning it off moves the status bar above the sheet and
+  costs 74 points of the short screen.
+- So a toolbar-less `.large` sheet has the status bar in a column beside its
+  trailing edge. If trailing content, such as a picker value, sits under the
+  clock or the Wi-Fi icon, the sheet should be shorter.
+- Check a new or resized sheet on the iPhone Duo simulator on the current iOS
+  runtime as well as a regular iPhone.
+
 ## Simulator Builds And Visual Verification
 
 Simulator and device destinations reach Xcode by UDID, not by display name.
