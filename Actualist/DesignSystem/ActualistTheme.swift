@@ -20,21 +20,83 @@ enum ActualistTheme {
     static var separator: Color { current.separator }
     static var chromeForeground: Color { current.chromeForeground }
     static var incomeTransactionAmount: Color {
-        activeOption.withLock { $0.incomeTransactionAmount }
+        active.withLock { $0.incomeTransactionAmount }
     }
 
-    static func activate(_ option: ActualistThemeOption) {
-        activeOption.withLock { $0 = option }
+    static func activate(_ appearance: ActualistAppearance) {
+        let built = ActivePalette(appearance)
+        active.withLock { $0 = built }
     }
 
     /// Palette selection is app-wide UI state. The lock makes reads safe from
-    /// nonisolated color helpers while `AppState` still writes it on the main actor.
-    private static let activeOption = OSAllocatedUnfairLock(
-        initialState: ActualistThemeOption.actualPurple
+    /// nonisolated color helpers while `AppState` still writes it on the main
+    /// actor. It holds the built palette so a read never rebuilds colors.
+    private static let active = OSAllocatedUnfairLock(
+        initialState: ActivePalette(.fixed(.actualPurple))
     )
 
     private static var current: ActualistThemePalette {
-        activeOption.withLock { $0.palette }
+        active.withLock { $0.palette }
+    }
+}
+
+/// The active palette plus the income color, which lives on the theme option
+/// rather than in the shared widget palette.
+private struct ActivePalette: Sendable {
+    let palette: ActualistThemePalette
+    let incomeTransactionAmount: Color
+
+    init(_ appearance: ActualistAppearance) {
+        switch appearance {
+        case .fixed(let option):
+            palette = option.palette
+            incomeTransactionAmount = option.incomeTransactionAmount
+        case .matchingSystem(let pair):
+            palette = .adaptive(light: pair.light.palette, dark: pair.dark.palette)
+            incomeTransactionAmount = .adaptive(
+                light: pair.light.incomeTransactionAmount,
+                dark: pair.dark.incomeTransactionAmount
+            )
+        }
+    }
+}
+
+extension ActualistThemePalette {
+    /// Each token resolves at draw time from the view's color scheme, so a
+    /// system light/dark switch repaints without rebuilding any view.
+    static func adaptive(light: ActualistThemePalette, dark: ActualistThemePalette) -> ActualistThemePalette {
+        ActualistThemePalette(
+            background: .adaptive(light: light.background, dark: dark.background),
+            surface: .adaptive(light: light.surface, dark: dark.surface),
+            elevatedSurface: .adaptive(light: light.elevatedSurface, dark: dark.elevatedSurface),
+            control: .adaptive(light: light.control, dark: dark.control),
+            accent: .adaptive(light: light.accent, dark: dark.accent),
+            positive: .adaptive(light: light.positive, dark: dark.positive),
+            warning: .adaptive(light: light.warning, dark: dark.warning),
+            danger: .adaptive(light: light.danger, dark: dark.danger),
+            neutral: .adaptive(light: light.neutral, dark: dark.neutral),
+            primaryText: .adaptive(light: light.primaryText, dark: dark.primaryText),
+            secondaryText: .adaptive(light: light.secondaryText, dark: dark.secondaryText),
+            positiveForeground: .adaptive(light: light.positiveForeground, dark: dark.positiveForeground),
+            warningForeground: .adaptive(light: light.warningForeground, dark: dark.warningForeground),
+            dangerForeground: .adaptive(light: light.dangerForeground, dark: dark.dangerForeground),
+            neutralForeground: .adaptive(light: light.neutralForeground, dark: dark.neutralForeground),
+            separator: .adaptive(light: light.separator, dark: dark.separator),
+            chromeForeground: .adaptive(light: light.chromeForeground, dark: dark.chromeForeground)
+        )
+    }
+}
+
+extension Color {
+    /// SwiftUI has no public light/dark color initializer, so this goes through
+    /// a dynamic `UIColor`. It is a color value, not a UIKit view. An
+    /// unspecified trait resolves dark, the app's default.
+    static func adaptive(light: Color, dark: Color) -> Color {
+        let light = UIColor(light)
+        let dark = UIColor(dark)
+        return Color(uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .light ? light : dark
+        })
     }
 }
 

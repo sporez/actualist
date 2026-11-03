@@ -34,7 +34,10 @@ struct AppSettings: Codable, Equatable {
     var selectedBudgetName: String?
     var selectedLocalFirstFileID: String?
     var selectedLocalFirstGroupID: String?
+    /// The fixed theme, and the one older builds read.
     var theme: ActualistThemeOption = .actualPurple
+    /// Match System's Light and Dark Themes; `nil` means Match System is off.
+    var systemThemes: SystemThemePair?
     var displayDensity: ActualistDisplayDensity = .compact
     var monthDisplayPreference: MonthDisplayPreference = .automatic
     var greenIncomeTransactionAmountsEnabled: Bool = false
@@ -75,6 +78,7 @@ struct AppSettings: Codable, Equatable {
         selectedLocalFirstFileID: String? = nil,
         selectedLocalFirstGroupID: String? = nil,
         theme: ActualistThemeOption = .actualPurple,
+        systemThemes: SystemThemePair? = nil,
         displayDensity: ActualistDisplayDensity = .compact,
         monthDisplayPreference: MonthDisplayPreference = .automatic,
         greenIncomeTransactionAmountsEnabled: Bool = false,
@@ -106,6 +110,7 @@ struct AppSettings: Codable, Equatable {
         self.selectedLocalFirstFileID = selectedLocalFirstFileID
         self.selectedLocalFirstGroupID = selectedLocalFirstGroupID
         self.theme = theme
+        self.systemThemes = systemThemes
         self.displayDensity = displayDensity
         self.monthDisplayPreference = monthDisplayPreference
         self.greenIncomeTransactionAmountsEnabled = greenIncomeTransactionAmountsEnabled
@@ -142,6 +147,7 @@ struct AppSettings: Codable, Equatable {
         selectedLocalFirstFileID = container.lenient(String.self, forKey: .selectedLocalFirstFileID)
         selectedLocalFirstGroupID = container.lenient(String.self, forKey: .selectedLocalFirstGroupID)
         theme = container.lenient(ActualistThemeOption.self, forKey: .theme) ?? .actualPurple
+        systemThemes = container.lenient(SystemThemePair.self, forKey: .systemThemes)
         displayDensity = container.lenient(ActualistDisplayDensity.self, forKey: .displayDensity) ?? .compact
         monthDisplayPreference = container.lenient(MonthDisplayPreference.self, forKey: .monthDisplayPreference) ?? .automatic
         greenIncomeTransactionAmountsEnabled = container.lenient(
@@ -228,6 +234,11 @@ struct AppSettings: Codable, Equatable {
             [String: [String]].self,
             forKey: .pendingNewTransactionIDsByAccount
         ) ?? [:]
+    }
+
+    /// The one value every theme reader uses.
+    var appearance: ActualistAppearance {
+        systemThemes.map(ActualistAppearance.matchingSystem) ?? .fixed(theme)
     }
 
     /// BGAppRefresh stays registered for alerts or background bank auto-apply.

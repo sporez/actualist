@@ -94,7 +94,7 @@ extension AppState {
 
     func updateTheme(_ theme: ActualistThemeOption) {
         settings.theme = theme
-        ActualistTheme.activate(theme)
+        ActualistTheme.activate(settings.appearance)
         themeRevision += 1
         settingsStore.save(settings)
     }
@@ -165,8 +165,8 @@ extension AppState {
     func resetPreferencesForUITesting() {
         let defaults = AppSettings(shortcutsLockedLoggingEnabled: settings.shortcutsLockedLoggingEnabled)
         guard settings != defaults else { return }
-        if settings.theme != defaults.theme {
-            ActualistTheme.activate(defaults.theme)
+        if settings.appearance != defaults.appearance {
+            ActualistTheme.activate(defaults.appearance)
             themeRevision += 1
         }
         settings = defaults
