@@ -4,7 +4,6 @@ struct UncategorizedTransactionsView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var viewModel = UncategorizedTransactionsViewModel()
     @State private var selectedTransaction: SelectedUncategorizedTransaction?
     @State private var isBulkCategoryPickerPresented = false
@@ -79,7 +78,7 @@ struct UncategorizedTransactionsView: View {
                 }
             }
         }
-        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large], selection: $selectedDetent)
+        .reviewSheetDetents([.medium, .large], selection: $selectedDetent)
         .appSwitcherPrivacyAwareDragIndicator()
         .presentationBackground(ActualistTheme.background)
         .task {

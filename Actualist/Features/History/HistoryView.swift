@@ -8,7 +8,6 @@ struct HistoryView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Environment(\.actualistDensity) private var density
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var viewModel = HistoryViewModel()
     @State private var selectedDetent: PresentationDetent = .medium
 
@@ -57,7 +56,7 @@ struct HistoryView: View {
                 Text(viewModel.undoFailureMessage ?? "")
             }
         )
-        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large], selection: $selectedDetent)
+        .reviewSheetDetents([.medium, .large], selection: $selectedDetent)
         .appSwitcherPrivacyAwareDragIndicator()
         .presentationBackground(ActualistTheme.background)
     }

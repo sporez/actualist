@@ -76,7 +76,7 @@ struct TransactionCSVImportReviewView: View {
             .accessibilityIdentifier("transaction-csv-import-confirm")
         }
         .background(ActualistTheme.background)
-        .presentationDetents([.medium, .large])
+        .toolbarlessSheetDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
 
@@ -161,7 +161,7 @@ struct TransactionCSVImportReviewView: View {
             .tint(ActualistTheme.accent)
         }
         .background(ActualistTheme.background)
-        .presentationDetents([.medium])
+        .toolbarlessSheetDetents([.medium])
         .presentationDragIndicator(.visible)
     }
 

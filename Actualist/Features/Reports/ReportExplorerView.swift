@@ -463,7 +463,7 @@ private struct ReportCustomRangeSheet: View {
             }
         }
         .frame(idealWidth: 520)
-        .presentationDetents([.medium])
+        .toolbarlessSheetDetents([.medium])
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .accessibilityIdentifier("report-custom-range-sheet")
         .presentationBackground(ActualistTheme.background)
