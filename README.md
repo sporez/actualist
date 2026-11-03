@@ -68,7 +68,8 @@ and iOS Liquid Glass controls.
 - Payee and rule management under Settings → Budget & Data.
 - Widgets for balances, budget overview, recent activity, net worth, and quick
   actions. Configure them through Apple's **Edit Widget** controls.
-- Shortcuts and Siri, themes, sample-value privacy, and background refresh.
+- Shortcuts and Siri, themes that can follow your phone's light or dark
+  setting, sample-value privacy, and background refresh.
   Turn on **Allow Logging While Locked** under Settings → Privacy &
   Notifications to let Log Transaction, Log Transfer and Import Transaction
   from Text run on a locked iPhone, for example from an automation. Every
