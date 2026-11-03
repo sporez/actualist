@@ -91,6 +91,7 @@ enum ActualistDiagnosticReportBuilder {
             "",
             "[Preferences]",
             "Theme: \(settings.theme.rawValue)",
+            "Match System: \(settings.systemThemes.map { "on, light \($0.light.rawValue), dark \($0.dark.rawValue)" } ?? "off")",
             "Display density: \(settings.displayDensity.rawValue)",
             "Green income amounts: \(yesNo(settings.greenIncomeTransactionAmountsEnabled))",
             "Rollover overspent alerts: \(yesNo(settings.includeCarryoverCategoriesInOverspentAlerts))",

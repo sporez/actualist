@@ -10,6 +10,7 @@ struct RootView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
     @State private var budgetSession: AdaptiveBudgetSession?
     @State private var transactionPresenter = RootTransactionEditorPresenter()
     @State private var adaptiveSelection: AdaptiveRootDestination? = .budget
@@ -18,7 +19,8 @@ struct RootView: View {
     @State private var hasPresentedInitialBudget = false
 
     var body: some View {
-        let theme = appState.settings.theme.palette
+        // A system light/dark switch re-reads this without changing `themeIdentity`.
+        let theme = appState.settings.appearance.option(for: colorScheme).palette
 
         Group {
             switch appState.setupPhase {

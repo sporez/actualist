@@ -70,7 +70,7 @@ struct ActualistApp: App {
         WindowGroup {
             RootView()
                 .appSwitcherPrivacyProtected(using: appState)
-                .preferredColorScheme(appState.settings.theme.colorScheme)
+                .appearanceColorScheme(appState.settings.appearance)
                 .onAppear {
                     BackgroundTransactionRefreshCoordinator.shared.scheduleIfNeeded(for: appState)
                 }
@@ -122,12 +122,13 @@ struct ActualistApp: App {
 
 private struct AppSwitcherPrivacyProtectionModifier: ViewModifier {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(AppState.self) private var appState
 
     func body(content: Content) -> some View {
         content.overlay {
             if shouldCover {
-                AppSwitcherPrivacyCover(theme: appState.settings.theme)
+                AppSwitcherPrivacyCover(theme: appState.settings.appearance.option(for: colorScheme))
                     .transition(.identity)
             }
         }

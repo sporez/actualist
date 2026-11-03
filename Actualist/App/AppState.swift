@@ -82,7 +82,7 @@ final class AppState {
         self.providedLocalFirstStore = localFirstStore
         let loaded = settingsStore.load()
         self.settings = loaded
-        ActualistTheme.activate(loaded.theme)
+        ActualistTheme.activate(loaded.appearance)
         let (phase, status) = sessionRecovery.initialSession(settings: loaded, keychain: keychain)
         self.setupPhase = phase
         self.connectionStatus = status

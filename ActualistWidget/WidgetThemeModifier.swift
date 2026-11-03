@@ -13,11 +13,13 @@ extension EnvironmentValues {
 }
 
 private struct WidgetThemeModifier: ViewModifier {
-    let theme: ActualistThemeOption
+    let appearance: ActualistAppearance
     @Environment(\.widgetRenderingMode) private var renderingMode
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
+        // Match System picks its slot from the scheme the system renders in.
+        let theme = appearance.option(for: colorScheme)
         let palette = WidgetPalette(theme: theme, renderingMode: renderingMode)
         content
             .foregroundStyle(palette.primaryText)
@@ -29,7 +31,7 @@ private struct WidgetThemeModifier: ViewModifier {
 }
 
 extension View {
-    func widgetTheme(_ theme: ActualistThemeOption) -> some View {
-        modifier(WidgetThemeModifier(theme: theme))
+    func widgetTheme(_ appearance: ActualistAppearance) -> some View {
+        modifier(WidgetThemeModifier(appearance: appearance))
     }
 }

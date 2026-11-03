@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 extension AppState {
     /// Updates the optional fallback server URL used when the primary server is
@@ -88,13 +89,47 @@ extension AppState {
         settingsStore.save(settings)
     }
 
-    /// Changes with every theme change. The palette is static, so a view that
-    /// must redraw in a new theme uses this as its `.id`.
-    var themeIdentity: String { "\(settings.theme.rawValue)-\(themeRevision)" }
+    /// Changes with every theme change the user makes. The palette is static,
+    /// so a view that must redraw in a new theme uses this as its `.id`. A
+    /// system light/dark switch leaves it alone: Match System's palette is
+    /// adaptive, and a rebuild would drop open sheets and drafts.
+    var themeIdentity: String {
+        let themes = settings.systemThemes.map { "\($0.light.rawValue)+\($0.dark.rawValue)" }
+            ?? settings.theme.rawValue
+        return "\(themes)-\(themeRevision)"
+    }
 
     func updateTheme(_ theme: ActualistThemeOption) {
         settings.theme = theme
-        ActualistTheme.activate(theme)
+        applyAppearanceChange()
+    }
+
+    /// On: the fixed theme keeps its own slot and Actual Purple of the other
+    /// scheme fills the other. Off: the theme showing in `colorScheme` becomes
+    /// the fixed theme, so what the user sees does not change.
+    func updateMatchSystem(_ isOn: Bool, currentColorScheme colorScheme: ColorScheme) {
+        guard isOn != (settings.systemThemes != nil) else { return }
+        if isOn {
+            settings.systemThemes = .seeded(from: settings.theme)
+        } else {
+            settings.theme = settings.appearance.option(for: colorScheme)
+            settings.systemThemes = nil
+        }
+        applyAppearanceChange()
+    }
+
+    /// Changes Match System's Light Theme or Dark Theme, whichever scheme
+    /// `theme` belongs to. Ignored while Match System is off.
+    func updateSystemTheme(_ theme: ActualistThemeOption) {
+        guard let pair = settings.systemThemes else { return }
+        settings.systemThemes = theme.colorScheme == .light
+            ? SystemThemePair(light: theme, dark: pair.dark)
+            : SystemThemePair(light: pair.light, dark: theme)
+        applyAppearanceChange()
+    }
+
+    private func applyAppearanceChange() {
+        ActualistTheme.activate(settings.appearance)
         themeRevision += 1
         settingsStore.save(settings)
     }
@@ -165,8 +200,8 @@ extension AppState {
     func resetPreferencesForUITesting() {
         let defaults = AppSettings(shortcutsLockedLoggingEnabled: settings.shortcutsLockedLoggingEnabled)
         guard settings != defaults else { return }
-        if settings.theme != defaults.theme {
-            ActualistTheme.activate(defaults.theme)
+        if settings.appearance != defaults.appearance {
+            ActualistTheme.activate(defaults.appearance)
             themeRevision += 1
         }
         settings = defaults

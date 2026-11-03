@@ -4,22 +4,34 @@ import SwiftUI
 /// and Budget screen banner options.
 struct AppearanceSettingsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var viewModel = SettingsViewModel()
     @State private var isAppIconPickerPresented = false
 
     var body: some View {
         List {
-            Section("Theme") {
-                Picker("Theme", selection: themeSelection) {
-                    ForEach(ActualistThemeOption.allCases) { option in
-                        Text(option.title)
-                            .tag(option)
-                    }
-                }
-                .pickerStyle(.menu)
+            Section {
+                Toggle("Match System", isOn: matchSystemSelection)
+                    .accessibilityIdentifier("appearance-match-system")
 
-                ThemePreviewStrip(theme: appState.settings.theme)
+                if let pair = appState.settings.systemThemes {
+                    themePicker("Light Theme", options: Self.lightThemes, selection: systemThemeSelection(pair.light))
+                    ThemePreviewStrip(theme: pair.light, label: "Light")
+                    themePicker("Dark Theme", options: Self.darkThemes, selection: systemThemeSelection(pair.dark))
+                    ThemePreviewStrip(theme: pair.dark, label: "Dark")
+                } else {
+                    themePicker("Theme", options: ActualistThemeOption.allCases, selection: themeSelection)
+                    ThemePreviewStrip(theme: appState.settings.theme)
+                }
+            } header: {
+                Text("Theme")
+            } footer: {
+                if appState.settings.systemThemes != nil {
+                    Text("Follows your phone's light or dark setting.")
+                        .font(.caption)
+                        .foregroundStyle(ActualistTheme.secondaryText)
+                }
             }
             .settingsSectionChrome()
 
@@ -114,6 +126,39 @@ struct AppearanceSettingsView: View {
         .sheet(isPresented: $isAppIconPickerPresented) {
             AppIconPickerSheet(viewModel: viewModel)
                 .environment(appState)
+        }
+    }
+
+    private static let lightThemes = ActualistThemeOption.allCases.filter { $0.colorScheme == .light }
+    private static let darkThemes = ActualistThemeOption.allCases.filter { $0.colorScheme == .dark }
+
+    private func themePicker(
+        _ title: String,
+        options: [ActualistThemeOption],
+        selection: Binding<ActualistThemeOption>
+    ) -> some View {
+        Picker(title, selection: selection) {
+            ForEach(options) { option in
+                Text(option.title)
+                    .tag(option)
+            }
+        }
+        .pickerStyle(.menu)
+    }
+
+    private var matchSystemSelection: Binding<Bool> {
+        Binding {
+            appState.settings.systemThemes != nil
+        } set: { isOn in
+            appState.updateMatchSystem(isOn, currentColorScheme: colorScheme)
+        }
+    }
+
+    private func systemThemeSelection(_ current: ActualistThemeOption) -> Binding<ActualistThemeOption> {
+        Binding {
+            current
+        } set: { theme in
+            appState.updateSystemTheme(theme)
         }
     }
 
