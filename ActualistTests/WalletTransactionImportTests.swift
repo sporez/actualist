@@ -47,7 +47,7 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1"
         )
 
-        let existing = try await store.existingImportedIDs(budgetID: "group-1", accountID: "checking")
+        let existing = try await store.requireDatabase(for: "group-1").existingImportedIDs(accountID: "checking")
         let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
         let importedCafe = try #require(loaded.transactions.first {
             $0.importedPayee == "SQ * WALLET CAFE #99"
@@ -396,7 +396,7 @@ extension LocalFirstActualStoreTests {
         #expect(parent.isParent)
         #expect(parent.category == nil)
         #expect(parent.importedPayee == "Split Cafe")
-        #expect(try await store.existingImportedIDs(budgetID: "group-1", accountID: "checking") == [financialID.uuidString.lowercased()])
+        #expect(try await store.requireDatabase(for: "group-1").existingImportedIDs(accountID: "checking") == [financialID.uuidString.lowercased()])
         #expect(parent.subtransactions.count == 1)
         #expect(child.amount == -1_000)
         #expect(child.category == "groceries")
@@ -427,8 +427,8 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1"
         )
 
-        let checking = try await store.existingImportedIDs(budgetID: "group-1", accountID: "checking")
-        let credit = try await store.existingImportedIDs(budgetID: "group-1", accountID: "credit")
+        let checking = try await store.requireDatabase(for: "group-1").existingImportedIDs(accountID: "checking")
+        let credit = try await store.requireDatabase(for: "group-1").existingImportedIDs(accountID: "credit")
         #expect(checking == [candidate.financialID])
         #expect(credit.isEmpty)
     }

@@ -45,6 +45,7 @@ private struct BankSyncScreen: View {
     @Environment(AppState.self) private var appState
     @State var viewModel: BankSyncViewModel
     @State private var isWalletPickerPresented = false
+    @State private var walletImport = WalletImportCoordinator()
     let isDemoMode: Bool
 
     var body: some View {
@@ -56,7 +57,10 @@ private struct BankSyncScreen: View {
             }
             backgroundSyncSection
             if WalletImportAvailability.isFinancialDataAvailable {
-                WalletImportSettingsSection(isWalletPickerPresented: $isWalletPickerPresented)
+                WalletImportSettingsSection(
+                    isWalletPickerPresented: $isWalletPickerPresented,
+                    coordinator: walletImport
+                )
             }
             accountsSection
             if !viewModel.resultLines.isEmpty {
@@ -79,7 +83,7 @@ private struct BankSyncScreen: View {
             BankSyncAccountSheet(viewModel: viewModel, line: line)
                 .environment(appState)
         }
-        .walletImportPresentation(isPickerPresented: $isWalletPickerPresented)
+        .walletImportPresentation(isPickerPresented: $isWalletPickerPresented, coordinator: walletImport)
     }
 
     private var serverSection: some View {

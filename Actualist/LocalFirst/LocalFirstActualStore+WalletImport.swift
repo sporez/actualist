@@ -9,11 +9,6 @@ import Foundation
 /// sync sources can give two different transaction IDs"). Like upstream, an
 /// import never learns categories.
 extension LocalFirstActualStore {
-    func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String> {
-        let database = try requireDatabase(for: budgetID)
-        return try await database.existingImportedIDs(accountID: accountID)
-    }
-
     /// A concurrent writer can import the same `imported_id`, or change a
     /// matched row, between the read and the commit. Retry once with a fresh
     /// read and plan; a second conflict is reported to the caller.

@@ -90,7 +90,6 @@ protocol TransactionRepositoryProtocol: AnyObject {
         for draft: TransactionDraft,
         budgetID: String
     ) async throws -> TransactionRulePreview
-    func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String>
     func importWalletTransactions(
         _ candidates: [WalletTransactionCandidate],
         intoAccountID accountID: String,
@@ -278,10 +277,6 @@ extension TransactionRepositoryProtocol {
         transactionID: String
     ) async throws -> AccountReconciliationMutationResult {
         throw LocalFirstError.unsupportedWrite
-    }
-
-    func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String> {
-        []
     }
 
     func importWalletTransactions(

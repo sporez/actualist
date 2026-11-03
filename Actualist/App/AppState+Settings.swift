@@ -125,6 +125,17 @@ extension AppState {
         settingsStore.save(settings)
     }
 
+    func walletAccountLinks(budgetID: String) -> [String: String] {
+        settings.walletAccountLinksByBudgetID[budgetID] ?? [:]
+    }
+
+    func setWalletAccountLink(_ accountID: String?, walletAccountID: String, budgetID: String) {
+        var links = settings.walletAccountLinksByBudgetID[budgetID] ?? [:]
+        links[walletAccountID] = accountID
+        settings.walletAccountLinksByBudgetID[budgetID] = links.isEmpty ? nil : links
+        settingsStore.save(settings)
+    }
+
     func groupExpansion(budgetID: String) -> BudgetGroupExpansion {
         settings.categoryGroupExpansionByBudgetID[budgetID] ?? BudgetGroupExpansion()
     }

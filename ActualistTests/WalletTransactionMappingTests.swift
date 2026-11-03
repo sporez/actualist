@@ -248,7 +248,7 @@ struct WalletTransactionMappingTests {
 struct WalletImportAccountPreferenceTests {
     @Test func prefersTheConfiguredDefaultWhenItIsOpen() {
         #expect(
-            WalletImportViewModel.preferredAccountID(
+            WalletImportPlanning.suggestedAccountID(
                 defaultAccountID: "credit",
                 openAccountIDs: ["checking", "credit", "savings"]
             ) == "credit"
@@ -257,13 +257,13 @@ struct WalletImportAccountPreferenceTests {
 
     @Test func fallsBackToTheFirstOpenAccountWhenDefaultIsMissing() {
         #expect(
-            WalletImportViewModel.preferredAccountID(
+            WalletImportPlanning.suggestedAccountID(
                 defaultAccountID: nil,
                 openAccountIDs: ["checking", "credit"]
             ) == "checking"
         )
         #expect(
-            WalletImportViewModel.preferredAccountID(
+            WalletImportPlanning.suggestedAccountID(
                 defaultAccountID: "closed",
                 openAccountIDs: ["checking", "credit"]
             ) == "checking"

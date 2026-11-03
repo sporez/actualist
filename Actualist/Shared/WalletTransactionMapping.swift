@@ -22,6 +22,9 @@ struct WalletTransactionFields: Equatable, Sendable {
     var transactionDescription: String
     var transactionDate: Date
     var status: WalletTransactionStatus
+    /// FinanceKit's account ID, lowercased. Like the transaction ID it is
+    /// assigned per device, so it keys only device-local links.
+    var walletAccountID: String = ""
 }
 
 struct WalletTransactionCandidate: Equatable, Sendable, Identifiable {
