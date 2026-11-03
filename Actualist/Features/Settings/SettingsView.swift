@@ -310,9 +310,11 @@ struct SettingsView: View {
     }
 
     private var appearanceSubtitle: String {
-        let themeName = appState.settings.theme.title
-            .replacingOccurrences(of: " (dark)", with: "")
-            .replacingOccurrences(of: " (light)", with: "")
+        let themeName = appState.settings.systemThemes != nil
+            ? "Match System"
+            : appState.settings.theme.title
+                .replacingOccurrences(of: " (dark)", with: "")
+                .replacingOccurrences(of: " (light)", with: "")
         return "\(themeName) · \(appState.settings.displayDensity.title)"
     }
 

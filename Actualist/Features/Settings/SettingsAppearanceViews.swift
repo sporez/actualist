@@ -2,11 +2,19 @@ import SwiftUI
 
 struct ThemePreviewStrip: View {
     let theme: ActualistThemeOption
+    /// Names the strip when two show at once.
+    var label: String?
 
     var body: some View {
         let palette = theme.palette
 
         HStack(spacing: 8) {
+            if let label {
+                Text(label)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(ActualistTheme.secondaryText)
+                Spacer(minLength: 8)
+            }
             ThemeSwatch(color: palette.background)
             ThemeSwatch(color: palette.surface)
             ThemeSwatch(color: palette.elevatedSurface)
