@@ -3,7 +3,7 @@ import WidgetKit
 struct CategoryBalanceTimelineProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> CategoryBalanceEntry {
         var value = CategoryBalanceEntry.placeholder
-        value.theme = WidgetThemeStore.live.load()
+        value.appearance = WidgetThemeStore.live.load()
         return value
     }
 
@@ -50,7 +50,7 @@ struct CategoryBalanceTimelineProvider: AppIntentTimelineProvider {
             ),
             rows: rows,
             budgetName: snapshot?.budgetName ?? "",
-            theme: WidgetThemeStore.live.load()
+            appearance: WidgetThemeStore.live.load()
         )
     }
 

@@ -25,6 +25,7 @@
 		WW0000000000000000000011 /* Actualist/Widgets/WidgetFinancialSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000011 /* Actualist/Widgets/WidgetFinancialSnapshot.swift */; };
 		WW0000000000000000000012 /* Actualist/Widgets/WidgetFinancialProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000012 /* Actualist/Widgets/WidgetFinancialProjection.swift */; };
 		WW0000000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift */; };
+		WW0000000000000000000018 /* Actualist/DesignSystem/ActualistAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000018 /* Actualist/DesignSystem/ActualistAppearance.swift */; };
 		WW0000000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift */; };
 		WW0000000000000000000017 /* Actualist/Widgets/WidgetMonthProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000017 /* Actualist/Widgets/WidgetMonthProgress.swift */; };
 		WW0000000000000000000015 /* Actualist/Widgets/WidgetPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = WW0200000000000000000015 /* Actualist/Widgets/WidgetPalette.swift */; };
@@ -87,6 +88,7 @@
 		WW0200000000000000000011 /* Actualist/Widgets/WidgetFinancialSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetFinancialSnapshot.swift; sourceTree = SOURCE_ROOT; };
 		WW0200000000000000000012 /* Actualist/Widgets/WidgetFinancialProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetFinancialProjection.swift; sourceTree = SOURCE_ROOT; };
 		WW0200000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/DesignSystem/ActualistThemePalette.swift; sourceTree = SOURCE_ROOT; };
+		WW0200000000000000000018 /* Actualist/DesignSystem/ActualistAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/DesignSystem/ActualistAppearance.swift; sourceTree = SOURCE_ROOT; };
 		WW0200000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetThemeStore.swift; sourceTree = SOURCE_ROOT; };
 		WW0200000000000000000017 /* Actualist/Widgets/WidgetMonthProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetMonthProgress.swift; sourceTree = SOURCE_ROOT; };
 		WW0200000000000000000015 /* Actualist/Widgets/WidgetPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Actualist/Widgets/WidgetPalette.swift; sourceTree = SOURCE_ROOT; };
@@ -214,6 +216,7 @@
 			children = (
 				WW0200000000000000000016 /* Actualist/Shared/AppInstallationIdentity.swift */,
 				WW0200000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift */,
+				WW0200000000000000000018 /* Actualist/DesignSystem/ActualistAppearance.swift */,
 				WW0200000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift */,
 				WW0200000000000000000017 /* Actualist/Widgets/WidgetMonthProgress.swift */,
 				WW0200000000000000000015 /* Actualist/Widgets/WidgetPalette.swift */,
@@ -443,6 +446,7 @@
 			files = (
 				WW0000000000000000000016 /* Actualist/Shared/AppInstallationIdentity.swift in Sources */,
 				WW0000000000000000000013 /* Actualist/DesignSystem/ActualistThemePalette.swift in Sources */,
+				WW0000000000000000000018 /* Actualist/DesignSystem/ActualistAppearance.swift in Sources */,
 				WW0000000000000000000014 /* Actualist/Widgets/WidgetThemeStore.swift in Sources */,
 				WW0000000000000000000017 /* Actualist/Widgets/WidgetMonthProgress.swift in Sources */,
 				WW0000000000000000000015 /* Actualist/Widgets/WidgetPalette.swift in Sources */,

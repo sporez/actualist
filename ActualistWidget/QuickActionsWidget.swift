@@ -4,12 +4,12 @@ import WidgetKit
 struct QuickActionsEntry: TimelineEntry {
     let date: Date
     let configuration: WidgetQuickActions
-    var theme: ActualistThemeOption = .actualPurple
+    var appearance: ActualistAppearance = .fixed(.actualPurple)
 }
 
 struct QuickActionsTimelineProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> QuickActionsEntry {
-        QuickActionsEntry(date: Date(), configuration: WidgetQuickActions(), theme: WidgetThemeStore.live.load())
+        QuickActionsEntry(date: Date(), configuration: WidgetQuickActions(), appearance: WidgetThemeStore.live.load())
     }
 
     func snapshot(for configuration: QuickActionsConfigurationIntent, in context: Context) async -> QuickActionsEntry {
@@ -24,7 +24,7 @@ struct QuickActionsTimelineProvider: AppIntentTimelineProvider {
         QuickActionsEntry(
             date: Date(),
             configuration: WidgetQuickActions(configuration.actions?.map(\.action) ?? []),
-            theme: WidgetThemeStore.live.load()
+            appearance: WidgetThemeStore.live.load()
         )
     }
 }
@@ -36,7 +36,7 @@ struct QuickActionsWidget: Widget {
             intent: QuickActionsConfigurationIntent.self,
             provider: QuickActionsTimelineProvider()
         ) { entry in
-            QuickActionsWidgetView(entry: entry).widgetTheme(entry.theme)
+            QuickActionsWidgetView(entry: entry).widgetTheme(entry.appearance)
         }
         .configurationDisplayName("Quick Actions")
         .description("Open your favorite actions. Choose four and set their order in Edit Widget.")

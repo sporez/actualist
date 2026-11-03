@@ -8,7 +8,7 @@ struct CategoryBalanceWidget: Widget {
             intent: CategoryBalanceConfigurationIntent.self,
             provider: CategoryBalanceTimelineProvider()
         ) { entry in
-            CategoryBalanceWidgetView(entry: entry).widgetTheme(entry.theme)
+            CategoryBalanceWidgetView(entry: entry).widgetTheme(entry.appearance)
         }
         .configurationDisplayName("Category Balances")
         .description("Keep an eye on the categories that matter most.")

@@ -95,12 +95,12 @@ final class WidgetSnapshotCoordinator {
 
     private func armTheme() {
         guard let appState else { return }
-        let theme = withObservationTracking {
-            appState.settings.theme
+        let appearance = withObservationTracking {
+            appState.settings.appearance
         } onChange: { [weak self] in
             Task { @MainActor in self?.armTheme() }
         }
-        if themeStore.saveIfChanged(theme) {
+        if themeStore.saveIfChanged(appearance) {
             reloadAllTimelines()
         }
     }

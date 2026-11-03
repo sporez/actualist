@@ -4,7 +4,7 @@ import WidgetKit
 struct RecentTransactionsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WidgetKind.recentTransactions, provider: BudgetSummaryTimelineProvider()) {
-            RecentTransactionsWidgetView(entry: $0).widgetTheme($0.theme)
+            RecentTransactionsWidgetView(entry: $0).widgetTheme($0.appearance)
         }
         .configurationDisplayName("Recent Transactions")
         .description("Your latest transactions across accounts. Tap a transaction to open its account.")

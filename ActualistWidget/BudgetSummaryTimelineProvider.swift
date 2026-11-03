@@ -4,12 +4,12 @@ import WidgetKit
 struct BudgetSummaryEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot?
-    var theme: ActualistThemeOption = .actualPurple
+    var appearance: ActualistAppearance = .fixed(.actualPurple)
 }
 
 struct BudgetSummaryTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> BudgetSummaryEntry {
-        BudgetSummaryEntry(date: .now, snapshot: WidgetPreviewData.snapshot, theme: WidgetThemeStore.live.load())
+        BudgetSummaryEntry(date: .now, snapshot: WidgetPreviewData.snapshot, appearance: WidgetThemeStore.live.load())
     }
     func getSnapshot(in context: Context, completion: @escaping (BudgetSummaryEntry) -> Void) {
         completion(context.isPreview ? placeholder(in: context) : entry())
@@ -17,12 +17,12 @@ struct BudgetSummaryTimelineProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<BudgetSummaryEntry>) -> Void) {
         let value = entry()
         let days = WidgetMonthID.dailyBoundaries(after: value.date).map {
-            BudgetSummaryEntry(date: $0, snapshot: value.snapshot, theme: value.theme)
+            BudgetSummaryEntry(date: $0, snapshot: value.snapshot, appearance: value.appearance)
         }
         completion(Timeline(entries: [value] + days, policy: .after(WidgetMonthID.nextBoundary(after: value.date))))
     }
     private func entry() -> BudgetSummaryEntry {
-        BudgetSummaryEntry(date: .now, snapshot: WidgetFinancialProjection.currentSnapshot(WidgetSnapshotStore.live.load()), theme: WidgetThemeStore.live.load())
+        BudgetSummaryEntry(date: .now, snapshot: WidgetFinancialProjection.currentSnapshot(WidgetSnapshotStore.live.load()), appearance: WidgetThemeStore.live.load())
     }
 }
 

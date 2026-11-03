@@ -48,12 +48,12 @@ struct AccountBalancesEntry: TimelineEntry {
     let accounts: [WidgetAccountSnapshot]
     let needsSelection: Bool
     let unavailable: Bool
-    var theme: ActualistThemeOption = .actualPurple
+    var appearance: ActualistAppearance = .fixed(.actualPurple)
 }
 
 struct AccountBalancesProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> AccountBalancesEntry {
-        AccountBalancesEntry(date: .now, accounts: WidgetPreviewData.snapshot.accounts ?? [], needsSelection: false, unavailable: false, theme: WidgetThemeStore.live.load())
+        AccountBalancesEntry(date: .now, accounts: WidgetPreviewData.snapshot.accounts ?? [], needsSelection: false, unavailable: false, appearance: WidgetThemeStore.live.load())
     }
     func snapshot(for configuration: AccountBalancesConfigurationIntent, in context: Context) async -> AccountBalancesEntry {
         context.isPreview ? placeholder(in: context) : entry(configuration, family: context.family)
@@ -70,7 +70,7 @@ struct AccountBalancesProvider: AppIntentTimelineProvider {
             accounts: WidgetFinancialProjection.accounts(selectedIDs: ids, snapshot: snapshot,
                 limit: WidgetCategoryBalanceCapacity.maximum(for: WidgetSizeSupport.size(family))),
             needsSelection: ids.isEmpty, unavailable: snapshot?.accounts == nil,
-            theme: WidgetThemeStore.live.load()
+            appearance: WidgetThemeStore.live.load()
         )
     }
 }
@@ -78,7 +78,7 @@ struct AccountBalancesProvider: AppIntentTimelineProvider {
 struct AccountBalancesWidget: Widget {
     var body: some WidgetConfiguration {
         AppIntentConfiguration(kind: WidgetKind.accountBalances, intent: AccountBalancesConfigurationIntent.self, provider: AccountBalancesProvider()) {
-            AccountBalancesWidgetView(entry: $0).widgetTheme($0.theme)
+            AccountBalancesWidgetView(entry: $0).widgetTheme($0.appearance)
         }
         .configurationDisplayName("Account Balances")
         .description("Balances for the accounts you choose.")

@@ -4,7 +4,7 @@ import WidgetKit
 struct MonthOverviewWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WidgetKind.monthOverview, provider: BudgetSummaryTimelineProvider()) {
-            MonthOverviewWidgetView(entry: $0).widgetTheme($0.theme)
+            MonthOverviewWidgetView(entry: $0).widgetTheme($0.appearance)
         }
         .configurationDisplayName("Month Overview")
         .description("How much is left to budget, and how this month's spending is going.")

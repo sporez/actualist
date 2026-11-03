@@ -5,7 +5,7 @@ import WidgetKit
 struct NetWorthWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WidgetKind.netWorth, provider: BudgetSummaryTimelineProvider()) {
-            NetWorthWidgetView(entry: $0).widgetTheme($0.theme)
+            NetWorthWidgetView(entry: $0).widgetTheme($0.appearance)
         }
         .configurationDisplayName("Net Worth")
         .description("Your net worth and its trend over the last six months.")

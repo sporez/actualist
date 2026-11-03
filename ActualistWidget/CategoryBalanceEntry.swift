@@ -6,7 +6,7 @@ struct CategoryBalanceEntry: TimelineEntry {
     var state: WidgetCategoryBalanceState
     var rows: [WidgetCategoryBalanceRow]
     var budgetName: String
-    var theme: ActualistThemeOption = .actualPurple
+    var appearance: ActualistAppearance = .fixed(.actualPurple)
 
     static let placeholder = CategoryBalanceEntry(
         date: Date(),

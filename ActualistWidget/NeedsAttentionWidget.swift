@@ -4,7 +4,7 @@ import WidgetKit
 struct NeedsAttentionWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WidgetKind.needsAttention, provider: BudgetSummaryTimelineProvider()) {
-            NeedsAttentionWidgetView(entry: $0).widgetTheme($0.theme)
+            NeedsAttentionWidgetView(entry: $0).widgetTheme($0.appearance)
         }
         .configurationDisplayName("Needs Attention")
         .description("Overspent categories and transactions waiting for a category.")
