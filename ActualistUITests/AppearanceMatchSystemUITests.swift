@@ -13,7 +13,7 @@ final class AppearanceMatchSystemUITests: XCTestCase {
         let toggle = app.switches["appearance-match-system"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 5))
         XCTAssertEqual(toggle.value as? String, "0")
-        toggle.tap()
+        tapSwitch(toggle)
 
         XCTAssertTrue(lightPicker(in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(darkPicker(in: app).exists)
@@ -28,10 +28,16 @@ final class AppearanceMatchSystemUITests: XCTestCase {
         XCTAssertTrue(lightPicker(in: app).exists)
         XCTAssertTrue(darkPicker(in: app).exists)
 
-        app.switches["appearance-match-system"].tap()
+        tapSwitch(app.switches["appearance-match-system"])
         XCTAssertTrue(fixedPicker(in: app).waitForExistence(timeout: 5))
         XCTAssertFalse(lightPicker(in: app).exists)
         XCTAssertFalse(darkPicker(in: app).exists)
+    }
+
+    /// The switch's frame spans the whole row, and a tap at its center lands on
+    /// the label, so tap the switch itself at the trailing edge.
+    private func tapSwitch(_ toggle: XCUIElement) {
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
     }
 
     private func fixedPicker(in app: XCUIApplication) -> XCUIElement {
