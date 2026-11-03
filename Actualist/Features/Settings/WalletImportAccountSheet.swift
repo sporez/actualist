@@ -47,7 +47,8 @@ struct WalletImportAccountSheet: View {
             }
             .disabled(request?.selectedAccountID == nil)
         }
-        .reviewSheetPresentation(appState: appState)
+        // One question: half height, which also clears iPhone Duo's sheet bar.
+        .reviewSheetPresentation(detents: [.medium], appState: appState)
     }
 
     private var request: WalletImportCoordinator.AccountRequest? {
