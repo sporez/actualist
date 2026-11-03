@@ -37,11 +37,17 @@ struct WalletTransactionCandidate: Equatable, Sendable, Identifiable {
 }
 
 struct WalletTransactionImportResult: Equatable, Sendable {
-    var importedCount: Int
-    var duplicateCount: Int
+    var addedCount: Int
+    /// Already on the account: matched by Wallet ID, or by amount and date when
+    /// Wallet gave the transaction a new ID. A match may fill in the row.
+    var matchedCount: Int
+    /// Not written: removed or moved to another account by a rule, or deleted
+    /// earlier with the account set not to bring deleted rows back.
+    var skippedCount: Int = 0
 
     var summaryText: String {
-        "Added \(Self.transactionPhrase(importedCount)), skipped \(Self.alreadyPhrase(duplicateCount))."
+        let summary = "Added \(Self.transactionPhrase(addedCount)), found \(Self.alreadyPhrase(matchedCount))."
+        return skippedCount == 0 ? summary : summary + " Skipped \(skippedCount)."
     }
 
     private static func transactionPhrase(_ count: Int) -> String {
@@ -49,7 +55,7 @@ struct WalletTransactionImportResult: Equatable, Sendable {
     }
 
     private static func alreadyPhrase(_ count: Int) -> String {
-        count == 1 ? "1 already on this account" : "\(count) already on this account"
+        "\(count) already on this account"
     }
 }
 
@@ -109,25 +115,24 @@ enum WalletTransactionMapper {
         return value.localizedCapitalized
     }
 
-    static func draft(
+    /// The shared import step's candidate. The day is the device's local
+    /// calendar day, the day Wallet import has always written.
+    static func reconcileCandidate(
         from candidate: WalletTransactionCandidate,
-        accountID: String,
-        sortOrder: Double,
-        payeeID: String? = nil
-    ) -> TransactionDraft {
-        TransactionDraft(
-            accountID: accountID,
-            date: candidate.date,
+        payeeID: String?,
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> BankSyncReconciliation.Candidate {
+        BankSyncReconciliation.Candidate(
+            financialID: candidate.financialID,
+            dayID: ActualDateOnly.dayID(from: candidate.date, timeZone: timeZone)
+                .replacingOccurrences(of: "-", with: ""),
             amountMinorUnits: candidate.amountMinorUnits,
             payeeID: payeeID,
             payeeName: candidate.payeeName,
-            categoryID: nil,
             notes: nil,
+            categoryID: nil,
             cleared: candidate.isCleared,
-            isTransfer: false,
-            importedPayee: candidate.importedPayee,
-            importedID: candidate.financialID,
-            sortOrder: sortOrder
+            importedPayee: candidate.importedPayee
         )
     }
 

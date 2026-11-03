@@ -214,7 +214,6 @@ extension LocalFirstActualStoreTests {
             intoAccountID: "checking",
             budgetID: "group-1"
         )
-        #expect(result.importedCount == 0)
-        #expect(result.duplicateCount == 0)
+        #expect(result == WalletTransactionImportResult(addedCount: 0, matchedCount: 0, skippedCount: 1))
     }
 }

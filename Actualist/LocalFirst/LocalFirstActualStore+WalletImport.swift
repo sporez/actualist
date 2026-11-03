@@ -1,14 +1,22 @@
 import Foundation
 
+/// Wallet import runs the shared import step the way Bank Sync does (upstream
+/// `reconcileTransactions` for a synced account): rules, then
+/// `reconcileProjectedImport` with `.bankSync` options, then
+/// `importReconcileWrites`, in one commit. The match is not strict: a device
+/// gives Wallet transactions its own IDs, so a row stored with another ID
+/// still matches by amount and date and takes the new ID (sync.ts, "account
+/// sync sources can give two different transaction IDs"). Like upstream, an
+/// import never learns categories.
 extension LocalFirstActualStore {
     func existingImportedIDs(budgetID: String, accountID: String) async throws -> Set<String> {
         let database = try requireDatabase(for: budgetID)
         return try await database.existingImportedIDs(accountID: accountID)
     }
 
-    /// A concurrent writer can import the same `imported_id` between the read
-    /// and the commit. Retry once with a fresh read (which then counts the new
-    /// row as a duplicate); a second conflict is reported to the caller.
+    /// A concurrent writer can import the same `imported_id`, or change a
+    /// matched row, between the read and the commit. Retry once with a fresh
+    /// read and plan; a second conflict is reported to the caller.
     func importWalletTransactions(
         _ candidates: [WalletTransactionCandidate],
         intoAccountID accountID: String,
@@ -26,7 +34,7 @@ extension LocalFirstActualStore {
     }
 
     private func importWalletTransactionsOnce(
-        _ candidates: [WalletTransactionCandidate],
+        _ walletCandidates: [WalletTransactionCandidate],
         intoAccountID accountID: String,
         budgetID: String,
         attempt: Int
@@ -34,23 +42,11 @@ extension LocalFirstActualStore {
         guard !accountID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
-
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        var seenIDs = try await database.existingImportedIDs(accountID: accountID)
-        var importedCount = 0
-        var duplicateCount = 0
-        var builder = LocalFirstSyncMessageBuilder()
-        var messages: [ActualSyncDecodedMessage] = []
-        var categorizedIDs = Set<String>()
-        var importedFinancialIDs: [String] = []
-        var resolvedPayeeIDs: [String: String] = [:]
-        var affectedAccountIDs = Set([accountID])
         let accountIsOffBudget = try await database.accountIsOffBudget(accountID)
-        let sortOrderBase = Date().timeIntervalSince1970 * 1_000
-        // loot-core resolves `trans.payee` before `runRules`. Look up existing
-        // non-transfer payees by name so Payee-is conditions can match; keep
-        // creating unknown names until after a delete rule has had its say.
+        // loot-core resolves `trans.payee` before `runRules`, so Payee-is
+        // conditions and the payee match pass see existing non-transfer payees.
         let payeeIDsByName = try await database.fetchPayees().reduce(
             into: [String: String]()
         ) { result, payee in
@@ -60,103 +56,94 @@ extension LocalFirstActualStore {
                 result[key] = id
             }
         }
-
-        for (index, candidate) in candidates.enumerated() {
-            if seenIDs.contains(candidate.financialID) {
-                duplicateCount += 1
-                continue
-            }
-
-            var draft = WalletTransactionMapper.draft(
-                from: candidate,
-                accountID: accountID,
-                sortOrder: sortOrderBase + Double(index),
-                payeeID: payeeIDsByName[candidate.payeeName.lowercased()]
+        let candidates = walletCandidates.map {
+            WalletTransactionMapper.reconcileCandidate(
+                from: $0,
+                payeeID: payeeIDsByName[$0.payeeName.lowercased()]
             )
-            let preview = try await database.previewRules(for: draft)
-            if preview.deletesTransaction {
-                continue
-            }
-            draft = TransactionRulePreviewProjection.applying(preview, to: draft)
-            if accountIsOffBudget {
-                draft = draft.withoutBudgetCategory()
-            }
+        }
+        // Wallet days are local calendar days, so rules read them in the
+        // device's zone, as Wallet import always has.
+        let previews = try await database.previewRules(
+            for: candidates.map { ImportReconcileProjection.previewDraft(for: $0, accountID: accountID) },
+            dateTimeZone: .autoupdatingCurrent
+        )
+        guard previews.count == candidates.count else {
+            throw LocalFirstError.invalidLocalWrite("missing import rule preview")
+        }
+        let projection = ImportReconcileProjection.project(
+            candidates: candidates,
+            previews: previews,
+            accountID: accountID,
+            accountIsOffBudget: accountIsOffBudget
+        )
+        let outcome = try await reconcileProjectedImport(
+            database: database,
+            accountID: accountID,
+            accountIsOffBudget: accountIsOffBudget,
+            candidateDayIDs: candidates.map(\.dayID),
+            importedIDs: Set(candidates.compactMap(\.financialID)),
+            projected: projection.candidates,
+            options: .bankSync
+        )
 
-            let payeeResolution = try await resolveImportPayee(
-                draft: draft,
-                resolvedPayeeIDs: &resolvedPayeeIDs,
-                database: database,
-                builder: &builder
-            )
-            let transactionID = UUID().uuidString
-            let transferDestinationID = draft.isSplit
-                ? nil
-                : try await database.transferAccountID(ifPayee: payeeResolution.payeeID)
-            let transactionMessages: [ActualSyncDecodedMessage]
-            if draft.isSplit {
-                transactionMessages = try await database.createSplitTransactionMessages(
-                    draft: draft,
-                    parentTransactionID: transactionID,
-                    payeeID: payeeResolution.payeeID,
-                    builder: &builder
-                )
-            } else if let transferDestinationID {
-                let transfer = try await database.createTransferTransactionMessages(
-                    draft: draft,
-                    sourceTransactionID: transactionID,
-                    payeeID: payeeResolution.payeeID,
-                    builder: &builder
-                )
-                transactionMessages = transfer.messages + (try await database.makeImportedIdentityMessages(
-                    transactionID: transactionID,
-                    importedID: draft.importedID,
-                    importedPayee: draft.importedPayee,
-                    builder: &builder
-                ))
-                affectedAccountIDs.insert(transferDestinationID)
-            } else {
-                transactionMessages = try await database.createSimpleTransactionMessages(
-                    draft,
-                    transactionID: transactionID,
-                    payeeID: payeeResolution.payeeID,
-                    builder: &builder
-                )
+        let existingByID = Dictionary(
+            outcome.existing.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }
+        )
+        let matched = try outcome.matchedUpdates.map { update in
+            guard let existing = existingByID[update.existingID] else {
+                throw LocalFirstError.invalidLocalWrite("missing matched transaction")
             }
-
-            messages.append(contentsOf: payeeResolution.messages)
-            messages.append(contentsOf: transactionMessages)
-            seenIDs.insert(candidate.financialID)
-            importedFinancialIDs.append(candidate.financialID)
-            importedCount += 1
-            if draft.categoryID != nil, transferDestinationID == nil, !draft.isSplit {
-                categorizedIDs.insert(transactionID)
-            }
+            return (update: update, existing: existing)
+        }
+        let inserts = outcome.plan.inserts
+        let unchangedCount = outcome.plan.entries.reduce(0) { count, entry in
+            if case .unchanged = entry { return count + 1 }
+            return count
+        }
+        let matchedCount = matched.count + unchangedCount
+        let result = WalletTransactionImportResult(
+            addedCount: inserts.count,
+            matchedCount: matchedCount,
+            skippedCount: walletCandidates.count - inserts.count - matchedCount
+        )
+        guard !inserts.isEmpty || !matched.isEmpty else {
+            return result
         }
 
-        guard !messages.isEmpty else {
-            return WalletTransactionImportResult(
-                importedCount: importedCount,
-                duplicateCount: duplicateCount
-            )
+        var builder = LocalFirstSyncMessageBuilder()
+        let sortOrderBase = Date().timeIntervalSince1970 * 1_000
+        let writes = try await importReconcileWrites(
+            database: database,
+            accountID: accountID,
+            accountIsOffBudget: accountIsOffBudget,
+            updates: matched,
+            inserts: inserts,
+            options: .bankSync,
+            sortOrder: { sortOrderBase + Double($0) },
+            builder: &builder
+        )
+        guard !writes.messages.isEmpty else {
+            return result
         }
 
         #if DEBUG
         await testSeams?.walletImportBeforeCommitHook?(attempt)
         #endif
+        guard self.database === database, generation == budgetSessionGeneration else {
+            throw CancellationError()
+        }
         _ = try await database.commitLocalSyncMessagesAndEnqueue(
-            messages,
+            writes.messages,
             expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence(
                 accountID: accountID,
-                importedIDs: importedFinancialIDs
+                importedIDs: inserts.compactMap(\.financialID)
+            ),
+            expectedMatchedRows: BudgetDatabase.MatchedRowsUnchanged(
+                accountID: accountID,
+                reviewed: outcome.reviewedRows
             )
         )
-        let learningMessages = try await database.categoryLearningRuleMessages(
-            changedTransactionIDs: categorizedIDs,
-            builder: &builder
-        )
-        if !learningMessages.isEmpty {
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(learningMessages)
-        }
 
         // A pending refresh invalidates the feed caches; the import itself
         // is complete and not repeatable, so its summary never reports it.
@@ -164,36 +151,8 @@ extension LocalFirstActualStore {
             database: database,
             budgetID: budgetID,
             generation: generation,
-            accountIDs: Array(affectedAccountIDs),
-            learningIDs: learningMessages.isEmpty ? [] : categorizedIDs
+            accountIDs: Array(writes.affectedAccountIDs)
         )
-        return WalletTransactionImportResult(
-            importedCount: importedCount,
-            duplicateCount: duplicateCount
-        )
-    }
-
-    private func resolveImportPayee(
-        draft: TransactionDraft,
-        resolvedPayeeIDs: inout [String: String],
-        database: BudgetDatabase,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) async throws -> (payeeID: String, messages: [ActualSyncDecodedMessage]) {
-        if let selectedPayeeID = draft.payeeID, !selectedPayeeID.isEmpty {
-            return (selectedPayeeID, [])
-        }
-
-        let key = draft.payeeName.lowercased()
-        if let cachedID = resolvedPayeeIDs[key] {
-            return (cachedID, [])
-        }
-
-        let resolution = try await database.resolveOrCreatePayeeMessages(
-            selectedPayeeID: nil,
-            payeeName: draft.payeeName,
-            builder: &builder
-        )
-        resolvedPayeeIDs[key] = resolution.payeeID
-        return resolution
+        return result
     }
 }

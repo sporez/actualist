@@ -26,17 +26,12 @@ final class WalletImportViewModel {
         }
     }
 
-    var newCandidates: [WalletTransactionCandidate] {
-        candidates.filter { !existingImportedIDs.contains($0.financialID) }
-    }
-
     var canImport: Bool {
-        !isImporting && selectedAccountID != nil && !newCandidates.isEmpty
+        !isImporting && selectedAccountID != nil && !candidates.isEmpty
     }
 
     var importButtonTitle: String {
-        let count = newCandidates.count
-        return count == 1 ? "Add 1 Transaction" : "Add \(count) Transactions"
+        candidates.count == 1 ? "Import 1 Transaction" : "Import \(candidates.count) Transactions"
     }
 
     func openAccounts(from appState: AppState) -> [ActualAccount] {
@@ -110,7 +105,7 @@ final class WalletImportViewModel {
         guard !isImporting,
               let budgetID = appState.settings.selectedBudgetID,
               let accountID = selectedAccountID,
-              !newCandidates.isEmpty else {
+              !candidates.isEmpty else {
             return
         }
 
@@ -120,8 +115,10 @@ final class WalletImportViewModel {
         defer { isImporting = false }
 
         do {
+            // The whole selection goes to the store: a known row can still
+            // change (a pending purchase that posted), and the matcher decides.
             result = try await appState.transactionRepository.importWalletTransactions(
-                newCandidates,
+                candidates,
                 intoAccountID: accountID,
                 budgetID: budgetID
             )
