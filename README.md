@@ -64,7 +64,7 @@ and iOS Liquid Glass controls.
   Report Explorer with filters and transaction drilldown.
 - When your server has no budgets, create a new one or import a budget ZIP as a
   new budget. Export the open budget as a ZIP under Settings → Budget & Data.
-- One-tap SimpleFIN Bank Sync, plus selected Apple Wallet imports with review before save.
+- One-tap SimpleFIN Bank Sync, plus Apple Wallet import that adds your selection right away.
 - Payee and rule management under Settings → Budget & Data.
 - Widgets for balances, budget overview, recent activity, net worth, and quick
   actions. Configure them through Apple's **Edit Widget** controls.
