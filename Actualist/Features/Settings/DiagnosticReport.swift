@@ -101,7 +101,6 @@ enum ActualistDiagnosticReportBuilder {
             "Sample display values: \(yesNo(settings.randomizedDisplayValuesEnabled))",
             "Background transaction alerts: \(yesNo(settings.backgroundTransactionRefreshEnabled))",
             "Background bank sync: \(yesNo(settings.simplefinBackgroundSyncEnabled))",
-            "Developer mode unlocked: \(yesNo(settings.developerModeUnlocked))",
             "Report card order: \(settings.reportCardOrder.map(\.rawValue).joined(separator: ", "))",
             "",
             "[Selected Budget Metadata]",

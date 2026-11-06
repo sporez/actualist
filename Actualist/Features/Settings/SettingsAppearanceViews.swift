@@ -32,7 +32,6 @@ struct AppIconPickerSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: SettingsViewModel
-    @State private var toastTask: Task<Void, Never>?
 
     private let columns = [GridItem(.adaptive(minimum: 96), spacing: 16)]
 
@@ -43,7 +42,6 @@ struct AppIconPickerSheet: View {
                 LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(AppIcon.allCases) { icon in
                         Button {
-                            recordDeveloperUnlockTap()
                             Task { await viewModel.setAppIcon(icon) }
                         } label: {
                             AppIconChoice(
@@ -65,19 +63,6 @@ struct AppIconPickerSheet: View {
             }
             .actualistReviewCard()
         }
-        .overlay(alignment: .bottom) {
-            if let developerUnlockToastMessage = appState.developerUnlockToastMessage {
-                Text(developerUnlockToastMessage)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(ActualistTheme.primaryText)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(ActualistTheme.elevatedSurface, in: Capsule())
-                    .padding(.bottom, 80)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .allowsHitTesting(false)
-            }
-        }
         .reviewSheetBottomBar {
             ReviewSheetPrimaryButton {
                 dismiss()
@@ -86,19 +71,6 @@ struct AppIconPickerSheet: View {
             }
         }
         .reviewSheetPresentation(detents: [.medium, .large], appState: appState)
-        .onDisappear {
-            toastTask?.cancel()
-        }
-    }
-
-    private func recordDeveloperUnlockTap() {
-        if let message = appState.recordDeveloperUnlockTap() {
-            toastTask = DeveloperUnlockToast.present(
-                message,
-                on: appState,
-                replacing: toastTask
-            )
-        }
     }
 }
 

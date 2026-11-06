@@ -42,10 +42,21 @@ enum WidgetQuickAction: String, CaseIterable, Identifiable, Sendable {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
         return WidgetQuickActionGroup.allCases.flatMap { group in
             allCases.filter { action in
-                action.group == group && (query.isEmpty
+                action.isAvailableInThisBuild && action.group == group && (query.isEmpty
                     || [action.title, action.detail, group.rawValue].contains { $0.localizedStandardContains(query) })
             }
         }
+    }
+
+    /// Advanced opens developer tools, which only Debug and Dev builds have.
+    /// The case stays so a widget saved with it still decodes; elsewhere it
+    /// opens Settings.
+    var isAvailableInThisBuild: Bool {
+        #if DEBUG
+        true
+        #else
+        self != .advanced
+        #endif
     }
 
     private var metadata: (title: String, symbol: String, group: WidgetQuickActionGroup, detail: String) {
@@ -87,7 +98,7 @@ enum WidgetQuickAction: String, CaseIterable, Identifiable, Sendable {
         case .budgetData:
             ("Budget & Data", "folder.fill", .settings, "Manage your selected budget and account preferences.")
         case .advanced:
-            ("Advanced", "wrench.and.screwdriver.fill", .settings, "Open advanced developer tools when unlocked.")
+            ("Advanced", "wrench.and.screwdriver.fill", .settings, "Open developer tools.")
         case .support:
             ("Support", "questionmark.circle.fill", .settings, "Find help and diagnostic information.")
         }

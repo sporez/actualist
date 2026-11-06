@@ -52,7 +52,6 @@ struct AppSettings: Codable, Equatable {
     /// Enabling it promotes Keychain items to after-first-unlock.
     var shortcutsLockedLoggingEnabled: Bool = false
     var appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded
-    var developerModeUnlocked: Bool = false
     var accountOrderByBudgetID: [String: [String]] = [:]
     var defaultAccountIDByBudgetID: [String: String] = [:]
     /// Wallet import: budget → FinanceKit account ID → Actual account ID.
@@ -91,7 +90,6 @@ struct AppSettings: Codable, Equatable {
         shortcutsEnabled: Bool = true,
         shortcutsLockedLoggingEnabled: Bool = false,
         appSwitcherPrivacyMode: AppSwitcherPrivacyMode = .whenBackgrounded,
-        developerModeUnlocked: Bool = false,
         accountOrderByBudgetID: [String: [String]] = [:],
         defaultAccountIDByBudgetID: [String: String] = [:],
         walletAccountLinksByBudgetID: [String: [String: String]] = [:],
@@ -123,7 +121,6 @@ struct AppSettings: Codable, Equatable {
         self.shortcutsEnabled = shortcutsEnabled
         self.shortcutsLockedLoggingEnabled = shortcutsLockedLoggingEnabled
         self.appSwitcherPrivacyMode = appSwitcherPrivacyMode
-        self.developerModeUnlocked = developerModeUnlocked
         self.accountOrderByBudgetID = accountOrderByBudgetID
         self.defaultAccountIDByBudgetID = defaultAccountIDByBudgetID
         self.walletAccountLinksByBudgetID = walletAccountLinksByBudgetID
@@ -187,10 +184,6 @@ struct AppSettings: Codable, Equatable {
             AppSwitcherPrivacyMode.self,
             forKey: .appSwitcherPrivacyMode
         ) ?? .whenBackgrounded
-        developerModeUnlocked = container.lenient(
-            Bool.self,
-            forKey: .developerModeUnlocked
-        ) ?? false
         accountOrderByBudgetID = container.lenient(
             [String: [String]].self,
             forKey: .accountOrderByBudgetID

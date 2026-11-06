@@ -13,7 +13,11 @@ enum SettingsPage: String, CaseIterable, Hashable, Sendable {
     case appearance
     case privacy
     case reports
+    #if DEBUG
+    // Developer tools exist only in Debug and Dev builds. App Store builds
+    // must not contain hidden features (App Review Guideline 2.5.19).
     case advanced
+    #endif
     case support
 
     static func stack(fromScreenPath path: [String]) -> [SettingsPage] {
@@ -36,7 +40,6 @@ struct SettingsView: View {
 
     let presentation: Presentation
     let showsDismissButton: Bool
-    @State private var developerUnlockToastTask: Task<Void, Never>?
 
     init(showsDismissButton: Bool = false, presentation: Presentation = .adaptive) {
         self.presentation = presentation
@@ -69,9 +72,6 @@ struct SettingsView: View {
                     }
                 }
             }
-        }
-        .overlay(alignment: .bottom) {
-            if presentation != .detail { developerUnlockToast }
         }
     }
 
@@ -157,15 +157,15 @@ struct SettingsView: View {
             .settingsSectionChrome(isSidebar: isSplit)
 
             Section {
-                if appState.settings.developerModeUnlocked {
-                    NavigationLink(value: SettingsPage.advanced) {
-                        SettingsCategoryRow(
-                            systemImage: "wrench.and.screwdriver",
-                            title: "Advanced",
-                            subtitle: isSplit ? nil : "Developer tools"
-                        )
-                    }
+                #if DEBUG
+                NavigationLink(value: SettingsPage.advanced) {
+                    SettingsCategoryRow(
+                        systemImage: "wrench.and.screwdriver",
+                        title: "Advanced",
+                        subtitle: isSplit ? nil : "Developer tools"
+                    )
                 }
+                #endif
 
                 NavigationLink(value: SettingsPage.support) {
                     SettingsCategoryRow(
@@ -190,17 +190,6 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Button {
-                    recordDeveloperUnlockTap()
-                } label: {
-                    Text("Settings")
-                        .font(.headline)
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(.isHeader)
-            }
-
             if showsDismissButton {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -241,25 +230,12 @@ struct SettingsView: View {
             PrivacySettingsView()
         case .reports:
             ReportsSettingsView()
+        #if DEBUG
         case .advanced:
             AdvancedSettingsView()
+        #endif
         case .support:
             SupportSettingsView()
-        }
-    }
-
-    @ViewBuilder
-    private var developerUnlockToast: some View {
-        if let developerUnlockToastMessage = appState.developerUnlockToastMessage {
-            Text(developerUnlockToastMessage)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(ActualistTheme.primaryText)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 9)
-                .background(ActualistTheme.elevatedSurface, in: Capsule())
-                .padding(.bottom, 22)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .allowsHitTesting(false)
         }
     }
 
@@ -331,7 +307,7 @@ struct SettingsView: View {
     }
 
     private var supportSubtitle: String {
-        "Report a Problem"
+        "Get Help"
     }
 
     private var selectedBudgetDisplayName: String {
@@ -352,17 +328,5 @@ struct SettingsView: View {
         }
 
         return "Actualist \(version) (\(build))"
-    }
-
-    // MARK: - Developer unlock
-
-    private func recordDeveloperUnlockTap() {
-        if let message = appState.recordDeveloperUnlockTap() {
-            developerUnlockToastTask = DeveloperUnlockToast.present(
-                message,
-                on: appState,
-                replacing: developerUnlockToastTask
-            )
-        }
     }
 }

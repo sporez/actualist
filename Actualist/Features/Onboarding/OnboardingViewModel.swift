@@ -138,12 +138,12 @@ final class OnboardingViewModel {
         }
         let identifiers = loginMethods.map(\.identifier)
         if identifiers.contains("header") {
-            return "This server signs people in with a method Actualist does not support yet."
+            return "This server signs people in with a method Actualist does not support."
         }
         if identifiers.isEmpty {
             return "Actualist cannot sign in to this server. It does not offer a sign-in method Actualist supports."
         }
-        return "This server signs people in with a method Actualist does not support yet."
+        return "This server signs people in with a method Actualist does not support."
     }
 
     var connectionSecurityWarning: String? {

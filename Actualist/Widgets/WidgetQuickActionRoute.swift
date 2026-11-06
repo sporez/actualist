@@ -53,7 +53,9 @@ struct WidgetQuickActionRoute {
         case .privacy: .privacy
         case .connection: .connection
         case .budgetData: .budgetData
+        #if DEBUG
         case .advanced: .advanced
+        #endif
         case .support: .support
         default: nil
         }

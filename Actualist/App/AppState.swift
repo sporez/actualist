@@ -16,7 +16,6 @@ final class AppState {
     var requiresReauthentication = false
     var localDataRevision: UInt64 = 0
     var themeRevision = 0
-    var developerUnlockToastMessage: String?
     private(set) var isAppSwitcherCoverSuppressedForSystemUI = false
     let routeCoordinator = AppRouteCoordinator()
 
@@ -30,7 +29,6 @@ final class AppState {
     @ObservationIgnored private let launchWarmupCoordinator = LaunchWarmupCoordinator()
     @ObservationIgnored let backgroundTransactionWorkflow: BackgroundTransactionWorkflow
     @ObservationIgnored private let providedLocalFirstStore: LocalFirstActualStore?
-    private var developerUnlockTracker = DeveloperUnlockTracker()
 
     var backgroundSessionIdentity: BackgroundTransactionWorkflow.SessionIdentity {
         backgroundTransactionWorkflow.sessionIdentity(
@@ -647,33 +645,6 @@ final class AppState {
 
     func clearAppInitiatedSystemUIPresentationSuppression() {
         isAppSwitcherCoverSuppressedForSystemUI = false
-    }
-
-    func updateDeveloperModeUnlocked(_ isUnlocked: Bool) {
-        settings.developerModeUnlocked = isUnlocked
-        resetDeveloperUnlockProgress()
-        settingsStore.save(settings)
-    }
-
-    func recordDeveloperUnlockTap() -> String? {
-        guard !settings.developerModeUnlocked else {
-            return nil
-        }
-
-        switch developerUnlockTracker.recordTap(at: Date()) {
-        case .unlocked:
-            updateDeveloperModeUnlocked(true)
-            return "You're a developer!"
-        case .hidden:
-            return nil
-        case .countdown(let remainingTaps):
-            let noun = remainingTaps == 1 ? "tap" : "taps"
-            return "\(remainingTaps) \(noun) from Developer Mode"
-        }
-    }
-
-    func resetDeveloperUnlockProgress() {
-        developerUnlockTracker.reset()
     }
 
     private func restoreSelectedBudgetForLaunch() async {

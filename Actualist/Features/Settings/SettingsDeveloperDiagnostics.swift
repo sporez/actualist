@@ -1,19 +1,18 @@
 import SwiftUI
 
+#if DEBUG
+/// The Developer sheet behind Settings → Advanced, in Debug and Dev builds only.
 struct SettingsDeveloperDiagnosticsSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
 
-    let hideDeveloperMode: () -> Void
     let debug: BackgroundRefreshDebugInfo
     let syncStatus: LocalFirstSyncStatus?
     let syncDebug: LocalFirstSyncDebugInfo
     let endpointHealth: ServerEndpointHealthDisplay
     let retryPendingSync: () async -> Void
     @State private var isRetryingSync = false
-    #if DEBUG
     @State private var debugNotification = DebugNotificationViewModel()
-    #endif
 
     var body: some View {
         List {
@@ -37,7 +36,6 @@ struct SettingsDeveloperDiagnosticsSheet: View {
             }
             .settingsSectionChrome()
 
-            #if DEBUG
             Section("Notifications") {
                 Button {
                     Task { await debugNotification.post(using: appState) }
@@ -56,21 +54,12 @@ struct SettingsDeveloperDiagnosticsSheet: View {
                 }
             }
             .settingsSectionChrome()
-            #endif
 
             Section("Background Refresh Logs") {
                 BackgroundRefreshDebugRows(debug: debug)
             }
             .settingsSectionChrome()
 
-            Section("Developer Mode") {
-                Button(role: .destructive) {
-                    hideDeveloperMode()
-                } label: {
-                    SettingsActionLabel(title: "Hide Developer Mode", systemImage: "eye.slash")
-                }
-            }
-            .settingsSectionChrome()
         }
         .reviewSheetList()
         .reviewSheetBottomBar {
@@ -240,6 +229,7 @@ private struct LocalFirstSyncDebugEventRow: View {
         endpoint == .fallback ? ActualistTheme.accent : ActualistTheme.secondaryText
     }
 }
+#endif
 
 struct SettingsActionLabel: View {
     let title: String
@@ -309,6 +299,7 @@ struct SettingsStatusRow: View {
     }
 }
 
+#if DEBUG
 private struct BackgroundRefreshDebugRows: View {
     let debug: BackgroundRefreshDebugInfo
 
@@ -461,3 +452,4 @@ private enum DiagnosticTimestamp {
         date?.formatted(.dateTime.month(.abbreviated).day().hour().minute().second()) ?? placeholder
     }
 }
+#endif

@@ -1,19 +1,19 @@
 import SwiftUI
 
-/// Support settings: diagnostics, bug reports, privacy policy, licenses.
+/// Support settings: diagnostics, help, privacy policy, licenses.
 struct SupportSettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var diagnosticReportCopied = false
     @State private var supportViewModel = SupportSettingsViewModel()
     @State private var viewModel = SettingsViewModel()
 
-    private static let newIssueURL = URL(string: "https://github.com/sporez/actualist/issues/new")!
-    private static let privacyPolicyURL = URL(string: "https://github.com/sporez/actualist/blob/main/PRIVACY.md")!
+    private static let supportURL = URL(string: "https://actualist.app/support")!
+    private static let privacyPolicyURL = URL(string: "https://actualist.app/privacy")!
 
     var body: some View {
         List {
             Section {
-                Text("Actualist is in beta. If something goes wrong, attach a diagnostic report to your bug report to help find the cause.")
+                Text("If something goes wrong, include a diagnostic report when you ask for help. It helps find the cause.")
                     .font(.caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
 
@@ -48,8 +48,8 @@ struct SupportSettingsView: View {
             .settingsSectionChrome()
 
             Section {
-                Link(destination: Self.newIssueURL) {
-                    SettingsActionLabel(title: "Submit a Bug Report", systemImage: "ladybug")
+                Link(destination: Self.supportURL) {
+                    SettingsActionLabel(title: "Get Help", systemImage: "questionmark.bubble")
                 }
 
                 Link(destination: Self.privacyPolicyURL) {

@@ -174,19 +174,6 @@ extension LocalFirstActualStoreTests {
         #expect(store.load().randomizedDisplayValuesEnabled)
     }
 
-    @Test func hidingDeveloperModeLeavesSampleDisplayValuesEnabled() throws {
-        let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
-        let state = AppState(settingsStore: AppSettingsStore(defaults: defaults))
-
-        state.updateDeveloperModeUnlocked(true)
-        state.updateRandomizedDisplayValuesEnabled(true)
-        state.updateDeveloperModeUnlocked(false)
-
-        #expect(!state.settings.developerModeUnlocked)
-        #expect(state.settings.randomizedDisplayValuesEnabled)
-        #expect(AppSettingsStore(defaults: defaults).load().randomizedDisplayValuesEnabled)
-    }
-
     @Test func appSwitcherPrivacyPreferenceDefaultsToBackgroundAndPersists() throws {
         let defaults = try #require(UserDefaults(suiteName: "ActualistTests.\(UUID().uuidString)"))
         let store = AppSettingsStore(defaults: defaults)

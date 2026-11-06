@@ -137,7 +137,7 @@ struct SavedTransactionFiltersView: View {
                     Text(filter.name.isEmpty ? "Unnamed Filter" : filter.name)
                         .font(.headline)
                         .foregroundStyle(ActualistTheme.primaryText)
-                    Text(filter.isSupported ? conditionSummary(filter) : "Includes conditions Actualist does not support yet")
+                    Text(filter.isSupported ? conditionSummary(filter) : "Includes conditions Actualist does not support")
                         .font(.footnote)
                         .foregroundStyle(ActualistTheme.secondaryText)
                         .lineLimit(2)
