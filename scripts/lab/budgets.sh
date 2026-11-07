@@ -14,11 +14,17 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && /bin/pwd -P)"
 ROOT="$(cd "$HERE/../.." && /bin/pwd -P)"
 LAB_ENV="$ROOT/scripts/lib/lab.env"
-# Values already in the environment win over lab.env.
+# Values already in the environment win over lab.env. Sourcing the file would
+# overwrite them, so remember them first and put them back.
+env_url="${ACTUAL_LAB_URL-}" env_password="${ACTUAL_LAB_PASSWORD-}" env_oracle="${ACTUALIST_PARITY_ORACLE_ROOT-}"
 if [ -f "$LAB_ENV" ]; then
   # shellcheck disable=SC1090
   source "$LAB_ENV"
 fi
+[ -n "$env_url" ] && ACTUAL_LAB_URL="$env_url"
+[ -n "$env_password" ] && ACTUAL_LAB_PASSWORD="$env_password"
+[ -n "$env_oracle" ] && ACTUALIST_PARITY_ORACLE_ROOT="$env_oracle"
+unset env_url env_password env_oracle
 export ACTUALIST_PARITY_ORACLE_ROOT
 : "${ACTUAL_LAB_URL:?set ACTUAL_LAB_URL (or scripts/lib/lab.env); see scripts/lab/README.md}"
 : "${ACTUAL_LAB_PASSWORD:?set ACTUAL_LAB_PASSWORD (or scripts/lib/lab.env)}"
