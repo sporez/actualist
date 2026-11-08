@@ -3,7 +3,10 @@ import Testing
 @testable import Actualist
 
 /// The fuzzy dataset parses each row's day once. The previous
-/// per-pair `dayDistance` filter and sort is the oracle.
+/// per-pair `dayDistance` filter and sort is the oracle, ranked like Actual's
+/// `compareFuzzyMatchCandidates` (v26.11.0): nearest day first, then a row
+/// without an imported ID, then the `v_transactions` order (date descending,
+/// starting balance last, `sort_order` descending, id).
 struct BankSyncFuzzyDatasetEquivalenceTests {
     private struct SeededGenerator: RandomNumberGenerator {
         var state: UInt64
@@ -27,6 +30,12 @@ struct BankSyncFuzzyDatasetEquivalenceTests {
                 let left = abs(BankSyncReconciliation.dayDistance($0.element.dayID, candidate.dayID))
                 let right = abs(BankSyncReconciliation.dayDistance($1.element.dayID, candidate.dayID))
                 if left != right { return left < right }
+                let (lhs, rhs) = ($0.element, $1.element)
+                if (lhs.financialID != nil) != (rhs.financialID != nil) { return lhs.financialID == nil }
+                if lhs.dayID != rhs.dayID { return lhs.dayID > rhs.dayID }
+                if lhs.isStartingBalance != rhs.isStartingBalance { return !lhs.isStartingBalance }
+                if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder > rhs.sortOrder }
+                if lhs.id != rhs.id { return lhs.id < rhs.id }
                 return $0.offset < $1.offset
             }
             .map(\.element)
@@ -42,10 +51,13 @@ struct BankSyncFuzzyDatasetEquivalenceTests {
             let existing: [BankSyncReconciliation.Existing] = (0..<Int.random(in: 0..<14, using: &rng)).map { index in
                 let isChild = Bool.random(using: &rng)
                 return BankSyncReconciliation.Existing(
-                    id: "e\(index)", financialID: nil, dayID: days.randomElement(using: &rng)!,
+                    id: "e\(index)", financialID: Bool.random(using: &rng) ? "f\(index)" : nil,
+                    dayID: days.randomElement(using: &rng)!,
                     amountMinorUnits: amounts.randomElement(using: &rng)!, payeeID: nil, categoryID: nil,
                     notes: nil, cleared: false, reconciled: false, importedPayee: nil, isParent: false,
-                    isChild: isChild, parentID: isChild && Bool.random(using: &rng) ? "p" : nil, transferID: nil)
+                    isChild: isChild, parentID: isChild && Bool.random(using: &rng) ? "p" : nil, transferID: nil,
+                    isStartingBalance: Int.random(in: 0..<6, using: &rng) == 0,
+                    sortOrder: Double(Int.random(in: 0..<3, using: &rng)))
             }
             let epochDays = existing.map { BankSyncReconciliation.epochDay(compact: $0.dayID) }
             for day in days {

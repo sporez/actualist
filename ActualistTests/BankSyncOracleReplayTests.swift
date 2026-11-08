@@ -66,7 +66,6 @@ struct BankSyncOracleReplayTests {
         let op61 = take(Self.op61Paths)
         let op62 = take(Self.op62Paths)
         let op66 = take(Self.op66Paths)
-        let op67 = take(Self.op67Paths)
         let op68 = take(Self.op68Paths)
 
         #expect(remaining.isEmpty, Comment(rawValue: OracleComparison.report(caseID, remaining)))
@@ -98,11 +97,6 @@ struct BankSyncOracleReplayTests {
         if let op66 {
             withKnownIssue("OP-66: a padded provider payee name is created trimmed, where the oracle keeps the spaces") {
                 #expect(op66.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op66)))
-            }
-        }
-        if let op67 {
-            withKnownIssue("OP-67: an equal-distance tie picks the first stored row, where the oracle picks another") {
-                #expect(op67.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op67)))
             }
         }
         if let op68 {
@@ -148,10 +142,6 @@ struct BankSyncOracleReplayTests {
     private static let op66Paths: [String: Set<String>] = [
         "gen-payee-name-009": ["transactions.new-1.payee", "transactions.new-2.payee", "payees.new-payee:  padded name  ", "payees.new-payee:padded name"],
         "named-rule-imported-payee-simplefin": ["transactions.new-1.payee", "payees.new-payee:  WHOLE FOODS #123  ", "payees.new-payee:WHOLE FOODS #123"],
-    ]
-
-    private static let op67Paths: [String: Set<String>] = [
-        "gen-multi-055": ["result.ignored", "result.updated", "transactions.ex-4.imported_payee"],
     ]
 
     private static let op68Paths: [String: Set<String>] = [

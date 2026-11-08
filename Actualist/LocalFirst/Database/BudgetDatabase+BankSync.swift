@@ -316,7 +316,9 @@ extension BudgetDatabase {
                    \(split.qualifiedIsParent) AS is_parent,
                    \(split.qualifiedIsChild) AS is_child,
                    \(split.effectiveParentID) AS parent_id,
-                   \(transferIDSelect) AS transfer_id
+                   \(transferIDSelect) AS transfer_id,
+                   \(split.qualifiedStartingBalance) AS starting_balance_flag,
+                   \(split.qualifiedSortOrder) AS sort_order
             FROM transactions t
             \(split.parentJoin())
             WHERE \(split.qualifiedAccount) = ?
@@ -351,7 +353,9 @@ extension BudgetDatabase {
                 isParent: isParent,
                 isChild: isChild,
                 parentID: isChild ? row["parent_id"] : nil,
-                transferID: (row["transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
+                transferID: (row["transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 },
+                isStartingBalance: (row["starting_balance_flag"] as Int? ?? 0) != 0,
+                sortOrder: row["sort_order"] as Double? ?? 0
             )
         }
     }

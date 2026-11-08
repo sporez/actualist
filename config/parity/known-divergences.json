@@ -344,7 +344,7 @@
       ],
       "id": "OP-58",
       "opened": "2026-10-11",
-      "summary": "A matched row in an off-budget account never takes the category a rule or download supplies, where the pinned Actual writes it (it strips categories only on inserts). Cause: mergedCategoryID returns the row's own category for off-budget accounts (BankSyncReconciler.swift:370-383). Deliberate: Bank Sync never categorizes rows in off-budget accounts.",
+      "summary": "A matched row in an off-budget account never takes the category a rule or download supplies, where the pinned Actual writes it (it strips categories only on inserts). Cause: mergedCategoryID returns the row's own category for off-budget accounts (BankSyncReconciler.swift:410-422). Deliberate: Bank Sync never categorizes rows in off-budget accounts.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: off-budget accounts carry no categories, so a matched off-budget row keeps none (2026-09-16 guard)."
@@ -361,7 +361,7 @@
       ],
       "id": "OP-59",
       "opened": "2026-10-11",
-      "summary": "The first-sync Starting Balance amount is the current balance minus the planned inserts, where the pinned Actual subtracts every raw downloaded transaction, including ones a rule changes and, with import-pending off, pending ones that are skipped. Cause: BankSyncReconciliation.openingBalance subtracts the inserts only (BankSyncReconciler.swift:480-489). Deliberate: the opening balance is derived from the planned inserts.",
+      "summary": "The first-sync Starting Balance amount is the current balance minus the planned inserts, where the pinned Actual subtracts every raw downloaded transaction, including ones a rule changes and, with import-pending off, pending ones that are skipped. Cause: BankSyncReconciliation.openingBalance subtracts the inserts only (BankSyncReconciler.swift:518-531). Deliberate: the opening balance is derived from the planned inserts.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: the Starting Balance plus the rows actually imported equals the bank balance; Actual also subtracts rows a rule drops or pending rows it skips."
@@ -400,7 +400,7 @@
       ],
       "id": "OP-61",
       "opened": "2026-10-11",
-      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:197-204) fed by bankSyncSuppressedFinancialIDs (LocalFirstActualStore+ImportReconcile.swift:64-72). Deliberate: deleted IDs are used only for exact dedupe, never for updates.",
+      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:216-220) fed by bankSyncSuppressedFinancialIDs (LocalFirstActualStore+ImportReconcile.swift:64-72). Deliberate: deleted IDs are used only for exact dedupe, never for updates.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: leave deleted rows untouched; with reimport-deleted off, both apps ignore the download and the visible result is identical."
@@ -415,7 +415,7 @@
       ],
       "id": "OP-62",
       "opened": "2026-10-11",
-      "summary": "When a split parent is matched by ID, its children are excluded from fuzzy matching for the whole batch, so a later download with a child's amount is inserted as a new row. The pinned Actual v26.11.0 ported this (upstream 24deae7) only for bank-sync accounts; on a CSV import it still lets the download match the child. Cause: exactMatchedParentIDs and isReserved (BankSyncReconciler.swift:191, :230-231) apply to every import.",
+      "summary": "When a split parent is matched by ID, its children are excluded from fuzzy matching for the whole batch, so a later download with a child's amount is inserted as a new row. The pinned Actual v26.11.0 ported this (upstream 24deae7) only for bank-sync accounts; on a CSV import it still lets the download match the child. Cause: exactMatchedParentIDs and isReserved (BankSyncReconciler.swift:195, :234-235) apply to every import.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: keep the port of upstream 24deae7 (reserve children of an ID-matched split parent). At the v26.11.0 pin (2026-11-08) Actual applies it to bank-sync accounts only, so the remaining difference is CSV import."
@@ -442,26 +442,11 @@
       ],
       "domain": "bank-sync-matching",
       "fixtureCases": [
-        "gen-multi-055"
-      ],
-      "id": "OP-67",
-      "opened": "2026-10-11",
-      "summary": "When several stored rows are equally distant from a download and equally eligible, Actualist matches the row stored first, where the pinned Actual matches another of them, so a different row is updated. At v26.11.0 Actual first prefers a row without an imported_id (compareFuzzyMatchCandidates). Cause: fuzzyDataset sorts by distance then stored order (BankSyncReconciler.swift:323).",
-      "status": "intended",
-      "decided": "2026-10-11",
-      "reason": "User decision 2026-10-11: keep the deterministic tie-break (first stored row); Actual's choice comes from an unordered query. Rechecked at the v26.11.0 pin (2026-11-08): five of the six cases now match; gen-multi-055 still differs."
-    },
-    {
-      "cases": [
-        "BankSyncOracleReplayTests/replaysBankSyncCase"
-      ],
-      "domain": "bank-sync-matching",
-      "fixtureCases": [
         "gen-imported-id-008"
       ],
       "id": "OP-68",
       "opened": "2026-10-11",
-      "summary": "When two live rows in one account carry the same provider ID, a download with that ID updates a different one of them: the pinned Actual takes the first row its query returns, Actualist takes the first row in stored order. Cause: idMatch is existing.first (BankSyncReconciler.swift:193-196).",
+      "summary": "When two live rows in one account carry the same provider ID, a download with that ID updates a different one of them: the pinned Actual takes the first row its query returns, Actualist takes the first row in stored order. Cause: idMatch is existing.first (BankSyncReconciler.swift:210-212).",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: keep the deterministic choice (first stored row) when provider IDs repeat; Actual's choice comes from an unordered query."

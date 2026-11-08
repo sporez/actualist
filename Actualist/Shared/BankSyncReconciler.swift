@@ -79,6 +79,10 @@ enum BankSyncReconciliation {
         let parentID: String?
         /// Paired transfer row id (`transferred_id` / `transfer_id`).
         let transferID: String?
+        /// `v_transactions` order keys after the date (`starting_balance_flag`,
+        /// `sort_order DESC`): the final tie-break of an equal fuzzy match.
+        var isStartingBalance = false
+        var sortOrder: Double = 0
 
         var isTransfer: Bool { transferID?.isEmpty == false }
 
@@ -318,7 +322,12 @@ enum BankSyncReconciliation {
     }
 
     /// loot-core fuzzy query: same amount, date within ±7 calendar days
-    /// inclusive, sorted by day distance (stable). Without
+    /// inclusive, sorted like `compareFuzzyMatchCandidates` (v26.11.0): by day
+    /// distance, then a row without its own `financial_id` before one that has
+    /// one. The second key keeps a fuzzy match from overwriting the imported ID
+    /// of a row an earlier sync matched. The sort is stable over a
+    /// `v_transactions` query, so remaining ties keep that view's order:
+    /// `date DESC, starting_balance_flag, sort_order DESC, id`. Without
     /// `strictIdChecking`, rows with a different or absent `financial_id` are
     /// still eligible; with it, a row that already has an id is skipped when
     /// the candidate has one too (`(imported_id IS NULL OR ? IS NULL)`).
@@ -342,7 +351,19 @@ enum BankSyncReconciliation {
             let distance = abs(day - candidateDay)
             if distance <= 7 { matches.append((distance, offset)) }
         }
-        matches.sort { $0.distance != $1.distance ? $0.distance < $1.distance : $0.offset < $1.offset }
+        matches.sort { lhs, rhs in
+            if lhs.distance != rhs.distance { return lhs.distance < rhs.distance }
+            let left = existing[lhs.offset]
+            let right = existing[rhs.offset]
+            let leftImported = left.financialID != nil
+            let rightImported = right.financialID != nil
+            if leftImported != rightImported { return !leftImported }
+            if left.dayID != right.dayID { return left.dayID > right.dayID }
+            if left.isStartingBalance != right.isStartingBalance { return !left.isStartingBalance }
+            if left.sortOrder != right.sortOrder { return left.sortOrder > right.sortOrder }
+            if left.id != right.id { return left.id < right.id }
+            return lhs.offset < rhs.offset
+        }
         return matches.map { existing[$0.offset] }
     }
 
