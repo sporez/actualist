@@ -66,6 +66,11 @@ extension AppState {
         settingsStore.save(settings)
     }
 
+    func updateDevSharesAppStoreLinks(_ isEnabled: Bool) {
+        settings.devSharesAppStoreLinks = isEnabled
+        settingsStore.save(settings)
+    }
+
     func updateShortcutsEnabled(_ isEnabled: Bool) {
         settings.shortcutsEnabled = isEnabled
         settingsStore.save(settings)

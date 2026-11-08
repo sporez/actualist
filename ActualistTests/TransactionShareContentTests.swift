@@ -43,11 +43,12 @@ struct TransactionShareContentTests {
 
     @Test @MainActor func theShareSheetHandsMessagesAFinishedPreview() throws {
         let share = try #require(content())
-        let source = TransactionLinkItemSource.make(content: share)
+        let source = TransactionLinkItemSource.make(content: share, installation: .production)
+        let url = share.url(installation: .production)
 
-        #expect(source.url == share.url())
-        #expect(source.metadata.url == share.url())
-        #expect(source.metadata.originalURL == share.url())
+        #expect(source.url == url)
+        #expect(source.metadata.url == url)
+        #expect(source.metadata.originalURL == url)
         #expect(source.metadata.title == "Shared from Actualist")
         #expect(source.metadata.imageProvider != nil)
     }
@@ -76,6 +77,16 @@ struct TransactionShareContentTests {
         let share = try #require(content())
         #expect(share.url(installation: .production).absoluteString == "https://actualist.app/t#txn-1")
         #expect(share.url(installation: .development).absoluteString == "https://actualist.app/dev/t#txn-1")
+    }
+
+    @Test func theDevToggleSharesAppStoreLinksFromTheDevInstallOnly() {
+        var settings = AppSettings()
+        #expect(settings.shareLinkInstallation(current: .development) == .development)
+        #expect(settings.shareLinkInstallation(current: .production) == .production)
+
+        settings.devSharesAppStoreLinks = true
+        #expect(settings.shareLinkInstallation(current: .development) == .production)
+        #expect(settings.shareLinkInstallation(current: .production) == .production)
     }
 
     @Test func aRowUsesItsProjectedPayeeAndStoredAmount() throws {

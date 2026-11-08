@@ -17,6 +17,20 @@ struct AdvancedSettingsView: View {
                 }
             }
             .settingsSectionChrome()
+
+            if AppInstallationIdentity.current == .development {
+                Section {
+                    Toggle("Share App Store Links", isOn: Binding(
+                        get: { appState.settings.devSharesAppStoreLinks },
+                        set: { appState.updateDevSharesAppStoreLinks($0) }
+                    ))
+                } header: {
+                    Text("Sharing")
+                } footer: {
+                    Text("Shared transaction links open in the App Store version of Actualist instead of this Dev build.")
+                }
+                .settingsSectionChrome()
+            }
         }
         .scrollContentBackground(.hidden)
         .background(ActualistTheme.background)

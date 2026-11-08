@@ -65,6 +65,9 @@ struct AppSettings: Codable, Equatable {
     /// `/sync/sync`. Never reads the device key; demo mode never runs it. New
     /// Transaction Alerts do not depend on this flag.
     var simplefinBackgroundSyncEnabled: Bool = false
+    /// Dev install only: share App Store links (`/t`) instead of `/dev/t`, so
+    /// a recipient without the Dev app can open them.
+    var devSharesAppStoreLinks: Bool = false
     var backgroundRefreshDebug = BackgroundRefreshDebugInfo()
     var localFirstSyncDebug = LocalFirstSyncDebugInfo()
     var pendingNewTransactionIDsByAccount: [String: [String]] = [:]
@@ -215,6 +218,7 @@ struct AppSettings: Codable, Equatable {
             Bool.self,
             forKey: .simplefinBackgroundSyncEnabled
         ) ?? false
+        devSharesAppStoreLinks = container.lenient(Bool.self, forKey: .devSharesAppStoreLinks) ?? false
         backgroundRefreshDebug = container.lenient(
             BackgroundRefreshDebugInfo.self,
             forKey: .backgroundRefreshDebug
@@ -238,6 +242,11 @@ struct AppSettings: Codable, Equatable {
     /// Alerts do not depend on Bank Sync.
     var wantsBackgroundAppRefresh: Bool {
         backgroundTransactionRefreshEnabled || simplefinBackgroundSyncEnabled
+    }
+
+    /// The installation whose link form a shared transaction uses.
+    func shareLinkInstallation(current: AppInstallationIdentity = .current) -> AppInstallationIdentity {
+        current == .development && devSharesAppStoreLinks ? .production : current
     }
 }
 

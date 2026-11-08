@@ -35,7 +35,10 @@ private struct TransactionShareSheetModifier: ViewModifier {
 
     func body(content view: Content) -> some View {
         view.sheet(item: $content) { share in
-            TransactionActivitySheet(content: share)
+            TransactionActivitySheet(
+                content: share,
+                installation: appState.settings.shareLinkInstallation()
+            )
                 .toolbarlessSheetDetents([.medium, .large])
                 .task { await appState.localFirstStore.retryPendingLocalMessageFlush() }
         }
@@ -44,10 +47,11 @@ private struct TransactionShareSheetModifier: ViewModifier {
 
 private struct TransactionActivitySheet: UIViewControllerRepresentable {
     let content: TransactionShareContent
+    let installation: AppInstallationIdentity
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
         UIActivityViewController(
-            activityItems: [TransactionLinkItemSource.make(content: content)],
+            activityItems: [TransactionLinkItemSource.make(content: content, installation: installation)],
             applicationActivities: nil
         )
     }
@@ -68,8 +72,8 @@ final class TransactionLinkItemSource: NSObject, UIActivityItemSource {
     }
 
     @MainActor
-    static func make(content: TransactionShareContent) -> TransactionLinkItemSource {
-        let url = content.url()
+    static func make(content: TransactionShareContent, installation: AppInstallationIdentity) -> TransactionLinkItemSource {
+        let url = content.url(installation: installation)
         let metadata = LPLinkMetadata()
         metadata.originalURL = url
         metadata.url = url

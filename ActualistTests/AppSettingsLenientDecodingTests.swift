@@ -36,6 +36,17 @@ struct AppSettingsLenientDecodingTests {
         #expect(defaults.data(forKey: AppSettingsStore.corruptBackupKey) == nil)
     }
 
+    @Test func devShareLinkToggleRoundTripsAndDefaultsOff() throws {
+        let defaults = try makeDefaults()
+        let store = AppSettingsStore(defaults: defaults)
+        #expect(!store.load().devSharesAppStoreLinks)
+
+        var settings = store.load()
+        settings.devSharesAppStoreLinks = true
+        store.save(settings)
+        #expect(AppSettingsStore(defaults: defaults).load().devSharesAppStoreLinks)
+    }
+
     @Test func malformedSyncDebugBlobDoesNotResetSettings() throws {
         let defaults = try makeDefaults()
         let json = """
