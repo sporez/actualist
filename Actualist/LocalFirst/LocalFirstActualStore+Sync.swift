@@ -608,7 +608,11 @@ extension LocalFirstActualStore {
                 token: token
             )
             return remoteIdentityDiffers ? LocalFirstError.budgetEncryptionChanged : error
-        case .fileOldVersion, .fileNeedsUpload, .fileKeyMismatch:
+        case .clockDrift:
+            // The server judged a change from this device to be in the future: the
+            // same clock problem as a remote change dated in the future.
+            return LocalFirstError.clockDrift
+        case .fileOldVersion, .fileNeedsUpload, .fileKeyMismatch, .invalidTimestamp:
             return error
         }
     }

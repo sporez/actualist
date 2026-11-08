@@ -311,9 +311,9 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     /// Actual's sync endpoints reject a sync or upload with a bare text token
     /// (`file-has-reset`, `file-has-new-key`, …) instead of the JSON error
     /// envelope the account endpoints use. See `validateSyncedFile` and
-    /// `validateUploadedFile` in Actual's sync server. Only the known protocol
-    /// tokens are recognized, so unrelated text bodies keep the generic HTTP
-    /// status error.
+    /// `validateUploadedFile` in Actual's sync server, and `sync-simple.js` for
+    /// `clock-drift` / `invalid-timestamp`. Only the known protocol tokens are
+    /// recognized, so unrelated text bodies keep the generic HTTP status error.
     private static func syncRejectionReason(from data: Data) -> ActualSyncRejectionReason? {
         guard let body = String(data: data, encoding: .utf8) else {
             return nil
@@ -610,6 +610,11 @@ enum ActualSyncRejectionReason: String, Sendable, CaseIterable {
     case fileKeyMismatch = "file-key-mismatch"
     case fileHasReset = "file-has-reset"
     case fileHasNewKey = "file-has-new-key"
+    /// A new message is dated more than five minutes past the server's clock;
+    /// the whole batch was rolled back (upstream #8905, after v26.11.0).
+    case clockDrift = "clock-drift"
+    /// A new message's timestamp did not parse on the server (same change).
+    case invalidTimestamp = "invalid-timestamp"
 }
 
 enum ActualAPIError: LocalizedError {
@@ -674,6 +679,10 @@ enum ActualAPIError: LocalizedError {
                 "This budget is out of date for the server. Reimport the budget to continue syncing."
             case .fileNeedsUpload:
                 "The server needs a fresh copy of this budget. Upload it again to continue syncing."
+            case .clockDrift:
+                LocalFirstError.clockDrift.localizedDescription
+            case .invalidTimestamp:
+                "The Actual server refused a change from this device because it could not read its date. The change is still saved on this device."
             }
         case .httpStatus(let status):
             "The server had a problem. Try again later."
