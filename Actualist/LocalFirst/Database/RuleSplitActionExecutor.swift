@@ -185,11 +185,8 @@ enum RuleSplitActionExecutor {
                 }
                 do {
                     let result = try RuleFormulaEvaluator.evaluate(formulaText, context: formulaContext)
-                    guard let number = result.number,
-                          let amount = integerAmount(.number(number)) else {
-                        return .failedClosed
-                    }
-                    record.amount = amount
+                    guard let number = result.number else { return .failedClosed }
+                    record.amount = try RuleFormulaEvaluator.amountToInteger(number)
                 } catch {
                     return .failedClosed
                 }
@@ -232,11 +229,15 @@ enum RuleSplitActionExecutor {
             switch field {
             case "amount":
                 guard let number = result.number else { return .failedClosed }
-                return .ok(.number(number))
+                return .ok(.number(Double(try RuleFormulaEvaluator.amountToInteger(number))))
             case "notes", "payee", "category", "account", "acct", "date":
                 switch result {
                 case .string(let text): return .ok(.string(text))
-                case .number(let number): return .ok(.string(String(Int(number))))
+                case .number(let number):
+                    // Actual writes JavaScript's `String(number)`. Only a whole number is
+                    // spelled the same here; anything else fails closed.
+                    guard number == number.rounded(), abs(number) < 1e15 else { return .failedClosed }
+                    return .ok(.string(String(Int(number))))
                 case .bool(let enabled): return .ok(.string(enabled ? "true" : "false"))
                 }
             case "cleared":

@@ -129,9 +129,10 @@ struct BudgetDatabaseRuleDateTests {
                 cleared: false, isTransfer: false
             )
             let preview = try await database.previewRules(for: draft, dateTimeZone: timeZone)
-            // The prefetched balance is -7,000 minor units; the formula engine
-            // scales its number by 100 into the split amount (-700,000).
-            #expect(preview.splits.first?.amountMinorUnits == -700_000)
+            // The prefetched balance is -7,000 minor units. The formula reads it
+            // as the amount -70.00 and the split amount converts it back
+            // (Actual v26.11.0), so the split carries the balance unchanged.
+            #expect(preview.splits.first?.amountMinorUnits == -7_000)
         }
     }
 }

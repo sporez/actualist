@@ -1,11 +1,14 @@
 import Foundation
 
-/// Focused Actual 26.8.1 split-amount formula evaluator.
+/// Focused Actual v26.11.0 split-amount formula evaluator.
 ///
 /// Ports the numeric subset used by `Action.executeFormulaSync` for
 /// `set-split-amount` method `formula`: arithmetic, named transaction fields,
 /// `INTEGER_TO_AMOUNT`, and `BALANCE_OF`. Unsupported HyperFormula surfaces
-/// fail closed.
+/// fail closed. Like upstream, a formula works in the amounts the app shows:
+/// `amount`, `balance`, `parent_amount` and `BALANCE_OF` are stored integers
+/// divided by 100, and the result comes back unconverted. A caller writing it
+/// to an amount converts it with `amountToInteger`.
 enum RuleFormulaValue: Equatable, Sendable {
     case number(Double)
     case string(String)
@@ -34,19 +37,25 @@ enum RuleFormulaEvaluator {
         case outOfRange
     }
 
+    /// Transaction fields stored as integers that a formula reads as amounts
+    /// (upstream `MONETARY_FORMULA_VARIABLES`).
+    static let monetaryVariables: Set<String> = ["amount", "balance", "parent_amount"]
+
     static func evaluate(_ formula: String, context: RuleFormulaContext) throws -> RuleFormulaValue {
         var parser = Parser(formula: formula, context: context)
         let value = try parser.parseFormula()
         try parser.expectEnd()
-        if case .number(let number) = value {
-            return .number(Double(try amountToInteger(number)))
-        }
         return value
     }
 
-    /// Actual `amountToInteger(Math.round(value * 100) / 100)` at 2 decimals.
+    /// Actual `amountToInteger(amount)` at 2 decimals: `Math.round(amount * 100)`.
     static func amountToInteger(_ value: Double) throws -> Int {
-        try javascriptRound(javascriptRoundToDouble(value * 100) / 100 * 100)
+        try javascriptRound(value * 100)
+    }
+
+    /// Actual `integerToAmount(integer)` at 2 decimals.
+    static func integerToAmount(_ value: Double) -> Double {
+        value / 100
     }
 
     /// JavaScript `Math.round`: ties toward +∞.
@@ -81,10 +90,6 @@ enum RuleFormulaEvaluator {
 
     static func decodeBalanceOfQuotedLiteral(_ inner: String) -> String {
         inner.replacingOccurrences(of: "\\\"", with: "\"").replacingOccurrences(of: "\\\\", with: "\\")
-    }
-
-    private static func javascriptRoundToDouble(_ value: Double) throws -> Double {
-        Double(try javascriptRound(value))
     }
 }
 
@@ -201,7 +206,8 @@ private struct Parser {
             guard arguments.count == 1, case .string(let key) = arguments[0] else {
                 throw RuleFormulaEvaluator.EvaluationError.typeMismatch
             }
-            return .number(Double(context.balanceOfPrefetch[key] ?? 0))
+            // The prefetched balances are integers; formulas work in amounts.
+            return .number(RuleFormulaEvaluator.integerToAmount(Double(context.balanceOfPrefetch[key] ?? 0)))
         case "INTEGER_TO_AMOUNT":
             guard let integer = arguments.first?.number, (1...2).contains(arguments.count) else {
                 throw RuleFormulaEvaluator.EvaluationError.typeMismatch
@@ -218,7 +224,11 @@ private struct Parser {
 
     private func lookup(_ name: String) -> RuleFormulaValue {
         if name == "today" { return .string(context.today) }
-        return context.fields[name] ?? .string("")
+        guard let value = context.fields[name] else { return .string("") }
+        if RuleFormulaEvaluator.monetaryVariables.contains(name), case .number(let integer) = value {
+            return .number(RuleFormulaEvaluator.integerToAmount(integer))
+        }
+        return value
     }
 
     private func binary(_ lhs: RuleFormulaValue, _ rhs: RuleFormulaValue, _ op: Character) throws -> RuleFormulaValue {
