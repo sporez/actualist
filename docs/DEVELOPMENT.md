@@ -131,7 +131,7 @@ Actualist's oracle tests compare against.
   its production paths, harness, fixture folder, Swift oracle suites and
   coverage status.
 - **Fixtures:** generated fixtures live in one folder per pin, such as
-  `ActualistTests/Fixtures/ActualCore26_10_0/`. Their expected values are never
+  `ActualistTests/Fixtures/ActualCore26_11_0/`. Their expected values are never
   edited by hand.
 
 ### Oracle checkout

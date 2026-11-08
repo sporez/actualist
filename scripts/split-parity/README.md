@@ -1,6 +1,6 @@
 # Split parity fixtures
 
-`ActualistTests/Fixtures/ActualCore26_10_0/Splits/` holds split-transaction
+`ActualistTests/Fixtures/ActualCore26_11_0/Splits/` holds split-transaction
 family and rule outputs produced by running Actual's pinned split code. The
 `manifest.json` in that folder records the pinned release, source and helper
 hashes, the fixture hashes, and the case count.

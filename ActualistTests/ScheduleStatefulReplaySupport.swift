@@ -9,8 +9,10 @@ import GRDB
 /// carry into the next. Then the matching production operation runs (`advanceSchedules`, `skipNextDate`,
 /// `updateSchedule`, `postScheduleOccurrence`) with the step's day as `today` and its local noon as `now`, and the
 /// database projection is compared with the step's `after` snapshot. A `payNextDate` step is an oracle input (a
-/// transaction inserted for the schedule), so only its snapshot is re-read. Creation test: `createSchedule`
-/// replays each setup schedule against a fresh database and the result is compared with the `before` snapshot.
+/// transaction inserted for the schedule), so only its snapshot is re-read; so is `markScheduleRun`, which sets the
+/// `lastScheduleRun` day marker. Cases whose snapshots record that marker also compare it, read from the budget's
+/// `metadata.json`. Creation test: `createSchedule` replays each setup schedule against a fresh database and the
+/// result is compared with the `before` snapshot.
 /// Compared and excluded fields are in `scripts/schedule-parity/README.md` ("Swift replay").
 @MainActor
 enum ScheduleStatefulReplay {
@@ -50,7 +52,11 @@ enum ScheduleStatefulReplay {
             let label = "step\(index)(\(op))"
             // Every step starts from the oracle's state before it, so one divergence cannot cascade into
             // the steps after it and each step's result is attributed to its own operation.
-            try await seed(database, setup: setup, before: op == "payNextDate" ? after : previous)
+            let state = op == "payNextDate" ? after : previous
+            try await seed(database, setup: setup, before: state)
+            if state.keys.contains(Self.markerKey) {
+                try await writeScheduleRunMarker(state[Self.markerKey], database: database)
+            }
             var refusals: [String] = []
             var failure: String?
             do {
@@ -71,6 +77,10 @@ enum ScheduleStatefulReplay {
             expected["error"] = (step["error"] is NSNull) || step["error"] == nil ? .null : .string("error")
             var actualFields = try await projection(of: database, today: today)
             actualFields["error"] = .null
+            if after.keys.contains(Self.markerKey) {
+                expected[Self.markerKey] = try OracleValue(json: after[Self.markerKey] ?? NSNull())
+                actualFields[Self.markerKey] = try await readScheduleRunMarker(database)
+            }
             comparisons.append(Comparison(label: label, expected: .object(expected), actual: .object(actualFields)))
             previous = after
         }
@@ -98,6 +108,9 @@ enum ScheduleStatefulReplay {
                 budgetID: budgetID, today: today, postingAllowed: args["syncSuccess"] as? Bool ?? true, now: now
             )
             refusals = result.refusals.map { "\($0.scheduleID) \($0.occurrenceDayID) \($0.refusal)" }
+        case "markScheduleRun":
+            // An oracle input: the sync listener's end-of-run marker, not a production operation.
+            try await writeScheduleRunMarker(today, database: database)
         case "skip":
             let review = try await database.scheduleMutationReview(budgetID: budgetID, scheduleID: required(scheduleID))
             _ = try await database.skipNextDate(review: review, now: now)
@@ -194,6 +207,9 @@ enum ScheduleStatefulReplay {
         defer { try? FileManager.default.removeItem(at: directory) }
         let database = try await makeDatabase(in: directory)
         try await seed(database, setup: setup, before: before, includingSchedules: false)
+        if setup.keys.contains("scheduleRunMarker") {
+            try await writeScheduleRunMarker(setup["scheduleRunMarker"], database: database)
+        }
 
         let ids = try referencedIDs(setup: setup, before: before)
         let schedules = try OracleJSON.objects(setup["schedules"], "schedules")
@@ -232,9 +248,42 @@ enum ScheduleStatefulReplay {
             )]
         }
 
-        let actual = try await creationProjection(of: database)
-        let expected = try expectedCreationProjection(before)
+        var actual = try await creationProjection(of: database)
+        var expected = try expectedCreationProjection(before)
+        if before.keys.contains(Self.markerKey) {
+            expected[Self.markerKey] = try OracleValue(json: before[Self.markerKey] ?? NSNull())
+            actual[Self.markerKey] = try await readScheduleRunMarker(database)
+        }
         return [Comparison(label: "created", expected: .object(expected), actual: .object(actual))]
+    }
+
+    // MARK: Day marker
+
+    /// Actual's `lastScheduleRun` pref; Actualist keeps it in the budget's `metadata.json`.
+    nonisolated private static let markerKey = "lastScheduleRun"
+
+    private static func scheduleRunMarkerURL(_ database: BudgetDatabase) async -> URL {
+        await database.databaseURL.deletingLastPathComponent().appending(path: "metadata.json")
+    }
+
+    /// A string sets the marker; null or a missing value leaves it unset.
+    private static func writeScheduleRunMarker(_ value: Any?, database: BudgetDatabase) async throws {
+        let url = await scheduleRunMarkerURL(database)
+        guard let day = value as? String else {
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+        try JSONSerialization.data(withJSONObject: [markerKey: day]).write(to: url, options: .atomic)
+    }
+
+    private static func readScheduleRunMarker(_ database: BudgetDatabase) async throws -> OracleValue {
+        let url = await scheduleRunMarkerURL(database)
+        guard let data = try? Data(contentsOf: url),
+              let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let day = object[markerKey] as? String else {
+            return .null
+        }
+        return .string(day)
     }
 
     private static func amountDraft(_ schedule: [String: Any]) throws -> ScheduleAmountDraft {

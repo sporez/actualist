@@ -3,13 +3,13 @@
 `generate.mjs` runs Actual's pinned hold-for-next-month handlers against a
 synthetic SQLite budget and records what each step did. It writes
 `hold-contract.json` and `hold-manifest.json` into
-`ActualistTests/Fixtures/ActualCore26_10_0/Holds/`.
+`ActualistTests/Fixtures/ActualCore26_11_0/Holds/`.
 
 `verify.mjs` checks the committed fixture without the oracle: manifest pin,
 generator and helper hashes, source hash list, fixture hash, schema, and the
 16 reviewed case IDs.
 
-Status: the fixture is committed and verified against Actual v26.10.0.
+Status: the fixture is committed and verified against Actual v26.11.0.
 `ActualistTests/HoldOracleReplayTests.swift` replays it through the production
 hold path (see "Swift replay"). `config/parity/domains.json` lists `holds` as
 `covered`, with `HoldOracleReplayTests` as its oracle suite.

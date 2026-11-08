@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "tag": "v26.11.0",
+  "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+  "packageVersion": "26.11.0",
+  "sourceFiles": [
+    {
+      "path": "packages/desktop-client/src/components/modals/BudgetAutomationsModal/migrateTemplatesToAutomations.ts",
+      "sha256": "15e7211e6b3f6b3a06ee85778837aab72989acaf624f7282d2d41f92b0fa2325"
+    },
+    {
+      "path": "packages/desktop-client/src/components/budget/goals/reducer.ts",
+      "sha256": "28a1dd659338b9862a2e73c84a4d721ccf6875e59a147a59eb25b8736b7fdd2e"
+    },
+    {
+      "path": "packages/desktop-client/src/components/budget/goals/validateAutomation.ts",
+      "sha256": "0e64c162cd7bffaf6582c95a030b29ec770a334a41171c90462829eee7bbe99d"
+    },
+    {
+      "path": "packages/desktop-client/src/components/modals/BudgetAutomationsModal/AutomationEditorPane.tsx",
+      "sha256": "779cbdce2bf0e1c49122a3390bd995d0f02f0d251e7d145710a953323bb484c0"
+    },
+    {
+      "path": "packages/loot-core/src/types/models/templates.ts",
+      "sha256": "d2d4635ef0db471d99bbcf23e09780fda4c1e912797665a42ef7563eb25bdab7"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/category-template-context.ts",
+      "sha256": "f29d8cfd8ccde9075dd5429f7ec7e6af63e2f6db3d553a8bbc22777cf3b33966"
+    }
+  ],
+  "generatorSHA256": "4a110ec58c3cddcc8dfe86a70f53f2c0753db052767676759cb99e9d5b428652",
+  "helpers": [
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    }
+  ],
+  "seed": null,
+  "fixtureSHA256": "89097d51e49ab912b3438bfb673136f94f68de0a0d042a5fdc9d64ddad42cad2",
+  "caseCount": 44,
+  "oracleScope": "Pinned unmodified reducer, migration and validation bodies. Synthetic UTC-noon calendar adapters; no schedule hydration or engine oracle execution. Note restoration follows AutomationEditorPane.dispatch. Preview/Apply and currency parity are tested separately through SQLite.",
+  "amountUnits": "JSON display units; previews and Apply integer minor units"
+}

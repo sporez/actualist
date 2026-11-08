@@ -1,13 +1,13 @@
 # CSV export → Actual importer observation harness
 
 This source-only candidate connects Actualist's production Swift CSV encoder to
-the pinned Actual 26.10.0 parser and desktop mapping helpers. It does **not** run
+the pinned Actual 26.11.0 parser and desktop mapping helpers. It does **not** run
 Actual's import/apply workflow and does not claim a lossless split round trip.
 
 ## Inputs and owned outputs
 
 - The read-only Actual checkout is
-  `$ACTUALIST_PARITY_ORACLE_ROOT` (the pinned v26.10.0 oracle), at commit `2bebdbaae0b701120a8cad9d56aafd64fa04c577`.
+  `$ACTUALIST_PARITY_ORACLE_ROOT` (the pinned v26.11.0 oracle), at commit `1766241e3f4b3c578e424c4fa15f1eb83c0da17d`.
 - `source-freeze.sha256` covers the harness scripts/config/profile and README,
   the fixture producer and production encoder, the selected `scripts/test.sh`
   and destination-loader inputs, exact Node 24.21.0, and the pinned
@@ -103,7 +103,7 @@ reconstructed, and JavaScript extreme-number precision is observational.
 Nothing in this harness names a user or machine. The checkout root is derived
 from the script location. Export these before running either entry point:
 
-- `ACTUALIST_PARITY_ORACLE_ROOT`: absolute path of the pinned Actual v26.10.0
+- `ACTUALIST_PARITY_ORACLE_ROOT`: absolute path of the pinned Actual v26.11.0
   checkout.
 - `ACTUALIST_PARITY_NODE`: absolute path of the exact Node 24.21.0 binary.
 - `ACTUALIST_PARITY_PROTECTED_CHECKOUT` (optional): checkout that must stay

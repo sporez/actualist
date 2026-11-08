@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-/// Migration ids Actual 26.10.0 (`2bebdbaa`) ships in
+/// Migration ids Actual 26.11.0 (`1766241e`) ships in
 /// `packages/loot-core/migrations`. Mock migrations under `src/mocks` are not
 /// part of a real budget file and are omitted.
 ///

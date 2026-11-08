@@ -1,7 +1,7 @@
 # Transaction duplicate and merge parity harness
 
 Generates the transaction-command fixture from Actual's own handlers at the
-pinned release (`config/parity/oracle-pin.json`, v26.10.0). This directory holds
+pinned release (`config/parity/oracle-pin.json`, v26.11.0). This directory holds
 only the generator side. `TransactionCommandOracleReplayTests` replays every case
 through the database review, commit and undo path.
 
@@ -15,7 +15,7 @@ through the database review, commit and undo path.
   Pure input, no expectations.
 - `oracle-runner.template`: the vitest test copied into the oracle for one run
   and removed afterwards. It also holds the 39 graph builders.
-- Fixture: `ActualistTests/Fixtures/ActualCore26_10_0/TransactionCommand/`
+- Fixture: `ActualistTests/Fixtures/ActualCore26_11_0/TransactionCommand/`
   (`transaction-command-contract.json`, `transaction-command-manifest.json`).
 
 ```sh

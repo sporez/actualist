@@ -12,10 +12,10 @@ edit that file.
 
 ```sh
 # Regenerate the fixture. Needs a clean oracle checkout of the pinned release.
-ACTUALIST_PARITY_ORACLE_ROOT=<clean-actual-v26.10.0> node scripts/budget-month-parity/generate.mjs
+ACTUALIST_PARITY_ORACLE_ROOT=<clean-actual-v26.11.0> node scripts/budget-month-parity/generate.mjs
 
 # Regenerate into a temp directory and diff against the committed fixture (run twice).
-ACTUALIST_PARITY_ORACLE_ROOT=<clean-actual-v26.10.0> node scripts/budget-month-parity/generate.mjs --check
+ACTUALIST_PARITY_ORACLE_ROOT=<clean-actual-v26.11.0> node scripts/budget-month-parity/generate.mjs --check
 
 # Check the committed fixture without an oracle: pins, hashes, plan identity,
 # step and setup equality, state shape, and the author's expectations.
@@ -28,7 +28,7 @@ package version and the hashes of every source file it reads before it runs.
 It checks the oracle again after the run. A failed expectation writes the
 synthetic records to the system temp directory and writes no fixture.
 
-Outputs in `ActualistTests/Fixtures/ActualCore26_10_0/BudgetMonth/`:
+Outputs in `ActualistTests/Fixtures/ActualCore26_11_0/BudgetMonth/`:
 
 - `budget-month-contract.json`: one record per case, in plan order.
 - `budget-month-manifest.json`: pins, generator and helper hashes, seed, `today`,
@@ -79,7 +79,7 @@ and similar. The fixture is 5.6 MB. Generation takes about 4 seconds, including 
 
 ## Rollover all overspending
 
-Upstream v26.10.0 has no bulk "roll over all overspending" handler. The UI sends
+Upstream v26.11.0 has no bulk "roll over all overspending" handler. The UI sends
 one `budget/set-carryover` per category (`envelope/BalanceMenu.tsx`,
 `desktop-client/src/budget/mutations.ts`). Actualist's
 `allExpenseCategoryCarryoverMessages` (`BudgetDatabase+BudgetWrites.swift`) is

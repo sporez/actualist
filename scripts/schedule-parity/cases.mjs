@@ -262,12 +262,18 @@ function stateCase(id, description, setup, steps, extra = {}) {
       upcomingLength: setup.upcomingLength ?? null,
       schedules: setup.schedules,
       transactions: setup.transactions ?? [],
+      // Present only on cases that record the `lastScheduleRun` pref; its value is set before the
+      // setup schedules are created (null leaves it unset).
+      ...(setup.scheduleRunMarker !== undefined ? { scheduleRunMarker: setup.scheduleRunMarker } : {}),
     },
     steps: steps.map(step => ({ today: TODAY, ...step })),
   };
 }
 
 const advance = (extra = {}) => ({ op: 'advance', syncSuccess: true, ...extra });
+// Sets `lastScheduleRun` to the step's day, as the sync listener does after a run. An oracle
+// input, not a production operation.
+const markScheduleRun = () => ({ op: 'markScheduleRun' });
 
 function namedStateCases() {
   const weekly2 = config('weekly', '2026-09-14', { interval: 2 });
@@ -413,6 +419,24 @@ function namedStateCases() {
     stateCase('create-negative-offset-timezone', 'A schedule created at local noon in a zone behind UTC', {
       schedules: [schedule('s1', '2026-10-11', config('daily', '2026-10-01', { interval: 3 })), schedule('s2', '2026-10-11', config('weekly', '2026-10-11'))],
     }, [advance()]),
+    // The auto-post service runs once a day (the `lastScheduleRun` pref). Creating or editing a
+    // schedule that posts transactions clears it so the schedule can still post today.
+    stateCase('run-marker-create-posting', 'Creating a schedule that posts clears the day\'s auto-post marker', {
+      schedules: [schedule('s1', '2026-10-11', config('weekly', '2026-10-13'), { postsTransaction: true })],
+      scheduleRunMarker: '2026-10-11',
+    }, [markScheduleRun()]),
+    stateCase('run-marker-create-manual', 'Creating a schedule that does not post keeps the day\'s auto-post marker', {
+      schedules: [schedule('s1', '2026-10-11', config('weekly', '2026-10-13'), { postsTransaction: false })],
+      scheduleRunMarker: '2026-10-11',
+    }, [markScheduleRun()]),
+    stateCase('run-marker-update-posting', 'Editing a schedule that posts clears the day\'s auto-post marker', {
+      schedules: [schedule('s1', '2026-10-01', config('weekly', '2026-10-13'), { postsTransaction: true })],
+      scheduleRunMarker: null,
+    }, [markScheduleRun(), { op: 'update', schedule: 's1', amount: -2500 }]),
+    stateCase('run-marker-update-manual', 'Editing a schedule that does not post keeps the day\'s auto-post marker', {
+      schedules: [schedule('s1', '2026-10-01', config('weekly', '2026-10-13'), { postsTransaction: false })],
+      scheduleRunMarker: null,
+    }, [markScheduleRun(), { op: 'update', schedule: 's1', amount: -2500 }]),
   ];
 }
 

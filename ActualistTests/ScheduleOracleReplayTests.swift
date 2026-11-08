@@ -56,10 +56,10 @@ struct ScheduleOracleReplayTests {
             knownPaths: ["name"]
         )
         #expect(split.strict.isEmpty, Comment(rawValue: OracleComparison.report(caseID, split.strict)))
-        if !split.known.isEmpty {
-            withKnownIssue("OP-87: a converted schedule is named with an ISO date and an id prefix, where Actual uses a spelled-out date and a timestamp") {
-                #expect(split.known.isEmpty, Comment(rawValue: OracleComparison.report(caseID, split.known)))
-            }
+        // Every conversion case carries OP-87, so the block runs unconditionally and fails once
+        // the name stops differing.
+        withKnownIssue("OP-87: a converted schedule is named with an ISO date and an id prefix, where Actual uses a spelled-out date and a timestamp") {
+            #expect(split.known.isEmpty, Comment(rawValue: OracleComparison.report(caseID, split.known)))
         }
     }
 }

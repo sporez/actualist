@@ -30,25 +30,25 @@ const expectedSourceHashes = {
   'packages/loot-core/src/server/budget/actions.ts':
     '5fa3915814c773ee998e6836e5fe7c5a562cad643b310a1ac74faad662ec3294',
   'packages/loot-core/src/server/budget/app.ts':
-    '873e61d76d8023410a6a831d1e3e83c0002f9fd987077904afed867b4eb2fc0c',
+    'dad317c2af3723a7ebb10269c67585b9f81d607f1a43593645bd35d3a6c389d8',
   'packages/loot-core/src/server/budget/base.ts':
-    'c70cc2d5386bc4628bae805b3a82f860b22747413c795cea7f6a87b8c930838b',
+    '0e55e0f309adb0cebb015ec92f56d95ebb385ce21093a8f32d3be0adc7e26f6e',
   'packages/loot-core/src/server/budget/envelope.ts':
     'bbd07cf2a56f03b5c14d61a50f0cba764f08370895a4c5c2a9cea825626ccdcd',
   'packages/loot-core/src/server/db/index.ts':
-    '0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71',
+    '4e99b6c8e3b0bcd4c2dfbdd4aa7e93d00875558c1e150eab7d9c703617bafcd7',
   'packages/loot-core/src/server/mutators.ts':
     'f24756558fd2aadc3cbff1fd23514b5908ef6b319c1ad7d8eefeb5ee649f538f',
   'packages/loot-core/src/server/sync/index.ts':
     'f597760aed699ff0f696b2ec433c1d59588e7f2dd53f4aa6518713dfd76c99b8',
   'packages/loot-core/src/platform/server/sqlite/index.ts':
-    '2fecae0cd47dd260be771d3a48b8ef5ec48378418c5f8667b8c14d6c95f9dc92',
+    '5e24adcd3d27baad0753135d4437f17d61336684cf1003120f22169c095f26d0',
   'packages/loot-core/src/platform/server/sqlite/index.electron.ts':
-    '8fee26e68d2a07d028947d7b54380d03ad088f2d8ff3b606dd34798c84031ab7',
+    'a039a84e799f77d98a793b7556c7e5d737eeba71c865c759eaf9fc792fe7ae91',
   'packages/desktop-client/src/components/budget/envelope/budgetsummary/ToBudgetMenu.tsx':
-    '7c17f3efa6129d2619d6bc3d7b3e320798d63fd1dda4d5049ecb6c5cdc02ca07',
+    '01d3b12acf55615c8ce674ddcc3744f76e8b4e64434c4e54d0ebf0f9649a90a2',
   'packages/desktop-client/src/budget/mutations.ts':
-    'e044f65a62975b7cc36c9b2bdd0e3351dd4b07dd3d90548d285769eb759008e2',
+    'd0781dba39ddccd4de2cb5939d0559076741a91f272ad9c9921ca9507f1c01b9',
 };
 
 if (!hasOracleRoot()) {

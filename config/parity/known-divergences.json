@@ -299,7 +299,7 @@
       ],
       "id": "OP-32",
       "opened": "2026-10-11",
-      "summary": "A move or cover writes no 'Reassigned \u2026 from \u2026 on \u2026' month note, where the pinned Actual writes one. Only the note's presence is compared; its date text comes from the fixture's fake clock and is not compared. Cause: no Reassigned writer exists in Actualist/. The move seam is BudgetDatabase+BudgetWrites.swift:210-240 and the cover commands OverspentCoverSelectionWorkflow.swift:58-84.",
+      "summary": "A move or cover writes no 'Reassigned … from … on …' month note, where the pinned Actual writes one. Only the note's presence is compared; its date text comes from the fixture's fake clock and is not compared. Cause: no Reassigned writer exists in Actualist/. The move seam is BudgetDatabase+BudgetWrites.swift:210-240 and the cover commands OverspentCoverSelectionWorkflow.swift:58-84.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: Actualist does not add automatic 'Reassigned' month notes on moves or covers."
@@ -318,21 +318,6 @@
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: Actualist hides Skip Next Date for one-time schedules, so the refusal is unreachable from the UI and the saved data is identical; Actual's menu offers a skip that does nothing."
-    },
-    {
-      "cases": [
-        "ScheduleOracleStatefulReplayTests/replaysScheduleCreation"
-      ],
-      "domain": "schedules",
-      "fixtureCases": [
-        "create-negative-offset-timezone"
-      ],
-      "id": "OP-52",
-      "opened": "2026-10-11",
-      "summary": "A schedule created on a day gets its first next date from that day, where the pinned Actual searches from the day before in a time zone behind UTC (a daily-every-3-days schedule from 2026-10-01 created on 2026-10-11 in America/New_York starts on 2026-10-10 in Actual and 2026-10-13 in Actualist). Cause: Actual's createSchedule calls getNextDate with the default start new Date(currentDay()), which parses the day as UTC midnight; Actualist's ScheduleRuleMutation.initialNextDate (ScheduleRuleMutation.swift:172) starts at the given day. Not the cause of OP-13.",
-      "status": "intended",
-      "decided": "2026-10-11",
-      "reason": "User decision 2026-10-11: keep the local creation day. Actual's UTC parse of the creation day looks like an upstream bug that can start a new schedule a day early west of UTC; both apps read the stored next date afterwards."
     },
     {
       "cases": [
@@ -430,10 +415,10 @@
       ],
       "id": "OP-62",
       "opened": "2026-10-11",
-      "summary": "When a split parent is matched by ID, its children are excluded from fuzzy matching for the whole batch, so a later download with a child's amount is inserted as a new row; the pinned Actual v26.10.0 lets it match the child. Cause: exactMatchedParentIDs and isReserved (BankSyncReconciler.swift:199, :218-221), a port of loot-core 24deae7 (comment at BankSyncReconciler.swift:158-161) that postdates the pin.",
+      "summary": "When a split parent is matched by ID, its children are excluded from fuzzy matching for the whole batch, so a later download with a child's amount is inserted as a new row. The pinned Actual v26.11.0 ported this (upstream 24deae7) only for bank-sync accounts; on a CSV import it still lets the download match the child. Cause: exactMatchedParentIDs and isReserved (BankSyncReconciler.swift:191, :230-231) apply to every import.",
       "status": "intended",
       "decided": "2026-10-11",
-      "reason": "User decision 2026-10-11: keep the port of upstream 24deae7 (reserve children of an ID-matched split parent), which landed after v26.10.0. Recheck at the next oracle pin, where it should match."
+      "reason": "User decision 2026-10-11: keep the port of upstream 24deae7 (reserve children of an ID-matched split parent). At the v26.11.0 pin (2026-11-08) Actual applies it to bank-sync accounts only, so the remaining difference is CSV import."
     },
     {
       "cases": [
@@ -457,19 +442,14 @@
       ],
       "domain": "bank-sync-matching",
       "fixtureCases": [
-        "gen-multi-013",
-        "gen-multi-029",
-        "gen-multi-044",
-        "gen-multi-045",
-        "gen-multi-052",
         "gen-multi-055"
       ],
       "id": "OP-67",
       "opened": "2026-10-11",
-      "summary": "When several stored rows are equally distant from a download and equally eligible, Actualist matches the row stored first, where the pinned Actual matches another of them (its candidate order comes from an unordered query and a comparator that returns -1 for equal distances), so a different row is updated. Cause: fuzzyDataset sorts by distance then stored order (BankSyncReconciler.swift:323).",
+      "summary": "When several stored rows are equally distant from a download and equally eligible, Actualist matches the row stored first, where the pinned Actual matches another of them, so a different row is updated. At v26.11.0 Actual first prefers a row without an imported_id (compareFuzzyMatchCandidates). Cause: fuzzyDataset sorts by distance then stored order (BankSyncReconciler.swift:323).",
       "status": "intended",
       "decided": "2026-10-11",
-      "reason": "User decision 2026-10-11: keep the deterministic tie-break (first stored row); Actual's choice comes from an unordered query."
+      "reason": "User decision 2026-10-11: keep the deterministic tie-break (first stored row); Actual's choice comes from an unordered query. Rechecked at the v26.11.0 pin (2026-11-08): five of the six cases now match; gen-multi-055 still differs."
     },
     {
       "cases": [
@@ -649,7 +629,7 @@
       "opened": "2026-10-25",
       "status": "intended",
       "decided": "2026-10-25",
-      "summary": "Schedule this future transaction names the new schedule \"Auto-created future transaction (2026-10-20) \u00b7 1a2b3c4d\" (ISO date, first 8 characters of the schedule id), where the pinned Actual names it \"Auto-created future transaction (Oct 20, 2026) - 1791734401000\" (monthUtils.format 'MMM dd, yyyy' and Date.now()). Conditions, actions and posting match. Cause: ScheduleTransactionConversionPlanner.plan(from:scheduleID:) in ScheduleTransactionConversionPlan.swift; upstream createSingleTimeScheduleFromTransaction in desktop-client/src/util/schedule-actions.ts.",
+      "summary": "Schedule this future transaction names the new schedule \"Auto-created future transaction (2026-10-20) · 1a2b3c4d\" (ISO date, first 8 characters of the schedule id), where the pinned Actual names it \"Auto-created future transaction (Oct 20, 2026) - 1791734401000\" (monthUtils.format 'MMM dd, yyyy' and Date.now()). Conditions, actions and posting match. Cause: ScheduleTransactionConversionPlanner.plan(from:scheduleID:) in ScheduleTransactionConversionPlan.swift; upstream createSingleTimeScheduleFromTransaction in desktop-client/src/util/schedule-actions.ts.",
       "reason": "User decision 2026-10-25: keep Actualist's name. Nothing in Actual or Actualist reads the auto-created name; it is only the label in the Schedules list, and neither suffix means anything to a person."
     }
   ]

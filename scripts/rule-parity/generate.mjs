@@ -34,9 +34,9 @@ const contractName = 'rules-contract.json';
 const manifestName = 'rules-manifest.json';
 const expectedSourceHashes = {
   'packages/loot-core/src/server/transactions/transaction-rules.ts':
-    'a6f08970af6f8d190c4c3b1a9ef2fad18c9f7e7211758a38d8bf02b9232c06ea',
+    '4a8cb6f400859e2614c3a74c2ccdd18835e0bf31f78b5e253a99567505497988',
   'packages/loot-core/src/server/rules/action.ts':
-    '12cbd130c59634b2f711a7068c05e9de4dcef5dd71efe3601c3d64ad2bb68976',
+    '90c24d57f00d9360cc24b058c33403a7c328f6d8b4f15c22189f82dca197b253',
   'packages/loot-core/src/server/rules/balanceOfFormula.ts':
     '6b29e6ea1c872984ba2bcc024eb9f17deae6d6c101d0ebb5590692623306e073',
   'packages/loot-core/src/server/rules/condition.ts':
@@ -62,9 +62,9 @@ const expectedSourceHashes = {
   'packages/loot-core/src/shared/formulas/customFunctions.ts':
     '7ef1b4bff4d5efae961b96fcdf308f5e7745748339ca9d9a700d05d63bfa8558',
   'packages/loot-core/src/server/schedules/app.ts':
-    '9cc505fba24effd2564871da3db9c781df831a138d04bdfbeaf67f338c2e9dc4',
+    'c7aaddb94d6293016a6dad16952a5b978abc6cb637b62909078ce92e03e04613',
   'packages/loot-core/src/server/db/index.ts':
-    '0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71',
+    '4e99b6c8e3b0bcd4c2dfbdd4aa7e93d00875558c1e150eab7d9c703617bafcd7',
   'packages/loot-core/src/server/formulas/bootstrap.ts':
     'bc7feb5b58602efac7778d286dd5972e6620112cd94ab6f20dbf60115d5daf59',
   'packages/loot-core/src/mocks/setup.ts':

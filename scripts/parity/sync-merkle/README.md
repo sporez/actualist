@@ -2,7 +2,7 @@
 
 Records what upstream Actual's `fullSync` (`_fullSync` in
 `packages/loot-core/src/server/sync/index.ts`) does against a sync server in many
-scenarios, at the pinned release (`config/parity/oracle-pin.json`, v26.10.0).
+scenarios, at the pinned release (`config/parity/oracle-pin.json`, v26.11.0).
 This directory holds only the generator side; the Swift replay is separate.
 
 Upstream sends `getMessagesSince(since)` (every local `messages_crdt` row with
@@ -20,7 +20,7 @@ merkle and throws `SyncError('out-of-sync')`.
   data, no upstream expectations.
 - `oracle-runner.template`: the vitest test copied into the oracle for one run
   and removed afterwards.
-- Fixture: `ActualistTests/Fixtures/ActualCore26_10_0/SyncMerkle/`
+- Fixture: `ActualistTests/Fixtures/ActualCore26_11_0/SyncMerkle/`
   (`sync-merkle-contract.json`, `sync-merkle-manifest.json`).
 
 ```sh

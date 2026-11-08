@@ -1,6 +1,6 @@
 # Reconciliation parity fixtures
 
-`ActualistTests/Fixtures/ActualCore26_10_0/Reconciliation/` holds the outputs of
+`ActualistTests/Fixtures/ActualCore26_11_0/Reconciliation/` holds the outputs of
 Actual's pinned reconciliation code, run under vitest in the oracle checkout.
 `reconciliation-manifest.json` records the pinned release, source and helper
 hashes, the fixture hash, and the case count. `reconciliation-contract.json`

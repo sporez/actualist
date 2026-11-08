@@ -38,7 +38,7 @@ const expectedSourceHashes = {
   'packages/loot-core/src/shared/months.ts':
     '2bec8ac7beca3a9f4bae07d7da1e12ef140c239d481059bf4b9b97617a8fe0a3',
   'packages/loot-core/src/server/schedules/app.ts':
-    '9cc505fba24effd2564871da3db9c781df831a138d04bdfbeaf67f338c2e9dc4',
+    'c7aaddb94d6293016a6dad16952a5b978abc6cb637b62909078ce92e03e04613',
   'packages/loot-core/src/server/rules/rule-utils.ts':
     '975ac1ac4e1ef8a31a0e17bcd8f80b7af8ae4ece2a02583ee25dbab72bf64d6d',
   'packages/loot-core/src/server/rules/condition.ts':
@@ -50,15 +50,15 @@ const expectedSourceHashes = {
   'packages/loot-core/src/mocks/setup.ts':
     '1deb435399c7871a57baea5668474ad2e8290d0925f472a1b971a1832ec18b70',
   'packages/loot-core/src/server/db/index.ts':
-    '0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71',
+    '4e99b6c8e3b0bcd4c2dfbdd4aa7e93d00875558c1e150eab7d9c703617bafcd7',
   'packages/loot-core/src/server/mutators.ts':
     'f24756558fd2aadc3cbff1fd23514b5908ef6b319c1ad7d8eefeb5ee649f538f',
   'packages/loot-core/src/server/accounts/sync.ts':
-    '5561e484d09691308640864ece5e3c3ec07365d68bb0ed4e08f01e18ed364a0f',
+    'e728b198a3abd8654e1bab7be20fc798e410f417729cbf36046dbbc41b430cc5',
   'packages/desktop-client/src/util/schedule-actions.ts':
-    '3911e4b0326b648261d7da92edd6a1e52006db4ae5bf41dbcd64ff09cb571220',
+    '79d402a19c38075a11a98467727820be4ae33b0fe90214adc2cd137cae91abd7',
   'packages/loot-core/vitest.config.ts':
-    '9e003d80211596a03ac02b1d923629d5481faf9e54de02a292893390fca8245f',
+    '849cf638625cadad9b2b4c3b962eb19c58e398c4236198d94cdb1162921a77ed',
 };
 
 if (!hasOracleRoot()) {

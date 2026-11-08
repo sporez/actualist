@@ -3,13 +3,13 @@
 `generate.mjs` runs Actual's pinned goal-template apply and overwrite handlers
 against seeded synthetic SQLite budgets and records what they wrote. It writes
 `template-apply-contract.json` and `template-apply-manifest.json` into
-`ActualistTests/Fixtures/ActualCore26_10_0/TemplateApply/`.
+`ActualistTests/Fixtures/ActualCore26_11_0/TemplateApply/`.
 
 `verify.mjs` checks the committed fixture without the oracle: manifest pin,
 generator, harness and helper hashes, upstream source hash list, fixture hash,
 case IDs and order, and family/funding coverage.
 
-Status: the fixture is committed and verified against Actual v26.10.0. The Swift
+Status: the fixture is committed and verified against Actual v26.11.0. The Swift
 replay runs every case (see "Swift replay"); its confirmed divergences are
 registered as OP-24 and OP-25 and are `intended`. `config/parity/domains.json`
 lists `apply-templates` as `covered`, with `TemplateApplyOracleReplayTests` as

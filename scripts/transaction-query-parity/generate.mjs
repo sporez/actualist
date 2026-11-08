@@ -47,7 +47,7 @@ const expectedSourceHashes = {
   'packages/loot-core/src/server/rules/condition.ts':
     '18eb813e695d4d2312f6417cd134a966f8914d0954176a3329efae01ac55506f',
   'packages/loot-core/src/server/transactions/transaction-rules.ts':
-    'a6f08970af6f8d190c4c3b1a9ef2fad18c9f7e7211758a38d8bf02b9232c06ea',
+    '4a8cb6f400859e2614c3a74c2ccdd18835e0bf31f78b5e253a99567505497988',
   'packages/loot-core/src/server/aql/schema/executors.ts':
     'f8869a70b722beec361f1309e7a92f9b982b480314ae63c3b97ae161be93d375',
   'packages/loot-core/src/server/aql/schema/index.ts':
@@ -59,15 +59,15 @@ const expectedSourceHashes = {
   'packages/loot-core/src/mocks/setup.ts':
     '1deb435399c7871a57baea5668474ad2e8290d0925f472a1b971a1832ec18b70',
   'packages/loot-core/vitest.config.ts':
-    '9e003d80211596a03ac02b1d923629d5481faf9e54de02a292893390fca8245f',
+    '849cf638625cadad9b2b4c3b962eb19c58e398c4236198d94cdb1162921a77ed',
   'packages/desktop-client/src/components/filters/FiltersMenu.tsx':
-    '86751580a3b20231897f02f3475fd6977c7a6bc992dd68d4541780cf5e0997a6',
+    '38e7a434ae7e400f933c4e4296838d6c51498861989e16a9c77e86dc4408ad66',
   'packages/desktop-client/src/components/filters/SavedFilterMenuButton.tsx':
     '4453bea5de864579101213d2c27df3567a52d1b0002c752641a538928390379e',
   'packages/desktop-client/src/queries/index.ts':
     'eff3ee339452006b13a4335848b7db0dc3364f5ad54776d8477340afa1b3c922',
   'packages/desktop-client/src/components/accounts/Account.tsx':
-    '43e3f7311e7cc34e3c07c685e2bcbb8d090df4f269b3b3c1025e75007b81f970',
+    'accd98b64c39f9cb3867a0bef8d4cfe21b5c39a88f89e880048f31de96a50bcc',
 };
 
 if (!hasOracleRoot()) {

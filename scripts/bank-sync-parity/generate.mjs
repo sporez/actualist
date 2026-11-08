@@ -34,7 +34,7 @@ const contractName = 'bank-sync-contract.json';
 const manifestName = 'bank-sync-manifest.json';
 const expectedSourceHashes = {
   'packages/loot-core/src/server/accounts/sync.ts':
-    '5561e484d09691308640864ece5e3c3ec07365d68bb0ed4e08f01e18ed364a0f',
+    'e728b198a3abd8654e1bab7be20fc798e410f417729cbf36046dbbc41b430cc5',
   'packages/loot-core/src/server/accounts/title/index.ts':
     '93c4b8ccfa180d9169229188b584f56928f828f40be166d6ff3a94cf87d0a568',
   'packages/loot-core/src/server/accounts/title/lower-case.ts':
@@ -48,25 +48,25 @@ const expectedSourceHashes = {
   'packages/loot-core/src/server/transactions/transfer.ts':
     '309ebae609b20dee6053bc0a84e80e310a0d53fd4aed7c284d7e4379c9305701',
   'packages/loot-core/src/server/transactions/transaction-rules.ts':
-    'a6f08970af6f8d190c4c3b1a9ef2fad18c9f7e7211758a38d8bf02b9232c06ea',
+    '4a8cb6f400859e2614c3a74c2ccdd18835e0bf31f78b5e253a99567505497988',
   'packages/loot-core/src/server/util/custom-sync-mapping.ts':
     'a0b3da04d1c732c3299dbb386c90e73aa71a02dc6b5984775eded82fa6e3c235',
   'packages/loot-core/src/server/db/index.ts':
-    '0b3d3ee68b571523cc8cd3a7044ade50e8afea5941bb54879f45643f92241a71',
+    '4e99b6c8e3b0bcd4c2dfbdd4aa7e93d00875558c1e150eab7d9c703617bafcd7',
   'packages/loot-core/src/shared/transactions.ts':
     '99563d32b2fcefa4a33e512fbdb4c3d9c5ba804e9fc9acd50054f2b58addd5c9',
   'packages/loot-core/src/shared/util.ts':
-    'f2ba71c3ba432082239dca0a48a79d8b1328ea4d258dfd4aeebb4ac43665c07d',
+    '976e0d398a1074dfc7f4909e17be73754396ab189f961c7f1341eda19620bdbe',
   'packages/loot-core/src/shared/months.ts':
     '2bec8ac7beca3a9f4bae07d7da1e12ef140c239d481059bf4b9b97617a8fe0a3',
   'packages/loot-core/src/server/schedules/app.ts':
-    '9cc505fba24effd2564871da3db9c781df831a138d04bdfbeaf67f338c2e9dc4',
+    'c7aaddb94d6293016a6dad16952a5b978abc6cb637b62909078ce92e03e04613',
   'packages/loot-core/src/server/tests/mockSyncServer.ts':
     '4f51d99d9924d816a47b2bb1be9616ca41aa6ed694ea1928a90c45de08fae835',
   'packages/loot-core/src/mocks/setup.ts':
     '1deb435399c7871a57baea5668474ad2e8290d0925f472a1b971a1832ec18b70',
   'packages/loot-core/src/server/rules/action.ts':
-    '12cbd130c59634b2f711a7068c05e9de4dcef5dd71efe3601c3d64ad2bb68976',
+    '90c24d57f00d9360cc24b058c33403a7c328f6d8b4f15c22189f82dca197b253',
   'packages/loot-core/src/server/rules/rule.ts':
     '83aed782d93ce41dd406373668b182da05f4896750a0a12341aa8dcc647f44c7',
   'packages/loot-core/src/server/rules/index.ts':

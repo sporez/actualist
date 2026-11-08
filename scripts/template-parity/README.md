@@ -1,6 +1,6 @@
 # Template editor parity fixtures
 
-`ActualistTests/Fixtures/ActualCore26_10_0/Templates/` holds the template editor
+`ActualistTests/Fixtures/ActualCore26_11_0/Templates/` holds the template editor
 oracle: the pinned Actual reducer, migration, and validation bodies run on
 synthetic templates. `template-editor-manifest.json` records the pinned release,
 source and helper hashes, the fixture hash, and the case count.

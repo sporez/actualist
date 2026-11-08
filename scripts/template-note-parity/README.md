@@ -3,7 +3,7 @@
 `generate.mjs` runs Actual's pinned `storeNoteTemplates` on a real test database
 for each note below and records what it stores. It writes
 `template-note-contract.json` and `template-note-manifest.json` into
-`ActualistTests/Fixtures/ActualCore26_10_0/TemplateNotes/`.
+`ActualistTests/Fixtures/ActualCore26_11_0/TemplateNotes/`.
 
 `TemplateNoteOracleReplayTests` replays every case through
 `BudgetTemplateNoteParser`, the guard that keeps a stale note-managed definition

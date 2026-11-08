@@ -50,9 +50,11 @@ struct BankSyncOracleReplayTests {
 
         // Mismatches a registered divergence accounts for are split off by exact path; every other
         // mismatch stays strict, so a case with a divergence still compares all its other fields.
+        // A listed case always runs its known-issue block, so a divergence that stops occurring
+        // fails until its table entry, marker and registry entry are removed together.
         var remaining = comparison.mismatches
-        func take(_ table: [String: Set<String>]) -> [ReplayMismatch] {
-            guard let paths = table[caseID] else { return [] }
+        func take(_ table: [String: Set<String>]) -> [ReplayMismatch]? {
+            guard let paths = table[caseID] else { return nil }
             let split = KnownDivergenceSplit(remaining, knownPaths: paths)
             remaining = split.strict
             return split.known
@@ -68,42 +70,42 @@ struct BankSyncOracleReplayTests {
         let op68 = take(Self.op68Paths)
 
         #expect(remaining.isEmpty, Comment(rawValue: OracleComparison.report(caseID, remaining)))
-        if !op58.isEmpty {
+        if let op58 {
             withKnownIssue("OP-58: a matched off-budget row never takes a category, where the oracle fills it") {
                 #expect(op58.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op58)))
             }
         }
-        if !op59.isEmpty {
+        if let op59 {
             withKnownIssue("OP-59: the opening balance is derived from planned inserts, where the oracle subtracts the raw download") {
                 #expect(op59.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op59)))
             }
         }
-        if !op60.isEmpty {
+        if let op60 {
             withKnownIssue("OP-60: the opening balance takes the earliest download day, where the oracle takes the last row's date") {
                 #expect(op60.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op60)))
             }
         }
-        if !op61.isEmpty {
+        if let op61 {
             withKnownIssue("OP-61: a deleted row's ID is skipped, where the oracle matches and rewrites the deleted row") {
                 #expect(op61.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op61)))
             }
         }
-        if !op62.isEmpty {
+        if let op62 {
             withKnownIssue("OP-62: children of an ID-matched split parent are reserved, where the pinned oracle lets a download match one") {
                 #expect(op62.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op62)))
             }
         }
-        if !op66.isEmpty {
+        if let op66 {
             withKnownIssue("OP-66: a padded provider payee name is created trimmed, where the oracle keeps the spaces") {
                 #expect(op66.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op66)))
             }
         }
-        if !op67.isEmpty {
+        if let op67 {
             withKnownIssue("OP-67: an equal-distance tie picks the first stored row, where the oracle picks another") {
                 #expect(op67.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op67)))
             }
         }
-        if !op68.isEmpty {
+        if let op68 {
             withKnownIssue("OP-68: a duplicated provider ID matches a different row than the oracle's") {
                 #expect(op68.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op68)))
             }
@@ -149,11 +151,6 @@ struct BankSyncOracleReplayTests {
     ]
 
     private static let op67Paths: [String: Set<String>] = [
-        "gen-multi-013": ["transactions.ex-3.imported_id", "transactions.ex-3.imported_payee", "transactions.ex-4.imported_id", "transactions.ex-4.imported_payee"],
-        "gen-multi-029": ["result.updated[0]", "transactions.ex-1.imported_payee", "transactions.ex-1.payee", "transactions.ex-3.imported_payee", "transactions.ex-3.payee"],
-        "gen-multi-044": ["result.updated[1]", "transactions.ex-2.imported_payee", "transactions.ex-3.imported_id", "transactions.ex-3.imported_payee", "transactions.ex-3.payee"],
-        "gen-multi-045": ["result.ignored", "result.updated", "transactions.ex-4.imported_id", "transactions.ex-4.imported_payee", "transactions.ex-4.payee"],
-        "gen-multi-052": ["result.updated[0]", "transactions.ex-1.imported_id", "transactions.ex-1.imported_payee", "transactions.ex-1.payee", "transactions.ex-2.imported_id", "transactions.ex-2.imported_payee", "transactions.ex-2.payee"],
         "gen-multi-055": ["result.ignored", "result.updated", "transactions.ex-4.imported_payee"],
     ]
 

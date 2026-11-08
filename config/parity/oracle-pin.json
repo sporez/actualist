@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "repository": "https://github.com/actualbudget/actual",
-  "tag": "v26.10.0",
-  "commit": "2bebdbaae0b701120a8cad9d56aafd64fa04c577",
-  "packageVersion": "26.10.0",
-  "fixtureDirectory": "ActualistTests/Fixtures/ActualCore26_10_0"
+  "tag": "v26.11.0",
+  "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+  "packageVersion": "26.11.0",
+  "fixtureDirectory": "ActualistTests/Fixtures/ActualCore26_11_0"
 }

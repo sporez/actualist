@@ -1,7 +1,7 @@
 # Bank Sync / import matching parity harness
 
 Generates the BankSync fixture from Actual's own reconcile path at the pinned
-release (`config/parity/oracle-pin.json`, v26.10.0). This directory holds only the generator side; the Swift replay
+release (`config/parity/oracle-pin.json`, v26.11.0). This directory holds only the generator side; the Swift replay
 is separate.
 
 - `generate.mjs`: runs the plan inside the oracle checkout under vitest and
@@ -12,7 +12,7 @@ is separate.
 - `cases.mjs`: the plan (named and seeded cases). Pure data, no expectations.
 - `oracle-runner.template`: the vitest test copied into the oracle for one run
   and removed afterwards.
-- Fixture: `ActualistTests/Fixtures/ActualCore26_10_0/BankSync/`
+- Fixture: `ActualistTests/Fixtures/ActualCore26_11_0/BankSync/`
   (`bank-sync-contract.json`, `bank-sync-manifest.json`).
 
 ```sh

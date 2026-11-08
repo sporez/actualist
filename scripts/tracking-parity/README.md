@@ -1,6 +1,6 @@
 # Tracking fixtures
 
-`ActualistTests/Fixtures/ActualCore26_10_0/Tracking/contract.json` holds
+`ActualistTests/Fixtures/ActualCore26_11_0/Tracking/contract.json` holds
 upstream tracking-budget cell results, generated from the Actual release pinned
 in `config/parity/oracle-pin.json`. `tracking-manifest.json` records the pin,
 source and helper hashes, and the case count.

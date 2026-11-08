@@ -21,6 +21,7 @@ import * as db from '#server/db';
 import { loadMappings } from '#server/db/mappings';
 import { handlers } from '#server/main';
 import { runHandler } from '#server/mutators';
+import * as prefs from '#server/prefs';
 import { Condition } from '#server/rules';
 import {
   advanceSchedulesService,
@@ -222,7 +223,15 @@ async function snapshot(planCase, scheduleIDs) {
     schedule: entry.schedule,
     forceUpcoming: entry.forceUpcoming,
   }));
-  return { schedules, nextDates, paths, rules, transactions, effective, preview };
+  const marker = observesScheduleRunMarker(planCase)
+    ? { lastScheduleRun: prefs.getPrefs()?.lastScheduleRun ?? null }
+    : {};
+  return { schedules, nextDates, paths, rules, transactions, effective, preview, ...marker };
+}
+
+// Cases with `setup.scheduleRunMarker` load in-memory prefs and record `lastScheduleRun`.
+function observesScheduleRunMarker(planCase) {
+  return planCase.setup && Object.prototype.hasOwnProperty.call(planCase.setup, 'scheduleRunMarker');
 }
 
 async function runStep(step, planCase, ids) {
@@ -234,6 +243,9 @@ async function runStep(step, planCase, ids) {
     switch (step.op) {
       case 'advance':
         await advanceSchedulesService(step.syncSuccess);
+        break;
+      case 'markScheduleRun':
+        await prefs.savePrefs({ lastScheduleRun: step.today });
         break;
       case 'skip':
         returned = (await skipNextDate({ id: scheduleID })) ?? null;
@@ -305,6 +317,12 @@ async function statefulRecord(planCase) {
     for (const payee of planCase.setup.payees) {
       ids.payees[payee.key] = await db.insertPayee({ name: payee.name });
     }
+    if (observesScheduleRunMarker(planCase)) {
+      await prefs.loadPrefs();
+      if (planCase.setup.scheduleRunMarker != null) {
+        await prefs.savePrefs({ lastScheduleRun: planCase.setup.scheduleRunMarker });
+      }
+    }
     if (planCase.setup.upcomingLength != null) {
       db.runQuery('INSERT OR REPLACE INTO preferences (id, value) VALUES (?, ?)', [
         'upcomingScheduledTransactionLength',
@@ -341,6 +359,7 @@ async function statefulRecord(planCase) {
     for (const step of planCase.steps) steps.push(await runStep(step, planCase, ids));
     return { before, steps };
   } finally {
+    prefs.unloadPrefs();
     await schedulesApp.stopServices();
   }
 }
