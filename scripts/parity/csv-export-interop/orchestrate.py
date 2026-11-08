@@ -28,7 +28,8 @@ HARNESS = ROOT / "scripts/parity/csv-export-interop"
 # Machine-local inputs come from the environment; nothing here names a user or host.
 PINNED = _required_path("ACTUALIST_PARITY_ORACLE_ROOT")
 NODE = _required_path("ACTUALIST_PARITY_NODE")
-PROTECTED_CHECKOUT = Path(os.environ.get("ACTUALIST_PARITY_PROTECTED_CHECKOUT") or PINNED.parents[2])
+# The oracle checkout itself; it lives outside this repository (`../actual-oracle/<tag>`).
+PROTECTED_CHECKOUT = Path(os.environ.get("ACTUALIST_PARITY_PROTECTED_CHECKOUT") or PINNED)
 YARN_CACHE = Path.home() / ".yarn/berry/cache"
 SANDBOX_PARAMS = ["-D", f"PROTECTED_CHECKOUT={PROTECTED_CHECKOUT}", "-D", f"YARN_CACHE={YARN_CACHE}"]
 ORACLE_PIN_HELPER = ROOT / "scripts/parity/lib/oracle-pin.mjs"

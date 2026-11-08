@@ -26,8 +26,8 @@ Actual's import/apply workflow and does not claim a lossless split round trip.
 The source freeze verifies the pinned sources; it is not a filesystem security
 boundary. The copy and Node commands run with `readonly-inputs.sb`, which denies
 all outbound/inbound networking and all writes under both
-the checkout that contains the oracle (`ACTUALIST_PARITY_PROTECTED_CHECKOUT`,
-default: three levels above the oracle root) and `~/.yarn/berry/cache`, passed
+the oracle checkout (`ACTUALIST_PARITY_PROTECTED_CHECKOUT`, default: the
+oracle root itself) and `~/.yarn/berry/cache`, passed
 to the profile as `sandbox-exec -D` parameters. The profile does
 not impose a general read allowlist or deny normal writes outside those protected
 trees. Node's home, cache and temporary paths are redirected into the owned
@@ -107,7 +107,7 @@ from the script location. Export these before running either entry point:
   checkout.
 - `ACTUALIST_PARITY_NODE`: absolute path of the exact Node 24.21.0 binary.
 - `ACTUALIST_PARITY_PROTECTED_CHECKOUT` (optional): checkout that must stay
-  write-denied; defaults to `<oracle root>/../../..`.
+  write-denied; defaults to the oracle root.
 
 `source-freeze.sha256` names the oracle and Node inputs as `@ORACLE_ROOT@` and
 `@NODE@`; `orchestrate.py` renders them from the variables above before running
