@@ -170,6 +170,142 @@ test(`step ${step}`, async () => {
       expect(r.swiftOutcome).toBe('ok');
       expect(r.actualPayees).toBe(r.expected);
     }
+  } else if (step === 'v2611Seed') {
+    // LiveLabActual2611Tests: Actual seeds the main budget and records what its
+    // own v26.11.0 code decides, for Actualist to match.
+    const { fileID } = readJSON('v2611.json');
+    fs.rmSync(path.join(handoff, 'node-v2611'), { recursive: true, force: true });
+    await withClient('v2611', { online: true }, async dataDir => {
+      await openRemote(fileID, dataDir);
+      const checkingID = await api.createAccount({ name: 'Interop Checking' }, 0);
+      await api.createAccount({ name: 'Interop Savings' }, 12345);
+      const tiesID = await api.createAccount({ name: 'Interop Ties' }, 0);
+      const storeA = await api.createPayee({ name: 'Interop Store A' });
+
+      // Formulas read amounts: parent -100.00 * 0.5, and 123.45 * -0.1 = -12.345, which
+      // Math.round takes to -1234 (ties toward +infinity). The remainder takes the rest.
+      await api.createRule({
+        stage: null,
+        conditionsOp: 'and',
+        conditions: [{ op: 'contains', field: 'notes', value: 'Formula Check', type: 'string' }],
+        actions: [
+          { op: 'set-split-amount', value: 0, options: { splitIndex: 1, method: 'formula', formula: '=parent_amount * 0.5' } },
+          { op: 'set-split-amount', value: 0, options: { splitIndex: 2, method: 'formula', formula: '=BALANCE_OF("Interop Savings") * -0.1' } },
+          { op: 'set-split-amount', value: 0, options: { splitIndex: 3, method: 'remainder' } },
+        ],
+      });
+      const ruled = await api.internal.send('rules-run', {
+        transaction: { account: checkingID, date: today, amount: -10000, notes: 'Formula Check' },
+      });
+      const formulaSplits = (ruled.subtransactions ?? []).map(sub => sub.amount);
+
+      // Equal-distance ties, one pair per tie key: both plain (latest date wins),
+      // one with its own imported_id (the plain one wins, though it is older), and
+      // the same date (the view's sort_order and id decide).
+      const day = offset => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
+      const tieDay = day(-10);
+      await api.addTransactions(tiesID, [
+        { date: day(-13), amount: -2500, notes: 'tie-a-early' },
+        { date: day(-7), amount: -2500, notes: 'tie-a-late' },
+        { date: day(-8), amount: -3500, imported_id: 'interop-old-1', notes: 'tie-b-imported' },
+        { date: day(-12), amount: -3500, notes: 'tie-b-plain' },
+        { date: tieDay, amount: -4500, notes: 'tie-c-first' },
+        { date: tieDay, amount: -4500, notes: 'tie-c-second' },
+      ]);
+      const preview = await api.importTransactions(
+        tiesID,
+        [-2500, -3500, -4500].map(amount => ({ date: tieDay, amount, payee_name: 'Interop Import' })),
+        { defaultCleared: true, dryRun: true },
+      );
+      const tieMatches = {};
+      for (const entry of preview.updatedPreview ?? []) {
+        tieMatches[String(entry.transaction.amount)] = entry.existing.id;
+      }
+
+      // A future split: one split with a payee, one without.
+      await api.addTransactions(checkingID, [{
+        date: day(5),
+        amount: -5000,
+        notes: 'Interop Future Split',
+        subtransactions: [
+          { amount: -3000, payee: storeA, notes: 'split one' },
+          { amount: -2000, notes: 'split two' },
+        ],
+      }]);
+      const parent = await api.internal.db.first(
+        "SELECT id FROM transactions WHERE notes = 'Interop Future Split' AND isParent = 1 AND tombstone = 0",
+      );
+      await api.sync();
+      writeJSON('v2611-seed.json', {
+        checkingID, tiesID, storeA, tieDay, formulaSplits, tieMatches, splitParentID: parent.id,
+      });
+      console.log(JSON.stringify({ formulaSplits, tieMatches }));
+    });
+  } else if (step === 'v2611Check') {
+    // Actual reads what Actualist wrote: the converted split schedule (and posts
+    // it), the same-day auto-posted row, and the clock-drift budgets. Then every
+    // v2611 budget is deleted.
+    const { fileID } = readJSON('v2611.json');
+    const seed = readJSON('v2611-seed.json');
+    const swift = readJSON('v2611-actualist.json');
+    const drift = readJSON('v2611-drift.json');
+    const result = {};
+    fs.rmSync(path.join(handoff, 'node-v2611-check'), { recursive: true, force: true });
+    await withClient('v2611-check', { online: true }, async dataDir => {
+      await openRemote(fileID, dataDir);
+      await api.sync();
+      const rule = (await api.getRules()).find(r =>
+        r.actions.some(a => a.op === 'link-schedule' && a.value === swift.convertedScheduleID));
+      result.splitPayeeActions = (rule?.actions ?? [])
+        .filter(a => a.op === 'set' && a.field === 'payee' && (a.options?.splitIndex ?? 0) > 0)
+        .map(a => [a.options.splitIndex, a.value ?? null]);
+      await api.internal.send('schedule/post-transaction', { id: swift.convertedScheduleID });
+      const postedParent = await api.internal.db.first(
+        'SELECT id FROM transactions WHERE schedule = ? AND isParent = 1 AND tombstone = 0',
+        [swift.convertedScheduleID],
+      );
+      const children = postedParent
+        ? await api.internal.db.all(
+          'SELECT amount, description FROM transactions WHERE parent_id = ? AND tombstone = 0 ORDER BY sort_order DESC',
+          [postedParent.id],
+        )
+        : [];
+      result.postedSplits = children.map(c => [c.amount, c.description ?? null]);
+      const sameDay = await api.internal.db.all(
+        'SELECT date, amount FROM transactions WHERE schedule = ? AND tombstone = 0',
+        [swift.sameDayScheduleID],
+      );
+      result.sameDayRows = sameDay.map(r => [r.date, r.amount]);
+    });
+    for (const [label, id] of [['far', drift.farFileID], ['near', drift.nearFileID]]) {
+      fs.rmSync(path.join(handoff, `node-v2611-${label}`), { recursive: true, force: true });
+      result[`${label}Payees`] = await withClient(`v2611-${label}`, { online: true }, async dataDir => {
+        await openRemote(id, dataDir);
+        await api.sync();
+        return (await api.getPayees()).map(p => p.name).filter(n => n?.startsWith('Drift '));
+      });
+    }
+    const login = await fetch(`${url}/account/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const token = (await login.json())?.data?.token;
+    if (!token) throw new Error(`login failed (HTTP ${login.status})`);
+    for (const id of [fileID, drift.farFileID, drift.nearFileID]) {
+      await fetch(`${url}/sync/delete-user-file`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-actual-token': token },
+        body: JSON.stringify({ fileId: id }),
+      });
+    }
+    writeJSON('v2611-result.json', result);
+    console.log(JSON.stringify(result));
+    expect(result.splitPayeeActions).toEqual([[1, seed.storeA], [2, null]]);
+    expect(result.postedSplits).toEqual([[-3000, seed.storeA], [-2000, null]]);
+    expect(result.sameDayRows).toEqual([[Number(swift.today.replaceAll('-', '')), -1234]]);
+    expect(result.farPayees).toEqual([]);
+    expect(result.nearPayees).toEqual(['Drift Near']);
   } else {
     throw new Error(`unknown LAB_STEP ${step}`);
   }

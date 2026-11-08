@@ -61,3 +61,32 @@ Delete the `Interop Check` files afterwards (`/sync/delete-user-file`).
    File IDs and expected counts go to `sync-batch.json`.
 2. `run.sh syncBatchCheck`: Actual downloads each budget, syncs, and must see
    every payee; then it deletes the budgets (`sync-batch-result.json`).
+
+## Check 4: Actual v26.11.0 parity fixes
+
+Swift `LiveLabActual2611Tests` with `TEST_RUNNER_ACTUAL_LAB_V2611=1` (plus the
+three `TEST_RUNNER_ACTUAL_LAB_*` names), interleaved with two Node steps:
+
+1. Swift `v2611Prepare()`: a new `Interop Check v2611 main` budget through the
+   production flow (`v2611.json`).
+2. `run.sh v2611Seed`: Actual adds accounts, a split-formula rule
+   (`=parent_amount * 0.5`, a `BALANCE_OF` split, a remainder), three
+   equal-distance import ties (both plain; one with its own imported ID; the
+   same date), and a future split transaction with one split payee. It records
+   its own `rules-run` split amounts and dry-run import matches
+   (`v2611-seed.json`).
+3. Swift `v2611Actualist()`: the production store previews the same rule and
+   prepares the same import as a CSV and must match Actual; converts the split
+   transaction to a schedule; and, after today's automatic-posting run, creates
+   a posting schedule due today, which must post on the next sync
+   (`v2611-actualist.json`).
+4. Swift `v2611ClockDrift()`: on two more budgets, a change committed with a
+   device clock ten minutes fast must be refused by the server (`clock-drift`,
+   shown as `LocalFirstError.clockDrift`, still queued) and one four minutes
+   fast must sync; an unparsable timestamp sent raw must come back as
+   `invalid-timestamp` (`v2611-drift.json`). The server must run a build with
+   upstream #8905 (after v26.11.0; the lab's nightly image).
+5. `run.sh v2611Check`: Actual reads the converted schedule's split payee
+   actions and posts it, sees the same-day row, finds no refused change on the
+   server and the four-minute one present, then deletes the three budgets
+   (`v2611-result.json`).
