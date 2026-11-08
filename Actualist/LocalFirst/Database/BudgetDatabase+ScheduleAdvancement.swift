@@ -400,6 +400,21 @@ extension BudgetDatabase {
     }
 
     private func writeScheduleAdvancementDayMarker(_ dayID: String) throws {
+        try patchScheduleAdvancementMetadata { $0[Self.dayMarkerKey] = dayID }
+    }
+
+    /// Clears the day marker so the next sync runs automatic posting again today,
+    /// as Actual's `allowAutoPostingToRunAgainToday` does after a schedule that
+    /// posts transactions is created or edited. Best effort and after the
+    /// schedule commit: a marker that cannot be cleared only defers posting to
+    /// tomorrow, which is the behavior before this change.
+    func allowScheduleAutoPostingAgainToday() {
+        guard scheduleAdvancementDayMarker() != nil else { return }
+        try? patchScheduleAdvancementMetadata { $0[Self.dayMarkerKey] = nil }
+    }
+
+    /// Rewrites `metadata.json` with `change` applied, keeping unknown keys.
+    private func patchScheduleAdvancementMetadata(_ change: (inout [String: Any]) -> Void) throws {
         let url = scheduleAdvancementMetadataURL
         var object: [String: Any]
         if FileManager.default.fileExists(atPath: url.path) {
@@ -411,7 +426,7 @@ extension BudgetDatabase {
         } else {
             object = [:]
         }
-        object[Self.dayMarkerKey] = dayID
+        change(&object)
         let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: url, options: .atomic)
         var protected = url

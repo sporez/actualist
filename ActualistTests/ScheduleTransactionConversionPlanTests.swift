@@ -51,13 +51,16 @@ struct ScheduleTransactionConversionPlanTests {
         #expect(plan.actions.dropFirst().compactMap(\.objectValue).map { $0["field"] } == [.string("category")])
     }
 
+    /// Actual v26.11.0 `schedule-actions.ts`: each split gets `set payee` (null when it has none), then its
+    /// amount, category and notes, all at the split's one-based index. The payee is written under Actual's
+    /// stored field name, `description`.
     @Test func splitConversionUsesParentZeroAndOneBasedChildActionIndices() throws {
         let child = ActualTransaction(
             id: "child",
             account: "checking",
             date: "2026-10-15",
             amount: -400,
-            payee: nil,
+            payee: "store",
             payeeName: nil,
             importedPayee: nil,
             category: "groceries",
@@ -83,12 +86,18 @@ struct ScheduleTransactionConversionPlanTests {
 
         let plan = ScheduleTransactionConversionPlanner.plan(from: parent, scheduleID: "schedule-1")
         let actions = plan.actions.dropFirst().compactMap(\.objectValue)
-        #expect(actions.count == 4)
+        try #require(actions.count == 5)
+        #expect(actions[0]["field"] == .string("notes"))
         #expect(actions[0]["options"]?.objectValue?["splitIndex"] == .number(0))
-        #expect(actions[1]["op"] == .string("set-split-amount"))
-        #expect(actions[1]["options"]?.objectValue?["splitIndex"] == .number(1))
-        #expect(actions[2]["options"]?.objectValue?["splitIndex"] == .number(1))
-        #expect(actions[3]["options"]?.objectValue?["splitIndex"] == .number(1))
+        #expect(actions[1]["op"] == .string("set"))
+        #expect(actions[1]["field"] == .string("description"))
+        #expect(actions[1]["value"] == .string("store"))
+        #expect(actions[2]["op"] == .string("set-split-amount"))
+        #expect(actions[3]["field"] == .string("category"))
+        #expect(actions[4]["field"] == .string("notes"))
+        for action in actions.dropFirst() {
+            #expect(action["options"]?.objectValue?["splitIndex"] == .number(1))
+        }
     }
 
     @Test func splitNullAmountUsesActualZeroForParentConditionAndChildAction() throws {
@@ -107,7 +116,10 @@ struct ScheduleTransactionConversionPlanTests {
         let amount = try #require(plan.conditions.compactMap(\.objectValue)
             .first { $0["field"] == .string("amount") })
         #expect(amount["value"] == .number(0))
-        #expect(plan.actions.dropFirst().compactMap(\.objectValue).first?["value"] == .number(0))
+        let childActions = plan.actions.dropFirst().compactMap(\.objectValue)
+        #expect(childActions.first?["field"] == .string("description"))
+        #expect(childActions.first?["value"] == .null)
+        #expect(childActions.first { $0["op"] == .string("set-split-amount") }?["value"] == .number(0))
     }
 }
 

@@ -45,6 +45,13 @@ enum ScheduleTransactionConversionPlanner {
             }
             for (index, split) in transaction.subtransactions.enumerated() {
                 let splitIndex = index + 1
+                // Actual v26.11.0 sets every split's payee, null when it has none. The web app sends
+                // `payee`; the server stores it as `description`, and this writes the stored name.
+                actions.append(setAction(
+                    field: "description",
+                    value: nonempty(split.payee).map(RuleJSONValue.string) ?? .null,
+                    splitIndex: splitIndex
+                ))
                 actions.append(.object([
                     "op": .string("set-split-amount"),
                     "value": .number(Double(split.amount ?? 0)),

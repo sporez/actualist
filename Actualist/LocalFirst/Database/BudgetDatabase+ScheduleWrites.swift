@@ -12,6 +12,9 @@ private enum ScheduleWriteCommand: Sendable {
 private struct ScheduleWriteDecision: Sendable {
     let messages: [ActualSyncDecodedMessage]
     let result: ScheduleMutationResult
+    /// Actual v26.11.0 `allowAutoPostingToRunAgainToday`: creating or editing a schedule that posts
+    /// transactions clears the day's auto-post marker, so a schedule due today still posts today.
+    var allowsAutoPostingAgainToday = false
 }
 
 extension BudgetDatabase {
@@ -50,12 +53,15 @@ extension BudgetDatabase {
             return LocalCommitPlan(
                 drafts: decision.messages,
                 action: nil,
-                outcome: decision.result
+                outcome: decision
             )
         }
+        if committed.outcome.allowsAutoPostingAgainToday {
+            allowScheduleAutoPostingAgainToday()
+        }
         return ScheduleMutationResult(
-            scheduleID: committed.outcome.scheduleID,
-            kind: committed.outcome.kind,
+            scheduleID: committed.outcome.result.scheduleID,
+            kind: committed.outcome.result.kind,
             appliedMessageCount: committed.appliedCount
         )
     }
@@ -135,7 +141,8 @@ extension BudgetDatabase {
         return ScheduleWriteDecision(
             messages: messages,
             result: ScheduleMutationResult(scheduleID: command.identity.scheduleID, kind: .created,
-                                           appliedMessageCount: 0)
+                                           appliedMessageCount: 0),
+            allowsAutoPostingAgainToday: command.postsTransaction
         )
     }
 
@@ -279,7 +286,9 @@ extension BudgetDatabase {
         return ScheduleWriteDecision(
             messages: messages,
             result: ScheduleMutationResult(scheduleID: current.review.scheduleID, kind: .updated,
-                                           appliedMessageCount: 0)
+                                           appliedMessageCount: 0),
+            // An unchanged posting flag was normalized to nil, so this is the flag after the edit.
+            allowsAutoPostingAgainToday: fields.postsTransaction ?? current.review.schedule.postsTransaction
         )
     }
 

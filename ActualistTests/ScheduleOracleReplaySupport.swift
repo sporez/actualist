@@ -162,9 +162,9 @@ enum ScheduleStatusReplay {
 /// expected values: `schedule/create` carries the conditions, name and `posts_transaction`; `rule-update` carries
 /// the server's `link-schedule` entries followed by the copied fields (no `rule-update` when nothing is copied). The
 /// link is compared by `op` and `value`; its `field` and `type` are added by the server's `createSchedule`, which
-/// Actualist's creation path owns, not the planner. The payee condition's field comes from the stored rule: Actual's
-/// server saves `payee` as `description`, the planner writes that stored name, and Actual's unused-payee query
-/// matches only it.
+/// Actualist's creation path owns, not the planner. The payee condition's and payee actions' field comes from the
+/// stored rule: Actual's server saves `payee` as `description`, the planner writes that stored name, and Actual's
+/// unused-payee query matches only it.
 enum ScheduleConversionReplay {
     static func replay(_ entry: [String: Any]) throws -> [ReplayMismatch] {
         let scheduleID = try OracleJSON.string(entry, "returned")
@@ -176,9 +176,12 @@ enum ScheduleConversionReplay {
             sent: OracleJSON.objects(create["conditions"], "sent.scheduleCreate.conditions"),
             stored: OracleJSON.objects(stored["conditions"], "stored.rule.conditions")
         )
-        let copied = try (sent["ruleUpdateActions"] as? [Any] ?? [])
-            .map { try OracleValue(json: $0) }
-            .filter { $0.field("op") != .string("link-schedule") }
+        let copied = try storedPayeeField(
+            sent: (sent["ruleUpdateActions"] as? [Any] ?? []).map { try OracleJSON.object($0, "sent.ruleUpdateActions[]") }
+                .filter { $0["op"] as? String != "link-schedule" },
+            stored: OracleJSON.objects(stored["actions"], "stored.rule.actions")
+                .filter { $0["op"] as? String != "link-schedule" }
+        ).map { try OracleValue(json: $0) }
         let link = OracleValue.object(["op": .string("link-schedule"), "value": .string(scheduleID)])
 
         let plan = ScheduleTransactionConversionPlanner.plan(
@@ -209,10 +212,10 @@ enum ScheduleConversionReplay {
         return comparison.mismatches
     }
 
-    /// The sent conditions, with a `payee` condition's field replaced by the field its stored row has.
+    /// The sent conditions or actions, with a `payee` field replaced by the field its stored row has.
     private static func storedPayeeField(sent: [[String: Any]], stored: [[String: Any]]) throws -> [[String: Any]] {
         guard sent.count == stored.count else {
-            throw OracleReplayError.malformedFixture("sent and stored conditions differ in count")
+            throw OracleReplayError.malformedFixture("sent and stored rule entries differ in count")
         }
         return zip(sent, stored).map { sentCondition, storedCondition in
             guard sentCondition["field"] as? String == "payee" else { return sentCondition }
