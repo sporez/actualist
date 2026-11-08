@@ -58,7 +58,7 @@ struct WidgetQuickActionRouteTests {
             (.templates, .templates), (.payees, .payees), (.rules, .rules), (.bankSync, .bankSync),
             (.reportOrder, .reports), (.appearance, .appearance),
             (.privacy, .privacy), (.connection, .connection), (.budgetData, .budgetData),
-            (.advanced, .advanced), (.support, .support)
+            (.developer, .developer), (.support, .support)
         ]
         for (action, page) in settings {
             let destination = WidgetQuickActionRoute(action: action)

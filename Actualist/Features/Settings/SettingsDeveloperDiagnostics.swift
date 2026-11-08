@@ -1,27 +1,20 @@
 import SwiftUI
 
 #if DEBUG
-/// The Developer sheet behind Settings → Advanced, in Debug and Dev builds only.
-struct SettingsDeveloperDiagnosticsSheet: View {
+/// Settings → Developer, compiled into Debug and Dev builds only.
+struct DeveloperSettingsView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.dismiss) private var dismiss
 
-    let debug: BackgroundRefreshDebugInfo
-    let syncStatus: LocalFirstSyncStatus?
-    let syncDebug: LocalFirstSyncDebugInfo
-    let endpointHealth: ServerEndpointHealthDisplay
-    let retryPendingSync: () async -> Void
     @State private var isRetryingSync = false
     @State private var debugNotification = DebugNotificationViewModel()
 
     var body: some View {
         List {
-            ReviewSheetListHeader(title: "Developer")
             Section("Local-First Sync") {
                 LocalFirstSyncDiagnosticRows(
-                    status: syncStatus,
-                    debug: syncDebug,
-                    endpointHealth: endpointHealth
+                    status: appState.localFirstSyncStatus,
+                    debug: appState.settings.localFirstSyncDebug,
+                    endpointHealth: appState.localFirstStore.endpointHealthDisplay
                 )
 
                 Button {
@@ -32,9 +25,23 @@ struct SettingsDeveloperDiagnosticsSheet: View {
                         systemImage: "arrow.triangle.2.circlepath"
                     )
                 }
-                .disabled(isRetryingSync || syncStatus?.pendingLocalMessageCount == 0)
+                .disabled(isRetryingSync || appState.localFirstSyncStatus?.pendingLocalMessageCount == 0)
             }
             .settingsSectionChrome()
+
+            if AppInstallationIdentity.current == .development {
+                Section {
+                    Toggle("Share App Store Links", isOn: Binding(
+                        get: { appState.settings.devSharesAppStoreLinks },
+                        set: { appState.updateDevSharesAppStoreLinks($0) }
+                    ))
+                } header: {
+                    Text("Sharing")
+                } footer: {
+                    Text("Shared transaction links open in the App Store version of Actualist instead of this Dev build.")
+                }
+                .settingsSectionChrome()
+            }
 
             Section("Notifications") {
                 Button {
@@ -56,18 +63,16 @@ struct SettingsDeveloperDiagnosticsSheet: View {
             .settingsSectionChrome()
 
             Section("Background Refresh Logs") {
-                BackgroundRefreshDebugRows(debug: debug)
+                BackgroundRefreshDebugRows(debug: appState.settings.backgroundRefreshDebug)
             }
             .settingsSectionChrome()
-
         }
-        .reviewSheetList()
-        .reviewSheetBottomBar {
-            ReviewSheetPrimaryButton { dismiss() } label: {
-                Text("Done")
-            }
-        }
-        .reviewSheetPresentation(appState: appState)
+        .scrollContentBackground(.hidden)
+        .background(ActualistTheme.background)
+        .foregroundStyle(ActualistTheme.primaryText)
+        .tint(ActualistTheme.accent)
+        .navigationTitle("Developer")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func retrySync() async {
@@ -75,7 +80,7 @@ struct SettingsDeveloperDiagnosticsSheet: View {
             return
         }
         isRetryingSync = true
-        await retryPendingSync()
+        await appState.retryPendingLocalFirstSync()
         isRetryingSync = false
     }
 }

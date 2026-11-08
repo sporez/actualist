@@ -31,15 +31,15 @@ final class BankSyncUITests: XCTestCase {
             add(screenshot)
             app.terminate()
 
-            app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/advanced"]
+            app.launchArguments = ["-actualist-demo", "-actualist-screen", "settings/developer"]
             app.launch()
-            XCTAssertTrue(app.navigationBars["Advanced"].waitForExistence(timeout: 15))
+            XCTAssertTrue(app.navigationBars["Developer"].waitForExistence(timeout: 15))
             XCTAssertFalse(app.staticTexts["Experimental Features"].exists)
             XCTAssertFalse(app.switches["Background Bank Sync"].exists)
-            let advanced = XCTAttachment(screenshot: app.screenshot())
-            advanced.name = "advanced-\(suffix)"
-            advanced.lifetime = .keepAlways
-            add(advanced)
+            let developer = XCTAttachment(screenshot: app.screenshot())
+            developer.name = "developer-\(suffix)"
+            developer.lifetime = .keepAlways
+            add(developer)
             app.terminate()
         }
     }

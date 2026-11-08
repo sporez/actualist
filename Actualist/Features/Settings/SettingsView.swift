@@ -16,7 +16,7 @@ enum SettingsPage: String, CaseIterable, Hashable, Sendable {
     #if DEBUG
     // Developer tools exist only in Debug and Dev builds. App Store builds
     // must not contain hidden features (App Review Guideline 2.5.19).
-    case advanced
+    case developer
     #endif
     case support
 
@@ -158,11 +158,11 @@ struct SettingsView: View {
 
             Section {
                 #if DEBUG
-                NavigationLink(value: SettingsPage.advanced) {
+                NavigationLink(value: SettingsPage.developer) {
                     SettingsCategoryRow(
                         systemImage: "wrench.and.screwdriver",
-                        title: "Advanced",
-                        subtitle: isSplit ? nil : "Developer tools"
+                        title: "Developer",
+                        subtitle: isSplit ? nil : "Sync diagnostics and test tools"
                     )
                 }
                 #endif
@@ -231,8 +231,8 @@ struct SettingsView: View {
         case .reports:
             ReportsSettingsView()
         #if DEBUG
-        case .advanced:
-            AdvancedSettingsView()
+        case .developer:
+            DeveloperSettingsView()
         #endif
         case .support:
             SupportSettingsView()

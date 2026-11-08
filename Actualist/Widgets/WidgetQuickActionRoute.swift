@@ -35,7 +35,7 @@ struct WidgetQuickActionRoute {
             route = .settings
             tab = .budget
         case .templates, .payees, .rules, .bankSync, .reportOrder,
-             .appearance, .privacy, .connection, .budgetData, .advanced, .support:
+             .appearance, .privacy, .connection, .budgetData, .developer, .support:
             route = .settings
             tab = .budget
             settingsPage = Self.page(for: action)
@@ -54,7 +54,7 @@ struct WidgetQuickActionRoute {
         case .connection: .connection
         case .budgetData: .budgetData
         #if DEBUG
-        case .advanced: .advanced
+        case .developer: .developer
         #endif
         case .support: .support
         default: nil

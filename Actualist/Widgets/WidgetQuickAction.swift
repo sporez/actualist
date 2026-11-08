@@ -29,7 +29,8 @@ enum WidgetQuickAction: String, CaseIterable, Identifiable, Sendable {
     case privacy
     case connection
     case budgetData = "budget-data"
-    case advanced
+    /// Stored as "advanced", the page's old name, so saved widgets still decode.
+    case developer = "advanced"
     case support
 
     var id: String { rawValue }
@@ -48,14 +49,14 @@ enum WidgetQuickAction: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Advanced opens developer tools, which only Debug and Dev builds have.
+    /// Developer opens developer tools, which only Debug and Dev builds have.
     /// The case stays so a widget saved with it still decodes; elsewhere it
     /// opens Settings.
     var isAvailableInThisBuild: Bool {
         #if DEBUG
         true
         #else
-        self != .advanced
+        self != .developer
         #endif
     }
 
@@ -97,8 +98,8 @@ enum WidgetQuickAction: String, CaseIterable, Identifiable, Sendable {
             ("Connection & Sync", "antenna.radiowaves.left.and.right", .settings, "Manage your server connection and sync settings.")
         case .budgetData:
             ("Budget & Data", "folder.fill", .settings, "Manage your selected budget and account preferences.")
-        case .advanced:
-            ("Advanced", "wrench.and.screwdriver.fill", .settings, "Open developer tools.")
+        case .developer:
+            ("Developer", "wrench.and.screwdriver.fill", .settings, "Open developer tools.")
         case .support:
             ("Support", "questionmark.circle.fill", .settings, "Find help and diagnostic information.")
         }
