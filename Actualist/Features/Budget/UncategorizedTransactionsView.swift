@@ -7,7 +7,6 @@ struct UncategorizedTransactionsView: View {
     @State private var viewModel = UncategorizedTransactionsViewModel()
     @State private var selectedTransaction: SelectedUncategorizedTransaction?
     @State private var isBulkCategoryPickerPresented = false
-    @State private var selectedDetent: PresentationDetent = .medium
 
     let month: String
     let onChanged: @MainActor () -> Void
@@ -25,12 +24,15 @@ struct UncategorizedTransactionsView: View {
         _viewModel = State(
             initialValue: UncategorizedTransactionsViewModel(cachedSnapshot: cachedSnapshot)
         )
-        _selectedDetent = State(
-            initialValue: (cachedSnapshot?.transactions.count ?? 0) >= 4 ? .large : .medium
-        )
     }
 
     var body: some View {
+        OverflowExpandingReviewSheet {
+            sheet
+        }
+    }
+
+    private var sheet: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 ReviewSheetHeader(title: "Uncategorized")
@@ -78,14 +80,10 @@ struct UncategorizedTransactionsView: View {
                 }
             }
         }
-        .reviewSheetDetents([.medium, .large], selection: $selectedDetent)
         .appSwitcherPrivacyAwareDragIndicator()
         .presentationBackground(ActualistTheme.background)
         .task {
             await viewModel.loadIfNeeded(month: month, using: appState)
-            if viewModel.transactions.count >= 4 {
-                selectedDetent = .large
-            }
         }
         .onChange(of: appState.localDataRevision) {
             Task { await viewModel.load(month: month, using: appState) }

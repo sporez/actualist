@@ -9,7 +9,6 @@ struct BudgetOverspentCategoriesView: View {
 
     @State private var isCoverSourcePickerPresented = false
     @State private var inspectedCategory: CategoryMonthDetails?
-    @State private var selectedDetent: PresentationDetent = .medium
 
     let isPrivacyModeEnabled: Bool
 
@@ -19,9 +18,6 @@ struct BudgetOverspentCategoriesView: View {
     ) {
         self.viewModel = viewModel
         self.isPrivacyModeEnabled = isPrivacyModeEnabled
-        _selectedDetent = State(
-            initialValue: viewModel.overspentCategoryOptions.count >= 4 ? .large : .medium
-        )
     }
 
     private var displayedOptions: [BudgetOverspentCategoryOption] {
@@ -32,6 +28,12 @@ struct BudgetOverspentCategoriesView: View {
     }
 
     var body: some View {
+        OverflowExpandingReviewSheet {
+            sheet
+        }
+    }
+
+    private var sheet: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 ReviewSheetHeader(title: viewModel.isTrackingBudget ? "Overspent Categories" : "Cover Overspending")
@@ -81,14 +83,10 @@ struct BudgetOverspentCategoriesView: View {
                 }
             }
         }
-        .reviewSheetDetents([.medium, .large], selection: $selectedDetent)
         .appSwitcherPrivacyAwareDragIndicator()
         .presentationBackground(ActualistTheme.background)
         .appSwitcherPrivacyProtected(using: appState)
         .onChange(of: displayedOptions.count) { _, count in
-            if count >= 4 {
-                selectedDetent = .large
-            }
             if count == 0 {
                 dismiss()
             }
