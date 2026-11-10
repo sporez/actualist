@@ -485,6 +485,27 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+Sync.swift"
       ],
       "notes": "SyncMerkleOracleReplayTests replays 221 cases (21 named, 200 seeded) of upstream _fullSync against its mockSyncServer through LocalFirstActualStore.refresh, comparing outcome, final server and client message sets, merkle agreement and payee rows. Request sequences are not compared (outbox batches, upload confirmation, ten extra rounds after a rebuild). MerkleTrieTests is a hand port of upstream merkle.test.ts, not generated. Encrypted envelopes are not in the fixture."
+    },
+    {
+      "id": "file-import",
+      "title": "File import settings, amount and date interpretation, column guessing",
+      "status": "partial",
+      "harness": {
+        "dir": "scripts/parity/file-import-oracle",
+        "generate": "node scripts/parity/file-import-oracle/generate.mjs",
+        "verify": "node scripts/parity/file-import-oracle/verify.mjs",
+        "check": "node scripts/parity/file-import-oracle/generate.mjs --check"
+      },
+      "fixture": "FileImport",
+      "oracleSuites": [
+        "FileImportOracleReplayTests"
+      ],
+      "paths": [
+        "Actualist/Shared/TransactionCSVImport.swift",
+        "Actualist/Shared/TransactionCSVParser.swift",
+        "Actualist/Shared/TransactionCSVImportPipeline.swift"
+      ],
+      "notes": "Phase 0 skeleton of the file-import plan. The generator records looselyParseAmount, amountToInteger and the module-private getInitialMappings and getInitialDateFormat from the pinned Actual (154 cases, seeded amount family) with a V8 coverage report. FileImportOracleReplayTests checks the fixture structure only; no Swift port is replayed against it yet, so the domain is unverified against Actual until the ports land."
     }
   ]
 }

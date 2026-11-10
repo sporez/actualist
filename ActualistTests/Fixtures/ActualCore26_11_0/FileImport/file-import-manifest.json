@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.11.0",
+    "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+    "packageVersion": "26.11.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/parity/file-import-oracle/generate.mjs",
+    "sha256": "0eecc0d12c53b54d36230fb0eb572b9f77e7a9a803f9e6123674cbd448a5cbe1"
+  },
+  "helpers": [
+    {
+      "path": "scripts/parity/file-import-oracle/cases.mjs",
+      "sha256": "4046caee6ea4150297f8ff082634320f47e8ee7a9330a7a0e9b47f39aaf9649c"
+    },
+    {
+      "path": "scripts/parity/file-import-oracle/registry.mjs",
+      "sha256": "a16883b78ecf2fe71d69e68f54173179146d4ccc458754b3bed45efe6009b7ec"
+    },
+    {
+      "path": "scripts/parity/file-import-oracle/oracle-runner.test.ts",
+      "sha256": "51ad19746e710ddc949f25779f67abde34e3043efeb41a02a7dd144ff4b7d1da"
+    },
+    {
+      "path": "scripts/parity/file-import-oracle/oracle.vitest.config.mjs",
+      "sha256": "7d692f483b84c29c628cb14fd299fa504faf49b8af7ed3a09f190c06ba851dcf"
+    },
+    {
+      "path": "scripts/parity/file-import-oracle/readonly-oracle.sb",
+      "sha256": "5cc7c6675361ff9ae48f2a8afaff0c38f4d95cd491ac92f9969e209fdf1a2cdf"
+    },
+    {
+      "path": "scripts/parity/sync-merkle/cases.mjs",
+      "sha256": "96615bc1ba667b3ac5c4998d9ea3f76a8f26d90f3afbe30f76de61b5343d9c92"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": 20261109,
+  "functions": {
+    "looselyParseAmount": {
+      "caseCount": 70,
+      "namedCaseCount": 20,
+      "generatedCaseCount": 50,
+      "derivedCaseCount": 0
+    },
+    "amountToInteger": {
+      "caseCount": 69,
+      "namedCaseCount": 6,
+      "generatedCaseCount": 0,
+      "derivedCaseCount": 63
+    },
+    "getInitialMappings": {
+      "caseCount": 6,
+      "namedCaseCount": 6,
+      "generatedCaseCount": 0,
+      "derivedCaseCount": 0
+    },
+    "getInitialDateFormat": {
+      "caseCount": 9,
+      "namedCaseCount": 9,
+      "generatedCaseCount": 0,
+      "derivedCaseCount": 0
+    }
+  },
+  "caseCount": 154,
+  "execution": "Each registered function is extracted from its frozen Actual source file, evaluated in an isolated vm context with its real dependencies, and called for every case under vitest in a sandbox that denies writes to the checkout; V8 precise coverage records the blocks reached",
+  "coverage": {
+    "looselyParseAmount": {
+      "gate": "report",
+      "uncovered": []
+    },
+    "amountToInteger": {
+      "gate": "report",
+      "uncovered": []
+    },
+    "getInitialMappings": {
+      "gate": "report",
+      "uncovered": []
+    },
+    "getInitialDateFormat": {
+      "gate": "report",
+      "uncovered": []
+    }
+  },
+  "normalization": [
+    "{ \"$js\": tag } stands for a JS value JSON cannot carry: undefined, NaN, -0, Infinity, -Infinity, or threw (with message)",
+    "a derived case takes its input from the output of the case named in derivedFrom, and exists only when that output is not null",
+    "coverage lists maximal runs of source text with a zero V8 block count, after type stripping that keeps every character in place; lines are 1-based lines of the frozen source file"
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/shared/util.ts",
+      "sha256": "976e0d398a1074dfc7f4909e17be73754396ab189f961c7f1341eda19620bdbe"
+    },
+    {
+      "path": "packages/desktop-client/src/components/modals/ImportTransactionsModal/utils.ts",
+      "sha256": "fba1908a04fe623ae0944275c368452151679f66137593b3018d7a068f7150f8"
+    },
+    {
+      "path": "packages/desktop-client/src/components/modals/ImportTransactionsModal/ImportTransactionsModal.tsx",
+      "sha256": "c8f82d687ae2711c06d905384c3f1519ed62d63d97875082155403780e2eec64"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_11_0/FileImport/file-import-contract.json",
+      "sha256": "f9fb3de6b24c9862c277cef6641c5aeb9665a0f3150ff541afdd6576951cc532",
+      "caseCount": 154,
+      "caseIDs": [
+        "looselyParseAmount/currency-grouped",
+        "looselyParseAmount/comma-decimal",
+        "looselyParseAmount/three-places",
+        "looselyParseAmount/parentheses",
+        "looselyParseAmount/unicode-minus",
+        "looselyParseAmount/trailing-minus",
+        "looselyParseAmount/double-minus",
+        "looselyParseAmount/empty",
+        "looselyParseAmount/sub-cent",
+        "looselyParseAmount/past-max",
+        "looselyParseAmount/at-max",
+        "looselyParseAmount/code-after",
+        "looselyParseAmount/code-before",
+        "looselyParseAmount/prefix-letters",
+        "looselyParseAmount/paren-unicode-minus",
+        "looselyParseAmount/four-places",
+        "looselyParseAmount/arabic-digits",
+        "looselyParseAmount/lone-minus",
+        "looselyParseAmount/exponent",
+        "looselyParseAmount/plus-sign",
+        "looselyParseAmount/gen-001",
+        "looselyParseAmount/gen-002",
+        "looselyParseAmount/gen-003",
+        "looselyParseAmount/gen-004",
+        "looselyParseAmount/gen-005",
+        "looselyParseAmount/gen-006",
+        "looselyParseAmount/gen-007",
+        "looselyParseAmount/gen-008",
+        "looselyParseAmount/gen-009",
+        "looselyParseAmount/gen-010",
+        "looselyParseAmount/gen-011",
+        "looselyParseAmount/gen-012",
+        "looselyParseAmount/gen-013",
+        "looselyParseAmount/gen-014",
+        "looselyParseAmount/gen-015",
+        "looselyParseAmount/gen-016",
+        "looselyParseAmount/gen-017",
+        "looselyParseAmount/gen-018",
+        "looselyParseAmount/gen-019",
+        "looselyParseAmount/gen-020",
+        "looselyParseAmount/gen-021",
+        "looselyParseAmount/gen-022",
+        "looselyParseAmount/gen-023",
+        "looselyParseAmount/gen-024",
+        "looselyParseAmount/gen-025",
+        "looselyParseAmount/gen-026",
+        "looselyParseAmount/gen-027",
+        "looselyParseAmount/gen-028",
+        "looselyParseAmount/gen-029",
+        "looselyParseAmount/gen-030",
+        "looselyParseAmount/gen-031",
+        "looselyParseAmount/gen-032",
+        "looselyParseAmount/gen-033",
+        "looselyParseAmount/gen-034",
+        "looselyParseAmount/gen-035",
+        "looselyParseAmount/gen-036",
+        "looselyParseAmount/gen-037",
+        "looselyParseAmount/gen-038",
+        "looselyParseAmount/gen-039",
+        "looselyParseAmount/gen-040",
+        "looselyParseAmount/gen-041",
+        "looselyParseAmount/gen-042",
+        "looselyParseAmount/gen-043",
+        "looselyParseAmount/gen-044",
+        "looselyParseAmount/gen-045",
+        "looselyParseAmount/gen-046",
+        "looselyParseAmount/gen-047",
+        "looselyParseAmount/gen-048",
+        "looselyParseAmount/gen-049",
+        "looselyParseAmount/gen-050",
+        "amountToInteger/half-up",
+        "amountToInteger/negative-half",
+        "amountToInteger/float-edge",
+        "amountToInteger/zero-places",
+        "amountToInteger/three-places",
+        "amountToInteger/large",
+        "amountToInteger/after-currency-grouped",
+        "amountToInteger/after-comma-decimal",
+        "amountToInteger/after-three-places",
+        "amountToInteger/after-parentheses",
+        "amountToInteger/after-unicode-minus",
+        "amountToInteger/after-trailing-minus",
+        "amountToInteger/after-sub-cent",
+        "amountToInteger/after-at-max",
+        "amountToInteger/after-code-after",
+        "amountToInteger/after-code-before",
+        "amountToInteger/after-prefix-letters",
+        "amountToInteger/after-paren-unicode-minus",
+        "amountToInteger/after-four-places",
+        "amountToInteger/after-exponent",
+        "amountToInteger/after-plus-sign",
+        "amountToInteger/after-gen-001",
+        "amountToInteger/after-gen-002",
+        "amountToInteger/after-gen-003",
+        "amountToInteger/after-gen-004",
+        "amountToInteger/after-gen-005",
+        "amountToInteger/after-gen-006",
+        "amountToInteger/after-gen-007",
+        "amountToInteger/after-gen-008",
+        "amountToInteger/after-gen-009",
+        "amountToInteger/after-gen-010",
+        "amountToInteger/after-gen-011",
+        "amountToInteger/after-gen-012",
+        "amountToInteger/after-gen-014",
+        "amountToInteger/after-gen-015",
+        "amountToInteger/after-gen-016",
+        "amountToInteger/after-gen-017",
+        "amountToInteger/after-gen-018",
+        "amountToInteger/after-gen-019",
+        "amountToInteger/after-gen-020",
+        "amountToInteger/after-gen-021",
+        "amountToInteger/after-gen-022",
+        "amountToInteger/after-gen-023",
+        "amountToInteger/after-gen-024",
+        "amountToInteger/after-gen-025",
+        "amountToInteger/after-gen-026",
+        "amountToInteger/after-gen-027",
+        "amountToInteger/after-gen-028",
+        "amountToInteger/after-gen-029",
+        "amountToInteger/after-gen-030",
+        "amountToInteger/after-gen-031",
+        "amountToInteger/after-gen-032",
+        "amountToInteger/after-gen-033",
+        "amountToInteger/after-gen-034",
+        "amountToInteger/after-gen-035",
+        "amountToInteger/after-gen-036",
+        "amountToInteger/after-gen-037",
+        "amountToInteger/after-gen-038",
+        "amountToInteger/after-gen-039",
+        "amountToInteger/after-gen-040",
+        "amountToInteger/after-gen-041",
+        "amountToInteger/after-gen-042",
+        "amountToInteger/after-gen-043",
+        "amountToInteger/after-gen-044",
+        "amountToInteger/after-gen-045",
+        "amountToInteger/after-gen-047",
+        "amountToInteger/after-gen-048",
+        "amountToInteger/after-gen-049",
+        "amountToInteger/after-gen-050",
+        "getInitialMappings/header-row",
+        "getInitialMappings/indexed",
+        "getInitialMappings/empty",
+        "getInitialMappings/internal-fields",
+        "getInitialMappings/shape-only",
+        "getInitialMappings/few-columns",
+        "getInitialDateFormat/row-1",
+        "getInitialDateFormat/row-2",
+        "getInitialDateFormat/row-3",
+        "getInitialDateFormat/row-4",
+        "getInitialDateFormat/row-5",
+        "getInitialDateFormat/row-6",
+        "getInitialDateFormat/empty",
+        "getInitialDateFormat/no-date-mapping",
+        "getInitialDateFormat/indexed"
+      ]
+    }
+  ],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}

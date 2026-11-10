@@ -1,0 +1,6 @@
+(version 1)
+(allow default)
+(deny network-outbound)
+(deny network-inbound)
+; The path is passed by generate.mjs with sandbox-exec -D.
+(deny file-write* (subpath (param "PROTECTED_CHECKOUT")))
