@@ -640,7 +640,6 @@
       "domain": "file-import",
       "id": "OP-92",
       "opened": "2026-11-10",
-      "reviewBy": "2026-12-15",
       "summary": "A saved CSV column mapping (synced pref csv-mappings-<account>) whose amount, outflow or inflow target is the modal's internal key `selected` reads the boolean true that the modal's parse step stores there, so Actual imports the row as 1.00. Actualist keeps only text cells and reads nothing, so the row imports as 0. Actual's own column list never offers `selected`; only a hand-edited preference can name it. Cause: ImportFieldMappingRules.sourceRows (ImportFieldMapping.swift) drops the `selected` entry.",
       "fixtureCases": [
         "parseAmountFields/values/amount-true",
@@ -648,7 +647,10 @@
         "parseAmountFields/values/inflow-true",
         "parseAmountFields/values/amount-true-inout",
         "pipeline/saved/mapping-saved-selected-amount"
-      ]
+      ],
+      "status": "intended",
+      "decided": "2026-11-10",
+      "reason": "User decision 2026-11-10: keep reading nothing. Only a hand-edited saved preference can point an amount at the modal's internal checkbox flag; Actual's 1.00 is as wrong as Actualist's 0.00, and the review shows the zero amounts before anything is imported."
     }
   ]
 }
