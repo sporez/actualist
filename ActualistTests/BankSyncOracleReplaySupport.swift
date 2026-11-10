@@ -158,22 +158,17 @@ enum BankSyncOracleReplay {
         categories: [ActualCategory],
         transferPayeeIDs: Set<String>
     ) -> TransactionCSVImportLookup {
-        // The same name lookups `prepareTransactionCSVImport` builds (private to the store): first live
-        // payee or category per lowercased name.
-        var payeeIDs: [String: String] = [:]
-        for payee in payees {
-            guard let id = payee.id, !id.isEmpty, payeeIDs[payee.name.lowercased()] == nil else { continue }
-            payeeIDs[payee.name.lowercased()] = id
-        }
-        var categoryIDs: [String: String] = [:]
-        for category in categories {
-            guard let id = category.id, !id.isEmpty, categoryIDs[category.name.lowercased()] == nil else { continue }
-            categoryIDs[category.name.lowercased()] = id
-        }
+        // The lookups `prepareTransactionCSVImport` builds, with the fixture's category order.
+        let engineLookup = TransactionImportEngine.lookup(
+            payees: payees,
+            categories: categories.compactMap { category in
+                category.id.map { ImportCategoryMatcher.Category(id: $0, name: category.name) }
+            }
+        )
         return TransactionCSVImportLookup(
-            payeeIDByName: payeeIDs,
+            payeeIDByName: engineLookup.payeeIDByName,
             transferPayeeIDs: transferPayeeIDs,
-            categoryIDByName: categoryIDs
+            categories: engineLookup.categories
         )
     }
 
@@ -188,7 +183,7 @@ enum BankSyncOracleReplay {
         })
         return try transactions.enumerated().map { index, transaction in
             let day = try OracleJSON.string(transaction, "date")
-            guard let date = ActualDateOnly.date(from: day, timeZone: timeZone) else {
+            guard ActualDateOnly.date(from: day, timeZone: timeZone) != nil else {
                 throw OracleReplayError.malformedFixture("bad date \(day)")
             }
             let category = transaction["category"] as? String
@@ -196,7 +191,6 @@ enum BankSyncOracleReplay {
                 id: "row-\(index)",
                 sourceLine: index + 1,
                 dateText: day,
-                date: date,
                 amountMinorUnits: OracleJSON.int(transaction["amount"]) ?? 0,
                 payeeName: (transaction["payee_name"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines),
                 notes: transaction["notes"] as? String,

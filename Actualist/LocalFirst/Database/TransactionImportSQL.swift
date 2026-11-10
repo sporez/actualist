@@ -14,6 +14,45 @@ enum TransactionImportSQL {
         let existing: BankSyncReconciliation.Existing
     }
 
+    /// Categories in the order of the list Actual's import modal matches
+    /// against (`useCategories().list`): live groups ordered by `is_income,
+    /// sort_order, id` (the AQL default for `category_groups`), each group's
+    /// live categories by `sort_order, id`, flattened. A category whose group
+    /// is missing or deleted is not in that list.
+    static func categoryList(
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> [ImportCategoryMatcher.Category] {
+        guard try database.tableExists("categories", db: db),
+              try database.tableExists("category_groups", db: db) else {
+            return []
+        }
+        let categoryColumns = try database.columnSet(for: "categories", db: db)
+        let groupColumns = try database.columnSet(for: "category_groups", db: db)
+        guard let groupColumn = ["cat_group", "group_id"].first(where: categoryColumns.contains) else {
+            return []
+        }
+        func order(_ alias: String, _ column: String, in columns: Set<String>) -> String {
+            columns.contains(column) ? "\(alias).\(column)" : "NULL"
+        }
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT c.id AS id, c.name AS name
+                FROM categories c
+                JOIN category_groups g ON g.id = c.\(groupColumn)
+                WHERE \(database.predicateForLiveRows(columns: categoryColumns, tableAlias: "c"))
+                  AND \(database.predicateForLiveRows(columns: groupColumns, tableAlias: "g"))
+                ORDER BY \(order("g", "is_income", in: groupColumns)), \(order("g", "sort_order", in: groupColumns)), g.id,
+                         \(order("c", "sort_order", in: categoryColumns)), c.id
+                """
+        )
+        return rows.compactMap { row in
+            guard let id: String = row["id"], !id.isEmpty else { return nil }
+            return ImportCategoryMatcher.Category(id: id, name: row["name"] ?? "")
+        }
+    }
+
     /// Re-checks every reviewed match against the live rows.
     static func validateMatches(
         _ matches: [Match],
@@ -97,6 +136,11 @@ enum TransactionImportSQL {
 }
 
 extension BudgetDatabase {
+    /// The categories a file import matches its category text against.
+    func importCategoryList() throws -> [ImportCategoryMatcher.Category] {
+        try queue.read { db in try TransactionImportSQL.categoryList(in: self, db: db) }
+    }
+
     /// Single atomic commit for a file import. The messages come from the
     /// shared import reconcile step; the preconditions run in the same write
     /// transaction, so a match that changed after review, or a row someone else

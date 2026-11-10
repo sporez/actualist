@@ -113,6 +113,11 @@ struct TransactionCSVImportReviewView: View {
                                 .font(.caption)
                                 .foregroundStyle(ActualistTheme.secondaryText)
                         }
+                        if row.row.amountUnreadable {
+                            Label("Amount could not be read, so it imports as 0", systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(ActualistTheme.warning)
+                        }
                     }
                     Spacer(minLength: 0)
                 }

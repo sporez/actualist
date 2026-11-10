@@ -21,14 +21,12 @@ final class FakeTransactionCSVImportRepository: TransactionCSVImportRepositoryPr
         _ request: TransactionCSVImportPreparationRequest
     ) async throws -> TransactionCSVImportReview {
         prepareCallCount += 1
-        let date = TransactionCSVImportMapper.dayDate(fromISO: "2026-09-27")!
         let rows = outcomes.enumerated().map { index, outcome in
             TransactionCSVImportReviewRow(
                 row: TransactionCSVImportRow(
                     id: "csv-row-\(index + 1)",
                     sourceLine: index + 1,
                     dateText: "2026-09-27",
-                    date: date,
                     amountMinorUnits: -100,
                     payeeName: "Sample Market",
                     notes: nil,

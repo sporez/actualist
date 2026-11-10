@@ -503,9 +503,13 @@
       "paths": [
         "Actualist/Shared/TransactionCSVImport.swift",
         "Actualist/Shared/TransactionCSVParser.swift",
-        "Actualist/Shared/TransactionCSVImportPipeline.swift"
+        "Actualist/Shared/TransactionCSVImportPipeline.swift",
+        "Actualist/Shared/ImportAmountParsing.swift",
+        "Actualist/Shared/ImportDateParsing.swift",
+        "Actualist/Shared/ImportFieldMapping.swift",
+        "Actualist/Shared/JavaScriptText.swift"
       ],
-      "notes": "Phase 0 skeleton of the file-import plan. The generator records looselyParseAmount, amountToInteger and the module-private getInitialMappings and getInitialDateFormat from the pinned Actual (154 cases, seeded amount family) with a V8 coverage report. FileImportOracleReplayTests checks the fixture structure only; no Swift port is replayed against it yet, so the domain is unverified against Actual until the ports land."
+      "notes": "The generator records looselyParseAmount, amountToInteger, parseDate, parseCategoryFields, applyFieldMappings, parseAmountFields (report only until Phase 2) and the module-private getInitialMappings and getInitialDateFormat from the pinned Actual, plus a default-settings CSV import pipeline (parse, guess, preview sort, map, convert). CSV cases carry the CSV text and run through Actual's real parseFile. Every enforced function has every V8 block reached (one waived, with its reason in the manifest), and regex alternatives are tracked in a checklist in cases.mjs. About 9,500 seeded and named cases. A parseCsvRecords family (about 1,950 cases, 1,500 seeded, some from raw bytes) records csv-parse 7.0.3 on Actual's option set: line endings, blank lines, BOMs, trimming, quotes, delimiters and header-keyed records, with an explicit checklist because csv-parse is not coverage-measured. Swift ports are replayed by FileImportOracleReplayTests as they land; engine-defined sort orders are known divergences."
     }
   ]
 }

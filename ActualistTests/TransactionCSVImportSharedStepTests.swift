@@ -4,8 +4,8 @@ import Testing
 @testable import Actualist
 
 /// CSV import runs the same rules and reconcile as Bank Sync: rules before
-/// matching, upstream CSV defaults, and an exact `imported_id` commit
-/// precondition.
+/// matching and upstream CSV defaults. Actual's modal sends every CSV row as
+/// cleared and with no `imported_id`.
 @MainActor
 struct TransactionCSVImportSharedStepTests {
     private typealias Bundle = LocalFirstActualStoreTests.OpenedWritableStoreBundle
@@ -177,7 +177,9 @@ struct TransactionCSVImportSharedStepTests {
         ) == "Starbucks Coffee")
     }
 
-    @Test func clearedComesFromTheFileOrDefaultsToClearedOnInsert() async throws {
+    /// Actual's "Clear transactions on import" is on by default and its modal
+    /// never reads a Cleared column, so every inserted row is cleared.
+    @Test func everyInsertedRowIsClearedWhateverTheFileSays() async throws {
         let bundle = try await makeBundle()
         try await importAll(bundle, """
             Date,Payee,Notes,Amount,Cleared
@@ -187,63 +189,38 @@ struct TransactionCSVImportSharedStepTests {
             """)
 
         #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE amount = -450") == "1")
-        #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE amount = -460") == "0")
+        #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE amount = -460") == "1")
     }
 
-    @Test func aMatchedRowIsNotClearedByAFileThatDoesNotSayCleared() async throws {
+    /// The modal sends `cleared: true`, and a matched update keeps
+    /// `existing.cleared || trans.cleared`, so a match becomes cleared.
+    @Test func aMatchedRowBecomesClearedLikeActual() async throws {
         let bundle = try await makeBundle()
         try await importAll(bundle, "Date,Payee,Notes,Amount\n2026-07-03,Coffee Shop,,-123.45\n")
 
-        #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE id = 'txn'") == nil)
-    }
-
-    // MARK: One imported_id rule
-
-    @Test func aBankSyncRowLandingAfterReviewBlocksTheImport() async throws {
-        let bundle = try await makeBundle()
-        let review = try await prepare(
-            bundle, "Date,Payee,Amount,imported_id\n2026-09-12,Landlord,-9.99,bank-77\n"
-        )
-        try exec(bundle, """
-            INSERT INTO transactions (id, acct, date, amount, imported_id, tombstone)
-            VALUES ('remote-row', 'checking', 20260912, -999, 'bank-77', 0)
-            """)
-        let before = try await bundle.store.database?.pendingLocalSyncMessageCount()
-
-        await #expect(throws: TransactionCSVImportError.reviewChanged) {
-            _ = try await bundle.store.applyTransactionCSVImport(
-                TransactionCSVImportApplyRequest(
-                    budgetID: "group-1",
-                    accountID: "checking",
-                    sessionGeneration: review.sessionGeneration,
-                    rows: review.rows
-                )
-            )
-        }
-
-        #expect(try count(bundle, "SELECT COUNT(*) FROM transactions WHERE imported_id = 'bank-77'") == 1)
-        #expect(try await bundle.store.database?.pendingLocalSyncMessageCount() == before)
+        #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE id = 'txn'") == "1")
     }
 
     // MARK: - Stored values read the way upstream reads them
 
     /// A stored NULL `cleared` is `false` (`match.cleared === 1`, sync.ts ~700),
-    /// so a file that says Cleared clears the matched row. The deleted CSV-only
-    /// matcher treated NULL as "never changes".
+    /// so an import, which always sends cleared, clears the matched row. The
+    /// deleted CSV-only matcher treated NULL as "never changes".
     @Test func aStoredNullClearedIsNotCleared() async throws {
         let bundle = try await makeBundle()
         #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE id = 'txn'") == nil)
-        try await importAll(bundle, "Date,Payee,Notes,Amount,Cleared\n2026-07-03,Coffee Shop,,-123.45,Cleared\n")
+        try await importAll(bundle, "Date,Payee,Notes,Amount\n2026-07-03,Coffee Shop,,-123.45\n")
 
         #expect(try scalar(bundle, "SELECT cleared FROM transactions WHERE id = 'txn'") == "1")
     }
 
     /// An empty stored notes value is falsy, like null, in upstream's change
     /// check (`existing.notes || trans.notes || null`), so re-importing the same
-    /// row changes nothing.
+    /// row changes nothing. The row is already cleared, because every import
+    /// sends cleared.
     @Test func anEmptyStoredNotesValueIsNoChange() async throws {
         let bundle = try await makeBundle()
-        try exec(bundle, "UPDATE transactions SET notes = '', description = 'coffee', imported_description = 'Coffee Shop' WHERE id = 'txn'")
+        try exec(bundle, "UPDATE transactions SET notes = '', cleared = 1, description = 'coffee', imported_description = 'Coffee Shop' WHERE id = 'txn'")
         let review = try await prepare(bundle, "Date,Payee,Notes,Amount\n2026-07-03,Coffee Shop,,-123.45\n")
 
         #expect(review.rows.map(\.outcome.kind) == [.unchanged])

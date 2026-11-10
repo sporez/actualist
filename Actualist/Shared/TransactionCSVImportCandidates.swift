@@ -9,8 +9,8 @@ struct TransactionCSVImportLookup: Sendable {
     let payeeIDByName: [String: String]
     /// Payee IDs whose payee carries a transfer account.
     let transferPayeeIDs: Set<String>
-    /// Lowercased category name → category ID for live categories.
-    let categoryIDByName: [String: String]
+    /// The file's category text → category, as Actual's `parseCategoryFields`.
+    let categories: ImportCategoryMatcher
 }
 
 /// Maps normalized CSV rows onto the shared reconciler's candidates, the same
@@ -43,7 +43,7 @@ enum TransactionCSVImportCandidates {
             payeeID: payeeName.flatMap { lookup.payeeIDByName[$0.lowercased()] },
             payeeName: payeeName,
             notes: row.notes,
-            categoryID: row.categoryName.flatMap { lookup.categoryIDByName[$0.lowercased()] },
+            categoryID: lookup.categories.categoryID(forText: row.categoryName),
             cleared: row.cleared ?? false,
             importedPayee: payeeName ?? (row.payeeCellWasEmpty ? "" : nil),
             clearedIsExplicit: row.cleared != nil

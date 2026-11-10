@@ -23,6 +23,7 @@ const scriptDirectory = dirname(scriptPath);
 const repositoryRoot = resolve(scriptDirectory, '..', '..', '..');
 const helperPaths = [
   'scripts/parity/file-import-oracle/cases.mjs',
+  'scripts/parity/file-import-oracle/csv-parse-cases.mjs',
   'scripts/parity/file-import-oracle/registry.mjs',
   'scripts/parity/file-import-oracle/oracle-runner.test.ts',
   'scripts/parity/file-import-oracle/oracle.vitest.config.mjs',
@@ -53,6 +54,8 @@ const packageVersion = JSON.parse(readFileSync(join(checkout, 'packages/loot-cor
 if (packageVersion !== oraclePin.packageVersion) {
   throw new Error(`Expected @actual-app/core ${oraclePin.packageVersion}, found ${packageVersion}`);
 }
+const csvParseVersion = JSON.parse(readFileSync(join(checkout, 'node_modules/csv-parse/package.json'), 'utf8')).version;
+if (csvParseVersion !== '7.0.3') throw new Error(`Expected csv-parse 7.0.3, found ${csvParseVersion}`);
 for (const [path, expectedHash] of Object.entries(FROZEN_SOURCES)) {
   const sourcePath = join(checkout, path);
   if (!existsSync(sourcePath)) throw new Error(`Pinned source is missing: ${path}`);
@@ -114,12 +117,24 @@ for (const planCase of plan.cases) {
   if (!seen.has(planCase.id) && planCase.source !== 'derived') failures.push(`${planCase.id}: no record`);
 }
 
+// A registry waiver moves a block no case can reach out of `uncovered`, with its reason.
+for (const entry of REGISTRY) {
+  const report = coverage[entry.name];
+  report.waived = [];
+  for (const waiver of entry.waivers ?? []) {
+    const matches = report.uncovered.filter(block => block.snippet.startsWith(waiver.snippet));
+    if (matches.length === 0) failures.push(`${entry.name}: waiver "${waiver.snippet}" matches no uncovered block (stale)`);
+    for (const block of matches) report.waived.push({ ...block, reason: waiver.reason });
+    report.uncovered = report.uncovered.filter(block => !matches.includes(block));
+  }
+}
+
 // Coverage gate: print every uncovered block; an `enforce` function fails the run.
 for (const entry of REGISTRY) {
   const report = coverage[entry.name];
   const label = `${entry.name} [${entry.coverageGate}]`;
   if (report.uncovered.length === 0) {
-    console.log(`coverage ${label}: every block reached`);
+    console.log(`coverage ${label}: ${report.note ?? 'every block reached'}${report.waived.length > 0 ? ` (${report.waived.length} waived)` : ''}`);
     continue;
   }
   console.log(`coverage ${label}: ${report.uncovered.length} uncovered block(s)`);

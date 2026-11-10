@@ -1,11 +1,18 @@
 import Foundation
 
-/// Pure CSV text parser. Mirrors pinned Actual 26.9.0 `parseFile`'s
-/// `csv-parse/sync` option set (`bom: true`, `quote: '"'`, `trim: true`,
-/// `relax_column_count: true`, `skip_empty_lines: true`) with caller-provided
-/// `delimiter` and `hasHeaderRow`.
-/// It performs no field mapping, no date or amount interpretation, and no row
-/// validation; those live in the import mapping stage. No repository access.
+/// Pure CSV text parser: a port of what Actual's import does to a CSV file
+/// (pinned v26.11.0 `parseFile` → `parseCSV`): `decodeCsvBytes` with
+/// `encoding: 'auto'`, then `csv-parse` 7.0.3 with `bom: true`, `quote: '"'`,
+/// `trim: true`, `relax_column_count: true`, `skip_empty_lines: true`, and
+/// the caller's `delimiter` and header choice. The `file-import` oracle
+/// replays it. It performs no field mapping, no date or amount
+/// interpretation, and no row validation; those live in the import mapping
+/// stage. No repository access.
+///
+/// csv-parse matches bytes; this matches Unicode scalars. Every token it
+/// looks for (quote, delimiter, line endings, the trim characters) is a whole
+/// UTF-8 sequence, and none starts with a continuation byte, so both find the
+/// same tokens.
 struct TransactionCSVParser {
     struct Options: Sendable {
         var delimiter: String
@@ -18,33 +25,44 @@ struct TransactionCSVParser {
     }
 
     struct Table: Equatable, Sendable {
-        /// Trimmed header names when the file was parsed with a header row.
+        /// Header names when the file was parsed with a header row.
         let headers: [String]?
-        /// Data rows. Relaxed column counts mean a row may hold fewer fields
-        /// than the header (missing fields) or more than the header (extras
-        /// are truncated to the header width).
+        /// Data rows. A row may hold fewer fields than the header (missing
+        /// fields); fields past the header width are dropped, as
+        /// `relax_column_count` does with `columns: true`.
         let rows: [[String]]
 
-        /// Header-keyed lookup. A missing header or a short row yields nil,
-        /// matching the parse oracle's "absent key" observation.
-        func value(header: String, in row: [String]) -> String? {
-            guard let headers,
-                  let index = headers.firstIndex(where: { $0.caseInsensitiveCompare(header) == .orderedSame }),
-                  index < row.count else {
-                return nil
-            }
-            return row[index]
-        }
-
-        /// Positional lookup for headerless files; missing fields yield nil.
+        /// Positional lookup; missing fields yield nil.
         func value(at index: Int, in row: [String]) -> String? {
             index < row.count ? row[index] : nil
         }
     }
 
+    /// csv-parse refuses these files; Actual's import then shows
+    /// "Failed parsing" and imports nothing.
     enum ParseError: Error, Equatable {
-        case invalidEncoding
         case invalidDelimiter
+        /// `INVALID_OPENING_QUOTE`: a quote after other text in a field.
+        case invalidOpeningQuote(line: Int)
+        /// `CSV_INVALID_CLOSING_QUOTE`: a closing quote followed by text.
+        case invalidClosingQuote(line: Int)
+        /// `CSV_NON_TRIMABLE_CHAR_AFTER_CLOSING_QUOTE`
+        case textAfterClosingQuote(line: Int)
+        /// `CSV_QUOTE_NOT_CLOSED`
+        case quoteNotClosed(line: Int)
+
+        var message: String {
+            switch self {
+            case .invalidDelimiter:
+                return "the column separator is not a single character."
+            case .invalidOpeningQuote(let line):
+                return "line \(line) has a quote mark after other text in a field."
+            case .invalidClosingQuote(let line), .textAfterClosingQuote(let line):
+                return "line \(line) has text right after a closing quote mark."
+            case .quoteNotClosed:
+                return "a quote mark is never closed before the end of the file."
+            }
+        }
     }
 
     private let options: Options
@@ -54,117 +72,222 @@ struct TransactionCSVParser {
     }
 
     func parse(_ data: Data) throws -> Table {
-        guard options.delimiter.count == 1, let delimiter = options.delimiter.first else {
+        let delimiterScalars = Array(options.delimiter.unicodeScalars)
+        guard delimiterScalars.count == 1 else {
             throw ParseError.invalidDelimiter
         }
-        guard var text = String(data: data, encoding: .utf8) else {
-            throw ParseError.invalidEncoding
+        // `TextDecoder` drops one leading BOM; csv-parse's `bom: true` then
+        // drops one more.
+        var scalars = Array(Self.decodeAuto(data).unicodeScalars)
+        for _ in 0..<2 where scalars.first == "\u{FEFF}" {
+            scalars.removeFirst()
         }
-        // `bom: true`: a leading UTF-8 BOM is stripped, not kept in the first
-        // header or field.
-        if text.hasPrefix("\u{FEFF}") {
-            text.removeFirst()
+        var reader = CSVRecordReader(scalars: scalars, delimiter: delimiterScalars[0])
+        var records = try reader.read()
+        guard options.hasHeaderRow else {
+            return Table(headers: nil, rows: records)
         }
-        return try parse(text: text, delimiter: delimiter)
+        guard !records.isEmpty else {
+            return Table(headers: [], rows: [])
+        }
+        let headers = records.removeFirst()
+        return Table(
+            headers: headers,
+            rows: records.map { $0.count > headers.count ? Array($0.prefix(headers.count)) : $0 }
+        )
     }
 
-    private func parse(text: String, delimiter: Character) throws -> Table {
-        var rows: [[String]] = []
-        var fields: [String] = []
-        var field = String()
-        var fieldWasQuoted = false
-        var inQuotes = false
-
-        func endField() {
-            let value = fieldWasQuoted ? field : field.trimmingCharacters(in: .whitespacesAndNewlines)
-            fields.append(value)
-            field = String()
-            fieldWasQuoted = false
+    /// `decodeCsvBytes(bytes, 'auto')`: an FF FE or FE FF byte-order mark
+    /// means UTF-16 LE or BE, anything else UTF-8. Invalid input becomes
+    /// U+FFFD, as the non-fatal `TextDecoder` does; Swift's repair makes the
+    /// same replacements, including one for an odd trailing UTF-16 byte. The
+    /// leading BOM is kept here; the caller drops it as `TextDecoder` does.
+    private static func decodeAuto(_ data: Data) -> String {
+        let bytes = [UInt8](data)
+        guard bytes.count >= 2,
+              (bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF) else {
+            return String(decoding: bytes, as: UTF8.self)
         }
-
-        func endRecord() {
-            endField()
-            // `skip_empty_lines: true`: blank lines are dropped, not rejected
-            // (oracle case 7).
-            guard !(fields.count == 1 && fields[0].isEmpty) else {
-                fields = []
-                return
-            }
-            rows.append(fields)
-            fields = []
-        }
-
-        let scalars = Array(text.unicodeScalars)
+        let littleEndian = bytes[0] == 0xFF
+        var units: [UInt16] = []
+        units.reserveCapacity(bytes.count / 2)
         var index = 0
+        while index + 1 < bytes.count {
+            let first = UInt16(bytes[index])
+            let second = UInt16(bytes[index + 1])
+            units.append(littleEndian ? first | second << 8 : first << 8 | second)
+            index += 2
+        }
+        var text = String(decoding: units, as: UTF16.self)
+        if bytes.count % 2 == 1 {
+            text.unicodeScalars.append("\u{FFFD}")
+        }
+        return text
+    }
+}
+
+/// csv-parse 7.0.3's `parse` loop (`lib/api/index.js`) for the options above.
+private struct CSVRecordReader {
+    let scalars: [Unicode.Scalar]
+    let delimiter: Unicode.Scalar
+
+    private var position = 0
+    private var field: [Unicode.Scalar] = []
+    private var record: [String] = []
+    private var records: [[String]] = []
+    private var quoting = false
+    private var wasQuoting = false
+    private var escaping = false
+    /// Undiscovered until the first line ending outside quotes; that ending
+    /// (`\r\n`, `\n` or `\r`) is then the only record delimiter.
+    private var recordDelimiter: [Unicode.Scalar] = []
+    /// `info.lines`, for error messages.
+    private var line = 1
+    private var wasRowDelimiter = false
+
+    init(scalars: [Unicode.Scalar], delimiter: Unicode.Scalar) {
+        self.scalars = scalars
+        self.delimiter = delimiter
+    }
+
+    mutating func read() throws -> [[String]] {
         var iterations = 0
-        while index < scalars.count {
+        while position < scalars.count {
             // A large file must stop promptly when its import is cancelled.
             iterations += 1
             if iterations % 8_192 == 0 { try Task.checkCancellation() }
-            let scalar = scalars[index]
-            if inQuotes {
-                if scalar == "\"" {
-                    // RFC escaping: `""` inside a quoted field is one quote.
-                    if index + 1 < scalars.count, scalars[index + 1] == "\"" {
-                        field.append("\"")
-                        index += 2
-                    } else {
-                        inQuotes = false
-                        index += 1
-                    }
-                } else {
-                    field.unicodeScalars.append(scalar)
-                    index += 1
-                }
-                continue
-            }
-            if scalar == "\"", field.isEmpty, !fieldWasQuoted {
-                inQuotes = true
-                fieldWasQuoted = true
-                index += 1
-                continue
-            }
-            if Character(scalar) == delimiter {
-                endField()
-                index += 1
-                continue
-            }
-            if scalar == "\n" {
-                endRecord()
-                index += 1
-                continue
-            }
-            if scalar == "\r" {
-                if index + 1 < scalars.count, scalars[index + 1] == "\n" {
-                    endRecord()
-                    index += 2
-                } else {
-                    // A lone CR is field content; the exporter quotes it.
-                    field.unicodeScalars.append(scalar)
-                    index += 1
-                }
-                continue
-            }
-            field.unicodeScalars.append(scalar)
-            index += 1
+            try step()
+            position += 1
         }
-        if !field.isEmpty || fieldWasQuoted || !fields.isEmpty {
+        if quoting {
+            throw TransactionCSVParser.ParseError.quoteNotClosed(line: line)
+        }
+        // A last line with no characters is not a record.
+        if wasQuoting || !record.isEmpty || !field.isEmpty {
+            endField()
             endRecord()
         }
+        return records
+    }
 
-        if options.hasHeaderRow {
-            guard let headers = rows.first else {
-                return Table(headers: [], rows: [])
-            }
-            return Table(
-                headers: headers,
-                rows: rows.dropFirst().map { row in
-                    // `relax_column_count`: extra values are silently dropped;
-                    // short rows keep only the fields they have.
-                    row.count > headers.count ? Array(row.prefix(headers.count)) : row
-                }
-            )
+    private mutating func step() throws {
+        if wasRowDelimiter {
+            line += 1
+            wasRowDelimiter = false
         }
-        return Table(headers: nil, rows: rows)
+        if !quoting, recordDelimiter.isEmpty {
+            discoverRecordDelimiter(at: position)
+        }
+        let scalar = scalars[position]
+        if scalar == "\r" || scalar == "\n" {
+            wasRowDelimiter = true
+        }
+        if escaping {
+            // The quote after an escaping quote is ordinary text.
+            escaping = false
+        } else {
+            if quoting, scalar == "\"", position + 1 < scalars.count, scalars[position + 1] == "\"" {
+                escaping = true
+                return
+            }
+            if scalar == "\"" {
+                if quoting {
+                    let next = position + 1
+                    // `!nextChr` is also true for a NUL byte.
+                    let closes = next >= scalars.count
+                        || scalars[next].value == 0
+                        || scalars[next] == delimiter
+                        || isRecordDelimiterAfterQuote(at: next)
+                        || JavaScriptText.isWhitespace(scalars[next])
+                    guard closes else {
+                        throw TransactionCSVParser.ParseError.invalidClosingQuote(line: line)
+                    }
+                    quoting = false
+                    wasQuoting = true
+                    return
+                }
+                guard field.isEmpty else {
+                    throw TransactionCSVParser.ParseError.invalidOpeningQuote(line: line)
+                }
+                quoting = true
+                return
+            }
+            if !quoting {
+                let delimiterLength = recordDelimiterLength(at: position)
+                if delimiterLength > 0 {
+                    // `skip_empty_lines`: a line with nothing kept is skipped.
+                    if !(!wasQuoting && record.isEmpty && field.isEmpty) {
+                        endField()
+                        endRecord()
+                    }
+                    position += delimiterLength - 1
+                    return
+                }
+                if scalar == delimiter {
+                    endField()
+                    return
+                }
+            }
+        }
+        // `trim: true`: leading trim characters of an unquoted field are
+        // skipped, and after a closing quote only trim characters may follow.
+        let keepsLeading = quoting || !field.isEmpty || !JavaScriptText.isWhitespace(scalar)
+        if keepsLeading, !wasQuoting {
+            field.append(scalar)
+        } else if !JavaScriptText.isWhitespace(scalar) {
+            throw TransactionCSVParser.ParseError.textAfterClosingQuote(line: line)
+        } else if keepsLeading, UTF8.width(scalar) > 1 {
+            // csv-parse steps over a trim character byte by byte here (it
+            // skips the whole sequence only while the field is empty), so the
+            // second byte of a multi-byte one, such as NBSP, is not a trim
+            // byte and the file is refused.
+            throw TransactionCSVParser.ParseError.textAfterClosingQuote(line: line)
+        }
+    }
+
+    /// `__autoDiscoverRecordDelimiter`: `\r\n`, then `\n`, then `\r`.
+    private mutating func discoverRecordDelimiter(at index: Int) {
+        guard index < scalars.count else { return }
+        if scalars[index] == "\r", index + 1 < scalars.count, scalars[index + 1] == "\n" {
+            recordDelimiter = ["\r", "\n"]
+        } else if scalars[index] == "\n" {
+            recordDelimiter = ["\n"]
+        } else if scalars[index] == "\r" {
+            recordDelimiter = ["\r"]
+        }
+    }
+
+    /// After a closing quote, an undiscovered record delimiter is discovered
+    /// here, as csv-parse does.
+    private mutating func isRecordDelimiterAfterQuote(at index: Int) -> Bool {
+        if recordDelimiter.isEmpty {
+            discoverRecordDelimiter(at: index)
+            return !recordDelimiter.isEmpty && recordDelimiterLength(at: index) > 0
+        }
+        return recordDelimiterLength(at: index) > 0
+    }
+
+    private func recordDelimiterLength(at index: Int) -> Int {
+        guard !recordDelimiter.isEmpty, index + recordDelimiter.count <= scalars.count else { return 0 }
+        return scalars[index..<(index + recordDelimiter.count)].elementsEqual(recordDelimiter) ? recordDelimiter.count : 0
+    }
+
+    /// `__onField`: an unquoted field loses trailing whitespace
+    /// (`trimRight`).
+    private mutating func endField() {
+        var value = field[...]
+        if !wasQuoting {
+            while let last = value.last, JavaScriptText.isWhitespace(last) {
+                value = value.dropLast()
+            }
+        }
+        record.append(JavaScriptText.string(value))
+        field = []
+        wasQuoting = false
+    }
+
+    private mutating func endRecord() {
+        records.append(record)
+        record = []
     }
 }

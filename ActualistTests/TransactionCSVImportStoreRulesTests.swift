@@ -56,7 +56,7 @@ struct TransactionCSVImportStoreRulesTests {
     private func read<T>(_ bundle: Bundle, _ body: (Database) throws -> T) async throws -> T {
         let url = try bundle.fileManager.databaseURL(fileID: #require(bundle.budget.budgetID))
         let queue = try DatabaseQueue(path: url.path)
-        return try await queue.read(body)
+        return try queue.read(body)
     }
 
     private func column(_ bundle: Bundle, _ name: String, id: String) async throws -> String? {

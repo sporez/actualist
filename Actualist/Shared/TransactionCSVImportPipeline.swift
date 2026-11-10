@@ -49,15 +49,22 @@ enum TransactionCSVImportPipeline {
         guard data.count <= maxBytes else {
             throw TransactionCSVImportError.fileTooLarge
         }
-        let table = try TransactionCSVParser(
-            options: TransactionCSVParser.Options(
-                delimiter: options.delimiter,
-                hasHeaderRow: options.hasHeaderRow
-            )
-        ).parse(data)
+        let table: TransactionCSVParser.Table
+        do {
+            table = try TransactionCSVParser(
+                options: TransactionCSVParser.Options(
+                    delimiter: options.delimiter,
+                    hasHeaderRow: options.hasHeaderRow
+                )
+            ).parse(data)
+        } catch TransactionCSVParser.ParseError.invalidDelimiter {
+            throw TransactionCSVImportError.invalidDelimiter
+        } catch let error as TransactionCSVParser.ParseError {
+            throw TransactionCSVImportError.unreadableFile(error)
+        }
         guard table.rows.count <= maxRows else {
             throw TransactionCSVImportError.tooManyRows
         }
-        return try TransactionCSVImportMapper.map(table)
+        return try TransactionCSVImportMapper.map(table).rows
     }
 }

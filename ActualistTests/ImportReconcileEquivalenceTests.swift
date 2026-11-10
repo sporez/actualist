@@ -42,7 +42,9 @@ struct ImportReconcileEquivalenceTests {
             "alpha": "p-alpha", "beta": "p-beta", "gamma": "p-gamma",
         ],
         transferPayeeIDs: ["payee-transfer", "p-transfer"],
-        categoryIDByName: ["groceries": "cat-groceries", "dining": "cat-dining"]
+        categories: ImportCategoryMatcher(categories: [
+            .init(id: "cat-groceries", name: "Groceries"), .init(id: "cat-dining", name: "Dining"),
+        ])
     )
 
     /// CSV defaults with the name spelling untouched: title case is checked
@@ -115,7 +117,6 @@ struct ImportReconcileEquivalenceTests {
     ) -> TransactionCSVImportRow {
         TransactionCSVImportRow(
             id: id, sourceLine: 1, dateText: date,
-            date: TransactionCSVImportMapper.dayDate(fromISO: date) ?? Date(timeIntervalSince1970: 0),
             amountMinorUnits: amount, payeeName: payee, notes: notes, categoryName: category,
             cleared: cleared, importedID: importedID
         )
@@ -481,7 +482,6 @@ struct ImportReconcileEquivalenceTests {
                 id: "r-\(index)",
                 sourceLine: index + 1,
                 dateText: dayText(day),
-                date: Date(timeIntervalSince1970: Double(19_900 + day) * 86_400 + 43_200),
                 amountMinorUnits: pick(amounts),
                 payeeName: pick(["Alpha", "BETA", "Gamma", "To Savings", "Unknown", ""]),
                 notes: pick([nil, "note", "other"]),

@@ -67,7 +67,6 @@ struct TransactionCSVImportTests {
         #expect(table.headers == ["Date", "Payee", "Notes", "Amount"])
         #expect(table.rows.count == 1)
         #expect(table.rows[0] == ["2026-09-27", "Sample Market", "Groceries", "12.34"])
-        #expect(table.value(header: "Payee", in: table.rows[0]) == "Sample Market")
     }
 
     @Test func parsesQuotedDelimiterAndEscapedQuote() throws {
@@ -87,7 +86,6 @@ struct TransactionCSVImportTests {
         #expect(table.headers == ["Date", "Payee", "Amount"])
         #expect(table.rows.count == 1)
         #expect(table.rows[0] == ["2026-09-27", "Sample Store", "12.34"])
-        #expect(table.value(header: "Notes", in: table.rows[0]) == nil)
     }
 
     @Test func parsesRelaxedShortRowWithMissingFields() throws {
@@ -96,7 +94,6 @@ struct TransactionCSVImportTests {
         #expect(table.rows[0] == ["2026-09-27", "Sample Store", "", "12.34"])
         // Short rows are accepted with the missing fields absent.
         #expect(table.rows[1] == ["2026-09-28", "Second Store"])
-        #expect(table.value(header: "Amount", in: table.rows[1]) == nil)
     }
 
     @Test func parsesRelaxedExtraColumnByDroppingExtras() throws {
@@ -111,6 +108,24 @@ struct TransactionCSVImportTests {
         #expect(table.rows[0] == ["2026-09-27", "Sample Store", "12.34"])
     }
 
+    /// csv-parse discovers the record delimiter from the first line ending,
+    /// so a CR-only file reads like any other.
+    @Test func parsesCROnlyLineEndings() throws {
+        let table = try TransactionCSVParser().parse(Data("Date,Payee\r2026-09-27,Sample Store\r".utf8))
+        #expect(table.headers == ["Date", "Payee"])
+        #expect(table.rows == [["2026-09-27", "Sample Store"]])
+    }
+
+    /// Like Actual's import, a quote mark after other text refuses the file.
+    @Test func aStrayQuoteRefusesTheFileLikeActual() async throws {
+        await #expect(throws: TransactionCSVImportError.unreadableFile(.invalidOpeningQuote(line: 2))) {
+            _ = try await TransactionCSVImportPipeline.rows(
+                from: Data("Date,Payee,Amount\n2026-09-27,Joe\"s Diner,1\n".utf8),
+                options: TransactionCSVImportOptions()
+            )
+        }
+    }
+
     @Test func parsesHeaderlessRowsPositionally() throws {
         let table = try parseFixtureCase("headerless-configured-columns")
         #expect(table.headers == nil)
@@ -119,55 +134,108 @@ struct TransactionCSVImportTests {
 
     // MARK: - Mapping stage
 
+    private func mapped(_ csv: String) throws -> TransactionCSVImportMapper.Result {
+        try TransactionCSVImportMapper.map(TransactionCSVParser().parse(Data(csv.utf8)))
+    }
+
     @Test func mapsHeaderedRowsWithInflowSignAndMissingFields() throws {
-        let table = try TransactionCSVParser().parse(Data(
-            "Date,Payee,Notes,Amount\n2026-09-27,Sample Market,Groceries,12.34\n".utf8
-        ))
-        let rows = try TransactionCSVImportMapper.map(table)
+        let rows = try mapped("Date,Payee,Notes,Amount\n2026-09-27,Sample Market,Groceries,12.34\n").rows
         #expect(rows.count == 1)
         // Positive amounts are inflow; the sign carries direction.
         #expect(rows[0].amountMinorUnits == 1_234)
         #expect(rows[0].payeeName == "Sample Market")
         #expect(rows[0].notes == "Groceries")
         #expect(rows[0].dateText == "2026-09-27")
-        #expect(rows[0].cleared == nil)
+        // Actual's "Clear transactions on import" is on by default.
+        #expect(rows[0].cleared == true)
+        #expect(rows[0].importedID == nil)
     }
 
-    @Test func mapsNegativeAmountsAsOutflowAndResolvesClearedColumn() throws {
-        let table = try TransactionCSVParser().parse(Data(
+    /// Actual's modal reads neither a Cleared nor an imported_id column. With
+    /// no Notes header, the first spare column becomes the notes.
+    @Test func ignoresClearedAndImportedIDColumnsLikeActual() throws {
+        let cleared = try mapped(
             "Date,Payee,Amount,Cleared\n2026-09-27,Sample Market,-12.34,Not cleared\n2026-09-28,Other,3,Cleared\n"
-            .utf8
-        ))
-        let rows = try TransactionCSVImportMapper.map(table)
-        #expect(rows[0].amountMinorUnits == -1_234)
-        #expect(rows[0].cleared == false)
-        #expect(rows[1].amountMinorUnits == 300)
-        #expect(rows[1].cleared == true)
+        ).rows
+        #expect(cleared.map(\.amountMinorUnits) == [-1_234, 300])
+        #expect(cleared.map(\.cleared) == [true, true])
+        #expect(cleared.map(\.notes) == ["Not cleared", "Cleared"])
+
+        let withID = try mapped(
+            "Date,Payee,Notes,Amount,imported_id\n2026-09-27,Sample Market,Groceries,12.34,bank-1\n"
+        ).rows
+        #expect(withID[0].importedID == nil)
+        #expect(withID[0].notes == "Groceries")
     }
 
-    @Test func rejectsNonISODateAndUnparseableAmountForTheWholeBatch() throws {
-        #expect(throws: TransactionCSVImportError.invalidRow(line: 1, reason: .unparseableDate(text: "27/09/2026"))) {
-            let table = try TransactionCSVParser().parse(Data(
-                "Date,Payee,Amount\n27/09/2026,Sample Market,12.34\n".utf8
-            ))
-            _ = try TransactionCSVImportMapper.map(table)
+    @Test func readsCurrencyFormattedAmounts() throws {
+        let rows = try mapped(
+            "Date,Payee,Amount\n2026-09-27,A,$25.00\n2026-09-26,B,\"$1,234.56\"\n2026-09-25,C,(12.50)\n2026-09-24,D,\"1.234,56\"\n"
+        ).rows
+        #expect(rows.map(\.amountMinorUnits) == [2_500, 123_456, -1_250, 123_456])
+        #expect(rows.allSatisfy { !$0.amountUnreadable })
+    }
+
+    @Test func guessesADayFirstDateFormatFromTheFirstRow() throws {
+        let result = try mapped("Date,Payee,Amount\n27/09/2026,Sample Market,12.34\n03/10/2026,Other,1\n")
+        #expect(result.dateFormat == .ddMMyyyy)
+        #expect(result.rows.map(\.dateText) == ["2026-09-27", "2026-10-03"])
+    }
+
+    @Test func aDateThatDoesNotReadRejectsTheWholeBatch() throws {
+        #expect(throws: TransactionCSVImportError.invalidRow(
+            line: 2, reason: .unparseableDate(text: "31/02/2026", format: .ddMMyyyy)
+        )) {
+            _ = try mapped("Date,Payee,Amount\n27/09/2026,Sample Market,12.34\n31/02/2026,Other,1\n")
         }
-        #expect(throws: TransactionCSVImportError.invalidRow(line: 1, reason: .unparseableAmount(text: "abc"))) {
-            let table = try TransactionCSVParser().parse(Data(
-                "Date,Payee,Amount\n2026-09-27,Sample Market,abc\n".utf8
-            ))
-            _ = try TransactionCSVImportMapper.map(table)
-        }
+    }
+
+    /// Actual imports an amount it cannot read as 0; the review points it out.
+    @Test func anUnreadableAmountImportsAsZeroAndIsMarked() throws {
+        let rows = try mapped("Date,Payee,Amount\n2026-09-27,Sample Market,abc\n").rows
+        #expect(rows[0].amountMinorUnits == 0)
+        #expect(rows[0].amountUnreadable)
     }
 
     /// Actual's import modal turns an empty or zero amount into a zero-amount
     /// row (`parseAmountFields`, then only a null amount is refused).
     @Test func mapsAnEmptyOrZeroAmountToAZeroAmountRow() throws {
-        let table = try TransactionCSVParser().parse(Data(
-            "Date,Payee,Notes,Amount\n2026-09-28,Second Store\n2026-09-29,Third Store,,0\n".utf8
-        ))
-        let rows = try TransactionCSVImportMapper.map(table)
+        let rows = try mapped("Date,Payee,Notes,Amount\n2026-09-28,Second Store\n2026-09-29,Third Store,,0\n").rows
         #expect(rows.map(\.amountMinorUnits) == [0, 0])
+        #expect(rows.allSatisfy { !$0.amountUnreadable })
+    }
+
+    /// The preview sorts newest first, but only by a column named exactly
+    /// `date`; a `Date` column keeps file order.
+    @Test func sortsNewestFirstOnlyByALowercaseDateColumn() throws {
+        let lower = try mapped("date,Payee,Amount\n2026-09-01,A,1\n2026-09-03,B,1\n2026-09-02,C,1\n")
+        #expect(lower.rows.map(\.payeeName) == ["B", "C", "A"])
+        #expect(lower.rows.map(\.sourceLine) == [2, 3, 1])
+        let upper = try mapped("Date,Payee,Amount\n2026-09-01,A,1\n2026-09-03,B,1\n2026-09-02,C,1\n")
+        #expect(upper.rows.map(\.payeeName) == ["A", "B", "C"])
+    }
+
+    /// Actual's own export lists Category_Group before Category, so its
+    /// import takes the group column as the category.
+    @Test func actualsExportHeaderMapsTheCategoryGroupColumn() throws {
+        let rows = try mapped(
+            "Account,Date,Payee,Notes,Category_Group,Category,Amount,Split_Amount,Cleared\n"
+                + "Checking,2026-09-01,Sample Shop,,Food,Groceries,-123.45,0,Not cleared\n"
+        ).rows
+        #expect(rows[0].categoryName == "Food")
+        #expect(rows[0].amountMinorUnits == -12_345)
+    }
+
+    @Test func matchesCategoriesExactlyInActualsListOrder() {
+        let matcher = ImportCategoryMatcher(categories: [
+            .init(id: "c1", name: "Groceries"), .init(id: "c2", name: "Groceries"), .init(id: "Dining", name: "Dining"),
+        ])
+        #expect(matcher.categoryID(forText: "Groceries") == "c1")
+        #expect(matcher.categoryID(forText: "groceries") == nil)
+        // A category whose id equals the text is skipped.
+        #expect(matcher.categoryID(forText: "Dining") == nil)
+        // No canonical equivalence: a decomposed accent is different text.
+        #expect(ImportCategoryMatcher(categories: [.init(id: "c", name: "Caf\u{E9}")]).categoryID(forText: "Cafe\u{301}") == nil)
     }
 
     // MARK: - Apply stage (shared synthetic store fixture)
@@ -191,44 +259,6 @@ struct TransactionCSVImportTests {
 
     private func checkingRows(_ database: BudgetDatabase) async throws -> [ActualTransaction] {
         try await database.fetchTransactions(accountID: "checking")
-    }
-
-    @Test func sameFileAppliedTwiceIsNoOpWithImportedID() async throws {
-        let bundle = try await makeBundle()
-        let database = try #require(bundle.store.database)
-        let withImportedID = Data((
-            "Date,Payee,Notes,Amount,imported_id\n2026-09-27,Sample Market,Groceries,12.34,bank-1\n"
-        ).utf8)
-
-        let first = try await bundle.store.applyTransactionCSVImport(
-            TransactionCSVImportApplyRequest(
-                budgetID: "group-1",
-                accountID: "checking",
-                sessionGeneration: bundle.store.budgetSessionGeneration,
-                rows: try preparedRows(bundle.store, data: withImportedID, accountID: "checking")
-            )
-        )
-        #expect(first.insertedCount == 1)
-        #expect(first.updatedCount == 0)
-        #expect(try await checkingRows(database).count == 2)
-
-        let second = try await bundle.store.applyTransactionCSVImport(
-            TransactionCSVImportApplyRequest(
-                budgetID: "group-1",
-                accountID: "checking",
-                sessionGeneration: bundle.store.budgetSessionGeneration,
-                rows: try preparedRows(bundle.store, data: withImportedID, accountID: "checking")
-            )
-        )
-        #expect(second.insertedCount == 0)
-        #expect(second.updatedCount == 0)
-        #expect(try await checkingRows(database).count == 2)
-
-        let imported = try await checkingRows(database).first { $0.importedPayee == "Sample Market" }
-        #expect(imported != nil)
-        #expect(imported?.payeeName == "Sample Market")
-        #expect(imported?.amount == 1_234)
-        #expect(imported?.date == "2026-09-27")
     }
 
     /// Actual's account export writes each split as a zero-amount parent row
@@ -383,7 +413,7 @@ struct TransactionCSVImportTests {
         let bundle = try await makeBundle()
         let database = try #require(bundle.store.database)
         let before = try await checkingRows(database).count
-        let data = csv("2026-09-27,Sample Market,Groceries,12.34\n2026-09-28,Bad Row,,abc")
+        let data = csv("2026-09-27,Sample Market,Groceries,12.34\n2026-02-30,Bad Row,,1.00")
 
         await #expect(throws: TransactionCSVImportError.self) {
             try await bundle.store.prepareTransactionCSVImport(
@@ -434,12 +464,14 @@ struct TransactionCSVImportTests {
         #expect(review.rows[0].row.amountMinorUnits == -12_345)
         #expect(review.rows[0].row.dateText == "2026-09-01")
         #expect(review.rows[0].row.payeeName == "Sample Shop")
-        #expect(review.rows[0].row.cleared == false)
+        #expect(review.rows[0].row.cleared == true)
         #expect(review.rows[1].row.amountMinorUnits == 67_890)
         #expect(review.rows[1].row.payeeName == "Café \"North\"")
         #expect(review.rows[1].row.notes == "line one\nline two, quoted \"text\"")
         #expect(review.rows[1].row.cleared == true)
-        #expect(review.rows[1].row.categoryName == "Groceries")
+        // Actual's import takes Category_Group, the first header naming a
+        // category, and no category is named "Food".
+        #expect(review.rows[1].row.categoryName == "Food")
 
         let result = try await bundle.store.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
@@ -454,7 +486,7 @@ struct TransactionCSVImportTests {
         let imported = try await checkingRows(database).filter { $0.id != "txn" }
         #expect(imported.count == 2)
         #expect(imported.contains { $0.amount == -12_345 && $0.payeeName == "Sample Shop" })
-        #expect(imported.contains { $0.amount == 67_890 && $0.cleared == .bool(true) && $0.category == "groceries" })
+        #expect(imported.contains { $0.amount == 67_890 && $0.cleared == .bool(true) && $0.category == nil })
     }
 
     // MARK: - Helpers

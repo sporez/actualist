@@ -144,28 +144,12 @@ struct TransactionCSVImportRevalidationTests {
         try await expectRejected(bundle, applyRequest(reviewed))
     }
 
-    /// Strict id checking (sync.ts ~890) only fuzzy-matches a row with no
-    /// `imported_id` when the file row has one, so an id synced onto the match
-    /// after review means a fresh review would insert instead. The stale review
-    /// must not write its id over the synced one.
+    /// A matched CSV update writes `imported_id: null` (the modal sends no
+    /// id), so an id synced onto the match after review must not be cleared
+    /// by the stale review.
     @Test func importedIDSetBySyncAfterReviewRejects() async throws {
         let bundle = try await makeBundle()
-        let csv = Data("Date,Payee,Notes,Amount,imported_id\n2026-07-03,Coffee Shop,,-123.45,csv-1\n".utf8)
-        let reviewed = try await review(bundle, csv)
-        #expect(reviewed.rows.map(\.outcome.kind) == [.update])
-        try mutate(bundle, "UPDATE transactions SET imported_id = 'bank-9' WHERE id = 'txn'")
-        #expect(try await review(bundle, csv).rows.map(\.outcome.kind) == [.insert])
-
-        try await expectRejected(bundle, applyRequest(reviewed))
-        #expect(try await storedImportedID(bundle) == "bank-9")
-    }
-
-    /// An exact-id match whose id changed after review would not match on a
-    /// fresh review either, so its payee fill must not land on the row.
-    @Test func exactIDMatchChangedAfterReviewRejects() async throws {
-        let bundle = try await makeBundle()
-        try mutate(bundle, "UPDATE transactions SET imported_id = 'csv-1' WHERE id = 'txn'")
-        let csv = Data("Date,Payee,Notes,Amount,imported_id\n2026-07-03,Coffee Shop,,-123.45,csv-1\n".utf8)
+        let csv = Data("Date,Payee,Notes,Amount\n2026-07-03,Coffee Shop,,-123.45\n".utf8)
         let reviewed = try await review(bundle, csv)
         #expect(reviewed.rows.map(\.outcome.kind) == [.update])
         try mutate(bundle, "UPDATE transactions SET imported_id = 'bank-9' WHERE id = 'txn'")

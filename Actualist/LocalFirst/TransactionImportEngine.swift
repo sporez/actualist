@@ -6,15 +6,16 @@ import Foundation
 /// `LocalFirstActualStore` keeps the orchestration (session guards, rule
 /// preview, the shared reconcile and the commit).
 enum TransactionImportEngine {
-    /// Name lookups from the open budget's live payees and categories.
+    /// Name lookups from the open budget's live payees and its categories in
+    /// Actual's list order (`TransactionImportSQL.categoryList`).
     static func lookup(
         payees: [ActualPayee],
-        categories: [ActualCategory]
+        categories: [ImportCategoryMatcher.Category]
     ) -> TransactionCSVImportLookup {
         TransactionCSVImportLookup(
             payeeIDByName: payeeIDByName(payees),
             transferPayeeIDs: transferPayeeIDs(payees),
-            categoryIDByName: categoryIDByName(categories)
+            categories: ImportCategoryMatcher(categories: categories)
         )
     }
 
@@ -95,17 +96,5 @@ enum TransactionImportEngine {
             guard let id = payee.id, payee.transferAccount?.isEmpty == false else { return nil }
             return id
         })
-    }
-
-    private static func categoryIDByName(_ categories: [ActualCategory]) -> [String: String] {
-        var result: [String: String] = [:]
-        for category in categories {
-            guard let id = category.id, !id.isEmpty else { continue }
-            let key = category.name.lowercased()
-            if result[key] == nil {
-                result[key] = id
-            }
-        }
-        return result
     }
 }

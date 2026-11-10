@@ -4,8 +4,9 @@
 // planned case, while V8 precise coverage records which blocks the cases reach.
 import assert from 'node:assert/strict';
 import inspector from 'node:inspector';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
@@ -23,7 +24,7 @@ const resultPath = need('ACTUALIST_FILE_IMPORT_ORACLE_RESULT');
 const importAbsolute = (file: string) => import(/* @vite-ignore */ pathToFileURL(file).href);
 const { test } = await importAbsolute(path.join(root, 'node_modules/vitest/dist/index.js'));
 const ts = (await importAbsolute(path.join(root, 'node_modules/typescript/lib/typescript.js'))).default;
-const { REGISTRY } = await importAbsolute(path.join(harness, 'registry.mjs'));
+const { PARSE_FILE, REGISTRY } = await importAbsolute(path.join(harness, 'registry.mjs'));
 
 // JSON cannot carry these JS values, so they become { "$js": tag }.
 function encode(value: unknown): unknown {
@@ -116,34 +117,84 @@ test('file import oracle', async () => {
   await post('Profiler.startPreciseCoverage', { callCount: true, detailed: true });
 
   const modules = new Map<string, any>();
-  const loadExport = async (from: string, exportName: string) => {
+  const loadModule = async (from: string) => {
     if (!modules.has(from)) modules.set(from, await importAbsolute(path.join(root, from)));
-    const exported = modules.get(from)[exportName];
+    return modules.get(from);
+  };
+  const loadExport = async (from: string, exportName: string) => {
+    const exported = (await loadModule(from))[exportName];
     assert.ok(exported !== undefined, `${from} does not export ${exportName}`);
     return exported;
   };
+  // One dependency of an entry, installed as a global of its context.
+  const resolveDependency = async (dependency: any, context: any) => {
+    if (dependency.namespace) return loadModule(dependency.module);
+    if (dependency.constant) return vm.runInContext(extractConstant(dependency.from, dependency.constant), context);
+    if (dependency.function) {
+      const helper = extractFunction(dependency.from, dependency.function);
+      new vm.Script(helper.code, { filename: `oracle-helper:${dependency.function}` }).runInContext(context);
+      return context[dependency.function];
+    }
+    return loadExport(dependency.from, dependency.export);
+  };
 
   const functions = new Map<string, any>();
-  for (const entry of REGISTRY) {
+  for (const entry of REGISTRY.filter((candidate: any) => !candidate.composite)) {
     const extracted = extractFunction(entry.source, entry.name);
     const sandbox: Record<string, unknown> = {};
     const context = vm.createContext(sandbox);
     for (const [globalName, dependency] of Object.entries<any>(entry.deps)) {
-      sandbox[globalName] = dependency.constant
-        ? vm.runInContext(extractConstant(dependency.from, dependency.constant), context)
-        : await loadExport(dependency.from, dependency.export);
+      sandbox[globalName] = await resolveDependency(dependency, context);
     }
     new vm.Script(extracted.code, { filename: `oracle-fn:${entry.name}` }).runInContext(context);
     const fn = (context as any)[entry.name];
     assert.equal(typeof fn, 'function', `${entry.name} did not evaluate to a function`);
     const real = entry.crossCheck ? await loadExport(entry.crossCheck.from, entry.crossCheck.export) : null;
-    functions.set(entry.name, { entry, fn, real, ...extracted });
+    const helpers: Record<string, unknown> = {};
+    for (const [globalName, dependency] of Object.entries<any>(entry.deps)) {
+      if (dependency.function) helpers[globalName] = sandbox[globalName];
+    }
+    functions.set(entry.name, { entry, fn, real, helpers, ...extracted });
   }
+  for (const entry of REGISTRY.filter((candidate: any) => candidate.composite)) {
+    const real: Record<string, unknown> = {};
+    for (const [name, dependency] of Object.entries<any>(entry.imports)) real[name] = await loadExport(dependency.from, dependency.export);
+    functions.set(entry.name, { entry, composite: true, real });
+  }
+
+  // The real parseFile on a temporary .csv outside the checkout, with the options the
+  // modal passes for a CSV file (getParseOptions), then the modal's parse step
+  // (ImportTransactionsModal.tsx 397-406) numbering and selecting every row.
+  const parseFile = await loadExport(PARSE_FILE, 'parseFile');
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'actualist-file-import-'));
+  // The same call for every CSV family. `bytesBase64` supplies raw file bytes (byte order
+  // marks, invalid UTF-8); otherwise the text is written as UTF-8.
+  const parseRaw = async (input: { csv?: string; bytesBase64?: string; hasHeaderRow: boolean; delimiter: string }) => {
+    const file = path.join(scratch, 'import.csv');
+    writeFileSync(file, input.bytesBase64 !== undefined ? Buffer.from(input.bytesBase64, 'base64') : Buffer.from(input.csv as string, 'utf8'));
+    return parseFile(file, {
+      delimiter: input.delimiter,
+      encoding: 'auto',
+      hasHeaderRow: input.hasHeaderRow,
+      skipStartLines: 0,
+      skipEndLines: 0,
+    });
+  };
+  const parseCsv = async (input: { csv: string; hasHeaderRow: boolean; delimiter: string }) => {
+    const parsed = await parseRaw(input);
+    assert.equal(parsed.errors.length, 0, `parseFile failed: ${JSON.stringify(parsed.errors)}`);
+    let index = 0;
+    return parsed.transactions.map((trans: any) => {
+      trans.trx_id = String(index++);
+      trans.selected = true;
+      return trans;
+    });
+  };
 
   const outputs = new Map<string, unknown>();
   const records: any[] = [];
   for (const planCase of plan.cases) {
-    const { entry, fn, real } = functions.get(planCase.function);
+    const { entry, fn, real, helpers, composite } = functions.get(planCase.function);
     let input = planCase.input;
     if (planCase.source === 'derived') {
       assert.ok(outputs.has(planCase.derivedFrom), `${planCase.id} derives from an earlier case ${planCase.derivedFrom}`);
@@ -151,18 +202,22 @@ test('file import oracle', async () => {
       input = { amount: encode(outputs.get(planCase.derivedFrom)) };
     }
     const runInput = decode(input);
+    const environment = { parseCsv, parseRaw, helpers };
     let result: unknown;
     let output: unknown;
     try {
-      result = entry.call(fn, runInput);
+      result = composite
+        ? await entry.call(Object.fromEntries(entry.uses.map((name: string) => [name, functions.get(name).fn])),
+          runInput, environment, real)
+        : await entry.call(fn, runInput, environment);
       output = encode(result);
     } catch (error: any) {
       result = undefined;
       output = { $js: 'threw', message: String(error?.message ?? error) };
     }
-    if (real) {
+    if (real && !composite) {
       let realOutput: unknown;
-      try { realOutput = encode(entry.call(real, runInput)); } catch (error: any) {
+      try { realOutput = encode(await entry.call(real, runInput, environment)); } catch (error: any) {
         realOutput = { $js: 'threw', message: String(error?.message ?? error) };
       }
       assert.deepEqual(JSON.stringify(output), JSON.stringify(realOutput), `${planCase.id}: extracted copy differs from the real export`);
@@ -175,8 +230,13 @@ test('file import oracle', async () => {
   await post('Profiler.stopPreciseCoverage');
   session.disconnect();
 
+  rmSync(scratch, { force: true, recursive: true });
   const coverage: Record<string, unknown> = {};
   for (const [name, item] of functions) {
+    if (item.composite) {
+      coverage[name] = { gate: item.entry.coverageGate, uncovered: [], ...(item.entry.coverageNote ? { note: item.entry.coverageNote } : {}) };
+      continue;
+    }
     const script = scripts.find((candidate: any) => candidate.url === `oracle-fn:${name}`);
     assert.ok(script, `no coverage was recorded for ${name}`);
     const runs = uncoveredRuns(item.code, script.functions);

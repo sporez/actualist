@@ -34,37 +34,6 @@ struct ImportedIDExactnessTests {
         #expect(try await database.existingImportedIDs(accountID: "checking") == ["A1"])
     }
 
-    @Test func aCSVRowWhoseIDDiffersOnlyByCaseImportsWithoutAConflict() async throws {
-        let bundle = try await support.makeOpenedWritableStoreBundle(
-            additionalFixtureSQL: TransactionCSVImportRevalidationTests.fixtureSQL
-        )
-        try exec(bundle, """
-            INSERT INTO transactions (id, acct, date, amount, imported_id, tombstone)
-            VALUES ('stored', 'checking', 20260912, -999, 'a1', 0)
-            """)
-        let review = try await bundle.store.prepareTransactionCSVImport(
-            TransactionCSVImportPreparationRequest(
-                budgetID: "group-1",
-                accountID: "checking",
-                data: Data("Date,Payee,Amount,imported_id\n2026-09-12,Landlord,-9.99,A1\n".utf8),
-                options: TransactionCSVImportOptions()
-            )
-        )
-        #expect(review.rows.map(\.outcome.kind) == [.insert])
-
-        let result = try await bundle.store.applyTransactionCSVImport(
-            TransactionCSVImportApplyRequest(
-                budgetID: "group-1",
-                accountID: "checking",
-                sessionGeneration: review.sessionGeneration,
-                rows: review.rows
-            )
-        )
-
-        #expect(result.insertedCount == 1)
-        #expect(try ids(bundle, column: "imported_id") == ["A1", "a1"])
-    }
-
     @Test func aBankSyncRowWhoseIDDiffersOnlyByCaseAppliesWithoutAConflict() async throws {
         let remote = support.remoteAccount(balance: "0.00")
         let transport = LocalFirstActualStoreTests.StubSimpleFINTransport(
