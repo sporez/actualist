@@ -120,8 +120,7 @@ struct TransactionCSVImportTests {
     @Test func aStrayQuoteRefusesTheFileLikeActual() async throws {
         await #expect(throws: TransactionCSVImportError.unreadableFile(.invalidOpeningQuote(line: 2))) {
             _ = try await TransactionCSVImportPipeline.rows(
-                from: Data("Date,Payee,Amount\n2026-09-27,Joe\"s Diner,1\n".utf8),
-                options: TransactionCSVImportOptions()
+                from: Data("Date,Payee,Amount\n2026-09-27,Joe\"s Diner,1\n".utf8)
             )
         }
     }
@@ -173,7 +172,7 @@ struct TransactionCSVImportTests {
             "Date,Payee,Amount\n2026-09-27,A,$25.00\n2026-09-26,B,\"$1,234.56\"\n2026-09-25,C,(12.50)\n2026-09-24,D,\"1.234,56\"\n"
         ).rows
         #expect(rows.map(\.amountMinorUnits) == [2_500, 123_456, -1_250, 123_456])
-        #expect(rows.allSatisfy { !$0.amountUnreadable })
+        #expect(rows.allSatisfy { $0.amountWarning == nil })
     }
 
     @Test func guessesADayFirstDateFormatFromTheFirstRow() throws {
@@ -194,7 +193,7 @@ struct TransactionCSVImportTests {
     @Test func anUnreadableAmountImportsAsZeroAndIsMarked() throws {
         let rows = try mapped("Date,Payee,Amount\n2026-09-27,Sample Market,abc\n").rows
         #expect(rows[0].amountMinorUnits == 0)
-        #expect(rows[0].amountUnreadable)
+        #expect(rows[0].amountWarning == .unreadable)
     }
 
     /// Actual's import modal turns an empty or zero amount into a zero-amount
@@ -202,7 +201,7 @@ struct TransactionCSVImportTests {
     @Test func mapsAnEmptyOrZeroAmountToAZeroAmountRow() throws {
         let rows = try mapped("Date,Payee,Notes,Amount\n2026-09-28,Second Store\n2026-09-29,Third Store,,0\n").rows
         #expect(rows.map(\.amountMinorUnits) == [0, 0])
-        #expect(rows.allSatisfy { !$0.amountUnreadable })
+        #expect(rows.allSatisfy { $0.amountWarning == nil })
     }
 
     /// The preview sorts newest first, but only by a column named exactly
@@ -236,6 +235,121 @@ struct TransactionCSVImportTests {
         #expect(matcher.categoryID(forText: "Dining") == nil)
         // No canonical equivalence: a decomposed accent is different text.
         #expect(ImportCategoryMatcher(categories: [.init(id: "c", name: "Caf\u{E9}")]).categoryID(forText: "Cafe\u{301}") == nil)
+    }
+
+    // MARK: - Saved settings and amount layouts
+
+    /// `ImportSettings.saved` follows the modal's start-up reads of the
+    /// account's synced preferences.
+    @Test func savedSettingsReadLikeActualsImport() {
+        let account = "acct"
+        let saved = ImportSettings.saved(
+            preferences: [
+                "csv-delimiter-acct": ";", "csv-encoding-acct": "windows-1252", "csv-has-header-acct": "false",
+                "csv-skip-start-lines-acct": " 3abc", "csv-skip-end-lines-acct": "x",
+                "csv-in-out-mode-acct": "true", "csv-out-value-acct": "DEBIT", "flip-amount-acct-csv": "true",
+                "parse-date-acct-csv": "dd mm yyyy",
+                "csv-mappings-acct": #"{"date":"0","payee":"1","outflow":"2","inflow":"3","notes":null}"#,
+            ],
+            accountID: account,
+            fileName: "bank.csv"
+        )
+        #expect(saved.delimiter == ";")
+        #expect(saved.encoding == "windows-1252")
+        #expect(!saved.hasHeaderRow)
+        #expect(saved.skipStartLines == 3)
+        #expect(saved.skipEndLines == 0)
+        #expect(saved.inOutMode && saved.outValue == "DEBIT" && saved.flipAmount)
+        #expect(saved.dateFormat { .yyyyMMdd } == .ddMMyyyy)
+        guard case .saved(let mapping) = saved.mapping else {
+            Issue.record("expected a saved mapping")
+            return
+        }
+        #expect(mapping.isSplit)
+        #expect(mapping.targets[.notes] == .null)
+        #expect(mapping.targets[.amount] == nil)
+
+        let defaults = ImportSettings.saved(
+            preferences: ["csv-delimiter-acct": "", "parse-date-acct-csv": "dd/mm/yyyy"],
+            accountID: account,
+            fileName: "bank.tsv"
+        )
+        // An empty pref falls back; `.tsv` defaults to tab; an unknown saved
+        // date format reads as `mm dd yyyy`.
+        #expect(defaults.delimiter == "\t")
+        #expect(defaults.hasHeaderRow && defaults.encoding == "auto")
+        #expect(defaults.dateFormat { .yyyyMMdd } == .mmDDyyyy)
+        #expect(defaults.mapping == .guess)
+
+        let broken = ImportSettings.saved(preferences: ["csv-mappings-acct": "null"], accountID: account, fileName: "a.csv")
+        #expect(broken.mapping == .unreadable)
+        let array = ImportSettings.saved(preferences: ["csv-mappings-acct": "[1]"], accountID: account, fileName: "a.csv")
+        #expect(array.mapping == .saved(ImportFieldMapping()))
+    }
+
+    @Test func aSavedSplitMappingReadsDebitAndCreditColumns() throws {
+        var settings = ImportSettings()
+        settings.mapping = .saved(ImportFieldMapping([
+            .date: .column("Date"), .payee: .column("Description"),
+            .outflow: .column("Debit"), .inflow: .column("Credit"),
+        ]))
+        let table = try TransactionCSVParser().parse(Data(
+            "Date,Description,Debit,Credit\n2026-09-27,Sample Market,12.50,\n2026-09-28,Sample Refund,,3.00\n".utf8
+        ))
+        let rows = try TransactionCSVImportMapper.map(table, settings: settings).rows
+        #expect(rows.map(\.amountMinorUnits) == [-1_250, 300])
+        #expect(rows.map(\.payeeName) == ["Sample Market", "Sample Refund"])
+        #expect(rows.allSatisfy { $0.amountWarning == nil })
+    }
+
+    /// Without a saved mapping, a Debit/Credit file maps one amount column;
+    /// rows whose amount sits in the other column import as 0 and are
+    /// flagged in the review (Actualist-only hint).
+    @Test func flagsAnEmptyAmountCellWhenAnotherColumnHasAnAmount() throws {
+        let rows = try mapped(
+            "Date,Description,Debit,Credit\n2026-09-27,Sample Market,12.50,\n2026-09-28,Sample Refund,,$3.00\n2026-09-29,Nothing,,\n"
+        ).rows
+        #expect(rows.map(\.amountMinorUnits) == [1_250, 0, 0])
+        #expect(rows.map(\.amountWarning) == [nil, .emptyWhileAnotherColumnHasAmount, nil])
+    }
+
+    @Test func skipsPreambleLinesAndReadsTheChosenEncoding() throws {
+        var bytes = Array("Account statement\r\nDate;Payee;Amount\r\n2026-09-27;Caf".utf8)
+        bytes.append(0xE9) // é in Windows-1252
+        bytes += Array(";-4,50\r\n".utf8)
+        let table = try TransactionCSVParser(options: TransactionCSVParser.Options(
+            delimiter: ";", encoding: "windows-1252", skipStartLines: 1
+        )).parse(Data(bytes))
+        #expect(table.headers == ["Date", "Payee", "Amount"])
+        #expect(table.rows == [["2026-09-27", "Caf\u{E9}", "-4,50"]])
+        #expect(throws: TransactionCSVParser.ParseError.skipsTooManyLines) {
+            _ = try TransactionCSVParser(options: TransactionCSVParser.Options(skipStartLines: 2, skipEndLines: 2))
+                .parse(Data("a\nb\nc".utf8))
+        }
+        #expect(throws: TransactionCSVParser.ParseError.unsupportedEncoding("klingon")) {
+            _ = try TransactionCSVParser(options: TransactionCSVParser.Options(encoding: "klingon")).parse(Data("a".utf8))
+        }
+    }
+
+    @Test func theAccountsSavedSettingsFromActualApplyToTheImport() async throws {
+        let bundle = try await LocalFirstActualStoreTests().makeOpenedWritableStoreBundle(
+            additionalFixtureSQL: Self.fixtureSQL + """
+                CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+                INSERT INTO preferences VALUES ('csv-delimiter-checking', ';');
+                INSERT INTO preferences VALUES (
+                    'csv-mappings-checking',
+                    '{"date":"Date","payee":"Description","outflow":"Debit","inflow":"Credit","notes":null,"category":null}'
+                );
+                """
+        )
+        let review = try await bundle.store.prepareTransactionCSVImport(
+            TransactionCSVImportPreparationRequest(
+                budgetID: "group-1",
+                accountID: "checking",
+                data: Data("Date;Description;Debit;Credit\n2026-09-27;Sample Market;12,50;\n2026-09-28;Sample Refund;;3,00\n".utf8)
+            )
+        )
+        #expect(review.rows.map(\.row.amountMinorUnits) == [-1_250, 300])
     }
 
     // MARK: - Apply stage (shared synthetic store fixture)
@@ -420,8 +534,7 @@ struct TransactionCSVImportTests {
                 TransactionCSVImportPreparationRequest(
                     budgetID: "group-1",
                     accountID: "checking",
-                    data: data,
-                    options: TransactionCSVImportOptions()
+                    data: data
                 )
             )
         }
@@ -455,8 +568,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: "checking",
-                data: export.data,
-                options: TransactionCSVImportOptions()
+                data: export.data
             )
         )
         #expect(review.rows.count == 2)
@@ -509,8 +621,7 @@ struct TransactionCSVImportTests {
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: accountID,
-                data: data,
-                options: TransactionCSVImportOptions()
+                data: data
             )
         )
         return review.rows.filter { $0.outcome.writes }

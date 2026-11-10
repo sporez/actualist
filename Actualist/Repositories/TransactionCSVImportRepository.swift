@@ -1,22 +1,15 @@
 import Foundation
 
-/// Import-stage options. The parser supports any single-character delimiter
-/// and headerless files; the review UI currently exposes the defaults only.
-struct TransactionCSVImportOptions: Sendable, Equatable {
-    var delimiter: String
-    var hasHeaderRow: Bool
-
-    init(delimiter: String = ",", hasHeaderRow: Bool = true) {
-        self.delimiter = delimiter
-        self.hasHeaderRow = hasHeaderRow
-    }
-}
-
 struct TransactionCSVImportPreparationRequest: Sendable {
     let budgetID: String
     let accountID: String
     let data: Data
-    var options: TransactionCSVImportOptions
+    /// The picked file's name. A `.tsv` name defaults the separator to tab,
+    /// as Actual's import does.
+    var fileName = "import.csv"
+    /// `nil` starts from the account's settings saved in Actual (its synced
+    /// preferences), as Actual's import does.
+    var settings: ImportSettings?
 }
 
 /// One parsed row with the outcome the shared import reconcile decided for it

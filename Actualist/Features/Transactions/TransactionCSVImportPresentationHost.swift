@@ -14,7 +14,7 @@ struct TransactionCSVImportPresentationHost: ViewModifier {
         content
             .fileImporter(
                 isPresented: $isPresented,
-                allowedContentTypes: [UTType.commaSeparatedText, UTType.plainText],
+                allowedContentTypes: [UTType.commaSeparatedText, UTType.tabSeparatedText, UTType.plainText],
                 allowsMultipleSelection: false
             ) { result in
                 guard case .success(let urls) = result,

@@ -88,7 +88,7 @@ struct LiveLabActual2611Tests {
         let csv = "Date,Payee,Notes,Amount\n"
             + ["-25.00", "-35.00", "-45.00"].map { "\(tieDay),Interop Import,,\($0)" }.joined(separator: "\n") + "\n"
         let review = try await store.prepareTransactionCSVImport(TransactionCSVImportPreparationRequest(
-            budgetID: budget.syncID, accountID: tiesID, data: Data(csv.utf8), options: TransactionCSVImportOptions()
+            budgetID: budget.syncID, accountID: tiesID, data: Data(csv.utf8)
         ))
         var tieMatches: [String: String] = [:]
         for row in review.rows {

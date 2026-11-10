@@ -37,8 +37,7 @@ struct TransactionCSVImportRevalidationTests {
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: "checking",
-                data: data,
-                options: TransactionCSVImportOptions()
+                data: data
             )
         )
     }

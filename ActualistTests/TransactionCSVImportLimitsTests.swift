@@ -46,7 +46,6 @@ struct TransactionCSVImportLimitsTests {
         await #expect(throws: TransactionCSVImportError.fileTooLarge) {
             _ = try await TransactionCSVImportPipeline.rows(
                 from: Data(count: 11),
-                options: TransactionCSVImportOptions(),
                 maxBytes: 10
             )
         }
@@ -55,14 +54,12 @@ struct TransactionCSVImportLimitsTests {
     @Test func rowCountAtTheCapMapsAndOneOverThrows() async throws {
         let atCap = try await TransactionCSVImportPipeline.rows(
             from: csv(rows: 3),
-            options: TransactionCSVImportOptions(),
             maxRows: 3
         )
         #expect(atCap.count == 3)
         await #expect(throws: TransactionCSVImportError.tooManyRows) {
             _ = try await TransactionCSVImportPipeline.rows(
                 from: csv(rows: 4),
-                options: TransactionCSVImportOptions(),
                 maxRows: 3
             )
         }
@@ -74,7 +71,6 @@ struct TransactionCSVImportLimitsTests {
         await #expect(throws: TransactionCSVImportError.tooManyRows) {
             _ = try await TransactionCSVImportPipeline.rows(
                 from: data,
-                options: TransactionCSVImportOptions(),
                 maxRows: 2
             )
         }

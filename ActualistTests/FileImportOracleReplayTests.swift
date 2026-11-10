@@ -12,6 +12,13 @@ struct FileImportOracleReplayTests {
     private static let domain = "FileImport"
     private static let fileName = "file-import-contract.json"
     private static let mismatchReportLimit = 20
+    /// Known divergences, by fixture case (`config/parity/known-divergences.json`).
+    private static let op91Cases: Set<String> = ["pipeline/posting-date-plus-date"]
+    private static let op92Cases: Set<String> = [
+        "parseAmountFields/values/amount-true", "parseAmountFields/values/outflow-true",
+        "parseAmountFields/values/inflow-true", "parseAmountFields/values/amount-true-inout",
+        "pipeline/saved/mapping-saved-selected-amount",
+    ]
 
     // MARK: - Fixture structure
 
@@ -110,21 +117,59 @@ struct FileImportOracleReplayTests {
         report(mismatches)
     }
 
-    /// Phase 1 ports the single-column defaults only; the split, in/out,
-    /// flip and multiplier modes arrive in Phase 2.
     @Test
-    func parseAmountFieldsSingleColumnMatchesActual() throws {
+    func parseAmountFieldsMatchesActual() throws {
         var mismatches: [String] = []
         for testCase in try cases("parseAmountFields") {
-            let text = testCase.input["amount"] as? String
-            let ours = ImportAmountParsing.singleColumnMinorUnits(text)
+            let trans = try OracleJSON.object(testCase.input["trans"], "trans")
+            let modes = ImportAmountParsing.AmountModes(
+                splitMode: testCase.input["splitMode"] as? Bool ?? false,
+                inOutMode: testCase.input["inOutMode"] as? Bool ?? false,
+                outValue: testCase.input["outValue"] as? String ?? "",
+                flipAmount: testCase.input["flipAmount"] as? Bool ?? false,
+                multiplier: testCase.input["multiplierAmount"] as? String ?? ""
+            )
+            let row = MappedImportRow(
+                amount: trans["amount"] as? String,
+                inOut: trans["inOut"] as? String,
+                outflow: trans["outflow"] as? String,
+                inflow: trans["inflow"] as? String
+            )
+            let ours = ImportAmountParsing.parseAmountFields(row, modes: modes)
             let output = try OracleJSON.object(testCase.output, "output")
-            guard let amount = JSValue(output["amount"]).number else {
-                throw OracleReplayError.malformedFixture("\(testCase.id): amount is not a number")
+            let same = JSValue(output["amount"]).equalsNumber(ours.amount)
+                && JSValue(output["outflow"]).equalsNumber(ours.outflow)
+                && JSValue(output["inflow"]).equalsNumber(ours.inflow)
+            if Self.op92Cases.contains(testCase.id) {
+                withKnownIssue("OP-92: a saved column mapping that names the modal's internal `selected` flag reads nothing, where Actual reads the boolean true") {
+                    #expect(same, "\(testCase.id): ours \(ours), Actual \(output)")
+                }
+            } else if !same {
+                mismatches.append("\(testCase.id): ours \(ours), Actual \(output)")
             }
-            let theirs = Int(ImportAmountParsing.amountToInteger(amount))
-            if ours != theirs {
-                mismatches.append("\(testCase.id): \(String(describing: text)) → ours \(ours), Actual \(theirs)")
+        }
+        report(mismatches)
+    }
+
+    @Test
+    func decodeCsvBytesMatchesActual() throws {
+        var mismatches: [String] = []
+        for testCase in try cases("decodeCsvBytes") {
+            let base64 = try OracleJSON.string(testCase.input, "bytesBase64")
+            guard let bytes = Data(base64Encoded: base64) else {
+                throw OracleReplayError.malformedFixture("\(testCase.id): bad bytesBase64")
+            }
+            let encoding = testCase.input["encoding"] as? String ?? "auto"
+            let output = try OracleJSON.object(testCase.output, "output")
+            let ours = try? ImportFileDecoding.decode([UInt8](bytes), encoding: encoding)
+            switch (ours, output["text"] as? String) {
+            case (nil, nil):
+                continue
+            case (let ours?, let theirs?) where ours.elementsEqual(theirs.unicodeScalars):
+                continue
+            default:
+                let oursText = ours.map { JavaScriptText.string($0).unicodeScalars.map { String($0.value, radix: 16) } }
+                mismatches.append("\(testCase.id) [\(encoding)]: ours \(String(describing: oursText)), Actual \(String(describing: output["text"] ?? output["error"]))")
             }
         }
         report(mismatches)
@@ -152,12 +197,9 @@ struct FileImportOracleReplayTests {
         var mismatches: [String] = []
         for testCase in try cases("getInitialDateFormat") {
             let sources = try sourceRows(testCase.input)
-            let mapping = ImportFieldMappingRules.initialMappings(sources) ?? ImportFieldMapping()
-            let ours = ImportDateParsing.initialDateFormat(
-                rowCount: sources.count,
-                firstDateValue: mapping.date.flatMap { sources.first?.value($0) },
-                hasDateColumn: mapping.date != nil
-            )
+            let mapping = try testCase.input["mappings"].map(fieldMapping)
+                ?? ImportFieldMappingRules.initialMappings(sources) ?? ImportFieldMapping()
+            let ours = ImportFieldMappingRules.initialDateFormat(sources, mapping: mapping)
             let theirs = testCase.output as? String
             if ours.rawValue != theirs {
                 mismatches.append("\(testCase.id): ours \(ours.rawValue), Actual \(String(describing: theirs))")
@@ -174,14 +216,7 @@ struct FileImportOracleReplayTests {
         for testCase in try cases("getInitialMappings") {
             let ours = ImportFieldMappingRules.initialMappings(try sourceRows(testCase.input))
             let output = try OracleJSON.object(testCase.output, "output")
-            let theirs: ImportFieldMapping? = output.isEmpty ? nil : ImportFieldMapping(
-                date: output["date"] as? String,
-                amount: output["amount"] as? String,
-                payee: output["payee"] as? String,
-                notes: output["notes"] as? String,
-                inOut: output["inOut"] as? String,
-                category: output["category"] as? String
-            )
+            let theirs: ImportFieldMapping? = output.isEmpty ? nil : try fieldMapping(output)
             if !sameMapping(ours, theirs) {
                 mismatches.append("\(testCase.id): ours \(String(describing: ours)), Actual \(String(describing: theirs))")
             }
@@ -193,15 +228,7 @@ struct FileImportOracleReplayTests {
     func applyFieldMappingsMatchesActual() throws {
         var mismatches: [String] = []
         for testCase in try cases("applyFieldMappings") {
-            let mappingObject = try OracleJSON.object(testCase.input["mappings"], "mappings")
-            let mapping = ImportFieldMapping(
-                date: mappingObject["date"] as? String,
-                amount: mappingObject["amount"] as? String,
-                payee: mappingObject["payee"] as? String,
-                notes: mappingObject["notes"] as? String,
-                inOut: mappingObject["inOut"] as? String,
-                category: mappingObject["category"] as? String
-            )
+            let mapping = try fieldMapping(testCase.input["mappings"] as Any)
             let ours = try sourceRows(testCase.input).map { ImportFieldMappingRules.apply(mapping, to: $0) }
             guard let rows = testCase.output as? [Any] else {
                 throw OracleReplayError.malformedFixture("\(testCase.id): output is not an array")
@@ -214,7 +241,9 @@ struct FileImportOracleReplayTests {
                     payeeName: JSValue(row["payee_name"]).string,
                     notes: JSValue(row["notes"]).string,
                     inOut: JSValue(row["inOut"]).string,
-                    category: JSValue(row["category"]).string
+                    category: JSValue(row["category"]).string,
+                    outflow: JSValue(row["outflow"]).string,
+                    inflow: JSValue(row["inflow"]).string
                 )
             }
             if !sameMappedRows(ours, theirs) {
@@ -300,16 +329,29 @@ struct FileImportOracleReplayTests {
         for testCase in try cases("pipeline") {
             let output = try OracleJSON.object(testCase.output, "output")
             let matcher = ImportCategoryMatcher(categories: try categories(testCase.input["categories"]))
+            let settings = try pipelineSettings(testCase.input)
+            let theirError = (output["error"] as? [String: Any])?["kind"] as? String
             let result: TransactionCSVImportMapper.Result
             do {
-                result = try TransactionCSVImportMapper.map(try table(testCase.input))
-            } catch TransactionCSVImportError.invalidRow {
-                if output["error"] == nil {
-                    mismatches.append("\(testCase.id): ours refused a date, Actual imported")
+                let parsed = try TransactionCSVParser(options: TransactionCSVParser.Options(
+                    delimiter: settings.delimiter,
+                    hasHeaderRow: settings.hasHeaderRow,
+                    encoding: settings.encoding,
+                    skipStartLines: settings.skipStartLines,
+                    skipEndLines: settings.skipEndLines
+                )).parse(try inputData(testCase.input))
+                result = try TransactionCSVImportMapper.map(parsed, settings: settings)
+            } catch {
+                let ourError: String
+                switch error {
+                case TransactionCSVImportError.invalidRow: ourError = "date"
+                case TransactionCSVImportError.unreadableSavedMapping: ourError = "mappings-json"
+                case is TransactionCSVParser.ParseError: ourError = "parse"
+                default: throw error
                 }
-                continue
-            } catch let error as TransactionCSVParser.ParseError {
-                mismatches.append("\(testCase.id): ours refused the file (\(error)), Actual read it")
+                if ourError != theirError {
+                    mismatches.append("\(testCase.id): ours refused (\(ourError): \(error)), Actual \(theirError ?? "imported")")
+                }
                 continue
             }
             guard let transactions = output["transactions"] as? [Any] else {
@@ -322,20 +364,42 @@ struct FileImportOracleReplayTests {
             if result.orderIsEngineDefined != engineDefinedOrder {
                 mismatches.append("\(testCase.id): engine-defined order ours \(result.orderIsEngineDefined), Actual \(engineDefinedOrder)")
             }
-            if engineDefinedOrder {
-                // The rows themselves must agree; only their order is V8's.
+            if Self.op91Cases.contains(testCase.id) {
+                // The rows themselves must agree; only their order is the engine's.
                 if ours.sorted(by: { $0.sourceIndex < $1.sourceIndex }) != theirs.sorted(by: { $0.sourceIndex < $1.sourceIndex }) {
                     mismatches.append("\(testCase.id): rows differ\n  ours   \(ours)\n  Actual \(theirs)")
-                } else if ours != theirs {
-                    withKnownIssue("OP-91: rows whose lowercase date column mixes readable and unreadable dates keep file order, where Actual's order is engine-defined") {
-                        Issue.record("\(testCase.id): order differs")
-                    }
+                }
+                withKnownIssue("OP-91: rows whose lowercase date column mixes readable and unreadable dates keep file order, where Actual's order is engine-defined") {
+                    #expect(ours == theirs, "\(testCase.id): order differs")
+                }
+            } else if Self.op92Cases.contains(testCase.id) {
+                withKnownIssue("OP-92: a saved column mapping that names the modal's internal `selected` flag reads nothing, where Actual reads the boolean true") {
+                    #expect(ours == theirs, "\(testCase.id): differs")
                 }
             } else if ours != theirs {
                 mismatches.append("\(testCase.id):\n  ours   \(ours)\n  Actual \(theirs)")
             }
         }
         report(mismatches)
+    }
+
+    /// The pipeline's starting settings, from the account's synced prefs.
+    private func pipelineSettings(_ input: [String: Any]) throws -> ImportSettings {
+        guard let pairs = input["prefs"] as? [[Any]] else {
+            throw OracleReplayError.malformedFixture("pipeline case without prefs")
+        }
+        var preferences: [String: String] = [:]
+        for pair in pairs {
+            guard pair.count == 2, let key = pair[0] as? String, let value = pair[1] as? String else {
+                throw OracleReplayError.malformedFixture("bad pref pair")
+            }
+            preferences[key] = value
+        }
+        return .saved(
+            preferences: preferences,
+            accountID: try OracleJSON.string(input, "accountId"),
+            fileName: try OracleJSON.string(input, "fileName")
+        )
     }
 
     // MARK: - Helpers
@@ -446,21 +510,25 @@ struct FileImportOracleReplayTests {
         return format
     }
 
-    private func table(_ input: [String: Any]) throws -> TransactionCSVParser.Table {
-        let data: Data
+    private func inputData(_ input: [String: Any]) throws -> Data {
         if let base64 = input["bytesBase64"] as? String {
             guard let decoded = Data(base64Encoded: base64) else {
                 throw OracleReplayError.malformedFixture("bad bytesBase64")
             }
-            data = decoded
-        } else {
-            data = Data(try OracleJSON.string(input, "csv").utf8)
+            return decoded
         }
+        return Data(try OracleJSON.string(input, "csv").utf8)
+    }
+
+    private func table(_ input: [String: Any]) throws -> TransactionCSVParser.Table {
         let options = TransactionCSVParser.Options(
             delimiter: input["delimiter"] as? String ?? ",",
-            hasHeaderRow: input["hasHeaderRow"] as? Bool ?? true
+            hasHeaderRow: input["hasHeaderRow"] as? Bool ?? true,
+            encoding: input["encoding"] as? String ?? "auto",
+            skipStartLines: OracleJSON.int(input["skipStartLines"]) ?? 0,
+            skipEndLines: OracleJSON.int(input["skipEndLines"]) ?? 0
         )
-        return try TransactionCSVParser(options: options).parse(data)
+        return try TransactionCSVParser(options: options).parse(inputData(input))
     }
 
     private func sourceRows(_ input: [String: Any]) throws -> [ImportSourceRow] {
@@ -474,10 +542,59 @@ struct FileImportOracleReplayTests {
         }
     }
 
+    /// A mapping object from the fixture, given as an object or as
+    /// `[[key, value], ...]` pairs, read the way the import reads a saved one.
+    private func fieldMapping(_ value: Any) throws -> ImportFieldMapping {
+        var members: [(String, JavaScriptJSONValue)] = []
+        if let pairs = value as? [[Any]] {
+            for pair in pairs {
+                guard pair.count == 2, let key = pair[0] as? String else {
+                    throw OracleReplayError.malformedFixture("bad mapping pair")
+                }
+                members.append((key, javaScriptJSON(pair[1])))
+            }
+        } else if let object = value as? [String: Any] {
+            members = object.map { ($0.key, javaScriptJSON($0.value)) }
+        } else {
+            throw OracleReplayError.malformedFixture("mapping is neither pairs nor an object")
+        }
+        var targets: [ImportField: ImportMappingTarget] = [:]
+        for (key, member) in members {
+            if let field = ImportField(rawValue: key) { targets[field] = member.mappingTarget }
+        }
+        return ImportFieldMapping(targets)
+    }
+
+    private func javaScriptJSON(_ value: Any?) -> JavaScriptJSONValue {
+        switch value {
+        case nil, is NSNull:
+            return .null
+        case let number as NSNumber where CFGetTypeID(number) == CFBooleanGetTypeID():
+            return .bool(number.boolValue)
+        case let number as NSNumber:
+            return .number(number.doubleValue)
+        case let string as String:
+            return .string(string)
+        case let array as [Any]:
+            return .array(array.map(javaScriptJSON))
+        case let object as [String: Any]:
+            return .object(object.mapValues(javaScriptJSON))
+        default:
+            return .null
+        }
+    }
+
     private func sameMapping(_ lhs: ImportFieldMapping?, _ rhs: ImportFieldMapping?) -> Bool {
         guard let lhs, let rhs else { return lhs == nil && rhs == nil }
-        return sameText(lhs.date, rhs.date) && sameText(lhs.amount, rhs.amount) && sameText(lhs.payee, rhs.payee)
-            && sameText(lhs.notes, rhs.notes) && sameText(lhs.inOut, rhs.inOut) && sameText(lhs.category, rhs.category)
+        guard Set(lhs.targets.keys) == Set(rhs.targets.keys) else { return false }
+        return lhs.targets.allSatisfy { field, target in
+            switch (target, rhs.targets[field]) {
+            case (.null, .null?): return true
+            case (.key(let left, let leftTruthy), .key(let right, let rightTruthy)?):
+                return leftTruthy == rightTruthy && JavaScriptText.identical(left, right)
+            default: return false
+            }
+        }
     }
 
     private func sameMappedRows(_ lhs: [MappedImportRow], _ rhs: [MappedImportRow]) -> Bool {
@@ -485,6 +602,7 @@ struct FileImportOracleReplayTests {
             sameText(left.date, right.date) && sameText(left.amount, right.amount)
                 && sameText(left.payeeName, right.payeeName) && sameText(left.notes, right.notes)
                 && sameText(left.inOut, right.inOut) && sameText(left.category, right.category)
+                && sameText(left.outflow, right.outflow) && sameText(left.inflow, right.inflow)
         }
     }
 }

@@ -38,8 +38,7 @@ struct TransactionCSVImportStoreRulesTests {
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: accountID,
-                data: Data(("Date,Payee,Notes,Amount,Category,Cleared\n" + body + "\n").utf8),
-                options: TransactionCSVImportOptions()
+                data: Data(("Date,Payee,Notes,Amount,Category,Cleared\n" + body + "\n").utf8)
             )
         )
         let result = try await bundle.store.applyTransactionCSVImport(
@@ -92,8 +91,7 @@ struct TransactionCSVImportStoreRulesTests {
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: "checking",
-                data: Data("Date,Payee,Amount\n2026-07-05,Nobody,-10.00\n".utf8),
-                options: TransactionCSVImportOptions()
+                data: Data("Date,Payee,Amount\n2026-07-05,Nobody,-10.00\n".utf8)
             )
         )
         guard case .update(let update, _)? = review.rows.first?.outcome else {

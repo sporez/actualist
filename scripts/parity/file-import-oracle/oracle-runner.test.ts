@@ -127,12 +127,16 @@ test('file import oracle', async () => {
     return exported;
   };
   // One dependency of an entry, installed as a global of its context.
-  const resolveDependency = async (dependency: any, context: any) => {
+  const helperScripts = new Map<string, { code: string; firstLine: number }>();
+  const resolveDependency = async (dependency: any, context: any, owner: string) => {
+    if (dependency.global) return (globalThis as any)[dependency.global];
     if (dependency.namespace) return loadModule(dependency.module);
     if (dependency.constant) return vm.runInContext(extractConstant(dependency.from, dependency.constant), context);
     if (dependency.function) {
       const helper = extractFunction(dependency.from, dependency.function);
-      new vm.Script(helper.code, { filename: `oracle-helper:${dependency.function}` }).runInContext(context);
+      const filename = `oracle-helper:${owner}:${dependency.function}`;
+      helperScripts.set(filename, helper);
+      new vm.Script(helper.code, { filename }).runInContext(context);
       return context[dependency.function];
     }
     return loadExport(dependency.from, dependency.export);
@@ -144,7 +148,7 @@ test('file import oracle', async () => {
     const sandbox: Record<string, unknown> = {};
     const context = vm.createContext(sandbox);
     for (const [globalName, dependency] of Object.entries<any>(entry.deps)) {
-      sandbox[globalName] = await resolveDependency(dependency, context);
+      sandbox[globalName] = await resolveDependency(dependency, context, entry.name);
     }
     new vm.Script(extracted.code, { filename: `oracle-fn:${entry.name}` }).runInContext(context);
     const fn = (context as any)[entry.name];
@@ -169,15 +173,22 @@ test('file import oracle', async () => {
   const scratch = mkdtempSync(path.join(os.tmpdir(), 'actualist-file-import-'));
   // The same call for every CSV family. `bytesBase64` supplies raw file bytes (byte order
   // marks, invalid UTF-8); otherwise the text is written as UTF-8.
-  const parseRaw = async (input: { csv?: string; bytesBase64?: string; hasHeaderRow: boolean; delimiter: string }) => {
-    const file = path.join(scratch, 'import.csv');
+  // `fileName` only supplies the extension parseFile dispatches on (default .csv); `encoding`,
+  // `skipStartLines` and `skipEndLines` default to the modal's initial 'auto', 0 and 0.
+  type RawInput = {
+    csv?: string; bytesBase64?: string; fileName?: string; hasHeaderRow: boolean; delimiter: string;
+    encoding?: string; skipStartLines?: number; skipEndLines?: number;
+  };
+  const parseRaw = async (input: RawInput) => {
+    const extension = input.fileName?.match(/\.[^.]*$/)?.[0] ?? '.csv';
+    const file = path.join(scratch, `import${extension}`);
     writeFileSync(file, input.bytesBase64 !== undefined ? Buffer.from(input.bytesBase64, 'base64') : Buffer.from(input.csv as string, 'utf8'));
     return parseFile(file, {
       delimiter: input.delimiter,
-      encoding: 'auto',
+      encoding: input.encoding ?? 'auto',
       hasHeaderRow: input.hasHeaderRow,
-      skipStartLines: 0,
-      skipEndLines: 0,
+      skipStartLines: input.skipStartLines ?? 0,
+      skipEndLines: input.skipEndLines ?? 0,
     });
   };
   const parseCsv = async (input: { csv: string; hasHeaderRow: boolean; delimiter: string }) => {
@@ -222,6 +233,7 @@ test('file import oracle', async () => {
       }
       assert.deepEqual(JSON.stringify(output), JSON.stringify(realOutput), `${planCase.id}: extracted copy differs from the real export`);
     }
+    if (entry.extraCheck && !composite && result !== undefined) await entry.extraCheck(result, runInput, environment);
     outputs.set(planCase.id, result);
     records.push({ ...planCase, input, output });
   }
@@ -239,15 +251,22 @@ test('file import oracle', async () => {
     }
     const script = scripts.find((candidate: any) => candidate.url === `oracle-fn:${name}`);
     assert.ok(script, `no coverage was recorded for ${name}`);
-    const runs = uncoveredRuns(item.code, script.functions);
-    coverage[name] = {
-      gate: item.entry.coverageGate,
-      uncovered: runs.map(([from, to]) => ({
-        startLine: item.firstLine + item.code.slice(0, from).split('\n').length - 1,
-        endLine: item.firstLine + item.code.slice(0, to).split('\n').length - 1,
-        snippet: item.code.slice(from, to).replace(/\s+/g, ' ').slice(0, 240),
-      })),
-    };
+    const blocks = (code: string, firstLine: number, functionList: any[]) => uncoveredRuns(code, functionList).map(([from, to]) => ({
+      startLine: firstLine + code.slice(0, from).split('\n').length - 1,
+      endLine: firstLine + code.slice(0, to).split('\n').length - 1,
+      snippet: code.slice(from, to).replace(/\s+/g, ' ').slice(0, 240),
+    }));
+    const uncovered = blocks(item.code, item.firstLine, script.functions);
+    // A module-private helper the entry marks `measure` is gated with it.
+    for (const dependency of Object.values<any>(item.entry.deps)) {
+      if (!dependency.function || !dependency.measure) continue;
+      const filename = `oracle-helper:${name}:${dependency.function}`;
+      const helper = helperScripts.get(filename);
+      const helperScript = scripts.find((candidate: any) => candidate.url === filename);
+      assert.ok(helper && helperScript, `no coverage was recorded for helper ${dependency.function} of ${name}`);
+      uncovered.push(...blocks(helper.code, helper.firstLine, helperScript.functions));
+    }
+    coverage[name] = { gate: item.entry.coverageGate, uncovered };
   }
   writeFileSync(resultPath, JSON.stringify({ records, coverage }));
 }, 120_000);

@@ -21,11 +21,11 @@ enum ImportAmountParsing {
             amount = amount.map { $0 == "\u{2212}" ? "-" : $0 }
         }
         guard let marker = decimalMarkerIndex(amount) else {
-            return safeNumber(JavaScriptText.parseFloat(numericText: extractNumbers(amount[...])))
+            return safeNumber(JavaScriptText.parseFloat(extractNumbers(amount[...])))
         }
         let left = extractNumbers(amount[..<marker])
         let right = extractNumbers(amount[(marker + 1)...])
-        return safeNumber(JavaScriptText.parseFloat(numericText: left + ["."] + right))
+        return safeNumber(JavaScriptText.parseFloat(left + ["."] + right))
     }
 
     /// `amountToInteger`: `Math.round(amount * 10 ** decimalPlaces)`.
@@ -33,13 +33,74 @@ enum ImportAmountParsing {
         JavaScriptText.round(amount * pow(10, Double(decimalPlaces)))
     }
 
-    /// The amount column read with the modal's default options
-    /// (`parseAmountFields(trans, false, false, '', false, '')`, then
-    /// `amountToInteger`): a missing or unreadable cell is 0.
+    /// The amount modes `parseAmountFields` takes after the row.
+    struct AmountModes: Equatable, Sendable {
+        var splitMode = false
+        var inOutMode = false
+        var outValue = ""
+        var flipAmount = false
+        /// The modal's multiplier text (`^\d{1,}(\.\d{0,4})?$` or empty).
+        var multiplier = ""
+    }
+
+    /// `parseAmountFields(trans, splitMode, inOutMode, outValue, flipAmount,
+    /// multiplierAmount)`. `outflow` and `inflow` are `nil` (JS `null`)
+    /// unless split mode is on. A missing or unreadable cell is 0.
+    static func parseAmountFields(
+        _ row: MappedImportRow,
+        modes: AmountModes
+    ) -> (amount: Double, outflow: Double?, inflow: Double?) {
+        func truthy(_ value: Double) -> Bool { value != 0 && !value.isNaN }
+        func or(_ value: Double?, _ fallback: Double) -> Double { value.map { truthy($0) ? $0 : fallback } ?? fallback }
+        // `parseAmount(amount, mapper)`.
+        func parse(_ text: String?, _ mapper: (Double) -> Double) -> Double? {
+            text.flatMap(looselyParseAmount).map(mapper)
+        }
+        let parsedMultiplier = JavaScriptText.parseFloat(Array(modes.multiplier.unicodeScalars))
+        let multiplier = truthy(parsedMultiplier) ? parsedMultiplier : 1.0
+        var outflow = 0.0
+        var inflow = 0.0
+        if modes.splitMode && !modes.inOutMode {
+            outflow = or(parse(row.outflow) { -abs($0) }, 0)
+            inflow = truthy(outflow) ? 0 : or(parse(row.inflow) { abs($0) }, 0)
+        } else {
+            let amount = or(parse(row.amount) { $0 }, 0)
+            if amount >= 0 { inflow = amount } else { outflow = amount }
+        }
+        if modes.inOutMode {
+            let transactionValue = truthy(outflow) ? outflow : inflow
+            if let inOut = row.inOut, JavaScriptText.identical(inOut, modes.outValue) {
+                outflow = -abs(transactionValue)
+                inflow = 0
+            } else {
+                inflow = abs(transactionValue)
+                outflow = 0
+            }
+        }
+        if modes.flipAmount {
+            let oldInflow = inflow
+            inflow = abs(outflow)
+            outflow = -abs(oldInflow)
+        }
+        inflow *= multiplier
+        outflow *= multiplier
+        let amount = truthy(outflow) ? outflow : inflow
+        return modes.splitMode ? (amount, outflow, inflow) : (amount, nil, nil)
+    }
+
+    /// The row's amount as `onImport` stores it: `amountToInteger` of
+    /// `parseAmountFields(...).amount`.
+    static func minorUnits(_ row: MappedImportRow, modes: AmountModes) -> Int {
+        // Within ±2^51 times a multiplier of at most 10^n digits; the
+        // conversion saturates rather than trapping for absurd multipliers.
+        let scaled = amountToInteger(parseAmountFields(row, modes: modes).amount)
+        guard scaled.isFinite else { return 0 }
+        return Int(exactly: scaled) ?? (scaled < 0 ? Int.min : Int.max)
+    }
+
+    /// The amount column read with the modal's default options.
     static func singleColumnMinorUnits(_ text: String?) -> Int {
-        let parsed = text.flatMap(looselyParseAmount) ?? 0
-        // Within ±2^51 after `safeNumber`, so the conversion is exact.
-        return Int(amountToInteger(parsed))
+        minorUnits(MappedImportRow(amount: text), modes: AmountModes())
     }
 
     /// The match of `/[.,](\d{4,9}|\d{1,2})[^\d.,]*$/`. Its tail excludes

@@ -80,7 +80,7 @@ final class TransactionCSVImportCoordinator {
                     budgetID: budgetID,
                     accountID: accountID,
                     data: data,
-                    options: TransactionCSVImportOptions()
+                    fileName: url.lastPathComponent
                 )
             )
             guard loadGeneration == generation, !Task.isCancelled else { return }

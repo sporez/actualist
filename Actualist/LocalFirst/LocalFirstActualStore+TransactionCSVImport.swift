@@ -15,10 +15,16 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         let sessionID = transactionFeedRequestIdentity.sessionID
         let generation = budgetSessionGeneration
 
-        let rows = try await TransactionCSVImportPipeline.rows(
-            from: request.data,
-            options: request.options
-        )
+        let settings: ImportSettings
+        if let chosen = request.settings {
+            settings = chosen
+        } else {
+            let preferences = try await database.importPreferences(
+                keys: ImportSettings.preferenceKeys(accountID: request.accountID)
+            )
+            settings = .saved(preferences: preferences, accountID: request.accountID, fileName: request.fileName)
+        }
+        let rows = try await TransactionCSVImportPipeline.rows(from: request.data, settings: settings)
 
         let payees = try await database.fetchPayees(orderedForPicker: false)
         let categories = try await database.importCategoryList()

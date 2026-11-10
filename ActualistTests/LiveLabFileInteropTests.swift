@@ -119,8 +119,7 @@ struct LiveLabFileInteropTests {
                 let review = try await store.prepareTransactionCSVImport(TransactionCSVImportPreparationRequest(
                     budgetID: budget.syncID,
                     accountID: accountID,
-                    data: try Data(contentsOf: handoff.appending(path: "actual-\(account.key).csv")),
-                    options: TransactionCSVImportOptions()
+                    data: try Data(contentsOf: handoff.appending(path: "actual-\(account.key).csv"))
                 ))
                 record["reviewRows"] = review.rows.count
                 record["outcomes"] = Dictionary(grouping: review.rows, by: { "\($0.outcome.kind)" })

@@ -30,9 +30,18 @@ struct TransactionCSVImportRow: Identifiable, Hashable, Sendable {
     /// The file has a Payee cell and it is exactly empty. Upstream stores that
     /// as an empty imported payee; an absent or whitespace-only cell is null.
     var payeeCellWasEmpty = false
-    /// The amount cell had text that does not read as an amount. Actual
-    /// imports such a row as 0; the review points it out.
-    var amountUnreadable = false
+    /// Why a zero amount may not be what the file meant. Actual imports
+    /// the row as 0 either way; Actualist's review points it out.
+    var amountWarning: TransactionCSVImportAmountWarning?
+}
+
+enum TransactionCSVImportAmountWarning: Equatable, Hashable, Sendable {
+    /// An amount cell had text that does not read as an amount.
+    case unreadable
+    /// The amount cell is empty while another column of the row holds an
+    /// amount, as in a file with separate Debit and Credit columns read
+    /// through one amount column.
+    case emptyWhileAnotherColumnHasAmount
 }
 
 enum TransactionCSVImportRowError: Error, Equatable {
@@ -56,6 +65,9 @@ enum TransactionCSVImportError: Error, Equatable {
     case fileTooLarge
     case tooManyRows
     case invalidRow(line: Int, reason: TransactionCSVImportRowError)
+    /// The column mapping saved for this account is not JSON Actual reads;
+    /// Actual's own import cannot open the file either.
+    case unreadableSavedMapping
     /// A matched row changed after review, so nothing was written.
     case matchChanged(line: Int)
     /// A row the review would insert was imported by someone else after the
@@ -77,6 +89,8 @@ enum TransactionCSVImportError: Error, Equatable {
             return "The file has more than \(TransactionCSVImportLimits.maxRows.formatted()) rows, which is more than an import can take."
         case .invalidRow(let line, let reason):
             return "Row \(line) could not be read because \(reason.message)."
+        case .unreadableSavedMapping:
+            return "The column settings saved for this account could not be read. Nothing was imported."
         case .matchChanged(let line):
             return "Row \(line) matches a transaction that changed after review. Nothing was imported. Open the import again to review it."
         case .reviewChanged:
@@ -88,11 +102,11 @@ enum TransactionCSVImportError: Error, Equatable {
 }
 
 /// Maps a parsed table onto import rows the way Actual's import modal does
-/// with its default settings (pinned v26.11.0, `ImportTransactionsModal.tsx`
-/// `parse`, `getImportPreview` and `onImport`): guess the columns and the
-/// date format from the first row, order the rows as the preview does, then
-/// read each row. All-or-nothing: a row whose date does not read rejects the
-/// file, as Actual's import does.
+/// (pinned v26.11.0, `ImportTransactionsModal.tsx` `parse`, `getImportPreview`
+/// and `onImport`): the saved or guessed column mapping and date format,
+/// the preview's row order, then each row read with the amount modes.
+/// All-or-nothing: a row whose date does not read rejects the file, as
+/// Actual's import does.
 enum TransactionCSVImportMapper {
     struct Result: Equatable, Sendable {
         /// In the order Actual imports them.
@@ -103,13 +117,27 @@ enum TransactionCSVImportMapper {
         let orderIsEngineDefined: Bool
     }
 
-    static func map(_ table: TransactionCSVParser.Table) throws -> Result {
+    static func map(_ table: TransactionCSVParser.Table, settings: ImportSettings = ImportSettings()) throws -> Result {
         let sources = ImportFieldMappingRules.sourceRows(from: table)
-        let mapping = ImportFieldMappingRules.initialMappings(sources) ?? ImportFieldMapping()
-        let dateFormat = ImportDateParsing.initialDateFormat(
-            rowCount: sources.count,
-            firstDateValue: mapping.date.flatMap { sources.first?.value($0) },
-            hasDateColumn: mapping.date != nil
+        let mapping: ImportFieldMapping
+        switch settings.mapping {
+        case .guess:
+            // `getInitialMappings` gives `{}` for no rows.
+            mapping = ImportFieldMappingRules.initialMappings(sources) ?? ImportFieldMapping()
+        case .saved(let saved):
+            mapping = saved
+        case .unreadable:
+            throw TransactionCSVImportError.unreadableSavedMapping
+        }
+        let dateFormat = settings.dateFormat {
+            ImportFieldMappingRules.initialDateFormat(sources, mapping: mapping)
+        }
+        let modes = ImportAmountParsing.AmountModes(
+            splitMode: mapping.isSplit,
+            inOutMode: settings.inOutMode,
+            outValue: settings.outValue,
+            flipAmount: settings.flipAmount,
+            multiplier: settings.multiplier
         )
         let mapped = sources.map { ImportFieldMappingRules.apply(mapping, to: $0) }
 
@@ -130,23 +158,62 @@ enum TransactionCSVImportMapper {
         let order = previewOrder(sources, dateFormat: dateFormat)
         let rows = (order ?? Array(sources.indices)).map { index in
             let row = mapped[index]
+            let amount = ImportAmountParsing.minorUnits(row, modes: modes)
             return TransactionCSVImportRow(
                 id: "csv-row-\(index + 1)",
                 sourceLine: index + 1,
                 dateText: dates[index],
-                amountMinorUnits: ImportAmountParsing.singleColumnMinorUnits(row.amount),
+                amountMinorUnits: amount,
                 payeeName: row.payeeName.map(JavaScriptText.trim) ?? "",
                 notes: row.notes.flatMap { $0.isEmpty ? nil : $0 },
                 categoryName: row.category,
                 cleared: true,
                 importedID: nil,
                 payeeCellWasEmpty: row.payeeName == "",
-                amountUnreadable: row.amount.map {
-                    !JavaScriptText.trim($0).isEmpty && ImportAmountParsing.looselyParseAmount($0) == nil
-                } ?? false
+                amountWarning: amount == 0
+                    ? amountWarning(row, source: sources[index], mapping: mapping)
+                    : nil
             )
         }
         return Result(rows: rows, dateFormat: dateFormat, orderIsEngineDefined: order == nil)
+    }
+
+    /// Why a row that imports as 0 may not mean 0 (review only).
+    private static func amountWarning(
+        _ row: MappedImportRow,
+        source: ImportSourceRow,
+        mapping: ImportFieldMapping
+    ) -> TransactionCSVImportAmountWarning? {
+        let amountCells = mapping.isSplit ? [row.outflow, row.inflow] : [row.amount]
+        let unreadable = amountCells.contains { cell in
+            guard let cell, !JavaScriptText.trim(cell).isEmpty else { return false }
+            return ImportAmountParsing.looselyParseAmount(cell) == nil
+        }
+        if unreadable {
+            return .unreadable
+        }
+        guard !mapping.isSplit, JavaScriptText.trim(row.amount ?? "").isEmpty else { return nil }
+        let ignored = ["trx_id", mapping.dateLookupKey].compactMap { $0 }
+        let otherAmount = source.entries.contains { entry in
+            !ignored.contains { JavaScriptText.identical($0, entry.key) } && looksLikeAmount(entry.value)
+        }
+        return otherAmount ? .emptyWhileAnotherColumnHasAmount : nil
+    }
+
+    /// A cell made only of digits, signs, separators, parentheses, spaces and
+    /// currency symbols that reads as a non-zero amount, and is not shaped
+    /// like a date.
+    private static func looksLikeAmount(_ text: String) -> Bool {
+        let scalars = Array(JavaScriptText.trim(text).unicodeScalars)
+        guard scalars.contains(where: JavaScriptText.isDigit) else { return false }
+        let allowed: Set<Unicode.Scalar> = [".", ",", "'", " ", "\u{A0}", "-", "+", "(", ")", "\u{2212}"]
+        guard scalars.allSatisfy({
+            JavaScriptText.isDigit($0) || allowed.contains($0) || $0.properties.generalCategory == .currencySymbol
+        }) else { return false }
+        let separators = scalars.filter { $0 == "-" || $0 == "/" || $0 == "." }.count
+        let dateShaped = separators == 2 && scalars.allSatisfy { JavaScriptText.isDigit($0) || "-/.".unicodeScalars.contains($0) }
+        guard !dateShaped, let value = ImportAmountParsing.looselyParseAmount(text) else { return false }
+        return value != 0
     }
 
     /// The preview's sort (`getImportPreview`): newest first by the RAW column

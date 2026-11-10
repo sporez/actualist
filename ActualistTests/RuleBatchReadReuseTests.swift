@@ -41,7 +41,7 @@ struct RuleBatchReadReuseTests {
         let csv = Data((["Date,Payee,Notes,Amount"] + rows).joined(separator: "\n").appending("\n").utf8)
         let review = try await bundle.store.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
-                budgetID: "group-1", accountID: "checking", data: csv, options: TransactionCSVImportOptions()
+                budgetID: "group-1", accountID: "checking", data: csv
             )
         )
         let database = try #require(bundle.store.database)

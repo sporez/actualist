@@ -22,11 +22,16 @@ const scriptPath = fileURLToPath(import.meta.url);
 const scriptDirectory = dirname(scriptPath);
 const repositoryRoot = resolve(scriptDirectory, '..', '..', '..');
 const helperPaths = [
+  'scripts/parity/file-import-oracle/amount-fields-cases.mjs',
+  'scripts/parity/file-import-oracle/case-kit.mjs',
   'scripts/parity/file-import-oracle/cases.mjs',
+  'scripts/parity/file-import-oracle/csv-file-option-cases.mjs',
   'scripts/parity/file-import-oracle/csv-parse-cases.mjs',
+  'scripts/parity/file-import-oracle/decode-cases.mjs',
   'scripts/parity/file-import-oracle/registry.mjs',
   'scripts/parity/file-import-oracle/oracle-runner.test.ts',
   'scripts/parity/file-import-oracle/oracle.vitest.config.mjs',
+  'scripts/parity/file-import-oracle/saved-settings-cases.mjs',
   'scripts/parity/file-import-oracle/readonly-oracle.sb',
   'scripts/parity/sync-merkle/cases.mjs',
   'scripts/parity/lib/oracle-pin.mjs',

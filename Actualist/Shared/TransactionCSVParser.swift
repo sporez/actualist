@@ -1,10 +1,10 @@
 import Foundation
 
 /// Pure CSV text parser: a port of what Actual's import does to a CSV file
-/// (pinned v26.11.0 `parseFile` → `parseCSV`): `decodeCsvBytes` with
-/// `encoding: 'auto'`, then `csv-parse` 7.0.3 with `bom: true`, `quote: '"'`,
-/// `trim: true`, `relax_column_count: true`, `skip_empty_lines: true`, and
-/// the caller's `delimiter` and header choice. The `file-import` oracle
+/// (pinned v26.11.0 `parseFile` → `parseCSV`): `decodeCsvBytes` and the
+/// skip-lines step (`ImportFileDecoding`), then `csv-parse` 7.0.3 with
+/// `bom: true`, `quote: '"'`, `trim: true`, `relax_column_count: true`,
+/// `skip_empty_lines: true`, and the caller's `delimiter` and header choice. The `file-import` oracle
 /// replays it. It performs no field mapping, no date or amount
 /// interpretation, and no row validation; those live in the import mapping
 /// stage. No repository access.
@@ -17,10 +17,23 @@ struct TransactionCSVParser {
     struct Options: Sendable {
         var delimiter: String
         var hasHeaderRow: Bool
+        /// A `TextDecoder` label, or `auto`.
+        var encoding: String
+        var skipStartLines: Int
+        var skipEndLines: Int
 
-        init(delimiter: String = ",", hasHeaderRow: Bool = true) {
+        init(
+            delimiter: String = ",",
+            hasHeaderRow: Bool = true,
+            encoding: String = "auto",
+            skipStartLines: Int = 0,
+            skipEndLines: Int = 0
+        ) {
             self.delimiter = delimiter
             self.hasHeaderRow = hasHeaderRow
+            self.encoding = encoding
+            self.skipStartLines = skipStartLines
+            self.skipEndLines = skipEndLines
         }
     }
 
@@ -42,6 +55,9 @@ struct TransactionCSVParser {
     /// "Failed parsing" and imports nothing.
     enum ParseError: Error, Equatable {
         case invalidDelimiter
+        case unsupportedEncoding(String)
+        /// More lines to skip than the file has.
+        case skipsTooManyLines
         /// `INVALID_OPENING_QUOTE`: a quote after other text in a field.
         case invalidOpeningQuote(line: Int)
         /// `CSV_INVALID_CLOSING_QUOTE`: a closing quote followed by text.
@@ -55,6 +71,10 @@ struct TransactionCSVParser {
             switch self {
             case .invalidDelimiter:
                 return "the column separator is not a single character."
+            case .unsupportedEncoding(let label):
+                return "the text encoding \"\(label)\" is not one Actual's import offers."
+            case .skipsTooManyLines:
+                return "it has fewer lines than the import is set to skip."
             case .invalidOpeningQuote(let line):
                 return "line \(line) has a quote mark after other text in a field."
             case .invalidClosingQuote(let line), .textAfterClosingQuote(let line):
@@ -76,10 +96,20 @@ struct TransactionCSVParser {
         guard delimiterScalars.count == 1 else {
             throw ParseError.invalidDelimiter
         }
-        // `TextDecoder` drops one leading BOM; csv-parse's `bom: true` then
-        // drops one more.
-        var scalars = Array(Self.decodeAuto(data).unicodeScalars)
-        for _ in 0..<2 where scalars.first == "\u{FEFF}" {
+        var scalars: [Unicode.Scalar]
+        do {
+            scalars = try ImportFileDecoding.skipLines(
+                ImportFileDecoding.decode([UInt8](data), encoding: options.encoding),
+                start: options.skipStartLines,
+                end: options.skipEndLines
+            )
+        } catch ImportFileDecoding.DecodingError.unsupportedEncoding(let label) {
+            throw ParseError.unsupportedEncoding(label)
+        } catch ImportFileDecoding.DecodingError.skipsTooManyLines {
+            throw ParseError.skipsTooManyLines
+        }
+        // csv-parse's `bom: true` drops one more leading BOM.
+        if scalars.first == "\u{FEFF}" {
             scalars.removeFirst()
         }
         var reader = CSVRecordReader(scalars: scalars, delimiter: delimiterScalars[0])
@@ -95,34 +125,6 @@ struct TransactionCSVParser {
             headers: headers,
             rows: records.map { $0.count > headers.count ? Array($0.prefix(headers.count)) : $0 }
         )
-    }
-
-    /// `decodeCsvBytes(bytes, 'auto')`: an FF FE or FE FF byte-order mark
-    /// means UTF-16 LE or BE, anything else UTF-8. Invalid input becomes
-    /// U+FFFD, as the non-fatal `TextDecoder` does; Swift's repair makes the
-    /// same replacements, including one for an odd trailing UTF-16 byte. The
-    /// leading BOM is kept here; the caller drops it as `TextDecoder` does.
-    private static func decodeAuto(_ data: Data) -> String {
-        let bytes = [UInt8](data)
-        guard bytes.count >= 2,
-              (bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF) else {
-            return String(decoding: bytes, as: UTF8.self)
-        }
-        let littleEndian = bytes[0] == 0xFF
-        var units: [UInt16] = []
-        units.reserveCapacity(bytes.count / 2)
-        var index = 0
-        while index + 1 < bytes.count {
-            let first = UInt16(bytes[index])
-            let second = UInt16(bytes[index + 1])
-            units.append(littleEndian ? first | second << 8 : first << 8 | second)
-            index += 2
-        }
-        var text = String(decoding: units, as: UTF16.self)
-        if bytes.count % 2 == 1 {
-            text.unicodeScalars.append("\u{FFFD}")
-        }
-        return text
     }
 }
 

@@ -113,8 +113,8 @@ struct TransactionCSVImportReviewView: View {
                                 .font(.caption)
                                 .foregroundStyle(ActualistTheme.secondaryText)
                         }
-                        if row.row.amountUnreadable {
-                            Label("Amount could not be read, so it imports as 0", systemImage: "exclamationmark.triangle.fill")
+                        if let warning = row.row.amountWarning {
+                            Label(Self.amountWarningText(warning), systemImage: "exclamationmark.triangle.fill")
                                 .font(.caption)
                                 .foregroundStyle(ActualistTheme.warning)
                         }
@@ -168,6 +168,15 @@ struct TransactionCSVImportReviewView: View {
         .background(ActualistTheme.background)
         .toolbarlessSheetDetents([.medium])
         .presentationDragIndicator(.visible)
+    }
+
+    static func amountWarningText(_ warning: TransactionCSVImportAmountWarning) -> String {
+        switch warning {
+        case .unreadable:
+            return "Amount could not be read, so it imports as 0"
+        case .emptyWhileAnotherColumnHasAmount:
+            return "Amount column is empty, so it imports as 0. Another column on this row has an amount."
+        }
     }
 
     static func outcomeTitle(_ outcome: TransactionCSVImportReviewRow.Outcome) -> String {

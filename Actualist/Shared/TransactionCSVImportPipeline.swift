@@ -42,7 +42,7 @@ enum TransactionCSVImportPipeline {
     @concurrent
     static func rows(
         from data: Data,
-        options: TransactionCSVImportOptions,
+        settings: ImportSettings = ImportSettings(),
         maxBytes: Int = TransactionCSVImportLimits.maxFileBytes,
         maxRows: Int = TransactionCSVImportLimits.maxRows
     ) async throws -> [TransactionCSVImportRow] {
@@ -53,8 +53,11 @@ enum TransactionCSVImportPipeline {
         do {
             table = try TransactionCSVParser(
                 options: TransactionCSVParser.Options(
-                    delimiter: options.delimiter,
-                    hasHeaderRow: options.hasHeaderRow
+                    delimiter: settings.delimiter,
+                    hasHeaderRow: settings.hasHeaderRow,
+                    encoding: settings.encoding,
+                    skipStartLines: settings.skipStartLines,
+                    skipEndLines: settings.skipEndLines
                 )
             ).parse(data)
         } catch TransactionCSVParser.ParseError.invalidDelimiter {
@@ -65,6 +68,6 @@ enum TransactionCSVImportPipeline {
         guard table.rows.count <= maxRows else {
             throw TransactionCSVImportError.tooManyRows
         }
-        return try TransactionCSVImportMapper.map(table).rows
+        return try TransactionCSVImportMapper.map(table, settings: settings).rows
     }
 }

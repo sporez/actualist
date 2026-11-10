@@ -14,7 +14,15 @@
 // order, so a Swift replay can read them with any JSON reader.
 
 import { mulberry32 } from '../sync-merkle/cases.mjs';
+import {
+  between, chance, generatedAmount, groupedInteger, named, pad, pick, table,
+} from './case-kit.mjs';
+import { parseAmountFieldsCases } from './amount-fields-cases.mjs';
 import { checkCsvParseChecklist, parseCsvRecordsCases } from './csv-parse-cases.mjs';
+import { checkDecodeChecklist, decodeCsvBytesCases } from './decode-cases.mjs';
+import {
+  PIPELINE_CATEGORIES, PREF, pipelineSettingsInput, savedApplyFieldMappingsCases, savedGetInitialDateFormatCases, savedPipelineCases,
+} from './saved-settings-cases.mjs';
 import { REGISTRY } from './registry.mjs';
 
 export { mulberry32 };
@@ -42,23 +50,8 @@ export const GENERATED_COUNTS = {
   pipelineLarge: 10,
 };
 
-function named(id, input, description) {
-  return { id, source: 'named', description, input };
-}
-
 function generated(id, family, input, description) {
   return { id, source: 'generated', description, seed: SEEDS[family], input };
-}
-
-const pad = (index, width = 4) => String(index + 1).padStart(width, '0');
-const pick = (random, list) => list[Math.floor(random() * list.length)];
-const chance = (random, probability) => random() < probability;
-const between = (random, low, high) => low + Math.floor(random() * (high - low + 1));
-
-function digits(random, count) {
-  let text = '';
-  for (let index = 0; index < count; index += 1) text += String(Math.floor(random() * 10));
-  return text;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,50 +143,6 @@ function looselyParseAmountNamed() {
     amountText('currency-sign-order', '$-12.50', 'minus after the currency'),
     amountText('minus-after-decimals', '12.50-', 'minus after decimals'),
   ];
-}
-
-const CURRENCY_BEFORE = ['', '', '$', '€', '£', '¥', 'USD ', 'CHF ', 'US$', 'R$ ', ' $'];
-const CURRENCY_AFTER = ['', '', '', ' USD', '€', ' kr', ' zł', ' €', ' CR', 'DR'];
-const GROUPS = [',', '.', "'", ' ', ' ', ' ', ' ', ''];
-const DECIMALS = ['.', ',', '.', ','];
-const PAD_CHARS = [' ', '\t', '\n', ' ', '﻿', ' ', ' ', '　', '\u0085', '​', '᠎', ' '];
-const ALT_DIGITS = ['٠١٢٣٤٥٦٧٨٩', '０１２３４５６７８９', '²³¹⁴', '१२३'];
-
-function groupedInteger(random, integer, group) {
-  if (group === '' || integer.length <= 3) return integer;
-  return integer.replace(/\B(?=(\d{3})+(?!\d))/g, group);
-}
-
-function generatedAmount(random) {
-  const integerLength = chance(random, 0.04) ? between(random, 14, 40) : between(random, 0, 12);
-  let integer = digits(random, integerLength);
-  if (chance(random, 0.08) && integer.length > 0) {
-    const alternative = pick(random, ALT_DIGITS);
-    const at = between(random, 0, integer.length - 1);
-    integer = integer.slice(0, at) + alternative[between(random, 0, alternative.length - 1)] + integer.slice(at + 1);
-  }
-  integer = groupedInteger(random, integer, pick(random, GROUPS));
-  const decimal = pick(random, DECIMALS);
-  const fractionLength = chance(random, 0.5) ? between(random, 0, 3) : between(random, 0, 12);
-  const fraction = chance(random, 0.75) ? decimal + digits(random, fractionLength) : '';
-  let text = `${pick(random, CURRENCY_BEFORE)}${integer}${fraction}${pick(random, CURRENCY_AFTER)}`;
-  const style = between(random, 0, 11);
-  if (style === 0) text = `-${text}`;
-  else if (style === 1) text = `−${text}`;
-  else if (style === 2) text = `${text}-`;
-  else if (style === 3) text = `(${text})`;
-  else if (style === 4) text = `(−${text})`;
-  else if (style === 5) text = `--${text}`;
-  else if (style === 6) text = `${text}−`;
-  else if (style === 7) text = `(${text}`;
-  if (chance(random, 0.15)) text = `${text}${pick(random, ['x', 'ab', ' CR', 'e5', 'E-3', '+'])}`;
-  if (chance(random, 0.1)) text = `${pick(random, ['e', 'Total ', 'net '])}${text}`;
-  if (chance(random, 0.25)) {
-    const left = pick(random, PAD_CHARS).repeat(between(random, 1, 2));
-    const right = chance(random, 0.6) ? pick(random, PAD_CHARS) : '';
-    text = `${left}${text}${right}`;
-  }
-  return text;
 }
 
 function looselyParseAmountGenerated() {
@@ -478,18 +427,7 @@ function parseDateGenerated() {
 // ---------------------------------------------------------------------------
 // CSV tables for getInitialMappings, getInitialDateFormat, applyFieldMappings
 
-function csvField(value) {
-  if (/[",\r\n]/.test(value)) return `"${value.replaceAll('"', '""')}"`;
-  return value;
-}
-
-function csvText(rows, { newline = '\r\n', trailing = true } = {}) {
-  const body = rows.map(row => row.map(csvField).join(',')).join(newline);
-  return trailing ? body + newline : body;
-}
-
 const csvInput = (csv, hasHeaderRow = true) => ({ csv, hasHeaderRow, delimiter: ',' });
-const table = (header, rows, options) => csvText(header ? [header, ...rows] : rows, options);
 
 const mappingsCase = (id, csv, description, hasHeaderRow = true) =>
   named(`getInitialMappings/${id}`, csvInput(csv, hasHeaderRow), description);
@@ -736,8 +674,9 @@ function getInitialDateFormatGenerated() {
 
 const MAPPING_FIELDS = ['date', 'amount', 'payee', 'notes', 'inOut', 'category'];
 
+// A mapping is [key, value] pairs in JSON.parse order, so a replay never relies on object key order.
 function mappingObject(values) {
-  return Object.fromEntries(MAPPING_FIELDS.map(field => [field, values[field] ?? null]));
+  return MAPPING_FIELDS.map(field => [field, values[field] ?? null]);
 }
 
 function applyNamed() {
@@ -795,8 +734,7 @@ function applyGenerated() {
     // would not be a string; those are kept out of the contract on purpose.
     const targets = [...built.names.map(String), 'Date', 'Amount', 'Payee', 'trx_id', 'missing', '', '0', '1', 'existing', 'tombstone']
       .filter(name => name !== '__proto__' && name !== 'selected');
-    const mappings = {};
-    for (const field of MAPPING_FIELDS) mappings[field] = chance(random, 0.35) ? null : pick(random, targets);
+    const mappings = MAPPING_FIELDS.map(field => [field, chance(random, 0.35) ? null : pick(random, targets)]);
     return { ...csvInput(built.csv, built.hasHeaderRow), mappings };
   });
 }
@@ -861,44 +799,11 @@ function parseCategoryGenerated() {
 }
 
 // ---------------------------------------------------------------------------
-// parseAmountFields (report only: Phase 2 enforces its coverage)
-
-function parseAmountFieldsCases() {
-  const amount = (id, text, description) => named(`parseAmountFields/${id}`, { amount: text }, description);
-  const cases = [
-    amount('plain', '12.50', 'a positive amount'),
-    amount('negative', '-12.50', 'a negative amount'),
-    amount('currency', '$1,234.56', 'currency symbol and grouping'),
-    amount('parentheses', '(12.50)', 'parentheses'),
-    amount('eu', '1.234,56', 'comma decimal'),
-    amount('unreadable', 'abc', 'unreadable text becomes zero'),
-    amount('empty', '', 'empty text becomes zero'),
-    amount('null', null, 'a null amount becomes zero'),
-    amount('zero', '0', 'zero'),
-    amount('negative-zero', '-0.00', 'negative zero'),
-    amount('past-max', '99999999999999', 'beyond the safe range: unreadable, zero'),
-    amount('sub-cent', '0.005', 'a half cent'),
-    amount('trailing-code', '12.50 USD', 'trailing currency code'),
-  ];
-  const random = mulberry32(SEEDS.amount + 100);
-  for (let index = 0; index < 60; index += 1) {
-    cases.push(generated(`parseAmountFields/gen-${pad(index, 3)}`, 'amount', { amount: generatedAmount(random) }, 'seeded amount text'));
-  }
-  return cases;
-}
-
-// ---------------------------------------------------------------------------
 // pipeline: the modal's default-settings CSV import
 
-const PIPELINE_CATEGORIES = [
-  { id: 'cat-dining', name: 'Dining' },
-  { id: 'cat-groceries', name: 'Groceries' },
-  { id: 'cat-fuel', name: 'Fuel' },
-  { id: 'cat-books', name: 'Books' },
-];
-
+// A default-settings import: every saved setting absent, except a headerless file's saved flag.
 const pipelineInput = (csv, hasHeaderRow = true, categories = PIPELINE_CATEGORIES) =>
-  ({ csv, hasHeaderRow, delimiter: ',', categories });
+  pipelineSettingsInput({ csv, prefs: hasHeaderRow ? [] : [[PREF.header, 'false']], categories });
 
 function pipelineNamed() {
   const pipeline = (id, csv, description, hasHeaderRow = true, categories = PIPELINE_CATEGORIES) =>
@@ -1082,12 +987,13 @@ export const CASE_BUILDERS = {
     ...mappingsGeneratedCases('mappings', 'getInitialMappings', 'seeded table with a random header set',
       (random, built) => csvInput(built.csv, built.hasHeaderRow)),
   ],
-  getInitialDateFormat: () => [...getInitialDateFormatNamed(), ...getInitialDateFormatGenerated()],
-  applyFieldMappings: () => [...applyNamed(), ...applyGenerated()],
+  getInitialDateFormat: () => [...getInitialDateFormatNamed(), ...getInitialDateFormatGenerated(), ...savedGetInitialDateFormatCases()],
+  applyFieldMappings: () => [...applyNamed(), ...applyGenerated(), ...savedApplyFieldMappingsCases()],
   parseCategoryFields: () => [...parseCategoryNamed(), ...parseCategoryGenerated()],
   parseAmountFields: parseAmountFieldsCases,
-  pipeline: () => [...pipelineNamed(), ...pipelineGenerated(), ...pipelineLarge()],
+  pipeline: () => [...pipelineNamed(), ...pipelineGenerated(), ...pipelineLarge(), ...savedPipelineCases()],
   parseCsvRecords: parseCsvRecordsCases,
+  decodeCsvBytes: decodeCsvBytesCases,
 };
 
 function checkRegexChecklist(cases) {
@@ -1114,6 +1020,7 @@ export function buildPlan() {
   const cases = REGISTRY.flatMap(entry => byFunction[entry.name]);
   checkRegexChecklist(cases);
   checkCsvParseChecklist(cases);
+  checkDecodeChecklist(cases);
   return { seed: SEED, cases };
 }
 
@@ -1121,6 +1028,15 @@ const isTagged = value => value !== null && typeof value === 'object' && typeof 
 const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value) && !isTagged(value);
 const isTextOrUndefined = value => typeof value === 'string' || (isTagged(value) && value.$js === 'undefined');
 const MAPPING_VALUE_FIELDS = ['date', 'amount', 'payee', 'notes', 'inOut', 'category'];
+const MAPPING_PAIR_KEYS = [...MAPPING_VALUE_FIELDS, 'outflow', 'inflow'];
+
+function validPipelineError(error) {
+  if (!isObject(error)) return false;
+  // A date column that names `selected` holds the boolean true, which the message prints as true.
+  if (error.kind === 'date') return error.text === null || error.text === true || typeof error.text === 'string';
+  if (error.kind === 'parse') return typeof error.message === 'string';
+  return error.kind === 'mappings-json' && (error.reason === 'syntax' || error.reason === 'null');
+}
 
 // Structural invariants of a recorded case. They never restate an expected value.
 export function expectationFailures(record, planCase) {
@@ -1153,24 +1069,40 @@ export function expectationFailures(record, planCase) {
       break;
     case 'getInitialDateFormat':
       if (typeof output !== 'string') failures.push('output is not a string');
+      if (planCase.input.mappings !== undefined
+        && (!Array.isArray(planCase.input.mappings) || planCase.input.mappings.some(pair => !Array.isArray(pair) || pair.length !== 2 || !MAPPING_PAIR_KEYS.includes(pair[0])))) {
+        failures.push('mappings is not an array of [key, value] pairs with known keys');
+      }
       break;
     case 'applyFieldMappings':
       if (!Array.isArray(output)) failures.push('output is not an array');
       else {
         for (const item of output) {
-          if (!isObject(item) || JSON.stringify(Object.keys(item)) !== JSON.stringify(['date', 'amount', 'payee_name', 'notes', 'inOut', 'category'])) {
-            failures.push('an item does not have exactly the six mapped keys');
-          } else if (Object.values(item).some(value => !isTextOrUndefined(value))) {
-            failures.push('a mapped value is neither a string nor undefined');
+          if (!isObject(item) || JSON.stringify(Object.keys(item)) !== JSON.stringify(['date', 'amount', 'payee_name', 'notes', 'inOut', 'category', 'outflow', 'inflow'])) {
+            failures.push('an item does not have exactly the eight mapped keys');
+          } else if (Object.values(item).some(value => !isTextOrUndefined(value) && value !== true)) {
+            // `true` is the preview's `selected` flag, which a mapping can name as a column.
+            failures.push('a mapped value is neither a string, undefined nor the boolean true');
           }
         }
+      }
+      if (!Array.isArray(planCase.input.mappings) || planCase.input.mappings.some(pair => !Array.isArray(pair) || pair.length !== 2 || !MAPPING_PAIR_KEYS.includes(pair[0]))) {
+        failures.push('mappings is not an array of [key, value] pairs with known keys');
       }
       break;
     case 'parseCategoryFields':
       if (output !== null && typeof output !== 'string') failures.push('output is neither null nor an id');
       break;
     case 'parseAmountFields':
-      if (!isObject(output) || !('amount' in output)) failures.push('output has no amount');
+      if (!isObject(output) || JSON.stringify(Object.keys(output)) !== JSON.stringify(['amount', 'outflow', 'inflow'])) failures.push('output is not { amount, outflow, inflow }');
+      else if (!planCase.input.splitMode && (output.outflow !== null || output.inflow !== null)) failures.push('outside split mode outflow and inflow are null');
+      else if (Object.values(output).some(value => value !== null && typeof value !== 'number' && !isTagged(value))) failures.push('a result is not a number');
+      break;
+    case 'decodeCsvBytes':
+      if (!isObject(output)) failures.push('output is not an object');
+      else if (typeof output.text === 'string' && Object.keys(output).length === 1) break;
+      else if (typeof output.error === 'string' && Object.keys(output).length === 1) break;
+      else failures.push('output is neither { text } nor { error }');
       break;
     case 'parseCsvRecords':
       if (!isObject(output)) failures.push('output is not an object');
@@ -1187,8 +1119,8 @@ export function expectationFailures(record, planCase) {
     case 'pipeline':
       if (!isObject(output)) failures.push('output is not an object');
       else if (output.error === undefined && !Array.isArray(output.transactions)) failures.push('output has neither error nor transactions');
-      else if (output.error !== undefined && (output.error.kind !== 'date' || (output.error.text !== null && typeof output.error.text !== 'string'))) {
-        failures.push('error is not a date error with text or null');
+      else if (output.error !== undefined && !validPipelineError(output.error)) {
+        failures.push('error is not a date, parse or mappings-json error');
       }
       break;
     default:

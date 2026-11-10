@@ -11,11 +11,12 @@
 //
 //   name          function name in the source file (also the fixture section)
 //   source        frozen file that declares it
-//   deps          { globalName: { from: frozen file, export: exportName } }, or
+//   deps          { globalName: { from: frozen file, export: exportName } }, or { global: name } for
+//                 a Node global the source uses (TextDecoder), or
 //                 { from, constant } for a module-private top-level const, whose
 //                 initializer text is extracted and evaluated after earlier deps
-//                 { from, function } for a module-private top-level function, evaluated
-//                 in the same context; { module, namespace: true } for a package
+//                 { from, function, measure? } for a module-private top-level function, evaluated
+//                 in the same context (`measure: true` gates its V8 coverage with the entry's); { module, namespace: true } for a package
 //                 namespace import (`import * as d from 'date-fns'`), not frozen
 //   crossCheck    for a function the source exports: { from, export }; the runner
 //                 compares the real import with the extracted copy on every case
@@ -23,11 +24,14 @@
 //   waivers       [{ snippet, reason }] for blocks no case can reach; generate.mjs moves a
 //                 block whose snippet starts with `snippet` from `uncovered` to
 //                 `waived` in the manifest, with the reason
+//   extraCheck    async (result, input, env) that throws when the extracted copy disagrees with
+//                 another route to the same behavior (for a private function with no export)
 //   reads         [file] frozen files a composite entry reads without importing them
 //   call          (fn, input, env) => result, with `input` the fixture case input and
 //                 env { parseCsv(input) }, which turns a case's CSV text into Actual's
 //                 parsed transactions with the real parseFile, and env { parseRaw(input) },
-//                 which returns parseFile's own { errors, transactions }
+//                 which returns parseFile's own { errors, transactions }; parseRaw also takes
+//                 fileName (extension only), encoding, skipStartLines and skipEndLines
 //
 // A composite entry (`composite: true`) has no source function of its own. It
 // names `uses` (registered functions, passed to `call` as `fns`) and `imports`
@@ -40,6 +44,10 @@ const UTILS = `${MODAL_DIRECTORY}/utils.ts`;
 const MODAL = `${MODAL_DIRECTORY}/ImportTransactionsModal.tsx`;
 export const PARSE_FILE = 'packages/loot-core/src/server/transactions/import/parse-file.ts';
 const CSV_PARSE = 'node_modules/csv-parse/lib';
+
+// A saved mapping arrives as [key, value] pairs in JSON.parse order; this is the object
+// JSON.parse would have built (a repeated key keeps its last value at its first position).
+const mappingFromPairs = pairs => Object.fromEntries(pairs);
 
 // sha256 of every pinned Actual file the harness reads. Files the imports pull in
 // transitively are covered by the clean-checkout-at-pinned-commit check instead.
@@ -103,14 +111,12 @@ export const REGISTRY = [
       getInitialMappings: { from: MODAL, function: 'getInitialMappings' },
     },
     coverageGate: 'enforce',
-    waivers: [{
-      snippet: '? null',
-      reason: 'a CSV cell is never null or undefined once its column was chosen from the first row (csv-parse omits absent cells, so the column is not guessed); only the QIF caller, which passes { date: \'date\' }, can reach it',
-    }],
-    // The modal computes mappings from the same transactions, then guesses the format.
+    // The modal computes mappings from the same transactions (or reads the saved ones), then
+    // guesses the format.
     call: async (fn, input, env) => {
       const transactions = await env.parseCsv(input);
-      return fn(transactions, env.helpers.getInitialMappings(transactions));
+      const mappings = input.mappings === undefined ? env.helpers.getInitialMappings(transactions) : mappingFromPairs(input.mappings);
+      return fn(transactions, mappings);
     },
   },
   {
@@ -119,9 +125,10 @@ export const REGISTRY = [
     deps: {},
     crossCheck: { from: UTILS, export: 'applyFieldMappings' },
     coverageGate: 'enforce',
-    // Only the mapped fields are recorded; the preview bookkeeping fields are not.
+    // Only the mapped fields are recorded; the preview bookkeeping fields are not. A field whose
+    // key the mapping lacks is undefined.
     call: async (fn, input, env) => (await env.parseCsv(input)).map(transaction => {
-      const mapped = fn(transaction, input.mappings);
+      const mapped = fn(transaction, mappingFromPairs(input.mappings));
       return {
         date: mapped.date,
         amount: mapped.amount,
@@ -129,6 +136,8 @@ export const REGISTRY = [
         notes: mapped.notes,
         inOut: mapped.inOut,
         category: mapped.category,
+        outflow: mapped.outflow,
+        inflow: mapped.inflow,
       };
     }),
   },
@@ -141,23 +150,24 @@ export const REGISTRY = [
     call: (fn, input) => fn({ category: input.category }, input.categories),
   },
   {
-    // Phase 2 enforces its coverage; Phase 1 only calls it with the default settings.
     name: 'parseAmountFields',
     source: UTILS,
     deps: {
       looselyParseAmount: { from: UTIL, export: 'looselyParseAmount' },
-      parseAmount: { from: UTILS, function: 'parseAmount' },
+      parseAmount: { from: UTILS, function: 'parseAmount', measure: true },
     },
     crossCheck: { from: UTILS, export: 'parseAmountFields' },
-    coverageGate: 'report',
-    call: (fn, input) => fn({ amount: input.amount }, false, false, '', false, ''),
+    coverageGate: 'enforce',
+    // A key absent from `trans` is absent in the call (undefined), which is not ''.
+    call: (fn, input) => fn({ ...input.trans }, input.splitMode, input.inOutMode, input.outValue, input.flipAmount, input.multiplierAmount),
   },
   {
-    // The modal's default-settings CSV import: parse, guess, sort, map, convert.
+    // The modal's CSV import for one account: saved settings, parse, guess, sort, map, convert.
     name: 'pipeline',
     composite: true,
     uses: ['getInitialMappings', 'getInitialDateFormat'],
     imports: {
+      isDateFormat: { from: UTILS, export: 'isDateFormat' },
       parseDate: { from: UTILS, export: 'parseDate' },
       applyFieldMappings: { from: UTILS, export: 'applyFieldMappings' },
       parseAmountFields: { from: UTILS, export: 'parseAmountFields' },
@@ -166,11 +176,65 @@ export const REGISTRY = [
     },
     coverageGate: 'none',
     call: async (fns, input, env, real) => {
-      // ImportTransactionsModal.tsx 397-406: parseFile, then parse() numbers the rows in file order.
-      const transactions = await env.parseCsv(input);
-      // 433, 445: the initial mappings and date format for the new file.
-      const mappings = fns.getInitialMappings(transactions);
-      const format = fns.getInitialDateFormat(transactions, mappings);
+      // `prefs` are the account's synced preferences, strings as Actual stores them.
+      const prefs = Object.fromEntries(input.prefs);
+      const accountId = input.accountId;
+      const filename = input.fileName;
+
+      // ImportTransactionsModal.tsx 242-263: the initial state, read once from the preferences.
+      // importNotes (235) stays true: nothing in the modal reads `import-notes-<account>-csv`.
+      const delimiter = prefs[`csv-delimiter-${accountId}`] || (filename.endsWith('.tsv') ? '\t' : ',');
+      const csvEncoding = prefs[`csv-encoding-${accountId}`] || 'auto';
+      const skipStartLines = parseInt(prefs[`csv-skip-start-lines-${accountId}`], 10) || 0;
+      const skipEndLines = parseInt(prefs[`csv-skip-end-lines-${accountId}`], 10) || 0;
+      const inOutMode = String(prefs[`csv-in-out-mode-${accountId}`]) === 'true';
+      const outValue = prefs[`csv-out-value-${accountId}`] ?? '';
+      const hasHeaderRow = String(prefs[`csv-has-header-${accountId}`]) !== 'false';
+
+      // 1398-1402: getParseOptions for a CSV; 391-397: parseFile.
+      const parsed = await env.parseRaw({
+        csv: input.csv,
+        bytesBase64: input.bytesBase64,
+        fileName: filename,
+        delimiter,
+        encoding: csvEncoding,
+        hasHeaderRow,
+        skipStartLines,
+        skipEndLines,
+      });
+      // 413-417: the first error is shown and nothing else is set up.
+      if (parsed.errors.length > 0) return { error: { kind: 'parse', message: parsed.errors[0].message || 'Internal error' } };
+
+      // 399-408: parse() numbers the rows in file order and selects them.
+      let index = 0;
+      const transactions = parsed.transactions.map(trans => {
+        trans.trx_id = String(index++);
+        trans.selected = true;
+        return trans;
+      });
+
+      // 423-425: flip comes from the preference.
+      const flipAmount = String(prefs[`flip-amount-${accountId}-csv`]) === 'true';
+
+      // 430-433: the saved mapping wins; JSON.parse throws on malformed text.
+      let mappings = prefs[`csv-mappings-${accountId}`];
+      if (mappings) {
+        try {
+          mappings = JSON.parse(mappings);
+        } catch {
+          return { error: { kind: 'mappings-json', reason: 'syntax' } };
+        }
+      } else {
+        mappings = fns.getInitialMappings(transactions);
+      }
+      // 440: `mappings.outflow` throws a TypeError for the saved text `null`.
+      if (mappings === null) return { error: { kind: 'mappings-json', reason: 'null' } };
+      // 440: split mode is on when the saved mapping has an outflow or an inflow.
+      const splitMode = !!(mappings.outflow || mappings.inflow);
+
+      // 443-448: the saved format wins; anything outside the six formats becomes null.
+      const savedFormat = prefs[`parse-date-${accountId}-csv`] || fns.getInitialDateFormat(transactions, mappings);
+      const format = real.isDateFormat(savedFormat) ? savedFormat : null;
 
       // 302-313: getImportPreview sorts the RAW parsed rows in place, newest first,
       // by the column literally named `date`, not the mapped one.
@@ -184,7 +248,7 @@ export const REGISTRY = [
       });
 
       const imported = [];
-      // 637-722: onImport, reconcile on, every row selected.
+      // 637-722: onImport, reconcile on, every row selected, multiplier empty.
       for (const row of transactions) {
         const trans = real.applyFieldMappings(row, mappings); // 654
         const date = real.parseDate(trans.date, format); // 659
@@ -192,7 +256,7 @@ export const REGISTRY = [
           const error = { kind: 'date', text: trans.date ?? null };
           return engineDefinedOrder ? { error, engineDefinedOrder } : { error };
         }
-        const { amount } = real.parseAmountFields(trans, false, false, '', false, ''); // 668
+        const { amount } = real.parseAmountFields(trans, splitMode, inOutMode, outValue, flipAmount, ''); // 668
         const category = real.parseCategoryFields(trans, input.categories); // 683
         imported.push({
           sourceIndex: Number(row.trx_id),
@@ -227,6 +291,29 @@ export const REGISTRY = [
           ? parsed.transactions.map(record => ({ entries: Object.entries(record) }))
           : parsed.transactions,
       };
+    },
+  },
+  {
+    // parse-file.ts keeps the decoder module-private: auto (a UTF-16 mark picks the endianness,
+    // else UTF-8) or the label the modal saved, handed to TextDecoder as is.
+    name: 'decodeCsvBytes',
+    source: PARSE_FILE,
+    deps: { TextDecoder: { global: 'TextDecoder' } },
+    coverageGate: 'enforce',
+    call: (fn, input) => {
+      try {
+        return { text: fn(Buffer.from(input.bytesBase64, 'base64'), input.encoding) };
+      } catch (error) {
+        return { error: String(error.message) };
+      }
+    },
+    // The same bytes through the real parseFile must fail to decode exactly when the extracted
+    // copy throws, with parseCSV's own message around the decoder's.
+    extraCheck: async (result, input, env) => {
+      const parsed = await env.parseRaw({ bytesBase64: input.bytesBase64, encoding: input.encoding, delimiter: ',', hasHeaderRow: false });
+      const decodeFailed = result.error !== undefined && parsed.errors[0]?.message === `Failed parsing: ${result.error}`;
+      if (result.error !== undefined && !decodeFailed) throw new Error('parseFile did not fail to decode where the extracted copy threw');
+      if (result.error === undefined && parsed.errors[0]?.message?.includes('encoding')) throw new Error('parseFile failed to decode where the extracted copy did not');
     },
   },
 ];

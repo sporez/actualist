@@ -21,14 +21,51 @@ struct ImportSourceRow: Equatable, Sendable {
     }
 }
 
-/// Which file column feeds each transaction field. `nil` is JS `null`.
+/// A field Actual's mapping can name, with the key `applyFieldMappings`
+/// writes for it.
+enum ImportField: String, CaseIterable, Sendable {
+    case date, amount, payee, notes, inOut, category, outflow, inflow
+
+    var transactionKey: String { self == .payee ? "payee_name" : rawValue }
+}
+
+/// One value of Actual's mapping object: `null`, or a property key with its
+/// JS truthiness. `applyFieldMappings` reads `transaction[target || field]`,
+/// so a falsy key (`""`, `0`) falls back to the field's own name, while the
+/// date-format guess (`mappings.date == null`) still uses it.
+enum ImportMappingTarget: Equatable, Sendable {
+    case null
+    case key(String, isTruthy: Bool)
+
+    static func column(_ name: String) -> ImportMappingTarget {
+        .key(name, isTruthy: !name.isEmpty)
+    }
+}
+
+/// Actual's column mapping. A field missing from `targets` is missing from
+/// the mapping object, so `applyFieldMappings` leaves it undefined.
 struct ImportFieldMapping: Equatable, Sendable {
-    var date: String?
-    var amount: String?
-    var payee: String?
-    var notes: String?
-    var inOut: String?
-    var category: String?
+    var targets: [ImportField: ImportMappingTarget]
+
+    init(_ targets: [ImportField: ImportMappingTarget] = [:]) {
+        self.targets = targets
+    }
+
+    /// `!!(mappings.outflow || mappings.inflow)`: separate outflow and
+    /// inflow columns.
+    var isSplit: Bool {
+        [ImportField.outflow, .inflow].contains { field in
+            if case .key(_, true) = targets[field] { return true }
+            return false
+        }
+    }
+
+    /// The key `transaction[mappings.date]` reads when `mappings.date` is
+    /// neither null nor missing.
+    var dateLookupKey: String? {
+        if case .key(let key, _) = targets[.date] { return key }
+        return nil
+    }
 }
 
 /// A row after `applyFieldMappings`: each field's raw text, or `nil` for JS
@@ -40,6 +77,8 @@ struct MappedImportRow: Equatable, Sendable {
     var notes: String?
     var inOut: String?
     var category: String?
+    var outflow: String?
+    var inflow: String?
 }
 
 /// Ports of the import modal's column handling (pinned Actual v26.11.0):
@@ -116,24 +155,45 @@ enum ImportFieldMappingRules {
         let payee = named("payee") ?? firstKey(excluding: [date, amount, category])
         let notes = named("notes") ?? firstKey(excluding: [date, amount, category, payee])
         let inOut = firstKey(excluding: [date, amount, payee, notes])
-        return ImportFieldMapping(
-            date: date, amount: amount, payee: payee, notes: notes, inOut: inOut, category: category
+        func target(_ key: String?) -> ImportMappingTarget { key.map(ImportMappingTarget.column) ?? .null }
+        return ImportFieldMapping([
+            .date: target(date), .amount: target(amount), .payee: target(payee),
+            .notes: target(notes), .inOut: target(inOut), .category: target(category),
+        ])
+    }
+
+    /// `applyFieldMappings`: `transaction[target || field]` for each field in
+    /// the mapping, so a null or falsy target reads the column named like the
+    /// field itself, and a field missing from the mapping stays undefined.
+    static func apply(_ mapping: ImportFieldMapping, to row: ImportSourceRow) -> MappedImportRow {
+        func read(_ field: ImportField) -> String? {
+            switch mapping.targets[field] {
+            case nil:
+                return nil
+            case .key(let key, true):
+                return row.value(key)
+            case .null, .key(_, false):
+                return row.value(field.transactionKey)
+            }
+        }
+        return MappedImportRow(
+            date: read(.date),
+            amount: read(.amount),
+            payeeName: read(.payee),
+            notes: read(.notes),
+            inOut: read(.inOut),
+            category: read(.category),
+            outflow: read(.outflow),
+            inflow: read(.inflow)
         )
     }
 
-    /// `applyFieldMappings`: `transaction[target || field]`, so an unmapped or
-    /// empty-named target reads the column named like the field itself.
-    static func apply(_ mapping: ImportFieldMapping, to row: ImportSourceRow) -> MappedImportRow {
-        func read(_ target: String?, _ field: String) -> String? {
-            row.value(target.flatMap { $0.isEmpty ? nil : $0 } ?? field)
-        }
-        return MappedImportRow(
-            date: read(mapping.date, "date"),
-            amount: read(mapping.amount, "amount"),
-            payeeName: read(mapping.payee, "payee_name"),
-            notes: read(mapping.notes, "notes"),
-            inOut: read(mapping.inOut, "inOut"),
-            category: read(mapping.category, "category")
+    /// `getInitialDateFormat(transactions, mappings)`.
+    static func initialDateFormat(_ rows: [ImportSourceRow], mapping: ImportFieldMapping) -> ImportDateFormat {
+        ImportDateParsing.initialDateFormat(
+            rowCount: rows.count,
+            firstDateValue: mapping.dateLookupKey.flatMap { rows.first?.value($0) },
+            hasDateColumn: mapping.dateLookupKey != nil
         )
     }
 

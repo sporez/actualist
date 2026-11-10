@@ -72,8 +72,7 @@ struct TransactionCSVImportSharedStepTests {
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: accountID,
-                data: Data(csv.utf8),
-                options: TransactionCSVImportOptions()
+                data: Data(csv.utf8)
             )
         )
     }

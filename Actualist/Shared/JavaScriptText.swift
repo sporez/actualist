@@ -92,34 +92,82 @@ enum JavaScriptText {
         return result == 0 && value.sign == .minus ? -0.0 : result
     }
 
-    /// `parseFloat` on a string made only of ASCII digits, `-` and at most one
-    /// `.` (what Actual's amount parser hands it): the longest prefix that is
-    /// `-?digits(.digits)?` or `-?.digits`, else NaN.
-    static func parseFloat(numericText text: [Unicode.Scalar]) -> Double {
-        var index = 0
+    /// `parseInt(text, 10)`: leading whitespace, an optional sign, then the
+    /// longest run of ASCII digits; `nil` (NaN) when there are none. Values
+    /// beyond `Int` saturate, which no caller can tell apart.
+    static func parseInt(_ text: String) -> Int? {
+        var scalars = Substring(text).unicodeScalars.drop(while: isWhitespace)[...]
         var negative = false
-        if index < text.count, text[index] == "-" {
-            negative = true
+        if let sign = scalars.first, sign == "-" || sign == "+" {
+            negative = sign == "-"
+            scalars = scalars.dropFirst()
+        }
+        let digits = scalars.prefix(while: isDigit)
+        guard !digits.isEmpty else { return nil }
+        var value = 0
+        for digit in digits {
+            let (shifted, overflow) = value.multipliedReportingOverflow(by: 10)
+            let (sum, overflowSum) = shifted.addingReportingOverflow(Int(digit.value - 0x30))
+            guard !overflow, !overflowSum else { return negative ? Int.min : Int.max }
+            value = sum
+        }
+        return negative ? -value : value
+    }
+
+    /// `String(value)` for a JS number: integers print without a fraction.
+    /// Other values (which no import setting holds) use Swift's shortest form.
+    static func numberToString(_ value: Double) -> String {
+        if value.isNaN { return "NaN" }
+        if value.isInfinite { return value < 0 ? "-Infinity" : "Infinity" }
+        if value == value.rounded(), abs(value) < 1e21 {
+            return value == 0 ? "0" : String(format: "%.0f", value)
+        }
+        return String(value)
+    }
+
+    /// `parseFloat`: after leading whitespace, the longest prefix that is a
+    /// decimal literal (`[+-]`, `Infinity`, digits, one `.`, an exponent),
+    /// else NaN.
+    static func parseFloat(_ text: [Unicode.Scalar]) -> Double {
+        var index = text.firstIndex { !isWhitespace($0) } ?? text.count
+        var negative = false
+        if index < text.count, text[index] == "-" || text[index] == "+" {
+            negative = text[index] == "-"
             index += 1
         }
-        var whole: [Unicode.Scalar] = []
-        while index < text.count, isDigit(text[index]) {
-            whole.append(text[index])
-            index += 1
+        if text[index...].starts(with: "Infinity".unicodeScalars) {
+            return negative ? -.infinity : .infinity
         }
+        func digits() -> [Unicode.Scalar] {
+            let run = text[index...].prefix(while: isDigit)
+            index += run.count
+            return Array(run)
+        }
+        let whole = digits()
         var fraction: [Unicode.Scalar] = []
         if index < text.count, text[index] == "." {
-            var cursor = index + 1
-            while cursor < text.count, isDigit(text[cursor]) {
-                fraction.append(text[cursor])
-                cursor += 1
-            }
+            index += 1
+            fraction = digits()
         }
         guard !whole.isEmpty || !fraction.isEmpty else { return .nan }
-        let literal = (whole.isEmpty ? "0" : string(whole)) + (fraction.isEmpty ? "" : "." + string(fraction))
+        var exponent = ""
+        if index < text.count, text[index] == "e" || text[index] == "E" {
+            var cursor = index + 1
+            var sign = ""
+            if cursor < text.count, text[cursor] == "-" || text[cursor] == "+" {
+                sign = text[cursor] == "-" ? "-" : ""
+                cursor += 1
+            }
+            let run = text[cursor...].prefix(while: isDigit)
+            if !run.isEmpty {
+                exponent = "e" + sign + string(run)
+            }
+        }
+        let literal = (whole.isEmpty ? "0" : string(whole)) + (fraction.isEmpty ? "" : "." + string(fraction)) + exponent
         // Swift's decimal parsing is correctly rounded, as JS's is, and
-        // overflows to infinity rather than failing.
-        let magnitude = Double(literal) ?? .infinity
+        // overflows to infinity.
+        let isZero = (whole + fraction).allSatisfy { $0 == "0" }
+        let magnitude = Double(literal) ?? (isZero ? 0 : (exponent.hasPrefix("e-") ? 0 : .infinity))
         return negative ? -magnitude : magnitude
     }
 }

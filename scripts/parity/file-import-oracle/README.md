@@ -7,9 +7,15 @@ directory is the generator side only. Each phase adds functions and cases.
 
 - `registry.mjs`: the function registry and the source freeze (sha256 of every
   pinned Actual file the harness reads). One entry per function.
-- `cases.mjs`: named cases, seeded generated cases (`mulberry32`, shared with
-  `scripts/parity/sync-merkle/cases.mjs`), and structural invariants. It never
-  holds an expected output.
+- `cases.mjs`: the plan builder, the older families, and the structural
+  invariants. It never holds an expected output. Seeded generators use
+  `mulberry32`, shared with `scripts/parity/sync-merkle/cases.mjs`. Families
+  added in Phase 2 live beside it: `case-kit.mjs` (shared draws, CSV text and
+  byte encoders), `decode-cases.mjs` (`decodeCsvBytes`),
+  `csv-file-option-cases.mjs` (skip lines and encodings for `parseCsvRecords`),
+  `amount-fields-cases.mjs` (`parseAmountFields`) and
+  `saved-settings-cases.mjs` (saved mappings and the pipeline with synced
+  preferences).
 - `generate.mjs`: checks the freeze, runs the plan, prints the coverage report,
   writes the fixture. `--check` regenerates into a temporary directory and diffs
   it against the committed fixture.
@@ -60,22 +66,54 @@ operands, and functions, but not alternatives inside a regular expression.
 ## CSV cases and the pipeline
 
 Functions that read a file (`getInitialMappings`, `getInitialDateFormat`,
-`applyFieldMappings`, `pipeline`) take `{ csv, hasHeaderRow, delimiter }`. The
-runner writes the text to a `.csv` file in a temporary directory outside the
-checkout and runs Actual's real `parseFile` with the options the modal passes for
-a CSV (`delimiter`, `encoding: 'auto'`, `hasHeaderRow`, no skipped lines), then the
+`applyFieldMappings`) take `{ csv, hasHeaderRow, delimiter }`. The runner writes
+the text to a `.csv` file in a temporary directory outside the checkout and runs
+Actual's real `parseFile` with the options the modal passes for a CSV
+(`delimiter`, `encoding: 'auto'`, `hasHeaderRow`, no skipped lines), then the
 modal's parse step (`trx_id = String(index)`, `selected = true`). A case where
-`parseFile` reports an error fails the generator, so the corpus holds only files
-Actual reads. Inputs never rely on JSON key order: a mapping is an object with
-the six fixed keys, and a row's column order only exists inside the CSV text.
+`parseFile` reports an error fails the generator, so those corpora hold only
+files Actual reads. Inputs never rely on JSON key order: a row's column order only
+exists inside the CSV text, and a saved mapping is an array of `[key, value]`
+pairs in the order `JSON.parse` would list them.
 
-`pipeline` is the one composite entry. Its `call` in `registry.mjs` is the
-modal's default-settings CSV import written out literally, with modal line
-numbers: parse, `getInitialMappings`, `getInitialDateFormat`, the preview sort of
-the raw rows by the column literally named `date`, then `applyFieldMappings`,
-`parseDate`, `parseAmountFields`, `parseCategoryFields`, `amountToInteger` per row.
+`applyFieldMappings` takes `mappings` as pairs whose keys are any of `date, amount,
+payee, notes, inOut, category, outflow, inflow` (a key can be absent, which is not
+`null`) and whose values are a string, `''`, `null`, a number (`0`, `3`) or a boolean.
+It records `{ date, amount, payee_name, notes, inOut, category, outflow, inflow }`
+per row; a field whose key the mapping lacks is `{"$js":"undefined"}`, and a value
+can be the boolean `true` (a mapping that names the preview's `selected` flag).
+`getInitialDateFormat` takes an optional `mappings` in the same shape (absent means
+the guessed mappings, as before).
+
+`pipeline` is the one composite entry: the modal's CSV import for one account. Its
+input is `{ accountId, fileName, prefs, csv | bytesBase64, categories }`, where
+`prefs` is `[[key, value], ...]` holding the account's synced preferences as the
+strings Actual stores them: `csv-mappings-<account>`, `csv-delimiter-<account>`,
+`csv-encoding-<account>`, `csv-has-header-<account>`, `csv-skip-start-lines-<account>`,
+`csv-skip-end-lines-<account>`, `csv-in-out-mode-<account>`, `csv-out-value-<account>`,
+`parse-date-<account>-csv`, `flip-amount-<account>-csv` and `import-notes-<account>-csv`.
+Its `call` in `registry.mjs` writes the modal out literally, with modal line numbers:
+state from the preferences (`delimiter = pref || (fileName.endsWith('.tsv') ? '\t' : ',')`,
+`encoding = pref || 'auto'`, skips by `parseInt(pref, 10) || 0`, `inOutMode =
+String(pref) === 'true'`, `outValue = pref ?? ''`, `hasHeaderRow = String(pref) !==
+'false'`), `parseFile` with `getParseOptions`, the saved mapping (`JSON.parse`) or
+`getInitialMappings`, split mode from `outflow || inflow`, the saved date format or
+`getInitialDateFormat` (then `isDateFormat(x) ? x : null`), flip from its preference,
+the preview sort of the raw rows by the column literally named `date`, then
+`applyFieldMappings`, `parseDate`, `parseAmountFields`, `parseCategoryFields`,
+`amountToInteger` per row. The `import-notes-<account>-csv` preference is written by
+`onImport` but never read anywhere in v26.11.0 (only `sync-import-notes-` for Bank
+Sync is), so importing notes stays on; cases with it set pin that. `fileName` supplies
+the extension `parseFile` dispatches on and the `.tsv` test, which is case-sensitive
+(`BANK.TSV` gets a comma delimiter).
 Output is `{ transactions: [{ sourceIndex, date, amount, payee_name, notes,
-category, cleared }] }` in import order, or `{ error: { kind: 'date', text } }`.
+category, cleared }] }` in import order, or one of `{ error: { kind: 'date', text } }`
+(`text` is a string, `null`, or the boolean `true`), `{ error: { kind: 'parse',
+message } }` (the first `parseFile` error) and `{ error: { kind: 'mappings-json',
+reason } }`. `reason` is `syntax` when `JSON.parse` throws, and `null` for the saved text
+`null`, where the modal's `mappings.outflow` throws a TypeError (an unhandled rejection
+in the modal). Other JSON values (`[]`, `5`, `"x"`, `true`, nested values) do not throw;
+the cases record what the code then does.
 `engineDefinedOrder: true` marks a file whose `date`-column parse results mix
 unreadable and readable rows: the comparator is then inconsistent and V8's order
 is engine-defined, so a port cannot be expected to match it (a known divergence).
@@ -83,9 +121,31 @@ Such cases stay in the fixture.
 
 `parseDate` takes `{ text, format }` where `format` is one of the six values, or
 `null` (the modal passes null when a saved format is invalid; Actual then reads
-`mm dd yyyy`). `applyFieldMappings` outputs one object per row with exactly
-`date, amount, payee_name, notes, inOut, category`. `parseAmountFields` is called
-with the default settings and has `coverageGate: 'report'` until Phase 2.
+`mm dd yyyy`).
+
+`parseAmountFields` takes `{ trans, splitMode, inOutMode, outValue, flipAmount,
+multiplierAmount }` with `trans` holding any of `amount`, `outflow`, `inflow`, `inOut`.
+A key absent from `trans` is absent in the call (undefined), which is not the empty
+string; a value is a string or the boolean `true`; JSON `null` appears once (the
+legacy `amount: null`) and reads like absent. Output is `{ amount, outflow, inflow }`
+(`outflow` and `inflow` are `null` outside split mode; `-0` and `NaN` are `$js`).
+Its coverage is enforced, and the module-private helper `parseAmount` is gated with it
+(a registry dependency marked `measure: true`).
+
+## `decodeCsvBytes`: bytes to text
+
+The module-private decoder in `parse-file.ts`, extracted from the frozen source like
+the other private functions (its global `TextDecoder` is the one dependency). Input is
+`{ bytesBase64, encoding }` with `encoding` possibly absent (the default, `auto`); output
+is `{ text }` or `{ error }` where `error` is the message of the error `TextDecoder`
+threw, which only an unsupported label causes (decoding never throws; it substitutes
+U+FFFD). The message is Node's, so a port only needs to know the label is refused.
+Every V8 block is reached (`coverageGate: 'enforce'`), and `extraCheck` confirms that
+real `parseFile` fails to decode exactly when the extracted copy throws.
+`DECODE_CHECKLIST` in `decode-cases.mjs` names the case for each behavior: all 256 bytes
+under each single-byte label (the tables), every byte-order-mark combination under every
+modal label, invalid and truncated UTF-8, UTF-16 surrogate handling and odd lengths, and
+the label variants a saved preference could hold.
 
 ## `parseCsvRecords`: the CSV reader on its own
 
@@ -95,7 +155,15 @@ with `bom: true`, `quote: '"'`, `trim: true`, `relax_column_count: true`,
 `skip_empty_lines: true`, the modal's single-character delimiter (`, ; | tab ~`) and
 `columns: hasHeaderRow`. Input is `{ csv, delimiter, hasHeaderRow }`, or
 `{ bytesBase64, delimiter, hasHeaderRow }` for raw file bytes (byte order marks,
-UTF-16, invalid UTF-8). Output is `{ records }`, or `{ error }` holding the first
+UTF-16, invalid UTF-8), plus the optional file options `skipStartLines`,
+`skipEndLines` and `encoding` (defaults 0, 0 and `auto`) that `parseFile` also takes.
+`parseFile` splits the decoded text on `/\r?\n/` (a lone CR is not a line break),
+errors when the skips total at least the line count (the empty last line after a
+trailing newline counts), clamps negative skips to zero, and rejoins the kept lines
+with CRLF, which rewrites a line feed inside a quoted field; a skip that cuts through a
+quoted multi-line field leaves its remainder to csv-parse. The cases are in
+`csv-file-option-cases.mjs` (named skip and encoding cases, and 300 seeded files in a
+random byte layout, label and skip setting). Output is `{ records }`, or `{ error }` holding the first
 `parseFile` error message (csv-parse messages embed line numbers and field text).
 Without a header row a record is an array of strings. With one it is
 `{ entries: [[name, value], ...] }`, the record's `Object.entries` in order, so
@@ -108,9 +176,10 @@ csv-parse lives in `node_modules`, so V8 coverage is not measured (`coverageGate
 'report'`) and its five library files are source-frozen in `registry.mjs`.
 `CSV_PARSE_CHECKLIST` in `csv-parse-cases.mjs` names the case for every behavior
 (line endings and which one decides, blank and whitespace-only lines, BOMs, each
-trimmed and untrimmed character, quote handling, delimiters, header shapes) and the
+trimmed and untrimmed character, quote handling, delimiters, header shapes, and the
+skip-line and encoding options, whose entries come from `CSV_OPTION_CHECKLIST`) and the
 plan refuses a checklist entry whose case is missing or does not show it. The
-seeded family (1,500 files, seed `SEED + 8`) draws from an alphabet weighted toward
+seeded base family (1,500 files, seed `SEED + 8`) draws from an alphabet weighted toward
 quotes, delimiters, `\r`, `\n`, padding and look-alike characters.
 
 ## Coverage waivers and regex alternatives

@@ -4,10 +4,13 @@
 // no expected output lives here.
 //
 // Input: { csv, delimiter, hasHeaderRow } or { bytesBase64, delimiter, hasHeaderRow }
-// (raw file bytes, for byte order marks and invalid UTF-8). The modal only offers the
-// single-character delimiters , ; | tab ~, so those are the only ones used.
+// (raw file bytes, for byte order marks and invalid UTF-8), plus the optional file options
+// skipStartLines, skipEndLines and encoding (defaults 0, 0 and 'auto'; cases for them are in
+// csv-file-option-cases.mjs). The modal only offers the single-character delimiters
+// , ; | tab ~, so those are the only ones used.
 
 import { mulberry32 } from '../sync-merkle/cases.mjs';
+import { CSV_OPTION_CHECKLIST, csvFileOptionCases } from './csv-file-option-cases.mjs';
 
 const DELIMITERS = [',', ';', '|', '\t', '~'];
 const SEED = 20261109 + 8;
@@ -413,6 +416,7 @@ export const CSV_PARSE_CHECKLIST = [
   ['empty file', 'header/empty-file', input => input.csv === ''],
   ['file of only blank lines', 'blank/only-blank-lines', input => input.csv === '\n\n\n'],
   ['file of only whitespace lines', 'blank/only-whitespace-lines', input => input.csv === ' \n\t\n  \n'],
+  ...CSV_OPTION_CHECKLIST,
 ];
 
 export function checkCsvParseChecklist(cases) {
@@ -479,5 +483,6 @@ export function parseCsvRecordsCases() {
     ...headerCases(),
     ...textCases(),
     ...generatedCases(),
+    ...csvFileOptionCases(),
   ];
 }

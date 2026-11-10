@@ -53,6 +53,19 @@ enum TransactionImportSQL {
         }
     }
 
+    /// The live synced preferences among `keys`, as Actual stores them.
+    static func preferences(
+        keys: [String],
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> [String: String] {
+        var values: [String: String] = [:]
+        for key in keys {
+            values[key] = try database.preferenceValue(key, db: db)
+        }
+        return values
+    }
+
     /// Re-checks every reviewed match against the live rows.
     static func validateMatches(
         _ matches: [Match],
@@ -136,6 +149,11 @@ enum TransactionImportSQL {
 }
 
 extension BudgetDatabase {
+    /// The account's saved import preferences.
+    func importPreferences(keys: [String]) throws -> [String: String] {
+        try queue.read { db in try TransactionImportSQL.preferences(keys: keys, in: self, db: db) }
+    }
+
     /// The categories a file import matches its category text against.
     func importCategoryList() throws -> [ImportCategoryMatcher.Category] {
         try queue.read { db in try TransactionImportSQL.categoryList(in: self, db: db) }
