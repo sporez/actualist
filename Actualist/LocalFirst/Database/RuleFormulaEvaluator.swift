@@ -58,14 +58,12 @@ enum RuleFormulaEvaluator {
         value / 100
     }
 
-    /// JavaScript `Math.round`: ties toward +∞.
+    /// JavaScript `Math.round` (`JavaScriptText.round`) as an `Int`.
     static func javascriptRound(_ value: Double) throws -> Int {
-        guard value.isFinite else { throw EvaluationError.outOfRange }
-        let rounded = floor(value + 0.5)
-        guard rounded >= Double(Int.min), rounded <= Double(Int.max) else {
+        guard value.isFinite, let rounded = Int(exactly: JavaScriptText.round(value)) else {
             throw EvaluationError.outOfRange
         }
-        return Int(rounded)
+        return rounded
     }
 
     private static let balanceOfExpression = try? NSRegularExpression(

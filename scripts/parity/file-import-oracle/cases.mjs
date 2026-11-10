@@ -225,6 +225,15 @@ function amountToIntegerCases(looselyParsed) {
     direct('zero-places', 12.5, 0, 'no decimal places'),
     direct('three-places', 1.2345, 3, 'three decimal places'),
     direct('large', 22517998136852.47, undefined, 'near MAX_SAFE_NUMBER'),
+    // With zero places amountToInteger is bare Math.round, which every Swift
+    // port of it (JavaScriptText.round) must match. floor(x + 0.5) gets these
+    // two wrong: the sum rounds up to 1 below a half, and to the next even
+    // integer above 2^52.
+    direct('round-just-below-half', 0.49999999999999994, 0, 'Math.round just below one half'),
+    direct('round-negative-just-below-half', -0.49999999999999994, 0, 'Math.round just above minus one half'),
+    direct('round-odd-above-2-52', 4503599627370497, 0, 'Math.round of an odd integer above 2^52'),
+    direct('round-negative-half', -2.5, 0, 'Math.round of a negative half'),
+    direct('round-negative-small', -0.3, 0, 'Math.round of a small negative gives -0'),
     ...derived,
   ];
 }

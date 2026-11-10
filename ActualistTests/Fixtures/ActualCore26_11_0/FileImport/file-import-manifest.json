@@ -12,7 +12,7 @@
   "helpers": [
     {
       "path": "scripts/parity/file-import-oracle/cases.mjs",
-      "sha256": "c2673910ef2ab18c7de6078f7ae870271f60b39733e594e50e6edd32caab4ab0"
+      "sha256": "45b744749463c6cf28161201091e5a1e2f9781c117cf17e2f03544c79cdd885f"
     },
     {
       "path": "scripts/parity/file-import-oracle/csv-parse-cases.mjs",
@@ -56,8 +56,8 @@
       "derivedCaseCount": 0
     },
     "amountToInteger": {
-      "caseCount": 1232,
-      "namedCaseCount": 6,
+      "caseCount": 1237,
+      "namedCaseCount": 11,
       "generatedCaseCount": 0,
       "derivedCaseCount": 1226
     },
@@ -110,7 +110,7 @@
       "derivedCaseCount": 0
     }
   },
-  "caseCount": 9534,
+  "caseCount": 9539,
   "execution": "Each registered function is extracted from its frozen Actual source file, evaluated in an isolated vm context with its real dependencies, and called for every case under vitest in a sandbox that denies writes to the checkout; V8 precise coverage records the blocks reached",
   "coverage": {
     "looselyParseAmount": {
@@ -244,8 +244,8 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_11_0/FileImport/file-import-contract.json",
-      "sha256": "7e331e077ff0b5aadd1d40c7301938a62a0c43e52a011949da4086a6127dc142",
-      "caseCount": 9534,
+      "sha256": "b26e74604943b8cb8724d9658320918cb05400ab84731495200ffc0fa8a6c478",
+      "caseCount": 9539,
       "caseIDs": [
         "looselyParseAmount/currency-grouped",
         "looselyParseAmount/comma-decimal",
@@ -1830,6 +1830,11 @@
         "amountToInteger/zero-places",
         "amountToInteger/three-places",
         "amountToInteger/large",
+        "amountToInteger/round-just-below-half",
+        "amountToInteger/round-negative-just-below-half",
+        "amountToInteger/round-odd-above-2-52",
+        "amountToInteger/round-negative-half",
+        "amountToInteger/round-negative-small",
         "amountToInteger/after-currency-grouped",
         "amountToInteger/after-comma-decimal",
         "amountToInteger/after-three-places",

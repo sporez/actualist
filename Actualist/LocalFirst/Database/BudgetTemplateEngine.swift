@@ -552,7 +552,7 @@ struct BudgetTemplateEngine {
         guard amount.isFinite,
               amount >= Double(Int.min),
               amount < Double(Int.max),
-              let rounded = Int(exactly: floor(amount + 0.5)) else {
+              let rounded = Int(exactly: JavaScriptText.round(amount)) else {
             throw LocalFirstError.numericValueOutOfRange
         }
         return rounded
