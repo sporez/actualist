@@ -258,6 +258,8 @@
       "paths": [
         "Actualist/Shared/TransactionCSV*.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCSV*.swift",
+        "Actualist/LocalFirst/Database/TransactionImportSQL.swift",
+        "Actualist/LocalFirst/TransactionImportEngine.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+TransactionCSVImport.swift"
       ],
       "notes": "The interop suite is opt-in and skips without its environment. The opt-in live-lab harness scripts/parity/live-lab-file-interop/ also compares exported CSVs and imports in both directions (LiveLabFileInteropTests)."

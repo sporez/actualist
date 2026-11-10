@@ -207,7 +207,8 @@ File naming is the ownership index:
 - `+ActionLog*` — durable action history and undo inputs.
 - `+Schedules`, `+ScheduleReads`, `+ScheduleWrites`, `+SchedulePosting`, `+ScheduleAdvancement`, `+ScheduleConversion` and `ScheduleRuleProjection.swift` — schedules and their linked rules.
 - `+PortableExport`, `+PortableSyncReset`, `+NewBudgetSeed` — portable ZIP content and the CRDT reset applied to an imported file.
-- `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `+TransactionFilters`, `+TransactionCSV*`, `+TransactionQuery` — list actions, structured queries and CSV.
+- `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `+TransactionFilters`, `+TransactionCSV*`, `+TransactionQuery` — list actions, structured queries and CSV export.
+- `TransactionImportSQL.swift` — file-import checks inside the commit (stateless; takes `isolated BudgetDatabase` and the GRDB handle), plus the thin `commitTransactionCSVImport` entry point.
 - `+*ReviewGuard`, `+ReconciledMutationGuard`, `+ImportedIDPrecondition`, `+TransactionIDPrecondition`, `+PayeeCreationPrecondition`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
 - `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.
 
@@ -257,9 +258,8 @@ Adapters over the core: `commitUserActionPlan` (user gestures; adds the action-l
 
 ### Import, export and the CRDT reset
 
-- Bank Sync and CSV import share one reconcile pipeline: rule projection, then `reconcileProjectedImport`, then `importReconcileWrites` (`LocalFirstActualStore+ImportReconcile.swift`, `Shared/BankSyncReconciler.swift`). The source owns only parsing, mapping and its own review. This is the shared import path that the `bank-sync-matching` parity domain replays.
-- Wallet import does not use that pipeline. `LocalFirstActualStore+WalletImport.swift` skips candidates whose financial ID is already imported, runs `previewRules` per row, builds create messages itself, and commits them through `commitLocalSyncMessagesAndEnqueue` with an `ImportedIDAbsence` precondition. It does no fuzzy matching against existing rows. Category learning is a second commit. Whether it should move onto the shared pipeline is an open follow-up; do not copy its shape for a new import source.
-- CSV import stages are `@concurrent` helpers in `Shared/TransactionCSVImportPipeline.swift`; the store applies the reviewed plan through the write core.
+- Bank Sync, CSV import and Wallet import share one reconcile pipeline: rule projection, then `reconcileProjectedImport`, then `importReconcileWrites` (`LocalFirstActualStore+ImportReconcile.swift`, `Shared/BankSyncReconciler.swift`). The source owns only parsing, mapping and its own review. Bank Sync and Wallet use `ImportReconcileOptions.bankSync`; CSV uses `.csv`. This is the shared import path that the `bank-sync-matching` parity domain replays.
+- CSV import stages are `@concurrent` helpers in `Shared/TransactionCSVImportPipeline.swift`. `LocalFirstActualStore+TransactionCSVImport.swift` keeps the orchestration (session guards, rule preview, reconcile, commit); the pure lookups, review outcomes and write plan are in `LocalFirst/TransactionImportEngine.swift`, and the in-commit checks in `Database/TransactionImportSQL.swift`.
 - Portable ZIP export writes a temporary plaintext archive that is removed after the share (`PortableExportFiles`). Portable import validates and stages the archive (`PortableBudgetArchive`, `UntrustedZipExtractor`), clears its carried CRDT history with `resetSyncHistory` (the new server group starts empty, so a carried trie could never converge), installs it into a new directory, and registers it on the server. A budget downloaded or re-imported from a server keeps its `messages_crdt`.
 - New Budget (`+NewBudget`, `BudgetDatabase+NewBudgetSeed`) seeds a starter schema and registers it the same way.
 
