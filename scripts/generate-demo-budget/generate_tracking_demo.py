@@ -18,7 +18,6 @@ with tempfile.TemporaryDirectory() as directory:
         database.write_bytes(archive.read('db.sqlite'))
     with sqlite3.connect(database) as connection:
         connection.executescript('''
-            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
             INSERT INTO preferences VALUES ('budgetType', 'tracking');
             CREATE TABLE reflect_budgets (
                 id TEXT PRIMARY KEY, month INTEGER, category TEXT,

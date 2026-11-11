@@ -14,7 +14,7 @@ enum DemoBudget {
     private static let fileIDPrefix = "actualist-demo-budget-v"
 
     /// Reserved cloud file ID / local budget ID for the demo budget.
-    static let fileID = "actualist-demo-budget-v9"
+    static let fileID = "actualist-demo-budget-v10"
     /// Reserved group ID (and therefore sync ID) for the demo budget.
     static let groupID = "actualist-demo-group-v1"
     /// Deterministic node ID for the demo budget's local CRDT clock.
@@ -31,9 +31,9 @@ enum DemoBudget {
     /// `scripts/generate-demo-budget/generate_demo_budget.py` and update both
     /// this and `artifactByteCount` together.
     public static let artifactSHA256 =
-        "a0d179e59a83016b46955fb77a39f90d870248d0fae8007f7a4447691e97dc54"
+        "861ec0de309f2a1c436e301f750e2a8d1d42404e0ddc3609a92ea688bfee0034"
     /// Byte size of the committed `DemoBudget.zip`.
-    public static let artifactByteCount = 11470
+    public static let artifactByteCount = 11581
     /// Budget month the committed zip was generated against. Month notes and
     /// the latest assignments live here. Tests must not use `Date()`.
     static let fixtureMonth = "2026-08"

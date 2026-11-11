@@ -80,7 +80,7 @@ from pathlib import Path
 
 # --- Identity (must match DemoBudget.swift) ---------------------------------
 
-DEMO_FILE_ID = "actualist-demo-budget-v8"
+DEMO_FILE_ID = "actualist-demo-budget-v10"
 DEMO_GROUP_ID = "actualist-demo-group-v1"
 DEMO_NODE_ID = "demo-node-00000001"
 DEMO_BUDGET_NAME = "Demo Budget"
@@ -209,6 +209,10 @@ CREATE TABLE transaction_filters (
     conditions TEXT,
     conditions_op TEXT DEFAULT 'and',
     tombstone INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE preferences (
+    id TEXT PRIMARY KEY,
+    value TEXT
 );
 CREATE TABLE messages_crdt (
     timestamp TEXT,
