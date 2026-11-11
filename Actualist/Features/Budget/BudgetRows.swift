@@ -188,7 +188,7 @@ struct BudgetGroupSection: View {
             HStack(spacing: 6) {
                 Text(groupName)
                     .font(ActualistTypography.sectionTitle(for: density))
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
                     .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
                     .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 1 : 0.82)
                     .layoutPriority(1)
