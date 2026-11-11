@@ -35,7 +35,8 @@ struct AccountTransactionsViewModelReadStateTests {
         let merged = current.appendingPage(older)
 
         #expect(merged.transactions.map(\.rowID) == ["duplicate", "older"])
-        #expect(merged.balance == 20)
+        // The first page's balance stays: running balances start from it.
+        #expect(merged.balance == 10)
         #expect(merged.categoryNames == current.categoryNames)
         #expect(merged.payeeNames == current.payeeNames)
         #expect(merged.transferPayeeIDs == current.transferPayeeIDs)
