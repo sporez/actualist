@@ -26,6 +26,56 @@ struct BudgetGridPresentationTests {
         #expect(BudgetModePresentation(isTracking: true, isIncome: true).needsOwnLabels(under: tracking))
     }
 
+    @Test func rolloverMenuWordingFollowsBudgetTypeAndCurrentState() {
+        let envelope = BudgetModePresentation(isTracking: false)
+        let tracking = BudgetModePresentation(isTracking: true)
+        #expect(envelope.rolloverMenuLabel(isEnabled: false)
+            == BudgetRolloverMenuLabel(title: "Roll Over", subtitle: "Overspending carries into next month"))
+        #expect(envelope.rolloverMenuLabel(isEnabled: true)
+            == BudgetRolloverMenuLabel(title: "Stop Rolling Over", subtitle: "Overspending comes out of next month’s To Budget"))
+        #expect(tracking.rolloverMenuLabel(isEnabled: false)
+            == BudgetRolloverMenuLabel(title: "Roll Over", subtitle: "The balance carries into next month"))
+        #expect(tracking.rolloverMenuLabel(isEnabled: true)
+            == BudgetRolloverMenuLabel(title: "Stop Rolling Over", subtitle: "The balance resets each month"))
+        #expect(BudgetModePresentation(isTracking: false, isIncome: true).rolloverMenuLabel(isEnabled: false) == nil)
+        #expect(BudgetModePresentation(isTracking: true, isIncome: true).rolloverMenuLabel(isEnabled: true) == nil)
+    }
+
+    @Test func gridRolloverMenuReadsAndTargetsTheFirstVisibleMonth() throws {
+        let off = try BudgetViewModelFixtures.decodeBudgetMonth(
+            visibleCategoryBalance: 0, hiddenCategoryBalance: 0, visibleCategoryCarryover: false, lastMonthOverspent: 0)
+        let on = try BudgetViewModelFixtures.decodeBudgetMonth(
+            visibleCategoryBalance: 0, hiddenCategoryBalance: 0, visibleCategoryCarryover: true, lastMonthOverspent: 0)
+        func loaded(_ month: BudgetMonth, _ id: String) -> LoadedBudgetMonth {
+            LoadedBudgetMonth(availableMonths: [id], selectedMonth: id, month: month, alerts: [])
+        }
+        func presentation(_ snapshots: [String: LoadedBudgetMonth], privacy: Bool = false) -> BudgetGridPresentation {
+            BudgetGridPresentation(
+                visibleMonths: ["2026-06", "2026-07"],
+                snapshots: snapshots,
+                privacyEnabled: privacy,
+                showHidden: false,
+                showTotalAssigned: false,
+                includeCarryover: false
+            )
+        }
+
+        let item = try #require(presentation(["2026-06": loaded(off, "2026-06"), "2026-07": loaded(on, "2026-07")])
+            .rolloverMenuItem(categoryID: "mortgage"))
+        #expect(item.label.title == "Roll Over")
+        #expect(item.month == "2026-06")
+        #expect(item.category.id == "mortgage")
+        #expect(!item.category.carryover)
+
+        let privateItem = try #require(presentation(["2026-06": loaded(on, "2026-06")], privacy: true)
+            .rolloverMenuItem(categoryID: "mortgage"))
+        #expect(privateItem.label.title == "Stop Rolling Over")
+        #expect(privateItem.category.id == "mortgage")
+
+        // Never fall back to a later month's state while the first one is loading.
+        #expect(presentation(["2026-07": loaded(on, "2026-07")]).rolloverMenuItem(categoryID: "mortgage") == nil)
+    }
+
     @Test func oneCategoryAxisIsSharedAcrossVisibleMonthsAndValuesStayExact() throws {
         let month = try BudgetViewModelFixtures.decodeBudgetMonth(
             visibleCategoryBalance: -5,

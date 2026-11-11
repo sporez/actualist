@@ -41,15 +41,15 @@ final class BudgetWorkspaceActions {
     private(set) var actionCategoryID: String?
     private(set) var actionBudgetID: String?
     var errorMessage: String? {
-        actionModel?.errorMessage ?? visibilityWorkflow.errorMessage ?? categoryLifecycle.errorMessage
+        actionModel?.errorMessage ?? categoryFlagWorkflow.errorMessage ?? categoryLifecycle.errorMessage
     }
     var isSubmitting: Bool {
-        actionModel?.isLoading == true || visibilityWorkflow.isSubmitting || categoryLifecycle.isSubmitting
+        actionModel?.isLoading == true || categoryFlagWorkflow.isSubmitting || categoryLifecycle.isSubmitting
     }
 
     let categoryLifecycle = BudgetCategoryLifecycleController()
 
-    private let visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
+    private let categoryFlagWorkflow = BudgetCategoryFlagWorkflow()
     private var includeCarryoverCategoriesInOverspentAlerts: Bool
 
     init(viewport: BudgetViewportModel, includeCarryoverCategoriesInOverspentAlerts: Bool = false) {
@@ -314,12 +314,28 @@ final class BudgetWorkspaceActions {
     ) async {
         guard let budgetID = viewport.budgetID,
               budgetID == appState.settings.selectedBudgetID,
-              await visibilityWorkflow.setCategoryHidden(
+              await categoryFlagWorkflow.setCategoryHidden(
             isHidden,
             categoryID: category.id,
             groupHidden: BudgetCategoryVisibility.isHidden(group.hidden),
             selectedMonth: month,
             budgetID: budgetID,
+            repository: appState.budgetRepository
+        ) != nil else { return }
+        guard viewport.budgetID == budgetID, appState.settings.selectedBudgetID == budgetID else { return }
+        await viewport.refreshVisibleMonths()
+    }
+
+    func toggleCategoryCarryover(_ category: BudgetMonthCategory, month: String, using appState: AppState) async {
+        guard let budgetID = viewport.budgetID,
+              budgetID == appState.settings.selectedBudgetID,
+              await categoryFlagWorkflow.setCategoryCarryover(
+            !category.carryover,
+            category: category,
+            expectedMode: viewport.snapshot(for: month)?.modeIdentity,
+            selectedMonth: month,
+            budgetID: budgetID,
+            currentBudgetID: { appState.settings.selectedBudgetID },
             repository: appState.budgetRepository
         ) != nil else { return }
         guard viewport.budgetID == budgetID, appState.settings.selectedBudgetID == budgetID else { return }
@@ -334,7 +350,7 @@ final class BudgetWorkspaceActions {
     ) async {
         guard let budgetID = viewport.budgetID,
               budgetID == appState.settings.selectedBudgetID,
-              await visibilityWorkflow.setGroupHidden(
+              await categoryFlagWorkflow.setGroupHidden(
             isHidden,
             group: group,
             selectedMonth: month,

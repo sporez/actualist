@@ -174,6 +174,15 @@ struct BudgetGridView: View {
                 if let month = viewport.anchorMonth {
                     Button("Templates", systemImage: "sparkles") { actions.openTemplates(category.source, month: month) }
                 }
+                if let rollover = presentation.rolloverMenuItem(categoryID: category.id) {
+                    Button {
+                        Task { await actions.toggleCategoryCarryover(rollover.category, month: rollover.month, using: appState) }
+                    } label: {
+                        BudgetRolloverMenuItemLabel(label: rollover.label)
+                    }
+                    .disabled(actions.isSubmitting)
+                    .accessibilityIdentifier("budget-grid-category-rollover-\(category.id)")
+                }
                 Button(category.source.hidden == true ? "Show" : "Hide", systemImage: "eye") {
                     Task { await actions.toggleCategoryHidden(category.source, in: group.source, using: appState) }
                 }

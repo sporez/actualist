@@ -45,6 +45,16 @@ struct BudgetCarryoverBadge: View {
     }
 }
 
+/// A context-menu label: the second Text renders as the item's subtitle.
+struct BudgetRolloverMenuItemLabel: View {
+    let label: BudgetRolloverMenuLabel
+
+    @ViewBuilder var body: some View {
+        Label(label.title, systemImage: BudgetRolloverMenuLabel.systemImage)
+        Text(label.subtitle)
+    }
+}
+
 struct BudgetTemplateConfirmationModifier: ViewModifier {
     @Environment(AppState.self) private var appState
     @Binding var confirmation: BudgetTemplateConfirmation?

@@ -21,6 +21,7 @@ struct BudgetGroupSection: View {
     var onOpenTemplates: (BudgetMonthCategory) -> Void = { _ in }
     var templatesMenuTitle: (BudgetMonthCategory) -> String? = { _ in nil }
     var onToggleCategoryHidden: (BudgetMonthCategory) -> Void = { _ in }
+    var onToggleCategoryCarryover: (BudgetMonthCategory) -> Void = { _ in }
     var onToggleGroupHidden: () -> Void = {}
     var onRenameCategory: (BudgetMonthCategory) -> Void = { _ in }
     var onRenameGroup: () -> Void = {}
@@ -119,6 +120,10 @@ struct BudgetGroupSection: View {
                             },
                             onToggleHidden: {
                                 onToggleCategoryHidden(category)
+                            },
+                            canChangeRollover: canChangeVisibility,
+                            onToggleCarryover: {
+                                onToggleCategoryCarryover(category)
                             },
                             canManageLifecycle: !isPrivacyModeEnabled && (isTrackingBudget || !category.isIncome),
                             onRename: { onRenameCategory(category) },
@@ -250,6 +255,8 @@ struct BudgetCategoryRow: View {
     var templatesMenuTitle: String? = nil
     var onOpenTemplates: () -> Void = {}
     var onToggleHidden: () -> Void = {}
+    var canChangeRollover = false
+    var onToggleCarryover: () -> Void = {}
     var canManageLifecycle = false
     var onRename: () -> Void = {}
     var onReorder: () -> Void = {}
@@ -285,6 +292,16 @@ struct BudgetCategoryRow: View {
                 } label: {
                     Label(templatesMenuTitle, systemImage: "sparkles")
                 }
+            }
+
+            if let rollover = semantics.rolloverMenuLabel(isEnabled: category.carryover) {
+                Button {
+                    onToggleCarryover()
+                } label: {
+                    BudgetRolloverMenuItemLabel(label: rollover)
+                }
+                .disabled(!canChangeRollover)
+                .accessibilityIdentifier("budget-category-rollover-\(category.id)")
             }
 
             if canChangeVisibility {

@@ -462,6 +462,8 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         try #require(moves.first)
     }
 
+    func carryoverUpdateCount() -> Int { carryoverUpdates.count }
+
     func onlyCarryoverUpdate() throws -> RecordedBudgetCarryoverUpdate {
         try #require(carryoverUpdates.first)
     }

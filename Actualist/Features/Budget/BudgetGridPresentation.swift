@@ -109,6 +109,21 @@ struct BudgetGridPresentation {
         month.display?.categoryGroups.flatMap(\.categories).first { $0.id == id }
     }
 
+    struct RolloverMenuItem {
+        let label: BudgetRolloverMenuLabel
+        let month: String
+        let category: BudgetMonthCategory
+    }
+
+    /// Rollover applies from the first visible month onward, so the menu reads
+    /// and writes that month. Nil until it loads, and for income categories.
+    func rolloverMenuItem(categoryID: String) -> RolloverMenuItem? {
+        guard let month = months.first, let category = category(categoryID, month: month),
+              let label = BudgetModePresentation(isTracking: month.semantics.isTracking, isIncome: category.isIncome)
+                .rolloverMenuLabel(isEnabled: category.carryover) else { return nil }
+        return RolloverMenuItem(label: label, month: month.id, category: category)
+    }
+
     func group(_ id: String, month: Month) -> BudgetMonthCategoryGroup? {
         month.display?.categoryGroups.first { $0.id == id }
     }

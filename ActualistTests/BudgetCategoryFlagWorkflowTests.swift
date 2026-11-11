@@ -3,10 +3,10 @@ import Testing
 @testable import Actualist
 
 @MainActor
-struct BudgetCategoryVisibilityWorkflowTests {
+struct BudgetCategoryFlagWorkflowTests {
     @Test func submittingCategoryHideRecordsTheCommand() async throws {
         let repository = RecordingBudgetRepository()
-        let workflow = BudgetCategoryVisibilityWorkflow()
+        let workflow = BudgetCategoryFlagWorkflow()
         let loaded = try #require(
             await workflow.setCategoryHidden(
                 true,
@@ -27,9 +27,100 @@ struct BudgetCategoryVisibilityWorkflowTests {
         #expect(!workflow.isSubmitting)
     }
 
+    @Test func rolloverTogglesFromTheSelectedMonthWithTheExpectedBudgetType() async throws {
+        let repository = RecordingBudgetRepository()
+        let workflow = BudgetCategoryFlagWorkflow()
+        let mode = BudgetModeIdentity(storageID: "db-1", table: .tracking, revision: "r1")
+        let loaded = await workflow.setCategoryCarryover(
+            true,
+            category: rolloverCategory(isIncome: false),
+            expectedMode: mode,
+            selectedMonth: "2026-06",
+            budgetID: "budget",
+            repository: repository
+        )
+
+        #expect(loaded != nil)
+        let recorded = try await repository.onlyCarryoverUpdate()
+        #expect(recorded.categoryID == "groceries")
+        #expect(recorded.carryover)
+        #expect(recorded.expectedMode == mode)
+        #expect(recorded.budgetID == "budget")
+        #expect(recorded.startMonth == "2026-06")
+        #expect(workflow.errorMessage == nil)
+        #expect(!workflow.isSubmitting)
+    }
+
+    @Test func rolloverIsRefusedForIncomeCategories() async throws {
+        let repository = RecordingBudgetRepository()
+        let workflow = BudgetCategoryFlagWorkflow()
+        let loaded = await workflow.setCategoryCarryover(
+            true,
+            category: rolloverCategory(isIncome: true),
+            expectedMode: nil,
+            selectedMonth: "2026-06",
+            budgetID: "budget",
+            repository: repository
+        )
+
+        #expect(loaded == nil)
+        #expect(workflow.errorMessage == "Rollover is only available for expense categories.")
+        #expect(await repository.carryoverUpdateCount() == 0)
+    }
+
+    @Test func aFailedRolloverWriteReportsTheError() async {
+        let repository = RecordingBudgetRepository(carryoverError: BudgetModeWriteError.budgetChanged)
+        let workflow = BudgetCategoryFlagWorkflow()
+        let loaded = await workflow.setCategoryCarryover(
+            false,
+            category: rolloverCategory(isIncome: false),
+            expectedMode: nil,
+            selectedMonth: "2026-06",
+            budgetID: "budget",
+            repository: repository
+        )
+
+        #expect(loaded == nil)
+        #expect(workflow.errorMessage == BudgetModeWriteError.budgetChanged.userFacingMessage)
+        #expect(!workflow.isSubmitting)
+    }
+
+    @Test func aSecondWriteIsRefusedWhileRolloverIsSubmitting() async throws {
+        let repository = RecordingBudgetRepository(suspendsCarryover: true)
+        let workflow = BudgetCategoryFlagWorkflow()
+        let first = Task {
+            await workflow.setCategoryCarryover(
+                true,
+                category: rolloverCategory(isIncome: false),
+                expectedMode: nil,
+                selectedMonth: "2026-06",
+                budgetID: "budget",
+                repository: repository
+            )
+        }
+        await repository.waitUntilCarryoverStarted()
+        try #require(workflow.isSubmitting)
+
+        let second = await workflow.setCategoryHidden(
+            true,
+            categoryID: "groceries",
+            groupHidden: false,
+            selectedMonth: "2026-06",
+            budgetID: "budget",
+            repository: repository
+        )
+        #expect(second == nil)
+        #expect(await repository.recordedCategoryHides().isEmpty)
+
+        await repository.resumeCarryover()
+        #expect(await first.value != nil)
+        #expect(!workflow.isSubmitting)
+        #expect(await repository.carryoverUpdateCount() == 1)
+    }
+
     @Test func cannotHideACategoryInAHiddenGroup() async throws {
         let repository = RecordingBudgetRepository()
-        let workflow = BudgetCategoryVisibilityWorkflow()
+        let workflow = BudgetCategoryFlagWorkflow()
         let loaded = await workflow.setCategoryHidden(
             true,
             categoryID: "secret",
@@ -46,7 +137,7 @@ struct BudgetCategoryVisibilityWorkflowTests {
 
     @Test func cannotHideAnIncomeGroup() async {
         let repository = RecordingBudgetRepository()
-        let workflow = BudgetCategoryVisibilityWorkflow()
+        let workflow = BudgetCategoryFlagWorkflow()
         let income = BudgetMonthCategoryGroup(
             id: "income",
             name: "Income",
@@ -71,7 +162,7 @@ struct BudgetCategoryVisibilityWorkflowTests {
 
     @Test func aMonthChangeDuringTheWriteStillPublishesTheCommittedResult() async throws {
         let repository = DelayedVisibilityRepository()
-        let workflow = BudgetCategoryVisibilityWorkflow()
+        let workflow = BudgetCategoryFlagWorkflow()
         let task = Task {
             await workflow.setCategoryHidden(
                 true,
@@ -102,7 +193,7 @@ struct BudgetCategoryVisibilityWorkflowTests {
 
     @Test func budgetSwitchDuringTheWriteDropsTheOldBudgetsResult() async throws {
         let repository = DelayedVisibilityRepository()
-        let workflow = BudgetCategoryVisibilityWorkflow()
+        let workflow = BudgetCategoryFlagWorkflow()
         var selectedBudgetID: String? = "budget"
         let task = Task { @MainActor in
             await workflow.setCategoryHidden(
@@ -124,6 +215,20 @@ struct BudgetCategoryVisibilityWorkflowTests {
         #expect(!workflow.isSubmitting)
         #expect(workflow.errorMessage == nil)
     }
+}
+
+private func rolloverCategory(isIncome: Bool) -> BudgetMonthCategory {
+    BudgetMonthCategory(
+        id: isIncome ? "salary" : "groceries",
+        name: isIncome ? "Salary" : "Groceries",
+        isIncome: isIncome,
+        hidden: false,
+        groupID: isIncome ? "income" : "food",
+        budgeted: 0,
+        spent: 0,
+        balance: 0,
+        carryover: false
+    )
 }
 
 private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {

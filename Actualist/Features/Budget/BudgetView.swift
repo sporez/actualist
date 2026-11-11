@@ -18,7 +18,7 @@ struct BudgetView: View {
     @State private var templateEditorTarget: BudgetTemplateEditorTarget?
     @State private var noteTarget: ActualNoteTarget?
     @State private var holdTarget: BudgetHoldTarget?
-    @State private var visibilityWorkflow = BudgetCategoryVisibilityWorkflow()
+    @State private var categoryFlagWorkflow = BudgetCategoryFlagWorkflow()
     @State private var categoryLifecycleSheet: BudgetCategoryLifecycleSheet?
     @State private var categoryLifecycle = BudgetCategoryLifecycleController()
     let loadsOnAppear: Bool
@@ -240,7 +240,7 @@ struct BudgetView: View {
                     }
                 }
                 .onChange(of: viewModel.selectedMonth) {
-                    visibilityWorkflow.cancel()
+                    categoryFlagWorkflow.cancel()
                     dismissCategoryLifecycle()
                     noteTarget = nil
                     holdTarget = nil
@@ -349,7 +349,7 @@ struct BudgetView: View {
             || pendingTemplateConfirmation != nil || templateEditorTarget != nil || noteTarget != nil
             || holdTarget != nil || categoryLifecycleSheet != nil
             || transactionPresenter.presentation != nil || appState.routeCoordinator.isSettingsPresented
-            || visibilityWorkflow.isSubmitting || categoryLifecycle.isSubmitting
+            || categoryFlagWorkflow.isSubmitting || categoryLifecycle.isSubmitting
     }
 
     private func applyTemplate(
@@ -376,7 +376,7 @@ struct BudgetView: View {
         in group: BudgetMonthCategoryGroup
     ) {
         Task {
-            guard await visibilityWorkflow.setCategoryHidden(
+            guard await categoryFlagWorkflow.setCategoryHidden(
                 !BudgetCategoryVisibility.isHidden(category.hidden),
                 categoryID: category.id,
                 groupHidden: BudgetCategoryVisibility.isHidden(group.hidden),
@@ -391,9 +391,26 @@ struct BudgetView: View {
         }
     }
 
+    private func toggleCategoryCarryover(_ category: BudgetMonthCategory) {
+        Task {
+            guard await categoryFlagWorkflow.setCategoryCarryover(
+                !category.carryover,
+                category: category,
+                expectedMode: viewModel.modeIdentity,
+                selectedMonth: viewModel.selectedMonth,
+                budgetID: appState.settings.selectedBudgetID,
+                currentBudgetID: { appState.settings.selectedBudgetID },
+                repository: appState.budgetRepository
+            ) != nil else {
+                return
+            }
+            await viewModel.refreshSelectedMonth(using: appState)
+        }
+    }
+
     private func toggleGroupHidden(_ group: BudgetMonthCategoryGroup) {
         Task {
-            guard await visibilityWorkflow.setGroupHidden(
+            guard await categoryFlagWorkflow.setGroupHidden(
                 !BudgetCategoryVisibility.isHidden(group.hidden),
                 group: group,
                 selectedMonth: viewModel.selectedMonth,
@@ -419,7 +436,7 @@ struct BudgetView: View {
 
     @ViewBuilder
     private var operationErrorBanner: some View {
-        if let message = viewModel.errorMessage ?? visibilityWorkflow.errorMessage ?? categoryLifecycle.errorMessage {
+        if let message = viewModel.errorMessage ?? categoryFlagWorkflow.errorMessage ?? categoryLifecycle.errorMessage {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.body.weight(.bold))
@@ -541,7 +558,7 @@ struct BudgetView: View {
     }
 
     private func compactContent(_ model: BudgetViewModel) -> some View {
-        BudgetCompactMonthContent(viewModel: model, canChangeVisibility: !visibilityWorkflow.isSubmitting) { action in
+        BudgetCompactMonthContent(viewModel: model, canChangeVisibility: !categoryFlagWorkflow.isSubmitting) { action in
             switch action {
             case .edit(let id, let frame):
                 guard !viewModel.isSubmittingAssignment, realCategory(id: id) != nil else { return }
@@ -556,6 +573,7 @@ struct BudgetView: View {
             case .templates(let category): presentTemplates(for: category)
             case .categoryVisibility(let category, let group): toggleCategoryHidden(category, in: group)
             case .groupVisibility(let group): toggleGroupHidden(group)
+            case .categoryCarryover(let category): toggleCategoryCarryover(category)
             case .renameCategory(let category):
                 presentCategoryLifecycle(.renameCategory(category, isTrackingBudget: viewModel.isTrackingBudget))
             case .renameGroup(let group):

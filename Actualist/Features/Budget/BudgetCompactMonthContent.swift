@@ -13,6 +13,7 @@ struct BudgetCompactMonthContent: View {
         case templates(BudgetMonthCategory)
         case categoryVisibility(BudgetMonthCategory, BudgetMonthCategoryGroup)
         case groupVisibility(BudgetMonthCategoryGroup)
+        case categoryCarryover(BudgetMonthCategory)
         case renameCategory(BudgetMonthCategory), renameGroup(BudgetMonthCategoryGroup)
         case reorder
         case deleteCategory(BudgetMonthCategory), deleteGroup(BudgetMonthCategoryGroup)
@@ -124,6 +125,7 @@ struct BudgetCompactMonthContent: View {
                             : BudgetTemplateDoorKind.kind(hasDefinition: category.hasTemplateDefinition).menuTitle
                     },
                     onToggleCategoryHidden: { action(.categoryVisibility($0, group)) },
+                    onToggleCategoryCarryover: { action(.categoryCarryover($0)) },
                     onToggleGroupHidden: { action(.groupVisibility(group)) },
                     onRenameCategory: { action(.renameCategory($0)) },
                     onRenameGroup: { action(.renameGroup(group)) },

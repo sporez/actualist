@@ -3,7 +3,7 @@ import Observation
 
 @MainActor
 @Observable
-final class BudgetCategoryVisibilityWorkflow {
+final class BudgetCategoryFlagWorkflow {
     private(set) var isSubmitting = false
     private(set) var errorMessage: String?
 
@@ -63,6 +63,35 @@ final class BudgetCategoryVisibilityWorkflow {
                 hidden: hidden,
                 budgetID: budgetID,
                 month: month
+            ) {}
+        }
+    }
+
+    /// Rollover applies from `selectedMonth` onward, as on the category details screen.
+    func setCategoryCarryover(
+        _ carryover: Bool,
+        category: BudgetMonthCategory,
+        expectedMode: BudgetModeIdentity?,
+        selectedMonth: String?,
+        budgetID: String?,
+        currentBudgetID: (@MainActor () -> String?)? = nil,
+        repository: any BudgetRepositoryProtocol
+    ) async -> LoadedBudgetMonth? {
+        if category.isIncome {
+            errorMessage = "Rollover is only available for expense categories."
+            return nil
+        }
+        return await submit(
+            selectedMonth: selectedMonth,
+            budgetID: budgetID,
+            currentBudgetID: currentBudgetID
+        ) { month, budgetID in
+            try await repository.setCategoryCarryoverAndRefresh(
+                expectedMode: expectedMode,
+                categoryID: category.id,
+                carryover: carryover,
+                budgetID: budgetID,
+                startMonth: month
             ) {}
         }
     }
