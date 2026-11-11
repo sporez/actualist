@@ -30,6 +30,43 @@ extension BudgetDatabase {
         }
     }
 
+    struct AccountTransactionQueryPage: Sendable {
+        let page: TransactionQueryPage
+        /// Live inline balance of the account, from the same read as `page`.
+        let balance: Int?
+        /// The synced `show-balances-<id>` preference; nil when preferences are unavailable.
+        let runningBalanceSetting: Bool?
+    }
+
+    /// The account's page, balance and running-balance setting from one read,
+    /// so running balances start from the number the header shows.
+    func fetchAccountTransactionQueryPage(
+        accountID: String,
+        query: TransactionFeedQuery,
+        limit: Int? = nil,
+        offset: Int = 0
+    ) throws -> AccountTransactionQueryPage {
+        try queue.read { db in
+            let page = try transactionQuerySelection(
+                db: db,
+                scope: .account(accountID),
+                query: query,
+                limit: limit,
+                offset: offset
+            ).page
+            let setting: Bool? = switch try SyncedPreferences.availability(in: self, db: db) {
+            case .unavailable: nil
+            case .available:
+                try SyncedPreferences.value(.showBalances(accountID: accountID), in: self, db: db) == "true"
+            }
+            return AccountTransactionQueryPage(
+                page: page,
+                balance: try accountBalance(accountID: accountID, db: db),
+                runningBalanceSetting: setting
+            )
+        }
+    }
+
     func fetchTransactionDrilldown(
         _ request: TransactionDrilldownRequest
     ) throws -> TransactionDrilldownResult {

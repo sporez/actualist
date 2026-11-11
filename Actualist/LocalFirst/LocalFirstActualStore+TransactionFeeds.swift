@@ -234,16 +234,16 @@ extension LocalFirstActualStore {
         offset: Int = 0
     ) async throws -> LoadedAccountTransactions {
         let maps = try await nameMaps(database)
-        let balance = accountsByBudget[budgetID]?.first(where: { $0.account.id == accountID })?.balance
-        let page = try await database.fetchTransactionQueryPage(
-            scope: .account(accountID),
+        let accountPage = try await database.fetchAccountTransactionQueryPage(
+            accountID: accountID,
             query: query,
             limit: limit,
             offset: offset
         )
+        let page = accountPage.page
         return LoadedAccountTransactions(
             transactions: page.transactions,
-            balance: balance,
+            balance: accountPage.balance,
             accountNames: maps.accountNames,
             categoryNames: maps.categoryNames,
             payeeNames: maps.payeeNames,
@@ -258,7 +258,8 @@ extension LocalFirstActualStore {
                 matchingTransactionIDs: page.matchingTransactionIDs,
                 contributingTransactionIDs: page.contributingTransactionIDs,
                 attachedContextTransactionIDs: page.attachedContextTransactionIDs
-            )
+            ),
+            runningBalanceSetting: accountPage.runningBalanceSetting
         )
     }
 

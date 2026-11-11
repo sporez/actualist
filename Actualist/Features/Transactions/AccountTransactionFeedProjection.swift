@@ -6,6 +6,9 @@ struct AccountTransactionRowPresentation: Identifiable, Hashable {
     let accountName: String?
     let isNew: Bool
     let scheduleConversionEntryPoint: TransactionScheduleConversionEntryPoint?
+    /// Balance after this row; nil while running balances are not shown.
+    var runningBalanceText: String?
+    var runningBalanceTone: AccountTransactionBalanceTone?
 
     var id: String { transaction.rowID }
     var payeeName: String { semantics.payeeText }
@@ -39,6 +42,10 @@ struct AccountTransactionsDisplayState: Hashable {
     let reachedEnd: Bool
     let statusFilter: TransactionStatusFilter
     let isSearchActive: Bool
+    /// Whether rows carry running balances (account scope, unfiltered, setting on).
+    let showsRunningBalances: Bool
+    /// The account's synced setting; nil hides the menu toggle.
+    let runningBalanceSetting: Bool?
 
     var transactionCount: Int {
         groups.reduce(into: 0) { $0 += $1.rows.count }
@@ -66,11 +73,12 @@ struct AccountTransactionFeedProjection {
     var supportsScheduleAuthoring: Bool = true
 
     var displayState: AccountTransactionsDisplayState {
+        let balances = runningBalances(for: displayedTransactions)
         let groups = TransactionGrouping.grouped(displayedTransactions).map { group in
             AccountTransactionDateGroupPresentation(
                 date: group.date,
                 title: group.title,
-                rows: group.transactions.map(rowPresentation)
+                rows: group.transactions.map { rowPresentation($0, runningBalances: balances) }
             )
         }
         return AccountTransactionsDisplayState(
@@ -81,7 +89,9 @@ struct AccountTransactionFeedProjection {
             hasLoadedSnapshot: activePage != nil,
             reachedEnd: activePage?.reachedEnd ?? false,
             statusFilter: statusFilter,
-            isSearchActive: !query.isEmpty
+            isSearchActive: !query.isEmpty,
+            showsRunningBalances: balances != nil,
+            runningBalanceSetting: scope.account == nil ? nil : activePage?.runningBalanceSetting
         )
     }
 
@@ -132,12 +142,27 @@ struct AccountTransactionFeedProjection {
         }
     }
 
-    private func rowPresentation(_ transaction: ActualTransaction) -> AccountTransactionRowPresentation {
+    /// Nil unless the account feed is unfiltered and its setting is on. Rows
+    /// from every loaded page count, so older pages continue the sequence.
+    private func runningBalances(for rows: [ActualTransaction]) -> AccountRunningBalances? {
+        guard scope.account != nil,
+              let page = activePage,
+              page.runningBalanceSetting == true,
+              let startingBalance = page.balance,
+              page.querySignature == TransactionFeedQuery().signature else { return nil }
+        return AccountRunningBalances(rows: rows, startingBalance: startingBalance)
+    }
+
+    private func rowPresentation(
+        _ transaction: ActualTransaction,
+        runningBalances: AccountRunningBalances?
+    ) -> AccountTransactionRowPresentation {
         let semantics = TransactionRowSemantics.project(
             transaction,
             lookup: lookup,
             privacyEnabled: privacyModeEnabled
         )
+        let runningBalance = runningBalances?.balance(forRowID: transaction.rowID)
         return AccountTransactionRowPresentation(
             transaction: transaction,
             semantics: semantics,
@@ -151,8 +176,16 @@ struct AccountTransactionFeedProjection {
                 asOfDayID: scheduleConversionDayID,
                 accountName: scheduleConversionAccountName(for: transaction),
                 supportsAuthoring: supportsScheduleAuthoring
-            )
+            ),
+            runningBalanceText: runningBalance.map { runningBalanceText($0, rowID: transaction.rowID) },
+            runningBalanceTone: runningBalance.map(balanceTone)
         )
+    }
+
+    private func runningBalanceText(_ balance: Int, rowID: String) -> String {
+        guard privacyModeEnabled else { return currency.formatted(balance) }
+        return PrivacyDisplay.money(
+            balance, seed: "running-balance-\(rowID)", currency: currency, maximumDollars: 15_000)
     }
 
     private var lookup: TransactionRowLookup {

@@ -100,28 +100,40 @@ extension BudgetDatabase {
     }
 
     func accountBalances() throws -> [String: Int] {
-        try queue.read { db in
-            guard try tableExists("transactions", db: db) else {
-                return [:]
-            }
+        try queue.read { db in try accountBalances(accountID: nil, db: db) }
+    }
 
-            let columns = try columnSet(for: "transactions", db: db)
-            let split = transactionSplitQueryExpressions(columns: columns)
-            let sql = """
-                SELECT \(split.qualifiedAccount) AS account_id, SUM(\(split.qualifiedAmount)) AS balance
-                FROM transactions t
-                \(split.parentJoin())
-                WHERE \(split.liveInlinePredicate())
-                GROUP BY \(split.qualifiedAccount)
-                """
-            let rows = try Row.fetchAll(db, sql: sql)
-            return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
-                guard let accountID = row["account_id"] as String? else {
-                    return nil
-                }
-                return (accountID, row["balance"] ?? 0)
-            })
+    /// The live inline balance of one account (future-dated rows included), or
+    /// nil when the transactions table is missing.
+    func accountBalance(accountID: String, db: Database) throws -> Int? {
+        guard try tableExists("transactions", db: db) else { return nil }
+        return try accountBalances(accountID: accountID, db: db)[accountID] ?? 0
+    }
+
+    /// Per-account balance of live inline rows; `accountID` limits it to one account.
+    private func accountBalances(accountID: String?, db: Database) throws -> [String: Int] {
+        guard try tableExists("transactions", db: db) else {
+            return [:]
         }
+
+        let columns = try columnSet(for: "transactions", db: db)
+        let split = transactionSplitQueryExpressions(columns: columns)
+        let accountFilter = accountID == nil ? "" : "AND \(split.qualifiedAccount) = ?"
+        let sql = """
+            SELECT \(split.qualifiedAccount) AS account_id, SUM(\(split.qualifiedAmount)) AS balance
+            FROM transactions t
+            \(split.parentJoin())
+            WHERE \(split.liveInlinePredicate())
+              \(accountFilter)
+            GROUP BY \(split.qualifiedAccount)
+            """
+        let rows = try Row.fetchAll(db, sql: sql, arguments: accountID.map { [$0] } ?? [])
+        return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
+            guard let accountID = row["account_id"] as String? else {
+                return nil
+            }
+            return (accountID, row["balance"] ?? 0)
+        })
     }
 
     func onBudgetAccountBalance(through month: String, db: Database) throws -> Int {

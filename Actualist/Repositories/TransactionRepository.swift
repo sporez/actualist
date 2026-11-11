@@ -348,6 +348,9 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     /// Present only when the repository can authoritatively classify the
     /// normalized query. Legacy snapshots intentionally leave this unavailable.
     let queryMetadata: TransactionQueryPageMetadata?
+    /// Actual's synced `show-balances-<account>` value. Nil outside account
+    /// scope and when the budget has no preferences table.
+    let runningBalanceSetting: Bool?
 
     var totalMatchCount: Int? { queryMetadata?.totalMatchCount }
     var querySignature: TransactionQuerySignature? { queryMetadata?.querySignature }
@@ -366,7 +369,8 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         offBudgetAccountIDs: Set<String> = [],
         reachedEnd: Bool,
         nextOffset: Int? = nil,
-        queryMetadata: TransactionQueryPageMetadata? = nil
+        queryMetadata: TransactionQueryPageMetadata? = nil,
+        runningBalanceSetting: Bool? = nil
     ) {
         self.transactions = transactions
         self.balance = balance
@@ -379,6 +383,7 @@ struct LoadedAccountTransactions: Hashable, Sendable {
         self.reachedEnd = reachedEnd
         self.nextOffset = nextOffset ?? transactions.count
         self.queryMetadata = queryMetadata
+        self.runningBalanceSetting = runningBalanceSetting
     }
 }
 
@@ -407,7 +412,7 @@ extension LoadedAccountTransactions {
         let existingIDs = Set(transactions.map(Self.identity))
         return LoadedAccountTransactions(
             transactions: transactions + older.transactions.filter { !existingIDs.contains(Self.identity($0)) },
-            balance: older.balance ?? balance,
+            balance: balance ?? older.balance,
             accountNames: older.accountNames.isEmpty ? accountNames : older.accountNames,
             categoryNames: older.categoryNames.isEmpty ? categoryNames : older.categoryNames,
             payeeNames: older.payeeNames.isEmpty ? payeeNames : older.payeeNames,
@@ -417,7 +422,8 @@ extension LoadedAccountTransactions {
             offBudgetAccountIDs: older.offBudgetAccountIDs,
             reachedEnd: older.reachedEnd,
             nextOffset: older.nextOffset,
-            queryMetadata: mergedMetadata
+            queryMetadata: mergedMetadata,
+            runningBalanceSetting: runningBalanceSetting ?? older.runningBalanceSetting
         )
     }
 
