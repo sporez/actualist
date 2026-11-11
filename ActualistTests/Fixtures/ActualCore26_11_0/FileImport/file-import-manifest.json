@@ -7,12 +7,20 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/parity/file-import-oracle/generate.mjs",
-    "sha256": "d8b08524ea6f64afcdcb4fe55578c88ce92ee71dfb5202e4646850ac288dad63"
+    "sha256": "e29a7bdf9871b924683c16781a375a9d76236adb9508cc02cb0793875ff5cb98"
   },
   "helpers": [
     {
+      "path": "scripts/parity/file-import-oracle/actual-sample-cases.mjs",
+      "sha256": "f3ce6bf6fa6699f77df728ed8ff0a08f36a7396b8819ebb935d504bb00bc4b5d"
+    },
+    {
       "path": "scripts/parity/file-import-oracle/amount-fields-cases.mjs",
       "sha256": "0a9acbd2ac34c00db651aa862db9d9bcf5b6d6fa54e0122380d990bbefd263d4"
+    },
+    {
+      "path": "scripts/parity/file-import-oracle/bank-layout-cases.mjs",
+      "sha256": "043a2d01f7f5497e8b4dae9a8bc1caba412974de235749318878de6703ab085f"
     },
     {
       "path": "scripts/parity/file-import-oracle/case-kit.mjs",
@@ -20,7 +28,7 @@
     },
     {
       "path": "scripts/parity/file-import-oracle/cases.mjs",
-      "sha256": "250ea9b1b50e3000a69ed0b8ac6625cdb496ee7e058f09d2427ebadac6f4d875"
+      "sha256": "df6fb934f0f37c6650d13a501be60e9d95373065d238476a88f94dfa0b932978"
     },
     {
       "path": "scripts/parity/file-import-oracle/csv-file-option-cases.mjs",
@@ -36,7 +44,7 @@
     },
     {
       "path": "scripts/parity/file-import-oracle/registry.mjs",
-      "sha256": "70c5328905d6ae8519c557987d191789205d1b17c2f094bcbef84e8971f90c4f"
+      "sha256": "7edfd0daf0d3d4bdf9492426a686c2b55b1a5239b396c0bae03197c196cd74bc"
     },
     {
       "path": "scripts/parity/file-import-oracle/oracle-runner.test.ts",
@@ -118,8 +126,8 @@
       "derivedCaseCount": 0
     },
     "pipeline": {
-      "caseCount": 788,
-      "namedCaseCount": 178,
+      "caseCount": 837,
+      "namedCaseCount": 227,
       "generatedCaseCount": 610,
       "derivedCaseCount": 0
     },
@@ -136,7 +144,7 @@
       "derivedCaseCount": 0
     }
   },
-  "caseCount": 12383,
+  "caseCount": 12432,
   "execution": "Each registered function is extracted from its frozen Actual source file, evaluated in an isolated vm context with its real dependencies, and called for every case under vitest in a sandbox that denies writes to the checkout; V8 precise coverage records the blocks reached",
   "coverage": {
     "looselyParseAmount": {
@@ -203,6 +211,30 @@
   ],
   "sourceFiles": [
     {
+      "path": "packages/desktop-client/e2e/data/test.csv",
+      "sha256": "89b9c8407d00496b23c98fc5ac1e4aef264c64cebd5d35fcfbfa3e061a291952"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/files/windows-1252.csv",
+      "sha256": "6442e42b63036de26d42cde170de41d50d363a8f8a5eb18f28a8562ada7f63aa"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/files/windows-1252-euro.csv",
+      "sha256": "a741ae5f56ccba5f6b2533099ed5321188d7f8b543ff6879686e66844f49e9ae"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/files/utf-8-bom.csv",
+      "sha256": "78d4d846138083677e3269b8b54ab208682c1b00077f872d7cddd4d14387c370"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/files/utf-16be.csv",
+      "sha256": "40694c27e65fef069ce0c59d1f4b9dd10eec757b639d480aad5dd1679916f999"
+    },
+    {
+      "path": "packages/loot-core/src/mocks/files/utf-16le.csv",
+      "sha256": "a01618ef337c254a2bd6019e4acdbba07ea56a6c2b8d0f9a7860116ae5342089"
+    },
+    {
       "path": "packages/loot-core/src/shared/util.ts",
       "sha256": "976e0d398a1074dfc7f4909e17be73754396ab189f961c7f1341eda19620bdbe"
     },
@@ -242,8 +274,8 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_11_0/FileImport/file-import-contract.json",
-      "sha256": "c8efb12670b130533790ab4dacc46e2484681bd16bbd04258890a8d79c46c3cc",
-      "caseCount": 12383,
+      "sha256": "2709101c42b6ffca4e481b1cc5215399353acda1e5ed1c6023e0966c993e792b",
+      "caseCount": 12432,
       "caseIDs": [
         "looselyParseAmount/currency-grouped",
         "looselyParseAmount/comma-decimal",
@@ -9309,6 +9341,55 @@
         "pipeline/saved-gen-298",
         "pipeline/saved-gen-299",
         "pipeline/saved-gen-300",
+        "pipeline/actual-sample/test.csv",
+        "pipeline/actual-sample/windows-1252.csv",
+        "pipeline/actual-sample/windows-1252.csv/encoding-windows-1252",
+        "pipeline/actual-sample/windows-1252-euro.csv",
+        "pipeline/actual-sample/windows-1252-euro.csv/encoding-windows-1252",
+        "pipeline/actual-sample/windows-1252-euro.csv/encoding-iso-8859-1",
+        "pipeline/actual-sample/utf-8-bom.csv",
+        "pipeline/actual-sample/utf-8-bom.csv/encoding-auto",
+        "pipeline/actual-sample/utf-8-bom.csv/encoding-invalid",
+        "pipeline/actual-sample/utf-16be.csv",
+        "pipeline/actual-sample/utf-16le.csv",
+        "pipeline/actual-sample/utf-16le.csv/encoding-auto",
+        "pipeline/actual-sample/utf-16le.csv/headerless-skip-start-1",
+        "pipeline/bank-layout/chase-checking",
+        "pipeline/bank-layout/chase-checking/configured",
+        "pipeline/bank-layout/chase-card",
+        "pipeline/bank-layout/chase-card/configured",
+        "pipeline/bank-layout/amex",
+        "pipeline/bank-layout/amex/configured",
+        "pipeline/bank-layout/capital-one",
+        "pipeline/bank-layout/capital-one/configured",
+        "pipeline/bank-layout/bank-of-america",
+        "pipeline/bank-layout/bank-of-america/configured",
+        "pipeline/bank-layout/wells-fargo",
+        "pipeline/bank-layout/wells-fargo/configured",
+        "pipeline/bank-layout/discover",
+        "pipeline/bank-layout/discover/configured",
+        "pipeline/bank-layout/citi",
+        "pipeline/bank-layout/citi/configured",
+        "pipeline/bank-layout/us-bank",
+        "pipeline/bank-layout/us-bank/configured",
+        "pipeline/bank-layout/revolut",
+        "pipeline/bank-layout/revolut/configured",
+        "pipeline/bank-layout/n26",
+        "pipeline/bank-layout/n26/configured",
+        "pipeline/bank-layout/monzo",
+        "pipeline/bank-layout/monzo/configured",
+        "pipeline/bank-layout/ing-netherlands",
+        "pipeline/bank-layout/ing-netherlands/configured",
+        "pipeline/bank-layout/sparkasse-de",
+        "pipeline/bank-layout/sparkasse-de/configured",
+        "pipeline/bank-layout/deutsche-bank-de",
+        "pipeline/bank-layout/deutsche-bank-de/configured",
+        "pipeline/bank-layout/uk-money-in-out",
+        "pipeline/bank-layout/uk-money-in-out/configured",
+        "pipeline/bank-layout/barclays-uk",
+        "pipeline/bank-layout/barclays-uk/configured",
+        "pipeline/bank-layout/uk-money-in-out/ambiguous-dates",
+        "pipeline/bank-layout/uk-money-in-out/ambiguous-dates/configured",
         "parseCsvRecords/endings/lf",
         "parseCsvRecords/endings/lf-no-trailing",
         "parseCsvRecords/endings/lf-double-trailing",

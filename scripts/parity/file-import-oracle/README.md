@@ -15,7 +15,8 @@ directory is the generator side only. Each phase adds functions and cases.
   `csv-file-option-cases.mjs` (skip lines and encodings for `parseCsvRecords`),
   `amount-fields-cases.mjs` (`parseAmountFields`) and
   `saved-settings-cases.mjs` (saved mappings and the pipeline with synced
-  preferences).
+  preferences), `actual-sample-cases.mjs` (Actual's own sample CSV files) and
+  `bank-layout-cases.mjs` (reconstructed bank export layouts).
 - `generate.mjs`: checks the freeze, runs the plan, prints the coverage report,
   writes the fixture. `--check` regenerates into a temporary directory and diffs
   it against the committed fixture.
@@ -131,6 +132,29 @@ legacy `amount: null`) and reads like absent. Output is `{ amount, outflow, infl
 (`outflow` and `inflow` are `null` outside split mode; `-0` and `NaN` are `$js`).
 Its coverage is enforced, and the module-private helper `parseAmount` is gated with it
 (a registry dependency marked `measure: true`).
+
+## Actual's sample files and bank layouts (pipeline)
+
+`pipeline/actual-sample/<file>[/<variant>]` (13 cases) runs the CSV fixtures the pinned
+checkout ships (`e2e/data/test.csv` and `loot-core/src/mocks/files/{windows-1252,
+windows-1252-euro,utf-8-bom,utf-16be,utf-16le}.csv`) as raw bytes (`bytesBase64`). The
+generator reads them from the checkout; their sha256 is in `FROZEN_SOURCES` (a re-pin that
+changes one fails the generator), and `verify.mjs`, which has no checkout, takes the bytes
+from the committed contract and checks them against the same hash. They are Actual's public
+test data and synthetic: invented payees, a masked account number, round amounts. Variants
+mirror the options Actual's own `parse-file.test.ts` passes (a manual `windows-1252` or
+`iso-8859-1` encoding, explicit `auto`, an unknown label, a headerless read that skips the
+first line). Outputs are what the pipeline produces, not Actual's test expectations.
+
+`pipeline/bank-layout/<bank>[/<variant>]` and `.../configured` (36 cases, 18 layouts in
+`bank-layout-cases.mjs`) reproduce the export LAYOUT of common banks and card issuers as it is
+commonly documented. They are reconstructions with synthetic values (made-up payees and
+amounts, 2026 dates, zeroed account and card fields), not real exports, and a bank can change
+its format at any time. The plain case is what a new user gets (no saved settings). The
+`/configured` case adds the preferences a user would save in the import dialog for that layout
+(delimiter, skipped lines, header row, encoding, mapping including Debit/Credit or in/out
+columns, date format, flip). The `uk-money-in-out/ambiguous-dates` variant has every day
+12 or less, so day-first dates also read month-first.
 
 ## `decodeCsvBytes`: bytes to text
 

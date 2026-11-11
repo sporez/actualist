@@ -18,6 +18,8 @@ import {
   between, chance, generatedAmount, groupedInteger, named, pad, pick, table,
 } from './case-kit.mjs';
 import { parseAmountFieldsCases } from './amount-fields-cases.mjs';
+import { actualSampleCases } from './actual-sample-cases.mjs';
+import { bankLayoutCases } from './bank-layout-cases.mjs';
 import { checkCsvParseChecklist, parseCsvRecordsCases } from './csv-parse-cases.mjs';
 import { checkDecodeChecklist, decodeCsvBytesCases } from './decode-cases.mjs';
 import {
@@ -991,7 +993,7 @@ export const CASE_BUILDERS = {
   applyFieldMappings: () => [...applyNamed(), ...applyGenerated(), ...savedApplyFieldMappingsCases()],
   parseCategoryFields: () => [...parseCategoryNamed(), ...parseCategoryGenerated()],
   parseAmountFields: parseAmountFieldsCases,
-  pipeline: () => [...pipelineNamed(), ...pipelineGenerated(), ...pipelineLarge(), ...savedPipelineCases()],
+  pipeline: () => [...pipelineNamed(), ...pipelineGenerated(), ...pipelineLarge(), ...savedPipelineCases(), ...actualSampleCases(), ...bankLayoutCases()],
   parseCsvRecords: parseCsvRecordsCases,
   decodeCsvBytes: decodeCsvBytesCases,
 };

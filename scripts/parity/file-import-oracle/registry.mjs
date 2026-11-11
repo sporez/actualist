@@ -52,6 +52,13 @@ const mappingFromPairs = pairs => Object.fromEntries(pairs);
 // sha256 of every pinned Actual file the harness reads. Files the imports pull in
 // transitively are covered by the clean-checkout-at-pinned-commit check instead.
 export const FROZEN_SOURCES = {
+  // Actual's own sample CSVs, which the `pipeline/actual-sample` cases record as bytes.
+  'packages/desktop-client/e2e/data/test.csv': '89b9c8407d00496b23c98fc5ac1e4aef264c64cebd5d35fcfbfa3e061a291952',
+  'packages/loot-core/src/mocks/files/windows-1252.csv': '6442e42b63036de26d42cde170de41d50d363a8f8a5eb18f28a8562ada7f63aa',
+  'packages/loot-core/src/mocks/files/windows-1252-euro.csv': 'a741ae5f56ccba5f6b2533099ed5321188d7f8b543ff6879686e66844f49e9ae',
+  'packages/loot-core/src/mocks/files/utf-8-bom.csv': '78d4d846138083677e3269b8b54ab208682c1b00077f872d7cddd4d14387c370',
+  'packages/loot-core/src/mocks/files/utf-16be.csv': '40694c27e65fef069ce0c59d1f4b9dd10eec757b639d480aad5dd1679916f999',
+  'packages/loot-core/src/mocks/files/utf-16le.csv': 'a01618ef337c254a2bd6019e4acdbba07ea56a6c2b8d0f9a7860116ae5342089',
   [UTIL]: '976e0d398a1074dfc7f4909e17be73754396ab189f961c7f1341eda19620bdbe',
   [UTILS]: 'fba1908a04fe623ae0944275c368452151679f66137593b3018d7a068f7150f8',
   [MODAL]: 'c8f82d687ae2711c06d905384c3f1519ed62d63d97875082155403780e2eec64',
