@@ -252,6 +252,18 @@ enum ActualistTypography {
         .system(size: density.transactionAmountSize, weight: .bold, design: .rounded)
     }
 
+    /// Fixed like `transactionAmount`, so the line under the amount never
+    /// outgrows it at large text sizes.
+    static func transactionRunningBalance(for density: ActualistDisplayDensity) -> Font {
+        let size: CGFloat = switch density {
+        case .large: 13
+        case .comfortable: 12
+        case .compact: 11
+        case .dense: 10
+        }
+        return .system(size: size, weight: .semibold, design: .rounded)
+    }
+
     static func sectionTitle(for density: ActualistDisplayDensity) -> Font {
         switch density {
         case .large, .comfortable: .headline.weight(.bold)

@@ -190,7 +190,7 @@ struct TransactionRow: View {
     private var runningBalanceLine: some View {
         if let runningBalanceText {
             Text(runningBalanceText)
-                .font(ActualistTypography.rowBadge(for: density))
+                .font(ActualistTypography.transactionRunningBalance(for: density))
                 .monospacedDigit()
                 .foregroundStyle(runningBalanceColor)
                 .lineLimit(1)
