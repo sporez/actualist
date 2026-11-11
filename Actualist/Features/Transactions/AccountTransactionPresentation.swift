@@ -287,17 +287,17 @@ struct TransactionRow: View {
         case .reconciled:
             Image(systemName: "lock.fill")
                 .font(.system(size: density.transactionClearedIconSize, weight: .bold))
-                .foregroundStyle(ActualistTheme.positive)
+                .foregroundStyle(ActualistTheme.incomeTransactionAmount)
                 .accessibilityLabel("Reconciled")
         case .cleared:
             Image(systemName: "c.circle.fill")
                 .font(.system(size: density.transactionClearedIconSize, weight: .bold))
-                .foregroundStyle(ActualistTheme.positive)
+                .foregroundStyle(ActualistTheme.incomeTransactionAmount)
                 .accessibilityLabel("Cleared")
         case .uncleared:
             Image(systemName: "c.circle.fill")
                 .font(.system(size: density.transactionClearedIconSize, weight: .bold))
-                .foregroundStyle(ActualistTheme.positive)
+                .foregroundStyle(ActualistTheme.incomeTransactionAmount)
                 .opacity(0)
                 .accessibilityHidden(true)
         }

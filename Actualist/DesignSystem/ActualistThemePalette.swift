@@ -187,8 +187,9 @@ struct ActualistThemePalette: Sendable {
     let warningForeground: Color
     let dangerForeground: Color
     let neutralForeground: Color
-    /// Positive transaction amounts ("Show Positive Amounts in Green") and the
-    /// running balance under them. Its own token so each theme can set it.
+    /// The transaction row's green: positive amounts ("Show Positive Amounts in
+    /// Green"), the running balance under them and the cleared/reconciled icon.
+    /// Its own token so each theme can set it.
     let incomeTransactionAmount: Color
     let separator: Color
     let chromeForeground: Color
