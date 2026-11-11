@@ -34,7 +34,7 @@ extension BudgetDatabase {
         let page: TransactionQueryPage
         /// Live inline balance of the account, from the same read as `page`.
         let balance: Int?
-        /// The synced `show-balances-<id>` preference; nil when preferences are unavailable.
+        /// Actual's running-balance setting (`RunningBalancePreference`); nil when preferences are unavailable.
         let runningBalanceSetting: Bool?
     }
 
@@ -57,7 +57,10 @@ extension BudgetDatabase {
             let setting: Bool? = switch try SyncedPreferences.availability(in: self, db: db) {
             case .unavailable: nil
             case .available:
-                try SyncedPreferences.value(.showBalances(accountID: accountID), in: self, db: db) == "true"
+                RunningBalancePreference.isShown(RunningBalancePreference.values(
+                    try SyncedPreferences.values(RunningBalancePreference.keys(accountID: accountID), in: self, db: db),
+                    accountID: accountID
+                ))
             }
             return AccountTransactionQueryPage(
                 page: page,

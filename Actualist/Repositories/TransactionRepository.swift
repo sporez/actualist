@@ -349,7 +349,7 @@ struct LoadedAccountTransactions: Hashable, Sendable {
     /// Present only when the repository can authoritatively classify the
     /// normalized query. Legacy snapshots intentionally leave this unavailable.
     let queryMetadata: TransactionQueryPageMetadata?
-    /// Actual's synced `show-balances-<account>` value. Nil outside account
+    /// Actual's running-balance setting (`RunningBalancePreference`). Nil outside account
     /// scope and when the budget has no preferences table.
     let runningBalanceSetting: Bool?
 

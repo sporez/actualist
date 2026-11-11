@@ -15,8 +15,14 @@ struct SyncedPreferenceKey: Hashable, Sendable {
     static let defaultCurrencyCode = SyncedPreferenceKey("defaultCurrencyCode")
     static let hideFraction = SyncedPreferenceKey("hideFraction")
 
+    static let transactionTableColumns = SyncedPreferenceKey("transaction-table-columns")
+
     static func showBalances(accountID: String) -> SyncedPreferenceKey {
         SyncedPreferenceKey("show-balances-\(accountID)")
+    }
+
+    static func transactionTableColumns(accountID: String) -> SyncedPreferenceKey {
+        SyncedPreferenceKey("transaction-table-columns-\(accountID)")
     }
 }
 
@@ -142,16 +148,24 @@ enum SyncedPreferences {
 }
 
 extension BudgetDatabase {
-    /// Sets one synced preference in the same transaction that applies and
-    /// enqueues its messages. Records no History entry. Returns whether a
-    /// message was written; an unchanged value writes nothing.
-    func commitSyncedPreference(_ key: SyncedPreferenceKey, to value: String) throws -> Bool {
+    /// Sets synced preferences in the same transaction that applies and
+    /// enqueues their messages: `plan` receives the live values of `reading`
+    /// and returns the writes. Records no History entry. Returns whether a
+    /// message was written; unchanged values write nothing.
+    func commitSyncedPreferences(
+        reading keys: [SyncedPreferenceKey],
+        plan: @escaping @Sendable ([String: String]) -> [(key: SyncedPreferenceKey, value: String)]
+    ) throws -> Bool {
         try commitLocalPlan { db in
             var builder = LocalFirstSyncMessageBuilder()
-            let result = try SyncedPreferences.setMessages(
-                key, to: value, builder: &builder, in: self, db: db
-            )
-            return LocalCommitPlan(drafts: result.messages, action: nil, outcome: ())
+            var drafts: [ActualSyncDecodedMessage] = []
+            let current = try SyncedPreferences.values(keys, in: self, db: db)
+            for write in plan(current) {
+                drafts += try SyncedPreferences.setMessages(
+                    write.key, to: write.value, builder: &builder, in: self, db: db
+                ).messages
+            }
+            return LocalCommitPlan(drafts: drafts, action: nil, outcome: ())
         }.appliedCount > 0
     }
 }

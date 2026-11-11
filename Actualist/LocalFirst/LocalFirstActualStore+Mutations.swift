@@ -169,14 +169,20 @@ extension LocalFirstActualStore {
         }
     }
 
-    /// Actual's `show-balances-<accountId>` preference, so the setting follows
-    /// the budget to the web app. Last write wins; History records nothing.
+    /// Actual's running-balance preferences (`RunningBalancePreference`), so
+    /// the setting follows the budget to both web layouts. The current column
+    /// layout is read inside the commit. Last write wins; History records nothing.
     func setShowsRunningBalance(budgetID: String, accountID: String, enabled: Bool) async throws {
         let database = try requireDatabase(for: budgetID)
-        let written = try await database.commitSyncedPreference(
-            .showBalances(accountID: accountID),
-            to: enabled ? "true" : "false"
-        )
+        let written = try await database.commitSyncedPreferences(
+            reading: RunningBalancePreference.keys(accountID: accountID)
+        ) { stored in
+            RunningBalancePreference.writes(
+                enabled: enabled,
+                accountID: accountID,
+                current: RunningBalancePreference.values(stored, accountID: accountID)
+            )
+        }
         guard written else { return }
         try await finishCommittedWrite(database: database, budgetID: budgetID) {
             try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)

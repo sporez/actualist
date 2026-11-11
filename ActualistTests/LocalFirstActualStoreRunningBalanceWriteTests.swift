@@ -78,6 +78,56 @@ extension LocalFirstActualStoreTests {
         ])
     }
 
+    @Test func columnLayoutFromDesktopShowsBalancesWithoutShowBalancesPreference() async throws {
+        let layout = #"[{"id":"date","hidden":false},{"id":"balance","hidden":false}]"#
+        let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: """
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('transaction-table-columns-checking', '\(layout)');
+            """)
+        let store = bundle.store
+        try await store.refreshTransactions(
+            budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
+        )
+        #expect(store.cachedTransactions(
+            budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
+        )?.runningBalanceSetting == true)
+
+        try await store.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: false)
+
+        let cells = try await pendingCells(bundle)
+        #expect(cells.contains("preferences|\(Self.balanceKey)|value|S:false"))
+        let layoutCell = try #require(cells.first { $0.hasPrefix("preferences|transaction-table-columns-checking|value|S:") })
+        let written = String(layoutCell.dropFirst("preferences|transaction-table-columns-checking|value|S:".count))
+        #expect(RunningBalancePreference.parseColumns(written).first { $0.id == "balance" }?.hidden == true)
+        #expect(store.cachedTransactions(
+            budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
+        )?.runningBalanceSetting == false)
+    }
+
+    @Test func budgetWideLayoutIsCopiedIntoTheAccountAndLeftUnchanged() async throws {
+        let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: """
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('transaction-table-columns', '[{"id":"date","hidden":false}]');
+            """)
+        try await bundle.store.refreshTransactions(
+            budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
+        )
+        #expect(bundle.store.cachedTransactions(
+            budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
+        )?.runningBalanceSetting == false)
+
+        try await bundle.store.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: true)
+
+        let cells = try await pendingCells(bundle)
+        #expect(cells.count == 2)
+        #expect(cells.contains("preferences|\(Self.balanceKey)|value|S:true"))
+        #expect(cells.contains { $0.hasPrefix("preferences|transaction-table-columns-checking|value|S:") })
+        #expect(!cells.contains { $0.hasPrefix("preferences|transaction-table-columns|") })
+        #expect(bundle.store.cachedTransactions(
+            budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
+        )?.runningBalanceSetting == true)
+    }
+
     @Test func runningBalanceWriteWithoutPreferencesTableThrowsAndQueuesNothing() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
 
