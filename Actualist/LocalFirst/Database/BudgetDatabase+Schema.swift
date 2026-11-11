@@ -42,22 +42,15 @@ extension BudgetDatabase {
     }
 
     func isTrackingBudget(db: Database) throws -> Bool {
-        guard try tableExists("preferences", db: db) else {
+        // A missing table means envelope; a table without `id`/`value` is a
+        // damaged download.
+        if try !tableExists("preferences", db: db) {
             return false
         }
-        let columns = try columnSet(for: "preferences", db: db)
-        guard columns.contains("id"), columns.contains("value") else {
+        if try SyncedPreferences.availability(in: self, db: db) == .unavailable {
             throw LocalFirstError.invalidDownloadedBudget
         }
-        let budgetType = try String.fetchOne(
-            db,
-            sql: """
-                SELECT value FROM preferences
-                WHERE id = 'budgetType' AND \(predicateForLiveRows(columns: columns))
-                LIMIT 1
-                """
-        )
-        return budgetType == "tracking"
+        return try SyncedPreferences.value(.budgetType, in: self, db: db) == "tracking"
     }
 
     func requiredColumns(

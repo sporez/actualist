@@ -372,13 +372,14 @@ extension BudgetDatabase {
     func bankSyncImportPreferences(accountID: String) throws -> BankSyncImportPreferences {
         try queue.read { db in
             func flag(_ key: String) throws -> Bool {
-                (try preferenceValue(key, db: db) ?? "true") == "true"
+                (try SyncedPreferences.value(SyncedPreferenceKey(key), in: self, db: db) ?? "true") == "true"
             }
             return BankSyncImportPreferences(
                 importPending: try flag("sync-import-pending-\(accountID)"),
                 importNotes: try flag("sync-import-notes-\(accountID)"),
-                customMappingsJSON: try preferenceValue(
-                    "custom-sync-mappings-\(accountID)",
+                customMappingsJSON: try SyncedPreferences.value(
+                    SyncedPreferenceKey("custom-sync-mappings-\(accountID)"),
+                    in: self,
                     db: db
                 )
             )
@@ -387,7 +388,7 @@ extension BudgetDatabase {
 
     /// `sync-update-dates-<account>`; upstream defaults a missing preference to off.
     func bankSyncUpdatesDates(accountID: String) throws -> Bool {
-        try queue.read { db in try preferenceValue("sync-update-dates-\(accountID)", db: db) == "true" }
+        try queue.read { db in try SyncedPreferences.value(SyncedPreferenceKey("sync-update-dates-\(accountID)"), in: self, db: db) == "true" }
     }
 
     /// Actual 26.9.0 matchTransactions defaults a missing preference to true.
@@ -395,7 +396,7 @@ extension BudgetDatabase {
     /// `ignoringPreference` is the explicit `reimportDeleted: false` option.
     func bankSyncSuppressedFinancialIDs(accountID: String, ignoringPreference: Bool = false) throws -> Set<String> {
         try queue.read { db in
-            let preference = try preferenceValue("sync-reimport-deleted-\(accountID)", db: db)
+            let preference = try SyncedPreferences.value(SyncedPreferenceKey("sync-reimport-deleted-\(accountID)"), in: self, db: db)
             let reimportDeleted = ignoringPreference ? "false" : (preference ?? "true")
             guard reimportDeleted != "true",
                   try tableExists("transactions", db: db) else { return [] }

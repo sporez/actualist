@@ -227,34 +227,25 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> (messages: [ActualSyncDecodedMessage], undo: [ActualSyncDecodedMessage]) {
         try queue.read { db in
-            let columns = try requiredColumns(table: "preferences", required: ["value"], db: db)
-            let row = try Row.fetchOne(
-                db,
-                sql: "SELECT * FROM preferences WHERE id = ? \(columns.contains("tombstone") ? "AND (tombstone = 0 OR tombstone IS NULL)" : "")",
-                arguments: ["learn-categories"]
-            )
-            let oldValue = (row?["value"] as String?).map { $0 != "false" } ?? true
-            guard oldValue != enabled else {
+            // The effective value treats anything but "false" as on, so a
+            // stored non-canonical value is not rewritten.
+            // An unavailable table falls through so `setMessages` throws.
+            if try SyncedPreferences.availability(in: self, db: db) != .unavailable,
+               try (SyncedPreferences.value(.learnCategories, in: self, db: db).map { $0 != "false" } ?? true) == enabled {
                 return ([], [])
             }
-            var messages = [try builder.makeMessage(
-                dataset: "preferences",
-                row: "learn-categories",
-                column: "value",
-                value: .string(enabled ? "true" : "false")
+            let result = try SyncedPreferences.setMessages(
+                .learnCategories,
+                to: enabled ? "true" : "false",
+                builder: &builder,
+                in: self,
+                db: db
+            )
+            let oldValue = result.previousValue.map { $0 != "false" } ?? true
+            let undo = [try SyncedPreferences.valueMessage(
+                .learnCategories, oldValue ? "true" : "false", builder: &builder
             )]
-            if row == nil, columns.contains("tombstone") {
-                messages.append(try builder.makeMessage(
-                    dataset: "preferences", row: "learn-categories", column: "tombstone", value: .bool(false)
-                ))
-            }
-            let undo = [try builder.makeMessage(
-                dataset: "preferences",
-                row: "learn-categories",
-                column: "value",
-                value: .string(oldValue ? "true" : "false")
-            )]
-            return (messages, undo)
+            return (result.messages, undo)
         }
     }
 
@@ -391,19 +382,10 @@ extension BudgetDatabase {
     }
 
     private func fetchGlobalCategoryLearningEnabled(db: Database) throws -> Bool? {
-        guard try tableExists("preferences", db: db) else {
+        guard try SyncedPreferences.availability(in: self, db: db) != .unavailable else {
             return nil
         }
-        let columns = try columnSet(for: "preferences", db: db)
-        guard columns.contains("id"), columns.contains("value") else {
-            return nil
-        }
-        let value = try String.fetchOne(
-            db,
-            sql: "SELECT value FROM preferences WHERE id = ? \(columns.contains("tombstone") ? "AND (tombstone = 0 OR tombstone IS NULL)" : "") LIMIT 1",
-            arguments: ["learn-categories"]
-        )
-        return value.map { $0 != "false" } ?? true
+        return try SyncedPreferences.value(.learnCategories, in: self, db: db).map { $0 != "false" } ?? true
     }
 
     private func rejectDuplicatePayeeName(

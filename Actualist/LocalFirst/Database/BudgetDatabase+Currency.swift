@@ -10,8 +10,8 @@ extension BudgetDatabase {
 
     func budgetCurrency(db: Database) throws -> BudgetCurrency {
         BudgetCurrency.catalog(
-            code: try preferenceValue("defaultCurrencyCode", db: db) ?? "",
-            hideFraction: try preferenceValue("hideFraction", db: db) == "true"
+            code: try SyncedPreferences.value(.defaultCurrencyCode, in: self, db: db) ?? "",
+            hideFraction: try SyncedPreferences.value(.hideFraction, in: self, db: db) == "true"
         )
     }
 }

@@ -59,11 +59,7 @@ enum TransactionImportSQL {
         in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [String: String] {
-        var values: [String: String] = [:]
-        for key in keys {
-            values[key] = try database.preferenceValue(key, db: db)
-        }
-        return values
+        try SyncedPreferences.values(keys.map(SyncedPreferenceKey.init), in: database, db: db)
     }
 
     /// Re-checks every reviewed match against the live rows.

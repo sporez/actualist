@@ -689,11 +689,7 @@ extension BudgetDatabase {
     }
 
     private func globalCategoryLearningEnabled(db: Database) throws -> Bool {
-        guard try tableExists("preferences", db: db) else { return true }
-        let columns = try columnSet(for: "preferences", db: db)
-        guard columns.contains("id"), columns.contains("value") else { return true }
-        let value = try String.fetchOne(db, sql: "SELECT value FROM preferences WHERE id = 'learn-categories' LIMIT 1")
-        return value != "false"
+        try SyncedPreferences.value(.learnCategories, in: self, db: db) != "false"
     }
 
     private func normalizedDateString(_ value: DatabaseValueConvertible?) -> String? {

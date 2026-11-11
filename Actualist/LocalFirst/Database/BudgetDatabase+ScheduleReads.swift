@@ -473,13 +473,7 @@ extension BudgetDatabase {
     }
 
     private func scheduleUpcomingLength(db: Database) throws -> String {
-        guard try tableExists("preferences", db: db) else { return "7" }
-        let columns = try columnSet(for: "preferences", db: db)
-        guard columns.contains("id"), columns.contains("value") else { return "7" }
-        return try String.fetchOne(
-            db,
-            sql: "SELECT value FROM preferences WHERE id = 'upcomingScheduledTransactionLength' LIMIT 1"
-        ) ?? "7"
+        try SyncedPreferences.value(.upcomingScheduledTransactionLength, in: self, db: db) ?? "7"
     }
 
     private func scheduleAccountReference(
