@@ -90,3 +90,21 @@ three `TEST_RUNNER_ACTUAL_LAB_*` names), interleaved with two Node steps:
    actions and posts it, sees the same-day row, finds no refused change on the
    server and the four-minute one present, then deletes the three budgets
    (`v2611-result.json`).
+
+## Check 5: running balance setting
+
+Swift `LiveLabRunningBalanceTests` with `TEST_RUNNER_ACTUAL_LAB_RUNNING_BALANCE=1`
+(plus the three `TEST_RUNNER_ACTUAL_LAB_*` names), around one Node step:
+
+1. Swift `runningBalancePrepare()`: a new `Interop Check running-balance`
+   budget through the production flow with one account; Actualist turns the
+   running balance on (`setShowsRunningBalance`) and syncs until the outbox is
+   empty (`running-balance.json`).
+2. `run.sh runningBalanceCheck`: Actual downloads the budget and must read the
+   synced preference `show-balances-<accountId>` as `"true"` (`preferences/get`,
+   the call behind the web app's `useSyncedPref`). It then saves `"false"` with
+   `preferences/save` and syncs (`running-balance-result.json`).
+3. Swift `runningBalanceVerifyRemoteOff()`: Actualist reopens and syncs; the
+   account feed's `runningBalanceSetting` must be `false`
+   (`running-balance-actualist.json`).
+4. `run.sh runningBalanceCleanup`: deletes the budget (`/sync/delete-user-file`).

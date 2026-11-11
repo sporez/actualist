@@ -1,6 +1,7 @@
 #!/bin/bash
 # usage: run.sh <step>
-#   seedA | offlineB | syncB | final | compare | syncBatchCheck | v2611Seed | v2611Check
+#   seedA | offlineB | syncB | final | compare | syncBatchCheck | v2611Seed | v2611Check |
+#   runningBalanceCheck | runningBalanceCleanup
 # Env: ACTUAL_LAB_URL, ACTUAL_LAB_PASSWORD, ACTUALIST_PARITY_ORACLE_ROOT,
 #      ACTUAL_LAB_HANDOFF_DIR (shared with the Swift tests). See README.md.
 set -euo pipefail

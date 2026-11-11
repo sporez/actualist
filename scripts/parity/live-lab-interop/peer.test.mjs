@@ -306,6 +306,43 @@ test(`step ${step}`, async () => {
     expect(result.sameDayRows).toEqual([[Number(swift.today.replaceAll('-', '')), -1234]]);
     expect(result.farPayees).toEqual([]);
     expect(result.nearPayees).toEqual(['Drift Near']);
+  } else if (step === 'runningBalanceCheck') {
+    // Actual reads the synced `show-balances-<accountId>` preference Actualist
+    // wrote (through `preferences/get`, the call behind the web app's
+    // useSyncedPref), turns it off the way the web app does (`preferences/save`),
+    // and syncs. Then the budget is deleted after the Swift verify step.
+    const { fileID, accountID } = readJSON('running-balance.json');
+    const key = `show-balances-${accountID}`;
+    const result = {};
+    fs.rmSync(path.join(handoff, 'node-running-balance'), { recursive: true, force: true });
+    await withClient('running-balance', { online: true }, async dataDir => {
+      await openRemote(fileID, dataDir);
+      await api.sync();
+      result.valueFromActualist = (await api.internal.send('preferences/get'))[key] ?? null;
+      await api.internal.send('preferences/save', { id: key, value: 'false' });
+      await api.sync();
+      result.valueAfterSave = (await api.internal.send('preferences/get'))[key] ?? null;
+    });
+    writeJSON('running-balance-result.json', result);
+    console.log(JSON.stringify(result));
+    expect(result.valueFromActualist).toBe('true');
+    expect(result.valueAfterSave).toBe('false');
+  } else if (step === 'runningBalanceCleanup') {
+    const { fileID } = readJSON('running-balance.json');
+    const login = await fetch(`${url}/account/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const token = (await login.json())?.data?.token;
+    if (!token) throw new Error(`login failed (HTTP ${login.status})`);
+    const res = await fetch(`${url}/sync/delete-user-file`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-actual-token': token },
+      body: JSON.stringify({ fileId: fileID }),
+    });
+    writeJSON('running-balance-cleanup.json', { deleteStatus: res.status });
+    expect(res.status).toBe(200);
   } else {
     throw new Error(`unknown LAB_STEP ${step}`);
   }
