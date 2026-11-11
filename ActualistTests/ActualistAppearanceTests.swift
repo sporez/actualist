@@ -118,6 +118,7 @@ struct ActualistAppearanceTests {
             ("warningForeground", palette.warningForeground), ("dangerForeground", palette.dangerForeground),
             ("neutralForeground", palette.neutralForeground), ("separator", palette.separator),
             ("chromeForeground", palette.chromeForeground),
+            ("incomeTransactionAmount", palette.incomeTransactionAmount),
         ]
     }
 
@@ -133,8 +134,5 @@ struct ActualistAppearanceTests {
             #expect(Self.components(color, .dark) == Self.components(darkTokens[index].1, .dark), "\(name)")
         }
 
-        let income = Color.adaptive(light: light.incomeTransactionAmount, dark: dark.incomeTransactionAmount)
-        #expect(Self.components(income, .light) == Self.components(light.incomeTransactionAmount, .light))
-        #expect(Self.components(income, .dark) == Self.components(dark.incomeTransactionAmount, .dark))
     }
 }

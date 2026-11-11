@@ -200,9 +200,10 @@ struct TransactionRow: View {
         }
     }
 
+    /// The same tokens as the amount above it, so the two always match.
     private var runningBalanceColor: Color {
         switch runningBalanceTone {
-        case .positive: ActualistTheme.positive
+        case .positive: ActualistTheme.incomeTransactionAmount
         case .negative: ActualistTheme.danger
         case .zero, nil: ActualistTheme.secondaryText
         }

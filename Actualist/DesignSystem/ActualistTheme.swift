@@ -19,12 +19,10 @@ enum ActualistTheme {
     static var neutralForeground: Color { current.neutralForeground }
     static var separator: Color { current.separator }
     static var chromeForeground: Color { current.chromeForeground }
-    static var incomeTransactionAmount: Color {
-        active.withLock { $0.incomeTransactionAmount }
-    }
+    static var incomeTransactionAmount: Color { current.incomeTransactionAmount }
 
     static func activate(_ appearance: ActualistAppearance) {
-        let built = ActivePalette(appearance)
+        let built = palette(for: appearance)
         active.withLock { $0 = built }
     }
 
@@ -32,31 +30,17 @@ enum ActualistTheme {
     /// nonisolated color helpers while `AppState` still writes it on the main
     /// actor. It holds the built palette so a read never rebuilds colors.
     private static let active = OSAllocatedUnfairLock(
-        initialState: ActivePalette(.fixed(.actualPurple))
+        initialState: palette(for: .fixed(.actualPurple))
     )
 
     private static var current: ActualistThemePalette {
-        active.withLock { $0.palette }
+        active.withLock { $0 }
     }
-}
 
-/// The active palette plus the income color, which lives on the theme option
-/// rather than in the shared widget palette.
-private struct ActivePalette: Sendable {
-    let palette: ActualistThemePalette
-    let incomeTransactionAmount: Color
-
-    init(_ appearance: ActualistAppearance) {
+    private static func palette(for appearance: ActualistAppearance) -> ActualistThemePalette {
         switch appearance {
-        case .fixed(let option):
-            palette = option.palette
-            incomeTransactionAmount = option.incomeTransactionAmount
-        case .matchingSystem(let pair):
-            palette = .adaptive(light: pair.light.palette, dark: pair.dark.palette)
-            incomeTransactionAmount = .adaptive(
-                light: pair.light.incomeTransactionAmount,
-                dark: pair.dark.incomeTransactionAmount
-            )
+        case .fixed(let option): option.palette
+        case .matchingSystem(let pair): .adaptive(light: pair.light.palette, dark: pair.dark.palette)
         }
     }
 }
@@ -81,6 +65,7 @@ extension ActualistThemePalette {
             warningForeground: .adaptive(light: light.warningForeground, dark: dark.warningForeground),
             dangerForeground: .adaptive(light: light.dangerForeground, dark: dark.dangerForeground),
             neutralForeground: .adaptive(light: light.neutralForeground, dark: dark.neutralForeground),
+            incomeTransactionAmount: .adaptive(light: light.incomeTransactionAmount, dark: dark.incomeTransactionAmount),
             separator: .adaptive(light: light.separator, dark: dark.separator),
             chromeForeground: .adaptive(light: light.chromeForeground, dark: dark.chromeForeground)
         )

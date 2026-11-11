@@ -32,10 +32,6 @@ enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable, Sendable
         }
     }
 
-    var incomeTransactionAmount: Color {
-        colorScheme == .light ? Color(hex: 0x247A3D) : Color(hex: 0x63D68A)
-    }
-
     var palette: ActualistThemePalette {
         switch self {
         case .actualPurple:
@@ -67,6 +63,7 @@ enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable, Sendable
                 secondaryText: Color(hex: 0x5B4B67),
                 positiveForeground: .white,
                 warningForeground: .white,
+                incomeTransactionAmount: Self.lightIncomeTransactionAmount,
                 separator: Color(hex: 0x624183).opacity(0.30)
             )
         case .coastalSageLight:
@@ -86,6 +83,7 @@ enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable, Sendable
                 warningForeground: Color(hex: 0xFFF6E5),
                 dangerForeground: Color(hex: 0xFFF5F3),
                 neutralForeground: Color(hex: 0xF2FAF7),
+                incomeTransactionAmount: Self.lightIncomeTransactionAmount,
                 separator: Color(hex: 0x1F6B64).opacity(0.30)
             )
         case .amethystHaze:
@@ -153,6 +151,8 @@ enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable, Sendable
         }
     }
 
+    private static let lightIncomeTransactionAmount = Color(hex: 0x247A3D)
+
     private static let whyNabPalette = ActualistThemePalette(
         background: Color(red: 0.02, green: 0.02, blue: 0.05),
         surface: Color(red: 0.07, green: 0.07, blue: 0.15),
@@ -170,6 +170,8 @@ enum ActualistThemeOption: String, Codable, CaseIterable, Identifiable, Sendable
 }
 
 struct ActualistThemePalette: Sendable {
+    static let darkIncomeTransactionAmount = Color(hex: 0x63D68A)
+
     let background: Color
     let surface: Color
     let elevatedSurface: Color
@@ -185,6 +187,9 @@ struct ActualistThemePalette: Sendable {
     let warningForeground: Color
     let dangerForeground: Color
     let neutralForeground: Color
+    /// Positive transaction amounts ("Show Positive Amounts in Green") and the
+    /// running balance under them. Its own token so each theme can set it.
+    let incomeTransactionAmount: Color
     let separator: Color
     let chromeForeground: Color
 
@@ -204,6 +209,7 @@ struct ActualistThemePalette: Sendable {
         warningForeground: Color = .black.opacity(0.78),
         dangerForeground: Color = .white,
         neutralForeground: Color? = nil,
+        incomeTransactionAmount: Color = Self.darkIncomeTransactionAmount,
         separator: Color,
         chromeForeground: Color? = nil
     ) {
@@ -222,6 +228,7 @@ struct ActualistThemePalette: Sendable {
         self.warningForeground = warningForeground
         self.dangerForeground = dangerForeground
         self.neutralForeground = neutralForeground ?? .white
+        self.incomeTransactionAmount = incomeTransactionAmount
         self.separator = separator
         self.chromeForeground = chromeForeground ?? primaryText
     }
