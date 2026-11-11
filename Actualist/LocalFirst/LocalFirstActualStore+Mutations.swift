@@ -169,6 +169,20 @@ extension LocalFirstActualStore {
         }
     }
 
+    /// Actual's `show-balances-<accountId>` preference, so the setting follows
+    /// the budget to the web app. Last write wins; History records nothing.
+    func setShowsRunningBalance(budgetID: String, accountID: String, enabled: Bool) async throws {
+        let database = try requireDatabase(for: budgetID)
+        let written = try await database.commitSyncedPreference(
+            .showBalances(accountID: accountID),
+            to: enabled ? "true" : "false"
+        )
+        guard written else { return }
+        try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
+        }
+    }
+
     func undoLastPayeeMutationAndRefresh(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
         guard let messages = lastPayeeUndoMessagesByBudget[budgetID], !messages.isEmpty else {

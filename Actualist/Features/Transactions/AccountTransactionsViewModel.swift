@@ -37,8 +37,10 @@ final class AccountTransactionsViewModel {
     private(set) var deletingTransactionID: String?
     private(set) var deleteIntentFeedback = 0
     private(set) var deleteSuccessFeedback = 0
+    private(set) var isUpdatingRunningBalance = false
 
     @ObservationIgnored private var deleteRequestGeneration = 0
+    @ObservationIgnored private var runningBalanceGeneration = 0
     @ObservationIgnored private var displayMemo = AccountTransactionDisplayMemo()
     var displayProjectionCount: Int { displayMemo.projectionCount }
 
@@ -235,6 +237,30 @@ final class AccountTransactionsViewModel {
         }
     }
 
+    /// The store's cache refresh publishes the new setting, so no reload here.
+    /// A result for a budget no longer shown is ignored.
+    func setRunningBalance(
+        _ enabled: Bool,
+        budgetID: String?,
+        repository: any TransactionRepositoryProtocol
+    ) async {
+        guard let budgetID, let accountID = scope.account?.id, !isUpdatingRunningBalance else { return }
+        runningBalanceGeneration &+= 1
+        let generation = runningBalanceGeneration
+        isUpdatingRunningBalance = true
+        errorMessage = nil
+        do {
+            try await repository.setShowsRunningBalance(
+                budgetID: budgetID, accountID: accountID, enabled: enabled
+            )
+            if generation == runningBalanceGeneration { isUpdatingRunningBalance = false }
+        } catch {
+            guard generation == runningBalanceGeneration else { return }
+            isUpdatingRunningBalance = false
+            errorMessage = error.userFacingMessage
+        }
+    }
+
     func loadLocal(
         budgetID: String?,
         repository: any TransactionRepositoryProtocol
@@ -293,6 +319,8 @@ final class AccountTransactionsViewModel {
         searchText = ""
         let identity = readSession.resetBudget(to: budgetID, scope: scope.queryScope)
         errorMessage = nil
+        runningBalanceGeneration &+= 1
+        isUpdatingRunningBalance = false
         await loadLocal(identity, repository: repository)
     }
 

@@ -322,6 +322,7 @@ struct AccountTransactionsView: View {
                                 viewModel: viewModel,
                                 budgetID: budgetID,
                                 repository: transactionRepository,
+                                runningBalanceSetting: displayState.runningBalanceSetting,
                                 onReconcile: startReconciliation,
                                 onMoreFilters: presentTransactionFilters,
                                 onSavedFilters: presentSavedTransactionFilters,

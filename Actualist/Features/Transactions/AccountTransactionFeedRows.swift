@@ -144,7 +144,9 @@ struct AccountTransactionFeedRows: View {
                     isPrivacyModeEnabled: isPrivacyModeEnabled,
                     highlightsIncomeAmounts: highlightsIncomeAmounts,
                     isNew: row.isNew,
-                    showsBottomSeparator: showsBottomSeparator
+                    showsBottomSeparator: showsBottomSeparator,
+                    runningBalanceText: row.runningBalanceText,
+                    runningBalanceTone: row.runningBalanceTone
                 )
             }
             .contentShape(Rectangle())

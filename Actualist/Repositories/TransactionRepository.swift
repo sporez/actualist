@@ -149,6 +149,7 @@ protocol TransactionRepositoryProtocol: AnyObject {
         budgetID: String,
         transactionID: String
     ) async throws -> ReconciledTransactionMutationReview?
+    func setShowsRunningBalance(budgetID: String, accountID: String, enabled: Bool) async throws
     func unlockReconciledTransactionAndRefresh(
         budgetID: String,
         accountID: String,

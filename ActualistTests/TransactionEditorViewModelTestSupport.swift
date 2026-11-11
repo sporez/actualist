@@ -363,6 +363,8 @@ final class RecordingTransactionRepository: TransactionRepositoryProtocol {
         reconciliationReview
     }
 
+    func setShowsRunningBalance(budgetID: String, accountID: String, enabled: Bool) async throws {}
+
     func unlockReconciledTransactionAndRefresh(
         budgetID: String,
         accountID: String,

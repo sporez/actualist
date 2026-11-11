@@ -502,6 +502,8 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
         reconciledReviews[transactionID]
     }
 
+    func setShowsRunningBalance(budgetID: String, accountID: String, enabled: Bool) async throws {}
+
     init(
         loaded: LoadedUncategorizedTransactions,
         categorizeError: Error? = nil

@@ -81,6 +81,8 @@ struct TransactionRow: View {
     let highlightsIncomeAmounts: Bool
     let isNew: Bool
     let showsBottomSeparator: Bool
+    let runningBalanceText: String?
+    let runningBalanceTone: AccountTransactionBalanceTone?
 
     init(
         transaction: ActualTransaction,
@@ -89,7 +91,9 @@ struct TransactionRow: View {
         isPrivacyModeEnabled: Bool = false,
         highlightsIncomeAmounts: Bool = false,
         isNew: Bool = false,
-        showsBottomSeparator: Bool = true
+        showsBottomSeparator: Bool = true,
+        runningBalanceText: String? = nil,
+        runningBalanceTone: AccountTransactionBalanceTone? = nil
     ) {
         self.transaction = transaction
         self.semantics = semantics
@@ -98,6 +102,8 @@ struct TransactionRow: View {
         self.highlightsIncomeAmounts = highlightsIncomeAmounts
         self.isNew = isNew
         self.showsBottomSeparator = showsBottomSeparator
+        self.runningBalanceText = runningBalanceText
+        self.runningBalanceTone = runningBalanceTone
     }
 
     var body: some View {
@@ -143,11 +149,15 @@ struct TransactionRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(alignment: .center, spacing: 7) {
-                Text(amountText)
-                    .font(ActualistTypography.transactionAmount(for: density))
-                    .foregroundStyle(amountColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(amountText)
+                        .font(ActualistTypography.transactionAmount(for: density))
+                        .foregroundStyle(amountColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.78)
+
+                    runningBalanceLine
+                }
 
                 statusIcon
             }
@@ -173,6 +183,28 @@ struct TransactionRow: View {
                     .fill(ActualistTheme.separator)
                     .frame(height: 1)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var runningBalanceLine: some View {
+        if let runningBalanceText {
+            Text(runningBalanceText)
+                .font(ActualistTypography.rowBadge(for: density))
+                .monospacedDigit()
+                .foregroundStyle(runningBalanceColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+                .accessibilityLabel("Balance \(runningBalanceText)")
+                .accessibilityIdentifier("transaction-running-balance-\(transaction.id ?? transaction.rowID)")
+        }
+    }
+
+    private var runningBalanceColor: Color {
+        switch runningBalanceTone {
+        case .positive: ActualistTheme.positive
+        case .negative: ActualistTheme.danger
+        case .zero, nil: ActualistTheme.secondaryText
         }
     }
 

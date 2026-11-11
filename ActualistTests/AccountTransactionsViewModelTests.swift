@@ -477,6 +477,12 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
     private(set) var refreshFilters: [TransactionStatusFilter] = []
     private(set) var deletedTransactionIDs: [String] = []
     private(set) var deleteAuthorizations: [ReconciledTransactionMutationAuthorization?] = []
+    private(set) var runningBalanceWrites: [RunningBalanceWrite] = []
+    var runningBalanceError: FeedTestError?
+    /// When set, a running-balance write waits on `runningBalanceRelease` after recording.
+    var suspendsRunningBalanceWrites = false
+    let runningBalanceWriteStarted = TestLatch()
+    let runningBalanceRelease = TestLatch()
     private var olderLoadContinuation: CheckedContinuation<Void, any Error>?
     private var searchContinuations: [String: CheckedContinuation<LoadedAccountTransactions, any Error>] = [:]
     private var refreshContinuations: [TransactionStatusFilter: CheckedContinuation<Void, any Error>] = [:]
@@ -759,6 +765,19 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         transactionID: String
     ) async throws -> ReconciledTransactionMutationReview? {
         reconciliationReview
+    }
+
+    struct RunningBalanceWrite: Equatable {
+        let budgetID: String
+        let accountID: String
+        let enabled: Bool
+    }
+
+    func setShowsRunningBalance(budgetID: String, accountID: String, enabled: Bool) async throws {
+        runningBalanceWrites.append(RunningBalanceWrite(budgetID: budgetID, accountID: accountID, enabled: enabled))
+        runningBalanceWriteStarted.trip()
+        if suspendsRunningBalanceWrites { await runningBalanceRelease.wait() }
+        if let runningBalanceError { throw runningBalanceError }
     }
 
     private static let emptyMutation = TransactionMutationResult(

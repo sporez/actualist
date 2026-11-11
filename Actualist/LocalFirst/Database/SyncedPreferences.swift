@@ -140,3 +140,18 @@ enum SyncedPreferences {
         return row.map { LiveRow(value: $0["value"]) }
     }
 }
+
+extension BudgetDatabase {
+    /// Sets one synced preference in the same transaction that applies and
+    /// enqueues its messages. Records no History entry. Returns whether a
+    /// message was written; an unchanged value writes nothing.
+    func commitSyncedPreference(_ key: SyncedPreferenceKey, to value: String) throws -> Bool {
+        try commitLocalPlan { db in
+            var builder = LocalFirstSyncMessageBuilder()
+            let result = try SyncedPreferences.setMessages(
+                key, to: value, builder: &builder, in: self, db: db
+            )
+            return LocalCommitPlan(drafts: result.messages, action: nil, outcome: ())
+        }.appliedCount > 0
+    }
+}

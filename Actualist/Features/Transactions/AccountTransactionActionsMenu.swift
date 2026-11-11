@@ -6,6 +6,8 @@ struct AccountTransactionActionsMenu: View {
     let viewModel: AccountTransactionsViewModel
     let budgetID: String?
     let repository: any TransactionRepositoryProtocol
+    /// Nil when the budget has no synced preferences; the item is hidden.
+    let runningBalanceSetting: Bool?
     let onReconcile: () -> Void
     let onMoreFilters: () -> Void
     let onSavedFilters: () -> Void
@@ -18,6 +20,22 @@ struct AccountTransactionActionsMenu: View {
             AccountLifecycleMenu(accountID: accountID, coordinator: lifecycleCoordinator)
             Button(action: onReconcile) {
                 Label("Reconcile", systemImage: "checkmark.seal")
+            }
+            if let runningBalanceSetting {
+                Button {
+                    Task {
+                        await viewModel.setRunningBalance(
+                            !runningBalanceSetting, budgetID: budgetID, repository: repository
+                        )
+                    }
+                } label: {
+                    Label(
+                        runningBalanceSetting ? "Hide Running Balance" : "Show Running Balance",
+                        systemImage: "plusminus"
+                    )
+                }
+                .disabled(viewModel.isUpdatingRunningBalance)
+                .accessibilityIdentifier("account-running-balance-toggle")
             }
             Menu {
                 Button(action: onImportCSV) {
