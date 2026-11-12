@@ -76,6 +76,7 @@ struct TransactionShareCard: View {
     let content: TransactionShareContent
 
     /// Square, because the share sheet crops its preview to a square.
+    // Fixed font sizes: the card is rendered as a fixed 320 pt image for Messages.
     var body: some View {
         VStack(spacing: 10) {
             Text(content.payee)

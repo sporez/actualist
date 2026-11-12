@@ -95,7 +95,7 @@ struct TransactionCSVImportReviewView: View {
             } label: {
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Image(systemName: coordinator.isIncluded(row) ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 14, weight: .semibold))
+                        .actualistScaledSymbol(size: 14, weight: .semibold, relativeTo: .subheadline)
                         .foregroundStyle(coordinator.isIncluded(row) ? ActualistTheme.accent : ActualistTheme.secondaryText)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(Self.outcomeTitle(row.outcome))
@@ -129,7 +129,7 @@ struct TransactionCSVImportReviewView: View {
         } else {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Image(systemName: "minus.circle")
-                    .font(.system(size: 14, weight: .semibold))
+                    .actualistScaledSymbol(size: 14, weight: .semibold, relativeTo: .subheadline)
                     .foregroundStyle(ActualistTheme.secondaryText)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(Self.outcomeTitle(row.outcome))

@@ -163,6 +163,7 @@ struct TransactionFilterSheet: View {
     private func compactHeading(_ title: String, symbol: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbol)
+                // Fixed: the glyph sits in a fixed 24 pt tile.
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .frame(width: 24, height: 24)

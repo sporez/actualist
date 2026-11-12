@@ -354,6 +354,23 @@ enum ActualistTypography {
     }
 }
 
+/// A symbol glyph that grows with Dynamic Type like the text beside it.
+/// Use it instead of a fixed `.font(.system(size:))`; a glyph inside a
+/// fixed-size tile or beside a fixed-size amount stays fixed, with a comment.
+private struct ScaledSymbolFont: ViewModifier {
+    @ScaledMetric private var size: CGFloat
+    private let weight: Font.Weight
+
+    init(size: CGFloat, weight: Font.Weight, relativeTo style: Font.TextStyle) {
+        _size = ScaledMetric(wrappedValue: size, relativeTo: style)
+        self.weight = weight
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: size, weight: weight))
+    }
+}
+
 private struct ActualistDisplayDensityKey: EnvironmentKey {
     static let defaultValue: ActualistDisplayDensity = .compact
 }
@@ -366,6 +383,14 @@ extension EnvironmentValues {
 }
 
 extension View {
+    func actualistScaledSymbol(
+        size: CGFloat,
+        weight: Font.Weight,
+        relativeTo style: Font.TextStyle
+    ) -> some View {
+        modifier(ScaledSymbolFont(size: size, weight: weight, relativeTo: style))
+    }
+
     func actualistToolbarGlassButton() -> some View {
         self
             .font(.body.weight(.semibold))

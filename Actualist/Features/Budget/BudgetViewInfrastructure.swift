@@ -34,6 +34,7 @@ struct BudgetCarryoverBadge: View {
 
     var body: some View {
         Image(systemName: "arrow.right")
+            // Fixed: the arrow fills a fixed-size badge on a category row.
             .font(.system(size: BudgetLayout.rolloverBadgeArrowSize, weight: .heavy))
             .foregroundStyle(foreground)
             .frame(width: BudgetLayout.rolloverBadgeSize, height: BudgetLayout.rolloverBadgeSize)

@@ -112,7 +112,7 @@ struct TransactionRow: View {
                 HStack(spacing: 6) {
                     if let transferDirection = semantics.transferDirection {
                         Image(systemName: transferDirection == .inflow ? "arrow.left" : "arrow.right")
-                            .font(.system(size: 11, weight: .bold))
+                            .actualistScaledSymbol(size: 11, weight: .bold, relativeTo: .body)
                             .foregroundStyle(ActualistTheme.secondaryText)
                             .accessibilityLabel(transferDirection == .inflow ? "Transfer in" : "Transfer out")
                     }
@@ -229,7 +229,7 @@ struct TransactionRow: View {
         HStack(spacing: 6) {
             if semantics.isSplitFamily {
                 Image(systemName: "square.split.1x2.fill")
-                    .font(.system(size: 11, weight: .semibold))
+                    .actualistScaledSymbol(size: 11, weight: .semibold, relativeTo: .caption)
                     .foregroundStyle(ActualistTheme.secondaryText)
                     .accessibilityLabel("Split")
             }
@@ -263,7 +263,7 @@ struct TransactionRow: View {
     private func accountBadge(_ name: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "building.columns.fill")
-                .font(.system(size: 11, weight: .semibold))
+                .actualistScaledSymbol(size: 11, weight: .semibold, relativeTo: .caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
                 .accessibilityHidden(true)
 
@@ -281,6 +281,7 @@ struct TransactionRow: View {
         )
     }
 
+    // Fixed: the icon sits beside the fixed-size amount (see `transactionAmount`).
     @ViewBuilder
     private var statusIcon: some View {
         switch semantics.status {
