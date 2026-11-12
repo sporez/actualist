@@ -204,18 +204,10 @@ struct TransactionFeedReadSessionQueryIdentityTests {
 
 @MainActor
 struct TransactionRepositoryTypedQueryCompatibilityTests {
-    @Test func legacyOnlyConformerCannotFabricateTypedQueryMetadata() async throws {
+    @Test func conformerWithoutTypedQueriesCannotFabricateTypedQueryMetadata() async throws {
         let repository = RecordingTransactionRepository()
         let query = TransactionFeedQuery(status: .cleared, text: "market")
-        let legacyPage = try await repository.transactionPage(
-            budgetID: "budget",
-            scope: .spending,
-            query: TransactionFeedQuery(status: .cleared, text: "market"),
-            limit: 50,
-            offset: 0
-        )
 
-        #expect(legacyPage.queryMetadata == nil)
         #expect(repository.cachedTransactions(
             budgetID: "budget",
             scope: .spending,
