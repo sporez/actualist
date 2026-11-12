@@ -159,13 +159,13 @@ struct SimpleFINTransactionsResponse: Equatable, Sendable {
 actor ActualServerSimpleFINClient: SimpleFINServerTransport {
     let baseURL: URL
     private let customHeaders: HTTPHeaderFields
-    private let redirectDelegate: CustomHTTPHeaderRedirectDelegate
+    private let requests: ActualServerRequestBuilder
     private let session: URLSession
 
     init(baseURL: URL, customHeaders: HTTPHeaderFields = .empty, session: URLSession? = nil) {
         self.baseURL = baseURL
         self.customHeaders = customHeaders
-        self.redirectDelegate = CustomHTTPHeaderRedirectDelegate(baseURL: baseURL, fields: customHeaders)
+        self.requests = ActualServerRequestBuilder(baseURL: baseURL, customHeaders: customHeaders)
         self.session = session ?? URLSession(
             configuration: ActualServerSyncClient.secureSessionConfiguration()
         )
@@ -437,18 +437,16 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
     }
 
     private func post(path: String, fileID: String, token: String, body: some Encodable) async throws -> Data? {
-        var request = try Self.endpointURL(baseURL: baseURL, path: path)
-        guard redirectDelegate.permits(source: baseURL, destination: request.url) else {
-            throw ActualAPIError.invalidURL
-        }
-        customHeaders.apply(to: &request)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 60
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
-        request.setValue(fileID, forHTTPHeaderField: "X-ACTUAL-FILE-ID")
-        request.httpBody = try JSONEncoder.actual.encode(body)
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let request = try requests.makeRequest(
+            path: path,
+            method: "POST",
+            token: token,
+            fileID: fileID,
+            headers: ["Accept": "application/json"],
+            timeout: 60,
+            body: JSONEncoder.actual.encode(body),
+            contentType: "application/json"
+        )
 
         let data: Data
         let response: URLResponse
@@ -456,7 +454,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
             (data, response) = try await LimitedResponseReader.data(
                 for: request,
                 session: session,
-                redirects: redirectDelegate,
+                redirects: requests.redirectDelegate,
                 maximumBytes: SimpleFINBridgeClient.maximumResponseBytes
             )
         } catch LimitedResponseReader.ReadError.limitExceeded {
@@ -474,7 +472,7 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ActualAPIError.invalidResponse
         }
-        if redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
+        if requests.redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
         let statusCode = httpResponse.statusCode
         // A server without these routes is "cannot sync", not an error.
         if statusCode == 404 || statusCode == 405 || statusCode == 501 {
@@ -485,17 +483,6 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
         }
         if let error = ActualServerSyncClient.structuredAPIError(from: data) { throw error }
         return data
-    }
-
-    private static func endpointURL(baseURL: URL, path: String) throws -> URLRequest {
-        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
-        let basePath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
-        let endpointPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        components?.path = "/" + [basePath, endpointPath].filter { !$0.isEmpty }.joined(separator: "/")
-        guard let url = components?.url else {
-            throw ActualAPIError.invalidURL
-        }
-        return URLRequest(url: url)
     }
 
     private static func decode<Value: Decodable>(_ type: Value.Type, from data: Data) throws -> Value {

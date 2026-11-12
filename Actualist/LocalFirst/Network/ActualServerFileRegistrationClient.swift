@@ -121,7 +121,7 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
     let baseURL: URL
     let customHeaders: HTTPHeaderFields
     private let session: URLSession
-    private let redirectDelegate: CustomHTTPHeaderRedirectDelegate
+    private let requests: ActualServerRequestBuilder
 
     /// Registration replies are `{status, data: {groupId}}` or a short error
     /// object, a few hundred bytes. 64 KiB leaves ample room for a verbose
@@ -135,7 +135,7 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
     ) {
         self.baseURL = baseURL
         self.customHeaders = customHeaders
-        self.redirectDelegate = CustomHTTPHeaderRedirectDelegate(baseURL: baseURL, fields: customHeaders)
+        self.requests = ActualServerRequestBuilder(baseURL: baseURL, customHeaders: customHeaders)
         self.session = session ?? URLSession(configuration: ActualServerSyncClient.secureSessionConfiguration())
     }
 
@@ -147,26 +147,22 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
         bytes: Data,
         token: String
     ) async throws -> ActualUploadUserFileResponse {
-        var request = try URLRequest(url: endpointURL(path: "/sync/upload-user-file"))
-        customHeaders.apply(to: &request)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.httpBody = bytes
-        request.setValue("application/encrypted-file", forHTTPHeaderField: "Content-Type")
-        request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
-        request.setValue(fileID, forHTTPHeaderField: "X-ACTUAL-FILE-ID")
-        request.setValue(Self.encodedHeaderName(name), forHTTPHeaderField: "X-ACTUAL-NAME")
-        request.setValue("2", forHTTPHeaderField: "X-ACTUAL-FORMAT")
-        if let groupID {
-            request.setValue(groupID, forHTTPHeaderField: "X-ACTUAL-GROUP-ID")
-        }
+        var fileHeaders = ["X-ACTUAL-NAME": Self.encodedHeaderName(name), "X-ACTUAL-FORMAT": "2"]
+        fileHeaders["X-ACTUAL-GROUP-ID"] = groupID
         if let encryptMeta {
             let metaJSON = try JSONEncoder.actual.encode(encryptMeta)
-            request.setValue(
-                String(decoding: metaJSON, as: UTF8.self),
-                forHTTPHeaderField: "X-ACTUAL-ENCRYPT-META"
-            )
+            fileHeaders["X-ACTUAL-ENCRYPT-META"] = String(decoding: metaJSON, as: UTF8.self)
         }
+        let request = try requests.makeRequest(
+            path: "/sync/upload-user-file",
+            method: "POST",
+            token: token,
+            fileID: fileID,
+            headers: fileHeaders,
+            timeout: 30,
+            body: bytes,
+            contentType: "application/encrypted-file"
+        )
 
         let data = try await execute(request)
         if let serverError = ActualServerSyncClient.structuredAPIError(from: data) {
@@ -183,18 +179,19 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
         testContent: String,
         token: String
     ) async throws {
-        var request = try URLRequest(url: endpointURL(path: "/sync/user-create-key"))
-        customHeaders.apply(to: &request)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
-        request.httpBody = try JSONEncoder.actual.encode(ActualUserCreateKeyPayload(
-            fileId: fileID,
-            keyId: keyID,
-            keySalt: keySalt,
-            testContent: testContent
-        ))
+        let request = try requests.makeRequest(
+            path: "/sync/user-create-key",
+            method: "POST",
+            token: token,
+            timeout: 30,
+            body: JSONEncoder.actual.encode(ActualUserCreateKeyPayload(
+                fileId: fileID,
+                keyId: keyID,
+                keySalt: keySalt,
+                testContent: testContent
+            )),
+            contentType: "application/json"
+        )
 
         let data = try await execute(request)
         // A 2xx answer is judged only by the endpoint's `status` field. The
@@ -208,13 +205,14 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
     }
 
     func deleteUserFile(fileID: String, token: String) async throws {
-        var request = try URLRequest(url: endpointURL(path: "/sync/delete-user-file"))
-        customHeaders.apply(to: &request)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
-        request.httpBody = try JSONEncoder.actual.encode(ActualDeleteUserFilePayload(fileId: fileID))
+        let request = try requests.makeRequest(
+            path: "/sync/delete-user-file",
+            method: "POST",
+            token: token,
+            timeout: 30,
+            body: JSONEncoder.actual.encode(ActualDeleteUserFilePayload(fileId: fileID)),
+            contentType: "application/json"
+        )
         _ = try await execute(request)
     }
 
@@ -228,18 +226,6 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
         return name.addingPercentEncoding(withAllowedCharacters: allowed) ?? name
     }
 
-    private func endpointURL(path: String) throws -> URL {
-        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
-        let basePath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
-        let endpointPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        components?.path = "/" + [basePath, endpointPath].filter { !$0.isEmpty }.joined(separator: "/")
-        guard let url = components?.url,
-              redirectDelegate.permits(source: baseURL, destination: url) else {
-            throw ActualAPIError.invalidURL
-        }
-        return url
-    }
-
     private func execute(_ request: URLRequest) async throws -> Data {
         let data: Data
         let response: URLResponse
@@ -247,7 +233,7 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
             (data, response) = try await LimitedResponseReader.data(
                 for: request,
                 session: session,
-                redirects: redirectDelegate,
+                redirects: requests.redirectDelegate,
                 maximumBytes: Self.maximumResponseBytes
             )
         } catch LimitedResponseReader.ReadError.limitExceeded {
@@ -264,7 +250,7 @@ actor ActualServerFileRegistrationClient: ActualFileRegistrationTransport {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ActualAPIError.invalidResponse
         }
-        if redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
+        if requests.redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw ActualServerSyncClient.apiError(statusCode: httpResponse.statusCode, data: data)
         }

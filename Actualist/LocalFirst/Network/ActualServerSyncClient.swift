@@ -26,7 +26,7 @@ extension ActualServerConnectionTransport {
 actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTransport {
     let baseURL: URL
     nonisolated let customHeaders: HTTPHeaderFields
-    private let redirectDelegate: CustomHTTPHeaderRedirectDelegate
+    private let requests: ActualServerRequestBuilder
     private let session: URLSession
     private let resourceLimits: LocalFirstResourceLimits
 
@@ -44,7 +44,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     ) {
         self.baseURL = baseURL
         self.customHeaders = customHeaders
-        self.redirectDelegate = CustomHTTPHeaderRedirectDelegate(baseURL: baseURL, fields: customHeaders)
+        self.requests = ActualServerRequestBuilder(baseURL: baseURL, customHeaders: customHeaders)
         self.session = session ?? URLSession(configuration: Self.secureSessionConfiguration())
         self.resourceLimits = resourceLimits
         self.firstConnectionRetryDelays = firstConnectionRetryDelays
@@ -123,13 +123,14 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     }
 
     func downloadUserFile(fileID: String, token: String, to destinationURL: URL) async throws {
-        var request = try URLRequest(url: endpointURL(path: "/sync/download-user-file"))
-        customHeaders.apply(to: &request)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 30
-        request.setValue("application/octet-stream", forHTTPHeaderField: "Accept")
-        addAuthorizationHeaders(to: &request, token: token)
-        request.setValue(fileID, forHTTPHeaderField: "X-ACTUAL-FILE-ID")
+        let request = try requests.makeRequest(
+            path: "/sync/download-user-file",
+            method: "GET",
+            token: token,
+            fileID: fileID,
+            headers: ["Accept": "application/octet-stream"],
+            timeout: 30
+        )
         try await executeDownload(request, to: destinationURL)
     }
 
@@ -154,7 +155,6 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     private func request<Value: Decodable>(
         path: String,
         method: String,
-        queryItems: [URLQueryItem] = [],
         token: String? = nil,
         fileID: String? = nil,
         body: (any Encodable)? = nil
@@ -162,7 +162,6 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         let data = try await rawRequest(
             path: path,
             method: method,
-            queryItems: queryItems,
             token: token,
             fileID: fileID,
             body: body
@@ -180,26 +179,20 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     private func rawRequest(
         path: String,
         method: String,
-        queryItems: [URLQueryItem] = [],
         token: String? = nil,
         fileID: String? = nil,
         body: (any Encodable)? = nil
     ) async throws -> Data {
-        var request = try URLRequest(url: endpointURL(path: path, queryItems: queryItems))
-        customHeaders.apply(to: &request)
-        request.httpMethod = method
-        request.timeoutInterval = 30
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token {
-            addAuthorizationHeaders(to: &request, token: token)
-        }
-        if let fileID {
-            request.setValue(fileID, forHTTPHeaderField: "X-ACTUAL-FILE-ID")
-        }
-        if let body {
-            request.httpBody = try JSONEncoder.actual.encode(body)
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
+        let request = try requests.makeRequest(
+            path: path,
+            method: method,
+            token: token,
+            fileID: fileID,
+            headers: ["Accept": "application/json"],
+            timeout: 30,
+            body: body.map { try JSONEncoder.actual.encode($0) },
+            contentType: body == nil ? nil : "application/json"
+        )
 
         return try await execute(
             request,
@@ -212,41 +205,21 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         token: String,
         body: Data
     ) async throws -> Data {
-        var request = try URLRequest(url: endpointURL(path: path))
-        customHeaders.apply(to: &request)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 30
-        request.httpBody = body
-        request.setValue("application/actual-sync", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/actual-sync", forHTTPHeaderField: "Accept")
-        request.setValue(String(body.count), forHTTPHeaderField: "Content-Length")
-        addAuthorizationHeaders(to: &request, token: token)
+        let request = try requests.makeRequest(
+            path: path,
+            method: "POST",
+            token: token,
+            headers: ["Accept": "application/actual-sync", "Content-Length": String(body.count)],
+            timeout: 30,
+            body: body,
+            contentType: "application/actual-sync"
+        )
 
         return try await execute(
             request,
             responseByteLimit: resourceLimits.maximumSyncResponseBytes,
             limitError: ActualAPIError.syncCatchUpTooLarge
         )
-    }
-
-    private func endpointURL(path: String, queryItems: [URLQueryItem] = []) throws -> URL {
-        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
-        let basePath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
-        let endpointPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        components?.path = "/" + [basePath, endpointPath].filter { !$0.isEmpty }.joined(separator: "/")
-        if !queryItems.isEmpty {
-            let existingQueryItems = components?.queryItems ?? []
-            components?.queryItems = existingQueryItems + queryItems
-        }
-
-        guard let url = components?.url, redirectDelegate.permits(source: baseURL, destination: url) else {
-            throw ActualAPIError.invalidURL
-        }
-        return url
-    }
-
-    private func addAuthorizationHeaders(to request: inout URLRequest, token: String) {
-        request.setValue(token, forHTTPHeaderField: "X-ACTUAL-TOKEN")
     }
 
     private func execute(
@@ -292,7 +265,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ActualAPIError.invalidResponse
         }
-        if redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
+        if requests.redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
         Self.debugLogResponse(httpResponse, data: data)
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw Self.apiError(statusCode: httpResponse.statusCode, data: data)
@@ -347,7 +320,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             return try await LimitedResponseReader.data(
                 for: request,
                 session: session,
-                redirects: redirectDelegate,
+                redirects: requests.redirectDelegate,
                 maximumBytes: maximumBytes,
                 onResponse: refuseRedirects
             )
@@ -357,7 +330,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
     }
 
     private var refuseRedirects: @Sendable (URLResponse) throws -> Void {
-        { [redirectDelegate] response in
+        { [redirectDelegate = requests.redirectDelegate] response in
             if let httpResponse = response as? HTTPURLResponse,
                redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
         }
@@ -395,7 +368,7 @@ actor ActualServerSyncClient: ActualSyncTransport, ActualServerConnectionTranspo
             let response = try await LimitedResponseReader.stream(
                 for: request,
                 session: session,
-                redirects: redirectDelegate,
+                redirects: requests.redirectDelegate,
                 onResponse: { response in
                     try refuseRedirects(response)
                     guard let httpResponse = response as? HTTPURLResponse else {

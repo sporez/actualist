@@ -254,6 +254,35 @@ struct ActualServerRequestWireTests {
         #expect(try self.json(captured.body) == ["accountId": ["acct-1"], "startDate": ["2026-01-01"]])
     }
 
+    // MARK: - Builder
+
+    @Test func builderJoinsPathKeepsQueryAndWritesTokenOnlyWhenGiven() throws {
+        let url = baseURL("https://sync.example.com/prefix/?existing=1")
+        let builder = ActualServerRequestBuilder(baseURL: url, customHeaders: try customHeaders(for: url))
+
+        let anonymous = try builder.makeRequest(
+            path: "/a/b", method: "PUT", queryItems: [URLQueryItem(name: "q", value: "2")], timeout: 7
+        )
+        #expect(anonymous.url?.absoluteString == "https://sync.example.com/prefix/a/b?existing=1&q=2")
+        #expect(anonymous.httpMethod == "PUT")
+        #expect(anonymous.timeoutInterval == 7)
+        #expect(anonymous.value(forHTTPHeaderField: "X-ACTUAL-TOKEN") == nil)
+        #expect(anonymous.value(forHTTPHeaderField: "X-ACTUAL-FILE-ID") == nil)
+        #expect(anonymous.value(forHTTPHeaderField: "Content-Type") == nil)
+        #expect(anonymous.httpBody == nil)
+        #expect(anonymous.value(forHTTPHeaderField: "X-Proxy-Test") == Self.custom)
+
+        let authenticated = try builder.makeRequest(
+            path: "a", method: "POST", token: Self.token, fileID: "file-0001",
+            headers: ["X-Proxy-Test": "overridden"], timeout: 30, body: Data([1]), contentType: "text/plain"
+        )
+        #expect(authenticated.value(forHTTPHeaderField: "X-ACTUAL-TOKEN") == Self.token)
+        #expect(authenticated.value(forHTTPHeaderField: "X-ACTUAL-FILE-ID") == "file-0001")
+        #expect(authenticated.value(forHTTPHeaderField: "X-Proxy-Test") == "overridden")
+        #expect(authenticated.value(forHTTPHeaderField: "Content-Type") == "text/plain")
+        #expect(authenticated.httpBody == Data([1]))
+    }
+
     // MARK: - URL validation
 
     @Test func everyClientRefusesAnUnsupportedBaseURLBeforeSending() async throws {
