@@ -498,11 +498,8 @@ enum BankSyncReconciliation {
 
     /// Today as a UTC `YYYYMMDD` string — the fallback day for an opening
     /// balance when the download had no dated candidates.
-    static func todayDayID(now: Date = Date()) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
-        let parts = calendar.dateComponents([.year, .month, .day], from: now)
-        return String(format: "%04d%02d%02d", parts.year ?? 1970, parts.month ?? 1, parts.day ?? 1)
+    static func todayUTCDayID(now: Date = Date()) -> String {
+        ActualDateOnly.dayID(from: now, timeZone: ActualDateOnly.utc).replacing("-", with: "")
     }
 
     // MARK: - Opening balance
@@ -526,7 +523,7 @@ enum BankSyncReconciliation {
         guard amount != 0 else { return nil }
         return OpeningBalance(
             amountMinorUnits: amount,
-            dayID: earliestDayID ?? todayDayID()
+            dayID: earliestDayID ?? todayUTCDayID()
         )
     }
 }

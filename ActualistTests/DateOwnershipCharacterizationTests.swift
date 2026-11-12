@@ -224,9 +224,9 @@ struct DateOwnershipCharacterizationTests {
     }
 
     @Test func bankSyncTodayIsTheUTCDay() {
-        #expect(BankSyncReconciliation.todayDayID(now: Date(timeIntervalSince1970: 1_773_532_799)) == "20260314")
-        #expect(BankSyncReconciliation.todayDayID(now: Date(timeIntervalSince1970: 1_773_532_800)) == "20260315")
-        #expect(BankSyncReconciliation.todayDayID(now: Date(timeIntervalSince1970: 1_798_761_599)) == "20261231")
+        #expect(BankSyncReconciliation.todayUTCDayID(now: Date(timeIntervalSince1970: 1_773_532_799)) == "20260314")
+        #expect(BankSyncReconciliation.todayUTCDayID(now: Date(timeIntervalSince1970: 1_773_532_800)) == "20260315")
+        #expect(BankSyncReconciliation.todayUTCDayID(now: Date(timeIntervalSince1970: 1_798_761_599)) == "20261231")
     }
 
     @Test func simpleFINUnixSecondsParseDaysAtUTCNoon() {
