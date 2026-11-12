@@ -35,8 +35,8 @@ struct BudgetTemplateEditorInput: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             input
-            .keyboardType(viewModel.isMoneyInput(field, id: itemID) || isMonth || isDecimal
-                ? .numbersAndPunctuation : .numberPad)
+            .keyboardType(viewModel.isMoneyInput(field, id: itemID)
+                ? .decimalPad : (isMonth || isDecimal ? .numbersAndPunctuation : .numberPad))
             .autocorrectionDisabled()
             .textInputAutocapitalization(.never)
             .multilineTextAlignment(.leading)
