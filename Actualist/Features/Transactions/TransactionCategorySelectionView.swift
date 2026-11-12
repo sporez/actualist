@@ -165,7 +165,7 @@ struct TransactionCategorySelectionView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.sheetCard, style: .continuous))
     }
 
     private var destinationGroups: some View {
@@ -188,7 +188,7 @@ struct TransactionCategorySelectionView: View {
                             }
                         }
                     }
-                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.sheetCard, style: .continuous))
                 }
             }
         }

@@ -29,7 +29,7 @@ struct BudgetSavingsBanner: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22))
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.panel))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("budget-savings-summary")
     }

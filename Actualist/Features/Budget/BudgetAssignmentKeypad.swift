@@ -143,7 +143,7 @@ struct BudgetAssignmentKeypad: View {
             .foregroundStyle(isEnabled ? ActualistTheme.accent : ActualistTheme.secondaryText)
             .frame(maxWidth: .infinity)
             .frame(height: BudgetKeypadLayout.toolbarButtonHeight)
-            .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.sheetCard, style: .continuous))
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)

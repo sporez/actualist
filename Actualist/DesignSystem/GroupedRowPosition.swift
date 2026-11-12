@@ -3,7 +3,7 @@ import SwiftUI
 /// Where a row sits in a rounded group, for rows that cannot share one container
 /// (lazy stacks and `List` sections). Each row draws its own share of the card.
 struct GroupedRowPosition: Equatable {
-    static let cornerRadius: CGFloat = 18
+    static let cornerRadius: CGFloat = ActualistTheme.Radius.card
 
     let isFirst: Bool
     let isLast: Bool

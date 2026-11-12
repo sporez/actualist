@@ -422,7 +422,7 @@ struct TransactionEditorView: View {
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
-                .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.panel, style: .continuous))
         }
     }
 

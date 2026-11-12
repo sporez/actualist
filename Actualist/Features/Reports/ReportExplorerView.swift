@@ -51,7 +51,7 @@ struct ReportExplorerView: View {
                             .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 6 : 0)
                         }
                         .buttonStyle(.glass)
-                        .buttonBorderShape(.roundedRectangle(radius: 18))
+                        .buttonBorderShape(.roundedRectangle(radius: ActualistTheme.Radius.card))
                         .accessibilityIdentifier("report-drilldown-button")
                     }
                     ReportExplorerChart(snapshot: snapshot, viewModel: viewModel)
@@ -230,7 +230,7 @@ private struct ReportExplorerRangeSummary: View {
             .pickerStyle(.segmented)
         }
         .padding(16)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
     }
 
     private var intervalBinding: Binding<ReportInterval> {
@@ -275,7 +275,7 @@ private struct ReportExplorerTotalsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
     }
 }
 
@@ -387,7 +387,7 @@ private struct ReportExplorerChart: View {
         }
         .frame(height: dynamicTypeSize.isAccessibilitySize ? 360 : 280)
         .padding(16)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(viewModel.title), \(viewModel.rangeTitle)")
         .accessibilityIdentifier("report-explorer-chart")

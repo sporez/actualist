@@ -191,8 +191,8 @@ private struct ReportCard<Content: View>: View {
             content
         }
         .padding(16)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
     }
 }
 

@@ -246,7 +246,7 @@ struct PayeePickerView: View {
                     }
                 }
             }
-            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.sheetCard, style: .continuous))
         }
     }
 

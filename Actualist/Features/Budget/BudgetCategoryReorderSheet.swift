@@ -92,11 +92,11 @@ struct BudgetCategoryReorderSheet: View {
         }
         .background(
             ActualistTheme.surface,
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous)
         )
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+        .overlay(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous)
             .strokeBorder(ActualistTheme.separator, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
         .onDrop(
             of: [UTType.text],
             delegate: GroupCardDropDelegate(

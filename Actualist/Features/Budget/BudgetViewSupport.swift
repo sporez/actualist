@@ -88,13 +88,13 @@ struct ConnectionStatusDot: View {
         }
         switch status {
         case .online:
-            return Color(red: 0.22, green: 0.82, blue: 0.38)
+            return ActualistTheme.syncOnline
         case .connecting:
-            return Color(red: 0.96, green: 0.76, blue: 0.20)
+            return ActualistTheme.syncPending
         case .offline:
-            return Color(red: 0.95, green: 0.26, blue: 0.32)
+            return ActualistTheme.syncOffline
         case .syncBlocked:
-            return Color(red: 0.96, green: 0.76, blue: 0.20)
+            return ActualistTheme.syncPending
         }
     }
 
@@ -140,7 +140,7 @@ extension BudgetAlert {
         case .positive:
             Capsule().fill(ActualistTheme.positive)
         case .warning, .danger:
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: ActualistTheme.Radius.panel, style: .continuous)
                 .fill(ActualistTheme.surface)
         }
     }

@@ -12,7 +12,7 @@ struct TransactionFilterOptionsView: View {
                 .font(ActualistTypography.body(for: density))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.control, style: .continuous))
                 .accessibilityIdentifier("transaction-filter-options-search")
 
             if field == .payee || field == .category {

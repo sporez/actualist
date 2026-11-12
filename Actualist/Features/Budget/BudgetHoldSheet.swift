@@ -158,9 +158,9 @@ struct BudgetHoldSheet: View {
                     )
                     .monospacedDigit()
                     .padding(14)
-                    .background(ActualistTheme.background, in: RoundedRectangle(cornerRadius: 12))
+                    .background(ActualistTheme.background, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.control))
                     .overlay {
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: ActualistTheme.Radius.control)
                             .strokeBorder(isAmountFocused ? ActualistTheme.accent : ActualistTheme.separator,
                                           lineWidth: isAmountFocused ? 2 : 1)
                     }

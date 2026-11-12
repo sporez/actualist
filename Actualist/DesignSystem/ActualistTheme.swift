@@ -21,6 +21,22 @@ enum ActualistTheme {
     static var chromeForeground: Color { current.chromeForeground }
     static var incomeTransactionAmount: Color { current.incomeTransactionAmount }
 
+    /// Sync-status dot colors. They are the same in every theme.
+    static let syncOnline = Color(red: 0.22, green: 0.82, blue: 0.38)
+    static let syncPending = Color(red: 0.96, green: 0.76, blue: 0.20)
+    static let syncOffline = Color(red: 0.95, green: 0.26, blue: 0.32)
+
+    /// The Move Money header keeps this dark green in every theme.
+    static let moveMoneyHeaderFill = Color(red: 0.14, green: 0.37, blue: 0.04)
+
+    /// Corner radii shared across cards and panels.
+    enum Radius {
+        static let card: CGFloat = 18
+        static let panel: CGFloat = 22
+        static let sheetCard: CGFloat = 24
+        static let control: CGFloat = 12
+    }
+
     static func activate(_ appearance: ActualistAppearance) {
         let built = palette(for: appearance)
         active.withLock { $0 = built }

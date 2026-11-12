@@ -276,7 +276,7 @@ struct AccountsView: View {
                             .padding(.vertical, 12)
                     }
                     .buttonStyle(.plain)
-                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.panel, style: .continuous))
                 }
             } else {
                 accountCard(bucket.accounts)
@@ -378,7 +378,7 @@ struct AccountsView: View {
                 }
             }
         }
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.panel, style: .continuous))
     }
 
     private func hasGroupActions(for row: AccountDisplay) -> Bool {

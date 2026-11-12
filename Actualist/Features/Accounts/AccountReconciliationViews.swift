@@ -128,9 +128,9 @@ struct AccountReconciliationTargetSheet: View {
         .padding(.horizontal, 14)
         .background(
             ActualistTheme.surface,
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous)
         )
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+        .overlay(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous)
             .strokeBorder(ActualistTheme.separator, lineWidth: 1))
 
         if let validationMessage = presentation.validationMessage {
@@ -288,7 +288,7 @@ struct AccountReconciliationPanel: View {
         .padding(.vertical, 14)
         .background(
             ActualistTheme.surface,
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous)
         )
     }
 

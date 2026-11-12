@@ -204,7 +204,7 @@ struct UncategorizedTransactionsView: View {
                         .foregroundStyle(ActualistTheme.danger)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
-                        .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -223,10 +223,10 @@ struct UncategorizedTransactionsView: View {
                                     )
                                 }
                             }
-                            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous)
                                 .strokeBorder(ActualistTheme.separator, lineWidth: 1))
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
                         }
                     }
                 }

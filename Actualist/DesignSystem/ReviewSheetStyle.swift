@@ -7,8 +7,8 @@ extension View {
         self
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous)
                 .strokeBorder(ActualistTheme.separator, lineWidth: 1))
     }
 }
@@ -56,7 +56,7 @@ struct ReviewSheetFieldStyle: ViewModifier {
             .font(ActualistTypography.body(for: density))
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(ActualistTheme.control, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.control, style: .continuous))
     }
 }
 

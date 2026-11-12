@@ -205,8 +205,8 @@ private struct HistoryRowView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous)
             .strokeBorder(ActualistTheme.separator, lineWidth: 1))
         .accessibilityElement(children: .combine)
     }

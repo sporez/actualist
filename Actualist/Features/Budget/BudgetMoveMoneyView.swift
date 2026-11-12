@@ -42,7 +42,7 @@ struct BudgetMoveMoneyView: View {
                                             .foregroundStyle(ActualistTheme.danger)
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                             .padding(16)
-                                            .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                                            .background(ActualistTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.panel, style: .continuous))
                                     }
                                 }
                                 .padding(.bottom, 4)
@@ -425,7 +425,7 @@ struct BudgetMoveMoneyView: View {
 /// light colors instead of the palette's text colors, which turn dark in
 /// light themes.
 private enum BudgetMoveMoneyHeaderStyle {
-    static let fill = Color(red: 0.14, green: 0.37, blue: 0.04)
+    static let fill = ActualistTheme.moveMoneyHeaderFill
     static let primaryText = Color.white
     static let secondaryText = Color.white.opacity(0.78)
 }
@@ -602,7 +602,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
         if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || option.title.localizedCaseInsensitiveContains(searchText) {
             destinationButton(option)
-                .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.sheetCard, style: .continuous))
         }
     }
 
@@ -626,7 +626,7 @@ private struct BudgetMoveMoneyDestinationPicker: View {
                             }
                         }
                     }
-                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.sheetCard, style: .continuous))
                 }
             }
         }

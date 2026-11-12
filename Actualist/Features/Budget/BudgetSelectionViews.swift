@@ -161,8 +161,8 @@ struct BudgetOverspentCategoriesView: View {
                     }
                 }
             }
-            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous)
                 .strokeBorder(ActualistTheme.separator, lineWidth: 1))
         }
     }

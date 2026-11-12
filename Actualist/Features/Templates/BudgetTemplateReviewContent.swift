@@ -92,7 +92,7 @@ private struct BudgetTemplateReviewCategoryCard: View {
         // tile through its name instead.
         card
             .opacity(category.state == .skipped ? 0.45 : 1)
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
             .onTapGesture { toggle?(category.id) }
     }
 

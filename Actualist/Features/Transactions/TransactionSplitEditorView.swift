@@ -166,7 +166,7 @@ struct TransactionSplitEditorView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.panel, style: .continuous))
     }
 
     private func splitAmountBinding(for rowID: String) -> Binding<String> {

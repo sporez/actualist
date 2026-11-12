@@ -84,7 +84,7 @@ struct AccountTransactionsSummaryView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.card, style: .continuous))
     }
 
     private func categoryCarryoverRow(isEnabled: Bool, semantics: BudgetModePresentation) -> some View {
@@ -170,10 +170,10 @@ struct AccountTransactionsSummaryView: View {
         .padding(12)
         .background(
             ActualistTheme.accent.opacity(0.14),
-            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.control, style: .continuous)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: ActualistTheme.Radius.control, style: .continuous)
                 .stroke(ActualistTheme.accent.opacity(0.28), lineWidth: 1)
         }
         .padding(.vertical, 10)
