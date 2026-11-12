@@ -13,20 +13,13 @@ extension BudgetDatabase {
 
         let requiredTables = ["accounts", "transactions", "categories", "category_groups"]
         for table in requiredTables {
-            guard try Row.fetchOne(
-                db,
-                sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-                arguments: [table]
-            ) != nil else {
+            guard try SQLiteSchema.tableExists(table, in: db) else {
                 return false
             }
         }
 
         func columns(of table: String) throws -> Set<String> {
-            Set(
-                try Row.fetchAll(db, sql: "PRAGMA table_info(\(table))")
-                    .compactMap { $0["name"] as String? }
-            )
+            try SQLiteSchema.columns(of: table, in: db)
         }
         let transactions = try columns(of: "transactions")
         return try columns(of: "accounts").isSuperset(of: ["id", "name"])

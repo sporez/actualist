@@ -53,7 +53,7 @@ extension BudgetDatabase {
     /// compatibility, because every upstream migration records its own id.
     static func prepareCompatibilityMigrationIDs(in queue: DatabaseQueue) throws {
         try queue.write { db in
-            guard try tableExists("accounts", in: db),
+            guard try SQLiteSchema.tableExists("accounts", in: db),
                   !(try localMigrationApplied(compatibilityMigrationIDsMigration, in: db)) else {
                 return
             }
@@ -64,15 +64,7 @@ extension BudgetDatabase {
     }
 
     private static func hasMigrationsTable(in db: Database) throws -> Bool {
-        try tableExists("__migrations__", in: db)
-    }
-
-    private static func tableExists(_ name: String, in db: Database) throws -> Bool {
-        try Bool.fetchOne(
-            db,
-            sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
-            arguments: [name]
-        ) ?? false
+        try SQLiteSchema.tableExists("__migrations__", in: db)
     }
 
     private static func declaredColumnTypes(_ table: String, in db: Database) throws -> [String: String] {

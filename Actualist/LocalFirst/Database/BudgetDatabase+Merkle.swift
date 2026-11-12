@@ -101,7 +101,7 @@ extension BudgetDatabase {
     /// never kept the trie or from a different codebase. Rebuild once per file.
     static func prepareMerkleTrie(in queue: DatabaseQueue, localNodeID: String?) throws {
         try queue.write { db in
-            guard try tableExists("messages_crdt", in: db),
+            guard try SQLiteSchema.tableExists("messages_crdt", in: db),
                   try !localMigrationApplied(merkleRebuildMigration, in: db) else {
                 return
             }
@@ -117,7 +117,7 @@ extension BudgetDatabase {
     // MARK: Table access
 
     static func rebuiltMerkleTrie(_ db: Database) throws -> MerkleTrie {
-        guard try tableExists("messages_crdt", in: db) else { return .empty }
+        guard try SQLiteSchema.tableExists("messages_crdt", in: db) else { return .empty }
         var trie = MerkleTrie()
         let cursor = try String.fetchCursor(db, sql: "SELECT timestamp FROM messages_crdt")
         while let timestamp = try cursor.next() {
@@ -129,7 +129,7 @@ extension BudgetDatabase {
     }
 
     private static func storedClockJSON(_ db: Database) throws -> [String: Any]? {
-        guard try tableExists("messages_clock", in: db),
+        guard try SQLiteSchema.tableExists("messages_clock", in: db),
               let text = try String.fetchOne(db, sql: "SELECT clock FROM messages_clock ORDER BY id LIMIT 1"),
               let data = text.data(using: .utf8) else {
             return nil
@@ -143,7 +143,7 @@ extension BudgetDatabase {
     }
 
     private static func hasClockRow(_ db: Database) throws -> Bool {
-        guard try tableExists("messages_clock", in: db) else { return false }
+        guard try SQLiteSchema.tableExists("messages_clock", in: db) else { return false }
         let count = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM messages_clock") ?? 0
         return count > 0
     }
@@ -174,14 +174,6 @@ extension BudgetDatabase {
             sql: "INSERT OR REPLACE INTO messages_clock (id, clock) VALUES (1, ?)",
             arguments: [clock]
         )
-    }
-
-    private static func tableExists(_ name: String, in db: Database) throws -> Bool {
-        try Bool.fetchOne(
-            db,
-            sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
-            arguments: [name]
-        ) ?? false
     }
 }
 

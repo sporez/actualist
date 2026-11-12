@@ -27,13 +27,11 @@ extension BudgetDatabase {
             configuration: untrustedFileConfiguration(deleteJournal: true)
         )
         try queue.write { db in
-            for table in ["messages_pending", "messages_crdt", "messages_clock"] where try hasTable(table, in: db) {
+            for table in ["messages_pending", "messages_crdt", "messages_clock"] where try SQLiteSchema.tableExists(table, in: db) {
                 try db.execute(sql: "DELETE FROM \(table.quotedDatabaseIdentifier)")
             }
-            for table in syncResetTombstoneTables where try hasTable(table, in: db) {
-                let columns = try Row.fetchAll(db, sql: "PRAGMA table_info(\(table.quotedDatabaseIdentifier))")
-                    .compactMap { $0["name"] as String? }
-                guard columns.contains("tombstone") else { continue }
+            for table in syncResetTombstoneTables where try SQLiteSchema.tableExists(table, in: db) {
+                guard try SQLiteSchema.columns(of: table, in: db).contains("tombstone") else { continue }
                 try db.execute(sql: "DELETE FROM \(table.quotedDatabaseIdentifier) WHERE tombstone = 1")
             }
         }
@@ -42,13 +40,5 @@ extension BudgetDatabase {
             try db.execute(sql: "ANALYZE")
         }
         try queue.vacuum()
-    }
-
-    private static func hasTable(_ name: String, in db: Database) throws -> Bool {
-        try Bool.fetchOne(
-            db,
-            sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
-            arguments: [name]
-        ) ?? false
     }
 }

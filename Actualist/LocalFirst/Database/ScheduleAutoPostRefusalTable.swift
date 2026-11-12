@@ -9,11 +9,7 @@ enum ScheduleAutoPostRefusalTable {
     private static let table = "actualist_schedule_auto_post_refusals"
 
     static func read(_ db: Database) throws -> [ScheduleAutoPostRefusal] {
-        guard try Row.fetchOne(
-            db,
-            sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-            arguments: [table]
-        ) != nil else {
+        guard try SQLiteSchema.tableExists(table, in: db) else {
             return []
         }
         return try Row.fetchAll(db, sql: "SELECT * FROM \(table) ORDER BY schedule_id").compactMap { row in
@@ -44,11 +40,7 @@ enum ScheduleAutoPostRefusalTable {
     /// Removes only the exact entries given, so a prune based on an older read
     /// cannot delete a refusal a newer run just recorded for the same schedule.
     static func remove(_ refusals: [ScheduleAutoPostRefusal], _ db: Database) throws {
-        guard try Row.fetchOne(
-            db,
-            sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-            arguments: [table]
-        ) != nil else {
+        guard try SQLiteSchema.tableExists(table, in: db) else {
             return
         }
         for refusal in refusals {

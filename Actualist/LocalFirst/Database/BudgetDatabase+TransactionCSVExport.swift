@@ -35,11 +35,7 @@ extension BudgetDatabase {
     }
 
     private static func transactionCSVNameMap(table: String, db: Database) throws -> [String: String] {
-        guard try Bool.fetchOne(
-            db,
-            sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
-            arguments: [table]
-        ) ?? false else { return [:] }
+        guard try SQLiteSchema.tableExists(table, in: db) else { return [:] }
         return Dictionary(
             try Row.fetchAll(db, sql: "SELECT id, name FROM \(table)")
                 .compactMap { row -> (String, String)? in

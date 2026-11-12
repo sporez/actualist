@@ -102,11 +102,7 @@ extension BudgetDatabase {
         if let cached = tableExistsCache[table] {
             return cached
         }
-        let exists = try Row.fetchOne(
-            db,
-            sql: "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-            arguments: [table]
-        ) != nil
+        let exists = try SQLiteSchema.tableExists(table, in: db)
         tableExistsCache[table] = exists
         return exists
     }
@@ -115,8 +111,7 @@ extension BudgetDatabase {
         if let cached = columnSetCache[table] {
             return cached
         }
-        let rows = try Row.fetchAll(db, sql: "PRAGMA table_info(\(quotedIdentifier(table)))")
-        let columns = Set(rows.compactMap { $0["name"] as String? })
+        let columns = try SQLiteSchema.columns(of: table, in: db)
         columnSetCache[table] = columns
         return columns
     }
