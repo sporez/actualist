@@ -276,7 +276,7 @@ extension BudgetDatabase {
                 WHERE \(predicateForLiveRows(columns: columns))
                 """
         )
-        return flexibleDouble(row?["sort_order"]) + ActualSortOrder.increment
+        return SQLiteValueCoercion.lenientDouble(row?["sort_order"]) + ActualSortOrder.increment
     }
 
     private func fetchLiveAccountGroupSortRows(
@@ -301,7 +301,7 @@ extension BudgetDatabase {
             guard let id = row["id"] as String?, !id.isEmpty else {
                 return nil
             }
-            return ActualSortOrder.Item(id: id, sortOrder: flexibleDouble(row["sort_order"]))
+            return ActualSortOrder.Item(id: id, sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"]))
         }
     }
 }

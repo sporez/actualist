@@ -191,7 +191,7 @@ extension BudgetDatabase {
                     guard columns.contains("favorite") else {
                         throw LocalFirstError.refusedChange("This budget does not support favorite payees.")
                     }
-                    let oldValue = flexibleBool(row["favorite"])
+                    let oldValue = SQLiteValueCoercion.lenientBool(row["favorite"])
                     if oldValue != favorite {
                         messages.append(try builder.makeMessage(
                             dataset: "payees", row: update.payeeID, column: "favorite", value: .bool(favorite)
@@ -207,7 +207,7 @@ extension BudgetDatabase {
                     }
                     let oldValue = row["learn_categories"] == nil
                         ? true
-                        : flexibleBool(row["learn_categories"])
+                        : SQLiteValueCoercion.lenientBool(row["learn_categories"])
                     if oldValue != learnCategories {
                         messages.append(try builder.makeMessage(
                             dataset: "payees", row: update.payeeID, column: "learn_categories", value: .bool(learnCategories)
@@ -351,10 +351,10 @@ extension BudgetDatabase {
                 ruleReferenceCount: ruleCount,
                 canDelete: transfer == nil && transactionCount == 0 && ruleCount == 0
                     && !ruleReferences.hasUnreadableRules && canTombstone,
-                favorite: flexibleBool(row["favorite"]),
+                favorite: SQLiteValueCoercion.lenientBool(row["favorite"]),
                 learnCategories: row["learn_categories"] == nil
                     ? true
-                    : flexibleBool(row["learn_categories"])
+                    : SQLiteValueCoercion.lenientBool(row["learn_categories"])
             )
             guard !payee.isTransfer || !payee.displayName.isEmpty else {
                 return nil

@@ -219,16 +219,16 @@ private struct AccountLifecycleScheduleRow {
         scheduleID = row["schedule_id"] ?? ""
         name = row["schedule_name"] ?? ""
         ruleID = row["schedule_rule"] ?? ""
-        isActive = BudgetDatabase.flexibleLifecycleBool(row["schedule_active"])
-        isCompleted = BudgetDatabase.flexibleLifecycleBool(row["schedule_completed"])
-        postsTransaction = BudgetDatabase.flexibleLifecycleBool(row["posts_transaction"])
-        isTombstoned = BudgetDatabase.flexibleLifecycleBool(row["schedule_tombstone"])
+        isActive = SQLiteValueCoercion.lenientBool(row["schedule_active"])
+        isCompleted = SQLiteValueCoercion.lenientBool(row["schedule_completed"])
+        postsTransaction = SQLiteValueCoercion.lenientBool(row["posts_transaction"])
+        isTombstoned = SQLiteValueCoercion.lenientBool(row["schedule_tombstone"])
         linkedRuleID = row["rule_id"] ?? ""
         stage = row["rule_stage"] ?? ""
         conditions = row["rule_conditions"] ?? ""
         conditionsJoin = row["conditions_op"] ?? ""
         actions = row["rule_actions"] ?? ""
-        ruleIsTombstoned = BudgetDatabase.flexibleLifecycleBool(row["rule_tombstone"])
+        ruleIsTombstoned = SQLiteValueCoercion.lenientBool(row["rule_tombstone"])
     }
 
     var isLive: Bool {
@@ -241,17 +241,5 @@ private struct AccountLifecycleScheduleRow {
             postsTransaction ? "1" : "0", isTombstoned ? "1" : "0", linkedRuleID,
             stage, conditions, conditionsJoin, actions, ruleIsTombstoned ? "1" : "0",
         ]
-    }
-}
-
-private extension BudgetDatabase {
-    nonisolated static func flexibleLifecycleBool(_ value: DatabaseValueConvertible?) -> Bool {
-        if let value = value as? Bool { return value }
-        if let value = value as? Int { return value != 0 }
-        if let value = value as? Int64 { return value != 0 }
-        if let value = value as? String {
-            return ["1", "true", "yes"].contains(value.lowercased())
-        }
-        return false
     }
 }

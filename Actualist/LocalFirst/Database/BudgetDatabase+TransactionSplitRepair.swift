@@ -70,7 +70,7 @@ extension BudgetDatabase {
                     repair.clearedCount = clearedRows.count
                     for row in clearedRows {
                         let id: String = row["id"]
-                        try update(id) { $0.cleared = flexibleBool(row["cleared"]) }
+                        try update(id) { $0.cleared = SQLiteValueCoercion.lenientBool(row["cleared"]) }
                     }
                 }
 

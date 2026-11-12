@@ -27,7 +27,7 @@ extension BudgetDatabase {
     }
 
     func budgetHoldReview(month: String, db: Database) throws -> BudgetHoldReview {
-        guard canonicalMonthID(month) == month else {
+        guard YearMonth.canonicalID(month) == month else {
             throw LocalFirstError.invalidLocalWrite("invalid hold month")
         }
         let table = try budgetTable(db: db)
@@ -70,7 +70,7 @@ extension BudgetDatabase {
                 FROM zero_budget_months
                 """
         )
-        for row in rows where canonicalMonthID(flexibleString(row["raw_month"])) == month {
+        for row in rows where YearMonth.canonicalID(SQLiteValueCoercion.lenientString(row["raw_month"])) == month {
             return row["buffered"] ?? 0
         }
         return 0

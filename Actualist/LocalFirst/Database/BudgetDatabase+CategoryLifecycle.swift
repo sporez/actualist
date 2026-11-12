@@ -271,8 +271,8 @@ extension BudgetDatabase {
         ) else { throw LocalFirstError.invalidLocalWrite("category group no longer exists") }
         return CategoryLifecycleGroup(
             id: row["id"] ?? id, name: row["name"] ?? "",
-            isIncome: flexibleBool(row["is_income"]),
-            sortOrder: flexibleDouble(row["sort_order"])
+            isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
+            sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
         )
     }
 
@@ -294,7 +294,7 @@ extension BudgetDatabase {
         }
         return CategoryLifecycleCategory(
             id: row["id"] ?? id, name: row["name"] ?? "", groupID: groupID,
-            isIncome: flexibleBool(row["is_income"]), sortOrder: flexibleDouble(row["sort_order"])
+            isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]), sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
         )
     }
 
@@ -313,8 +313,8 @@ extension BudgetDatabase {
                 throw LocalFirstError.invalidLocalWrite("category group has no id")
             }
             return CategoryLifecycleGroup(
-                id: id, name: row["name"] ?? "", isIncome: flexibleBool(row["is_income"]),
-                sortOrder: flexibleDouble(row["sort_order"])
+                id: id, name: row["name"] ?? "", isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
+                sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
             )
         }
     }
@@ -341,7 +341,7 @@ extension BudgetDatabase {
             }
             return CategoryLifecycleCategory(
                 id: id, name: row["name"] ?? "", groupID: groupID,
-                isIncome: flexibleBool(row["is_income"]), sortOrder: flexibleDouble(row["sort_order"])
+                isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]), sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
             )
         }
     }
@@ -379,7 +379,7 @@ extension BudgetDatabase {
                 """,
             arguments: arguments
         ) {
-            let prefix = flexibleBool(row["hidden"]) ? "A hidden category group" : "A category group"
+            let prefix = SQLiteValueCoercion.lenientBool(row["hidden"]) ? "A hidden category group" : "A category group"
             throw LocalFirstError.refusedChange("\(prefix) with the name \(row["name"] as String? ?? name) already exists.")
         }
     }

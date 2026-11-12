@@ -78,7 +78,7 @@ extension BudgetDatabase {
         )
 
         return rows.compactMap { row in
-            guard let dayID = flexibleString(row["day"]) else { return nil }
+            guard let dayID = SQLiteValueCoercion.lenientString(row["day"]) else { return nil }
             return RawNetWorthDay(
                 dayID: dayID,
                 amount: row["amount"] ?? 0
@@ -135,10 +135,10 @@ extension BudgetDatabase {
         )
 
         return rows.compactMap { row in
-            guard let dayID = flexibleString(row["day"]) else { return nil }
+            guard let dayID = SQLiteValueCoercion.lenientString(row["day"]) else { return nil }
             return RawCalendarActivityDay(
                 dayID: dayID,
-                isInflow: flexibleBool(row["is_inflow"]),
+                isInflow: SQLiteValueCoercion.lenientBool(row["is_inflow"]),
                 amount: row["amount"] ?? 0
             )
         }
@@ -161,7 +161,7 @@ extension BudgetDatabase {
                 LIMIT 1
                 """
         )
-        guard let meta = flexibleString(row?["meta"]),
+        guard let meta = SQLiteValueCoercion.lenientString(row?["meta"]),
               let data = meta.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let conditions = object["conditions"] as? [[String: Any]] else {

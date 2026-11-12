@@ -118,11 +118,7 @@ extension BudgetDatabase {
         columns: TransactionRowColumns,
         db: Database
     ) throws -> TransactionBatchTransactionSnapshot? {
-        guard let row = try Row.fetchOne(
-            db,
-            sql: "SELECT * FROM transactions WHERE id = ?",
-            arguments: [id]
-        ) else { return nil }
+        guard let row = try TransactionRowReader.row(id: id, db: db) else { return nil }
         let available = columns.all
         func string(_ name: String) -> String? {
             guard available.contains(name) else { return nil }
@@ -130,10 +126,7 @@ extension BudgetDatabase {
         }
         func integer(_ name: String) -> Int? {
             guard available.contains(name) else { return nil }
-            if let value = row[name] as Int? { return value }
-            if let value = row[name] as Int64? { return Int(value) }
-            if let value = row[name] as String? { return Int(value) }
-            return nil
+            return SQLiteValueCoercion.int(row, name)
         }
         func packedDate(_ name: String) -> Int? {
             if let value = integer(name) { return value }
@@ -142,25 +135,14 @@ extension BudgetDatabase {
         }
         func flag(_ name: String) -> Bool? {
             guard available.contains(name) else { return nil }
-            if let value = integer(name) { return value != 0 }
-            if let value = row[name] as String? {
-                switch value.lowercased() {
-                case "true", "yes": return true
-                case "false", "no": return false
-                default: return nil
-                }
-            }
-            return nil
+            return SQLiteValueCoercion.flag(row, name)
         }
         func double(_ name: String?) -> Double? {
             guard let name, available.contains(name) else { return nil }
-            if let value = row[name] as Double? { return value }
-            if let value = row[name] as Int? { return Double(value) }
-            if let value = row[name] as String? { return Double(value) }
-            return nil
+            return SQLiteValueCoercion.numberOrText(row, name)
         }
         let parentID = string("parent_id")
-        let isChild = effectiveIsChild(row: row, columns: columns, parentID: parentID)
+        let isChild = TransactionRowReader.effectiveIsChild(row: row, columns: columns, parentID: parentID)
         return TransactionBatchTransactionSnapshot(
             id: id,
             columns: available.sorted(),

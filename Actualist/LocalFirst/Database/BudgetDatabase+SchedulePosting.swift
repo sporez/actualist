@@ -81,7 +81,7 @@ extension BudgetDatabase {
             db,
             sql: "SELECT \(closed) AS closed, \(tombstone) AS tombstone FROM accounts WHERE id = ? LIMIT 1",
             arguments: [accountID]
-        ), !flexibleBool(accountRow["closed"]), !flexibleBool(accountRow["tombstone"]) else {
+        ), !SQLiteValueCoercion.lenientBool(accountRow["closed"]), !SQLiteValueCoercion.lenientBool(accountRow["tombstone"]) else {
             throw SchedulePostingRefusal.accountUnavailable
         }
 

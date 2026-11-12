@@ -191,7 +191,7 @@ private extension BudgetDatabase {
             }
             return CategoryLifecycleCategory(
                 id: id, name: row["name"] ?? "", groupID: rowGroupID,
-                isIncome: flexibleBool(row["is_income"]), sortOrder: flexibleDouble(row["sort_order"])
+                isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]), sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
             )
         }
     }
@@ -220,7 +220,7 @@ private extension BudgetDatabase {
         var sourceAmounts: [Int: Int] = [:]
         var destinationAmounts: [Int: Int] = [:]
         for row in rows {
-            guard let canonical = canonicalMonthID(flexibleString(row["month"])),
+            guard let canonical = YearMonth.canonicalID(SQLiteValueCoercion.lenientString(row["month"])),
                   let categoryID = row["category"] as String? else { continue }
             let monthValue = YearMonth.packedUnchecked(canonical)
             let amount: Int = row["amount"] ?? 0

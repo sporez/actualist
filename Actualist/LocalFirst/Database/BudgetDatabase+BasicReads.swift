@@ -47,8 +47,8 @@ extension BudgetDatabase {
                 return ActualAccount(
                     id: row["id"] ?? "",
                     name: row["name"] ?? "",
-                    offbudget: flexibleBool(row["offbudget"]),
-                    closed: flexibleBool(row["closed"]),
+                    offbudget: SQLiteValueCoercion.lenientBool(row["offbudget"]),
+                    closed: SQLiteValueCoercion.lenientBool(row["closed"]),
                     bankSyncLinked: bankID?.isEmpty == false || syncSource?.isEmpty == false,
                     bankSyncStatus: row["bank_sync_status"],
                     accountGroupId: groupID
@@ -81,7 +81,7 @@ extension BudgetDatabase {
                 return ActualAccountGroup(
                     id: id,
                     name: row["name"] ?? "",
-                    sortOrder: flexibleDouble(row["sort_order"])
+                    sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
                 )
             }
         }
@@ -111,7 +111,7 @@ extension BudgetDatabase {
                     category: row["category"],
                     transferAccount: row["transfer_acct"]
                     ),
-                    favorite: flexibleBool(row["favorite"])
+                    favorite: SQLiteValueCoercion.lenientBool(row["favorite"])
                 )
             }
             guard orderedForPicker else { return payees.map(\.payee) }
@@ -204,8 +204,8 @@ extension BudgetDatabase {
                 ActualCategory(
                     id: row["id"],
                     name: row["name"] ?? "",
-                    isIncome: flexibleBool(row["is_income"]),
-                    hidden: flexibleBool(row["hidden"]),
+                    isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
+                    hidden: SQLiteValueCoercion.lenientBool(row["hidden"]),
                     groupID: row["group_id"]
                 )
             }
@@ -229,7 +229,7 @@ extension BudgetDatabase {
                     WHERE month IS NOT NULL
                     """
             )
-            months.formUnion(rows.compactMap { canonicalMonthID(flexibleString($0["month"])) })
+            months.formUnion(rows.compactMap { YearMonth.canonicalID(SQLiteValueCoercion.lenientString($0["month"])) })
         }
         if try tableExists("transactions", db: db), try columnSet(for: "transactions", db: db).contains("date") {
             let columns = try columnSet(for: "transactions", db: db)
@@ -246,7 +246,7 @@ extension BudgetDatabase {
                     WHERE date IS NOT NULL AND \(live)
                     """
             )
-            months.formUnion(rows.compactMap { canonicalMonthID(flexibleString($0["month"])) })
+            months.formUnion(rows.compactMap { YearMonth.canonicalID(SQLiteValueCoercion.lenientString($0["month"])) })
         }
         return months.sorted()
     }

@@ -706,50 +706,35 @@ extension BudgetDatabase {
         columns: TransactionRowColumns,
         db: Database
     ) throws -> SplitTransactionRecord? {
-        guard try rowExists(table: "transactions", rowID: id, db: db) else {
-            return nil
-        }
-        let row = try Row.fetchOne(
-            db,
-            sql: "SELECT * FROM transactions WHERE id = ?",
-            arguments: [id]
-        )
-        guard let row else { return nil }
-        let parentID = columns.hasParentID
-            ? (row["parent_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
-            : nil
+        guard let row = try TransactionRowReader.row(id: id, db: db) else { return nil }
+        let parentID = TransactionRowReader.parentID(in: row, columns: columns)
         let isParent: Bool
         if let isParentColumn = columns.isParent {
-            isParent = flexibleBool(row[isParentColumn])
+            isParent = SQLiteValueCoercion.lenientBool(row[isParentColumn])
         } else {
             isParent = false
         }
-        let isChild = effectiveIsChild(row: row, columns: columns, parentID: parentID)
+        let isChild = TransactionRowReader.effectiveIsChild(row: row, columns: columns, parentID: parentID)
         let dateValue: Int = row["date"] ?? 0
         return SplitTransactionRecord(
             id: id,
             amount: row["amount"] ?? 0,
-            account: (row[columns.account] as String?).flatMap { $0.isEmpty ? nil : $0 },
+            account: SQLiteValueCoercion.nonEmptyString(row, columns.account),
             date: PackedDate.iso(dateValue),
-            category: (row["category"] as String?).flatMap { $0.isEmpty ? nil : $0 },
-            payee: (row[columns.payee] as String?).flatMap { $0.isEmpty ? nil : $0 },
-            notes: columns.hasNotes ? (row["notes"] as String?).flatMap { $0.isEmpty ? nil : $0 } : nil,
-            cleared: columns.hasCleared ? flexibleBool(row["cleared"]) : nil,
-            reconciled: columns.hasReconciled ? flexibleBool(row["reconciled"]) : nil,
-            startingBalance: columns.hasStartingBalance ? flexibleBool(row["starting_balance_flag"]) : nil,
-            sortOrder: columns.sortOrder.flatMap { column in
-                if let value = row[column] as Double? { return value }
-                if let value = row[column] as Int? { return Double(value) }
-                return nil
-            },
+            category: SQLiteValueCoercion.nonEmptyString(row, "category"),
+            payee: SQLiteValueCoercion.nonEmptyString(row, columns.payee),
+            notes: columns.hasNotes ? SQLiteValueCoercion.nonEmptyString(row, "notes") : nil,
+            cleared: columns.hasCleared ? SQLiteValueCoercion.lenientBool(row["cleared"]) : nil,
+            reconciled: columns.hasReconciled ? SQLiteValueCoercion.lenientBool(row["reconciled"]) : nil,
+            startingBalance: columns.hasStartingBalance
+                ? SQLiteValueCoercion.lenientBool(row["starting_balance_flag"]) : nil,
+            sortOrder: columns.sortOrder.flatMap { SQLiteValueCoercion.number(row, $0) },
             isParent: isParent,
             isChild: isChild,
             parentID: isChild ? parentID : nil,
-            transferID: columns.transferID.flatMap { column in
-                (row[column] as String?).flatMap { $0.isEmpty ? nil : $0 }
-            },
+            transferID: columns.transferID.flatMap { SQLiteValueCoercion.nonEmptyString(row, $0) },
             error: columns.hasError ? parseSplitTransactionError(row["error"]) : nil,
-            deleted: columns.hasTombstone ? flexibleBool(row["tombstone"]) : false
+            deleted: columns.hasTombstone ? SQLiteValueCoercion.lenientBool(row["tombstone"]) : false
         )
     }
 

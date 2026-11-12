@@ -284,8 +284,8 @@ extension BudgetDatabase {
         let parentID = (row["parent_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
         let payeeName = (row["payee_name"] as String?).flatMap { $0.isEmpty ? nil : $0 }
         let amount: Int? = row["amount"]
-        let isParent = flexibleBool(row["is_parent"])
-        let isChild = flexibleBool(row["is_child"])
+        let isParent = SQLiteValueCoercion.lenientBool(row["is_parent"])
+        let isChild = SQLiteValueCoercion.lenientBool(row["is_child"])
         return ActualTransaction(
             id: row["id"],
             account: row["account_id"] ?? "",
@@ -296,8 +296,8 @@ extension BudgetDatabase {
             importedPayee: row["imported_payee"],
             category: isParent ? nil : row["category_id"],
             notes: row["notes"],
-            cleared: flexibleBool(row["cleared"]) ? .bool(true) : .bool(false),
-            reconciled: flexibleBool(row["reconciled"]),
+            cleared: SQLiteValueCoercion.lenientBool(row["cleared"]) ? .bool(true) : .bool(false),
+            reconciled: SQLiteValueCoercion.lenientBool(row["reconciled"]),
             isParent: isParent,
             isChild: isChild,
             parentID: isChild ? parentID : nil,

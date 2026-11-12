@@ -73,8 +73,8 @@ extension BudgetDatabase {
             db,
             sql: "SELECT id FROM zero_budget_months"
         ).compactMap { row -> String? in
-            guard let rowID = flexibleString(row["id"]),
-                  canonicalMonthID(rowID) == month else {
+            guard let rowID = SQLiteValueCoercion.lenientString(row["id"]),
+                  YearMonth.canonicalID(rowID) == month else {
                 return nil
             }
             return rowID

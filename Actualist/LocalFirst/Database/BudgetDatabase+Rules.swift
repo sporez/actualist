@@ -541,7 +541,7 @@ extension BudgetDatabase {
                 for row in rows {
                     guard let id = row["id"] as String? else { continue }
                     accountNames[id] = row["name"] ?? ""
-                    if flexibleBool(row["offbudget"]) { offBudgetAccountIDs.insert(id) }
+                    if SQLiteValueCoercion.lenientBool(row["offbudget"]) { offBudgetAccountIDs.insert(id) }
                 }
             }
             var categoryNames: [String: String] = [:]

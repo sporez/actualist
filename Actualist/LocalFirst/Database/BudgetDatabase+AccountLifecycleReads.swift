@@ -164,8 +164,8 @@ extension BudgetDatabase {
             return AccountLifecycleAccount(
                 id: id,
                 name: row["name"] ?? "",
-                offBudget: flexibleBool(row["offbudget"]),
-                isClosed: flexibleBool(row["closed"]),
+                offBudget: SQLiteValueCoercion.lenientBool(row["offbudget"]),
+                isClosed: SQLiteValueCoercion.lenientBool(row["closed"]),
                 accountGroupID: rawGroupID?.isEmpty == false ? rawGroupID : nil
             )
         }
@@ -303,15 +303,15 @@ private extension BudgetDatabase {
             guard let id = row["id"] as String?, !id.isEmpty else { return nil }
             return AccountLifecycleTransactionFact(
                 id: id,
-                accountID: flexibleString(row["account_id"]) ?? "",
-                date: flexibleString(row["date_value"]) ?? "",
-                amount: flexibleString(row["amount_value"]) ?? "0",
-                categoryID: flexibleString(row["category_id"]) ?? "",
-                payeeID: flexibleString(row["payee_id"]) ?? "",
-                notes: flexibleString(row["notes_value"]) ?? "",
+                accountID: SQLiteValueCoercion.lenientString(row["account_id"]) ?? "",
+                date: SQLiteValueCoercion.lenientString(row["date_value"]) ?? "",
+                amount: SQLiteValueCoercion.lenientString(row["amount_value"]) ?? "0",
+                categoryID: SQLiteValueCoercion.lenientString(row["category_id"]) ?? "",
+                payeeID: SQLiteValueCoercion.lenientString(row["payee_id"]) ?? "",
+                notes: SQLiteValueCoercion.lenientString(row["notes_value"]) ?? "",
                 parentID: (row["parent_id"] as String?).flatMap { $0.isEmpty ? nil : $0 },
-                isParent: flexibleBool(row["is_parent"]),
-                isChild: flexibleBool(row["is_child"]),
+                isParent: SQLiteValueCoercion.lenientBool(row["is_parent"]),
+                isChild: SQLiteValueCoercion.lenientBool(row["is_child"]),
                 transferID: (row["transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
             )
         }
@@ -337,7 +337,7 @@ private extension BudgetDatabase {
             return AccountLifecycleCategory(
                 id: id,
                 name: row["name"] ?? "",
-                isHidden: flexibleBool(row["hidden"])
+                isHidden: SQLiteValueCoercion.lenientBool(row["hidden"])
             )
         }
     }
@@ -399,14 +399,10 @@ private extension BudgetDatabase {
 
     func accountLifecycleInteger(_ value: DatabaseValueConvertible?) throws -> Int {
         guard let value else { return 0 }
-        if let value = value as? Int { return value }
-        if let value = value as? Int64, let exact = Int(exactly: value) { return exact }
-        if let value = value as? Double, let exact = Int(exactly: value) { return exact }
-        if let value = value as? String,
-           let parsed = Int(value.trimmingCharacters(in: .whitespacesAndNewlines)) {
-            return parsed
+        guard let exact = SQLiteValueCoercion.exactInt(value) else {
+            throw AccountLifecycleCommandError.missingTransactionSchema
         }
-        throw AccountLifecycleCommandError.missingTransactionSchema
+        return exact
     }
 
     func accountLifecycleNegated(_ value: Int) throws -> Int {

@@ -187,7 +187,7 @@ extension BudgetDatabase {
                 transaction: mapTransactionRow(row),
                 rawPayeeID: (row["conversion_raw_payee_id"] as String?).flatMap { $0.isEmpty ? nil : $0 },
                 transferID: (row["conversion_transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 },
-                isTransferPayee: flexibleBool(row["conversion_is_transfer_payee"])
+                isTransferPayee: SQLiteValueCoercion.lenientBool(row["conversion_is_transfer_payee"])
             )
         }
         guard let root = converted.first(where: { $0.transaction.id == transactionID }),
@@ -260,7 +260,7 @@ extension BudgetDatabase {
             db,
             sql: "SELECT closed, tombstone FROM accounts WHERE id = ? LIMIT 1",
             arguments: [accountID]
-        ), !flexibleBool(row["closed"]), !flexibleBool(row["tombstone"]) else {
+        ), !SQLiteValueCoercion.lenientBool(row["closed"]), !SQLiteValueCoercion.lenientBool(row["tombstone"]) else {
             throw ScheduleConversionError.unsupportedSource("The transaction account is unavailable or closed.")
         }
     }

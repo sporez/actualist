@@ -222,8 +222,8 @@ extension BudgetDatabase {
             result.append(BudgetMonthCategoryGroup(
                 id: groupID,
                 name: groupRow["name"] ?? "",
-                isIncome: flexibleBool(groupRow["is_income"]),
-                hidden: flexibleBool(groupRow["hidden"]),
+                isIncome: SQLiteValueCoercion.lenientBool(groupRow["is_income"]),
+                hidden: SQLiteValueCoercion.lenientBool(groupRow["hidden"]),
                 budgeted: try BudgetFinancialCalculation.sum(included.map(\.budgeted), table: table),
                 spent: try BudgetFinancialCalculation.sum(included.map(\.spent), table: table),
                 balance: try BudgetFinancialCalculation.sum(included.map(\.balance), table: table),
@@ -268,8 +268,8 @@ extension BudgetDatabase {
             result[groupID, default: []].append(BudgetMonthCategory(
                 id: id,
                 name: row["name"] ?? "",
-                isIncome: flexibleBool(row["is_income"]),
-                hidden: flexibleBool(row["hidden"]),
+                isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
+                hidden: SQLiteValueCoercion.lenientBool(row["hidden"]),
                 groupID: row["group_id"] ?? groupID,
                 budgeted: values.budgeted,
                 spent: values.spent,
@@ -303,7 +303,7 @@ extension BudgetDatabase {
         guard let history else {
             return try categoryValuesWithPrevious(through: month, db: db).current
         }
-        guard canonicalMonthID(month) == month else {
+        guard YearMonth.canonicalID(month) == month else {
             throw LocalFirstError.invalidLocalWrite("invalid budget month")
         }
         let target = YearMonth.packedUnchecked(month)
@@ -316,7 +316,7 @@ extension BudgetDatabase {
         through month: String,
         db: Database
     ) throws -> (current: [String: BudgetCategoryValue], previous: [String: BudgetCategoryValue]) {
-        guard canonicalMonthID(month) == month else {
+        guard YearMonth.canonicalID(month) == month else {
             throw LocalFirstError.invalidLocalWrite("invalid budget month")
         }
         let target = YearMonth.packedUnchecked(month)
@@ -361,7 +361,7 @@ extension BudgetDatabase {
                 categoryID,
                 (
                     budgeted: row["amount"] ?? 0,
-                    carryover: flexibleBool(row["carryover"])
+                    carryover: SQLiteValueCoercion.lenientBool(row["carryover"])
                 )
             )
         })
@@ -385,14 +385,14 @@ extension BudgetDatabase {
         )
         return rows.reduce(into: [:]) { result, row in
             guard
-                let month = flexibleString(row["month"]),
+                let month = SQLiteValueCoercion.lenientString(row["month"]),
                 let categoryID = row["category_id"] as String?
             else {
                 return
             }
             result[month, default: [:]][categoryID] = (
                 budgeted: row["amount"] ?? 0,
-                carryover: flexibleBool(row["carryover"])
+                carryover: SQLiteValueCoercion.lenientBool(row["carryover"])
             )
         }
     }
@@ -465,7 +465,7 @@ extension BudgetDatabase {
         )
         return rows.reduce(into: [:]) { result, row in
             guard
-                let month = flexibleString(row["month"]),
+                let month = SQLiteValueCoercion.lenientString(row["month"]),
                 let categoryID = row["category_id"] as String?
             else {
                 return

@@ -178,7 +178,7 @@ extension BudgetDatabase {
             db,
             sql: "SELECT \(closed) AS closed, \(tombstone) AS tombstone FROM accounts WHERE id = ? LIMIT 1",
             arguments: [accountID]
-        ), !flexibleBool(row["closed"]), !flexibleBool(row["tombstone"]) else {
+        ), !SQLiteValueCoercion.lenientBool(row["closed"]), !SQLiteValueCoercion.lenientBool(row["tombstone"]) else {
             throw LocalFirstError.referencedRowUnavailable("transaction account is closed or unavailable")
         }
     }

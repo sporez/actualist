@@ -41,7 +41,7 @@ extension BudgetDatabase {
     ) throws -> BudgetCategoryValueTimeline {
         var candidateMonths: Set<Int> = []
         for key in Set(inputs.budgetedByMonth.keys).union(inputs.spentByMonth.keys) {
-            if let month = canonicalMonthID(key).map(YearMonth.packedUnchecked), month <= targetMonthInt {
+            if let month = YearMonth.canonicalID(key).map(YearMonth.packedUnchecked), month <= targetMonthInt {
                 candidateMonths.insert(month)
             }
         }

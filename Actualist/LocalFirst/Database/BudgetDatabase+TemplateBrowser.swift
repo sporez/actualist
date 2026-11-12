@@ -46,8 +46,8 @@ extension BudgetDatabase {
                     (
                         id: id,
                         name: (groupRow["name"] as String?) ?? "",
-                        isIncome: flexibleBool(groupRow["is_income"]),
-                        hidden: flexibleBool(groupRow["hidden"])
+                        isIncome: SQLiteValueCoercion.lenientBool(groupRow["is_income"]),
+                        hidden: SQLiteValueCoercion.lenientBool(groupRow["hidden"])
                     )
                 )
             }
@@ -104,8 +104,8 @@ extension BudgetDatabase {
                     id: id,
                     name: (row["name"] as String?) ?? "",
                     groupID: groupID,
-                    isIncome: flexibleBool(row["is_income"]),
-                    hidden: flexibleBool(row["hidden"]),
+                    isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
+                    hidden: SQLiteValueCoercion.lenientBool(row["hidden"]),
                     goalDefJSON: goalDefJSON,
                     source: Self.templateSource(from: row["template_settings"] as String?)
                 )

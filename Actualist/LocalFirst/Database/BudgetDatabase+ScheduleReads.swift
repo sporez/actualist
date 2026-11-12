@@ -134,7 +134,7 @@ extension BudgetDatabase {
             transactionLowerBounds[id] = scheduleTransactionLowerBound(
                 occurrenceDate: occurrenceDate,
                 matchingMode: projection.occurrenceMatchingMode,
-                postsTransaction: flexibleBool(row["posts_transaction"])
+                postsTransaction: SQLiteValueCoercion.lenientBool(row["posts_transaction"])
             )
         }
         let transactionDates = try scheduleTransactionDates(
@@ -164,8 +164,8 @@ extension BudgetDatabase {
                 targets: payeeTargets,
                 facts: payeeFacts
             )
-            let isCompleted = flexibleBool(row["completed"])
-            let postsTransaction = flexibleBool(row["posts_transaction"])
+            let isCompleted = SQLiteValueCoercion.lenientBool(row["completed"])
+            let postsTransaction = SQLiteValueCoercion.lenientBool(row["posts_transaction"])
             let upcomingLength = (row["custom_upcoming_length"] as String?) ?? defaultUpcomingLength
             let hasPaidTransaction = effectiveNextDate.map {
                 scheduleHasMatchingTransaction(
@@ -373,9 +373,9 @@ extension BudgetDatabase {
                 ScheduleNextDateRow(
                     id: row["id"],
                     localDate: canonicalScheduleDayID(row["local_next_date"]),
-                    localTimestamp: flexibleString(row["local_next_date_ts"]),
+                    localTimestamp: SQLiteValueCoercion.lenientString(row["local_next_date_ts"]),
                     baseDate: canonicalScheduleDayID(row["base_next_date"]),
-                    baseTimestamp: flexibleString(row["base_next_date_ts"])
+                    baseTimestamp: SQLiteValueCoercion.lenientString(row["base_next_date_ts"])
                 )
             )
         }
@@ -397,7 +397,7 @@ extension BudgetDatabase {
         )
         return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
             guard let id = row["id"] as String? else { return nil }
-            return (id, ScheduleAccountFact(name: row["name"] ?? id, isClosed: flexibleBool(row["closed"])))
+            return (id, ScheduleAccountFact(name: row["name"] ?? id, isClosed: SQLiteValueCoercion.lenientBool(row["closed"])))
         })
     }
 
@@ -546,7 +546,7 @@ extension BudgetDatabase {
     }
 
     private func canonicalScheduleDayID(_ value: DatabaseValueConvertible?) -> String? {
-        guard let raw = flexibleString(value) else { return nil }
+        guard let raw = SQLiteValueCoercion.lenientString(value) else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let dayID: String
         if trimmed.count == 8, trimmed.allSatisfy(\.isNumber) {

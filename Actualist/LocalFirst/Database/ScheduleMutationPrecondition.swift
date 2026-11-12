@@ -97,12 +97,12 @@ extension BudgetDatabase {
         let name = row["name"] as String?
         let schedule = ScheduleRowRevision(
             name: name,
-            completed: flexibleBool(row["completed"]),
-            postsTransaction: flexibleBool(row["posts_transaction"]),
+            completed: SQLiteValueCoercion.lenientBool(row["completed"]),
+            postsTransaction: SQLiteValueCoercion.lenientBool(row["posts_transaction"]),
             customUpcomingLength: row["custom_upcoming_length"] as String?,
             sortOrder: optionalScheduleDouble(row["sort_order"]),
-            tombstone: flexibleBool(row["tombstone"]),
-            active: flexibleBool(row["active"])
+            tombstone: SQLiteValueCoercion.lenientBool(row["tombstone"]),
+            active: SQLiteValueCoercion.lenientBool(row["active"])
         )
 
         let ruleColumns = try scheduleRequiredColumns(
@@ -132,7 +132,7 @@ extension BudgetDatabase {
             actionsJSON: ruleRow["actions"],
             stage: ruleRow["stage"],
             conditionsOperation: ruleRow["conditions_op"],
-            tombstone: flexibleBool(ruleRow["tombstone"])
+            tombstone: SQLiteValueCoercion.lenientBool(ruleRow["tombstone"])
         )
 
         let projection = ScheduleRuleProjection.read(
@@ -183,11 +183,11 @@ extension BudgetDatabase {
             guard let id = row["id"] as String? else { return nil }
             return ScheduleNextDateRevision(
                 id: id,
-                localDate: flexibleString(row["local_next_date"]),
-                localTimestamp: flexibleString(row["local_next_date_ts"]),
-                baseDate: flexibleString(row["base_next_date"]),
-                baseTimestamp: flexibleString(row["base_next_date_ts"]),
-                tombstone: flexibleBool(row["tombstone"])
+                localDate: SQLiteValueCoercion.lenientString(row["local_next_date"]),
+                localTimestamp: SQLiteValueCoercion.lenientString(row["local_next_date_ts"]),
+                baseDate: SQLiteValueCoercion.lenientString(row["base_next_date"]),
+                baseTimestamp: SQLiteValueCoercion.lenientString(row["base_next_date_ts"]),
+                tombstone: SQLiteValueCoercion.lenientBool(row["tombstone"])
             )
         }
     }
@@ -208,9 +208,9 @@ extension BudgetDatabase {
         return ScheduleAccountRevision(
             id: id,
             name: row["name"],
-            offBudget: flexibleBool(row["offbudget"]),
-            isClosed: flexibleBool(row["closed"]),
-            tombstone: flexibleBool(row["tombstone"])
+            offBudget: SQLiteValueCoercion.lenientBool(row["offbudget"]),
+            isClosed: SQLiteValueCoercion.lenientBool(row["closed"]),
+            tombstone: SQLiteValueCoercion.lenientBool(row["tombstone"])
         )
     }
 }

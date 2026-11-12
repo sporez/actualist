@@ -50,12 +50,12 @@ extension BudgetDatabase {
                         """,
                     arguments: [groupID]
                    ),
-                   flexibleBool(groupRow["hidden"]) {
+                   SQLiteValueCoercion.lenientBool(groupRow["hidden"]) {
                     throw LocalFirstError.refusedChange("This category is in a hidden group. Show the group before changing it.")
                 }
             }
 
-            if flexibleBool(row["hidden"]) == hidden {
+            if SQLiteValueCoercion.lenientBool(row["hidden"]) == hidden {
                 return []
             }
             return [
@@ -98,10 +98,10 @@ extension BudgetDatabase {
                 throw LocalFirstError.invalidLocalWrite("missing category group")
             }
 
-            if flexibleBool(row["is_income"]) {
+            if SQLiteValueCoercion.lenientBool(row["is_income"]) {
                 throw LocalFirstError.refusedChange("Income groups cannot be hidden.")
             }
-            if flexibleBool(row["hidden"]) == hidden {
+            if SQLiteValueCoercion.lenientBool(row["hidden"]) == hidden {
                 return []
             }
             return [

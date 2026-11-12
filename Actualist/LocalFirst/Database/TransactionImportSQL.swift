@@ -109,7 +109,7 @@ enum TransactionImportSQL {
                   arguments: [update.existingID]
               ),
               (live["account"] as String?) == accountID,
-              !database.flexibleBool(live["reconciled"]) else {
+              !SQLiteValueCoercion.lenientBool(live["reconciled"]) else {
             throw changed
         }
         // Checked even when the update does not write it: under strict id
@@ -126,7 +126,7 @@ enum TransactionImportSQL {
         if update.payeeID != existing.payeeID, stored("payee") != reviewed(existing.payeeID) { throw changed }
         if update.categoryID != existing.categoryID, stored("category") != reviewed(existing.categoryID) { throw changed }
         if update.notes != existing.notes, stored("notes") != reviewed(existing.notes) { throw changed }
-        if update.cleared != existing.cleared, database.flexibleBool(live["cleared"]) != existing.cleared { throw changed }
+        if update.cleared != existing.cleared, SQLiteValueCoercion.lenientBool(live["cleared"]) != existing.cleared { throw changed }
         // The cleared cascade only reaches children that are still live.
         if !update.childIDs.isEmpty {
             let split = database.transactionSplitQueryExpressions(columns: columns, tableAlias: "transactions")

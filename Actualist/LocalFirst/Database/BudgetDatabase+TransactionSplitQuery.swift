@@ -199,7 +199,7 @@ extension BudgetDatabase {
         if let value = value as? String {
             raw = value
         } else {
-            raw = flexibleString(value)
+            raw = SQLiteValueCoercion.lenientString(value)
         }
         guard let raw else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)

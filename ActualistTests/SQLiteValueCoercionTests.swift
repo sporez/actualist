@@ -5,13 +5,10 @@ import Testing
 
 /// Pins how each row-value coercer reads every storage type SQLite and GRDB
 /// can hand back, including the values it refuses (Decision Register D13).
-@MainActor
 struct SQLiteValueCoercionTests {
-    private let support = LocalFirstActualStoreTests()
-
     /// What a coercer receives: the types `Row` subscripts return (nil, Int64,
     /// Double, String, Data) plus the Swift types a caller may pass directly.
-    nonisolated private static func values() -> [(label: String, value: (any DatabaseValueConvertible)?)] {
+    private static func values() -> [(label: String, value: (any DatabaseValueConvertible)?)] {
         [
             ("nil", nil),
             ("int64 0", Int64(0)), ("int64 1", Int64(1)), ("int64 2", Int64(2)), ("int64 -1", Int64(-1)),
@@ -50,19 +47,16 @@ struct SQLiteValueCoercionTests {
         "'0'": 0, "'1'": 1, "' 1 '": 1,
     ]
 
-    // MARK: flexibleBool and flexibleLifecycleBool
+    // MARK: lenientBool
 
-    @Test func flexibleBoolReadsEveryStorageType() async throws {
-        let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture())
-        let results = await read(database) { (database: isolated BudgetDatabase) in
-            Self.values().map { ($0.label, database.flexibleBool($0.value)) }
-        }
-        for (label, result) in results {
-            #expect(result == Self.boolTrue.contains(label), "\(label)")
+    @Test func lenientBoolReadsEveryStorageType() {
+        for (label, value) in Self.values() {
+            #expect(SQLiteValueCoercion.lenientBool(value) == Self.boolTrue.contains(label), "\(label)")
         }
     }
 
-    /// Verbatim copy of the private `BudgetDatabase.flexibleLifecycleBool`.
+    /// Verbatim copy of the deleted `BudgetDatabase.flexibleLifecycleBool`,
+    /// which `lenientBool` replaced.
     private static func legacyLifecycleBool(_ value: DatabaseValueConvertible?) -> Bool {
         if let value = value as? Bool { return value }
         if let value = value as? Int { return value != 0 }
@@ -73,38 +67,40 @@ struct SQLiteValueCoercionTests {
         return false
     }
 
-    @Test func lifecycleBoolReadsEveryStorageTypeLikeFlexibleBool() {
+    @Test func lenientBoolMatchesTheDeletedLifecycleCopy() {
         for (label, value) in Self.values() {
-            #expect(Self.legacyLifecycleBool(value) == Self.boolTrue.contains(label), "\(label)")
+            #expect(SQLiteValueCoercion.lenientBool(value) == Self.legacyLifecycleBool(value), "\(label)")
         }
     }
 
-    // MARK: flexibleString and flexibleDouble
+    // MARK: lenientString and lenientDouble
 
-    @Test func flexibleStringAcceptsTextAndIntegersOnly() async throws {
-        let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture())
-        let results = await read(database) { (database: isolated BudgetDatabase) in
-            Self.values().map { ($0.label, database.flexibleString($0.value)) }
-        }
-        for (label, result) in results {
-            #expect(result == Self.string[label], "\(label)")
+    @Test func lenientStringAcceptsTextAndIntegersOnly() {
+        for (label, value) in Self.values() {
+            #expect(SQLiteValueCoercion.lenientString(value) == Self.string[label], "\(label)")
         }
     }
 
-    @Test func flexibleDoubleParsesNumbersAndUntrimmedText() async throws {
-        let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture())
-        let results = await read(database) { (database: isolated BudgetDatabase) in
-            Self.values().map { ($0.label, database.flexibleDouble($0.value)) }
-        }
-        for (label, result) in results {
-            #expect(result == Self.double[label] ?? 0, "\(label)")
+    @Test func lenientDoubleParsesNumbersAndUntrimmedText() {
+        for (label, value) in Self.values() {
+            #expect(SQLiteValueCoercion.lenientDouble(value) == Self.double[label] ?? 0, "\(label)")
         }
     }
 
-    // MARK: Integer coercers
+    // MARK: Whole numbers
 
-    /// Verbatim copy of the private `BudgetDatabase.accountLifecycleInteger`
-    /// (a failure is nil here instead of a thrown error).
+    @Test func exactIntegersAcceptWholeNumbersOnly() {
+        for (label, value) in Self.values() {
+            #expect(SQLiteValueCoercion.exactInt(value) == Self.exactInt[label], "\(label)")
+            #expect(SQLiteValueCoercion.exactInt64(value) == Self.exactInt[label].map(Int64.init), "\(label)")
+        }
+        #expect(SQLiteValueCoercion.exactInt(Double.nan) == nil)
+        #expect(SQLiteValueCoercion.exactInt(Double.infinity) == nil)
+    }
+
+    /// Verbatim copies of the deleted `accountLifecycleInteger` (a failure is
+    /// nil here instead of a thrown error), `reconciliationInt64` and
+    /// `reconciliationInteger`, which `exactInt64` and `exactInt` replaced.
     private static func legacyLifecycleInteger(_ value: DatabaseValueConvertible?) -> Int? {
         guard let value else { return 0 }
         if let value = value as? Int { return value }
@@ -117,16 +113,6 @@ struct SQLiteValueCoercionTests {
         return nil
     }
 
-    @Test func accountLifecycleIntegerFailsWhereNotAWholeNumber() {
-        for (label, value) in Self.values() {
-            // nil is "no value" and reads as zero; the rest fail unless whole.
-            let expected = label == "nil" ? 0 : Self.exactInt[label]
-            #expect(Self.legacyLifecycleInteger(value) == expected, "\(label)")
-        }
-    }
-
-    /// Verbatim copies of the private `BudgetDatabase.reconciliationInt64` and
-    /// `reconciliationInteger`.
     private static func legacyReconciliationInt64(_ value: DatabaseValueConvertible?) -> Int64? {
         if let value = value as? Int64 { return value }
         if let value = value as? Int { return Int64(value) }
@@ -135,21 +121,59 @@ struct SQLiteValueCoercionTests {
         return nil
     }
 
-    private static func legacyReconciliationInteger(_ value: DatabaseValueConvertible?) -> Int? {
-        legacyReconciliationInt64(value).flatMap(Int.init(exactly:))
-    }
-
-    @Test func reconciliationIntegersAcceptWholeNumbersOnly() {
-        for (label, value) in Self.values() {
-            #expect(Self.legacyReconciliationInt64(value) == Self.exactInt[label].map(Int64.init), "\(label)")
-            #expect(Self.legacyReconciliationInteger(value) == Self.exactInt[label], "\(label)")
+    @Test func exactIntegersMatchTheDeletedCopies() {
+        let extra: [(label: String, value: (any DatabaseValueConvertible)?)] = [
+            ("nan", Double.nan), ("inf", Double.infinity), ("-inf", -Double.infinity), ("1e300", 1e300),
+            ("-0.0", -0.0), ("'+5'", "+5"), ("'-5'", "-5"), ("'9223372036854775808'", "9223372036854775808"),
+        ]
+        for (label, value) in Self.values() + extra {
+            #expect(SQLiteValueCoercion.exactInt64(value) == Self.legacyReconciliationInt64(value), "\(label)")
+            #expect(
+                SQLiteValueCoercion.exactInt(value) == Self.legacyReconciliationInt64(value).flatMap(Int.init(exactly:)),
+                "\(label)"
+            )
+            // The lifecycle copy read "no value" as zero and failed on the rest.
+            let lifecycle = value == nil ? 0 : SQLiteValueCoercion.exactInt(value)
+            #expect(lifecycle == Self.legacyLifecycleInteger(value), "\(label)")
         }
     }
 
-    private func read<T: Sendable>(
-        _ database: isolated BudgetDatabase,
-        _ body: @Sendable (isolated BudgetDatabase) throws -> T
-    ) rethrows -> T {
-        try body(database)
+    // MARK: Decoded cells
+
+    private func cell(_ literal: String) throws -> Row {
+        try DatabaseQueue().read { db in
+            try #require(try Row.fetchOne(db, sql: "SELECT \(literal) AS v"))
+        }
+    }
+
+    /// A text or blob cell traps in `row[column] as Int?`, so these read the
+    /// numeric storage classes. Text reads through the String variants only.
+    @Test func decodedNumbersFollowTheStorageClass() throws {
+        let cases: [(literal: String, int: Int?, flag: Bool?, number: Double?)] = [
+            ("NULL", nil, nil, nil),
+            ("0", 0, false, 0), ("1", 1, true, 1), ("-1", -1, true, -1),
+            ("0.0", 0, false, 0), ("1.0", 1, true, 1), ("1.5", 1, true, 1.5), ("-1.5", -1, true, -1.5),
+            ("9223372036854775807", Int.max, true, Double(Int64.max)),
+        ]
+        for item in cases {
+            let row = try cell(item.literal)
+            #expect(SQLiteValueCoercion.int(row, "v") == item.int, "\(item.literal)")
+            #expect(SQLiteValueCoercion.flag(row, "v") == item.flag, "\(item.literal)")
+            #expect(SQLiteValueCoercion.number(row, "v") == item.number, "\(item.literal)")
+            #expect(SQLiteValueCoercion.numberOrText(row, "v") == item.number, "\(item.literal)")
+        }
+        // A missing column reads as no value.
+        let row = try cell("1")
+        #expect(SQLiteValueCoercion.int(row, "missing") == nil)
+        #expect(SQLiteValueCoercion.flag(row, "missing") == nil)
+        #expect(SQLiteValueCoercion.number(row, "missing") == nil)
+    }
+
+    @Test func nonEmptyStringReadsEmptyAndNullAsNil() throws {
+        #expect(try SQLiteValueCoercion.nonEmptyString(cell("'abc'"), "v") == "abc")
+        #expect(try SQLiteValueCoercion.nonEmptyString(cell("' '"), "v") == " ")
+        #expect(try SQLiteValueCoercion.nonEmptyString(cell("''"), "v") == nil)
+        #expect(try SQLiteValueCoercion.nonEmptyString(cell("NULL"), "v") == nil)
+        #expect(try SQLiteValueCoercion.nonEmptyString(cell("'abc'"), "missing") == nil)
     }
 }

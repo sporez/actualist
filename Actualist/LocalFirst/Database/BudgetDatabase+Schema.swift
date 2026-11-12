@@ -167,58 +167,6 @@ extension BudgetDatabase {
             """
     }
 
-    func flexibleString(_ value: DatabaseValueConvertible?) -> String? {
-        if let value = value as? String {
-            return value
-        }
-        if let value = value as? Int {
-            return String(value)
-        }
-        if let value = value as? Int64 {
-            return String(value)
-        }
-        return nil
-    }
-
-    func canonicalMonthID(_ value: String?) -> String? {
-        YearMonth.canonicalID(value)
-    }
-
-    func flexibleDouble(_ value: DatabaseValueConvertible?) -> Double {
-        if let value = value as? Double {
-            return value
-        }
-        if let value = value as? Float {
-            return Double(value)
-        }
-        if let value = value as? Int {
-            return Double(value)
-        }
-        if let value = value as? Int64 {
-            return Double(value)
-        }
-        if let value = value as? String, let parsed = Double(value) {
-            return parsed
-        }
-        return 0
-    }
-
-    func flexibleBool(_ value: DatabaseValueConvertible?) -> Bool {
-        if let value = value as? Bool {
-            return value
-        }
-        if let value = value as? Int {
-            return value != 0
-        }
-        if let value = value as? Int64 {
-            return value != 0
-        }
-        if let value = value as? String {
-            return ["1", "true", "yes"].contains(value.lowercased())
-        }
-        return false
-    }
-
     static func actualDateValue(_ date: Date, timeZone: TimeZone = .autoupdatingCurrent) throws -> Int {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone

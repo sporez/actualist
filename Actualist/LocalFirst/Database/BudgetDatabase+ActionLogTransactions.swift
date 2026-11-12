@@ -305,33 +305,29 @@ extension BudgetDatabase {
     func transactionUndoSnapshot(id: String, db: Database) throws -> TransactionUndoSnapshot? {
         guard try tableExists("transactions", db: db) else { return nil }
         let columns = try resolveTransactionRowColumns(db: db)
-        guard let row = try Row.fetchOne(
-            db,
-            sql: "SELECT * FROM transactions WHERE id = ?",
-            arguments: [id]
-        ) else {
+        guard let row = try TransactionRowReader.row(id: id, db: db) else {
             return nil
         }
-        let dateValue = intValue(row, "date") ?? 0
-        let amount = intValue(row, "amount") ?? 0
-        let payee = stringValue(row, columns.payee)
-        let category = stringValue(row, "category")
-        let notes = columns.hasNotes ? stringValue(row, "notes") : nil
-        let cleared = columns.hasCleared ? (intValue(row, "cleared") ?? 0) != 0 : false
-        let tombstone = columns.hasTombstone ? (intValue(row, "tombstone") ?? 0) != 0 : false
+        let dateValue = SQLiteValueCoercion.int(row, "date") ?? 0
+        let amount = SQLiteValueCoercion.int(row, "amount") ?? 0
+        let payee = SQLiteValueCoercion.nonEmptyString(row, columns.payee)
+        let category = SQLiteValueCoercion.nonEmptyString(row, "category")
+        let notes = columns.hasNotes ? SQLiteValueCoercion.nonEmptyString(row, "notes") : nil
+        let cleared = columns.hasCleared ? (SQLiteValueCoercion.int(row, "cleared") ?? 0) != 0 : false
+        let tombstone = columns.hasTombstone ? (SQLiteValueCoercion.int(row, "tombstone") ?? 0) != 0 : false
         var isParent = false
         if let column = columns.isParent {
-            isParent = (intValue(row, column) ?? 0) != 0
+            isParent = (SQLiteValueCoercion.int(row, column) ?? 0) != 0
         }
         var isChild = false
         if let column = columns.isChild {
-            isChild = (intValue(row, column) ?? 0) != 0
+            isChild = (SQLiteValueCoercion.int(row, column) ?? 0) != 0
         }
-        let parentID = columns.hasParentID ? stringValue(row, "parent_id") : nil
-        let transferID = columns.transferID.flatMap { stringValue(row, $0) }
+        let parentID = TransactionRowReader.parentID(in: row, columns: columns)
+        let transferID = columns.transferID.flatMap { SQLiteValueCoercion.nonEmptyString(row, $0) }
         return TransactionUndoSnapshot(
             id: id,
-            accountID: stringValue(row, columns.account) ?? "",
+            accountID: SQLiteValueCoercion.nonEmptyString(row, columns.account) ?? "",
             dateValue: dateValue,
             amount: amount,
             payeeID: payee,
@@ -609,18 +605,6 @@ extension BudgetDatabase {
         if snapshot.isParent { return .split }
         if snapshot.transferID != nil { return .transfer }
         return .simple
-    }
-
-    private func intValue(_ row: Row, _ column: String) -> Int? {
-        if let value = row[column] as Int? { return value }
-        if let value = row[column] as Int64? { return Int(value) }
-        if let value = row[column] as String? { return Int(value) }
-        return nil
-    }
-
-    private func stringValue(_ row: Row, _ column: String) -> String? {
-        guard let value = row[column] as String?, !value.isEmpty else { return nil }
-        return value
     }
 
     private func decodedSyncString(_ serialized: String) -> String? {

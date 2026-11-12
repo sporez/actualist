@@ -101,7 +101,7 @@ extension BudgetDatabase {
             let label = rawName.flatMap { $0.isEmpty ? nil : $0 } ?? id
             incomeCategoryIDsInOrder.append(id)
             incomeCategoryNamesByID[id] = label
-            if flexibleBool(row["hidden"]) {
+            if SQLiteValueCoercion.lenientBool(row["hidden"]) {
                 hiddenIncomeCategoryIDs.insert(id)
             }
             let lowered = label.localizedLowercase
@@ -473,7 +473,7 @@ extension BudgetDatabase {
         guard let row else {
             throw missing
         }
-        let completed = flexibleBool(row["completed"])
+        let completed = SQLiteValueCoercion.lenientBool(row["completed"])
         guard let ruleID = row["rule"] as String?, !ruleID.isEmpty else {
             throw LocalFirstError.unsupportedTemplate("schedule")
         }

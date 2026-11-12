@@ -89,8 +89,8 @@ extension BudgetDatabase {
                 accountName: accountName,
                 workingBalance: workingBalance,
                 clearedBalance: clearedBalance,
-                lastSyncedBalance: reconciliationInteger(accountRow["balance_current"]),
-                lastReconciledMilliseconds: reconciliationInt64(accountRow["last_reconciled"]),
+                lastSyncedBalance: SQLiteValueCoercion.exactInt(accountRow["balance_current"]),
+                lastReconciledMilliseconds: SQLiteValueCoercion.exactInt64(accountRow["last_reconciled"]),
                 capability: .available
             )
         }
@@ -458,13 +458,13 @@ extension BudgetDatabase {
 
     private func reconciliationRow(_ row: Row) -> ReconciliationRow? {
         guard let id = row["id"] as String?,
-              let packedDate = reconciliationInteger(row["date"]) else {
+              let packedDate = SQLiteValueCoercion.exactInt(row["date"]) else {
             return nil
         }
         return ReconciliationRow(
             id: id,
             month: YearMonth.id(year: packedDate / 10_000, month: (packedDate / 100) % 100),
-            reconciled: flexibleBool(row["reconciled"])
+            reconciled: SQLiteValueCoercion.lenientBool(row["reconciled"])
         )
     }
 
@@ -507,7 +507,7 @@ extension BudgetDatabase {
                 """,
             arguments: [accountID]
         )
-        return reconciliationInteger(row?["balance"]) ?? 0
+        return SQLiteValueCoercion.exactInt(row?["balance"]) ?? 0
     }
 
     private func unavailableReconciliationSnapshot(
@@ -524,17 +524,5 @@ extension BudgetDatabase {
             lastReconciledMilliseconds: nil,
             capability: .unavailable(reason)
         )
-    }
-
-    private func reconciliationInteger(_ value: DatabaseValueConvertible?) -> Int? {
-        reconciliationInt64(value).flatMap(Int.init(exactly:))
-    }
-
-    private func reconciliationInt64(_ value: DatabaseValueConvertible?) -> Int64? {
-        if let value = value as? Int64 { return value }
-        if let value = value as? Int { return Int64(value) }
-        if let value = value as? Double, value.isFinite { return Int64(exactly: value) }
-        if let value = value as? String { return Int64(value.trimmingCharacters(in: .whitespacesAndNewlines)) }
-        return nil
     }
 }

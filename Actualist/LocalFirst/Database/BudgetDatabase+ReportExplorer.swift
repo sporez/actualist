@@ -130,7 +130,7 @@ extension BudgetDatabase {
             arguments: StatementArguments(arguments)
         )
         return rows.compactMap { row in
-            guard let dayID = flexibleString(row["day"]) else { return nil }
+            guard let dayID = SQLiteValueCoercion.lenientString(row["day"]) else { return nil }
             return RawReportExplorerAmount(dayID: dayID, amount: row["amount"] ?? 0)
         }
     }

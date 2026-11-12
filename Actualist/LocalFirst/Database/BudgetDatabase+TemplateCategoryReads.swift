@@ -21,7 +21,7 @@ extension BudgetDatabase {
                 guard let id = row["id"] as String? else {
                     return nil
                 }
-                return (id, flexibleBool(row["is_income"]))
+                return (id, SQLiteValueCoercion.lenientBool(row["is_income"]))
             }
         )
     }

@@ -117,7 +117,7 @@ extension BudgetDatabase {
         )
         var options: [BudgetTemplateScheduleOption] = []
         for row in rows {
-            if flexibleBool(row["completed"]) {
+            if SQLiteValueCoercion.lenientBool(row["completed"]) {
                 continue
             }
             guard let id = row["id"] as String?, !id.isEmpty else {

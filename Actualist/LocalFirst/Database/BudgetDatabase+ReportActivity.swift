@@ -89,13 +89,13 @@ extension BudgetDatabase {
             arguments: [startDay, endDay]
         )
         return rows.compactMap { row in
-            guard let dayID = flexibleString(row["day"]) else { return nil }
+            guard let dayID = SQLiteValueCoercion.lenientString(row["day"]) else { return nil }
             return RawReportActivityDay(
                 dayID: dayID,
-                categoryID: flexibleString(row["category_id"]),
-                isIncome: flexibleBool(row["is_income"]),
-                isTransfer: flexibleBool(row["is_transfer"]),
-                isInflow: flexibleBool(row["is_inflow"]),
+                categoryID: SQLiteValueCoercion.lenientString(row["category_id"]),
+                isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
+                isTransfer: SQLiteValueCoercion.lenientBool(row["is_transfer"]),
+                isInflow: SQLiteValueCoercion.lenientBool(row["is_inflow"]),
                 amount: row["amount"] ?? 0
             )
         }

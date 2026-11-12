@@ -424,7 +424,7 @@ extension BudgetDatabase {
             db,
             sql: "SELECT closed, tombstone FROM accounts WHERE id = ? LIMIT 1",
             arguments: [accountID]
-        ), !flexibleBool(row["closed"]), !flexibleBool(row["tombstone"]) else {
+        ), !SQLiteValueCoercion.lenientBool(row["closed"]), !SQLiteValueCoercion.lenientBool(row["tombstone"]) else {
             throw ScheduleMutationCommandError.invalidCommand("Choose an available, open account for this schedule.")
         }
     }

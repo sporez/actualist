@@ -25,7 +25,7 @@ extension BudgetDatabase {
         var inactiveRuleIDs = Set<String>()
         for row in rows {
             guard let ruleID = row["rule"] as String?, !ruleID.isEmpty else { continue }
-            if flexibleBool(row["tombstone"]) || flexibleBool(row["completed"]) {
+            if SQLiteValueCoercion.lenientBool(row["tombstone"]) || SQLiteValueCoercion.lenientBool(row["completed"]) {
                 inactiveRuleIDs.insert(ruleID)
                 continue
             }

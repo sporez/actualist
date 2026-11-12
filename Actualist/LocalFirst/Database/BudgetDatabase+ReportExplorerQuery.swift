@@ -25,13 +25,13 @@ extension BudgetDatabase {
                     ORDER BY lower(\(name)), id
                     """
             ).compactMap { row in
-                guard let id = flexibleString(row["id"]), !id.isEmpty else { return nil }
-                let rawName = flexibleString(row["name"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let id = SQLiteValueCoercion.lenientString(row["id"]), !id.isEmpty else { return nil }
+                let rawName = SQLiteValueCoercion.lenientString(row["name"])?.trimmingCharacters(in: .whitespacesAndNewlines)
                 return ReportExplorerAccountFilterOption(
                     id: id,
                     name: rawName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown Account",
-                    isOffBudget: flexibleBool(row["offbudget"]),
-                    isClosed: flexibleBool(row["closed"])
+                    isOffBudget: SQLiteValueCoercion.lenientBool(row["offbudget"]),
+                    isClosed: SQLiteValueCoercion.lenientBool(row["closed"])
                 )
             }
         } else {
@@ -81,17 +81,17 @@ extension BudgetDatabase {
                     ORDER BY lower(\(groupName)), lower(\(nameExpression)), c.id
                     """
             ).compactMap { row in
-                guard let id = flexibleString(row["id"]), !id.isEmpty else { return nil }
-                let rawName = flexibleString(row["name"])?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let rawGroupName = flexibleString(row["group_name"])?
+                guard let id = SQLiteValueCoercion.lenientString(row["id"]), !id.isEmpty else { return nil }
+                let rawName = SQLiteValueCoercion.lenientString(row["name"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let rawGroupName = SQLiteValueCoercion.lenientString(row["group_name"])?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 return ReportExplorerCategoryFilterOption(
                     id: id,
                     name: rawName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown Category",
-                    groupID: flexibleString(row["group_id"]),
+                    groupID: SQLiteValueCoercion.lenientString(row["group_id"]),
                     groupName: rawGroupName.flatMap { $0.isEmpty ? nil : $0 } ?? "Categories",
-                    isIncome: flexibleBool(row["is_income"]),
-                    isHidden: flexibleBool(row["hidden"])
+                    isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
+                    isHidden: SQLiteValueCoercion.lenientBool(row["hidden"])
                 )
             }
         } else {

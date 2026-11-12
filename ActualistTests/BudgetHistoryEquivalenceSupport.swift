@@ -186,7 +186,7 @@ extension BudgetDatabase {
         let earliestMonthInt = Array(
             Set(inputs.budgetedByMonth.keys).union(inputs.spentByMonth.keys)
         )
-            .compactMap { canonicalMonthID($0).map(YearMonth.packedUnchecked) }
+            .compactMap { YearMonth.canonicalID($0).map(YearMonth.packedUnchecked) }
             .filter { $0 <= targetMonthInt }
             .min() ?? targetMonthInt
         var valuesByCategory: [String: BudgetCategoryValue] = [:]

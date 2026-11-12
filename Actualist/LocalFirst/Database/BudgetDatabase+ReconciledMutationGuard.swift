@@ -137,7 +137,7 @@ extension BudgetDatabase {
             guard let id = row["id"] as String? else { return nil }
             return ReconciledMutationRow(
                 id: id,
-                reconciled: flexibleBool(row["reconciled"]),
+                reconciled: SQLiteValueCoercion.lenientBool(row["reconciled"]),
                 transferID: (row["transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
             )
         }
