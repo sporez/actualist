@@ -17,6 +17,18 @@ struct UserFacingMessageTests {
             .contains("missing account") == false)
     }
 
+    @Test func sanitizedMessageHidesWriteRefusalsAndKeepsEverythingElse() {
+        let fallback = "Fallback notice."
+        #expect(LocalFirstError.invalidLocalWrite("detail").sanitizedMessage(fallback: fallback) == fallback)
+        #expect(LocalFirstError.schemaUnavailable("detail").sanitizedMessage(fallback: fallback) == fallback)
+        #expect(LocalFirstError.referencedRowUnavailable("detail").sanitizedMessage(fallback: fallback) == fallback)
+        #expect(LocalFirstError.refusedChange("Pick another name.").sanitizedMessage(fallback: fallback)
+            == "Pick another name.")
+        #expect(LocalFirstError.budgetNotOpened.sanitizedMessage(fallback: fallback) == "Open a budget first.")
+        #expect(CancellationError().sanitizedMessage(fallback: fallback) == fallback)
+        #expect(UntypedError.failed.sanitizedMessage(fallback: fallback) == UserFacingErrorText.genericFailure)
+    }
+
     @Test func refusedChangeShowsItsSentence() {
         let sentence = "A category with the name Food already exists."
         #expect(LocalFirstError.refusedChange(sentence).userFacingMessage == sentence)

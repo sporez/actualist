@@ -194,14 +194,8 @@ final class TransactionScheduleConversionCoordinator {
             case .unsupportedSource(let reason):
                 reason
             }
-        case let localFirstError as LocalFirstError:
-            // Unwrapped local-write refusals carry internal detail strings.
-            if case .invalidLocalWrite = localFirstError { conversionSaveFailed }
-            else if case .schemaUnavailable = localFirstError { conversionSaveFailed }
-            else if case .referencedRowUnavailable = localFirstError { conversionSaveFailed }
-            else { localFirstError.errorDescription ?? conversionSaveFailed }
         default:
-            error.userFacingMessage ?? conversionSaveFailed
+            error.sanitizedMessage(fallback: conversionSaveFailed)
         }
     }
 
