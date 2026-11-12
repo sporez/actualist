@@ -335,7 +335,7 @@ extension BudgetDatabase {
             let transactionColumns = try columnSet(for: "transactions", db: db)
             guard transactionColumns.contains("id"), transactionColumns.contains("date"),
                   transactionColumns.contains("category"),
-                  let payeeColumn = ["description", "payee"].first(where: transactionColumns.contains) else {
+                  let payeeColumn = TransactionRowColumns.payee(in: transactionColumns) else {
                 return []
             }
             let payeeColumns = try columnSet(for: "payees", db: db)
@@ -379,7 +379,7 @@ extension BudgetDatabase {
             }
             var accountJoin = ""
             var openAccountPredicate = ""
-            if let accountColumn = ["acct", "account"].first(where: transactionColumns.contains),
+            if let accountColumn = TransactionRowColumns.account(in: transactionColumns),
                try tableExists("accounts", db: db) {
                 let accountColumns = try columnSet(for: "accounts", db: db)
                 if accountColumns.contains("id"), accountColumns.contains("closed") {

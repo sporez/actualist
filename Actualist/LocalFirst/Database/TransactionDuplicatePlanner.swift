@@ -248,8 +248,8 @@ enum TransactionDuplicatePlanner {
     ) throws {
         let requiredColumns: Set<String> = ["id", "date", "amount", "category", "sort_order", "cleared", "reconciled"]
         guard requiredColumns.isSubset(of: columns),
-              columns.contains("acct") || columns.contains("account"),
-              columns.contains("description") || columns.contains("payee") else {
+              TransactionRowColumns.account(in: columns) != nil,
+              TransactionRowColumns.payee(in: columns) != nil else {
             throw TransactionDuplicatePlannerError.unsupportedSourceSchema(snapshots[0].id)
         }
 
@@ -270,7 +270,7 @@ enum TransactionDuplicatePlanner {
             }
             if snapshot.isParent == true || snapshot.isChild == true || snapshot.parentID != nil {
                 guard columns.contains("parent_id"),
-                      columns.contains("isParent") || columns.contains("is_parent") else {
+                      TransactionRowColumns.isParent(in: columns) != nil else {
                     throw TransactionDuplicatePlannerError.unsupportedSourceSchema(snapshot.id)
                 }
             }

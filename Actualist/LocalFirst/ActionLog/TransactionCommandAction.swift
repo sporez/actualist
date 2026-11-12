@@ -101,11 +101,11 @@ enum TransactionCommandActionValidation {
     static func isCompleteSnapshot(_ snapshot: TransactionBatchTransactionSnapshot) -> Bool {
         let columns = snapshot.columns
         let columnSet = Set(columns)
-        let hasParentFlag = columnSet.contains("isParent") || columnSet.contains("is_parent")
-        let hasChildFlag = columnSet.contains("isChild") || columnSet.contains("is_child")
-        let hasTransferColumn = columnSet.contains("transferred_id") || columnSet.contains("transfer_id")
-        let hasAccountColumn = columnSet.contains("acct") || columnSet.contains("account")
-        let hasPayeeColumn = columnSet.contains("description") || columnSet.contains("payee")
+        let hasParentFlag = TransactionRowColumns.isParent(in: columnSet) != nil
+        let hasChildFlag = TransactionRowColumns.isChild(in: columnSet) != nil
+        let hasTransferColumn = TransactionRowColumns.transferID(in: columnSet) != nil
+        let hasAccountColumn = TransactionRowColumns.account(in: columnSet) != nil
+        let hasPayeeColumn = TransactionRowColumns.payee(in: columnSet) != nil
         return !snapshot.id.isEmpty
             && columns == columns.sorted()
             && columnSet.count == columns.count

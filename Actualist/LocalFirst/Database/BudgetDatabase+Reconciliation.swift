@@ -60,7 +60,7 @@ extension BudgetDatabase {
             guard transactionColumns.contains("amount"),
                   transactionColumns.contains("cleared"),
                   transactionColumns.contains("reconciled"),
-                  transactionColumns.contains("acct") || transactionColumns.contains("account") else {
+                  TransactionRowColumns.account(in: transactionColumns) != nil else {
                 return unavailableReconciliationSnapshot(
                     accountID: requestedAccountID,
                     accountName: accountName,

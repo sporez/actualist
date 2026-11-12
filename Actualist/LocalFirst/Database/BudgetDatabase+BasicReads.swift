@@ -141,7 +141,7 @@ extension BudgetDatabase {
         guard try tableExists("transactions", db: db) else { return [:] }
         let transactionColumns = try columnSet(for: "transactions", db: db)
         guard transactionColumns.contains("date"),
-              let payeeColumn = ["description", "payee"].first(where: transactionColumns.contains) else {
+              let payeeColumn = TransactionRowColumns.payee(in: transactionColumns) else {
             return [:]
         }
         let cutoff = Calendar(identifier: .iso8601).date(byAdding: .weekOfYear, value: -12, to: Date()) ?? Date()

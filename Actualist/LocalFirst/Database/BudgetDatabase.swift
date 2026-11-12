@@ -188,26 +188,6 @@ actor BudgetDatabase {
         }
     }
 
-    // Physical transaction columns vary across schema versions and test fixtures.
-    struct TransactionRowColumns {
-        let all: Set<String>
-        let account: String
-        let payee: String
-        let isParent: String?
-        let isChild: String?
-        let transferID: String?
-        let sortOrder: String?
-
-        var hasNotes: Bool { all.contains("notes") }
-        var hasCleared: Bool { all.contains("cleared") }
-        var hasReconciled: Bool { all.contains("reconciled") }
-        var hasTombstone: Bool { all.contains("tombstone") }
-        var hasParentID: Bool { all.contains("parent_id") }
-        var hasSchedule: Bool { all.contains("schedule") }
-        var hasError: Bool { all.contains("error") }
-        var hasStartingBalance: Bool { all.contains("starting_balance_flag") }
-    }
-
     struct TransactionWriteResult: Sendable {
         let messages: [ActualSyncDecodedMessage]
         let affectedAccountIDs: [String]

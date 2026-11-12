@@ -29,8 +29,8 @@ extension BudgetDatabase {
             return []
         }
         let columns = try columnSet(for: "transactions", db: db)
-        guard let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains),
-              let accountColumn = ["acct", "account"].first(where: columns.contains) else {
+        guard let importedIDColumn = TransactionRowColumns.importedID(in: columns),
+              let accountColumn = TransactionRowColumns.account(in: columns) else {
             return []
         }
         let values = try String.fetchAll(

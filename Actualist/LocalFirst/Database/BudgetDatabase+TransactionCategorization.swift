@@ -29,7 +29,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
 
-        let payeeColumn = try firstExistingColumn(["description", "payee"], in: transactionColumns, table: "transactions")
+        let payeeColumn = try firstExistingColumn(TransactionRowColumns.payeeAliases, in: transactionColumns, table: "transactions")
         try validateCategorizationTarget(
             transactionID: trimmedTransactionID,
             columns: transactionColumns,

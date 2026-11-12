@@ -287,9 +287,9 @@ extension BudgetDatabase {
         guard try tableExists("transactions", db: db) else { return [] }
         let columns = try columnSet(for: "transactions", db: db)
         let split = transactionSplitQueryExpressions(columns: columns)
-        let financialIDColumn = ["financial_id", "imported_id"].first { columns.contains($0) }
-        let importedPayeeColumn = ["imported_description", "imported_payee"].first { columns.contains($0) }
-        let transferIDColumn = ["transferred_id", "transfer_id"].first { columns.contains($0) }
+        let financialIDColumn = TransactionRowColumns.importedID(in: columns)
+        let importedPayeeColumn = TransactionRowColumns.importedPayee(in: columns)
+        let transferIDColumn = TransactionRowColumns.transferID(in: columns)
         let financialIDSelect = financialIDColumn.map { "t.\($0)" } ?? "NULL"
         let importedPayeeSelect = importedPayeeColumn.map { "t.\($0)" } ?? "NULL"
         let transferIDSelect = transferIDColumn.map { "t.\($0)" } ?? "NULL"
@@ -403,7 +403,7 @@ extension BudgetDatabase {
             let columns = try columnSet(for: "transactions", db: db)
             let split = transactionSplitQueryExpressions(columns: columns)
             guard split.tombstone != nil,
-                  let financialID = ["financial_id", "imported_id"].first(where: columns.contains) else {
+                  let financialID = TransactionRowColumns.importedID(in: columns) else {
                 return []
             }
             return try Set(String.fetchAll(db, sql: """
@@ -606,7 +606,7 @@ extension BudgetDatabase {
                 ))
             }
 
-            if let financialIDColumn = ["financial_id", "imported_id"].first(where: columns.contains) {
+            if let financialIDColumn = TransactionRowColumns.importedID(in: columns) {
                 if let financialID = update.financialID {
                     try appendIfChanged(
                         financialIDColumn,
@@ -617,7 +617,7 @@ extension BudgetDatabase {
                     try appendIfChanged(financialIDColumn, .null, changed: existing.financialID != nil)
                 }
             }
-            let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
+            let payeeColumn = try firstExistingColumn(TransactionRowColumns.payeeAliases, in: columns, table: "transactions")
             if let payeeID = update.payeeID {
                 try appendIfChanged(payeeColumn, .string(payeeID), changed: payeeID != existing.payeeID)
             }
@@ -628,7 +628,7 @@ extension BudgetDatabase {
                !accountIsOffBudget {
                 try appendIfChanged("category", .string(categoryID), changed: categoryID != existing.categoryID)
             }
-            if let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {
+            if let importedPayeeColumn = TransactionRowColumns.importedPayee(in: columns) {
                 if let importedPayee = update.importedPayee {
                     try appendIfChanged(
                         importedPayeeColumn,

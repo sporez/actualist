@@ -139,11 +139,11 @@ extension BudgetDatabase {
         func physical(_ names: [String], fallback: String) -> String {
             names.first(where: columns.contains) ?? fallback
         }
-        let hasIsChildColumn = columns.contains("isChild") || columns.contains("is_child")
+        let hasIsChildColumn = TransactionRowColumns.isChild(in: columns) != nil
         let hasParentIDColumn = columns.contains("parent_id")
         let isChild: String
         if hasIsChildColumn {
-            let name = physical(["isChild", "is_child"], fallback: "0")
+            let name = physical(TransactionRowColumns.isChildAliases, fallback: "0")
             if hasParentIDColumn {
                 // NULL isChild is unmigrated, not an explicit 0. Explicit 0 still wins over parent_id.
                 isChild = """
@@ -163,18 +163,18 @@ extension BudgetDatabase {
             isChild = "0"
         }
         let isParent: String
-        if let name = ["isParent", "is_parent"].first(where: columns.contains) {
+        if let name = TransactionRowColumns.isParent(in: columns) {
             isParent = "IFNULL(\(tableAlias).\(name), 0)"
         } else {
             isParent = "0"
         }
         return TransactionSplitQueryExpressions(
             tableAlias: tableAlias,
-            account: physical(["acct", "account"], fallback: "NULL"),
+            account: physical(TransactionRowColumns.accountAliases, fallback: "NULL"),
             date: physical(["date"], fallback: "NULL"),
             amount: physical(["amount"], fallback: "0"),
             category: physical(["category"], fallback: "NULL"),
-            payee: physical(["description", "payee"], fallback: "NULL"),
+            payee: physical(TransactionRowColumns.payeeAliases, fallback: "NULL"),
             notes: physical(["notes"], fallback: "NULL"),
             parentID: physical(["parent_id"], fallback: "NULL"),
             isParent: isParent,
@@ -184,7 +184,7 @@ extension BudgetDatabase {
             error: physical(["error"], fallback: "NULL"),
             cleared: physical(["cleared"], fallback: "0"),
             reconciled: physical(["reconciled"], fallback: "0"),
-            importedPayee: physical(["imported_description", "imported_payee"], fallback: "NULL"),
+            importedPayee: physical(TransactionRowColumns.importedPayeeAliases, fallback: "NULL"),
             schedule: physical(["schedule"], fallback: "NULL"),
             tombstone: columns.contains("tombstone") ? "tombstone" : (columns.contains("deleted") ? "deleted" : nil),
             hasIsChildColumn: hasIsChildColumn,

@@ -144,7 +144,7 @@ extension BudgetDatabase {
         guard try tableExists("payees", db: db) else { return [] }
         let columns = try columnSet(for: "payees", db: db)
         guard columns.contains("id"),
-              let transferColumn = ["transfer_acct", "transferAccount"].first(where: columns.contains) else {
+              let transferColumn = AccountColumns.transferPayee(in: columns) else {
             return []
         }
         let transferIDs = try Set(String.fetchAll(

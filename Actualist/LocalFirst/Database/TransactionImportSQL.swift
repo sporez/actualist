@@ -29,7 +29,7 @@ enum TransactionImportSQL {
         }
         let categoryColumns = try database.columnSet(for: "categories", db: db)
         let groupColumns = try database.columnSet(for: "category_groups", db: db)
-        guard let groupColumn = ["cat_group", "group_id"].first(where: categoryColumns.contains) else {
+        guard let groupColumn = CategoryColumns.group(in: categoryColumns) else {
             return []
         }
         func order(_ alias: String, _ column: String, in columns: Set<String>) -> String {
@@ -89,9 +89,9 @@ enum TransactionImportSQL {
         let changed = TransactionCSVImportError.matchChanged(line: match.line)
         let update = match.update
         let existing = match.existing
-        let accountColumn = ["acct", "account"].first(where: columns.contains)
-        let payeeColumn = ["description", "payee"].first(where: columns.contains)
-        let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains)
+        let accountColumn = TransactionRowColumns.account(in: columns)
+        let payeeColumn = TransactionRowColumns.payee(in: columns)
+        let importedIDColumn = TransactionRowColumns.importedID(in: columns)
         guard let accountColumn,
               let live = try Row.fetchOne(
                   db,

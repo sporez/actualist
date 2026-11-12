@@ -102,7 +102,7 @@ extension BudgetDatabase {
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
         let isInflowExpression = "CASE WHEN \(split.qualifiedAmount) > 0 THEN 1 ELSE 0 END"
         let transferPredicate: String
-        if let transferredID = ["transferred_id", "transfer_id"].first(where: transactionColumns.contains) {
+        if let transferredID = TransactionRowColumns.transferID(in: transactionColumns) {
             switch transferFilter {
             case .all:
                 transferPredicate = "1"

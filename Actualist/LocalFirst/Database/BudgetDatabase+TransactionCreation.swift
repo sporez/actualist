@@ -107,8 +107,8 @@ extension BudgetDatabase {
             required: ["date", "amount"],
             db: db
         )
-        let accountColumn = try firstExistingColumn(["acct", "account"], in: columns, table: "transactions")
-        let payeeColumn = try firstExistingColumn(["description", "payee"], in: columns, table: "transactions")
+        let accountColumn = try firstExistingColumn(TransactionRowColumns.accountAliases, in: columns, table: "transactions")
+        let payeeColumn = try firstExistingColumn(TransactionRowColumns.payeeAliases, in: columns, table: "transactions")
         let dateValue = try Self.actualDateValue(draft.date)
 
         // Actual's insert sends only the cells it sets: an absent payee, category or notes stays
@@ -131,12 +131,12 @@ extension BudgetDatabase {
             cells.append(("cleared", .bool(draft.cleared)))
         }
         if let importedPayee = draft.importedPayee,
-           let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {
+           let importedPayeeColumn = TransactionRowColumns.importedPayee(in: columns) {
             cells.append((importedPayeeColumn, .string(importedPayee)))
         }
         if let importedID = draft.importedID, !importedID.isEmpty {
             let importedIDColumn = try firstExistingColumn(
-                ["financial_id", "imported_id"],
+                TransactionRowColumns.importedIDAliases,
                 in: columns,
                 table: "transactions"
             )
@@ -169,11 +169,11 @@ extension BudgetDatabase {
         )
         return TransactionRowColumns(
             all: columns,
-            account: try firstExistingColumn(["acct", "account"], in: columns, table: "transactions"),
-            payee: try firstExistingColumn(["description", "payee"], in: columns, table: "transactions"),
-            isParent: ["isParent", "is_parent"].first { columns.contains($0) },
-            isChild: ["isChild", "is_child"].first { columns.contains($0) },
-            transferID: ["transferred_id", "transfer_id"].first { columns.contains($0) },
+            account: try firstExistingColumn(TransactionRowColumns.accountAliases, in: columns, table: "transactions"),
+            payee: try firstExistingColumn(TransactionRowColumns.payeeAliases, in: columns, table: "transactions"),
+            isParent: TransactionRowColumns.isParent(in: columns),
+            isChild: TransactionRowColumns.isChild(in: columns),
+            transferID: TransactionRowColumns.transferID(in: columns),
             sortOrder: columns.contains("sort_order") ? "sort_order" : nil
         )
     }
@@ -399,7 +399,7 @@ extension BudgetDatabase {
             let columns = try columnSet(for: "transactions", db: db)
             var messages: [ActualSyncDecodedMessage] = []
             if let importedPayee, !importedPayee.isEmpty,
-               let importedPayeeColumn = ["imported_description", "imported_payee"].first(where: columns.contains) {
+               let importedPayeeColumn = TransactionRowColumns.importedPayee(in: columns) {
                 messages.append(try builder.makeMessage(
                     dataset: "transactions",
                     row: transactionID,
@@ -408,7 +408,7 @@ extension BudgetDatabase {
                 ))
             }
             if let importedID, !importedID.isEmpty,
-               let importedIDColumn = ["financial_id", "imported_id"].first(where: columns.contains) {
+               let importedIDColumn = TransactionRowColumns.importedID(in: columns) {
                 messages.append(try builder.makeMessage(
                     dataset: "transactions",
                     row: transactionID,

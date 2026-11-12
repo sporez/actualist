@@ -108,15 +108,7 @@ extension BudgetDatabase {
         guard try tableExists("categories", db: db) else {
             return []
         }
-        let categoryColumns = try columnSet(for: "categories", db: db)
-        let groupColumn: String?
-        if categoryColumns.contains("cat_group") {
-            groupColumn = "cat_group"
-        } else if categoryColumns.contains("group_id") {
-            groupColumn = "group_id"
-        } else {
-            groupColumn = nil
-        }
+        let groupColumn = CategoryColumns.group(in: categoryColumns)
 
         var predicates = [predicateForLiveRows(columns: categoryColumns, tableAlias: "c")]
         if !includeIncome, categoryColumns.contains("is_income") {

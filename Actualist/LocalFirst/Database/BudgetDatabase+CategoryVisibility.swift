@@ -19,7 +19,7 @@ extension BudgetDatabase {
                 db: db
             )
             let groupColumn = try firstExistingColumn(
-                ["cat_group", "group_id"],
+                CategoryColumns.groupAliases,
                 in: categoryColumns,
                 table: "categories"
             )

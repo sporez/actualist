@@ -54,7 +54,7 @@ extension BudgetDatabase {
     ) throws -> TransactionWriteResult {
         var messages = result.messages
         if let importedPayee = draft.importedPayee, !importedPayee.isEmpty,
-           let column = ["imported_description", "imported_payee"].first(where: columns.all.contains) {
+           let column = TransactionRowColumns.importedPayee(in: columns.all) {
             messages.append(
                 try builder.makeMessage(
                     dataset: "transactions",
@@ -65,7 +65,7 @@ extension BudgetDatabase {
             )
         }
         if let importedID = draft.importedID, !importedID.isEmpty,
-           let column = ["financial_id", "imported_id"].first(where: columns.all.contains) {
+           let column = TransactionRowColumns.importedID(in: columns.all) {
             messages.append(
                 try builder.makeMessage(
                     dataset: "transactions",
@@ -736,16 +736,5 @@ extension BudgetDatabase {
             error: columns.hasError ? parseSplitTransactionError(row["error"]) : nil,
             deleted: columns.hasTombstone ? SQLiteValueCoercion.lenientBool(row["tombstone"]) : false
         )
-    }
-
-    func effectiveIsChild(row: Row, columns: TransactionRowColumns, parentID: String?) -> Bool {
-        guard let isChildColumn = columns.isChild else {
-            return parentID != nil
-        }
-        let value: Int? = row[isChildColumn]
-        if value == nil {
-            return parentID != nil
-        }
-        return value != 0
     }
 }

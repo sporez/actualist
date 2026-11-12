@@ -339,9 +339,7 @@ extension BudgetDatabase {
             ? ""
             : "LEFT JOIN category_mapping cm ON cm.id = \(split.qualifiedCategory)"
 
-        let hasTransactionPayee = ["description", "payee"].contains {
-            transactionColumns.contains($0)
-        }
+        let hasTransactionPayee = TransactionRowColumns.payee(in: transactionColumns) != nil
         let payeeMappingTarget: String?
         if hasTransactionPayee, try tableExists("payee_mapping", db: db) {
             let mappingColumns = try columnSet(for: "payee_mapping", db: db)
@@ -357,8 +355,7 @@ extension BudgetDatabase {
             : "LEFT JOIN payee_mapping pm ON pm.id = \(split.qualifiedPayee)"
 
         // Actual's logical transfer_id maps to transferred_id in persisted budgets.
-        let transferIDColumn = ["transferred_id", "transfer_id"]
-            .first(where: transactionColumns.contains)
+        let transferIDColumn = TransactionRowColumns.transferID(in: transactionColumns)
         let transferIDExpression = transferIDColumn.map { "\(split.tableAlias).\($0)" } ?? "NULL"
         var transferPredicates: [String] = []
         if transferIDColumn != nil {

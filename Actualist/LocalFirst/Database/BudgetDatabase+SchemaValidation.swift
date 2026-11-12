@@ -24,7 +24,7 @@ extension BudgetDatabase {
         let transactions = try columns(of: "transactions")
         return try columns(of: "accounts").isSuperset(of: ["id", "name"])
             && transactions.isSuperset(of: ["id", "date", "amount"])
-            && (transactions.contains("acct") || transactions.contains("account"))
+            && TransactionRowColumns.account(in: transactions) != nil
             && columns(of: "categories").isSuperset(of: ["id", "name"])
             && columns(of: "category_groups").isSuperset(of: ["id", "name"])
     }

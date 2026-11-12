@@ -173,7 +173,7 @@ private extension BudgetDatabase {
             table: "categories", required: ["id", "name", "is_income", "sort_order", "tombstone"], db: db
         )
         let groupColumn = try firstExistingColumn(
-            ["cat_group", "group_id"], in: columns, table: "categories"
+            CategoryColumns.groupAliases, in: columns, table: "categories"
         )
         let liveFilter = includeTombstones ? "" : "AND \(predicateForLiveRows(columns: columns))"
         return try Row.fetchAll(

@@ -214,10 +214,10 @@ private extension BudgetDatabase {
         }
         let columns = try columnSet(for: "transactions", db: db)
         guard columns.contains("id"), columns.contains("date"), columns.contains("amount"),
-              columns.contains("acct") || columns.contains("account") else {
+              TransactionRowColumns.account(in: columns) != nil else {
             throw AccountLifecycleCommandError.missingTransactionSchema
         }
-        guard let transferColumn = ["transferred_id", "transfer_id"].first(where: columns.contains) else {
+        guard let transferColumn = TransactionRowColumns.transferID(in: columns) else {
             throw AccountLifecycleCommandError.missingTransactionSchema
         }
 

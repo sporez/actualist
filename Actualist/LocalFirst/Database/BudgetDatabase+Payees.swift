@@ -487,7 +487,7 @@ extension BudgetDatabase {
             return [:]
         }
         let transactionColumns = try columnSet(for: "transactions", db: db)
-        guard let payeeColumn = ["description", "payee"].first(where: transactionColumns.contains) else {
+        guard let payeeColumn = TransactionRowColumns.payee(in: transactionColumns) else {
             return [:]
         }
         let liveTransactions = predicateForLiveRows(columns: transactionColumns)

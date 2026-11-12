@@ -219,8 +219,7 @@ extension BudgetDatabase {
             throw LocalFirstError.schemaUnavailable("missing payees table")
         }
         let columns = try columnSet(for: "payees", db: db)
-        guard let transferColumn = ["transfer_acct", "transferAccount"]
-            .first(where: columns.contains) else {
+        guard let transferColumn = AccountColumns.transferPayee(in: columns) else {
             throw LocalFirstError.invalidLocalWrite("missing transfer payee account column")
         }
         let ids = try String.fetchAll(

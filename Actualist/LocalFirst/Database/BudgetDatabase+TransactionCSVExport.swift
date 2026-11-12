@@ -47,13 +47,9 @@ extension BudgetDatabase {
     }
 
     private static func transactionCSVCategoryNames(db: Database) throws -> [String: (group: String, name: String)] {
-        let hasCategories = try Bool.fetchOne(
-            db,
-            sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'categories')"
-        ) ?? false
-        guard hasCategories else { return [:] }
-        let categoryColumns = Set(try Row.fetchAll(db, sql: "PRAGMA table_info(categories)").compactMap { $0["name"] as String? })
-        let groupColumn = ["cat_group", "group_id"].first(where: categoryColumns.contains)
+        guard try SQLiteSchema.tableExists("categories", in: db) else { return [:] }
+        let categoryColumns = try SQLiteSchema.columns(of: "categories", in: db)
+        let groupColumn = CategoryColumns.group(in: categoryColumns)
         let groups = try transactionCSVNameMap(table: "category_groups", db: db)
         let groupExpression = groupColumn.map { "c.\($0)" } ?? "NULL"
         let rows = try Row.fetchAll(db, sql: "SELECT c.id, c.name, \(groupExpression) AS group_id FROM categories c")

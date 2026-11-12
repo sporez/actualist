@@ -17,7 +17,7 @@ extension BudgetDatabase {
                 db: db
             )
             let groupColumn = try firstExistingColumn(
-                ["cat_group", "group_id"], in: categoryColumns, table: "categories"
+                CategoryColumns.groupAliases, in: categoryColumns, table: "categories"
             )
             _ = try requiredColumns(
                 table: "category_mapping", required: ["id"], db: db
@@ -136,7 +136,7 @@ extension BudgetDatabase {
                 table: "categories", required: ["id", "name", "is_income", "sort_order"], db: db
             )
             let groupColumn = try firstExistingColumn(
-                ["cat_group", "group_id"], in: categoryColumns, table: "categories"
+                CategoryColumns.groupAliases, in: categoryColumns, table: "categories"
             )
             let allGroups = try liveCategoryGroupRows(db: db)
             let allCategories = try liveCategoryRows(groupID: nil, db: db)
@@ -280,7 +280,7 @@ extension BudgetDatabase {
         let columns = try requiredColumns(
             table: "categories", required: ["id", "name", "is_income", "sort_order"], db: db
         )
-        let groupColumn = try firstExistingColumn(["cat_group", "group_id"], in: columns, table: "categories")
+        let groupColumn = try firstExistingColumn(CategoryColumns.groupAliases, in: columns, table: "categories")
         guard let row = try Row.fetchOne(
             db,
             sql: """
@@ -323,7 +323,7 @@ extension BudgetDatabase {
         let columns = try requiredColumns(
             table: "categories", required: ["id", "name", "is_income", "sort_order"], db: db
         )
-        let groupColumn = try firstExistingColumn(["cat_group", "group_id"], in: columns, table: "categories")
+        let groupColumn = try firstExistingColumn(CategoryColumns.groupAliases, in: columns, table: "categories")
         let filter = groupID == nil ? "" : "AND \(groupColumn) = ?"
         let arguments = groupID.map { StatementArguments([$0]) } ?? StatementArguments()
         return try Row.fetchAll(
@@ -348,7 +348,7 @@ extension BudgetDatabase {
 
     func rejectDuplicateCategoryName(_ name: String, groupID: String, excluding id: String?, db: Database) throws {
         let columns = try requiredColumns(table: "categories", required: ["id", "name"], db: db)
-        let groupColumn = try firstExistingColumn(["cat_group", "group_id"], in: columns, table: "categories")
+        let groupColumn = try firstExistingColumn(CategoryColumns.groupAliases, in: columns, table: "categories")
         var arguments: StatementArguments = [name, groupID]
         let exclusion: String
         if let id { exclusion = "AND id <> ?"; arguments += [id] } else { exclusion = "" }
