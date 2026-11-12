@@ -76,6 +76,34 @@ struct CustomHTTPHeaderRedirectTests {
             .allSatisfy { $0.lowercased().contains("x-actual-file-id: file-sentinel") })
     }
 
+    @Test(arguments: [301, 302, 303, 307, 308])
+    func registrationRequestsNeverReachOtherServer(status: Int) async throws {
+        let receiver = try HeaderRedirectTestServer { _ in Self.response(body: "unexpected") }
+        try await receiver.start()
+        defer { receiver.stop() }
+        let origin = try HeaderRedirectTestServer { _ in
+            Self.redirect(status: status, location: receiver.url.absoluteString)
+        }
+        try await origin.start()
+        defer { origin.stop() }
+        let client = ActualServerFileRegistrationClient(baseURL: origin.url)
+        await Self.expectRefusal {
+            try await client.uploadUserFile(
+                fileID: "file-sentinel", name: "Budget", groupID: nil,
+                encryptMeta: nil, bytes: Data("upload-sentinel".utf8), token: "token-sentinel"
+            )
+        }
+        await Self.expectRefusal {
+            try await client.createUserKey(
+                fileID: "file-sentinel", keyID: "key", keySalt: "salt", testContent: "content", token: "token-sentinel"
+            )
+        }
+        await Self.expectRefusal { try await client.deleteUserFile(fileID: "file-sentinel", token: "token-sentinel") }
+        #expect(receiver.requests.isEmpty)
+        #expect(origin.requests.count == 3)
+        #expect(origin.requests.allSatisfy { $0.lowercased().contains("x-actual-token: token-sentinel") })
+    }
+
     @Test(arguments: [false, true])
     func sameOriginMultiHopPreservesPostAndActualHeaders(headers: Bool) async throws {
         let origin = try HeaderRedirectTestServer { request in
