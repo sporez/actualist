@@ -75,11 +75,12 @@ if (!Array.isArray(fixture.cases) || fixture.cases.length !== manifest.fixture?.
   fail('fixture case count mismatch');
 }
 if (manifest.caseCount !== fixture.cases.length) fail('manifest caseCount is not the fixture case count');
-const { numberFormats, currencyScales, typedInputs, autoDecimalInputs } = manifest.dimensions ?? {};
+const { numberFormats, currencyScales, typedInputs, autoDecimalInputs, hideFractionAmounts } =
+  manifest.dimensions ?? {};
 if (!Array.isArray(numberFormats) || numberFormats.length !== 5) fail('the five number formats are not all covered');
 if (!Array.isArray(currencyScales) || currencyScales.length !== 2) fail('both currency scales are not covered');
 const perCell = (typedInputs ?? 0) + (autoDecimalInputs ?? 0) + 8;
-if (fixture.cases.length !== numberFormats.length * currencyScales.length * perCell) {
+if (fixture.cases.length !== numberFormats.length * currencyScales.length * perCell + (hideFractionAmounts ?? 0)) {
   fail('fixture case count disagrees with the recorded dimensions');
 }
 const ids = new Set(fixture.cases.map(value => value.id));

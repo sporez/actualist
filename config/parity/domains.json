@@ -208,7 +208,7 @@
         "Actualist/Features/Templates/BudgetTemplateAmountInput.swift",
         "Actualist/Features/Accounts/AccountReconciliationModels.swift"
       ],
-      "notes": "MoneyInputOracleReplayTests replays all 780 cases through BudgetMoneyInputFormat. Magnitudes above Money.maximumUserAmountMinorUnits expect outOfRange where Actual returns the number."
+      "notes": "MoneyInputOracleReplayTests replays all 783 cases through BudgetMoneyInputFormat. Differences from Actual are the open findings OP-93 (hide-fraction edit text) and OP-94 (magnitude limit)."
     },
     {
       "id": "account-lifecycle",

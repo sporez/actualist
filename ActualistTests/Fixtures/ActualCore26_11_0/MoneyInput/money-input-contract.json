@@ -11645,6 +11645,60 @@
         },
         "displayThrew": true
       }
+    },
+    {
+      "id": "for-edit-hide-fraction-comma-dot-dp2-0",
+      "mode": "forEdit",
+      "input": {
+        "minorUnits": 5,
+        "numberFormat": "comma-dot",
+        "currencyCode": "",
+        "decimalPlaces": 2,
+        "hideFraction": true
+      },
+      "expected": {
+        "text": "0",
+        "parsedBack": {
+          "kind": "integer",
+          "value": 0
+        }
+      }
+    },
+    {
+      "id": "for-edit-hide-fraction-comma-dot-dp2-1",
+      "mode": "forEdit",
+      "input": {
+        "minorUnits": 1234,
+        "numberFormat": "comma-dot",
+        "currencyCode": "",
+        "decimalPlaces": 2,
+        "hideFraction": true
+      },
+      "expected": {
+        "text": "12",
+        "parsedBack": {
+          "kind": "integer",
+          "value": 1200
+        }
+      }
+    },
+    {
+      "id": "for-edit-hide-fraction-comma-dot-dp2-2",
+      "mode": "forEdit",
+      "input": {
+        "minorUnits": -123456,
+        "numberFormat": "comma-dot",
+        "currencyCode": "",
+        "decimalPlaces": 2,
+        "hideFraction": true
+      },
+      "expected": {
+        "text": "-1,235",
+        "parsedBack": {
+          "kind": "integer",
+          "value": -123500
+        }
+      }
     }
   ]
 }

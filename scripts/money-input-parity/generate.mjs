@@ -97,6 +97,7 @@ const autoDecimalInputs = [
   '123456789012345678901234567890',
 ];
 const forEditAmounts = [0, 5, -5, 100, 1234, -123456, 123456789, 100000033];
+const hideFractionAmounts = [5, 1234, -123456];
 const numberFormats = ['comma-dot', 'dot-comma', 'space-comma', 'apostrophe-dot', 'comma-dot-in'];
 // Actual's currency list has only 0- and 2-decimal currencies. '' is its currency-neutral entry.
 const currencyScales = [
@@ -129,6 +130,7 @@ import { useFormat } from './useFormat';
 const typedInputs: string[] = ${JSON.stringify(typedInputs)};
 const autoDecimalInputs: string[] = ${JSON.stringify(autoDecimalInputs)};
 const forEditAmounts: number[] = ${JSON.stringify(forEditAmounts)};
+const hideFractionAmounts: number[] = ${JSON.stringify(hideFractionAmounts)};
 const numberFormats: string[] = ${JSON.stringify(numberFormats)};
 const currencyScales: Array<{ code: string; decimalPlaces: number }> = ${JSON.stringify(currencyScales)};
 
@@ -157,8 +159,8 @@ window.addEventListener('error', event => {
   event.preventDefault();
 });
 
-function configure(numberFormat: string, code: string) {
-  preferences.values = { numberFormat, hideFraction: 'false', defaultCurrencyCode: code };
+function configure(numberFormat: string, code: string, hideFraction = 'false') {
+  preferences.values = { numberFormat, hideFraction, defaultCurrencyCode: code };
 }
 
 test('Actual money text input contract', () => {
@@ -220,6 +222,27 @@ test('Actual money text input contract', () => {
   expect(cases.length).toBeGreaterThan(0);
 });
 
+// With the hide-fraction preference Actual's edit text drops the cents (forEdit uses 0 decimal
+// places) while fromEdit still reads the currency's own scale, so a save would lose them.
+test('Actual edit text with hide-fraction on', () => {
+  configure('comma-dot', '', 'true');
+  const { result, unmount } = renderHook(() => useFormat());
+  hideFractionAmounts.forEach((minorUnits, index) => {
+    let text = '';
+    const produced = outcome(() => {
+      text = result.current.forEdit(minorUnits);
+      return result.current.fromEdit(text);
+    });
+    cases.push({
+      id: 'for-edit-hide-fraction-comma-dot-dp2-' + index,
+      mode: 'forEdit',
+      input: { minorUnits, numberFormat: 'comma-dot', currencyCode: '', decimalPlaces: 2, hideFraction: true },
+      expected: { text, parsedBack: produced },
+    });
+  });
+  unmount();
+});
+
 afterAll(() => {
   writeFileSync('${temporaryOutput}', JSON.stringify({
     schemaVersion: ${SCHEMA_VERSION},
@@ -245,7 +268,8 @@ assertPinnedOracle(oracleRoot, 'after generating');
 
 const expectedCaseCount =
   numberFormats.length * currencyScales.length *
-  (typedInputs.length + forEditAmounts.length + autoDecimalInputs.length);
+  (typedInputs.length + forEditAmounts.length + autoDecimalInputs.length) +
+  hideFractionAmounts.length;
 if (!Array.isArray(generated.cases) || generated.cases.length !== expectedCaseCount) {
   throw new Error(`Oracle did not produce ${expectedCaseCount} cases`);
 }
@@ -280,7 +304,7 @@ const manifest = {
   seed: null,
   amountUnits: 'integer minor units',
   sourceFiles: sourceFiles.map(path => ({ path, sha256: sha256(readFileSync(join(oracleRoot, path))) })),
-  dimensions: { numberFormats, currencyScales, typedInputs: typedInputs.length, autoDecimalInputs: autoDecimalInputs.length },
+  dimensions: { numberFormats, currencyScales, typedInputs: typedInputs.length, autoDecimalInputs: autoDecimalInputs.length, hideFractionAmounts: hideFractionAmounts.length },
   fixture: {
     path: relative(root, join(defaultOutput, fixtureName)),
     sha256: sha256(fixtureText),

@@ -15,6 +15,7 @@ struct MoneyInputOracleFixture: Decodable {
         let numberFormat: String
         let currencyCode: String
         let decimalPlaces: Int
+        let hideFraction: Bool?
     }
 
     enum Expected: Equatable {
