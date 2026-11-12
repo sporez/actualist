@@ -571,6 +571,8 @@ different ranges, guards fixed in one layout and not the other.
 | Sample Values / privacy masking | `PrivacyDisplay` (`Shared/Money.swift`) | An inline `privacy ? PrivacyDisplay.money(...) : ...` |
 | User-facing error text | `Error.userFacingMessage` (`Shared/Error+UserFacingMessage.swift`) | Showing `localizedDescription` directly |
 | Store write tail | `finish*` helpers (`LocalFirst/LocalFirstActualStore+CommitTail.swift`) | A hand-written commit, reload and flush sequence |
+| Repository writes | One protocol requirement per write, carrying every parameter including `actionSource`. Shorter call shapes are protocol-extension conveniences that forward every parameter (`Repositories/TransactionRepository.swift`, `BudgetRepository.swift`). The store's function has default values. | An overload that emulates a default argument, or a convenience that drops a parameter |
+| Transaction feeds | `cachedTransactions(budgetID:scope:query:)`, `refreshTransactions`, `transactionPage` with `TransactionFeedQuery` | A per-scope `cached…`/`refresh…`/`search…` member. Category feeds are the one remaining exception, because they have their own cache. |
 | Synced preferences | `SyncedPreferences` (`LocalFirst/Database/SyncedPreferences.swift`) | Raw `preferences` rows |
 | Live (non-deleted) rows | `predicateForLiveRows` (`BudgetDatabase+Schema.swift`) | A hand-written `tombstone = 0` predicate |
 | Transaction column aliases | `TransactionRowColumns` (`BudgetDatabase.swift`) | A local `["acct", "account"]`-style list |
