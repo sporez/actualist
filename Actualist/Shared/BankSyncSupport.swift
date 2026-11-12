@@ -131,11 +131,24 @@ enum BankSyncAmounts {
         )
     }
 
+    /// Today as a compact `YYYYMMDD` day in `timeZone` (the device zone by
+    /// default). Actual's `monthUtils.currentDay()` is the local date, and it
+    /// bounds the sync window and dates a starting balance
+    /// (loot-core `server/accounts/sync.ts`).
+    static func todayDayID(now: Date = Date(), timeZone: TimeZone = .autoupdatingCurrent) -> String {
+        PackedDate.compact(ActualDateOnly.today(now: now, timeZone: timeZone))
+    }
+
     /// Sync lookback start in `YYYY-MM-DD`: `max(today − 89 days, oldest live
     /// transaction date)` — the full 90-day window for an empty account
-    /// (loot-core `getAccountSyncStartDate`).
-    static func lookbackStartDate(oldestLiveTransactionDayID: String?, now: Date = Date()) -> String {
-        let earliestAllowed = Calendar.actualScheduleGregorian.date(byAdding: .day, value: -89, to: now) ?? now
+    /// (loot-core `getAccountSyncStartDate`). Today is the local day.
+    static func lookbackStartDate(
+        oldestLiveTransactionDayID: String?,
+        now: Date = Date(),
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> String {
+        let today = date(fromDayID: todayDayID(now: now, timeZone: timeZone), timeZone: ActualDateOnly.utc) ?? now
+        let earliestAllowed = Calendar.actualScheduleGregorian.date(byAdding: .day, value: -89, to: today) ?? today
         var earliest = earliestAllowed
         if let oldestLiveTransactionDayID,
            let oldest = date(fromDayID: oldestLiveTransactionDayID, timeZone: ActualDateOnly.utc),

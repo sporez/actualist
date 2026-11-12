@@ -698,6 +698,6 @@ struct BankSyncReconcilerTests: BankSyncReconcilerFixtures {
             accountHadLiveTransactions: false
         )
         #expect(opening?.amountMinorUnits == 4_200)
-        #expect(opening?.dayID == BankSyncReconciliation.todayUTCDayID())
+        #expect(opening?.dayID == BankSyncAmounts.todayDayID())
     }
 }

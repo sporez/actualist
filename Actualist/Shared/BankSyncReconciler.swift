@@ -495,12 +495,6 @@ enum BankSyncReconciliation {
         return abs(distance)
     }
 
-    /// Today as a UTC `YYYYMMDD` string — the fallback day for an opening
-    /// balance when the download had no dated candidates.
-    static func todayUTCDayID(now: Date = Date()) -> String {
-        PackedDate.compact(ActualDateOnly.dayID(from: now, timeZone: ActualDateOnly.utc))
-    }
-
     // MARK: - Opening balance
 
     struct OpeningBalance: Equatable, Sendable {
@@ -515,14 +509,16 @@ enum BankSyncReconciliation {
         currentBalanceMinorUnits: Int,
         inserts: [Candidate],
         earliestDayID: String?,
-        accountHadLiveTransactions: Bool
+        accountHadLiveTransactions: Bool,
+        now: Date = Date(),
+        timeZone: TimeZone = .autoupdatingCurrent
     ) -> OpeningBalance? {
         guard !accountHadLiveTransactions else { return nil }
         let amount = currentBalanceMinorUnits - inserts.reduce(0) { $0 + $1.amountMinorUnits }
         guard amount != 0 else { return nil }
         return OpeningBalance(
             amountMinorUnits: amount,
-            dayID: earliestDayID ?? todayUTCDayID()
+            dayID: earliestDayID ?? BankSyncAmounts.todayDayID(now: now, timeZone: timeZone)
         )
     }
 }

@@ -204,10 +204,10 @@ extension BudgetDatabase {
 
     /// Oldest live transaction day for the account (`YYYYMMDD`), for the
     /// sync lookback start. `nil` when the account has no live rows. Rows dated
-    /// after `todayDayID` are ignored (`getAccountOldestTransaction`, sync.ts).
+    /// after `todayDayID` (the local day) are ignored (`getAccountOldestTransaction`, sync.ts).
     func bankSyncOldestLiveTransactionDayID(
         accountID: String,
-        todayDayID: String = BankSyncAmounts.dayID(fromUnixSeconds: Int64(Date().timeIntervalSince1970))
+        todayDayID: String = BankSyncAmounts.todayDayID()
     ) throws -> String? {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else { return nil }

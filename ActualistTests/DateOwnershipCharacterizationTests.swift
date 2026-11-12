@@ -213,20 +213,20 @@ struct DateOwnershipCharacterizationTests {
         }
     }
 
-    @Test func bankSyncLookbackStartIsUTCAndHonoursTheOldestLiveDay() {
+    @Test func bankSyncLookbackStartInUTCHonoursTheOldestLiveDay() {
         let noon = Date(timeIntervalSince1970: 1_773_576_000)
         let justBeforeUTCMidnight = Date(timeIntervalSince1970: 1_773_532_799)
-        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: nil, now: noon) == "2025-12-16")
-        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: nil, now: justBeforeUTCMidnight) == "2025-12-15")
-        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: "20260101", now: noon) == "2026-01-01")
-        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: "20250101", now: noon) == "2025-12-16")
-        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: "2026-01-01", now: noon) == "2025-12-16")
+        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: nil, now: noon, timeZone: .gmt) == "2025-12-16")
+        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: nil, now: justBeforeUTCMidnight, timeZone: .gmt) == "2025-12-15")
+        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: "20260101", now: noon, timeZone: .gmt) == "2026-01-01")
+        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: "20250101", now: noon, timeZone: .gmt) == "2025-12-16")
+        #expect(BankSyncAmounts.lookbackStartDate(oldestLiveTransactionDayID: "2026-01-01", now: noon, timeZone: .gmt) == "2025-12-16")
     }
 
-    @Test func bankSyncTodayIsTheUTCDay() {
-        #expect(BankSyncReconciliation.todayUTCDayID(now: Date(timeIntervalSince1970: 1_773_532_799)) == "20260314")
-        #expect(BankSyncReconciliation.todayUTCDayID(now: Date(timeIntervalSince1970: 1_773_532_800)) == "20260315")
-        #expect(BankSyncReconciliation.todayUTCDayID(now: Date(timeIntervalSince1970: 1_798_761_599)) == "20261231")
+    @Test func bankSyncTodayInUTCIsTheUTCDay() {
+        #expect(BankSyncAmounts.todayDayID(now: Date(timeIntervalSince1970: 1_773_532_799), timeZone: .gmt) == "20260314")
+        #expect(BankSyncAmounts.todayDayID(now: Date(timeIntervalSince1970: 1_773_532_800), timeZone: .gmt) == "20260315")
+        #expect(BankSyncAmounts.todayDayID(now: Date(timeIntervalSince1970: 1_798_761_599), timeZone: .gmt) == "20261231")
     }
 
     @Test func simpleFINUnixSecondsParseDaysAtUTCNoon() {

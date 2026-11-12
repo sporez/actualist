@@ -128,7 +128,8 @@ struct BankSyncSupportTests {
         let now = BankSyncAmounts.date(fromDayID: "20260830", timeZone: ActualDateOnly.utc)!
         #expect(BankSyncAmounts.lookbackStartDate(
             oldestLiveTransactionDayID: "20200101",
-            now: now
+            now: now,
+            timeZone: ActualDateOnly.utc
         ) == "2026-06-02")
     }
 
@@ -136,7 +137,8 @@ struct BankSyncSupportTests {
         let now = BankSyncAmounts.date(fromDayID: "20260830", timeZone: ActualDateOnly.utc)!
         #expect(BankSyncAmounts.lookbackStartDate(
             oldestLiveTransactionDayID: "20260801",
-            now: now
+            now: now,
+            timeZone: ActualDateOnly.utc
         ) == "2026-08-01")
     }
 

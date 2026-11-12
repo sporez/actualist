@@ -360,7 +360,12 @@ enum RuleSplitActionExecutor {
         }
     }
 
-    private static func formulaContext(from context: RuleEvaluationContext) -> RuleFormulaContext {
+    /// `today` is the local day, as Actual's `currentDay()` (rules/action.ts).
+    static func formulaContext(
+        from context: RuleEvaluationContext,
+        now: Date = Date(),
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> RuleFormulaContext {
         RuleFormulaContext(
             fields: [
                 "amount": .number(Double(context.amount)),
@@ -378,7 +383,7 @@ enum RuleSplitActionExecutor {
                 "balance": .number(Double(context.balance)),
             ],
             balanceOfPrefetch: context.balanceOfPrefetch,
-            today: ActualDateOnly.dayID(from: Date(), timeZone: ActualDateOnly.utc)
+            today: ActualDateOnly.today(now: now, timeZone: timeZone)
         )
     }
 }
