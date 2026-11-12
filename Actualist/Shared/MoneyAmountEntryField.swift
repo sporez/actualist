@@ -4,8 +4,6 @@ import UIKit
 enum MoneyAmountEntryKeyboard {
     case digits
     case decimal
-    /// Digits plus both separators and the operators Actual's amount fields evaluate.
-    case expression
 }
 
 /// Shared large-amount entry used by money workflows that keep parsing and
@@ -76,7 +74,6 @@ private extension MoneyAmountEntryKeyboard {
         switch self {
         case .digits: .numberPad
         case .decimal: .decimalPad
-        case .expression: .numbersAndPunctuation
         }
     }
 }

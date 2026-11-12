@@ -83,7 +83,7 @@ struct AccountReconciliationTargetSheet: View {
                         text: targetTextBinding,
                         displayText: presentation.amountText,
                         foreground: ActualistTheme.primaryText,
-                        keyboard: .expression,
+                        keyboard: .decimal,
                         focus: $isAmountFocused,
                         accessibilityLabel: "Target Balance",
                         accessibilityIdentifier: "reconciliation-target-field"
