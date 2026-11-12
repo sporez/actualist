@@ -17,7 +17,7 @@ Glass-aware, and optimized for repeated budget review.
 - Development pipeline: `docs/DEVELOPMENT.md`.
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change, or
   reuse an applicable result when its relevant inputs are unchanged. It covers
-  whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, concurrency escape hatches (`@unchecked Sendable`,
+  whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, the server token header, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
   `// Invariant:` comment), private identifiers (patterns from an optional
   gitignored list), TestFlight notes, parity fixture hashes and the
@@ -587,6 +587,7 @@ different ranges, guards fixed in one layout and not the other.
 | Column aliases | `TransactionRowColumns` (`LocalFirst/Database/TransactionRowColumns.swift`): `account(in:)`, `payee(in:)`, `importedID(in:)`, `importedPayee(in:)`, `transferID(in:)`, `isParent(in:)`, `isChild(in:)` and the matching `…Aliases` lists; `CategoryColumns.group(in:)`; `AccountColumns.transferPayee(in:)` | A local `["acct", "account"]`-style list or `contains("acct") \|\| contains("account")` |
 | Table and column existence | `SQLiteSchema.tableExists(_:in:)` / `columns(of:in:)` (`LocalFirst/Database/SQLiteSchema.swift`), uncached and usable before an actor exists. `BudgetDatabase.tableExists` / `columnSet` (`BudgetDatabase+Schema.swift`) are the cached actor wrappers | A raw `sqlite_master` or `PRAGMA table_info` query |
 | CRDT messages | `LocalFirstSyncMessageBuilder` (`LocalFirst/Sync/`) | Building messages outside the builder |
+| Server requests and auth header | `ActualServerRequestBuilder.makeRequest(...)` (`LocalFirst/Network/ActualServerRequestBuilder.swift`): URL joining, custom headers, the single `X-ACTUAL-TOKEN` / `X-ACTUAL-FILE-ID` write and the same-origin check. Each client states its own timeout, content type and extra headers. `scripts/lint-server-token-header.sh` fails on `X-ACTUAL-TOKEN` in `Actualist/` outside the builder | A hand-built `URLRequest` for an Actual server, a local `endpointURL`, a second `X-ACTUAL-TOKEN` write |
 | Delete marks (`tombstone` messages) | `LocalFirstSyncMessageBuilder.tombstone(dataset:row:)` and `revive(dataset:row:)`. `scripts/lint-tombstone-messages.sh` fails on `column: "tombstone"` outside the builder | A hand-written `makeMessage(... column: "tombstone" ...)` |
 | Stored split error present | `SplitTransactionError.isPresent(_:)` | A local `!error.isEmpty && error != "null"` |
 | Budget screen sheets | `BudgetWorkspaceSheet` (`Features/Budget/BudgetWorkspaceActions.swift`). The compact `BudgetView` still uses one flag per sheet until its follow-up lands. | A new flag-based sheet on the compact Budget screen. If one cannot wait, it must also join `monthSwipePresentationBlocked`. |
