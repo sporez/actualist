@@ -256,14 +256,12 @@ struct ActualServerRequestWireTests {
 
     // MARK: - Builder
 
-    @Test func builderJoinsPathKeepsQueryAndWritesTokenOnlyWhenGiven() throws {
+    @Test func builderJoinsPathKeepsBaseQueryAndWritesTokenOnlyWhenGiven() throws {
         let url = baseURL("https://sync.example.com/prefix/?existing=1")
         let builder = ActualServerRequestBuilder(baseURL: url, customHeaders: try customHeaders(for: url))
 
-        let anonymous = try builder.makeRequest(
-            path: "/a/b", method: "PUT", queryItems: [URLQueryItem(name: "q", value: "2")], timeout: 7
-        )
-        #expect(anonymous.url?.absoluteString == "https://sync.example.com/prefix/a/b?existing=1&q=2")
+        let anonymous = try builder.makeRequest(path: "/a/b", method: "PUT", timeout: 7)
+        #expect(anonymous.url?.absoluteString == "https://sync.example.com/prefix/a/b?existing=1")
         #expect(anonymous.httpMethod == "PUT")
         #expect(anonymous.timeoutInterval == 7)
         #expect(anonymous.value(forHTTPHeaderField: "X-ACTUAL-TOKEN") == nil)

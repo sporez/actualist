@@ -20,7 +20,6 @@ struct ActualServerRequestBuilder: Sendable {
     func makeRequest(
         path: String,
         method: String,
-        queryItems: [URLQueryItem] = [],
         token: String? = nil,
         fileID: String? = nil,
         headers: [String: String] = [:],
@@ -28,7 +27,7 @@ struct ActualServerRequestBuilder: Sendable {
         body: Data? = nil,
         contentType: String? = nil
     ) throws -> URLRequest {
-        var request = URLRequest(url: try endpointURL(path: path, queryItems: queryItems))
+        var request = URLRequest(url: try endpointURL(path: path))
         customHeaders.apply(to: &request)
         request.httpMethod = method
         request.timeoutInterval = timeout
@@ -50,15 +49,11 @@ struct ActualServerRequestBuilder: Sendable {
         return request
     }
 
-    private func endpointURL(path: String, queryItems: [URLQueryItem]) throws -> URL {
+    private func endpointURL(path: String) throws -> URL {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         let basePath = components?.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? ""
         let endpointPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         components?.path = "/" + [basePath, endpointPath].filter { !$0.isEmpty }.joined(separator: "/")
-        if !queryItems.isEmpty {
-            let existingQueryItems = components?.queryItems ?? []
-            components?.queryItems = existingQueryItems + queryItems
-        }
         guard let url = components?.url, redirectDelegate.permits(source: baseURL, destination: url) else {
             throw ActualAPIError.invalidURL
         }
