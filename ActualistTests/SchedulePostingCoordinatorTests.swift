@@ -150,14 +150,20 @@ struct SchedulePostingCoordinatorTests {
         #expect(!message.contains("local-first write"))
     }
 
+    /// E1: a write refusal's internal detail never reaches the sheet, and the
+    /// sheet shows the same notice Schedules and conversion show.
+    @Test func writeRefusalDetailNeverReachesThePostingSheet() async {
+        let detail = "missing column schedules.tombstone"
+        let message = await failureMessage(afterPostFailsWith: LocalFirstError.invalidLocalWrite(detail))
+        #expect(message == ScheduleMutationUserNotice.saveFailed)
+        #expect(message?.contains(detail) == false)
+    }
+
     @Test func postFailureTextIsPinnedForEveryErrorKind() async {
         let cases: [(any Error, String)] = [
-            (LocalFirstError.invalidLocalWrite("missing column schedules.tombstone"),
-             LocalFirstError.invalidLocalWrite("").errorDescription ?? ""),
-            (LocalFirstError.schemaUnavailable("missing table schedules"),
-             LocalFirstError.schemaUnavailable("").errorDescription ?? ""),
-            (LocalFirstError.referencedRowUnavailable("missing account"),
-             LocalFirstError.referencedRowUnavailable("").errorDescription ?? ""),
+            (LocalFirstError.invalidLocalWrite("missing column schedules.tombstone"), ScheduleMutationUserNotice.saveFailed),
+            (LocalFirstError.schemaUnavailable("missing table schedules"), ScheduleMutationUserNotice.saveFailed),
+            (LocalFirstError.referencedRowUnavailable("missing account"), ScheduleMutationUserNotice.saveFailed),
             (LocalFirstError.refusedChange("Pick another name."), "Pick another name."),
             (LocalFirstError.budgetNotOpened, LocalFirstError.budgetNotOpened.errorDescription ?? ""),
             (SchedulePostingRefusal.draftMismatch, SchedulePostingRefusal.draftMismatch.errorDescription ?? ""),

@@ -264,6 +264,7 @@ final class SchedulePostingCoordinator {
     }
 
     private func message(for error: Error) -> String {
-        error.userFacingMessage ?? error.localizedDescription
+        if error.isCancellation { return error.localizedDescription }
+        return error.sanitizedMessage(fallback: ScheduleMutationUserNotice.saveFailed)
     }
 }
