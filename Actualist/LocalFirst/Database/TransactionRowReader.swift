@@ -32,7 +32,7 @@ enum TransactionRowReader {
         guard let isChildColumn = columns.isChild else {
             return parentID != nil
         }
-        let value: Int? = row[isChildColumn]
+        let value = SQLiteValueCoercion.int(row, isChildColumn)
         if value == nil {
             return parentID != nil
         }

@@ -132,8 +132,20 @@ enum SQLiteValueCoercion {
         return number(row, column)
     }
 
+    /// Text as stored, including the empty string. A number reads as its text
+    /// form and a blob as UTF-8 text (nil when it is not valid UTF-8).
+    static func text(_ row: Row, _ column: String) -> String? {
+        switch storage(row, column) {
+        case .string(let value): return value
+        case .int64(let value): return String(value)
+        case .double(let value): return String(value)
+        case .blob: return String.fromDatabaseValue(cell(row, column))
+        case .null: return nil
+        }
+    }
+
     /// Text, with the empty string as nil. A blob is read as UTF-8 text; a
-    /// number is nil.
+    /// number is nil (`text` reads one as its text form).
     static func nonEmptyString(_ row: Row, _ column: String) -> String? {
         guard let value = String.fromDatabaseValue(cell(row, column)), !value.isEmpty else { return nil }
         return value

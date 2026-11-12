@@ -191,6 +191,17 @@ struct SQLiteValueCoercionTests {
         }
     }
 
+    @Test func textKeepsEmptyAndReadsNumbersAndBlobsAsText() throws {
+        #expect(try SQLiteValueCoercion.text(cell("'abc'"), "v") == "abc")
+        #expect(try SQLiteValueCoercion.text(cell("''"), "v") == "")
+        #expect(try SQLiteValueCoercion.text(cell("5"), "v") == "5")
+        #expect(try SQLiteValueCoercion.text(cell("1.5"), "v") == "1.5")
+        #expect(try SQLiteValueCoercion.text(cell("X'616263'"), "v") == "abc")
+        #expect(try SQLiteValueCoercion.text(cell("X'00FF'"), "v") == nil)
+        #expect(try SQLiteValueCoercion.text(cell("NULL"), "v") == nil)
+        #expect(try SQLiteValueCoercion.text(cell("1"), "missing") == nil)
+    }
+
     @Test func nonEmptyStringReadsNumbersAsNilAndBlobsAsText() throws {
         #expect(try SQLiteValueCoercion.nonEmptyString(cell("5"), "v") == nil)
         #expect(try SQLiteValueCoercion.nonEmptyString(cell("1.5"), "v") == nil)

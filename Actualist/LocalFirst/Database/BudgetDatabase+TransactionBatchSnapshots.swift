@@ -121,7 +121,7 @@ extension BudgetDatabase {
         let available = columns.all
         func string(_ name: String) -> String? {
             guard available.contains(name) else { return nil }
-            return row[name] as String?
+            return SQLiteValueCoercion.text(row, name)
         }
         func integer(_ name: String) -> Int? {
             guard available.contains(name) else { return nil }
@@ -129,7 +129,7 @@ extension BudgetDatabase {
         }
         func packedDate(_ name: String) -> Int? {
             if let value = integer(name) { return value }
-            guard available.contains(name), let raw = row[name] as String? else { return nil }
+            guard available.contains(name), let raw = SQLiteValueCoercion.text(row, name) else { return nil }
             return PackedDate.packed(fromEightDigitText: raw)
         }
         func flag(_ name: String) -> Bool? {

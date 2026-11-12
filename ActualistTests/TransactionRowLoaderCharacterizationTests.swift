@@ -268,6 +268,63 @@ struct TransactionRowLoaderCharacterizationTests {
         }
     }
 
+    /// Text, blob and REAL cells in the split loader's amount, date and
+    /// `is_child` reads, and a number in the batch loader's text column. They
+    /// used to trap inside GRDB (Decision Register D14).
+    @Test func splitRecordAndBatchTextReadWithoutTrapping() async throws {
+        struct Case {
+            let label: String
+            let amount: String
+            let date: String
+            let isChild: String
+            let payee: String
+            let expectedAmount: Int
+            let expectedDate: Int
+            let expectedIsChild: Bool
+            let expectedPayee: String?
+        }
+        let cases = [
+            Case(label: "numbers", amount: "7.9", date: "20260704", isChild: "1", payee: "5",
+                 expectedAmount: 7, expectedDate: 20_260_704, expectedIsChild: true, expectedPayee: "5"),
+            Case(label: "numeric text", amount: "'-1250'", date: "'20260705'", isChild: "'1'", payee: "1.5",
+                 expectedAmount: -1250, expectedDate: 20_260_705, expectedIsChild: true, expectedPayee: "1.5"),
+            Case(label: "junk text", amount: "'abc'", date: "'abc'", isChild: "'abc'", payee: "''",
+                 expectedAmount: 0, expectedDate: 0, expectedIsChild: false, expectedPayee: ""),
+            Case(label: "blob", amount: "X'35'", date: "X'00FF'", isChild: "X'31'", payee: "X'616263'",
+                 expectedAmount: 0, expectedDate: 0, expectedIsChild: false, expectedPayee: "abc"),
+            Case(label: "huge REAL", amount: "1e300", date: "-1e300", isChild: "1e300", payee: "X'00FF'",
+                 expectedAmount: 0, expectedDate: 0, expectedIsChild: false, expectedPayee: nil),
+        ]
+        var inserts = ""
+        for (index, item) in cases.enumerated() {
+            inserts += "INSERT INTO transactions (id, acct, date, amount, category, tombstone, is_child, description) "
+                + "VALUES ('p\(index)', 'checking', \(item.date), \(item.amount), 'groceries', 0, \(item.isChild), \(item.payee));\n"
+        }
+        let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture(extraSQL: """
+            DROP TABLE transactions;
+            CREATE TABLE transactions (id TEXT PRIMARY KEY, acct, date, amount, category, tombstone, is_child, description);
+            \(inserts)
+            """))
+        let loaded = try await read(database) { (database: isolated BudgetDatabase, db: Database) in
+            let columns = try database.resolveTransactionRowColumns(db: db)
+            return try cases.indices.map { index in
+                (
+                    split: try database.loadTransactionRecord(id: "p\(index)", columns: columns, db: db),
+                    batch: try database.transactionBatchSnapshot(id: "p\(index)", columns: columns, db: db)
+                )
+            }
+        }
+        for (index, item) in cases.enumerated() {
+            let split = try #require(loaded[index].split, "\(item.label)")
+            #expect(split.amount == item.expectedAmount, "split amount \(item.label)")
+            #expect(split.date == PackedDate.iso(item.expectedDate), "split date \(item.label)")
+            #expect(split.isChild == item.expectedIsChild, "split isChild \(item.label)")
+            let batch = try #require(loaded[index].batch, "\(item.label)")
+            #expect(batch.payeeID == item.expectedPayee, "batch payee \(item.label)")
+            #expect(batch.isChild == item.expectedIsChild, "batch isChild \(item.label)")
+        }
+    }
+
     // MARK: Legacy column spellings, empty strings, NULL isChild
 
     /// `account`, `payee`, `transfer_id`, `imported_id`, `is_child`; no parent flag column.

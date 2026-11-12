@@ -715,10 +715,10 @@ extension BudgetDatabase {
             isParent = false
         }
         let isChild = TransactionRowReader.effectiveIsChild(row: row, columns: columns, parentID: parentID)
-        let dateValue: Int = row["date"] ?? 0
+        let dateValue = SQLiteValueCoercion.int(row, "date") ?? 0
         return SplitTransactionRecord(
             id: id,
-            amount: row["amount"] ?? 0,
+            amount: SQLiteValueCoercion.int(row, "amount") ?? 0,
             account: SQLiteValueCoercion.nonEmptyString(row, columns.account),
             date: PackedDate.iso(dateValue),
             category: SQLiteValueCoercion.nonEmptyString(row, "category"),
