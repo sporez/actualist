@@ -8,7 +8,7 @@ final class BudgetCalendarCoordinator: NSObject {
     private weak var appState: AppState?
     private var boundaryTask: Task<Void, Never>?
     private var foregroundRefreshTask: Task<Void, Never>?
-    private var generation = 0
+    private var generation = OperationGeneration()
     private(set) var currentMonth: String?
     private(set) var currentDay: String?
     private var timeZoneID: String?
@@ -40,8 +40,7 @@ final class BudgetCalendarCoordinator: NSObject {
     @discardableResult
     func beginForeground(forceRefresh: Bool = false) -> Task<Void, Never>? {
         guard boundaryTask == nil else { return foregroundRefreshTask }
-        generation &+= 1
-        let requested = generation
+        let requested = generation.begin()
         let refreshTask = Task { [weak self] in
             guard let self else { return }
             await self.refresh(force: forceRefresh, generation: requested)
@@ -57,7 +56,7 @@ final class BudgetCalendarCoordinator: NSObject {
                     self.nextLocalDayBoundary(after: date).timeIntervalSince(date)
                 )
                 do { try await Task.sleep(for: .seconds(delay)) } catch { return }
-                guard requested == self.generation else { return }
+                guard self.generation.isCurrent(requested, requiringNotCancelled: false) else { return }
                 await self.refresh(force: false, generation: requested)
             }
         }
@@ -65,7 +64,7 @@ final class BudgetCalendarCoordinator: NSObject {
     }
 
     func endForeground() {
-        generation &+= 1
+        generation.begin()
         boundaryTask?.cancel()
         boundaryTask = nil
         foregroundRefreshTask?.cancel()
@@ -81,11 +80,11 @@ final class BudgetCalendarCoordinator: NSObject {
     }
 
     func refresh(force: Bool = false) async {
-        await refresh(force: force, generation: generation)
+        await refresh(force: force, generation: generation.current)
     }
 
     private func refresh(force: Bool, generation requested: Int) async {
-        guard !Task.isCancelled, requested == generation else { return }
+        guard generation.isCurrent(requested, requiringNotCancelled: true) else { return }
         let date = now()
         let zone = currentTimeZoneID()
         let calendar = localGregorianCalendar(timeZoneID: zone)
@@ -98,7 +97,7 @@ final class BudgetCalendarCoordinator: NSObject {
         if let reloadedBudgetID, appState.localFirstStore.isOpen(budgetID: reloadedBudgetID) {
             do { try await reloadCache(appState, reloadedBudgetID, date) } catch { reloaded = false }
         }
-        guard !Task.isCancelled, requested == generation else { return }
+        guard generation.isCurrent(requested, requiringNotCancelled: true) else { return }
         // Only a completed reload of the still-selected budget advances the
         // day; otherwise the next refresh retries it.
         if reloaded, appState.settings.selectedBudgetID == reloadedBudgetID {

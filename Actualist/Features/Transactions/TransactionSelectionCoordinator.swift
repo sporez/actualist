@@ -6,7 +6,7 @@ import Observation
 final class TransactionSelectionCoordinator {
     struct Preparation: Hashable, Sendable, Identifiable {
         let id: UUID
-        let generation: UInt64
+        let generation: Int
         let context: TransactionSelectionContext
         let intent: TransactionBatchIntent
         let selections: [TransactionSelectionIdentity]
@@ -22,7 +22,7 @@ final class TransactionSelectionCoordinator {
     }
 
     private(set) var state: State = .inactive
-    @ObservationIgnored private var generation: UInt64 = 0
+    @ObservationIgnored private var generation = OperationGeneration()
 
     var selectedCount: Int {
         orderedSelectedIdentities.count
@@ -81,10 +81,9 @@ final class TransactionSelectionCoordinator {
     func beginPreparation(for intent: TransactionBatchIntent) -> Preparation? {
         guard case .selecting(let context, let selections) = state,
               !selections.identities.isEmpty else { return nil }
-        generation &+= 1
         let preparation = Preparation(
             id: UUID(),
-            generation: generation,
+            generation: generation.begin(),
             context: context,
             intent: intent,
             selections: selections.identities
@@ -140,7 +139,7 @@ final class TransactionSelectionCoordinator {
         }
         guard case .preparing(let current) = state,
               current == preparation,
-              generation == preparation.generation,
+              generation.isCurrent(preparation.generation, requiringNotCancelled: false),
               !review.id.isEmpty,
               !review.reviewFingerprint.isEmpty,
               review.context == preparation.context,
@@ -159,7 +158,7 @@ final class TransactionSelectionCoordinator {
 
     func failPreparation(_ preparation: Preparation, message: String) {
         guard case .preparing(let current) = state, current == preparation,
-              generation == preparation.generation else { return }
+              generation.isCurrent(preparation.generation, requiringNotCancelled: false) else { return }
         state = .failed(
             context: preparation.context,
             selections: TransactionOrderedSelection(preparation.selections),
@@ -169,7 +168,7 @@ final class TransactionSelectionCoordinator {
 
     func cancelPreparation(_ preparation: Preparation) {
         guard case .preparing(let current) = state, current == preparation,
-              generation == preparation.generation else { return }
+              generation.isCurrent(preparation.generation, requiringNotCancelled: false) else { return }
         invalidatePendingWork()
         state = .selecting(context: preparation.context, selections: TransactionOrderedSelection(preparation.selections))
     }
@@ -216,7 +215,7 @@ final class TransactionSelectionCoordinator {
     }
 
     private func invalidatePendingWork() {
-        generation &+= 1
+        generation.begin()
     }
 
     private func isValid(_ identity: TransactionSelectionIdentity) -> Bool {

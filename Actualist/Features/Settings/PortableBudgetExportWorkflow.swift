@@ -22,7 +22,7 @@ final class PortableBudgetExportWorkflow {
 
     private(set) var state: State = .idle
     @ObservationIgnored private let files: PortableExportFiles
-    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var generation = OperationGeneration()
 
     init(files: PortableExportFiles = PortableExportFiles()) {
         self.files = files
@@ -44,22 +44,21 @@ final class PortableBudgetExportWorkflow {
         budgetID: String,
         export: @MainActor (_ budgetID: String) async throws -> URL
     ) async {
-        generation &+= 1
-        let requestGeneration = generation
+        let requestGeneration = generation.begin()
         discardReadyArchive()
         state = .preparing(budgetID: budgetID)
         do {
             let archiveURL = try await export(budgetID)
-            guard requestGeneration == generation, !Task.isCancelled else {
+            guard generation.isCurrent(requestGeneration, requiringNotCancelled: true) else {
                 files.discard(archiveURL)
                 // A superseding request owns the state; otherwise do not
                 // strand `.preparing` after a cancelled task.
-                if requestGeneration == generation { state = .idle }
+                if generation.isCurrent(requestGeneration, requiringNotCancelled: false) { state = .idle }
                 return
             }
             state = .ready(budgetID: budgetID, archiveURL: archiveURL)
         } catch {
-            guard requestGeneration == generation else { return }
+            guard generation.isCurrent(requestGeneration, requiringNotCancelled: false) else { return }
             guard !Task.isCancelled, !error.isCancellation else {
                 state = .idle
                 return
@@ -70,7 +69,7 @@ final class PortableBudgetExportWorkflow {
 
     /// Removes a ready archive and invalidates a build in flight.
     func reset() {
-        generation &+= 1
+        generation.begin()
         discardReadyArchive()
         state = .idle
     }

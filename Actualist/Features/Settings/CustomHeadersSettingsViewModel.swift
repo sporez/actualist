@@ -44,7 +44,7 @@ final class CustomHeadersSettingsViewModel {
     private let store: LocalFirstActualStore
     private let verifier: CustomHTTPHeaderVerifier
     private var loadedConfiguration: CustomHTTPHeaderConfiguration?
-    private var generation = 0
+    private var generation = OperationGeneration()
     private var testTask: Task<Void, Never>?
 
     init(store: LocalFirstActualStore, primaryURLString: String, fallbackURLString: String, context: CustomHeadersEditorContext = .settings, verifier: CustomHTTPHeaderVerifier = .init()) {
@@ -105,7 +105,7 @@ final class CustomHeadersSettingsViewModel {
     }
 
     func cancelTesting() {
-        generation &+= 1
+        generation.begin()
         testTask?.cancel()
         testTask = nil
         if isTesting { phase = .editing }
@@ -145,16 +145,16 @@ final class CustomHeadersSettingsViewModel {
         do {
             _ = try validated(endpoint)
             guard let url = endpoint.url else { throw ActualAPIError.invalidURL }
-            let attempt = generation
+            let attempt = generation.current
             phase = .testing(role)
             testTask = Task { [weak self, verifier] in
                 do {
                     let result = try await verifier.verify(url: url, headers: endpoint.headers)
-                    guard let self, self.generation == attempt, !Task.isCancelled else { return }
+                    guard let self, self.generation.isCurrent(attempt, requiringNotCancelled: true) else { return }
                     self.phase = .result(role, result)
                     self.testTask = nil
                 } catch {
-                    guard let self, self.generation == attempt, !Task.isCancelled else { return }
+                    guard let self, self.generation.isCurrent(attempt, requiringNotCancelled: true) else { return }
                     self.phase = error.isCancellation ? .editing : .failed(self.safeMessage(error))
                     self.testTask = nil
                 }
