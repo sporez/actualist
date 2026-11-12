@@ -522,16 +522,14 @@ final class AccountTransactionsViewModel {
         budgetID: String?, repository: any TransactionRepositoryProtocol
     ) -> LoadedAccountTransactions? {
         guard let budgetID else { return nil }
-        switch scope {
-        case .account(let account):
-            return repository.cachedAccountTransactions(budgetID: budgetID, accountID: account.id,
-                                                        statusFilter: .all)
-        case .spending:
-            return repository.cachedSpendingTransactions(budgetID: budgetID, statusFilter: .all)
-        case .category(let details):
-            return repository.cachedCategoryTransactions(budgetID: budgetID,
-                categoryID: details.category.id, month: details.month)
+        if let queryScope = scope.queryScope {
+            return repository.cachedTransactions(
+                budgetID: budgetID, scope: queryScope, query: TransactionFeedQuery()
+            )
         }
+        guard case .category(let details) = scope else { return nil }
+        return repository.cachedCategoryTransactions(budgetID: budgetID,
+            categoryID: details.category.id, month: details.month)
     }
 
     private func activeCachedSnapshot(

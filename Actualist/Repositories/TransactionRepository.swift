@@ -34,15 +34,6 @@ protocol TransactionRepositoryProtocol: AnyObject {
         limit: Int,
         offset: Int
     ) async throws -> LoadedAccountTransactions
-    func cachedAccountTransactions(
-        budgetID: String,
-        accountID: String,
-        statusFilter: TransactionStatusFilter
-    ) -> LoadedAccountTransactions?
-    func cachedSpendingTransactions(
-        budgetID: String,
-        statusFilter: TransactionStatusFilter
-    ) -> LoadedAccountTransactions?
     func cachedCategoryTransactions(
         budgetID: String,
         categoryID: String,
@@ -52,35 +43,11 @@ protocol TransactionRepositoryProtocol: AnyObject {
         budgetID: String,
         month: String
     ) -> LoadedUncategorizedTransactions?
-    func refreshAccountTransactions(
-        budgetID: String,
-        accountID: String,
-        statusFilter: TransactionStatusFilter
-    ) async throws
-    func refreshSpendingTransactions(
-        budgetID: String,
-        statusFilter: TransactionStatusFilter
-    ) async throws
     func refreshCategoryTransactions(
         budgetID: String,
         categoryID: String,
         month: String
     ) async throws
-    func searchAccountTransactions(
-        budgetID: String,
-        accountID: String,
-        query: String,
-        limit: Int,
-        offset: Int,
-        statusFilter: TransactionStatusFilter
-    ) async throws -> LoadedAccountTransactions
-    func searchSpendingTransactions(
-        budgetID: String,
-        query: String,
-        limit: Int,
-        offset: Int,
-        statusFilter: TransactionStatusFilter
-    ) async throws -> LoadedAccountTransactions
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions
     func uncategorizedTransactions(
         budgetID: String,
@@ -182,46 +149,6 @@ extension TransactionRepositoryProtocol {
         offset: Int
     ) async throws -> LoadedAccountTransactions {
         throw TransactionQueryCapabilityError.unavailable
-    }
-
-    func cachedAccountTransactions(budgetID: String, accountID: String) -> LoadedAccountTransactions? {
-        cachedAccountTransactions(budgetID: budgetID, accountID: accountID, statusFilter: .all)
-    }
-
-    func cachedSpendingTransactions(budgetID: String) -> LoadedAccountTransactions? {
-        cachedSpendingTransactions(budgetID: budgetID, statusFilter: .all)
-    }
-
-    func refreshAccountTransactions(budgetID: String, accountID: String) async throws {
-        try await refreshAccountTransactions(budgetID: budgetID, accountID: accountID, statusFilter: .all)
-    }
-
-    func refreshSpendingTransactions(budgetID: String) async throws {
-        try await refreshSpendingTransactions(budgetID: budgetID, statusFilter: .all)
-    }
-
-    func searchAccountTransactions(
-        budgetID: String,
-        accountID: String,
-        query: String,
-        limit: Int,
-        offset: Int
-    ) async throws -> LoadedAccountTransactions {
-        try await searchAccountTransactions(
-            budgetID: budgetID, accountID: accountID, query: query, limit: limit, offset: offset,
-            statusFilter: .all
-        )
-    }
-
-    func searchSpendingTransactions(
-        budgetID: String,
-        query: String,
-        limit: Int,
-        offset: Int
-    ) async throws -> LoadedAccountTransactions {
-        try await searchSpendingTransactions(
-            budgetID: budgetID, query: query, limit: limit, offset: offset, statusFilter: .all
-        )
     }
 
     func createTransactionAndRefresh(
@@ -343,7 +270,8 @@ extension TransactionRepositoryProtocol {
         categoryID: String,
         month: String
     ) -> LoadedAccountTransactions? {
-        cachedSpendingTransactions(budgetID: budgetID)?.filtering(categoryID: categoryID, month: month)
+        cachedTransactions(budgetID: budgetID, scope: .spending, query: TransactionFeedQuery())?
+            .filtering(categoryID: categoryID, month: month)
     }
 
     func refreshCategoryTransactions(
@@ -351,7 +279,7 @@ extension TransactionRepositoryProtocol {
         categoryID: String,
         month: String
     ) async throws {
-        try await refreshSpendingTransactions(budgetID: budgetID)
+        try await refreshTransactions(budgetID: budgetID, scope: .spending, query: TransactionFeedQuery())
     }
 }
 

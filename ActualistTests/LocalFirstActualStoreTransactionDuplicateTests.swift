@@ -12,7 +12,7 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
         let bundle = try await makeBundle(additionalFixtureSQL: transferFixtureSQL)
         let store = bundle.store
         let repository: any TransactionDuplicateRepositoryProtocol = store
-        try await store.refreshSpendingTransactions(budgetID: "group-1")
+        try await store.refreshTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery())
         let selection = identity("source-transfer")
 
         let review = try await repository.reviewTransactionDuplicate(
@@ -33,15 +33,17 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
         #expect(outcome.receipt.changed.transactions.count == 4)
         #expect(!outcome.refreshPending)
         #expect(outcome.sessionCurrent)
-        let checking = try #require(store.cachedAccountTransactions(
+        let checking = try #require(store.cachedTransactions(
             budgetID: "group-1",
-            accountID: "checking"
+            scope: .account("checking"),
+            query: TransactionFeedQuery()
         ))
-        let credit = try #require(store.cachedAccountTransactions(
+        let credit = try #require(store.cachedTransactions(
             budgetID: "group-1",
-            accountID: "credit"
+            scope: .account("credit"),
+            query: TransactionFeedQuery()
         ))
-        let spending = try #require(store.cachedSpendingTransactions(budgetID: "group-1"))
+        let spending = try #require(store.cachedTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery()))
         #expect(checking.transactions.contains { $0.id == cloneForChecking })
         #expect(credit.transactions.contains { $0.id == cloneForCredit })
         #expect(spending.transactions.contains { $0.id == cloneForChecking })

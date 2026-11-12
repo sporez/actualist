@@ -63,39 +63,39 @@ extension LocalFirstActualStoreTests {
         store.database = database
         store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
 
-        try await store.refreshAccountTransactions(budgetID: "status-budget", accountID: "checking")
-        try await store.refreshAccountTransactions(
-            budgetID: "status-budget", accountID: "checking", statusFilter: .cleared
+        try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.refreshTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery(status: .cleared)
         )
-        try await store.refreshSpendingTransactions(
-            budgetID: "status-budget", statusFilter: .uncategorized
+        try await store.refreshTransactions(
+            budgetID: "status-budget", scope: .spending, query: TransactionFeedQuery(status: .uncategorized)
         )
 
-        let all = try #require(store.cachedAccountTransactions(budgetID: "status-budget", accountID: "checking"))
-        let cleared = try #require(store.cachedAccountTransactions(
-            budgetID: "status-budget", accountID: "checking", statusFilter: .cleared
+        let all = try #require(store.cachedTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()))
+        let cleared = try #require(store.cachedTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery(status: .cleared)
         ))
-        let uncategorized = try #require(store.cachedSpendingTransactions(
-            budgetID: "status-budget", statusFilter: .uncategorized
+        let uncategorized = try #require(store.cachedTransactions(
+            budgetID: "status-budget", scope: .spending, query: TransactionFeedQuery(status: .uncategorized)
         ))
         #expect(all.transactions.contains { $0.id == "status-reconciled" })
         #expect(cleared.transactions.compactMap(\.id).filter { $0.hasPrefix("status-") } == ["status-cleared"])
         #expect(cleared.balance == all.balance)
         #expect(uncategorized.transactions.contains { $0.id == "mixed-parent" })
 
-        let firstSearch = try await store.searchSpendingTransactions(
+        let firstSearch = try await store.transactionPage(
             budgetID: "status-budget",
-            query: "status-search-needle",
+            scope: .spending,
+            query: TransactionFeedQuery(status: .uncleared, text: "status-search-needle"),
             limit: 50,
-            offset: 0,
-            statusFilter: .uncleared
+            offset: 0
         )
-        let secondSearch = try await store.searchSpendingTransactions(
+        let secondSearch = try await store.transactionPage(
             budgetID: "status-budget",
-            query: "status-search-needle",
+            scope: .spending,
+            query: TransactionFeedQuery(status: .uncleared, text: "status-search-needle"),
             limit: 50,
-            offset: firstSearch.nextOffset,
-            statusFilter: .uncleared
+            offset: firstSearch.nextOffset
         )
         #expect(firstSearch.transactions.count == 50)
         #expect(firstSearch.nextOffset == 50)
@@ -105,12 +105,12 @@ extension LocalFirstActualStoreTests {
         #expect(secondSearch.reachedEnd)
 
         try await store.refreshLoadedTransactionFeedCaches(database: database, budgetID: "status-budget")
-        #expect(store.cachedAccountTransactions(budgetID: "status-budget", accountID: "checking") == all)
-        #expect(store.cachedAccountTransactions(
-            budgetID: "status-budget", accountID: "checking", statusFilter: .cleared
+        #expect(store.cachedTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()) == all)
+        #expect(store.cachedTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery(status: .cleared)
         ) == cleared)
-        #expect(store.cachedSpendingTransactions(
-            budgetID: "status-budget", statusFilter: .uncategorized
+        #expect(store.cachedTransactions(
+            budgetID: "status-budget", scope: .spending, query: TransactionFeedQuery(status: .uncategorized)
         ) == uncategorized)
     }
 
@@ -124,7 +124,7 @@ extension LocalFirstActualStoreTests {
         store.openedBudgetID = "status-budget"
         store.database = database
         store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
-        try await store.refreshAccountTransactions(budgetID: "status-budget", accountID: "checking")
+        try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
 
         gate.holdNextRead { key, query, _, offset in
             key == .account(budgetID: "status-budget", accountID: "checking")
@@ -137,15 +137,15 @@ extension LocalFirstActualStoreTests {
         }
         await gate.waitUntilSuspended()
 
-        try await store.refreshAccountTransactions(budgetID: "status-budget", accountID: "checking")
+        try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
         gate.release()
         await #expect(throws: CancellationError.self) { try await olderLoad.value }
 
         try await store.loadOlderTransactions(
             budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
         )
-        let completed = try #require(store.cachedAccountTransactions(
-            budgetID: "status-budget", accountID: "checking"
+        let completed = try #require(store.cachedTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
         ))
         #expect(completed.transactions.count > 100)
         #expect(completed.reachedEnd)
@@ -166,7 +166,7 @@ extension LocalFirstActualStoreTests {
         store.openedBudgetID = "status-budget"
         store.database = database
         store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
-        try await store.refreshAccountTransactions(budgetID: "status-budget", accountID: "checking")
+        try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
 
         gate.holdNextRead { key, query, _, offset in
             key == .account(budgetID: "status-budget", accountID: "checking")
@@ -182,20 +182,20 @@ extension LocalFirstActualStoreTests {
         try await store.loadOlderTransactions(
             budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
         )
-        let committedPage = try #require(store.cachedAccountTransactions(
-            budgetID: "status-budget", accountID: "checking"
+        let committedPage = try #require(store.cachedTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
         ))
         gate.release()
         await #expect(throws: CancellationError.self) { try await supersededLoad.value }
-        #expect(store.cachedAccountTransactions(
-            budgetID: "status-budget", accountID: "checking"
+        #expect(store.cachedTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
         ) == committedPage)
 
         try await store.loadOlderTransactions(
             budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
         )
-        let completed = try #require(store.cachedAccountTransactions(
-            budgetID: "status-budget", accountID: "checking"
+        let completed = try #require(store.cachedTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
         ))
         #expect(completed.nextOffset > committedPage.nextOffset)
         #expect(completed.reachedEnd)
@@ -212,12 +212,12 @@ extension LocalFirstActualStoreTests {
         store.openedBudgetID = "status-budget"
         store.database = database
         store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
-        try await store.refreshAccountTransactions(budgetID: "status-budget", accountID: "checking")
-        try await store.refreshAccountTransactions(
-            budgetID: "status-budget", accountID: "checking", statusFilter: .cleared
+        try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.refreshTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery(status: .cleared)
         )
-        let initialCleared = try #require(store.cachedAccountTransactions(
-            budgetID: "status-budget", accountID: "checking", statusFilter: .cleared
+        let initialCleared = try #require(store.cachedTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery(status: .cleared)
         ))
 
         gate.holdNextRead { key, query, _, offset in
@@ -233,20 +233,20 @@ extension LocalFirstActualStoreTests {
         try await fixtureQueue.write { db in
             try db.execute(sql: "UPDATE transactions SET reconciled = 1 WHERE id = 'status-cleared'")
         }
-        try await store.refreshAccountTransactions(budgetID: "status-budget", accountID: "checking")
-        let refreshedAll = try #require(store.cachedAccountTransactions(
-            budgetID: "status-budget", accountID: "checking"
+        try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
+        let refreshedAll = try #require(store.cachedTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()
         ))
         #expect(refreshedAll.transactions.first { $0.id == "status-cleared" }?.reconciled == true)
 
         gate.release()
         try await bulkRefresh.value
-        let refreshedCleared = try #require(store.cachedAccountTransactions(
-            budgetID: "status-budget", accountID: "checking", statusFilter: .cleared
+        let refreshedCleared = try #require(store.cachedTransactions(
+            budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery(status: .cleared)
         ))
         #expect(refreshedCleared != initialCleared)
         #expect(!refreshedCleared.transactions.contains { $0.id == "status-cleared" })
-        #expect(store.cachedAccountTransactions(budgetID: "status-budget", accountID: "checking") == refreshedAll)
+        #expect(store.cachedTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery()) == refreshedAll)
     }
 
     @Test func searchResultFromClosedBudgetIsRejectedAfterReadCompletes() async throws {
@@ -267,9 +267,10 @@ extension LocalFirstActualStoreTests {
             ) && query == "status-search-needle"
         }
         let search = Task {
-            try await store.searchSpendingTransactions(
+            try await store.transactionPage(
                 budgetID: "status-budget",
-                query: "status-search-needle",
+                scope: .spending,
+                query: TransactionFeedQuery(text: "status-search-needle"),
                 limit: 50,
                 offset: 0
             )

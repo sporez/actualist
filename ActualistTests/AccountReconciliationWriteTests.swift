@@ -420,7 +420,7 @@ struct AccountReconciliationWriteTests {
 
         let transactionID = try #require(result.changed.transactions.first)
         let loaded = try #require(
-            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")
+            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         )
         let adjustment = try #require(loaded.transactions.first { $0.id == transactionID })
         #expect(adjustment.amount == 1_000)

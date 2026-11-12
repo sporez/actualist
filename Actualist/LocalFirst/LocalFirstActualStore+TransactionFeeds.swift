@@ -10,29 +10,6 @@ extension LocalFirstActualStore {
         return transactionFeedPagesByKey[key]?.loaded
     }
 
-    func cachedAccountTransactions(
-        budgetID: String,
-        accountID: String,
-        statusFilter: TransactionStatusFilter = .all
-    ) -> LoadedAccountTransactions? {
-        cachedTransactions(
-            budgetID: budgetID,
-            scope: .account(accountID),
-            query: TransactionFeedQuery(status: statusFilter)
-        )
-    }
-
-    func cachedSpendingTransactions(
-        budgetID: String,
-        statusFilter: TransactionStatusFilter = .all
-    ) -> LoadedAccountTransactions? {
-        cachedTransactions(
-            budgetID: budgetID,
-            scope: .spending,
-            query: TransactionFeedQuery(status: statusFilter)
-        )
-    }
-
     func refreshTransactions(
         budgetID: String,
         scope: TransactionQueryScope,
@@ -41,29 +18,6 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let key = TransactionFeedCacheKey(budgetID: budgetID, queryScope: scope, query: query)
         try await refreshTransactionFeed(key: key, database: database)
-    }
-
-    func refreshAccountTransactions(
-        budgetID: String,
-        accountID: String,
-        statusFilter: TransactionStatusFilter = .all
-    ) async throws {
-        try await refreshTransactions(
-            budgetID: budgetID,
-            scope: .account(accountID),
-            query: TransactionFeedQuery(status: statusFilter)
-        )
-    }
-
-    func refreshSpendingTransactions(
-        budgetID: String,
-        statusFilter: TransactionStatusFilter = .all
-    ) async throws {
-        try await refreshTransactions(
-            budgetID: budgetID,
-            scope: .spending,
-            query: TransactionFeedQuery(status: statusFilter)
-        )
     }
 
     func refreshTransactionFeed(
@@ -120,39 +74,6 @@ extension LocalFirstActualStore {
         }
         transactionFeedPagesByKey[key] = TransactionFeedPage(
             loaded: current.loaded.appendingPage(older)
-        )
-    }
-
-    func searchAccountTransactions(
-        budgetID: String,
-        accountID: String,
-        query: String,
-        limit: Int,
-        offset: Int,
-        statusFilter: TransactionStatusFilter = .all
-    ) async throws -> LoadedAccountTransactions {
-        try await transactionPage(
-            budgetID: budgetID,
-            scope: .account(accountID),
-            query: TransactionFeedQuery(status: statusFilter, text: query),
-            limit: limit,
-            offset: offset
-        )
-    }
-
-    func searchSpendingTransactions(
-        budgetID: String,
-        query: String,
-        limit: Int,
-        offset: Int,
-        statusFilter: TransactionStatusFilter = .all
-    ) async throws -> LoadedAccountTransactions {
-        try await transactionPage(
-            budgetID: budgetID,
-            scope: .spending,
-            query: TransactionFeedQuery(status: statusFilter, text: query),
-            limit: limit,
-            offset: offset
         )
     }
 

@@ -207,12 +207,12 @@ struct TransactionRepositoryTypedQueryCompatibilityTests {
     @Test func legacyOnlyConformerCannotFabricateTypedQueryMetadata() async throws {
         let repository = RecordingTransactionRepository()
         let query = TransactionFeedQuery(status: .cleared, text: "market")
-        let legacyPage = try await repository.searchSpendingTransactions(
+        let legacyPage = try await repository.transactionPage(
             budgetID: "budget",
-            query: "market",
+            scope: .spending,
+            query: TransactionFeedQuery(status: .cleared, text: "market"),
             limit: 50,
-            offset: 0,
-            statusFilter: .cleared
+            offset: 0
         )
 
         #expect(legacyPage.queryMetadata == nil)

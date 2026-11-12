@@ -71,7 +71,7 @@ extension LocalFirstActualStoreTests {
             backgroundExecution: assertion
         )
         try bundle.keychain.saveActualSyncToken("token")
-        try await bundle.store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
+        try await bundle.store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         gate.armed = true
         try await enqueueAssertionDraft(in: bundle)
         let parked = await gate.entered.wait(timeout: .seconds(20)) { gate.release.trip() }

@@ -288,7 +288,7 @@ extension LocalFirstActualStoreTests {
         #expect(preview.scheduleID == "internet-sched")
 
         let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
-        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
         #expect(created.schedule == "internet-sched")
     }

@@ -96,7 +96,7 @@ extension LocalFirstActualStoreTests {
         #expect(preview.splits.map(\.categoryID) == ["groceries", "utilities"])
 
         let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
-        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
         #expect(created.isParent)
         #expect(created.subtransactions.map { $0.amount ?? 0 } == [4_000, -14_000])

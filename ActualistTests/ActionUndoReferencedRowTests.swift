@@ -142,7 +142,7 @@ import Testing
         let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
         let row = try #require(
-            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         _ = try await store.deleteTransactionAndRefresh(row, budgetID: "group-1") {}

@@ -48,7 +48,7 @@ extension LocalFirstActualStoreTests {
         )
 
         let existing = try await store.requireDatabase(for: "group-1").existingImportedIDs(accountID: "checking")
-        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let importedCafe = try #require(loaded.transactions.first {
             $0.importedPayee == "SQ * WALLET CAFE #99"
         })
@@ -104,7 +104,7 @@ extension LocalFirstActualStoreTests {
             intoAccountID: "checking",
             budgetID: "group-1"
         )
-        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let imported = try #require(loaded.transactions.first { $0.importedPayee == "Rule Cafe" })
 
         #expect(result.addedCount == 1)
@@ -149,7 +149,7 @@ extension LocalFirstActualStoreTests {
             intoAccountID: "tracking",
             budgetID: "group-1"
         )
-        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "tracking"))
+        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("tracking"), query: TransactionFeedQuery()))
         let imported = try #require(loaded.transactions.first { $0.importedPayee == "Rule Cafe" })
 
         #expect(result.addedCount == 1)
@@ -194,8 +194,8 @@ extension LocalFirstActualStoreTests {
             intoAccountID: "checking",
             budgetID: "group-1"
         )
-        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
-        let savings = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "savings"))
+        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let savings = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery()))
         let source = try #require(checking.transactions.first { $0.importedPayee == "Move To Savings" })
         let destination = try #require(savings.transactions.first { $0.amount == 1_000 })
 
@@ -243,7 +243,7 @@ extension LocalFirstActualStoreTests {
             intoAccountID: "checking",
             budgetID: "group-1"
         )
-        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let imported = try #require(loaded.transactions.first { $0.importedPayee == "Coffee Shop" })
 
         #expect(result.addedCount == 1)
@@ -291,7 +291,7 @@ extension LocalFirstActualStoreTests {
         )
 
         let loaded = try #require(
-            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")
+            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         )
         let imported = try #require(loaded.transactions.first {
             $0.importedPayee == rawPayee
@@ -387,7 +387,7 @@ extension LocalFirstActualStoreTests {
             intoAccountID: "checking",
             budgetID: "group-1"
         )
-        let loaded = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let parent = try #require(loaded.transactions.first { $0.importedPayee == "Split Cafe" })
         let child = try #require(parent.subtransactions.first)
 
@@ -458,7 +458,7 @@ extension LocalFirstActualStoreTests {
             [try candidate(oldDeviceID)], intoAccountID: "checking", budgetID: "group-1"
         )
         let original = try #require(
-            store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.importedPayee == "FIDIUM NNE PMTS" }
         )
         try await queue.write { db in
@@ -516,7 +516,7 @@ extension LocalFirstActualStoreTests {
         _ = try await store.importWalletTransactions([pending], intoAccountID: "checking", budgetID: "group-1")
         let result = try await store.importWalletTransactions([booked], intoAccountID: "checking", budgetID: "group-1")
 
-        let rows = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let rows = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
             .transactions.filter { $0.importedPayee == "Pending Cafe" }
         #expect(result == WalletTransactionImportResult(addedCount: 0, matchedCount: 1))
         #expect(rows.count == 1)
@@ -565,7 +565,7 @@ extension LocalFirstActualStoreTests {
         ]
         let result = try await store.importWalletTransactions(resent, intoAccountID: "checking", budgetID: "group-1")
 
-        let rows = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let rows = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
             .transactions.filter { $0.amount == -1_999 }
         #expect(result == WalletTransactionImportResult(addedCount: 0, matchedCount: 2))
         #expect(rows.count == 2)
@@ -599,7 +599,7 @@ extension LocalFirstActualStoreTests {
             [candidate], intoAccountID: "checking", budgetID: "group-1"
         )
 
-        let imported = try #require(bundle.store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let imported = try #require(bundle.store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
             .transactions.first { $0.importedPayee == "LEARN CAFE" }
         let ruleIDs = try await queue.read { db in
             try String.fetchAll(db, sql: "SELECT id FROM rules WHERE tombstone IS NULL OR tombstone = 0")

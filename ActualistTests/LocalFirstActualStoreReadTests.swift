@@ -79,8 +79,8 @@ extension LocalFirstActualStoreTests {
         store.database = database
         store.accountsByBudget["group-1"] = try await database.fetchAccountDisplays()
 
-        try await store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
-        let firstPage = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        let firstPage = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
 
         #expect(firstPage.transactions.count == 100)
         #expect(!firstPage.reachedEnd)
@@ -88,7 +88,7 @@ extension LocalFirstActualStoreTests {
         try await store.loadOlderTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )
-        let fullWindow = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let fullWindow = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
 
         #expect(fullWindow.transactions.count == 106)
         #expect(fullWindow.reachedEnd)
@@ -148,7 +148,7 @@ extension LocalFirstActualStoreTests {
     @Test func refreshAccountTransactionsWithoutOpenBudgetThrows() async {
         let store = makeStore()
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            try await store.refreshAccountTransactions(budgetID: "b", accountID: "a")
+            try await store.refreshTransactions(budgetID: "b", scope: .account("a"), query: TransactionFeedQuery())
         }
     }
 
@@ -383,7 +383,7 @@ extension LocalFirstActualStoreTests {
             try await store.refreshAccountsWithBalances(budgetID: "group-2")
         }
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            try await store.refreshAccountTransactions(budgetID: "group-2", accountID: "checking")
+            try await store.refreshTransactions(budgetID: "group-2", scope: .account("checking"), query: TransactionFeedQuery())
         }
     }
 

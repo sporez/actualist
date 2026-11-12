@@ -98,7 +98,7 @@ extension LocalFirstActualStoreTests {
             }
         )
         try bundle.keychain.saveActualSyncToken("token")
-        try await bundle.store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
+        try await bundle.store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         try await enqueueOutboxDrafts(1, in: bundle)
         let database = try #require(bundle.store.database)
         bundle.store.openedServerURLString = "https://sync.example"

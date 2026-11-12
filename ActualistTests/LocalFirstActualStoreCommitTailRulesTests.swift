@@ -31,7 +31,7 @@ struct LocalFirstActualStoreCommitTailRulesTests {
             syncDebugRecorder: { event in recorded.events.append(event) }
         )
         _ = try await store.openCachedBudget(bundle.budget)
-        try await store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
+        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         return (store, recorded)
     }
 

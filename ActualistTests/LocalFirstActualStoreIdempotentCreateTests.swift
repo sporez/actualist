@@ -11,7 +11,7 @@ struct LocalFirstActualStoreIdempotentCreateTests {
 
     private func makeStore() async throws -> LocalFirstActualStore {
         let store = try await support.makeOpenedWritableStore()
-        try await store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
+        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         return store
     }
 
@@ -30,7 +30,7 @@ struct LocalFirstActualStoreIdempotentCreateTests {
     }
 
     private func rows(_ store: LocalFirstActualStore, notes: String = "idem") -> [ActualTransaction] {
-        (store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?.transactions ?? [])
+        (store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.transactions ?? [])
             .filter { $0.notes == notes }
     }
 

@@ -521,42 +521,62 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         self.reconciliationReview = reconciliationReview
     }
 
-    func cachedAccountTransactions(
+    func cachedTransactions(
         budgetID: String,
-        accountID: String,
-        statusFilter: TransactionStatusFilter
-    ) -> LoadedAccountTransactions? { filterSnapshots?[statusFilter] ?? (filterSnapshots == nil ? accountSnapshot : nil) }
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) -> LoadedAccountTransactions? {
+        guard query.text == nil, !query.hasStructuredConditions else { return nil }
+        let snapshot = switch scope {
+        case .account: accountSnapshot
+        case .spending: spendingSnapshot
+        }
+        let loaded = filterSnapshots?[query.status] ?? (filterSnapshots == nil ? snapshot : nil)
+        return loaded?.replacingFixtureQueryMetadata(for: query)
+    }
 
-    func cachedSpendingTransactions(
+    func refreshTransactions(
         budgetID: String,
-        statusFilter: TransactionStatusFilter
-    ) -> LoadedAccountTransactions? { filterSnapshots?[statusFilter] ?? (filterSnapshots == nil ? spendingSnapshot : nil) }
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery
+    ) async throws {
+        guard query.text == nil, !query.hasStructuredConditions else {
+            throw LocalFirstError.unsupportedWrite
+        }
+        switch scope {
+        case .account(let accountID): refreshCalls.append("account:\(accountID)")
+        case .spending: refreshCalls.append("spending")
+        }
+        refreshFilters.append(query.status)
+        refreshStarted[query.status]?.trip()
+        if suspendsRefreshFilters.contains(query.status) {
+            try await withCheckedThrowingContinuation { refreshContinuations[query.status] = $0 }
+        }
+        if let refreshError { throw refreshError }
+    }
+
+    func transactionPage(
+        budgetID: String,
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery,
+        limit: Int,
+        offset: Int
+    ) async throws -> LoadedAccountTransactions {
+        guard !query.hasStructuredConditions, let text = query.text else {
+            throw LocalFirstError.unsupportedWrite
+        }
+        let loaded = try await search(text, budgetID: budgetID, filter: query.status, limit: limit, offset: offset)
+        guard let typed = loaded.replacingFixtureQueryMetadata(for: query) else {
+            throw FeedTestError("typed query fixture is missing exact metadata")
+        }
+        return typed
+    }
 
     func cachedCategoryTransactions(
         budgetID: String,
         categoryID: String,
         month: String
     ) -> LoadedAccountTransactions? { categorySnapshot }
-
-    func refreshAccountTransactions(budgetID: String, accountID: String, statusFilter: TransactionStatusFilter) async throws {
-        refreshCalls.append("account:\(accountID)")
-        refreshFilters.append(statusFilter)
-        refreshStarted[statusFilter]?.trip()
-        if suspendsRefreshFilters.contains(statusFilter) {
-            try await withCheckedThrowingContinuation { refreshContinuations[statusFilter] = $0 }
-        }
-        if let refreshError { throw refreshError }
-    }
-
-    func refreshSpendingTransactions(budgetID: String, statusFilter: TransactionStatusFilter) async throws {
-        refreshCalls.append("spending")
-        refreshFilters.append(statusFilter)
-        refreshStarted[statusFilter]?.trip()
-        if suspendsRefreshFilters.contains(statusFilter) {
-            try await withCheckedThrowingContinuation { refreshContinuations[statusFilter] = $0 }
-        }
-        if let refreshError { throw refreshError }
-    }
 
     func refreshCategoryTransactions(
         budgetID: String,
@@ -614,27 +634,6 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
 
     func finishRefresh(_ filter: TransactionStatusFilter) async {
         refreshContinuations.removeValue(forKey: filter)?.resume()
-    }
-
-    func searchAccountTransactions(
-        budgetID: String,
-        accountID: String,
-        query: String,
-        limit: Int,
-        offset: Int,
-        statusFilter: TransactionStatusFilter
-    ) async throws -> LoadedAccountTransactions {
-        try await search(query, budgetID: budgetID, filter: statusFilter, limit: limit, offset: offset)
-    }
-
-    func searchSpendingTransactions(
-        budgetID: String,
-        query: String,
-        limit: Int,
-        offset: Int,
-        statusFilter: TransactionStatusFilter
-    ) async throws -> LoadedAccountTransactions {
-        try await search(query, budgetID: budgetID, filter: statusFilter, limit: limit, offset: offset)
     }
 
     private func search(_ query: String, budgetID: String, filter: TransactionStatusFilter,
@@ -779,4 +778,31 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         ok: true,
         changed: ChangedResources(accounts: [], months: [], transactions: [])
     )
+}
+
+private extension LoadedAccountTransactions {
+    func replacingFixtureQueryMetadata(
+        for query: TransactionFeedQuery
+    ) -> LoadedAccountTransactions? {
+        guard let queryMetadata else { return nil }
+        return LoadedAccountTransactions(
+            transactions: transactions,
+            balance: balance,
+            accountNames: accountNames,
+            categoryNames: categoryNames,
+            payeeNames: payeeNames,
+            transferPayeeIDs: transferPayeeIDs,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: offBudgetAccountIDs,
+            reachedEnd: reachedEnd,
+            nextOffset: nextOffset,
+            queryMetadata: TransactionQueryPageMetadata(
+                totalMatchCount: queryMetadata.totalMatchCount,
+                querySignature: query.signature,
+                matchingTransactionIDs: queryMetadata.matchingTransactionIDs,
+                contributingTransactionIDs: queryMetadata.contributingTransactionIDs,
+                attachedContextTransactionIDs: queryMetadata.attachedContextTransactionIDs
+            )
+        )
+    }
 }

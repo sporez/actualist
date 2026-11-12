@@ -133,7 +133,7 @@ extension RootTransactionEditorPresenterTests {
         #expect(await session.submit(using: state))
         #expect(!session.consumeInitialAmountAutofocus())
         #expect(await session.submit(using: state) == false)
-        let stored = try await bundle.store.searchAccountTransactions(budgetID: "group-1", accountID: "savings", query: "Retained notes", limit: 50, offset: 0)
+        let stored = try await bundle.store.transactionPage(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery(text: "Retained notes"), limit: 50, offset: 0)
         #expect(stored.transactions.count == 1)
     }
 

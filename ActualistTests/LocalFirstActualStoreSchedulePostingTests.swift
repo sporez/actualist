@@ -217,8 +217,8 @@ struct LocalFirstActualStoreSchedulePostingTests {
         try bundle.keychain.saveActualSyncToken("synthetic-token")
         let store = bundle.store
         let database = try #require(store.database)
-        try await store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
-        #expect(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking") != nil)
+        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) != nil)
         let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         let outboxObservation = SchedulePostingOutboxObservation()
         store.seams.scheduleMutationAfterCommitHook = {
@@ -231,7 +231,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
 
         #expect(receipt.refreshPending)
         #expect(try await database.fetchTransaction(id: receipt.transactionID)?.schedule == "rent")
-        #expect(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking") == nil)
+        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)
         #expect((outboxObservation.pendingCount ?? 0) > 0)
     }
 

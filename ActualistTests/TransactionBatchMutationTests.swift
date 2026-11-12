@@ -581,8 +581,8 @@ struct TransactionBatchMutationTests {
             }
         )
         let store = bundle.store
-        try await store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
-        #expect(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking") != nil)
+        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) != nil)
         behavior.failReads = true
 
         let review = try await store.reviewTransactionBatch(
@@ -592,7 +592,7 @@ struct TransactionBatchMutationTests {
         let outcome = try await store.commitTransactionBatch(review: review, authorization: nil)
         #expect(outcome.refreshPending)
         #expect(outcome.sessionCurrent)
-        #expect(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking") == nil)
+        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)
         #expect(try await store.recentBudgetActions(budgetID: "group-1").count == 1)
     }
 

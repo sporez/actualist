@@ -170,7 +170,7 @@ extension LocalFirstActualStoreTests {
         #expect(parent.payee == nil)
         let transferChild = try #require(parent.subtransactions.first { $0.id == "xfer" })
         #expect(transferChild.payee == "xfer-savings")
-        let savings = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "savings"))
+        let savings = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery()))
         let paired = try #require(savings.transactions.first { $0.amount == 6_000 })
         #expect(paired.payeeName == "Checking")
         #expect(parent.amount == -10_000)
@@ -203,7 +203,7 @@ extension LocalFirstActualStoreTests {
         ) {}
         let parentID = try #require(created.changed.transactions.first)
         func pairedCount() -> Int {
-            store.cachedAccountTransactions(budgetID: "group-1", accountID: "savings")?
+            store.cachedTransactions(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery())?
                 .transactions.filter { $0.amount == 6_000 }.count ?? 0
         }
         #expect(pairedCount() == 1)
@@ -303,7 +303,7 @@ extension LocalFirstActualStoreTests {
         #expect(parent.category == nil)
         #expect(parent.subtransactions.first { $0.id == "s07-a" }?.payee == "coffee")
         #expect(parent.subtransactions.first { $0.id == "s07-a" }?.cleared?.boolValue == true)
-        let checking = try #require(store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking"))
+        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         #expect(!checking.transactions.contains { $0.id == "orphan" })
         #expect(!checking.transactions.contains { transaction in
             transaction.subtransactions.contains { $0.id == "orphan" }
@@ -338,7 +338,7 @@ extension LocalFirstActualStoreTests {
     }
 
     func parentTransaction(in store: LocalFirstActualStore, id: String?) -> ActualTransaction? {
-        store.cachedAccountTransactions(budgetID: "group-1", accountID: "checking")?
+        store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
             .transactions.first { $0.id == id }
     }
 }

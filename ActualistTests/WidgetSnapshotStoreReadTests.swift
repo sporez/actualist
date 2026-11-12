@@ -42,7 +42,7 @@ extension LocalFirstActualStoreTests {
         #expect(source.attention != nil)
         #expect(store.cachedBudgetMonth(budgetID: "group-1") == loaded)
         #expect(store.cachedReportsDashboard(budgetID: "group-1", range: .dashboard(through: now)) == nil)
-        #expect(store.cachedSpendingTransactions(budgetID: "group-1") == nil)
+        #expect(store.cachedTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery()) == nil)
     }
 
 }

@@ -31,7 +31,7 @@ struct LocalFirstActualStoreCommitTailTests {
             try fixture.onFeedRead?()
         }
         _ = try await store.openCachedBudget(bundle.budget)
-        try await store.refreshAccountTransactions(budgetID: "group-1", accountID: "checking")
+        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         return (store, fixture)
     }
 
