@@ -146,9 +146,7 @@ struct AccountTransactionsView: View {
             if isSearchFieldVisible {
                 Section {
                     searchBar
-                        .listRowInsets(EdgeInsets())
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
+                        .plainListRow()
                 }
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -156,9 +154,7 @@ struct AccountTransactionsView: View {
             if scope.showsSummaryHeader {
                 Section {
                     header(displayState)
-                        .listRowInsets(EdgeInsets())
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
+                        .plainListRow()
                 }
             }
 
@@ -187,9 +183,7 @@ struct AccountTransactionsView: View {
             ) {
                 Section {
                     reconciliationPanel(presentation)
-                        .listRowInsets(EdgeInsets())
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
+                        .plainListRow()
                 }
             }
 
@@ -251,9 +245,7 @@ struct AccountTransactionsView: View {
                 ProgressView(viewModel.statusFilter.loadingMessage)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 16)
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                    .plainListRow()
             }
 
             if let errorMessage = viewModel.loadErrorMessage ?? viewModel.errorMessage {
@@ -261,9 +253,7 @@ struct AccountTransactionsView: View {
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.danger)
                     .padding(.horizontal, 16)
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                    .plainListRow()
 
                 if displayState.transactionCount == 0 {
                     Button("Retry") {
@@ -271,9 +261,7 @@ struct AccountTransactionsView: View {
                     }
                     .font(ActualistTypography.control(for: density))
                     .frame(maxWidth: .infinity)
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
+                    .plainListRow()
                 }
             }
         }
@@ -704,9 +692,7 @@ struct AccountTransactionsView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .padding(.horizontal, 16)
-        .listRowInsets(EdgeInsets())
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
+        .plainListRow()
     }
 
     @ViewBuilder
@@ -745,9 +731,7 @@ struct AccountTransactionsView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
             .padding(.horizontal, 16)
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
+            .plainListRow()
             .onAppear {
                 Task {
                     await viewModel.loadOlder(

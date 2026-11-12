@@ -357,4 +357,13 @@ extension View {
             .tint(ActualistTheme.chromeForeground)
             .controlSize(.small)
     }
+
+    /// A `List` row with no insets, separator or row background, for rows that
+    /// draw their own card.
+    func plainListRow() -> some View {
+        self
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+    }
 }

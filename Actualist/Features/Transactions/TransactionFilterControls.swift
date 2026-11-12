@@ -175,7 +175,7 @@ struct TransactionActiveFilterSections: View {
             if status != .all {
                 Section {
                     TransactionStatusFilterIndicator(selection: status, onSelect: onSelectStatus)
-                        .filterIndicatorRowStyle()
+                        .plainListRow()
                 }
             }
             if structuredConditionCount > 0 {
@@ -185,18 +185,10 @@ struct TransactionActiveFilterSections: View {
                         onEdit: onEditStructured,
                         onClear: onClearStructured
                     )
-                    .filterIndicatorRowStyle()
+                    .plainListRow()
                 }
             }
         }
-    }
-}
-
-private extension View {
-    func filterIndicatorRowStyle() -> some View {
-        listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
     }
 }
 

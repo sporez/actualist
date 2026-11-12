@@ -29,9 +29,7 @@ struct AccountTransactionFeedRows: View {
                 .font(ActualistTypography.rowTitle(for: density))
                 .foregroundStyle(ActualistTheme.danger)
                 .padding(.horizontal, 16)
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
+                .plainListRow()
         }
 
         ForEach(groups.values) { group in
@@ -42,9 +40,7 @@ struct AccountTransactionFeedRows: View {
                 .padding(.top, 16)
                 .padding(.bottom, 8)
                 .padding(.horizontal, Self.cardMargin + density.rowHorizontalPadding)
-                .listRowInsets(EdgeInsets())
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
+                .plainListRow()
 
             ForEach(Array(group.rows.enumerated()), id: \.element.id) { index, row in
                 let position = GroupedRowPosition(index: index, count: group.rows.count)
