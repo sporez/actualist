@@ -5,58 +5,14 @@ import Foundation
 /// file over the 800-line reassessment line. Wallet and Bank Sync keep their
 /// own unrecorded write paths (Q4).
 extension LocalFirstActualStore {
-    func createTransactionAndRefresh(
-        _ draft: TransactionDraft,
-        budgetID: String,
-        didCreate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await createTransactionAndRefresh(
-            draft,
-            budgetID: budgetID,
-            transactionID: nil,
-            actionSource: .ui,
-            didCreate: didCreate
-        )
-    }
-
-    func createTransactionAndRefresh(
-        _ draft: TransactionDraft,
-        budgetID: String,
-        transactionID: String?,
-        didCreate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await createTransactionAndRefresh(
-            draft,
-            budgetID: budgetID,
-            transactionID: transactionID,
-            actionSource: .ui,
-            didCreate: didCreate
-        )
-    }
-
-    func createTransactionAndRefresh(
-        _ draft: TransactionDraft,
-        budgetID: String,
-        actionSource: BudgetActionSource,
-        didCreate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await createTransactionAndRefresh(
-            draft,
-            budgetID: budgetID,
-            transactionID: nil,
-            actionSource: actionSource,
-            didCreate: didCreate
-        )
-    }
-
     /// `transactionID` is chosen once per editor presentation so a retried save
     /// is idempotent: when that row already exists (live or tombstoned) the
     /// commit writes nothing and the call succeeds. `nil` mints a fresh id.
     func createTransactionAndRefresh(
         _ draft: TransactionDraft,
         budgetID: String,
-        transactionID callerTransactionID: String?,
-        actionSource: BudgetActionSource,
+        transactionID callerTransactionID: String? = nil,
+        actionSource: BudgetActionSource = .ui,
         didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
@@ -186,52 +142,9 @@ extension LocalFirstActualStore {
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
-        didUpdate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await updateTransactionAndRefresh(
-            transactionID,
-            with: draft,
-            budgetID: budgetID,
-            originalAccountID: originalAccountID,
-            originalMonth: originalMonth,
-            reconciliationAuthorization: nil,
-            actionSource: .ui,
-            didUpdate: didUpdate
-        )
-    }
-
-    func updateTransactionAndRefresh(
-        _ transactionID: String,
-        with draft: TransactionDraft,
-        budgetID: String,
-        originalAccountID: String,
-        originalMonth: String,
-        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
-        baseline: ActualTransaction? = nil,
-        didUpdate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await updateTransactionAndRefresh(
-            transactionID,
-            with: draft,
-            budgetID: budgetID,
-            originalAccountID: originalAccountID,
-            originalMonth: originalMonth,
-            reconciliationAuthorization: reconciliationAuthorization,
-            baseline: baseline,
-            actionSource: .ui,
-            didUpdate: didUpdate
-        )
-    }
-
-    func updateTransactionAndRefresh(
-        _ transactionID: String,
-        with draft: TransactionDraft,
-        budgetID: String,
-        originalAccountID: String,
-        originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
         baseline: ActualTransaction? = nil,
-        actionSource: BudgetActionSource,
+        actionSource: BudgetActionSource = .ui,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
@@ -362,24 +275,7 @@ extension LocalFirstActualStore {
         categoryID: String,
         budgetID: String,
         reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
-        didUpdate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await categorizeTransactionAndRefresh(
-            transaction,
-            categoryID: categoryID,
-            budgetID: budgetID,
-            reconciliationAuthorizations: reconciliationAuthorizations,
-            actionSource: .ui,
-            didUpdate: didUpdate
-        )
-    }
-
-    func categorizeTransactionAndRefresh(
-        _ transaction: ActualTransaction,
-        categoryID: String,
-        budgetID: String,
-        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
-        actionSource: BudgetActionSource,
+        actionSource: BudgetActionSource = .ui,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         try await categorizeTransactionsAndRefresh(
@@ -397,24 +293,7 @@ extension LocalFirstActualStore {
         categoryID: String,
         budgetID: String,
         reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
-        didUpdate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await categorizeTransactionsAndRefresh(
-            transactions,
-            categoryID: categoryID,
-            budgetID: budgetID,
-            reconciliationAuthorizations: reconciliationAuthorizations,
-            actionSource: .ui,
-            didUpdate: didUpdate
-        )
-    }
-
-    func categorizeTransactionsAndRefresh(
-        _ transactions: [ActualTransaction],
-        categoryID: String,
-        budgetID: String,
-        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization] = [:],
-        actionSource: BudgetActionSource,
+        actionSource: BudgetActionSource = .ui,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         guard !transactions.isEmpty else {
@@ -500,52 +379,8 @@ extension LocalFirstActualStore {
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
-        didDelete: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await deleteTransactionAndRefresh(
-            transaction,
-            budgetID: budgetID,
-            reconciliationAuthorization: nil,
-            actionSource: .ui,
-            didDelete: didDelete
-        )
-    }
-
-    func deleteTransactionAndRefresh(
-        _ transaction: ActualTransaction,
-        budgetID: String,
-        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
-        didDelete: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await deleteTransactionAndRefresh(
-            transaction,
-            budgetID: budgetID,
-            reconciliationAuthorization: reconciliationAuthorization,
-            actionSource: .ui,
-            didDelete: didDelete
-        )
-    }
-
-    func deleteTransactionAndRefresh(
-        _ transaction: ActualTransaction,
-        budgetID: String,
-        actionSource: BudgetActionSource,
-        didDelete: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        try await deleteTransactionAndRefresh(
-            transaction,
-            budgetID: budgetID,
-            reconciliationAuthorization: nil,
-            actionSource: actionSource,
-            didDelete: didDelete
-        )
-    }
-
-    func deleteTransactionAndRefresh(
-        _ transaction: ActualTransaction,
-        budgetID: String,
-        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
-        actionSource: BudgetActionSource,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization? = nil,
+        actionSource: BudgetActionSource = .ui,
         didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         guard let transactionID = transaction.id, !transactionID.isEmpty else {

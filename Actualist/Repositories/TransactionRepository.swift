@@ -100,15 +100,8 @@ protocol TransactionRepositoryProtocol: AnyObject {
         _ draft: TransactionDraft,
         budgetID: String,
         transactionID: String?,
+        actionSource: BudgetActionSource,
         didCreate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult
-    func updateTransactionAndRefresh(
-        _ transactionID: String,
-        with draft: TransactionDraft,
-        budgetID: String,
-        originalAccountID: String,
-        originalMonth: String,
-        didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func updateTransactionAndRefresh(
         _ transactionID: String,
@@ -118,6 +111,7 @@ protocol TransactionRepositoryProtocol: AnyObject {
         originalMonth: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
         baseline: ActualTransaction?,
+        actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func categorizeTransactionAndRefresh(
@@ -125,6 +119,7 @@ protocol TransactionRepositoryProtocol: AnyObject {
         categoryID: String,
         budgetID: String,
         reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
+        actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func categorizeTransactionsAndRefresh(
@@ -132,17 +127,14 @@ protocol TransactionRepositoryProtocol: AnyObject {
         categoryID: String,
         budgetID: String,
         reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
+        actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
-        didDelete: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult
-    func deleteTransactionAndRefresh(
-        _ transaction: ActualTransaction,
-        budgetID: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        actionSource: BudgetActionSource,
         didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult
     func reconciledMutationReview(
@@ -232,6 +224,18 @@ extension TransactionRepositoryProtocol {
         )
     }
 
+    func createTransactionAndRefresh(
+        _ draft: TransactionDraft,
+        budgetID: String,
+        transactionID: String?,
+        didCreate: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await createTransactionAndRefresh(
+            draft, budgetID: budgetID, transactionID: transactionID,
+            actionSource: .ui, didCreate: didCreate
+        )
+    }
+
     func updateTransactionAndRefresh(
         _ transactionID: String,
         with draft: TransactionDraft,
@@ -248,6 +252,43 @@ extension TransactionRepositoryProtocol {
             budgetID: budgetID,
             originalAccountID: originalAccountID,
             originalMonth: originalMonth,
+            reconciliationAuthorization: reconciliationAuthorization,
+            baseline: baseline,
+            actionSource: .ui,
+            didUpdate: didUpdate
+        )
+    }
+
+    func categorizeTransactionAndRefresh(
+        _ transaction: ActualTransaction,
+        categoryID: String,
+        budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await categorizeTransactionAndRefresh(
+            transaction,
+            categoryID: categoryID,
+            budgetID: budgetID,
+            reconciliationAuthorizations: reconciliationAuthorizations,
+            actionSource: .ui,
+            didUpdate: didUpdate
+        )
+    }
+
+    func categorizeTransactionsAndRefresh(
+        _ transactions: [ActualTransaction],
+        categoryID: String,
+        budgetID: String,
+        reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
+        didUpdate: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> TransactionMutationResult {
+        try await categorizeTransactionsAndRefresh(
+            transactions,
+            categoryID: categoryID,
+            budgetID: budgetID,
+            reconciliationAuthorizations: reconciliationAuthorizations,
+            actionSource: .ui,
             didUpdate: didUpdate
         )
     }
@@ -261,6 +302,8 @@ extension TransactionRepositoryProtocol {
         try await deleteTransactionAndRefresh(
             transaction,
             budgetID: budgetID,
+            reconciliationAuthorization: reconciliationAuthorization,
+            actionSource: .ui,
             didDelete: didDelete
         )
     }

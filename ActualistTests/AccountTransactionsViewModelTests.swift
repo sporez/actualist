@@ -703,6 +703,7 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         _ draft: TransactionDraft,
         budgetID: String,
         transactionID: String?,
+        actionSource: BudgetActionSource,
         didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 
@@ -712,6 +713,9 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction?,
+        actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 
@@ -720,6 +724,7 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         categoryID: String,
         budgetID: String,
         reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
+        actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 
@@ -728,24 +733,15 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
         categoryID: String,
         budgetID: String,
         reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
+        actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult { Self.emptyMutation }
 
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
-        didDelete: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> TransactionMutationResult {
-        if let deleteError { throw deleteError }
-        deletedTransactionIDs.append(transaction.rowID)
-        await didDelete()
-        return Self.emptyMutation
-    }
-
-    func deleteTransactionAndRefresh(
-        _ transaction: ActualTransaction,
-        budgetID: String,
         reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        actionSource: BudgetActionSource,
         didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         deleteAuthorizations.append(reconciliationAuthorization)
@@ -753,11 +749,10 @@ class AccountTransactionsRecordingRepository: TransactionRepositoryProtocol {
            reconciliationAuthorization != reconciliationReview.authorization {
             throw ReconciledTransactionMutationError.confirmationRequired(reconciliationReview)
         }
-        return try await deleteTransactionAndRefresh(
-            transaction,
-            budgetID: budgetID,
-            didDelete: didDelete
-        )
+        if let deleteError { throw deleteError }
+        deletedTransactionIDs.append(transaction.rowID)
+        await didDelete()
+        return Self.emptyMutation
     }
 
     func reconciledMutationReview(

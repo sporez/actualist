@@ -556,6 +556,7 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
         categoryID: String,
         budgetID: String,
         reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
+        actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let categorizeError {
@@ -581,6 +582,7 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
         categoryID: String,
         budgetID: String,
         reconciliationAuthorizations: [String: ReconciledTransactionMutationAuthorization],
+        actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         if let categorizeError {
@@ -613,6 +615,7 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
         _ draft: TransactionDraft,
         budgetID: String,
         transactionID: String?,
+        actionSource: BudgetActionSource,
         didCreate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         TransactionMutationResult(ok: true, changed: ChangedResources(accounts: [], months: [], transactions: []))
@@ -624,6 +627,9 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
         budgetID: String,
         originalAccountID: String,
         originalMonth: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        baseline: ActualTransaction?,
+        actionSource: BudgetActionSource,
         didUpdate: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         TransactionMutationResult(ok: true, changed: ChangedResources(accounts: [], months: [], transactions: []))
@@ -632,6 +638,8 @@ final class UncategorizedRecordingTransactionRepository: TransactionRepositoryPr
     func deleteTransactionAndRefresh(
         _ transaction: ActualTransaction,
         budgetID: String,
+        reconciliationAuthorization: ReconciledTransactionMutationAuthorization?,
+        actionSource: BudgetActionSource,
         didDelete: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> TransactionMutationResult {
         TransactionMutationResult(ok: true, changed: ChangedResources(accounts: [], months: [], transactions: []))
