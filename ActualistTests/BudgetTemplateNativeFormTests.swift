@@ -7,42 +7,6 @@ import Testing
 struct BudgetTemplateNativeFormTests {
     private let now = BudgetTemplateCalendar.validatedDate("2026-09-04")!
 
-    @Test(arguments: ["en_US", "de_DE", "fr_FR", "ar_EG"])
-    func currencyFormatRoundTripsLocalizedInput(localeID: String) throws {
-        let locale = Locale(identifier: localeID)
-        let value = Decimal(string: "1234.56")!
-        let style = BudgetMoneyInputFormat(currency: .usd, locale: locale)
-        let formatted = style.format(value)
-        #expect(try style.parseStrategy.parse(formatted) == value)
-        #expect(style.format(value) == value.formatted(.currency(code: "USD").locale(locale)))
-        let neutral = BudgetMoneyInputFormat(currency: .none, locale: locale)
-        #expect(try neutral.parseStrategy.parse(neutral.format(value)) == value)
-    }
-
-    @Test(arguments: [BudgetCurrency.usd, .jpy, .none, .catalog(code: "USD", hideFraction: true)])
-    func focusedFormatNeverPadsOrRoundsTheNumberWhileTyping(currency: BudgetCurrency) throws {
-        let locale = Locale(identifier: "en_US")
-        let style = BudgetMoneyInputFormat(currency: .none, locale: locale)
-        #expect(style.format(1) == "1")
-        #expect(style.format(12) == "12")
-        #expect(style.format(Decimal(string: "1234.567")!) == "1,234.567")
-        let currencyStyle = BudgetMoneyInputFormat(currency: currency, locale: locale)
-        let value = Decimal(string: "1234.567")!
-        #expect(try currencyStyle.parseStrategy.parse(currencyStyle.format(value)) == value)
-    }
-
-    @Test(arguments: [BudgetCurrency.usd, .none])
-    func nativeParsingRejectsPartialNumbersAndSigns(currency: BudgetCurrency) throws {
-        let style = BudgetMoneyInputFormat(currency: currency, locale: Locale(identifier: "en_US"))
-        for invalid in ["", "-", "+", "12oops", "1.2.3", "NaN", "--12"] {
-            #expect(throws: (any Error).self) { try style.parse(invalid) }
-        }
-        #expect(try style.parse("1,234.56") == Decimal(string: "1234.56"))
-        #expect(try style.parse("-12.5") == Decimal(string: "-12.5"))
-        #expect(try style.parse(".5") == Decimal(string: "0.5"))
-        #expect(try style.parse("1.") == 1)
-    }
-
     @Test(arguments: [BudgetCurrency.usd, .jpy, .none, .catalog(code: "USD", hideFraction: true)])
     func typedAmountSavesThroughExistingCurrencyBoundary(currency: BudgetCurrency) async throws {
         let (vm, repository, id) = try await loaded(currency: currency)

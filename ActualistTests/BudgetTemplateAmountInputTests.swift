@@ -5,12 +5,7 @@ import Testing
 @Suite("Budget template amount input")
 struct BudgetTemplateAmountInputTests {
     @Test(arguments: [BudgetCurrency.usd, .jpy, .none, .catalog(code: "USD", hideFraction: true)])
-    func nativeMoneyFormatKeepsEditingPrecision(currency: BudgetCurrency) {
-        let fullPrecision = BudgetCurrency.catalog(code: currency.code)
-        let minor = currency.decimalPlaces == 0 ? -1_400 : -140_025
-        let amount = fullPrecision.displayAmount(fromMinorUnits: minor)
-        let formatted = amount.formatted(BudgetMoneyInputFormat(currency: currency, locale: .current))
-        #expect(formatted == fullPrecision.formatted(minor))
+    func templateAmountTextKeepsEditingPrecision(currency: BudgetCurrency) {
         #expect(BudgetTemplateAmountInput.formatAmount(-1400.25, currency: currency)
             == (currency.decimalPlaces == 0 ? "-1,400" : "-1,400.25"))
         #expect(BudgetTemplateAmountInput.parseAmount("NaN", currency: currency) == nil)

@@ -312,34 +312,43 @@ struct RuleEditorDraftStateTests {
         #expect(RuleEditorDraftState.minorUnits(in: .bool(true)) == nil)
     }
 
-    @Test func amountDisplayValue_integralMinorUnitsUsesBudgetScale() {
-        #expect(RuleEditorDraftState.amountDisplayValue(.number(1200)) == Decimal(12))
-        #expect(RuleEditorDraftState.amountDisplayValue(.number(0)) == Decimal(0))
+    @Test func amountEditText_writesStoredMinorUnitsLikeActualForEdit() {
+        #expect(RuleEditorDraftState.amountEditText(.number(1200)) == "12.00")
+        #expect(RuleEditorDraftState.amountEditText(.number(0)) == "0.00")
+        #expect(RuleEditorDraftState.amountEditText(.number(1255)) == "12.55")
+        #expect(RuleEditorDraftState.amountEditText(.number(123_456)) == "1,234.56")
+        #expect(RuleEditorDraftState.amountEditText(.string("1250")) == "12.50")
+        #expect(RuleEditorDraftState.amountEditText(.number(123_456), currency: dotComma) == "1.234,56")
     }
 
-    @Test func amountDisplayValue_fractionalMinorUnitsUsesExactDecimal() {
-        #expect(RuleEditorDraftState.amountDisplayValue(.number(1250)) == Decimal(string: "12.5"))
-        #expect(RuleEditorDraftState.amountDisplayValue(.number(1255)) == Decimal(string: "12.55"))
+    @Test func amountEditText_nonNumericIsEmpty() {
+        #expect(RuleEditorDraftState.amountEditText(.null) == "")
+        #expect(RuleEditorDraftState.amountEditText(.string("abc")) == "")
+        #expect(RuleEditorDraftState.amountEditText(.bool(true)) == "")
     }
 
-    @Test func amountDisplayValue_acceptsNumericString() {
-        #expect(RuleEditorDraftState.amountDisplayValue(.string("1250")) == Decimal(string: "12.5"))
+    private var dotComma: BudgetCurrency {
+        BudgetCurrency(code: "EUR", decimalPlaces: 2, hideFraction: false, numberFormat: .dotComma)
     }
 
-    @Test func amountDisplayValue_nonNumericIsNil() {
-        #expect(RuleEditorDraftState.amountDisplayValue(.null) == nil)
-        #expect(RuleEditorDraftState.amountDisplayValue(.string("abc")) == nil)
-        #expect(RuleEditorDraftState.amountDisplayValue(.bool(true)) == nil)
+    @Test(arguments: [
+        ("12.50", 1250.0), ("12.5", 1250.0), ("0", 0.0), ("10+5", 1500.0), (".5", 50.0),
+        ("1.005", 100.0), ("1,234.56", 123_456.0), ("-12.34", -1234.0)
+    ])
+    func amountValue_readsTextLikeActual(text: String, minorUnits: Double) {
+        #expect(RuleEditorDraftState.amountValue(fromText: text) == .number(minorUnits))
     }
 
-    @Test func amountValue_convertsDecimalDollarsToMinorUnits() {
-        #expect(RuleEditorDraftState.amountValue(from: Decimal(string: "12.50")) == .number(1250))
-        #expect(RuleEditorDraftState.amountValue(from: Decimal(string: "12.5")) == .number(1250))
-        #expect(RuleEditorDraftState.amountValue(from: Decimal(0)) == .number(0))
+    @Test func amountValue_readsTheBudgetsNumberFormat() {
+        #expect(RuleEditorDraftState.amountValue(fromText: "1.234,56", currency: dotComma) == .number(123_456))
+        #expect(RuleEditorDraftState.amountValue(fromText: "1,5", currency: dotComma) == .number(150))
     }
 
-    @Test func amountValue_emptyInputStaysInvalid() {
-        #expect(RuleEditorDraftState.amountValue(from: nil) == .null)
+    @Test func amountValue_blankClearsAndJunkIsUnreadable() {
+        #expect(RuleEditorDraftState.amountValue(fromText: "") == .null)
+        #expect(RuleEditorDraftState.amountValue(fromText: "  ") == .null)
+        #expect(RuleEditorDraftState.amountValue(fromText: "abc") == nil)
+        #expect(RuleEditorDraftState.amountValue(fromText: "(1+") == .number(100)) // Actual: fromEdit("(1+") is 1
     }
 
     @Test func editableString_passesThroughString() {
@@ -360,31 +369,40 @@ struct RuleEditorDraftStateTests {
 
     // MARK: - range (isbetween) get/set
 
-    @Test func rangeDisplayValue_readsBoundFromObject() {
+    @Test func rangeEditText_readsBoundFromObject() {
         let range: RuleJSONValue = .object(["num1": .number(1250), "num2": .number(2500)])
-        #expect(RuleEditorDraftState.rangeDisplayValue(range, key: "num1") == Decimal(string: "12.5"))
-        #expect(RuleEditorDraftState.rangeDisplayValue(range, key: "num2") == Decimal(25))
+        #expect(RuleEditorDraftState.rangeEditText(range, key: "num1") == "12.50")
+        #expect(RuleEditorDraftState.rangeEditText(range, key: "num2") == "25.00")
     }
 
-    @Test func rangeDisplayValue_isNilForNonObjectOrMissingKey() {
-        #expect(RuleEditorDraftState.rangeDisplayValue(.null, key: "num1") == nil)
-        #expect(RuleEditorDraftState.rangeDisplayValue(.object(["num2": .number(0)]), key: "num1") == nil)
+    @Test func rangeEditText_isEmptyForNonObjectOrMissingKey() {
+        #expect(RuleEditorDraftState.rangeEditText(.null, key: "num1") == "")
+        #expect(RuleEditorDraftState.rangeEditText(.object(["num2": .number(0)]), key: "num1") == "")
     }
 
     @Test func rangeValue_setsBoundOnExistingRange() {
         let current: RuleJSONValue = .object(["num1": .number(0), "num2": .number(0)])
-        let result = RuleEditorDraftState.rangeValue(from: Decimal(10), current: current, key: "num1")
+        let result = RuleEditorDraftState.rangeValue(fromText: "10", current: current, key: "num1")
         #expect(result == .object(["num1": .number(1000), "num2": .number(0)]))
     }
 
     @Test func rangeValue_createsRangeWhenCurrentIsNotAnObject() {
-        let result = RuleEditorDraftState.rangeValue(from: Decimal(25), current: .null, key: "num2")
+        let result = RuleEditorDraftState.rangeValue(fromText: "25", current: .null, key: "num2")
         #expect(result == .object(["num2": .number(2500)]))
     }
 
-    @Test func rangeValue_emptyInputStaysInvalid() {
-        let result = RuleEditorDraftState.rangeValue(from: nil, current: .null, key: "num1")
-        #expect(result == .object(["num1": .null]))
+    @Test func rangeValue_emptyInputStaysInvalidAndJunkIsUnreadable() {
+        #expect(RuleEditorDraftState.rangeValue(fromText: "", current: .null, key: "num1") == .object(["num1": .null]))
+        #expect(RuleEditorDraftState.rangeValue(fromText: "abc", current: .null, key: "num1") == nil)
+    }
+
+    @Test func amountField_routesPlainValueAndRangeBounds() {
+        let range: RuleJSONValue = .object(["num1": .number(1250)])
+        #expect(RuleEditorDraftState.amountFieldEditText(key: "value", value: .number(500)) == "5.00")
+        #expect(RuleEditorDraftState.amountFieldEditText(key: "num1", value: range) == "12.50")
+        #expect(RuleEditorDraftState.amountFieldValue(key: "value", text: "5", current: .null) == .number(500))
+        #expect(RuleEditorDraftState.amountFieldValue(key: "num2", text: "7", current: range)
+            == .object(["num1": .number(1250), "num2": .number(700)]))
     }
 
     @Test func rangeValue_emptyBoundDisablesRuleSave() {

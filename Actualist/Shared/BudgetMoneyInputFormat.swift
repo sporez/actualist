@@ -2,35 +2,8 @@ import Foundation
 
 /// Owner of editable money text. The static `minorUnits`, `autoDecimalsText` and
 /// `editText` read and write amounts the way Actual's amount fields do, by the budget's
-/// number format. The format-style value below is the device-locale `TextField`
-/// binding that the rule value editor still uses.
-struct BudgetMoneyInputFormat: ParseableFormatStyle, ParseStrategy {
-    let currencyCode: String
-    var locale: Locale
-
-    init(currency: BudgetCurrency, locale: Locale) {
-        currencyCode = currency.code
-        self.locale = locale
-    }
-
-    var parseStrategy: Self { self }
-
-    func format(_ value: Decimal) -> String {
-        currencyCode.isEmpty ? number.format(value) : currency.format(value)
-    }
-
-    func parse(_ value: String) throws -> Decimal {
-        let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let amount: Decimal?
-        if !currencyCode.isEmpty, let match = text.wholeMatch(of: currency) {
-            amount = match.output
-        } else {
-            amount = text.wholeMatch(of: number)?.output
-        }
-        guard let amount, amount.isFinite else { throw CocoaError(.formatting) }
-        return amount
-    }
-
+/// number format.
+enum BudgetMoneyInputFormat {
     /// A typed amount as integer minor units, the way Actual reads it: arithmetic such as
     /// `10+5`, then the budget's number format, then `Math.round(amount * 10^decimalPlaces)`
     /// with Double math, so `1.005` is 100. A blank field is `.empty`. Magnitudes above
@@ -91,16 +64,6 @@ struct BudgetMoneyInputFormat: ParseableFormatStyle, ParseStrategy {
         }
         groups.insert(rest, at: 0)
         return groups.joined(separator: String(format.thousandsSeparator))
-    }
-
-    // A stable, unpadded style avoids inserting cents during typing or replacing
-    // unfinished native text when focus changes. BudgetCurrency still owns rounding.
-    private var number: Decimal.FormatStyle {
-        .number.precision(.fractionLength(0...38)).locale(locale)
-    }
-
-    private var currency: Decimal.FormatStyle.Currency {
-        .currency(code: currencyCode).precision(.fractionLength(0...38)).locale(locale)
     }
 }
 

@@ -11,7 +11,6 @@ import SwiftUI
 struct RuleValueEditor: View {
     @Environment(AppState.self) private var appState
     @Environment(\.budgetCurrency) private var currency
-    @Environment(\.locale) private var locale
     @Binding var value: RuleJSONValue
     let field: String
     let operation: String
@@ -19,6 +18,9 @@ struct RuleValueEditor: View {
     let inputID: UUID
     let focus: FocusState<RuleEditorFocus?>.Binding
     @State private var isPayeePickerPresented = false
+    /// In-progress amount text by field key (`value`, `num1`, `num2`), as Actual's `AmountInput` keeps
+    /// its raw text in component state. A missing entry means "show the stored value".
+    @State private var amountTexts: [String: String] = [:]
 
     var body: some View {
         Group {
@@ -45,6 +47,13 @@ struct RuleValueEditor: View {
                         .submitLabel(.done)
                         .onSubmit { focus.wrappedValue = nil }
                 }
+            }
+        }
+        .onChange(of: value) {
+            // A change from outside (operator or field switch, reload) replaces any stale draft text.
+            let focused = focus.wrappedValue
+            if focused != .value(inputID), focused != .range(inputID, "num1"), focused != .range(inputID, "num2") {
+                amountTexts = [:]
             }
         }
         .sheet(isPresented: $isPayeePickerPresented) {
@@ -74,8 +83,8 @@ struct RuleValueEditor: View {
 
     private var rangeEditor: some View {
         VStack(alignment: .leading, spacing: 12) {
-            amountInput("Minimum", binding: rangeBinding(key: "num1"), focusValue: .range(inputID, "num1"))
-            amountInput("Maximum", binding: rangeBinding(key: "num2"), focusValue: .range(inputID, "num2"))
+            amountInput("Minimum", key: "num1", focusValue: .range(inputID, "num1"))
+            amountInput("Maximum", key: "num2", focusValue: .range(inputID, "num2"))
         }
     }
 
@@ -101,7 +110,7 @@ struct RuleValueEditor: View {
     }
 
     private var amountEditor: some View {
-        amountInput("Value", binding: amountBinding, focusValue: .value(inputID))
+        amountInput("Value", key: RuleEditorDraftState.amountFieldKey, focusValue: .value(inputID))
     }
 
     @ViewBuilder
@@ -255,27 +264,6 @@ struct RuleValueEditor: View {
         )
     }
 
-    private var amountBinding: Binding<Decimal?> {
-        Binding(
-            get: { RuleEditorDraftState.amountDisplayValue(value, currency: currency) },
-            set: { amount in value = RuleEditorDraftState.amountValue(from: amount, currency: currency) }
-        )
-    }
-
-    private func rangeBinding(key: String) -> Binding<Decimal?> {
-        Binding(
-            get: { RuleEditorDraftState.rangeDisplayValue(value, key: key, currency: currency) },
-            set: { amount in
-                value = RuleEditorDraftState.rangeValue(
-                    from: amount,
-                    current: value,
-                    key: key,
-                    currency: currency
-                )
-            }
-        )
-    }
-
     private var dateBinding: Binding<Date> {
         Binding(
             get: {
@@ -305,23 +293,35 @@ struct RuleValueEditor: View {
         }
     }
 
-    private func amountInput(
-        _ title: String,
-        binding: Binding<Decimal?>,
-        focusValue: RuleEditorFocus
-    ) -> some View {
+    private func amountInput(_ title: String, key: String, focusValue: RuleEditorFocus) -> some View {
         labeledInput(title) {
-            TextField(
-                title,
-                value: binding,
-                format: BudgetMoneyInputFormat(currency: currency, locale: locale)
-            )
+            TextField(title, text: Binding(
+                get: {
+                    amountTexts[key]
+                        ?? RuleEditorDraftState.amountFieldEditText(key: key, value: value, currency: currency)
+                },
+                set: { amountTexts[key] = $0 }
+            ))
             .keyboardType(.decimalPad)
+            .autocorrectionDisabled()
             .multilineTextAlignment(.leading)
             .focused(focus, equals: focusValue)
             .submitLabel(.done)
             .onSubmit { focus.wrappedValue = nil }
+            .onChange(of: focus.wrappedValue) { previous, _ in
+                guard previous == focusValue else { return }
+                commitAmount(key: key)
+            }
         }
+    }
+
+    /// Focus left the field: unreadable text reverts to the stored value, like the old formatted field.
+    private func commitAmount(key: String) {
+        if let text = amountTexts[key],
+           let updated = RuleEditorDraftState.amountFieldValue(key: key, text: text, current: value, currency: currency) {
+            value = updated
+        }
+        amountTexts[key] = nil
     }
 
     private func labeledInput<Content: View>(

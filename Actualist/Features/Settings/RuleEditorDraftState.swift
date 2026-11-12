@@ -168,29 +168,25 @@ enum RuleEditorDraftState {
         }
     }
 
-    /// Editable numeric value for an amount in budget display units.
-    static func amountDisplayValue(
-        _ raw: RuleJSONValue,
-        currency: BudgetCurrency = .usd
-    ) -> Decimal? {
+    /// The text an amount field starts from: Actual's `forEdit` of the stored minor units, or
+    /// empty for a missing or non-numeric value.
+    static func amountEditText(_ raw: RuleJSONValue, currency: BudgetCurrency = .usd) -> String {
         guard let number = minorUnits(in: raw),
               let minorUnits = Int(exactly: number.rounded()) else {
-            return nil
+            return ""
         }
-        return currency.displayAmount(fromMinorUnits: minorUnits)
+        return BudgetMoneyInputFormat.editText(minorUnits: minorUnits, currency: currency)
     }
 
-    /// Converts a native editable amount into Actual minor units. Empty or
-    /// unrepresentable input remains invalid instead of becoming a saved zero.
-    static func amountValue(
-        from amount: Decimal?,
-        currency: BudgetCurrency = .usd
-    ) -> RuleJSONValue {
-        guard let amount,
-              let minorUnits = currency.minorUnits(fromDisplay: amount) else {
-            return .null
+    /// The value an amount field commits, read the way Actual's `AmountInput` does (`fromEdit`).
+    /// Blank text clears the value (`.null`, which keeps the rule unsavable). Unreadable text
+    /// returns `nil` so the caller keeps the current value.
+    static func amountValue(fromText text: String, currency: BudgetCurrency = .usd) -> RuleJSONValue? {
+        switch BudgetMoneyInputFormat.minorUnits(text, currency: currency) {
+        case .success(let minorUnits): .number(Double(minorUnits))
+        case .failure(.empty): .null
+        case .failure: nil
         }
-        return .number(Double(minorUnits))
     }
 
     /// Editable display text for a non-amount scalar value. Numbers are shown
@@ -206,33 +202,55 @@ enum RuleEditorDraftState {
 
     // MARK: Range (isbetween) get/set
 
-    /// Native editable value for one bound of an `isbetween` range object.
-    static func rangeDisplayValue(
+    /// The starting text for one bound of an `isbetween` range object.
+    static func rangeEditText(
         _ raw: RuleJSONValue,
         key: String,
         currency: BudgetCurrency = .usd
-    ) -> Decimal? {
-        guard case .object(let range) = raw, let cell = range[key] else { return nil }
-        return amountDisplayValue(cell, currency: currency)
+    ) -> String {
+        guard case .object(let range) = raw, let cell = range[key] else { return "" }
+        return amountEditText(cell, currency: currency)
     }
 
-    /// Sets one bound of an `isbetween` range object, creating the object when
-    /// the current value is not already a range.
+    /// Sets one bound of an `isbetween` range object from committed text, creating the object when
+    /// the current value is not already a range. `nil` when the text is unreadable.
     static func rangeValue(
-        from amount: Decimal?,
+        fromText text: String,
         current: RuleJSONValue,
         key: String,
         currency: BudgetCurrency = .usd
-    ) -> RuleJSONValue {
+    ) -> RuleJSONValue? {
+        guard let amount = amountValue(fromText: text, currency: currency) else { return nil }
         var range: [String: RuleJSONValue]
         if case .object(let existing) = current {
             range = existing
         } else {
             range = [:]
         }
-        range[key] = amountValue(from: amount, currency: currency)
+        range[key] = amount
         return .object(range)
     }
+
+    /// The amount field named `key` (`"value"` for a plain amount, else a range bound): its starting text.
+    static func amountFieldEditText(key: String, value: RuleJSONValue, currency: BudgetCurrency = .usd) -> String {
+        key == amountFieldKey
+            ? amountEditText(value, currency: currency)
+            : rangeEditText(value, key: key, currency: currency)
+    }
+
+    /// The whole value after committing `text` in the amount field named `key`; `nil` when unreadable.
+    static func amountFieldValue(
+        key: String,
+        text: String,
+        current: RuleJSONValue,
+        currency: BudgetCurrency = .usd
+    ) -> RuleJSONValue? {
+        key == amountFieldKey
+            ? amountValue(fromText: text, currency: currency)
+            : rangeValue(fromText: text, current: current, key: key, currency: currency)
+    }
+
+    static let amountFieldKey = "value"
 
     // MARK: Exact date selection
 
