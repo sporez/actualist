@@ -3,6 +3,7 @@ import SwiftUI
 struct AccountTransactionFeedRows: View {
     @Environment(\.actualistDensity) private var density
     @Environment(\.budgetCurrency) private var currency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let groups: AccountTransactionFeedGroups
     let scope: TransactionFeedScope
@@ -68,38 +69,42 @@ struct AccountTransactionFeedRows: View {
     ) -> some View {
         let identity = row.selectionIdentity
         let isSelected = identity.map(selectedIdentities.contains) ?? false
+        let isUnselectable = isSelectionMode && identity == nil
+        // Selection mode changes only modifier values, never the view's structure, so a row
+        // keeps its identity and its selection circle can slide in instead of the row being replaced.
         let button = baseTransactionButton(
             for: row,
             showsBottomSeparator: showsBottomSeparator,
             identity: identity,
             isSelected: isSelected
         )
+        .accessibilityIdentifier(
+            "transaction-selection-\(identity?.transactionID ?? "")",
+            isEnabled: isSelectionMode && identity != nil
+        )
+        .accessibilityAddTraits(isSelectionMode && isSelected ? .isSelected : [])
+        .accessibilityLabel("Selection unavailable", isEnabled: isUnselectable)
+        .accessibilityHint("This transaction cannot be selected.", isEnabled: isUnselectable)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: isSelectionMode)
 
-        if isSelectionMode, let identity {
-            button
-                .accessibilityIdentifier("transaction-selection-\(identity.transactionID)")
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-        } else if isSelectionMode {
-            button
-                .disabled(true)
-                .accessibilityLabel("Selection unavailable")
-                .accessibilityHint("This transaction cannot be selected.")
-        } else if let share = TransactionShareContent(row: row, currency: currency) {
+        if let share = TransactionShareContent(row: row, currency: currency) {
             TransactionShareHost(share: share) { present in
                 button
                     .contextMenu {
-                        Button(action: present) {
-                            Label("Share", systemImage: "square.and.arrow.up")
+                        if !isSelectionMode {
+                            Button(action: present) {
+                                Label("Share", systemImage: "square.and.arrow.up")
+                            }
+                            .accessibilityIdentifier("transaction-share-\(share.id)")
+                            scheduleConversionButton(for: row)
                         }
-                        .accessibilityIdentifier("transaction-share-\(share.id)")
-                        scheduleConversionButton(for: row)
                     }
             }
-        } else if row.scheduleConversionEntryPoint != nil {
-            button
-                .contextMenu { scheduleConversionButton(for: row) }
         } else {
             button
+                .contextMenu {
+                    if !isSelectionMode { scheduleConversionButton(for: row) }
+                }
         }
     }
 
@@ -134,6 +139,7 @@ struct AccountTransactionFeedRows: View {
                         .font(.title3.weight(.medium))
                         .foregroundStyle(selectionColor(identity: identity, isSelected: isSelected))
                         .frame(width: 26)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
                         .accessibilityHidden(true)
                 }
 
