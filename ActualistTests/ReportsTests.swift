@@ -387,6 +387,37 @@ struct ReportsTests {
         #expect(snapshot.budgetOverview.budgetedExpenses == 50_000)
     }
 
+    @Test(arguments: [
+        (nil as String?, [5, 1, 3]),
+        ("0", [5, 1, 3]),
+        ("1", [4, 0, 2]),
+        ("6", [6, 2, 4]),
+        ("9", [5, 1, 3]),
+        ("-1", [5, 1, 3]),
+        (" 2x", [3, 6, 1]),
+        ("monday", [5, 1, 3])
+    ])
+    func calendarWeeksStartOnTheSyncedFirstDayOfWeek(preference: String?, leadingBlanks: [Int]) async throws {
+        let rows = preference.map { "INSERT INTO preferences VALUES ('firstDayOfWeekIdx', '\($0)');" } ?? ""
+        let url = try makeReportsFixture(extraSQL: "CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT); \(rows)")
+        let database = try BudgetDatabase(databaseURL: url)
+        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+
+        #expect(snapshot.transactionCalendar.map(\.leadingBlankCount) == leadingBlanks)
+        let index = ReportCalendar.firstWeekdayIndex(preference: preference)
+        #expect(snapshot.calendarFirstWeekdayIndex == index)
+
+        let viewModel = ReportsViewModel()
+        await viewModel.load(
+            budgetID: "budget",
+            repository: FakeReportsRepository(cached: nil, refreshed: [snapshot, snapshot]),
+            privacyModeEnabled: true,
+            now: try reportNow()
+        )
+        let base = ReportCalendar.gregorianUTC.veryShortStandaloneWeekdaySymbols
+        #expect(viewModel.weekdaySymbols == Array(base[index...] + base[..<index]))
+    }
+
     private var reportRange: ReportDateRange {
         ReportDateRange(anchorMonth: "2026-07", startDay: "2026-02-01", endDay: "2026-07-16")
     }

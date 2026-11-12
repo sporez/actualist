@@ -151,6 +151,8 @@ struct ReportsDashboardSnapshot: Equatable, Sendable {
     let threeMonthAverage: ThreeMonthAverageReport
     let transactionCalendar: [TransactionCalendarMonth]
     var calendarTransfers: ReportTransferFilter = .all
+    /// Actual's synced `firstDayOfWeekIdx` (0 Sunday ... 6 Saturday); the calendar report starts its weeks here.
+    var calendarFirstWeekdayIndex = 0
 }
 
 struct ReportDailyActivity: Equatable, Sendable {
@@ -177,6 +179,21 @@ enum ReportCalendar {
 
     static func date(fromDayID dayID: String, calendar: Calendar = gregorianUTC) -> Date? {
         ActualDateOnly.lenientDate(fromDayID: dayID, calendar: calendar)
+    }
+
+    /// Actual's calendar report reads `firstDayOfWeekIdx` with `parseInt` and uses it only when it is
+    /// 0...6; anything else (or no preference) means Sunday, whatever the device region says.
+    static func firstWeekdayIndex(preference: String?) -> Int {
+        guard let preference else { return 0 }
+        var scalars = Substring(preference.trimmingCharacters(in: .whitespacesAndNewlines))
+        var digits = ""
+        if let sign = scalars.first, sign == "-" || sign == "+" {
+            if sign == "-" { digits = "-" }
+            scalars = scalars.dropFirst()
+        }
+        digits += scalars.prefix { $0 >= "0" && $0 <= "9" }
+        guard let index = Int(digits), (0...6).contains(index) else { return 0 }
+        return index
     }
 
     static func date(fromMonthID monthID: String, calendar: Calendar = gregorianUTC) -> Date? {

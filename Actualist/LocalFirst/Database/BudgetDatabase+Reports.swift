@@ -30,6 +30,9 @@ extension BudgetDatabase {
             let calendarTransferFilter = try reportCalendarTransferFilter(db: db)
             return (
                 calendarTransfers: calendarTransferFilter,
+                firstWeekday: ReportCalendar.firstWeekdayIndex(
+                    preference: try SyncedPreferences.value(.firstDayOfWeekIdx, in: self, db: db)
+                ),
                 netWorth: try reportNetWorthDays(through: anchorMonthEnd, db: db),
                 activity: try reportActivityDays(from: range.startDay, through: anchorMonthEnd, db: db),
                 calendarActivity: try reportCalendarActivityDays(
@@ -47,6 +50,7 @@ extension BudgetDatabase {
             activityDays: raw.activity,
             calendarActivityDays: raw.calendarActivity,
             calendarTransfers: raw.calendarTransfers,
+            firstWeekday: raw.firstWeekday,
             budgetedExpenses: raw.budgetedExpenses
         )
     }
@@ -185,6 +189,7 @@ extension BudgetDatabase {
         activityDays: [RawReportActivityDay],
         calendarActivityDays: [RawCalendarActivityDay],
         calendarTransfers: ReportTransferFilter,
+        firstWeekday: Int,
         budgetedExpenses: Int
     ) throws -> ReportsDashboardSnapshot {
         var activityByDay: [String: ReportDailyActivity] = [:]
@@ -215,7 +220,7 @@ extension BudgetDatabase {
             budgetedExpenses: budgetedExpenses
         )
         let threeMonthAverage = try buildThreeMonthAverage(range: range, activityByDay: activityByDay)
-        let calendar = try buildTransactionCalendar(range: range, activityDays: calendarActivityDays)
+        let calendar = try buildTransactionCalendar(range: range, activityDays: calendarActivityDays, firstWeekday: firstWeekday)
 
         return ReportsDashboardSnapshot(
             range: range,
@@ -226,7 +231,8 @@ extension BudgetDatabase {
             budgetOverview: budgetOverview,
             threeMonthAverage: threeMonthAverage,
             transactionCalendar: calendar,
-            calendarTransfers: calendarTransfers
+            calendarTransfers: calendarTransfers,
+            calendarFirstWeekdayIndex: firstWeekday
         )
     }
 
@@ -443,10 +449,10 @@ extension BudgetDatabase {
 
     private func buildTransactionCalendar(
         range: ReportDateRange,
-        activityDays: [RawCalendarActivityDay]
+        activityDays: [RawCalendarActivityDay],
+        firstWeekday: Int
     ) throws -> [TransactionCalendarMonth] {
-        var displayCalendar = Calendar.current
-        displayCalendar.timeZone = ActualDateOnly.utc
+        let displayCalendar = ReportCalendar.gregorianUTC
         var activityByDay: [String: ReportDailyActivity] = [:]
         for row in activityDays {
             var activity = activityByDay[row.dayID] ?? ReportDailyActivity()
@@ -474,7 +480,7 @@ extension BudgetDatabase {
             }
             let firstDate = ReportCalendar.date(fromMonthID: month) ?? .distantPast
             let weekday = displayCalendar.component(.weekday, from: firstDate)
-            let leadingBlankCount = (weekday - displayCalendar.firstWeekday + 7) % 7
+            let leadingBlankCount = (weekday - 1 - firstWeekday + 7) % 7
             months.append(TransactionCalendarMonth(
                 month: month,
                 leadingBlankCount: leadingBlankCount,

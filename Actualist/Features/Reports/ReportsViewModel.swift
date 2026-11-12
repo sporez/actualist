@@ -164,11 +164,9 @@ final class ReportsViewModel {
     }
 
     var weekdaySymbols: [String] {
-        var calendar = Calendar.current
-        calendar.timeZone = ActualDateOnly.utc
-        let symbols = calendar.veryShortStandaloneWeekdaySymbols
-        guard !symbols.isEmpty else { return ["S", "M", "T", "W", "T", "F", "S"] }
-        let offset = max(calendar.firstWeekday - 1, 0)
+        let symbols = ReportCalendar.gregorianUTC.veryShortStandaloneWeekdaySymbols
+        guard symbols.count == 7 else { return ["S", "M", "T", "W", "T", "F", "S"] }
+        let offset = displaySnapshot?.calendarFirstWeekdayIndex ?? 0
         return Array(symbols[offset...] + symbols[..<offset])
     }
 
@@ -311,7 +309,8 @@ final class ReportsViewModel {
                 variance: currentExpenses - averageExpenses
             ),
             transactionCalendar: calendar,
-            calendarTransfers: snapshot.calendarTransfers
+            calendarTransfers: snapshot.calendarTransfers,
+            calendarFirstWeekdayIndex: snapshot.calendarFirstWeekdayIndex
         )
     }
 
