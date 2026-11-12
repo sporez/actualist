@@ -166,12 +166,12 @@ struct AccountTransactionsView: View {
                 TransactionActiveFilterSections(
                     status: viewModel.statusFilter,
                     structuredConditionCount: viewModel.activeFeedQuery.conditions.count,
-                    onClearStatus: {
+                    onSelectStatus: { filter in
                         Task {
-                            await viewModel.selectFilter(.all, budgetID: budgetID,
-                                                         repository: transactionRepository)
+                            await viewModel.selectFilter(filter, budgetID: budgetID, repository: transactionRepository)
                         }
                     },
+                    onEditStructured: presentTransactionFilters,
                     onClearStructured: {
                         Task {
                             await viewModel.applyStructuredConditions(

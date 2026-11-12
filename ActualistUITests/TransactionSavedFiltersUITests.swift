@@ -57,10 +57,8 @@ final class TransactionSavedFiltersUITests: XCTestCase {
 
         let activeFilter = app.buttons["transaction-filter-clear-structured"]
         XCTAssertTrue(activeFilter.waitForExistence(timeout: 5))
-        let initialClearLabel = activeFilter.staticTexts["More Filters: 1"]
-        XCTAssertTrue(initialClearLabel.exists)
-        XCTAssertTrue(initialClearLabel.isHittable)
-        initialClearLabel.tap()
+        XCTAssertTrue(activeFilter.isHittable)
+        activeFilter.tap()
         XCTAssertTrue(activeFilter.waitForNonExistence(timeout: 2))
         XCTAssertTrue(app.buttons["Clear Uncleared Filter"].exists)
         XCTAssertEqual(search.value as? String, "market")
@@ -86,10 +84,8 @@ final class TransactionSavedFiltersUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Clear Uncleared Filter"].exists)
         XCTAssertEqual(search.value as? String, "market")
 
-        let visibleClearLabel = activeFilter.staticTexts["More Filters: 1"]
-        XCTAssertTrue(visibleClearLabel.exists)
-        XCTAssertTrue(visibleClearLabel.isHittable)
-        visibleClearLabel.tap()
+        XCTAssertTrue(activeFilter.isHittable)
+        activeFilter.tap()
         XCTAssertTrue(activeFilter.waitForNonExistence(timeout: 2))
     }
 

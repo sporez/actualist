@@ -31,10 +31,13 @@ final class TransactionStructuredFilterUITests: XCTestCase {
         XCTAssertTrue(structured.label.contains("4"))
         XCTAssertTrue(app.buttons["Clear Cleared Filter"].exists)
         XCTAssertEqual(search.value as? String, "market")
-        let structuredLabel = structured.staticTexts["More Filters: 4"]
-        XCTAssertTrue(structuredLabel.exists)
-        XCTAssertTrue(structuredLabel.isHittable)
-        structuredLabel.tap()
+        let editStructured = app.buttons["transaction-filter-edit-structured"]
+        XCTAssertTrue(editStructured.isHittable)
+        editStructured.tap()
+        XCTAssertTrue(app.buttons["transaction-filter-cancel"].waitForExistence(timeout: 5))
+        app.buttons["transaction-filter-cancel"].tap()
+        XCTAssertTrue(structured.waitForExistence(timeout: 5))
+        structured.tap()
         XCTAssertTrue(structured.waitForNonExistence(timeout: 2))
         XCTAssertTrue(app.buttons["Clear Cleared Filter"].exists)
         XCTAssertEqual(search.value as? String, "market")
@@ -100,10 +103,8 @@ final class TransactionStructuredFilterUITests: XCTestCase {
         XCTAssertTrue(app.segmentedControls["transaction-filter-join"].buttons["Any (OR)"].isSelected)
         XCTAssertEqual(app.switches["transaction-filter-date-enabled"].value as? String, "0")
         app.buttons["transaction-filter-cancel"].tap()
-        let clearLabel = clear.staticTexts["More Filters: 1"]
-        XCTAssertTrue(clearLabel.exists)
-        XCTAssertTrue(clearLabel.isHittable)
-        clearLabel.tap()
+        XCTAssertTrue(clear.isHittable)
+        clear.tap()
         XCTAssertTrue(clear.waitForNonExistence(timeout: 2))
     }
 

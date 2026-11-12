@@ -19,11 +19,21 @@ final class TransactionStatusFilterUITests: XCTestCase {
         XCTAssertTrue(indicator.label.contains("Uncleared"))
         attachScreenshot(named: "spending-status-filter-dark", app: app)
 
-        let indicatorLabel = indicator.staticTexts["Filtered: Uncleared"]
-        XCTAssertTrue(indicatorLabel.exists)
-        XCTAssertTrue(indicatorLabel.isHittable)
-        indicatorLabel.tap()
+        let pill = app.buttons["transaction-filter-status"]
+        XCTAssertTrue(pill.isHittable)
+        pill.tap()
+        for filter in ["Uncategorized", "Uncleared", "Cleared", "Reconciled"] {
+            XCTAssertTrue(app.buttons[filter].waitForExistence(timeout: 2), "Missing \(filter) in the pill menu")
+        }
+        XCTAssertFalse(app.buttons["All"].exists)
+        app.buttons["Reconciled"].tap()
+        let reconciled = app.buttons["Clear Reconciled Filter"]
+        XCTAssertTrue(reconciled.waitForExistence(timeout: 5))
         XCTAssertTrue(indicator.waitForNonExistence(timeout: 2))
+
+        reconciled.tap()
+        XCTAssertTrue(reconciled.waitForNonExistence(timeout: 2))
+        XCTAssertFalse(pill.exists)
         XCTAssertTrue(filterMenu.exists)
     }
 
@@ -102,13 +112,8 @@ final class TransactionStatusFilterUITests: XCTestCase {
         XCTAssertEqual(summary.label, balance)
         attachScreenshot(named: "account-status-filter-dark", app: app)
 
-        // On iPad the List gives this button the full row's accessibility frame;
-        // the balance marks the center of the visible detail pane, not the sidebar.
-        app.coordinate(withNormalizedOffset: CGVector(
-            dx: summary.frame.midX / app.frame.width,
-            dy: indicator.frame.midY / app.frame.height
-        )).tap()
-        XCTAssertFalse(indicator.waitForExistence(timeout: 5))
+        indicator.tap()
+        XCTAssertTrue(indicator.waitForNonExistence(timeout: 5))
 
         app.buttons["Account Actions"].tap()
         app.buttons["Filter Transactions"].tap()
