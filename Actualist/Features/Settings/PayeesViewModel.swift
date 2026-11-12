@@ -287,11 +287,8 @@ final class PayeesViewModel {
         guard !query.isEmpty else {
             return payees
         }
-        let normalizedQuery = query.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         return payees.filter { payee in
-            let searchable = (payee.isTransfer ? "Transfer: " : "") + payee.displayName
-            return searchable.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                .contains(normalizedQuery)
+            ((payee.isTransfer ? "Transfer: " : "") + payee.displayName).matchesSearch(query)
         }
     }
 }

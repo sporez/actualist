@@ -174,14 +174,6 @@ final class SchedulesViewModel {
         let rows = schedules.map { SchedulePresentation.row($0, context: context) }
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return rows }
-        let normalizedQuery = query.folding(
-            options: [.caseInsensitive, .diacriticInsensitive],
-            locale: .current
-        )
-        return rows.filter { row in
-            row.searchableText
-                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                .contains(normalizedQuery)
-        }
+        return rows.filter { $0.searchableText.matchesSearch(query) }
     }
 }

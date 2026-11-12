@@ -424,16 +424,7 @@ enum SchedulePresentation {
             if day > 0 { return "day \(day)" }
             return day == -1 ? "last day" : "\(ordinal(-day))-to-last day"
         case .weekday(let weekday, let position):
-            let weekdayName: String
-            switch weekday {
-            case .sunday: weekdayName = "Sunday"
-            case .monday: weekdayName = "Monday"
-            case .tuesday: weekdayName = "Tuesday"
-            case .wednesday: weekdayName = "Wednesday"
-            case .thursday: weekdayName = "Thursday"
-            case .friday: weekdayName = "Friday"
-            case .saturday: weekdayName = "Saturday"
-            }
+            let weekdayName = weekday.fullName
             if position > 0 { return "\(ordinal(position)) \(weekdayName)" }
             return position == -1
                 ? "last \(weekdayName)"
@@ -455,5 +446,20 @@ enum SchedulePresentation {
             }
         }
         return "\(value)\(suffix)"
+    }
+}
+
+extension ActualScheduleWeekday {
+    /// The one weekday-name table; the schedule editor's picker abbreviates it.
+    var fullName: String {
+        switch self {
+        case .sunday: "Sunday"
+        case .monday: "Monday"
+        case .tuesday: "Tuesday"
+        case .wednesday: "Wednesday"
+        case .thursday: "Thursday"
+        case .friday: "Friday"
+        case .saturday: "Saturday"
+        }
     }
 }
