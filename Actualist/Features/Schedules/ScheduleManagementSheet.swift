@@ -278,7 +278,8 @@ struct ScheduleEditorView: View {
                         },
                         set: { coordinator.setAmount($0) }
                     ))
-                    .keyboardType(.numbersAndPunctuation)
+                    .keyboardType(.decimalPad)
+                    .autocorrectionDisabled()
                     .focused($focusedField, equals: .amount)
                     .accessibilityIdentifier("schedule-editor-amount")
                     .reviewSheetFieldStyle()
@@ -292,7 +293,8 @@ struct ScheduleEditorView: View {
                         },
                         set: { coordinator.setRangeEnd($0) }
                     ))
-                    .keyboardType(.numbersAndPunctuation)
+                    .keyboardType(.decimalPad)
+                    .autocorrectionDisabled()
                     .focused($focusedField, equals: .rangeEnd)
                     .accessibilityIdentifier("schedule-editor-amount-upper")
                     .reviewSheetFieldStyle()
