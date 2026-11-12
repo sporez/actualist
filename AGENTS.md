@@ -17,7 +17,7 @@ Glass-aware, and optimized for repeated budget review.
 - Development pipeline: `docs/DEVELOPMENT.md`.
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change, or
   reuse an applicable result when its relevant inputs are unchanged. It covers
-  whitespace, Liquid Glass, UIKit views, date ownership, concurrency escape hatches (`@unchecked Sendable`,
+  whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
   `// Invariant:` comment), private identifiers (patterns from an optional
   gitignored list), TestFlight notes, parity fixture hashes and the
@@ -576,9 +576,13 @@ different ranges, guards fixed in one layout and not the other.
 | Transaction feeds | `cachedTransactions(budgetID:scope:query:)`, `refreshTransactions`, `transactionPage` with `TransactionFeedQuery` | A per-scope `cached…`/`refresh…`/`search…` member. Category feeds are the one remaining exception, because they have their own cache. |
 | Synced preferences | `SyncedPreferences` (`LocalFirst/Database/SyncedPreferences.swift`) | Raw `preferences` rows |
 | Live (non-deleted) rows | `predicateForLiveRows` (`BudgetDatabase+Schema.swift`) | A hand-written `tombstone = 0` predicate |
-| Transaction column aliases | `TransactionRowColumns` (`BudgetDatabase.swift`) | A local `["acct", "account"]`-style list |
-| Table and column existence | `tableExists` / `columnSet` (`BudgetDatabase+Schema.swift`) | A raw `sqlite_master` or `PRAGMA table_info` query |
+| Transaction row reading | `TransactionRowReader` (`LocalFirst/Database/TransactionRowReader.swift`): the raw `transactions` row by id, `parentID(in:columns:)`, `effectiveIsChild`. The split record, batch snapshot and undo snapshot loaders keep their own projections, which differ on purpose (Decision Register D1, D10) | A fourth `SELECT * FROM transactions WHERE id = ?` loader, a copy of `effectiveIsChild` |
+| Row value coercion | `SQLiteValueCoercion` (`LocalFirst/Database/SQLiteValueCoercion.swift`): `lenientBool`/`lenientString`/`lenientDouble` and `exactInt`/`exactInt64` for untyped values; `int`, `flag`, `number`, `numberOrText`, `nonEmptyString` for decoded cells. The variants differ on trimming, REAL handling and nil versus false (D13). Pick the one the reader always used | A local `flexibleBool`, `intValue`/`stringValue`, or `value as? Int64` ladder |
+| Column aliases | `TransactionRowColumns` (`LocalFirst/Database/TransactionRowColumns.swift`): `account(in:)`, `payee(in:)`, `importedID(in:)`, `importedPayee(in:)`, `transferID(in:)`, `isParent(in:)`, `isChild(in:)` and the matching `…Aliases` lists; `CategoryColumns.group(in:)`; `AccountColumns.transferPayee(in:)` | A local `["acct", "account"]`-style list or `contains("acct") \|\| contains("account")` |
+| Table and column existence | `SQLiteSchema.tableExists(_:in:)` / `columns(of:in:)` (`LocalFirst/Database/SQLiteSchema.swift`), uncached and usable before an actor exists. `BudgetDatabase.tableExists` / `columnSet` (`BudgetDatabase+Schema.swift`) are the cached actor wrappers | A raw `sqlite_master` or `PRAGMA table_info` query |
 | CRDT messages | `LocalFirstSyncMessageBuilder` (`LocalFirst/Sync/`) | Building messages outside the builder |
+| Delete marks (`tombstone` messages) | `LocalFirstSyncMessageBuilder.tombstone(dataset:row:)` and `revive(dataset:row:)`. `scripts/lint-tombstone-messages.sh` fails on `column: "tombstone"` outside the builder | A hand-written `makeMessage(... column: "tombstone" ...)` |
+| Stored split error present | `SplitTransactionError.isPresent(_:)` | A local `!error.isEmpty && error != "null"` |
 | Budget screen sheets | `BudgetWorkspaceSheet` (`Features/Budget/BudgetWorkspaceActions.swift`). The compact `BudgetView` still uses one flag per sheet until its follow-up lands. | A new flag-based sheet on the compact Budget screen. If one cannot wait, it must also join `monthSwipePresentationBlocked`. |
 | Sheet detents | `reviewSheetPresentation`, `reviewSheetDetents`, `toolbarlessSheetDetents` (`DesignSystem/ReviewSheetForm.swift`) | `.presentationDetents(` |
 | Sheet secondary action | `ReviewSheetSecondaryButton` (`DesignSystem/ReviewSheetStyle.swift`) | A copied glass Cancel button |
