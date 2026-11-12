@@ -146,8 +146,8 @@ struct SQLiteValueCoercionTests {
         }
     }
 
-    /// A text or blob cell traps in `row[column] as Int?`, so these read the
-    /// numeric storage classes. Text reads through the String variants only.
+    /// The numeric storage classes. Text and blobs are in
+    /// `decodedCellsReadTextAndBlobsWithoutTrapping`.
     @Test func decodedNumbersFollowTheStorageClass() throws {
         let cases: [(literal: String, int: Int?, flag: Bool?, number: Double?)] = [
             ("NULL", nil, nil, nil),
@@ -167,6 +167,35 @@ struct SQLiteValueCoercionTests {
         #expect(SQLiteValueCoercion.int(row, "missing") == nil)
         #expect(SQLiteValueCoercion.flag(row, "missing") == nil)
         #expect(SQLiteValueCoercion.number(row, "missing") == nil)
+    }
+
+    /// Text, blobs and a REAL outside the `Int` range used to trap inside GRDB
+    /// (Decision Register D14). A REAL inside the range still truncates.
+    @Test func decodedCellsReadTextAndBlobsWithoutTrapping() throws {
+        let cases: [(literal: String, int: Int?, flag: Bool?, number: Double?, numberOrText: Double?)] = [
+            ("'5'", 5, true, nil, 5), ("'0'", 0, false, nil, 0), ("'-7'", -7, true, nil, -7),
+            ("'1.5'", nil, nil, nil, 1.5), ("' 5 '", nil, nil, nil, nil),
+            ("'true'", nil, true, nil, nil), ("'YES'", nil, true, nil, nil),
+            ("'false'", nil, false, nil, nil), ("'No'", nil, false, nil, nil),
+            ("'abc'", nil, nil, nil, nil), ("''", nil, nil, nil, nil),
+            ("X'35'", nil, nil, nil, nil), ("X''", nil, nil, nil, nil),
+            ("1e300", nil, nil, 1e300, 1e300), ("-1e300", nil, nil, -1e300, -1e300),
+            ("9223372036854775808.0", nil, nil, 9_223_372_036_854_775_808, 9_223_372_036_854_775_808),
+        ]
+        for item in cases {
+            let row = try cell(item.literal)
+            #expect(SQLiteValueCoercion.int(row, "v") == item.int, "\(item.literal)")
+            #expect(SQLiteValueCoercion.flag(row, "v") == item.flag, "\(item.literal)")
+            #expect(SQLiteValueCoercion.number(row, "v") == item.number, "\(item.literal)")
+            #expect(SQLiteValueCoercion.numberOrText(row, "v") == item.numberOrText, "\(item.literal)")
+        }
+    }
+
+    @Test func nonEmptyStringReadsNumbersAsNilAndBlobsAsText() throws {
+        #expect(try SQLiteValueCoercion.nonEmptyString(cell("5"), "v") == nil)
+        #expect(try SQLiteValueCoercion.nonEmptyString(cell("1.5"), "v") == nil)
+        #expect(try SQLiteValueCoercion.nonEmptyString(cell("X'616263'"), "v") == "abc")
+        #expect(try SQLiteValueCoercion.nonEmptyString(cell("X'00FF'"), "v") == nil)
     }
 
     @Test func nonEmptyStringReadsEmptyAndNullAsNil() throws {

@@ -47,8 +47,9 @@ struct TransactionRowLoaderCharacterizationTests {
     ///
     /// Only the split loader reads a boolean without decoding it as a number
     /// first, so only it survives every storage class. The batch and undo
-    /// loaders decode a number with `row[column] as Int?`, which traps on text
-    /// and blobs (GRDB `try!`), so they are pinned over the numeric classes.
+    /// loaders used to decode a number with `row[column] as Int?`, which trapped
+    /// on text and blobs (GRDB `try!`). `textAndBlobCellsReadWithoutTrappingInBatchAndUndo`
+    /// pins them over the other classes.
     private static let allProbes: [(label: String, literal: String)] = [
         ("null", "NULL"), ("0", "0"), ("1", "1"), ("2", "2"), ("-1", "-1"),
         ("max", "9223372036854775807"),
@@ -208,6 +209,62 @@ struct TransactionRowLoaderCharacterizationTests {
                 isChild: false,
                 parentID: nil
             ), "undo \(label)")
+        }
+    }
+
+    /// Text, blob and out-of-range REAL cells in the number columns. They used
+    /// to trap inside GRDB (Decision Register D14); now numeric text reads as
+    /// the number and everything else as no value.
+    @Test func textAndBlobCellsReadWithoutTrappingInBatchAndUndo() async throws {
+        struct Expected {
+            let int: Int?
+            let flag: Bool?
+            let sort: Double?
+        }
+        let cases: [(label: String, literal: String, expected: Expected)] = [
+            ("'0'", "'0'", Expected(int: 0, flag: false, sort: 0)),
+            ("'1'", "'1'", Expected(int: 1, flag: true, sort: 1)),
+            ("'2'", "'2'", Expected(int: 2, flag: true, sort: 2)),
+            ("'1.5'", "'1.5'", Expected(int: nil, flag: nil, sort: 1.5)),
+            ("'true'", "'true'", Expected(int: nil, flag: true, sort: nil)),
+            ("'FALSE'", "'FALSE'", Expected(int: nil, flag: false, sort: nil)),
+            ("'yes'", "'yes'", Expected(int: nil, flag: true, sort: nil)),
+            ("'no'", "'no'", Expected(int: nil, flag: false, sort: nil)),
+            ("' 1 '", "' 1 '", Expected(int: nil, flag: nil, sort: nil)),
+            ("''", "''", Expected(int: nil, flag: nil, sort: nil)),
+            ("'abc'", "'abc'", Expected(int: nil, flag: nil, sort: nil)),
+            ("blob '1'", "X'31'", Expected(int: nil, flag: nil, sort: nil)),
+            ("blob ff", "X'00FF'", Expected(int: nil, flag: nil, sort: nil)),
+            ("1e300", "1e300", Expected(int: nil, flag: nil, sort: 1e300)),
+            ("-1e300", "-1e300", Expected(int: nil, flag: nil, sort: -1e300)),
+        ]
+        let probes = cases.map { (label: $0.label, literal: $0.literal) }
+        let database = try BudgetDatabase(
+            databaseURL: support.makeSQLiteFixture(extraSQL: insertSQL(probes, amount: true, sort: true))
+        )
+        let loaded = try await read(database) { (database: isolated BudgetDatabase, db: Database) in
+            let columns = try database.resolveTransactionRowColumns(db: db)
+            return try cases.indices.map { index in
+                (
+                    batch: try database.transactionBatchSnapshot(id: "p\(index)", columns: columns, db: db),
+                    undo: try database.transactionUndoSnapshot(id: "p\(index)", db: db)
+                )
+            }
+        }
+        for (index, item) in cases.enumerated() {
+            let expected = item.expected
+            let batch = try #require(loaded[index].batch, "\(item.label)")
+            #expect(batch.amount == expected.int, "batch amount \(item.label)")
+            #expect(batch.cleared == expected.flag, "batch cleared \(item.label)")
+            #expect(batch.reconciled == expected.flag, "batch reconciled \(item.label)")
+            #expect(batch.tombstone == expected.flag, "batch tombstone \(item.label)")
+            #expect(batch.isParent == expected.flag, "batch isParent \(item.label)")
+            #expect(batch.sortOrder == expected.sort, "batch sort \(item.label)")
+            let undo = try #require(loaded[index].undo, "\(item.label)")
+            #expect(undo.amount == expected.int ?? 0, "undo amount \(item.label)")
+            #expect(undo.cleared == ((expected.int ?? 0) != 0), "undo cleared \(item.label)")
+            #expect(undo.tombstone == ((expected.int ?? 0) != 0), "undo tombstone \(item.label)")
+            #expect(undo.isParent == ((expected.int ?? 0) != 0), "undo isParent \(item.label)")
         }
     }
 
