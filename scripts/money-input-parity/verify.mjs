@@ -1,0 +1,95 @@
+#!/usr/bin/env node
+
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { oraclePin, pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
+
+const expected = {
+  schemaVersion: 1,
+  tag: oraclePin.tag,
+  commit: oraclePin.commit,
+  packageVersion: oraclePin.packageVersion,
+};
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const fixtureRoot = pinnedFixtureDirectory('MoneyInput');
+const manifestPath = join(fixtureRoot, 'money-input-manifest.json');
+
+function sha256(data) {
+  return createHash('sha256').update(data).digest('hex');
+}
+
+function fail(message) {
+  console.error(`money input parity fixture error: ${message}`);
+  console.error(
+    'Regenerate with ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/money-input-parity/generate.mjs.',
+  );
+  process.exit(1);
+}
+
+let manifest;
+try {
+  manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+} catch (error) {
+  fail(`cannot read ${relative(root, manifestPath)}: ${error.message}`);
+}
+if (manifest.schemaVersion !== expected.schemaVersion) fail('unexpected manifest schema');
+for (const key of ['tag', 'commit', 'packageVersion']) {
+  if (manifest.actual?.[key] !== expected[key]) fail(`unexpected Actual ${key}`);
+}
+if (manifest.seed !== null) fail('manifest seed must be null for this deterministic harness');
+if (manifest.amountUnits !== 'integer minor units') fail('amount units are not explicit');
+const generatorPath = join(root, 'scripts/money-input-parity/generate.mjs');
+if (sha256(readFileSync(generatorPath)) !== manifest.generator?.sha256) fail('generator hash mismatch');
+if (!Array.isArray(manifest.helpers) || manifest.helpers.length === 0) {
+  fail('manifest does not record the helper scripts it depends on');
+}
+for (const helper of manifest.helpers) {
+  const helperPath = resolve(root, helper.path ?? '');
+  let data;
+  try {
+    data = readFileSync(helperPath);
+  } catch (error) {
+    fail(`cannot read helper ${helper.path}: ${error.message}`);
+  }
+  if (sha256(data) !== helper.sha256) fail(`helper hash mismatch: ${helper.path}`);
+}
+if (!Array.isArray(manifest.sourceFiles) || manifest.sourceFiles.length !== 8) {
+  fail('source hash list is incomplete');
+}
+for (const source of manifest.sourceFiles) {
+  if (typeof source.path !== 'string' || !/^[a-f0-9]{64}$/.test(source.sha256 ?? '')) {
+    fail(`invalid source entry: ${JSON.stringify(source)}`);
+  }
+}
+const fixturePath = resolve(root, manifest.fixture?.path ?? '');
+if (!fixturePath.startsWith(fixtureRoot + '/')) fail('fixture path escapes pinned directory');
+const data = readFileSync(fixturePath);
+if (sha256(data) !== manifest.fixture?.sha256) fail('fixture hash mismatch');
+const fixture = JSON.parse(data.toString('utf8'));
+if (fixture.schemaVersion !== expected.schemaVersion || fixture.oracle?.commit !== expected.commit) {
+  fail('fixture oracle identity mismatch');
+}
+if (!Array.isArray(fixture.cases) || fixture.cases.length !== manifest.fixture?.caseCount) {
+  fail('fixture case count mismatch');
+}
+if (manifest.caseCount !== fixture.cases.length) fail('manifest caseCount is not the fixture case count');
+const { numberFormats, currencyScales, typedInputs, autoDecimalInputs } = manifest.dimensions ?? {};
+if (!Array.isArray(numberFormats) || numberFormats.length !== 5) fail('the five number formats are not all covered');
+if (!Array.isArray(currencyScales) || currencyScales.length !== 2) fail('both currency scales are not covered');
+const perCell = (typedInputs ?? 0) + (autoDecimalInputs ?? 0) + 8;
+if (fixture.cases.length !== numberFormats.length * currencyScales.length * perCell) {
+  fail('fixture case count disagrees with the recorded dimensions');
+}
+const ids = new Set(fixture.cases.map(value => value.id));
+if (ids.size !== fixture.cases.length) fail('duplicate fixture case ids');
+const modes = new Set(fixture.cases.map(value => value.mode));
+for (const mode of ['fromEdit', 'forEdit', 'autoDecimals']) {
+  if (!modes.has(mode)) fail(`missing mode: ${mode}`);
+}
+for (const value of fixture.cases) {
+  if (value.input === null || typeof value.input !== 'object') fail(`case ${value.id} does not record its input`);
+  if (value.expected === null || typeof value.expected !== 'object') fail(`case ${value.id} has no expected value`);
+}
+console.log(`Money input parity fixture verified (${manifest.actual.tag}, ${fixture.cases.length} cases).`);

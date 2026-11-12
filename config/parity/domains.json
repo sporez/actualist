@@ -186,6 +186,29 @@
       "notes": "ReconciliationOracleReplayTests replays 7 of 9 cases through production; adjustment-rule-projection and done-nonzero-difference are oracle-only (see the manifest)."
     },
     {
+      "id": "money-input",
+      "title": "Typed money amounts: Hold, schedule, template editor and reconciliation fields",
+      "status": "partial",
+      "harness": {
+        "dir": "scripts/money-input-parity",
+        "generate": "node scripts/money-input-parity/generate.mjs",
+        "verify": "node scripts/money-input-parity/verify.mjs",
+        "check": "node scripts/money-input-parity/generate.mjs --check"
+      },
+      "fixture": "MoneyInput",
+      "oracleSuites": [
+        "MoneyInputOracleReplayTests"
+      ],
+      "paths": [
+        "Actualist/Shared/BudgetMoneyInputFormat.swift",
+        "Actualist/Features/Budget/BudgetHoldAmountInput.swift",
+        "Actualist/Features/Schedules/ScheduleEditorDraft.swift",
+        "Actualist/Features/Templates/BudgetTemplateAmountInput.swift",
+        "Actualist/Features/Accounts/AccountReconciliationModels.swift"
+      ],
+      "notes": "The fixture is committed first; MoneyInputOracleReplayTests only checks it until the shared parser replays it."
+    },
+    {
       "id": "account-lifecycle",
       "title": "Account create, rename, close, reopen and delete",
       "status": "covered",

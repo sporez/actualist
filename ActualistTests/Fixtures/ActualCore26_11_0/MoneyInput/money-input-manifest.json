@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.11.0",
+    "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+    "packageVersion": "26.11.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/money-input-parity/generate.mjs",
+    "sha256": "fd3fe55c6b5d1f0c96f2afa8167d66b3df7e4efe6a14da9b0f5dd9bcdb1f084f"
+  },
+  "helpers": [
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    }
+  ],
+  "seed": null,
+  "amountUnits": "integer minor units",
+  "sourceFiles": [
+    {
+      "path": "packages/desktop-client/src/hooks/useFormat.ts",
+      "sha256": "af2118e24503f7351af46bc129a1da56e030cd05aa5ad72a4cdbcc72f919bbad"
+    },
+    {
+      "path": "packages/desktop-client/src/components/util/AmountInput.tsx",
+      "sha256": "43f55540a1b0af13eecede81d17e17e103cce14a82fc1c75a61ae822ded7e270"
+    },
+    {
+      "path": "packages/desktop-client/src/components/modals/HoldBufferModal.tsx",
+      "sha256": "38f6d251986e21836869e1c9571335705c70c30061d5f0b4ef0f13c2edf722fd"
+    },
+    {
+      "path": "packages/desktop-client/src/components/accounts/Reconcile.tsx",
+      "sha256": "4e1dcb33a4a51b8d20ab3fa60ed9347b6ab1d1abd69ee63ee9bcc75046d9b5f5"
+    },
+    {
+      "path": "packages/loot-core/src/shared/arithmetic.ts",
+      "sha256": "955716603cfe2b74bde984ee6795bd0464118480c2f97c25fad390478aa92fa4"
+    },
+    {
+      "path": "packages/loot-core/src/shared/util.ts",
+      "sha256": "976e0d398a1074dfc7f4909e17be73754396ab189f961c7f1341eda19620bdbe"
+    },
+    {
+      "path": "packages/loot-core/src/shared/currencies.ts",
+      "sha256": "a78e5a70ea0a576c3e3267d56dbdb3a55dfb649647c0f1dba16fc07536d2f985"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/actions.ts",
+      "sha256": "5fa3915814c773ee998e6836e5fe7c5a562cad643b310a1ac74faad662ec3294"
+    }
+  ],
+  "dimensions": {
+    "numberFormats": [
+      "comma-dot",
+      "dot-comma",
+      "space-comma",
+      "apostrophe-dot",
+      "comma-dot-in"
+    ],
+    "currencyScales": [
+      {
+        "code": "",
+        "decimalPlaces": 2
+      },
+      {
+        "code": "JPY",
+        "decimalPlaces": 0
+      }
+    ],
+    "typedInputs": 57,
+    "autoDecimalInputs": 13
+  },
+  "fixture": {
+    "path": "ActualistTests/Fixtures/ActualCore26_11_0/MoneyInput/money-input-contract.json",
+    "sha256": "9c39bddee1cd7f184e30d0ccfb3f321f6cf862e3c1ddd8eb2e12a802c1a7a26d",
+    "caseCount": 780
+  },
+  "caseCount": 780,
+  "casesWhereActualThrows": [
+    "auto-decimals-comma-dot-dp2-12",
+    "auto-decimals-comma-dot-dp0-12",
+    "auto-decimals-dot-comma-dp2-12",
+    "auto-decimals-dot-comma-dp0-12",
+    "auto-decimals-space-comma-dp2-12",
+    "auto-decimals-space-comma-dp0-12",
+    "auto-decimals-apostrophe-dot-dp2-12",
+    "auto-decimals-apostrophe-dot-dp0-12",
+    "auto-decimals-comma-dot-in-dp2-12",
+    "auto-decimals-comma-dot-in-dp0-12"
+  ]
+}
