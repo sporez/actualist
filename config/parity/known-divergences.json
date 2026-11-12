@@ -734,8 +734,9 @@
       ],
       "summary": "Actual's fromEdit returns any number, including amounts beyond 9,000,000,000,000,000 minor units, 2^53 and Infinity (1/0, 2^1024); the web app then throws when it formats the value (safeNumber). Actualist reports these as out of range, and a Hold field with 30 typed digits shows every digit where Actual rounds through a Double. Cause: BudgetMoneyInputFormat.minorUnits rejects magnitudes above Money.maximumUserAmountMinorUnits and non-finite results.",
       "opened": "2026-11-12",
-      "status": "open",
-      "reviewBy": "2026-12-12"
+      "status": "intended",
+      "decided": "2026-11-12",
+      "reason": "User decided to keep refusing amounts above 9e15 and non-finite results; Actual accepts them then fails to display them."
     }
   ]
 }
