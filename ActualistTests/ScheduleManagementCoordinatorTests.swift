@@ -29,7 +29,7 @@ struct ScheduleManagementCoordinatorTests {
         await ObservedTestState {
             if case .editing = coordinator.state { true } else { false }
         }.wait()
-        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        coordinator.save(mutationRepository: store)
         guard case .editing(let invalidSession) = coordinator.state else {
             Issue.record("An incomplete schedule must remain in the editor")
             return
@@ -42,8 +42,8 @@ struct ScheduleManagementCoordinatorTests {
         }
         #expect(correctedSession.notice == nil)
         coordinator.setAmount("12.34")
-        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
-        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        coordinator.save(mutationRepository: store)
+        coordinator.save(mutationRepository: store)
 
         await ObservedTestState { coordinator.contentRevision == 1 }.wait()
         // A durable save (even with a pending refresh) dismisses the sheet.
@@ -83,7 +83,7 @@ struct ScheduleManagementCoordinatorTests {
         }.wait()
         coordinator.setAccount("checking")
         coordinator.setAmount("12.34")
-        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        coordinator.save(mutationRepository: store)
         #expect(coordinator.state.isSubmitting)
 
         await ObservedTestState { coordinator.state == .idle }.wait()
@@ -120,7 +120,7 @@ struct ScheduleManagementCoordinatorTests {
         coordinator.setAmount("12.34")
         store.generation = 2
 
-        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        coordinator.save(mutationRepository: store)
 
         #expect(store.createCalls == 0)
         if case .failed(let message) = coordinator.state {
@@ -183,11 +183,10 @@ struct ScheduleManagementCoordinatorTests {
         coordinator.setAmount("12.34")
         coordinator.setDateMode(.recurring)
         coordinator.setEndingMode(.afterOccurrences)
-        let locale = Locale(identifier: "en_US")
 
         for invalid in ["", "0", "-2", "abc"] {
             coordinator.setEndingCount(invalid)
-            coordinator.save(locale: locale, mutationRepository: store)
+            coordinator.save(mutationRepository: store)
             guard case .editing(let session) = coordinator.state else {
                 Issue.record("A non-positive count \(invalid) must not be saved")
                 return
@@ -204,8 +203,7 @@ struct ScheduleManagementCoordinatorTests {
         #expect(valid.draft.canSave(
             isCreate: true,
             capabilities: valid.capabilities,
-            currency: .usd,
-            locale: locale
+            currency: .usd
         ))
 
         coordinator.setEndingCount("5")
@@ -318,7 +316,7 @@ struct ScheduleManagementCoordinatorTests {
         }.wait()
         coordinator.setAccount("checking")
         coordinator.setAmount("12.34")
-        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        coordinator.save(mutationRepository: store)
         // Save moves to `.submitting` synchronously, so waiting for
         // `.editing` observes the failure reopening the editor.
         #expect(coordinator.state.isSubmitting)

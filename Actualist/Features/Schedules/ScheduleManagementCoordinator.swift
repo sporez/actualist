@@ -378,7 +378,6 @@ final class ScheduleManagementCoordinator {
     func setUpcomingLength(_ value: String?) { updateDraft { $0.upcomingLength = value; $0.upcomingWasChanged = true } }
 
     func save(
-        locale: Locale,
         mutationRepository: any ScheduleMutationRepositoryProtocol
     ) {
         guard case .editing(let session) = state,
@@ -387,14 +386,12 @@ final class ScheduleManagementCoordinator {
         guard session.draft.canSave(
             isCreate: isCreate,
             capabilities: session.capabilities,
-            currency: session.currency,
-            locale: locale
+            currency: session.currency
         ) else {
             state = .editing(session.withNotice(session.draft.validationMessage(
                 isCreate: isCreate,
                 capabilities: session.capabilities,
-                currency: session.currency,
-                locale: locale
+                currency: session.currency
             )))
             return
         }
@@ -407,12 +404,12 @@ final class ScheduleManagementCoordinator {
             state = .failed(ScheduleMutationUserNotice.budgetChanged)
             return
         }
-        let fields = session.draft.editFields(currency: session.currency, locale: locale)
+        let fields = session.draft.editFields(currency: session.currency)
         if let fields, fields.isEmpty {
             state = .idle
             return
         }
-        guard session.originalReview != nil || session.draft.createDefinition(currency: session.currency, locale: locale) != nil else {
+        guard session.originalReview != nil || session.draft.createDefinition(currency: session.currency) != nil else {
             state = .editing(session.withNotice("Enter a valid account, amount, and date."))
             return
         }
@@ -437,7 +434,7 @@ final class ScheduleManagementCoordinator {
                     )
                 } else {
                     guard let identity = session.createIdentity,
-                          let definition = session.draft.createDefinition(currency: session.currency, locale: locale) else {
+                          let definition = session.draft.createDefinition(currency: session.currency) else {
                         state = .editing(session.withNotice("Enter a valid account, amount, and date."))
                         finish(request)
                         return

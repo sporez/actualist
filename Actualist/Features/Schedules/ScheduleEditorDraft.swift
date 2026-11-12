@@ -186,21 +186,21 @@ struct ScheduleEditorDraft: Hashable, Sendable {
         case .exact(let value):
             amountMode = .exact
             amountSign = value < 0 ? .spend : .deposit
-            amountText = Self.preciseEditableAmountText(abs(value), currency: currency)
+            amountText = BudgetMoneyInputFormat.editText(minorUnits: abs(value), currency: currency)
         case .approximate(let value):
             amountMode = .approximate
             amountSign = value < 0 ? .spend : .deposit
-            amountText = Self.preciseEditableAmountText(abs(value), currency: currency)
+            amountText = BudgetMoneyInputFormat.editText(minorUnits: abs(value), currency: currency)
         case .range(let lower, let upper, _):
             amountMode = .range
             if upper <= 0 && lower < 0 {
                 amountSign = .spend
-                amountText = Self.preciseEditableAmountText(-upper, currency: currency)
-                rangeEndText = Self.preciseEditableAmountText(-lower, currency: currency)
+                amountText = BudgetMoneyInputFormat.editText(minorUnits: -upper, currency: currency)
+                rangeEndText = BudgetMoneyInputFormat.editText(minorUnits: -lower, currency: currency)
             } else if lower >= 0 {
                 amountSign = .deposit
-                amountText = Self.preciseEditableAmountText(lower, currency: currency)
-                rangeEndText = Self.preciseEditableAmountText(upper, currency: currency)
+                amountText = BudgetMoneyInputFormat.editText(minorUnits: lower, currency: currency)
+                rangeEndText = BudgetMoneyInputFormat.editText(minorUnits: upper, currency: currency)
             } else {
                 // A range that crosses zero has no single Spend or Deposit sign.
                 // It stays unchanged until the user enters a new amount.
@@ -263,14 +263,14 @@ struct ScheduleEditorDraft: Hashable, Sendable {
         )
     }
 
-    func amountDraft(currency: BudgetCurrency, locale: Locale) -> ScheduleAmountDraft? {
-        guard let typed = Self.minorUnits(amountText, currency: currency, locale: locale) else { return nil }
+    func amountDraft(currency: BudgetCurrency) -> ScheduleAmountDraft? {
+        guard let typed = Self.minorUnits(amountText, currency: currency) else { return nil }
         let first = abs(typed)
         switch amountMode {
         case .exact: return .exact(amountSign.apply(to: first))
         case .approximate: return .approximate(amountSign.apply(to: first))
         case .range:
-            guard let typedEnd = Self.minorUnits(rangeEndText, currency: currency, locale: locale),
+            guard let typedEnd = Self.minorUnits(rangeEndText, currency: currency),
                   first <= abs(typedEnd) else {
                 return nil
             }
@@ -378,9 +378,9 @@ struct ScheduleEditorDraft: Hashable, Sendable {
         dateWasChanged = true
     }
 
-    func createDefinition(currency: BudgetCurrency, locale: Locale) -> ScheduleDefinitionDraft? {
+    func createDefinition(currency: BudgetCurrency) -> ScheduleDefinitionDraft? {
         guard let accountID, !accountID.isEmpty,
-              let amount = amountDraft(currency: currency, locale: locale),
+              let amount = amountDraft(currency: currency),
               let dateRule = dateRule() else { return nil }
         return ScheduleDefinitionDraft(
             accountID: accountID,
@@ -391,8 +391,7 @@ struct ScheduleEditorDraft: Hashable, Sendable {
     }
 
     func editFields(
-        currency: BudgetCurrency,
-        locale: Locale
+        currency: BudgetCurrency
     ) -> ScheduleEditFields? {
         var fields = ScheduleEditFields()
         if nameWasChanged && (originalValues == nil || Self.normalizedName(name) != originalValues?.name) {
@@ -405,7 +404,7 @@ struct ScheduleEditorDraft: Hashable, Sendable {
             fields.payeeMappingID = .set(payeeID)
         }
         if amountWasChanged {
-            guard let amount = amountDraft(currency: currency, locale: locale) else { return nil }
+            guard let amount = amountDraft(currency: currency) else { return nil }
             if amount != originalValues?.amount || originalValues == nil {
                 fields.amount = .set(amount)
             }
@@ -430,11 +429,10 @@ struct ScheduleEditorDraft: Hashable, Sendable {
     func canSave(
         isCreate: Bool,
         capabilities: ScheduleMutationCapabilities,
-        currency: BudgetCurrency,
-        locale: Locale
+        currency: BudgetCurrency
     ) -> Bool {
-        if isCreate { return createDefinition(currency: currency, locale: locale) != nil }
-        guard let fields = editFields(currency: currency, locale: locale), !fields.isEmpty else { return false }
+        if isCreate { return createDefinition(currency: currency) != nil }
+        guard let fields = editFields(currency: currency), !fields.isEmpty else { return false }
         if fields.accountID != .unchanged && !capabilities.canEditAccount { return false }
         if fields.accountID != .unchanged && accountID == nil { return false }
         if fields.payeeMappingID != .unchanged && !capabilities.canEditPayee { return false }
@@ -451,19 +449,18 @@ struct ScheduleEditorDraft: Hashable, Sendable {
     func validationMessage(
         isCreate: Bool,
         capabilities: ScheduleMutationCapabilities,
-        currency: BudgetCurrency,
-        locale: Locale
+        currency: BudgetCurrency
     ) -> String {
         if isCreate {
             guard accountID != nil else { return "Choose an open account." }
-            guard amountDraft(currency: currency, locale: locale) != nil else {
+            guard amountDraft(currency: currency) != nil else {
                 return amountMode == .range ? "Enter a valid amount range." : "Enter a valid amount."
             }
             if hasInvalidEndingCount { return Self.endingCountValidationMessage }
             guard dateRule() != nil else { return "Choose a valid schedule date and recurrence." }
             return "Check the schedule details and try again."
         }
-        guard let fields = editFields(currency: currency, locale: locale) else {
+        guard let fields = editFields(currency: currency) else {
             if amountWasChanged { return amountMode == .range ? "Enter a valid amount range." : "Enter a valid amount." }
             if dateWasChanged {
                 return hasInvalidEndingCount
@@ -500,10 +497,8 @@ struct ScheduleEditorDraft: Hashable, Sendable {
         ) ?? Date()
     }
 
-    private static func minorUnits(_ text: String, currency: BudgetCurrency, locale: Locale) -> Int? {
-        try? BudgetMoneyInputFormat.minorUnits(
-            text, currency: currency, locale: locale, fractionPolicy: .round
-        ).get()
+    private static func minorUnits(_ text: String, currency: BudgetCurrency) -> Int? {
+        try? BudgetMoneyInputFormat.minorUnits(text, currency: currency).get()
     }
 
     private static func normalizedName(_ name: String?) -> String? {
@@ -520,12 +515,5 @@ struct ScheduleEditorDraft: Hashable, Sendable {
         case .range(let lower, let upper, _): .range(lower: lower, upper: upper)
         case .unavailable: nil
         }
-    }
-
-    private static func preciseEditableAmountText(_ value: Int, currency: BudgetCurrency) -> String {
-        // Display preferences such as hide-fraction must not alter an editable value.
-        var editingCurrency = currency
-        editingCurrency.hideFraction = false
-        return editingCurrency.editableAmountText(fromMinorUnits: value)
     }
 }

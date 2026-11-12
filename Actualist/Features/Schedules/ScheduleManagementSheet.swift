@@ -2,7 +2,6 @@ import SwiftUI
 
 struct ScheduleManagementSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.locale) private var locale
     @Bindable var coordinator: ScheduleManagementCoordinator
     let mutationRepository: any ScheduleMutationRepositoryProtocol
     let currency: BudgetCurrency
@@ -19,8 +18,7 @@ struct ScheduleManagementSheet: View {
                     coordinator: coordinator,
                     session: session,
                     mutationRepository: mutationRepository,
-                    currency: currency,
-                    locale: locale
+                    currency: currency
                 )
             case .reviewingAction(let review):
                 actionReview(review)
@@ -138,7 +136,6 @@ struct ScheduleEditorView: View {
     @FocusState private var focusedField: FocusedField?
     private enum FocusedField { case name, amount, rangeEnd }
     let currency: BudgetCurrency
-    let locale: Locale
 
     var body: some View {
         ReviewSheetContent {
@@ -168,7 +165,7 @@ struct ScheduleEditorView: View {
             ReviewSheetSecondaryButton { coordinator.cancel() }
                 .accessibilityIdentifier("schedule-editor-cancel")
             ReviewSheetPrimaryButton {
-                coordinator.save(locale: locale, mutationRepository: mutationRepository)
+                coordinator.save(mutationRepository: mutationRepository)
             } label: {
                 Text("Save")
             }
@@ -281,7 +278,7 @@ struct ScheduleEditorView: View {
                         },
                         set: { coordinator.setAmount($0) }
                     ))
-                    .keyboardType(.decimalPad)
+                    .keyboardType(.numbersAndPunctuation)
                     .focused($focusedField, equals: .amount)
                     .accessibilityIdentifier("schedule-editor-amount")
                     .reviewSheetFieldStyle()
@@ -295,7 +292,7 @@ struct ScheduleEditorView: View {
                         },
                         set: { coordinator.setRangeEnd($0) }
                     ))
-                    .keyboardType(.decimalPad)
+                    .keyboardType(.numbersAndPunctuation)
                     .focused($focusedField, equals: .rangeEnd)
                     .accessibilityIdentifier("schedule-editor-amount-upper")
                     .reviewSheetFieldStyle()
