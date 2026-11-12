@@ -562,9 +562,9 @@ different ranges, guards fixed in one layout and not the other.
 
 | Concern | Use | Never |
 | --- | --- | --- |
-| Calendar day IDs (`yyyy-MM-dd`) ↔ `Date` | `ActualDateOnly` (`Shared/ActualDateOnly.swift`), with an explicit time zone | A local `dayID`/`date(from:)`, a `yyyy-MM-dd` `DateFormatter`, a raw `TimeZone(secondsFromGMT: 0)` |
-| Schedule recurrence dates | `Calendar.actualScheduleGregorian` (`Shared/ActualScheduleRecurrence*.swift`) | A new Gregorian or UTC calendar |
-| Month IDs (`yyyy-MM`) | `YearMonth` (`Repositories/TransactionModels.swift`, `Shared/YearMonthParsing.swift`) | A local `monthID`, `String(format: "%04d-%02d")` |
+| Calendar day IDs (`yyyy-MM-dd`) ↔ `Date` | `ActualDateOnly` (`Shared/ActualDateOnly.swift`): `dayID(from:timeZone:)` and strict `date(from:timeZone:)`, with an explicit time zone. `lenientDate(fromDayID:calendar:hour:ignoringNonNumericParts:)` rolls "2026-02-31" forward and is for Reports, the schedule editor and the transaction filter only | A local `dayID`/`date(from:)`, a `yyyy-MM-dd` `DateFormatter`, a raw `TimeZone(secondsFromGMT: 0)` |
+| Schedule recurrence dates; any fixed GMT Gregorian calendar | `Calendar.actualScheduleGregorian` (`Shared/ActualScheduleRecurrence*.swift`); `ActualDateOnly.utc` for the zone | A new Gregorian or UTC calendar |
+| Month IDs (`yyyy-MM`) and month arithmetic | `YearMonth` (`Repositories/TransactionModels.swift`, `Shared/YearMonthParsing.swift`): `adding(months:)` for valid months, `shiftedID(_:by:)` for the unvalidated roll Reports and Budget swiping keep | A local `monthID`, `String(format: "%04d-%02d")` |
 | CSV/import date formats | `Shared/ImportDateParsing.swift` (Actual parity) | Reusing it for non-import dates |
 | Money display | `BudgetCurrency.formatted` / `signedFormatted`, `Money` | `NumberFormatter`, a local `money(_:)` |
 | Money text input | `BudgetMoneyInputFormat`, `BudgetCurrency.minorUnits(fromDisplay:)` | A hand-written separator normaliser or regex |
