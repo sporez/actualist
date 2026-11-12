@@ -665,8 +665,9 @@
       ],
       "summary": "With the hide-fraction preference on, Actual's edit text (useFormat forEdit) shows the amount with no decimals, rounded (1234 reads \"12\", -123456 reads \"-1,235\"), while fromEdit still reads the currency's two decimals, so saving an untouched field would drop the cents. Actualist's editText always writes every minor unit. Cause: BudgetMoneyInputFormat.editText ignores BudgetCurrency.hideFraction on purpose, because following Actual would lose money.",
       "opened": "2026-11-12",
-      "status": "open",
-      "reviewBy": "2026-12-12"
+      "status": "intended",
+      "decided": "2026-11-12",
+      "reason": "User decision 2026-11-12: keep every cent in edit text. Actual's AmountInput rounds the edit text to whole units when hide decimal places is on and saves on blur, so an untouched amount loses its cents; Actual fixed the same loss for transaction amounts in actualbudget/actual#5807, but not in AmountInput."
     },
     {
       "id": "OP-94",
