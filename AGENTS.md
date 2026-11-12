@@ -568,7 +568,7 @@ different ranges, guards fixed in one layout and not the other.
 | CSV/import date formats | `Shared/ImportDateParsing.swift` (Actual parity) | Reusing it for non-import dates |
 | Money display | `BudgetCurrency.formatted` / `signedFormatted`, `Money` | `NumberFormatter`, a local `money(_:)` |
 | Money text input | `BudgetMoneyInputFormat`, `BudgetCurrency.minorUnits(fromDisplay:)` | A hand-written separator normaliser or regex |
-| Sample Values / privacy masking | `PrivacyDisplay` (`Shared/Money.swift`) | An inline `privacy ? PrivacyDisplay.money(...) : ...` |
+| Sample Values / privacy masking | `PrivacyDisplay.text(_:enabled:seed:currency:maximumDollars:nilText:)` (`Shared/Money.swift`); `name(for:seed:)` for names | An inline `privacy ? PrivacyDisplay.money(...) : ...`, a local money helper |
 | User-facing error text | `Error.userFacingMessage` (`Shared/Error+UserFacingMessage.swift`) | Showing `localizedDescription` directly |
 | Store write tail | `finish*` helpers (`LocalFirst/LocalFirstActualStore+CommitTail.swift`) | A hand-written commit, reload and flush sequence |
 | Repository writes | One protocol requirement per write, carrying every parameter including `actionSource`. Shorter call shapes are protocol-extension conveniences that forward every parameter (`Repositories/TransactionRepository.swift`, `BudgetRepository.swift`). The store's function has default values. | An overload that emulates a default argument, or a convenience that drops a parameter |
