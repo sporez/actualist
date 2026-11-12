@@ -43,21 +43,10 @@ extension BudgetDatabase {
     /// older imports. Mirrors the existing `bank_sync_status` backfill.
     static func prepareBankSyncSchemaCompatibility(in queue: DatabaseQueue) throws {
         try queue.write { db in
-            let accountsTableExists = try Bool.fetchOne(
-                db,
-                sql: """
-                    SELECT EXISTS(
-                        SELECT 1 FROM sqlite_master
-                        WHERE type = 'table' AND name = 'accounts'
-                    )
-                    """
-            ) ?? false
+            let accountsTableExists = try SQLiteSchema.tableExists("accounts", in: db)
 
             if accountsTableExists {
-                let accountColumns = try Set(
-                    Row.fetchAll(db, sql: "PRAGMA table_info(accounts)")
-                        .compactMap { $0["name"] as String? }
-                )
+                let accountColumns = try SQLiteSchema.columns(of: "accounts", in: db)
                 let linkColumns: [(column: String, ddl: String)] = [
                     ("account_id", "TEXT"),
                     ("account_sync_source", "TEXT"),
@@ -75,15 +64,7 @@ extension BudgetDatabase {
                 }
             }
 
-            let banksTableExists = try Bool.fetchOne(
-                db,
-                sql: """
-                    SELECT EXISTS(
-                        SELECT 1 FROM sqlite_master
-                        WHERE type = 'table' AND name = 'banks'
-                    )
-                    """
-            ) ?? false
+            let banksTableExists = try SQLiteSchema.tableExists("banks", in: db)
             if !banksTableExists {
                 // loot-core parity: banks (id, bank_id, name).
                 try db.execute(

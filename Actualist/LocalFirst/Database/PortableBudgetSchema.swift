@@ -74,15 +74,7 @@ enum PortableBudgetSchema {
     ]
 
     static func rejectUnknownMigrations(in db: Database) throws {
-        let tableExists = try Bool.fetchOne(
-            db,
-            sql: """
-                SELECT EXISTS(
-                    SELECT 1 FROM sqlite_master
-                    WHERE type = 'table' AND name = '__migrations__'
-                )
-                """
-        ) ?? false
+        let tableExists = try SQLiteSchema.tableExists("__migrations__", in: db)
         guard tableExists else {
             return
         }

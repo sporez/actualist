@@ -77,15 +77,7 @@ actor BudgetDatabase {
         try Self.prepareMessagesTimestampIndex(in: queue)
         if let localNodeID {
             let latestTimestamp = try queue.read { db in
-                let hasMessagesTable = try Bool.fetchOne(
-                    db,
-                    sql: """
-                        SELECT EXISTS(
-                            SELECT 1 FROM sqlite_master
-                            WHERE type = 'table' AND name = 'messages_crdt'
-                        )
-                        """
-                ) ?? false
+                let hasMessagesTable = try SQLiteSchema.tableExists("messages_crdt", in: db)
                 guard hasMessagesTable else {
                     return "1970-01-01T00:00:00.000Z-0000-0000000000000000"
                 }
@@ -108,23 +100,12 @@ actor BudgetDatabase {
     // once per file.
     private static func prepareBankSyncStatusCompatibility(in queue: DatabaseQueue) throws {
         try queue.write { db in
-            let accountTableExists = try Bool.fetchOne(
-                db,
-                sql: """
-                    SELECT EXISTS(
-                        SELECT 1 FROM sqlite_master
-                        WHERE type = 'table' AND name = 'accounts'
-                    )
-                    """
-            ) ?? false
+            let accountTableExists = try SQLiteSchema.tableExists("accounts", in: db)
             guard accountTableExists else {
                 return
             }
 
-            let accountColumns = try Set(
-                Row.fetchAll(db, sql: "PRAGMA table_info(accounts)")
-                    .compactMap { $0["name"] as String? }
-            )
+            let accountColumns = try SQLiteSchema.columns(of: "accounts", in: db)
             if !accountColumns.contains("bank_sync_status") {
                 try db.execute(sql: "ALTER TABLE accounts ADD COLUMN bank_sync_status TEXT")
                 try recordBankSyncStatusMigrationID(in: db)
@@ -134,15 +115,7 @@ actor BudgetDatabase {
                 return
             }
 
-            let messagesTableExists = try Bool.fetchOne(
-                db,
-                sql: """
-                    SELECT EXISTS(
-                        SELECT 1 FROM sqlite_master
-                        WHERE type = 'table' AND name = 'messages_crdt'
-                    )
-                    """
-            ) ?? false
+            let messagesTableExists = try SQLiteSchema.tableExists("messages_crdt", in: db)
             guard messagesTableExists else {
                 try recordLocalMigration(bankSyncStatusCompatibilityMigration, in: db)
                 return

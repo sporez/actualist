@@ -19,23 +19,12 @@ extension BudgetDatabase {
     // local writes keep validating on older imports.
     static func prepareAccountGroupCompatibility(in queue: DatabaseQueue) throws {
         try queue.write { db in
-            let accountTableExists = try Bool.fetchOne(
-                db,
-                sql: """
-                    SELECT EXISTS(
-                        SELECT 1 FROM sqlite_master
-                        WHERE type = 'table' AND name = 'accounts'
-                    )
-                    """
-            ) ?? false
+            let accountTableExists = try SQLiteSchema.tableExists("accounts", in: db)
             guard accountTableExists else {
                 return
             }
 
-            let groupsTableExisted = try Bool.fetchOne(
-                db,
-                sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'account_groups')"
-            ) ?? false
+            let groupsTableExisted = try SQLiteSchema.tableExists("account_groups", in: db)
             try db.execute(
                 sql: """
                     CREATE TABLE IF NOT EXISTS account_groups (
@@ -47,10 +36,7 @@ extension BudgetDatabase {
                     """
             )
 
-            let accountColumns = try Set(
-                Row.fetchAll(db, sql: "PRAGMA table_info(accounts)")
-                    .compactMap { $0["name"] as String? }
-            )
+            let accountColumns = try SQLiteSchema.columns(of: "accounts", in: db)
             let addedGroupColumn = !accountColumns.contains("account_group_id")
             if addedGroupColumn {
                 try db.execute(
@@ -65,24 +51,13 @@ extension BudgetDatabase {
                 return
             }
 
-            let messagesTableExists = try Bool.fetchOne(
-                db,
-                sql: """
-                    SELECT EXISTS(
-                        SELECT 1 FROM sqlite_master
-                        WHERE type = 'table' AND name = 'messages_crdt'
-                    )
-                    """
-            ) ?? false
+            let messagesTableExists = try SQLiteSchema.tableExists("messages_crdt", in: db)
             guard messagesTableExists else {
                 try recordLocalMigration(accountGroupCompatibilityMigration, in: db)
                 return
             }
 
-            let groupColumns = try Set(
-                Row.fetchAll(db, sql: "PRAGMA table_info(account_groups)")
-                    .compactMap { $0["name"] as String? }
-            )
+            let groupColumns = try SQLiteSchema.columns(of: "account_groups", in: db)
             let rows = try Row.fetchAll(
                 db,
                 sql: """

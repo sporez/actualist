@@ -11,10 +11,7 @@ extension BudgetDatabase {
     /// every open idempotent and needs no migration marker.
     static func prepareMessagesTimestampIndex(in queue: DatabaseQueue) throws {
         try queue.write { db in
-            guard try Bool.fetchOne(
-                db,
-                sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'messages_crdt')"
-            ) ?? false else {
+            guard try SQLiteSchema.tableExists("messages_crdt", in: db) else {
                 return
             }
             try db.execute(sql: """

@@ -14,15 +14,7 @@ extension BudgetDatabase {
     /// Only work that is *added* to a file may be recorded this way. Work that a
     /// later sync could legitimately need again must not be.
     static func localMigrationApplied(_ name: String, in db: Database) throws -> Bool {
-        guard try Bool.fetchOne(
-            db,
-            sql: """
-                SELECT EXISTS(
-                    SELECT 1 FROM sqlite_master
-                    WHERE type = 'table' AND name = 'actualist_local_migrations'
-                )
-                """
-        ) ?? false else {
+        guard try SQLiteSchema.tableExists("actualist_local_migrations", in: db) else {
             return false
         }
         return try Bool.fetchOne(

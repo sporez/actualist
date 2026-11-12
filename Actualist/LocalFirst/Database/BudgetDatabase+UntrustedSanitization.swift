@@ -35,10 +35,7 @@ extension BudgetDatabase {
             configuration: untrustedFileConfiguration(readonly: true)
         )
         try queue.read { db in
-            let hasAccounts = try Bool.fetchOne(
-                db,
-                sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'accounts')"
-            ) ?? false
+            let hasAccounts = try SQLiteSchema.tableExists("accounts", in: db)
             if hasAccounts {
                 _ = try Row.fetchOne(db, sql: "SELECT id, name FROM accounts LIMIT 1")
             }
