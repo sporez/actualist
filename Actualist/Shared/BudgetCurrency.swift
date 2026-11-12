@@ -10,6 +10,8 @@ struct BudgetCurrency: Hashable, Sendable {
     var code: String
     var decimalPlaces: Int
     var hideFraction: Bool
+    /// How typed amounts group and separate digits. Display formatting still follows the device.
+    var numberFormat: ActualNumberFormat = .commaDot
 
     static let none = BudgetCurrency(code: "", decimalPlaces: 2, hideFraction: false)
     static let usd = BudgetCurrency(code: "USD", decimalPlaces: 2, hideFraction: false)
@@ -19,12 +21,21 @@ struct BudgetCurrency: Hashable, Sendable {
     /// Actual's bundled catalog uses the empty code for currency-neutral display.
     /// Known zero-decimal currencies use a scale of 1; unknown non-empty codes
     /// keep their ISO identifier and default to 2 decimal places.
-    static func catalog(code: String, hideFraction: Bool = false) -> BudgetCurrency {
+    static func catalog(
+        code: String,
+        hideFraction: Bool = false,
+        numberFormat: ActualNumberFormat = .commaDot
+    ) -> BudgetCurrency {
         let resolved = code
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .uppercased()
         let places = zeroDecimalCodes.contains(resolved) ? 0 : 2
-        return BudgetCurrency(code: resolved, decimalPlaces: places, hideFraction: hideFraction)
+        return BudgetCurrency(
+            code: resolved,
+            decimalPlaces: places,
+            hideFraction: hideFraction,
+            numberFormat: numberFormat
+        )
     }
 
     /// Bank and Shortcut amounts may carry an ISO code even when the open

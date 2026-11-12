@@ -28,18 +28,22 @@ struct BudgetLaunchSnapshot: Codable, Equatable, Sendable {
         let code: String
         let decimalPlaces: Int
         let hideFraction: Bool
+        /// Absent in snapshots written before typed amounts followed the number format.
+        let numberFormat: String?
 
         init(_ currency: BudgetCurrency) {
             code = currency.code
             decimalPlaces = currency.decimalPlaces
             hideFraction = currency.hideFraction
+            numberFormat = currency.numberFormat.rawValue
         }
 
         var budgetCurrency: BudgetCurrency {
             BudgetCurrency(
                 code: code,
                 decimalPlaces: decimalPlaces,
-                hideFraction: hideFraction
+                hideFraction: hideFraction,
+                numberFormat: ActualNumberFormat(preference: numberFormat)
             )
         }
     }

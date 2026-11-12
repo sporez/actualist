@@ -14,6 +14,7 @@ struct SyncedPreferenceKey: Hashable, Sendable {
     static let upcomingScheduledTransactionLength = SyncedPreferenceKey("upcomingScheduledTransactionLength")
     static let defaultCurrencyCode = SyncedPreferenceKey("defaultCurrencyCode")
     static let hideFraction = SyncedPreferenceKey("hideFraction")
+    static let numberFormat = SyncedPreferenceKey("numberFormat")
 
     static let transactionTableColumns = SyncedPreferenceKey("transaction-table-columns")
 

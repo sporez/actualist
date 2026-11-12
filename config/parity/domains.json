@@ -188,7 +188,7 @@
     {
       "id": "money-input",
       "title": "Typed money amounts: Hold, schedule, template editor and reconciliation fields",
-      "status": "partial",
+      "status": "covered",
       "harness": {
         "dir": "scripts/money-input-parity",
         "generate": "node scripts/money-input-parity/generate.mjs",
@@ -200,13 +200,15 @@
         "MoneyInputOracleReplayTests"
       ],
       "paths": [
+        "Actualist/Shared/ActualAmountText.swift",
+        "Actualist/Shared/ActualNumberFormat.swift",
         "Actualist/Shared/BudgetMoneyInputFormat.swift",
         "Actualist/Features/Budget/BudgetHoldAmountInput.swift",
         "Actualist/Features/Schedules/ScheduleEditorDraft.swift",
         "Actualist/Features/Templates/BudgetTemplateAmountInput.swift",
         "Actualist/Features/Accounts/AccountReconciliationModels.swift"
       ],
-      "notes": "The fixture is committed first; MoneyInputOracleReplayTests only checks it until the shared parser replays it."
+      "notes": "MoneyInputOracleReplayTests replays all 780 cases through BudgetMoneyInputFormat. Magnitudes above Money.maximumUserAmountMinorUnits expect outOfRange where Actual returns the number."
     },
     {
       "id": "account-lifecycle",
