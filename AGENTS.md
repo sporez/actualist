@@ -17,7 +17,7 @@ Glass-aware, and optimized for repeated budget review.
 - Development pipeline: `docs/DEVELOPMENT.md`.
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change, or
   reuse an applicable result when its relevant inputs are unchanged. It covers
-  whitespace, Liquid Glass, UIKit views, concurrency escape hatches (`@unchecked Sendable`,
+  whitespace, Liquid Glass, UIKit views, date ownership, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
   `// Invariant:` comment), private identifiers (patterns from an optional
   gitignored list), TestFlight notes, parity fixture hashes and the
@@ -562,9 +562,10 @@ different ranges, guards fixed in one layout and not the other.
 
 | Concern | Use | Never |
 | --- | --- | --- |
-| Calendar day IDs (`yyyy-MM-dd`) ↔ `Date` | `ActualDateOnly` (`Shared/ActualDateOnly.swift`): `dayID(from:timeZone:)` and strict `date(from:timeZone:)`, with an explicit time zone. `lenientDate(fromDayID:calendar:hour:ignoringNonNumericParts:)` rolls "2026-02-31" forward and is for Reports, the schedule editor and the transaction filter only | A local `dayID`/`date(from:)`, a `yyyy-MM-dd` `DateFormatter`, a raw `TimeZone(secondsFromGMT: 0)` |
+| Calendar day IDs (`yyyy-MM-dd`) ↔ `Date` | `ActualDateOnly` (`Shared/ActualDateOnly.swift`): `dayID(from:timeZone:)` and strict `date(from:timeZone:)`, with an explicit time zone. `lenientDate(fromDayID:calendar:hour:ignoringNonNumericParts:)` rolls "2026-02-31" forward and is for Reports, the schedule editor and the transaction filter only | A local `dayID`/`date(from:)`, a `yyyy-MM-dd` `DateFormatter`, a raw `TimeZone(secondsFromGMT: 0)`. `scripts/lint-date-ownership.sh` fails on these outside its ALLOWED list |
 | Schedule recurrence dates; any fixed GMT Gregorian calendar | `Calendar.actualScheduleGregorian` (`Shared/ActualScheduleRecurrence*.swift`); `ActualDateOnly.utc` for the zone | A new Gregorian or UTC calendar |
-| Month IDs (`yyyy-MM`) and month arithmetic | `YearMonth` (`Repositories/TransactionModels.swift`, `Shared/YearMonthParsing.swift`): `adding(months:)` for valid months, `shiftedID(_:by:)` for the unvalidated roll Reports and Budget swiping keep | A local `monthID`, `String(format: "%04d-%02d")` |
+| Month IDs (`yyyy-MM`) and month arithmetic | `YearMonth` (`Repositories/TransactionModels.swift`, `Shared/YearMonthParsing.swift`): `id(packed:)` for a packed `YYYYMM`, `shiftedID(_:by:)` for the unvalidated text roll Reports and Budget swiping keep, and for packed months the unvalidated `packedUnchecked(_:)`, `shiftedUnchecked(packed:by:)`, `nextUnchecked(packed:)`. The range-checked, throwing shift is `BudgetTemplateCalendar.shiftedMonth(_:by:)` | A local `monthID`, `String(format: "%04d-%02d")`, a database-actor month helper |
+| Packed dates (`YYYYMMDD` as `Int`) and their text | `PackedDate` (`Shared/PackedDate.swift`): `packed(fromISO:)` (0 on failure), `iso(_:)`, `iso(year:month:day:)`, `compact(_:)`, `paddedISO(_:)`, `monthID(ofDate:)`, `validatedISO(_:)` (real calendar days only) and the other named variants. Pick the one that matches the caller's failure value | A local `%08d`/`%04d-%02d-%02d` formatter, `replacingOccurrences(of: "-", with: "")`, a helper on `BudgetDatabase` reached from another extension |
 | CSV/import date formats | `Shared/ImportDateParsing.swift` (Actual parity) | Reusing it for non-import dates |
 | Money display | `BudgetCurrency.formatted` / `signedFormatted`, `Money` | `NumberFormatter`, a local `money(_:)` |
 | Money text input | `BudgetMoneyInputFormat`, `BudgetCurrency.minorUnits(fromDisplay:)` | A hand-written separator normaliser or regex |
