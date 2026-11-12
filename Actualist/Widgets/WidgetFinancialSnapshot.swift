@@ -4,6 +4,11 @@ struct WidgetMoney: Codable, Equatable, Sendable {
     let minorUnits: Int
     let formatted: String
 
+    /// USD sample money for gallery placeholders; the extension has no budget currency.
+    static func placeholder(_ minorUnits: Int) -> WidgetMoney {
+        WidgetMoney(minorUnits: minorUnits, formatted: (Double(minorUnits) / 100).formatted(.currency(code: "USD")))
+    }
+
     var tone: WidgetAmountTone {
         minorUnits < 0 ? .negative : (minorUnits == 0 ? .zero : .positive)
     }
