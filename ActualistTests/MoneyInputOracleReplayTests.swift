@@ -190,4 +190,17 @@ struct MoneyInputOracleReplayTests {
         #expect(replayed == 130)
         #expect(failures.isEmpty, "\(failures.count) mismatches:\n\(failures.prefix(40).joined(separator: "\n"))")
     }
+
+    @Test func currencyDecimalPlacesMatchActualList() throws {
+        let currencies = try MoneyInputOracleFixture.load().currencies
+        #expect(currencies.count > 50)
+        for currency in currencies {
+            #expect(
+                BudgetCurrency.catalog(code: currency.code).decimalPlaces == currency.decimalPlaces,
+                "\(currency.code)"
+            )
+        }
+        // Actual's getCurrency falls back to its first entry (two decimals) for an unknown code.
+        #expect(BudgetCurrency.catalog(code: "ZZZ").decimalPlaces == 2)
+    }
 }

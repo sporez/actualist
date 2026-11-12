@@ -123,6 +123,8 @@ vi.mock('./useSyncedPref', () => ({
   useSyncedPref: (key: string) => [preferences.values[key], () => {}],
 }));
 
+import { currencies } from '@actual-app/core/shared/currencies';
+
 import { AmountInput } from '#components/util/AmountInput';
 
 import { useFormat } from './useFormat';
@@ -247,6 +249,7 @@ afterAll(() => {
   writeFileSync('${temporaryOutput}', JSON.stringify({
     schemaVersion: ${SCHEMA_VERSION},
     oracle: { tag: '${oraclePin.tag}', commit: '${oraclePin.commit}', packageVersion: '${oraclePin.packageVersion}' },
+    currencies: currencies.map(currency => ({ code: currency.code, decimalPlaces: currency.decimalPlaces })),
     cases,
   }, null, 2) + '\n');
 });
@@ -272,6 +275,9 @@ const expectedCaseCount =
   hideFractionAmounts.length;
 if (!Array.isArray(generated.cases) || generated.cases.length !== expectedCaseCount) {
   throw new Error(`Oracle did not produce ${expectedCaseCount} cases`);
+}
+if (!Array.isArray(generated.currencies) || generated.currencies.length === 0) {
+  throw new Error('Oracle did not produce its currency table');
 }
 const caseIDs = generated.cases.map(testCase => testCase.id);
 if (new Set(caseIDs).size !== caseIDs.length) throw new Error('Duplicate money input case ids');
@@ -304,7 +310,7 @@ const manifest = {
   seed: null,
   amountUnits: 'integer minor units',
   sourceFiles: sourceFiles.map(path => ({ path, sha256: sha256(readFileSync(join(oracleRoot, path))) })),
-  dimensions: { numberFormats, currencyScales, typedInputs: typedInputs.length, autoDecimalInputs: autoDecimalInputs.length, hideFractionAmounts: hideFractionAmounts.length },
+  dimensions: { currencies: generated.currencies.length, numberFormats, currencyScales, typedInputs: typedInputs.length, autoDecimalInputs: autoDecimalInputs.length, hideFractionAmounts: hideFractionAmounts.length },
   fixture: {
     path: relative(root, join(defaultOutput, fixtureName)),
     sha256: sha256(fixtureText),

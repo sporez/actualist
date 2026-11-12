@@ -7,7 +7,7 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/money-input-parity/generate.mjs",
-    "sha256": "f3e711e804d0281d94a42aeccdfd324b7b033b66705bd1873ef8c3fd37f0efcb"
+    "sha256": "73e4c2c00745947eae51ec1b2f975270bfc31d97908dd18b7a9b5f7022333b32"
   },
   "helpers": [
     {
@@ -52,6 +52,7 @@
     }
   ],
   "dimensions": {
+    "currencies": 55,
     "numberFormats": [
       "comma-dot",
       "dot-comma",
@@ -75,7 +76,7 @@
   },
   "fixture": {
     "path": "ActualistTests/Fixtures/ActualCore26_11_0/MoneyInput/money-input-contract.json",
-    "sha256": "61200997daaefc2c3c2be427a17618aecdb018fc63a3d85b05a65d10e986edd7",
+    "sha256": "14e0eb010a91d85d8b64e3ae29c83f9fd2812d4c240f58b155986cdb8aa7af93",
     "caseCount": 783
   },
   "caseCount": 783,

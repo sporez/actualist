@@ -56,6 +56,13 @@ struct MoneyInputOracleFixture: Decodable {
         }
     }
 
+    struct Currency: Decodable {
+        let code: String
+        let decimalPlaces: Int
+    }
+
+    /// Actual's currency list (`shared/currencies.ts`), as the harness read it.
+    let currencies: [Currency]
     let cases: [Case]
 
     static func load() throws -> Self {

@@ -138,7 +138,7 @@ extension Money {
 }
 
 private extension BudgetCurrency {
-    static let zeroDecimalCodes: Set<String> = ["JPY", "KRW"]
+    static let zeroDecimalCodes: Set<String> = ["IRR", "JPY", "KRW"]
 
     var numberDisplayFormat: Decimal.FormatStyle {
         .number.precision(.fractionLength(displayedFractionDigits...displayedFractionDigits))

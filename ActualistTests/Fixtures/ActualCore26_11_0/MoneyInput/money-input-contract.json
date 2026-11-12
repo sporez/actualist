@@ -5,6 +5,228 @@
     "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
     "packageVersion": "26.11.0"
   },
+  "currencies": [
+    {
+      "code": "",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "AED",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "ARS",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "AUD",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "BDT",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "BRL",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "BYN",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "CAD",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "CHF",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "CLP",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "CNY",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "COP",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "CRC",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "CZK",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "DKK",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "DOP",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "EGP",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "EUR",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "GBP",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "GTQ",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "HKD",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "HUF",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "IDR",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "ILS",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "INR",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "IRR",
+      "decimalPlaces": 0
+    },
+    {
+      "code": "JMD",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "JPY",
+      "decimalPlaces": 0
+    },
+    {
+      "code": "KRW",
+      "decimalPlaces": 0
+    },
+    {
+      "code": "LKR",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "MDL",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "MKD",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "MXN",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "MYR",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "NOK",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "PEN",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "PHP",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "PKR",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "PLN",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "QAR",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "RON",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "RSD",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "RUB",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "SAR",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "SEK",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "SGD",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "THB",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "TRY",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "TWD",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "TZS",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "UAH",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "USD",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "UYU",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "UZS",
+      "decimalPlaces": 2
+    },
+    {
+      "code": "ZAR",
+      "decimalPlaces": 2
+    }
+  ],
   "cases": [
     {
       "id": "from-edit-comma-dot-dp2-0",
