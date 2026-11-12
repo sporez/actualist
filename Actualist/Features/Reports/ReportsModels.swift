@@ -176,14 +176,7 @@ enum ReportCalendar {
     }
 
     static func date(fromDayID dayID: String, calendar: Calendar = gregorianUTC) -> Date? {
-        let parts = dayID.split(separator: "-")
-        guard parts.count == 3,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]),
-              let day = Int(parts[2]) else {
-            return nil
-        }
-        return calendar.date(from: DateComponents(year: year, month: month, day: day))
+        ActualDateOnly.lenientDate(fromDayID: dayID, calendar: calendar)
     }
 
     static func date(fromMonthID monthID: String, calendar: Calendar = gregorianUTC) -> Date? {
