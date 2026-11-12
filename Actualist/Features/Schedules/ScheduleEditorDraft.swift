@@ -487,21 +487,17 @@ struct ScheduleEditorDraft: Hashable, Sendable {
     }
 
     static func dayID(from date: Date, timeZone: TimeZone = .autoupdatingCurrent) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
+        ActualDateOnly.dayID(from: date, timeZone: timeZone)
     }
 
+    /// An unparseable day ID reads as now, which hides the failure.
     static func date(from dayID: String, timeZone: TimeZone = .autoupdatingCurrent) -> Date {
-        let parts = dayID.split(separator: "-").compactMap { Int(String($0)) }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = timeZone
-        guard parts.count == 3,
-              let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: 12)) else {
-            return Date()
-        }
-        return date
+        ActualDateOnly.lenientDate(
+            fromDayID: dayID,
+            calendar: ActualDateOnly.calendar(timeZone: timeZone),
+            hour: 12,
+            ignoringNonNumericParts: true
+        ) ?? Date()
     }
 
     private static func minorUnits(_ text: String, currency: BudgetCurrency, locale: Locale) -> Int? {

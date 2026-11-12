@@ -5,11 +5,16 @@ import Foundation
 enum ActualDateOnly {
     static let utc = TimeZone.gmt
 
-    static func dayID(from date: Date, timeZone: TimeZone) -> String {
+    /// The Gregorian POSIX-locale calendar every day-ID conversion uses.
+    static func calendar(timeZone: TimeZone) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
         calendar.timeZone = timeZone
-        return ActualScheduleRecurrence.dayID(from: date, calendar: calendar)
+        return calendar
+    }
+
+    static func dayID(from date: Date, timeZone: TimeZone) -> String {
+        ActualScheduleRecurrence.dayID(from: date, calendar: calendar(timeZone: timeZone))
     }
 
     /// The calendar day `now` falls on in `timeZone` (the device zone by
@@ -19,10 +24,27 @@ enum ActualDateOnly {
     }
 
     static func date(from dayID: String, timeZone: TimeZone) -> Date? {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "en_US_POSIX")
-        calendar.timeZone = timeZone
-        return ActualScheduleRecurrence.date(from: dayID, calendar: calendar)
+        ActualScheduleRecurrence.date(from: dayID, calendar: calendar(timeZone: timeZone))
+    }
+
+    /// Lenient variant of `date(from:timeZone:)`: any digit count, and a day or
+    /// month out of range rolls forward ("2026-02-31" is 2026-03-03). Reports,
+    /// the schedule editor and the transaction filter rely on that, so it
+    /// stays a named variant instead of being tightened. `hour` nil builds
+    /// midnight (Reports, filter); a value builds that hour (editors use noon).
+    /// `ignoringNonNumericParts` drops non-numeric `-` pieces before counting
+    /// three, as the schedule editor and filter always did; Reports needs
+    /// exactly three numeric pieces.
+    static func lenientDate(
+        fromDayID dayID: String,
+        calendar: Calendar = .actualScheduleGregorian,
+        hour: Int? = nil,
+        ignoringNonNumericParts: Bool = false
+    ) -> Date? {
+        let pieces = dayID.split(separator: "-")
+        let numbers = pieces.compactMap { Int($0) }
+        guard numbers.count == 3, ignoringNonNumericParts || pieces.count == 3 else { return nil }
+        return calendar.date(from: DateComponents(year: numbers[0], month: numbers[1], day: numbers[2], hour: hour))
     }
 
     /// Returns calendar-day distance, independent of UTC offset and DST length.

@@ -239,19 +239,8 @@ enum RuleEditorDraftState {
     /// Returns a native calendar selection only for a complete Actual day id.
     /// Year- and month-only `is` conditions stay in their lossless text form.
     static func dateSelection(_ raw: RuleJSONValue) -> Date? {
-        guard case .string(let dayID) = raw else { return nil }
-        let parts = dayID.split(separator: "-", omittingEmptySubsequences: false)
-        guard parts.count == 3,
-              parts[0].count == 4,
-              parts[1].count == 2,
-              parts[2].count == 2,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]),
-              let day = Int(parts[2]),
-              (1...9_999).contains(year),
-              let date = dateCalendar.date(
-                  from: DateComponents(year: year, month: month, day: day, hour: 12)
-              ),
+        guard case .string(let dayID) = raw,
+              let date = ActualDateOnly.date(from: dayID, timeZone: .current),
               dateValue(from: date) == raw else {
             return nil
         }
@@ -265,13 +254,7 @@ enum RuleEditorDraftState {
     }
 
     static func dayID(from date: Date) -> String {
-        let components = dateCalendar.dateComponents([.year, .month, .day], from: date)
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0
-        )
+        ActualDateOnly.dayID(from: date, timeZone: .current)
     }
 
     // MARK: Multi-value (oneOf / notOneOf)
@@ -342,10 +325,6 @@ enum RuleEditorDraftState {
                 : appendID(id, to: current)
         }
         return .string(id)
-    }
-
-    private static var dateCalendar: Calendar {
-        Calendar(identifier: .gregorian)
     }
 
     /// Renders a `Double` as an editable numeric string: an integer when the value

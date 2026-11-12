@@ -463,15 +463,16 @@ final class TransactionFilterWorkflow {
     }
 
     private static func day(for date: Date) -> TransactionQueryDay? {
-        let components = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day], from: date)
-        guard let year = components.year, let month = components.month, let day = components.day else { return nil }
-        return TransactionQueryDay(rawValue: String(format: "%04d-%02d-%02d", year, month, day))
+        TransactionQueryDay(rawValue: ActualDateOnly.dayID(from: date, timeZone: .current))
     }
 
+    /// Midnight in the device zone, where a DST change may skip it.
     private static func date(from day: TransactionQueryDay) -> Date? {
-        let parts = day.rawValue.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
-        return Calendar(identifier: .gregorian).date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        ActualDateOnly.lenientDate(
+            fromDayID: day.rawValue,
+            calendar: ActualDateOnly.calendar(timeZone: .current),
+            ignoringNonNumericParts: true
+        )
     }
 }
 
