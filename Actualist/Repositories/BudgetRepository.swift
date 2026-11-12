@@ -23,6 +23,7 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgeted: Int,
         budgetID: String,
         month: String,
+        actionSource: BudgetActionSource,
         didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth?
     func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?,
@@ -137,15 +138,10 @@ protocol BudgetRepositoryProtocol: Sendable {
         excluding: Set<String>
     ) async throws -> BudgetTemplateApplyPreviewPair
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
-        command: BudgetMoveMoneyCommand,
-        budgetID: String,
-        month: String,
-        didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth?
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
+        actionSource: BudgetActionSource,
         didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth?
     // History: local money-flow gesture log and LIFO undo.
@@ -157,6 +153,54 @@ protocol BudgetRepositoryProtocol: Sendable {
 }
 
 extension BudgetRepositoryProtocol {
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity?,
+        categoryID: String,
+        budgeted: Int,
+        budgetID: String,
+        month: String,
+        didAssign: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth? {
+        try await assignCategoryBudgetAndRefresh(expectedMode: expectedMode,
+            categoryID: categoryID,
+            budgeted: budgeted,
+            budgetID: budgetID,
+            month: month,
+            actionSource: .ui,
+            didAssign: didAssign
+        )
+    }
+
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
+        commands: [BudgetMoveMoneyCommand],
+        budgetID: String,
+        month: String,
+        didMove: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth? {
+        try await moveMoneyAndRefresh(expectedMode: expectedMode,
+            commands: commands,
+            budgetID: budgetID,
+            month: month,
+            actionSource: .ui,
+            didMove: didMove
+        )
+    }
+
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
+        command: BudgetMoveMoneyCommand,
+        budgetID: String,
+        month: String,
+        actionSource: BudgetActionSource = .ui,
+        didMove: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth? {
+        try await moveMoneyAndRefresh(expectedMode: expectedMode,
+            commands: [command],
+            budgetID: budgetID,
+            month: month,
+            actionSource: actionSource,
+            didMove: didMove
+        )
+    }
+
     func budgetHoldReview(budgetID: String, month: String) async throws -> BudgetHoldReview {
         throw LocalFirstError.unsupportedWrite
     }

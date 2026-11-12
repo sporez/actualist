@@ -247,6 +247,7 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
         budgeted: Int,
         budgetID: String,
         month: String,
+        actionSource: BudgetActionSource,
         didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? {
         assignments.append(
@@ -326,23 +327,10 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol {
     }
 
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
-        command: BudgetMoveMoneyCommand,
-        budgetID: String,
-        month: String,
-        didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth? {
-        try await moveMoneyAndRefresh(expectedMode: nil,
-            commands: [command],
-            budgetID: budgetID,
-            month: month,
-            didMove: didMove
-        )
-    }
-
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
+        actionSource: BudgetActionSource,
         didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? {
         for command in commands {

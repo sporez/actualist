@@ -265,6 +265,7 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         budgeted: Int,
         budgetID: String,
         month: String,
+        actionSource: BudgetActionSource,
         didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? {
         emptyLoadedMonth
@@ -298,18 +299,10 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
     }
 
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
-        command: BudgetMoveMoneyCommand,
-        budgetID: String,
-        month: String,
-        didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth? {
-        emptyLoadedMonth
-    }
-
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
+        actionSource: BudgetActionSource,
         didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? {
         emptyLoadedMonth

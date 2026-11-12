@@ -247,6 +247,7 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
         budgeted: Int,
         budgetID: String,
         month: String,
+        actionSource: BudgetActionSource,
         didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth
@@ -300,18 +301,10 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
     }
 
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
-        command: BudgetMoveMoneyCommand,
-        budgetID: String,
-        month: String,
-        didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth? {
-        Self.dummyMonth
-    }
-
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
+        actionSource: BudgetActionSource,
         didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth

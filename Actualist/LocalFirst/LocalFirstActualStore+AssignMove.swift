@@ -4,33 +4,15 @@ import Foundation
 /// so recording these gestures in `actualist_action_log` (History, Phase 1) did
 /// not push that file over the 800-line reassessment threshold. Each gesture
 /// commits through `BudgetDatabase.commitUserAction` so the CRDT write and its
-/// action-log row land atomically; the protocol witnesses record `.ui`, while
+/// action-log row land atomically; the default source is `.ui`, while
 /// Shortcuts passes `.shortcuts`.
 extension LocalFirstActualStore {
-    // BudgetRepositoryProtocol witness; records the gesture with a UI source.
     func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         budgeted: Int,
         budgetID: String,
         month: String,
-        didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth? {
-        try await assignCategoryBudgetAndRefresh(expectedMode: expectedMode,
-            categoryID: categoryID,
-            budgeted: budgeted,
-            budgetID: budgetID,
-            month: month,
-            actionSource: .ui,
-            didAssign: didAssign
-        )
-    }
-
-    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil,
-        categoryID: String,
-        budgeted: Int,
-        budgetID: String,
-        month: String,
-        actionSource: BudgetActionSource,
+        actionSource: BudgetActionSource = .ui,
         didAssign: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? {
         let database = try requireDatabase(for: budgetID)
@@ -59,59 +41,11 @@ extension LocalFirstActualStore {
         )
     }
 
-    // BudgetRepositoryProtocol witness; records the gesture with a UI source.
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
-        command: BudgetMoveMoneyCommand,
-        budgetID: String,
-        month: String,
-        didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth? {
-        try await moveMoneyAndRefresh(expectedMode: expectedMode,
-            commands: [command],
-            budgetID: budgetID,
-            month: month,
-            actionSource: .ui,
-            didMove: didMove
-        )
-    }
-
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
-        command: BudgetMoveMoneyCommand,
-        budgetID: String,
-        month: String,
-        actionSource: BudgetActionSource,
-        didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth? {
-        try await moveMoneyAndRefresh(expectedMode: expectedMode,
-            commands: [command],
-            budgetID: budgetID,
-            month: month,
-            actionSource: actionSource,
-            didMove: didMove
-        )
-    }
-
-    // BudgetRepositoryProtocol witness; records the gesture with a UI source.
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
         month: String,
-        didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth? {
-        try await moveMoneyAndRefresh(expectedMode: expectedMode,
-            commands: commands,
-            budgetID: budgetID,
-            month: month,
-            actionSource: .ui,
-            didMove: didMove
-        )
-    }
-
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
-        commands: [BudgetMoveMoneyCommand],
-        budgetID: String,
-        month: String,
-        actionSource: BudgetActionSource,
+        actionSource: BudgetActionSource = .ui,
         didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? {
         let database = try requireDatabase(for: budgetID)

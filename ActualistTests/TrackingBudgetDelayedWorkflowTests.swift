@@ -142,7 +142,7 @@ private actor DelayedWorkflowRepository: BudgetRepositoryProtocol {
     func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth { loaded() }
     func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth { loaded() }
 
-    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity?, categoryID: String, budgeted: Int, budgetID: String, month: String, didAssign: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? {
+    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity?, categoryID: String, budgeted: Int, budgetID: String, month: String, actionSource: BudgetActionSource, didAssign: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? {
         assignmentExpectedModes.append(expectedMode)
         assignmentStarted = true
         assignmentWaiter?.resume(); assignmentWaiter = nil
@@ -151,11 +151,7 @@ private actor DelayedWorkflowRepository: BudgetRepositoryProtocol {
         return loaded(modeIdentity: expectedMode)
     }
 
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?, command: BudgetMoveMoneyCommand, budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? {
-        try await moveMoneyAndRefresh(expectedMode: expectedMode, commands: [command], budgetID: budgetID, month: month, didMove: didMove)
-    }
-
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? {
+    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, actionSource: BudgetActionSource, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? {
         moveExpectedModes.append(expectedMode)
         moveStarted = true
         moveWaiter?.resume(); moveWaiter = nil
