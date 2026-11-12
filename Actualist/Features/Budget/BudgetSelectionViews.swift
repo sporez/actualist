@@ -328,7 +328,7 @@ struct BudgetMonthPicker: View {
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 4), spacing: 18) {
                 ForEach(1...12, id: \.self) { monthNumber in
-                    let monthID = Self.monthID(year: displayedYear, month: monthNumber)
+                    let monthID = YearMonth.id(year: displayedYear, month: monthNumber)
                     Button {
                         onSelect(monthID)
                     } label: {
@@ -393,10 +393,6 @@ struct BudgetMonthPicker: View {
         }
 
         return Calendar(identifier: .gregorian).component(.year, from: Date())
-    }
-
-    private static func monthID(year: Int, month: Int) -> String {
-        YearMonth.id(year: year, month: month)
     }
 
     private static func year(from monthID: String) -> Int? {

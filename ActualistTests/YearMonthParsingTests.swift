@@ -56,6 +56,27 @@ struct YearMonthParsingTests {
         #expect(ids.contains("2026-06"))
         #expect(!ids.contains { $0.hasPrefix("2026-13") })
     }
+
+    @Test func addingMonthsRollsTheYearAndRejectsLeavingTheValidRange() {
+        let rows: [(String, Int, String?)] = [
+            ("2026-12", 1, "2027-01"), ("2026-01", -1, "2025-12"),
+            ("2026-06", 13, "2027-07"), ("2026-06", -25, "2024-05"),
+            ("2026-06", 0, "2026-06"), ("9999-12", 1, nil), ("1900-01", -1, nil),
+        ]
+        for (month, offset, expected) in rows {
+            #expect(YearMonth(rawValue: month).adding(months: offset)?.rawValue == expected, "\(month) \(offset)")
+        }
+        #expect(YearMonth(rawValue: "2026-13").adding(months: 0) == nil)
+        #expect(YearMonth(rawValue: "bad").adding(months: 1) == nil)
+    }
+
+    @Test func shiftedIDKeepsUnvalidatedRollAndReturnsUnparseableInput() {
+        #expect(YearMonth.shiftedID("2026-13", by: 1) == "2027-02")
+        #expect(YearMonth.shiftedID("2026-00", by: 0) == "2025-12")
+        #expect(YearMonth.shiftedID("a-2026-01", by: 1) == "a-2026-01")
+        #expect(YearMonth.shiftedID("a-2026-01", by: 1, ignoringNonNumericParts: true) == "2026-02")
+        #expect(YearMonth.shiftedID("2026-02-03", by: 1, ignoringNonNumericParts: true) == "2026-02-03")
+    }
 }
 
 extension LocalFirstActualStoreTests {

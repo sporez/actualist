@@ -559,11 +559,6 @@ final class BudgetViewportModel {
     }
 
     static func monthID(_ month: String, offsetBy offset: Int) -> String {
-        let parts = month.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 2, let date = Calendar(identifier: .gregorian).date(from: DateComponents(year: parts[0], month: parts[1])) else {
-            return month
-        }
-        let shifted = Calendar(identifier: .gregorian).date(byAdding: .month, value: offset, to: date) ?? date
-        return YearMonth(date: shifted).rawValue
+        YearMonth.shiftedID(month, by: offset, ignoringNonNumericParts: true)
     }
 }

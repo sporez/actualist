@@ -211,12 +211,8 @@ enum ReportCalendar {
         return YearMonth.id(year: components.year ?? 0, month: components.month ?? 0)
     }
 
-    static func shiftedMonth(_ monthID: String, by offset: Int, calendar: Calendar = gregorianUTC) -> String {
-        guard let date = date(fromMonthID: monthID, calendar: calendar),
-              let shifted = calendar.date(byAdding: .month, value: offset, to: date) else {
-            return monthID
-        }
-        return self.monthID(for: shifted, calendar: calendar)
+    static func shiftedMonth(_ monthID: String, by offset: Int) -> String {
+        YearMonth.shiftedID(monthID, by: offset)
     }
 
     static func days(in monthID: String, calendar: Calendar = gregorianUTC) -> Int {

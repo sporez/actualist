@@ -15,6 +15,43 @@ extension YearMonth {
         id(year: monthValue / 100, month: monthValue % 100)
     }
 
+    /// This month moved by `months` (pure `year * 12 + month` arithmetic), or
+    /// nil when this is not a valid month or the result leaves `validYears`.
+    func adding(months: Int) -> YearMonth? {
+        guard let valid = YearMonth(parsing: rawValue),
+              let year = Int(valid.rawValue.prefix(4)),
+              let month = Int(valid.rawValue.suffix(2)) else {
+            return nil
+        }
+        let shifted = Self.shiftedID(year: year, month: month, by: months)
+        return YearMonth(parsing: shifted)
+    }
+
+    /// `YYYY-MM` text for `id` moved by `months`, with no range validation: a
+    /// month outside 1...12 rolls over the way a Gregorian calendar does
+    /// ("2026-13" +0 is "2027-01"). Reports and Budget month swiping depend on
+    /// that, so unparseable text (not two `-` pieces) comes back unchanged.
+    /// `ignoringNonNumericParts` drops non-numeric pieces first, as Budget's
+    /// swipe always did; Reports needs exactly two numeric pieces.
+    static func shiftedID(_ id: String, by months: Int, ignoringNonNumericParts: Bool = false) -> String {
+        let pieces = id.split(separator: "-")
+        let numbers = pieces.compactMap { Int($0) }
+        guard numbers.count == 2, ignoringNonNumericParts || pieces.count == 2 else { return id }
+        return shiftedID(year: numbers[0], month: numbers[1], by: months)
+    }
+
+    private static func shiftedID(year: Int, month: Int, by months: Int) -> String {
+        let total = year * 12 + (month - 1) + months
+        var shiftedYear = total / 12
+        var shiftedMonth = total % 12
+        if shiftedMonth < 0 {
+            shiftedMonth += 12
+            shiftedYear -= 1
+        }
+        // Calendar prints year 0 as 1 BC and so on: era year, not proleptic.
+        return id(year: shiftedYear > 0 ? shiftedYear : 1 - shiftedYear, month: shiftedMonth + 1)
+    }
+
     /// Nil unless the year is 1900...9999 and the month is 1...12.
     init?(year: Int, month: Int) {
         guard Self.validYears.contains(year), (1...12).contains(month) else {
