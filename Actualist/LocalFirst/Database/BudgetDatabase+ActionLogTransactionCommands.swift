@@ -232,7 +232,7 @@ extension BudgetDatabase {
             guard graph.invalidReason == nil,
                   graph.snapshots[sourceID] != nil,
                   graph.snapshots.values.allSatisfy({
-                      $0.tombstone == false && !hasStoredSplitError($0.splitError)
+                      $0.tombstone == false && !SplitTransactionError.isPresent($0.splitError)
                   }) else {
                 throw LocalFirstError.invalidLocalWrite("a transaction duplicate source graph is incomplete")
             }
@@ -282,7 +282,7 @@ extension BudgetDatabase {
                   input.isChild == false,
                   input.parentID == nil,
                   graph.snapshots.values.allSatisfy({
-                      $0.tombstone == false && !hasStoredSplitError($0.splitError)
+                      $0.tombstone == false && !SplitTransactionError.isPresent($0.splitError)
                   }),
                   graphIDs.isDisjoint(with: Set(graph.snapshots.keys)) else {
                 throw LocalFirstError.invalidLocalWrite("a transaction merge source graph is incomplete")
@@ -347,10 +347,5 @@ extension BudgetDatabase {
               columns.hasError else {
             throw LocalFirstError.invalidLocalWrite("the transaction graph schema is incomplete")
         }
-    }
-
-    private func hasStoredSplitError(_ value: String?) -> Bool {
-        guard let value else { return false }
-        return !value.isEmpty && value != "null"
     }
 }

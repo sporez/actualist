@@ -286,7 +286,7 @@ enum TransactionMergePlanner {
                 }
                 return .blocked(.malformedRow(snapshot.id))
             }
-            if hasSplitError(snapshot.splitError) { return .blocked(.splitHasError(snapshot.id)) }
+            if SplitTransactionError.isPresent(snapshot.splitError) { return .blocked(.splitHasError(snapshot.id)) }
             if snapshot.isParent == true && snapshot.isChild == true {
                 return .blocked(.malformedSplit(snapshot.id))
             }
@@ -643,7 +643,7 @@ enum TransactionMergePlanner {
             if isParent && snapshot.categoryID != nil {
                 return .invalidProposedParentFields(snapshot.id)
             }
-            if hasSplitError(snapshot.splitError) { return .splitHasError(snapshot.id) }
+            if SplitTransactionError.isPresent(snapshot.splitError) { return .splitHasError(snapshot.id) }
         }
         for snapshot in active.values.sorted(by: { $0.id < $1.id }) {
             let children = childrenByParentID[snapshot.id, default: []]
@@ -732,11 +732,6 @@ enum TransactionMergePlanner {
             payeeIDs: Array(Set(snapshots.compactMap(\.payeeID))).sorted(),
             categoryIDs: Array(Set(snapshots.compactMap(\.categoryID))).sorted()
         )
-    }
-
-    private static func hasSplitError(_ value: String?) -> Bool {
-        guard let value else { return false }
-        return !value.isEmpty && value != "null"
     }
 
     /// JavaScript string truthiness for the source's `||` merge expressions.

@@ -15,6 +15,13 @@ struct SplitTransactionError: Equatable, Sendable, Codable, Hashable {
     init(total: Int, parentAmount: Int) {
         self.init(difference: parentAmount - total)
     }
+
+    /// Whether a stored `error` cell holds an error at all: not nil, empty or
+    /// the text `null`. It does not check the JSON, which can still be malformed.
+    static func isPresent(_ stored: String?) -> Bool {
+        guard let stored else { return false }
+        return !stored.isEmpty && stored != "null"
+    }
 }
 
 /// Distinguishes omitted JSON keys from explicit null, matching JavaScript

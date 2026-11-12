@@ -104,8 +104,7 @@ extension BudgetDatabase {
                 pending.append(contentsOf: incomingIDs.sorted())
             }
             if let error = snapshot.splitError,
-               !error.isEmpty,
-               error != "null",
+               SplitTransactionError.isPresent(error),
                parseSplitTransactionError(error) == nil {
                 invalidReason = "The split error data cannot be interpreted safely."
             }

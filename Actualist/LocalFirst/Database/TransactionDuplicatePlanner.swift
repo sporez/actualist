@@ -265,7 +265,7 @@ enum TransactionDuplicatePlanner {
             if let sortOrder = snapshot.sortOrder, !sortOrder.isFinite {
                 throw TransactionDuplicatePlannerError.invalidSortOrder(snapshot.id)
             }
-            if snapshot.splitError.map(hasSplitError) == true {
+            if SplitTransactionError.isPresent(snapshot.splitError) {
                 throw TransactionDuplicatePlannerError.sourceSplitError(snapshot.id)
             }
             if snapshot.isParent == true || snapshot.isChild == true || snapshot.parentID != nil {
@@ -571,9 +571,5 @@ enum TransactionDuplicatePlanner {
             months: months.sorted(),
             transactions: Set(allSnapshots.map(\.id)).sorted()
         )
-    }
-
-    private static func hasSplitError(_ error: String) -> Bool {
-        !error.isEmpty && error != "null"
     }
 }

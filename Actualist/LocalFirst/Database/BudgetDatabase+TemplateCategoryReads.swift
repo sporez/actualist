@@ -3,10 +3,9 @@ import GRDB
 
 extension BudgetDatabase {
     func templateCategoryIsIncomeByID(db: Database) throws -> [String: Bool] {
-        guard try tableExists("categories", db: db) else {
+        guard let columns = try categoryColumnsIfPresent(db: db) else {
             return [:]
         }
-        let columns = try columnSet(for: "categories", db: db)
         let isIncome = column("is_income", fallback: "0", columns: columns)
         let rows = try Row.fetchAll(
             db,
@@ -27,10 +26,9 @@ extension BudgetDatabase {
     }
 
     func readCategoryGoalDefsRaw(db: Database) throws -> [String: String] {
-        guard try tableExists("categories", db: db) else {
+        guard let columns = try categoryColumnsIfPresent(db: db) else {
             return [:]
         }
-        let columns = try columnSet(for: "categories", db: db)
         guard columns.contains("goal_def") else {
             return [:]
         }
@@ -51,10 +49,9 @@ extension BudgetDatabase {
     }
 
     func templateCategoryNames(db: Database) throws -> [String: String] {
-        guard try tableExists("categories", db: db) else {
+        guard let columns = try categoryColumnsIfPresent(db: db) else {
             return [:]
         }
-        let columns = try columnSet(for: "categories", db: db)
         let name = column("name", fallback: "id", columns: columns)
         let rows = try Row.fetchAll(
             db,
@@ -79,10 +76,9 @@ extension BudgetDatabase {
     }
 
     func templateCategoryIDsInCategoryOrder(db: Database) throws -> [String] {
-        guard try tableExists("categories", db: db) else {
+        guard let categoryColumns = try categoryColumnsIfPresent(db: db) else {
             return []
         }
-        let categoryColumns = try columnSet(for: "categories", db: db)
         var order = [String]()
         if categoryColumns.contains("sort_order") {
             order.append("c.sort_order")
@@ -105,7 +101,7 @@ extension BudgetDatabase {
         includeIncome: Bool,
         includeHidden: Bool
     ) throws -> [String] {
-        guard try tableExists("categories", db: db) else {
+        guard let categoryColumns = try categoryColumnsIfPresent(db: db) else {
             return []
         }
         let groupColumn = CategoryColumns.group(in: categoryColumns)
@@ -159,5 +155,11 @@ extension BudgetDatabase {
                 """
         )
         return rows.compactMap { $0["id"] as String? }
+    }
+
+    /// The `categories` columns, or nil when the table is missing.
+    private func categoryColumnsIfPresent(db: Database) throws -> Set<String>? {
+        guard try tableExists("categories", db: db) else { return nil }
+        return try columnSet(for: "categories", db: db)
     }
 }

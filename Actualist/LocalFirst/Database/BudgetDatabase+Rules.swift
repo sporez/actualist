@@ -192,65 +192,65 @@ extension BudgetDatabase {
     }
 
     func fetchRules(db: Database) throws -> [ManagedRule] {
-            guard try tableExists("rules", db: db) else { return [] }
-            let columns = try columnSet(for: "rules", db: db)
-            guard columns.isSuperset(of: ["id", "conditions", "actions"]) else { return [] }
-            let stageColumn = columns.contains("stage") ? "stage" : "NULL"
-            let joinColumn = columns.contains("conditions_op") ? "conditions_op" : "'and'"
-            let rows = try Row.fetchAll(
-                db,
-                sql: """
-                    SELECT id, \(stageColumn) AS stage, conditions, actions,
-                           \(joinColumn) AS conditions_op
-                    FROM rules
-                    WHERE \(predicateForLiveRows(columns: columns))
-                    """
-            )
-            let scheduleIndex = try fetchRuleScheduleIndex(db: db)
-            let completedScheduleRuleIDs = scheduleIndex.completedRuleIDs
-            let payeeTargets = try payeeMappingTargets(db: db)
-            let decoder = JSONDecoder()
+        guard try tableExists("rules", db: db) else { return [] }
+        let columns = try columnSet(for: "rules", db: db)
+        guard columns.isSuperset(of: ["id", "conditions", "actions"]) else { return [] }
+        let stageColumn = columns.contains("stage") ? "stage" : "NULL"
+        let joinColumn = columns.contains("conditions_op") ? "conditions_op" : "'and'"
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT id, \(stageColumn) AS stage, conditions, actions,
+                       \(joinColumn) AS conditions_op
+                FROM rules
+                WHERE \(predicateForLiveRows(columns: columns))
+                """
+        )
+        let scheduleIndex = try fetchRuleScheduleIndex(db: db)
+        let completedScheduleRuleIDs = scheduleIndex.completedRuleIDs
+        let payeeTargets = try payeeMappingTargets(db: db)
+        let decoder = JSONDecoder()
 
-            return rows.compactMap { row in
-                guard let id = row["id"] as String? else { return nil }
-                let rawStage = row["stage"] as String?
-                let rawConditions = row["conditions"] as String? ?? "[]"
-                let rawActions = row["actions"] as String? ?? "[]"
-                let join = RuleConditionJoin(rawValue: row["conditions_op"] as String? ?? "and") ?? .and
-                let stage = rawStage.flatMap(RuleStage.init(rawValue:)) ?? .normal
-                let conditions = rawConditions.data(using: .utf8).flatMap {
-                    try? decoder.decode([RuleCondition].self, from: $0)
-                }
-                let actions = rawActions.data(using: .utf8).flatMap {
-                    try? decoder.decode([RuleAction].self, from: $0)
-                }
-                let mappedConditions = conditions.map { conditions in
-                    conditions.map { conditionByResolvingPayeeMappings($0, targets: payeeTargets) }
-                }
-                let decodedDraft = mappedConditions.flatMap { conditions in
-                    actions.map { actions in
-                        RuleDraft(stage: stage, conditionsJoin: join, conditions: conditions, actions: actions)
-                    }
-                }
-                let hasOnlyKnownKeys = ruleJSONHasOnlyKnownKeys(rawConditions, kind: .condition)
-                    && ruleJSONHasOnlyKnownKeys(rawActions, kind: .action)
-                    && (rawStage == nil || RuleStage(rawValue: rawStage ?? "") != nil)
-                    && RuleConditionJoin(rawValue: row["conditions_op"] as String? ?? "and") != nil
-                let draft = decodedDraft.flatMap {
-                    hasOnlyKnownKeys && $0.canRoundTripAndEvaluate ? $0 : nil
-                }
-                return ManagedRule(
-                    id: id,
-                    draft: draft,
-                    rawStage: rawStage,
-                    rawConditionsJSON: rawConditions,
-                    rawActionsJSON: rawActions,
-                    payeeIDs: Set(payeeIDs(in: [rawConditions, rawActions]).map { payeeTargets[$0] ?? $0 }),
-                    isCompletedScheduleRule: completedScheduleRuleIDs.contains(id),
-                    rawConditionsJoin: row["conditions_op"] as String?
-                )
+        return rows.compactMap { row in
+            guard let id = row["id"] as String? else { return nil }
+            let rawStage = row["stage"] as String?
+            let rawConditions = row["conditions"] as String? ?? "[]"
+            let rawActions = row["actions"] as String? ?? "[]"
+            let join = RuleConditionJoin(rawValue: row["conditions_op"] as String? ?? "and") ?? .and
+            let stage = rawStage.flatMap(RuleStage.init(rawValue:)) ?? .normal
+            let conditions = rawConditions.data(using: .utf8).flatMap {
+                try? decoder.decode([RuleCondition].self, from: $0)
             }
-            .rankedForExecution()
+            let actions = rawActions.data(using: .utf8).flatMap {
+                try? decoder.decode([RuleAction].self, from: $0)
+            }
+            let mappedConditions = conditions.map { conditions in
+                conditions.map { conditionByResolvingPayeeMappings($0, targets: payeeTargets) }
+            }
+            let decodedDraft = mappedConditions.flatMap { conditions in
+                actions.map { actions in
+                    RuleDraft(stage: stage, conditionsJoin: join, conditions: conditions, actions: actions)
+                }
+            }
+            let hasOnlyKnownKeys = ruleJSONHasOnlyKnownKeys(rawConditions, kind: .condition)
+                && ruleJSONHasOnlyKnownKeys(rawActions, kind: .action)
+                && (rawStage == nil || RuleStage(rawValue: rawStage ?? "") != nil)
+                && RuleConditionJoin(rawValue: row["conditions_op"] as String? ?? "and") != nil
+            let draft = decodedDraft.flatMap {
+                hasOnlyKnownKeys && $0.canRoundTripAndEvaluate ? $0 : nil
+            }
+            return ManagedRule(
+                id: id,
+                draft: draft,
+                rawStage: rawStage,
+                rawConditionsJSON: rawConditions,
+                rawActionsJSON: rawActions,
+                payeeIDs: Set(payeeIDs(in: [rawConditions, rawActions]).map { payeeTargets[$0] ?? $0 }),
+                isCompletedScheduleRule: completedScheduleRuleIDs.contains(id),
+                rawConditionsJoin: row["conditions_op"] as String?
+            )
+        }
+        .rankedForExecution()
     }
 
     func createRuleMessages(
