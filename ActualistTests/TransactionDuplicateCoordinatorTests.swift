@@ -284,7 +284,7 @@ private enum DuplicateReviewFailure: LocalizedError {
     var errorDescription: String? { "The duplicate review failed." }
 }
 
-private func duplicateReview(
+func duplicateReview(
     context: TransactionSelectionContext,
     selections: [TransactionSelectionIdentity],
     groupIDs: [String],

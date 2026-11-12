@@ -244,8 +244,38 @@ struct TransactionScheduleConversionCoordinatorTests {
     }
 
     @Test func unsupportedSchemaConversionFailureSurfacesTesterVoicedNotice() async throws {
+        let message = try await failureMessage(afterConvertFailsWith: ScheduleConversionError.unsupportedSchema)
+        #expect(message == ScheduleMutationUserNotice.unsupportedBudgetSchedules)
+        #expect(!(message?.contains("missing column") ?? false))
+    }
+
+    @Test func conversionFailureTextIsPinnedForEveryErrorKind() async throws {
+        enum Described: Error, LocalizedError {
+            case plain
+            var errorDescription: String? { "A described failure." }
+        }
+        let failed = "Actualist could not convert this transaction. Try again."
+        let cases: [(any Error, String)] = [
+            (LocalFirstError.invalidLocalWrite("missing column schedules.tombstone"), failed),
+            (LocalFirstError.schemaUnavailable("missing table schedules"), failed),
+            (LocalFirstError.referencedRowUnavailable("missing account"), failed),
+            (LocalFirstError.refusedChange("Pick another name."), "Pick another name."),
+            (LocalFirstError.budgetNotOpened, LocalFirstError.budgetNotOpened.errorDescription ?? ""),
+            (LocalFirstError.unsupportedWrite, LocalFirstError.unsupportedWrite.errorDescription ?? ""),
+            (ScheduleConversionError.reviewChanged, ScheduleConversionError.reviewChanged.errorDescription ?? ""),
+            (ScheduleConversionError.unsupportedSource("Splits cannot repeat."), "Splits cannot repeat."),
+            (CancellationError(), failed),
+            (Described.plain, "A described failure."),
+            (NSError(domain: "ExampleDomain", code: 7), UserFacingErrorText.genericFailure)
+        ]
+        for (error, expected) in cases {
+            #expect(try await failureMessage(afterConvertFailsWith: error) == expected)
+        }
+    }
+
+    private func failureMessage(afterConvertFailsWith error: any Error) async throws -> String? {
         let repository = FakeConversionRepository()
-        repository.convertError = ScheduleConversionError.unsupportedSchema
+        repository.convertError = error
         let coordinator = TransactionScheduleConversionCoordinator()
         repository.reviewResult = Self.review(transactionID: "future", context: repository.context)
         coordinator.beginReview(
@@ -261,10 +291,9 @@ struct TransactionScheduleConversionCoordinatorTests {
 
         guard case .failed(let message) = coordinator.state else {
             Issue.record("Expected the conversion failure to present a notice")
-            return
+            return nil
         }
-        #expect(message == ScheduleMutationUserNotice.unsupportedBudgetSchedules)
-        #expect(!message.contains("missing column"))
+        return message
     }
 
     private static func entryPoint(

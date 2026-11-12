@@ -264,46 +264,72 @@ struct ScheduleManagementCoordinatorTests {
             )
         ]
         for (createError, expectedNotice) in cases {
-            let store = ScheduleManagementRepositoryFake()
-            store.createError = createError
-            let coordinator = ScheduleManagementCoordinator()
-            coordinator.beginCreate(
-                expectedBudgetID: "budget",
-                expectedGeneration: 1,
-                today: "2026-09-28",
-                currency: .usd,
-                isPrivacyModeEnabled: false,
-                mutationRepository: store,
-                transactionRepository: RecordingTransactionRepository(
-                    editorOptionsResult: TransactionEditorOptions(
-                        accounts: [ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false)],
-                        categories: [],
-                        categoryGroups: [],
-                        payees: []
-                    )
+            let notice = await saveNotice(afterCreateFailsWith: createError)
+            #expect(notice == expectedNotice)
+            #expect(notice?.contains("missing column") != true)
+        }
+    }
+
+    @Test func saveFailureTextIsPinnedForEveryErrorKind() async {
+        enum Described: Error, LocalizedError {
+            case plain
+            var errorDescription: String? { "A described failure." }
+        }
+        let notice = ScheduleMutationUserNotice.saveFailed
+        let cases: [(any Error, String)] = [
+            (LocalFirstError.invalidLocalWrite("missing column schedules.tombstone"), notice),
+            (LocalFirstError.schemaUnavailable("missing table schedules"), notice),
+            (LocalFirstError.referencedRowUnavailable("missing account"), notice),
+            (LocalFirstError.refusedChange("Pick another name."), "Pick another name."),
+            (LocalFirstError.budgetNotOpened, LocalFirstError.budgetNotOpened.errorDescription ?? ""),
+            (LocalFirstError.unsupportedWrite, LocalFirstError.unsupportedWrite.errorDescription ?? ""),
+            (ScheduleMutationCommandError.duplicateName, ScheduleMutationCommandError.duplicateName.errorDescription ?? ""),
+            (CancellationError(), notice),
+            (Described.plain, "A described failure."),
+            (NSError(domain: "ExampleDomain", code: 7), UserFacingErrorText.genericFailure)
+        ]
+        for (error, expected) in cases {
+            #expect(await saveNotice(afterCreateFailsWith: error) == expected)
+        }
+    }
+
+    private func saveNotice(afterCreateFailsWith createError: any Error) async -> String? {
+        let store = ScheduleManagementRepositoryFake()
+        store.createError = createError
+        let coordinator = ScheduleManagementCoordinator()
+        coordinator.beginCreate(
+            expectedBudgetID: "budget",
+            expectedGeneration: 1,
+            today: "2026-09-28",
+            currency: .usd,
+            isPrivacyModeEnabled: false,
+            mutationRepository: store,
+            transactionRepository: RecordingTransactionRepository(
+                editorOptionsResult: TransactionEditorOptions(
+                    accounts: [ActualAccount(id: "checking", name: "Checking", offbudget: false, closed: false)],
+                    categories: [],
+                    categoryGroups: [],
+                    payees: []
                 )
             )
-            await ObservedTestState {
-                if case .editing = coordinator.state { true } else { false }
-            }.wait()
-            coordinator.setAccount("checking")
-            coordinator.setAmount("12.34")
-            coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
-            // Save moves to `.submitting` synchronously, so waiting for
-            // `.editing` observes the failure reopening the editor.
-            #expect(coordinator.state.isSubmitting)
-
-            await ObservedTestState {
-                if case .editing = coordinator.state { true } else { false }
-            }.wait()
-
-            guard case .editing(let session) = coordinator.state else {
-                Issue.record("A failed save must reopen the editor with a notice")
-                return
-            }
-            #expect(session.notice == expectedNotice)
-            #expect(session.notice?.contains("missing column") != true)
+        )
+        await ObservedTestState {
+            if case .editing = coordinator.state { true } else { false }
+        }.wait()
+        coordinator.setAccount("checking")
+        coordinator.setAmount("12.34")
+        coordinator.save(locale: Locale(identifier: "en_US"), mutationRepository: store)
+        // Save moves to `.submitting` synchronously, so waiting for
+        // `.editing` observes the failure reopening the editor.
+        #expect(coordinator.state.isSubmitting)
+        await ObservedTestState {
+            if case .editing = coordinator.state { true } else { false }
+        }.wait()
+        guard case .editing(let session) = coordinator.state else {
+            Issue.record("A failed save must reopen the editor with a notice")
+            return nil
         }
+        return session.notice
     }
 
     @Test func lateScheduleReviewAfterCancellationCannotOpenEditor() async {

@@ -150,6 +150,26 @@ struct SchedulePostingCoordinatorTests {
         #expect(!message.contains("local-first write"))
     }
 
+    @Test func postFailureTextIsPinnedForEveryErrorKind() async {
+        let cases: [(any Error, String)] = [
+            (LocalFirstError.invalidLocalWrite("missing column schedules.tombstone"),
+             LocalFirstError.invalidLocalWrite("").errorDescription ?? ""),
+            (LocalFirstError.schemaUnavailable("missing table schedules"),
+             LocalFirstError.schemaUnavailable("").errorDescription ?? ""),
+            (LocalFirstError.referencedRowUnavailable("missing account"),
+             LocalFirstError.referencedRowUnavailable("").errorDescription ?? ""),
+            (LocalFirstError.refusedChange("Pick another name."), "Pick another name."),
+            (LocalFirstError.budgetNotOpened, LocalFirstError.budgetNotOpened.errorDescription ?? ""),
+            (SchedulePostingRefusal.draftMismatch, SchedulePostingRefusal.draftMismatch.errorDescription ?? ""),
+            (CancellationError(), CancellationError().localizedDescription),
+            (SchedulePostingTestError.syncFailed, "The scheduled transaction sync failed."),
+            (NSError(domain: "ExampleDomain", code: 7), UserFacingErrorText.genericFailure)
+        ]
+        for (error, expected) in cases {
+            #expect(await failureMessage(afterPostFailsWith: error) == expected)
+        }
+    }
+
     @Test func canceledSyncLateCompletionCannotReplaceIdleState() async {
         let repository = SchedulePostingCoordinatorRepositoryFake()
         repository.pausePostBeforeSyncCompletion = true
@@ -189,6 +209,19 @@ struct SchedulePostingCoordinatorTests {
         // other commit; it must never surface as a failure.
         #expect(coordinator.state == .idle)
         #expect(coordinator.committedRevision == 1)
+    }
+
+    private func failureMessage(afterPostFailsWith error: any Error) async -> String? {
+        let repository = SchedulePostingCoordinatorRepositoryFake()
+        repository.postError = error
+        let coordinator = await preparedCoordinator(repository)
+        coordinator.confirm(postingRepository: repository)
+        await waitForFailure(coordinator)
+        guard case .failed(let message) = coordinator.state else {
+            Issue.record("Expected a failed state")
+            return nil
+        }
+        return message
     }
 
     private func preparedCoordinator(

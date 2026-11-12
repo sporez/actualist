@@ -225,7 +225,7 @@ private enum MergeReviewFailure: LocalizedError {
     var errorDescription: String? { "The merge review failed." }
 }
 
-private func mergeReview(
+func mergeReview(
     context: TransactionSelectionContext,
     orderedIDs: [String],
     id: String = "review",
