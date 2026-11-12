@@ -56,6 +56,22 @@ struct MoneyTests {
         #expect(PrivacyDisplay.money(500, seed: "seed-b", currency: .jpy, maximumDollars: 15_000) == "¥9,795")
     }
 
+    @Test func privacyDisplayTextChoosesMaskedOrRealMoney() {
+        #expect(PrivacyDisplay.text(12_345, enabled: true, seed: "seed-a", currency: .usd) == "$244.79")
+        #expect(PrivacyDisplay.text(12_345, enabled: false, seed: "seed-a", currency: .usd) == "$123.45")
+        #expect(PrivacyDisplay.text(-500, enabled: true, seed: "seed-b", currency: .usd, maximumDollars: 275) == "-$103.54")
+        #expect(PrivacyDisplay.text(500, enabled: true, seed: "seed-b", currency: .jpy, maximumDollars: 15_000) == "¥9,795")
+        #expect(PrivacyDisplay.text(500, enabled: false, seed: "seed-b", currency: .jpy) == "¥500")
+    }
+
+    @Test func privacyDisplayTextHandlesNilAmounts() {
+        #expect(PrivacyDisplay.text(nil, enabled: true, seed: "seed-c", currency: .usd) == "$590.29")
+        #expect(PrivacyDisplay.text(nil, enabled: false, seed: "seed-c", currency: .usd) == "$0.00")
+        #expect(PrivacyDisplay.text(nil, enabled: true, seed: "seed-c", currency: .usd, nilText: "—") == "—")
+        #expect(PrivacyDisplay.text(nil, enabled: false, seed: "seed-c", currency: .usd, nilText: "—") == "—")
+        #expect(PrivacyDisplay.text(0, enabled: false, seed: "seed-c", currency: .usd, nilText: "—") == "$0.00")
+    }
+
     @Test func budgetSyncIDPrefersGroupID() throws {
         let json = """
         {

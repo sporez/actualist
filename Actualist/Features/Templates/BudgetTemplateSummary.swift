@@ -132,9 +132,6 @@ enum BudgetTemplateSummary {
         seed: String
     ) -> String {
         let minor = currency.minorUnits(fromDisplay: display) ?? 0
-        if randomized {
-            return PrivacyDisplay.money(minor, seed: seed, currency: currency)
-        }
-        return currency.formatted(minor)
+        return PrivacyDisplay.text(minor, enabled: randomized, seed: seed, currency: currency)
     }
 }

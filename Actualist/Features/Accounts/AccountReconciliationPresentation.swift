@@ -178,9 +178,9 @@ enum AccountReconciliationPresentation {
         currency: BudgetCurrency,
         privacyModeEnabled: Bool
     ) -> String {
-        guard privacyModeEnabled else { return currency.formatted(amount) }
-        return PrivacyDisplay.money(
+        PrivacyDisplay.text(
             amount,
+            enabled: privacyModeEnabled,
             seed: seed,
             currency: currency,
             maximumDollars: 1_200

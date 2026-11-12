@@ -105,14 +105,12 @@ struct RuleTransactionMatchRow: View {
     }
 
     private var amountText: String {
-        if appState.settings.randomizedDisplayValuesEnabled {
-            return PrivacyDisplay.money(
-                transaction.amountMinorUnits,
-                seed: "rule-match-\(transaction.id)",
-                currency: currency,
-                maximumDollars: 275
-            )
-        }
-        return currency.formatted(transaction.amountMinorUnits)
+        PrivacyDisplay.text(
+            transaction.amountMinorUnits,
+            enabled: appState.settings.randomizedDisplayValuesEnabled,
+            seed: "rule-match-\(transaction.id)",
+            currency: currency,
+            maximumDollars: 275
+        )
     }
 }

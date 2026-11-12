@@ -99,35 +99,35 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         }()
         let availableBefore = preview.availableBefore
         return BudgetTemplateApplyPreviewDisplay(
-            fundingRequiredText: money(
+            fundingRequiredText: moneyOrHidden(
                 preview.fundingRequired,
                 currency: currency,
                 randomized: isPrivate
             ),
-            assignedText: money(
+            assignedText: moneyOrHidden(
                 preview.assigned,
                 currency: currency,
                 randomized: randomized
             ),
             releasedTitle: preview.isTrackingBudget ? "Reduced" : "Released",
-            releasedText: preview.released > 0 ? money(
+            releasedText: preview.released > 0 ? moneyOrHidden(
                 preview.released,
                 currency: currency,
                 randomized: isPrivate
             ) : nil,
-            stillNeededText: money(
+            stillNeededText: moneyOrHidden(
                 preview.stillNeeded,
                 currency: currency,
                 randomized: isPrivate
             ),
             hasOutstandingFunding: preview.stillNeeded > 0,
             leftoverTitle: leftoverTitle(isTrackingBudget: preview.isTrackingBudget),
-            leftoverBeforeText: money(
+            leftoverBeforeText: moneyOrHidden(
                 availableBefore,
                 currency: currency,
                 randomized: isPrivate
             ),
-            leftoverAfterText: money(
+            leftoverAfterText: moneyOrHidden(
                 preview.availableAfter,
                 currency: currency,
                 randomized: isPrivate
@@ -216,16 +216,16 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
                 ? "Hidden"
                 : currency.signedFormatted(category.proposed - category.current),
             metricTitle: category.metric.title,
-            metricBeforeText: money(category.metric.before, currency: currency, randomized: isPrivate),
-            metricAfterText: money(category.metric.after, currency: currency, randomized: isPrivate),
+            metricBeforeText: moneyOrHidden(category.metric.before, currency: currency, randomized: isPrivate),
+            metricAfterText: moneyOrHidden(category.metric.after, currency: currency, randomized: isPrivate),
             statusText: status(for: category),
             statusTone: statusTone(for: category),
             priorityText: priorityText(for: category.priorityLevels),
             shortfallText: category.shortfall > 0
-                ? money(category.shortfall, currency: currency, randomized: isPrivate)
+                ? moneyOrHidden(category.shortfall, currency: currency, randomized: isPrivate)
                 : nil,
             targetAmountText: category.shortfall > 0 ? category.goalAfter.map {
-                money($0, currency: currency, randomized: isPrivate)
+                moneyOrHidden($0, currency: currency, randomized: isPrivate)
             } : nil,
             targetDetailText: targetDetailText(for: category, currency: currency, randomized: isPrivate),
             contributions: contributions(category, currency: currency, randomized: randomized)
@@ -268,9 +268,9 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
     ) -> String? {
         if category.isGoalOnlyUpdate {
             guard let goalAfter = category.goalAfter else { return "Goal removed" }
-            let after = money(goalAfter, currency: currency, randomized: randomized)
+            let after = moneyOrHidden(goalAfter, currency: currency, randomized: randomized)
             guard let goalBefore = category.goalBefore else { return "Goal \(after)" }
-            return "Goal \(money(goalBefore, currency: currency, randomized: randomized)) → \(after)"
+            return "Goal \(moneyOrHidden(goalBefore, currency: currency, randomized: randomized)) → \(after)"
         }
         return nil
     }
@@ -339,7 +339,7 @@ struct BudgetTemplateApplyPreviewDisplay: Equatable, Sendable {
         return "Template \(index + 1)"
     }
 
-    private static func money(
+    private static func moneyOrHidden(
         _ amount: Int,
         currency: BudgetCurrency,
         randomized: Bool

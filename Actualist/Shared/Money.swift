@@ -95,6 +95,22 @@ enum PrivacyDisplay {
         ).actualMoney.formatted(using: currency)
     }
 
+    /// The one privacy-or-plain money text. With `enabled`, a sample value from
+    /// `money`; otherwise the real amount through `currency.formatted`. A nil
+    /// `amount` shows `nilText` when given, else is treated as zero.
+    static func text(
+        _ amount: Int?,
+        enabled: Bool,
+        seed: String,
+        currency: BudgetCurrency,
+        maximumDollars: Int = 900,
+        nilText: String? = nil
+    ) -> String {
+        if amount == nil, let nilText { return nilText }
+        guard enabled else { return currency.formatted(amount ?? 0) }
+        return money(amount, seed: seed, currency: currency, maximumDollars: maximumDollars)
+    }
+
     static func stableHash(_ value: String) -> UInt64 {
         var hash: UInt64 = 14_695_981_039_346_656_037
         for byte in value.utf8 {

@@ -66,12 +66,6 @@ enum BudgetTemplateAmountInput {
         randomized: Bool,
         seed: String
     ) -> String {
-        guard let minorUnits else {
-            return "—"
-        }
-        if randomized {
-            return PrivacyDisplay.money(minorUnits, seed: seed, currency: currency)
-        }
-        return currency.formatted(minorUnits)
+        PrivacyDisplay.text(minorUnits, enabled: randomized, seed: seed, currency: currency, nilText: "—")
     }
 }

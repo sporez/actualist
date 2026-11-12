@@ -52,14 +52,13 @@ enum AccountLifecyclePresentation {
         let accountName = privacyModeEnabled
             ? PrivacyDisplay.name(for: .account, seed: review.account.id)
             : review.account.name
-        let balanceText = privacyModeEnabled
-            ? PrivacyDisplay.money(
-                review.liveBalance,
-                seed: "account-lifecycle-balance-\(review.account.id)",
-                currency: currency,
-                maximumDollars: 15_000
-            )
-            : currency.formatted(review.liveBalance)
+        let balanceText = PrivacyDisplay.text(
+            review.liveBalance,
+            enabled: privacyModeEnabled,
+            seed: "account-lifecycle-balance-\(review.account.id)",
+            currency: currency,
+            maximumDollars: 15_000
+        )
         var rows = [
             AccountLifecycleConsequenceRow(id: "balance", label: "Balance", value: balanceText),
             AccountLifecycleConsequenceRow(

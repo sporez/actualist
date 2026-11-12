@@ -304,12 +304,9 @@ struct TransactionRow: View {
     }
 
     private var amountText: String {
-        guard isPrivacyModeEnabled else {
-            return currency.formatted(transaction.amount ?? 0)
-        }
-
-        return PrivacyDisplay.money(
+        PrivacyDisplay.text(
             transaction.amount,
+            enabled: isPrivacyModeEnabled,
             seed: "transaction-amount-\(transaction.rowID)",
             currency: currency,
             maximumDollars: 275

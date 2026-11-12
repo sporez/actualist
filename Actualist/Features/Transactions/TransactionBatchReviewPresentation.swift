@@ -237,14 +237,12 @@ private struct MemberFactory {
 
     private func amountText(_ amount: Int?, rowID: String, role: String) -> String {
         guard let amount else { return "Amount unavailable" }
-        if isPrivacyModeEnabled {
-            return PrivacyDisplay.money(
-                amount,
-                seed: "batch-review-\(rowID)-\(role)-\(amount)",
-                currency: review.metadata.currency
-            )
-        }
-        return review.metadata.currency.formatted(amount)
+        return PrivacyDisplay.text(
+            amount,
+            enabled: isPrivacyModeEnabled,
+            seed: "batch-review-\(rowID)-\(role)-\(amount)",
+            currency: review.metadata.currency
+        )
     }
 
     private func dateText(_ packed: Int?) -> String {

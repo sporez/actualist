@@ -14,8 +14,7 @@ enum TransactionCommandReviewFormatting {
         currency: BudgetCurrency,
         isPrivacyModeEnabled: Bool
     ) -> String {
-        guard isPrivacyModeEnabled else { return currency.formatted(minorUnits) }
-        return PrivacyDisplay.money(minorUnits, seed: seed, currency: currency)
+        PrivacyDisplay.text(minorUnits, enabled: isPrivacyModeEnabled, seed: seed, currency: currency)
     }
 
     static func role(isParent: Bool, isChild: Bool, isTransfer: Bool = false) -> String {

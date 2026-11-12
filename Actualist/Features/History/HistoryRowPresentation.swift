@@ -108,10 +108,7 @@ enum HistoryRowPresentation {
         currency: BudgetCurrency,
         privacyEnabled: Bool
     ) -> String {
-        guard !privacyEnabled else {
-            return PrivacyDisplay.money(minorUnits, seed: seed, currency: currency)
-        }
-        return Money(minorUnits: minorUnits).formatted(using: currency)
+        PrivacyDisplay.text(minorUnits, enabled: privacyEnabled, seed: seed, currency: currency)
     }
 
     /// One-line description of the gesture, reused by the undo review header.

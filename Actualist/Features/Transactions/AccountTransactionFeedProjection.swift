@@ -183,9 +183,9 @@ struct AccountTransactionFeedProjection {
     }
 
     private func runningBalanceText(_ balance: Int, rowID: String) -> String {
-        guard privacyModeEnabled else { return currency.formatted(balance) }
-        return PrivacyDisplay.money(
-            balance, seed: "running-balance-\(rowID)", currency: currency, maximumDollars: 15_000)
+        PrivacyDisplay.text(
+            balance, enabled: privacyModeEnabled, seed: "running-balance-\(rowID)",
+            currency: currency, maximumDollars: 15_000)
     }
 
     private var lookup: TransactionRowLookup {
@@ -244,9 +244,9 @@ struct AccountTransactionFeedProjection {
     }
 
     private var balanceText: String {
-        guard privacyModeEnabled else { return currency.formatted(loaded?.balance ?? 0) }
         let seed = scope.account.map { "account-header-\($0.id)" } ?? "spending-header"
-        return PrivacyDisplay.money(loaded?.balance, seed: seed, currency: currency, maximumDollars: 15_000)
+        return PrivacyDisplay.text(
+            loaded?.balance, enabled: privacyModeEnabled, seed: seed, currency: currency, maximumDollars: 15_000)
     }
 
     private var categorySummary: AccountTransactionCategorySummaryPresentation? {
@@ -268,9 +268,9 @@ struct AccountTransactionFeedProjection {
     }
 
     private func summaryAmountText(_ amount: Int, label: String) -> String {
-        guard privacyModeEnabled else { return currency.formatted(amount) }
-        return PrivacyDisplay.money(
+        PrivacyDisplay.text(
             amount,
+            enabled: privacyModeEnabled,
             seed: "category-summary-\(scope.categoryDetails?.id ?? label)-\(label)",
             currency: currency,
             maximumDollars: 2_500

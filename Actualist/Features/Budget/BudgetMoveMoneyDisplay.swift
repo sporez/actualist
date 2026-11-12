@@ -84,9 +84,6 @@ struct BudgetMoveMoneyDisplay {
     }
 
     private func money(_ amount: Int, seed: String) -> String {
-        guard isPrivacyModeEnabled else {
-            return currency.formatted(amount)
-        }
-        return PrivacyDisplay.money(amount, seed: seed, currency: currency, maximumDollars: 900)
+        PrivacyDisplay.text(amount, enabled: isPrivacyModeEnabled, seed: seed, currency: currency)
     }
 }
