@@ -19,7 +19,8 @@ struct BudgetHoldViewModelTests {
         #expect(model.amount == 10_000)
         #expect(model.canHold)
         #expect(model.canRelease)
-        model.setAmountText("25.50")
+        model.setAmountText("2550")
+        #expect(model.amountText == "25.50")
         #expect(model.resultingAvailableText == review.currency.formatted(7_450))
         #expect(model.resultingHeldText == review.currency.formatted(7_550))
         #expect(await model.submitHold(repository: repository))
@@ -29,11 +30,33 @@ struct BudgetHoldViewModelTests {
         #expect(!(await model.submitHold(repository: repository)))
     }
 
+    @Test func amountAboveToBudgetIsHeldAtToBudgetAfterTheReviewStep() async {
+        let review = makeReview()
+        let requests = Requests()
+        let result = loaded(review)
+        let repository = RecordingBudgetRepository(holdReview: { review }, holdApply: { command, received in
+            await requests.record(command, review: received)
+            return result
+        })
+        let model = makeModel()
+        await model.load(repository: repository)
+        model.setAmountText("500000")
+        #expect(model.amountText == "5000.00")
+        #expect(model.isLimitedToAvailable)
+        #expect(model.amount == 10_000)
+        #expect(model.canHold)
+        #expect(model.holdExplanation == "That is more than is left in To Budget. Only \(review.currency.formatted(10_000)) will be held.")
+        #expect(model.resultingAvailableText == review.currency.formatted(0))
+        #expect(model.resultingHeldText == review.currency.formatted(review.manualHeldAmount + 10_000))
+        #expect(await model.submitHold(repository: repository))
+        #expect(await requests.commands == [.hold(amount: 10_000)])
+    }
+
     @Test func invalidTextDoesNotReusePreviousAmount() async {
         let review = makeReview()
         let model = makeModel()
         await model.load(repository: RecordingBudgetRepository(holdReview: { review }))
-        for text in ["", "no", "100.01", "-1", "0"] {
+        for text in ["", "no", "-", "0"] {
             model.setAmountText(text)
             #expect(!model.canHold)
             #expect(model.amount == nil)
@@ -74,11 +97,11 @@ struct BudgetHoldViewModelTests {
         })
         let model = makeModel()
         await model.load(repository: repository)
-        model.setAmountText("25")
+        model.setAmountText("2500")
         #expect(!(await model.submitHold(repository: repository)))
         #expect(model.errorMessage != nil)
         #expect(!model.canHold)
-        model.setAmountText("30")
+        model.setAmountText("3000")
         #expect(!model.canHold)
         await model.load(repository: repository)
         #expect(model.amount == 3_000)

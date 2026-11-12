@@ -74,8 +74,15 @@ final class BudgetHoldViewModel {
     var amount: Int? {
         guard let draft else { return nil }
         return BudgetHoldAmountInput.amount(
-            from: draft.text, available: draft.review.holdableAmount,
-            currency: draft.review.currency, locale: locale
+            from: draft.text, available: draft.review.holdableAmount, currency: draft.review.currency
+        )
+    }
+
+    /// The typed amount is more than is left to budget, so the hold is limited to what is left.
+    var isLimitedToAvailable: Bool {
+        guard let draft else { return false }
+        return BudgetHoldAmountInput.exceedsAvailable(
+            text: draft.text, available: draft.review.holdableAmount, currency: draft.review.currency
         )
     }
 
@@ -96,6 +103,9 @@ final class BudgetHoldViewModel {
     }
 
     var holdExplanation: String {
+        if isLimitedToAvailable, canEnterHold {
+            return "That is more than is left in To Budget. Only \(availableText) will be held."
+        }
         if let review = draft?.review, review.isAutomaticHold {
             return "An automatic hold is set for this month. Holding an amount here replaces it. Automatic holds for later months stay on."
         }
@@ -146,14 +156,14 @@ final class BudgetHoldViewModel {
 
     func setAmountText(_ text: String) {
         guard case .editing(var draft) = state else { return }
-        draft.text = text
+        draft.text = BudgetHoldAmountInput.fieldText(typed: text, currency: draft.review.currency)
         state = .editing(draft)
     }
 
     func useAllAvailable() {
         guard canEnterHold, case .editing(var draft) = state else { return }
         draft.text = BudgetHoldAmountInput.text(
-            amount: max(0, draft.review.holdableAmount), currency: draft.review.currency, locale: locale
+            amount: max(0, draft.review.holdableAmount), currency: draft.review.currency
         )
         state = .editing(draft)
     }
@@ -205,7 +215,7 @@ final class BudgetHoldViewModel {
             state = .editing(Draft(
                 review: review,
                 text: previousText ?? BudgetHoldAmountInput.text(
-                    amount: max(0, review.holdableAmount), currency: review.currency, locale: locale
+                    amount: max(0, review.holdableAmount), currency: review.currency
                 )
             ))
         } catch {
