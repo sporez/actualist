@@ -227,7 +227,10 @@ struct AccountsView: View {
                         )
                             .font(ActualistTypography.sectionTitle(for: density))
                         Spacer()
-                        Text(sectionTotalText(section))
+                        Text(section.totalText(
+                            currency: currency,
+                            privacyEnabled: appState.settings.randomizedDisplayValuesEnabled
+                        ))
                             .font(ActualistTypography.rowValue(for: density))
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
@@ -423,20 +426,6 @@ struct AccountsView: View {
         isExpanded ? title : "\(title) (\(count))"
     }
 
-    private func sectionTotalText(_ section: AccountListLayout.Section) -> String {
-        let amount = section.totalMinorUnits
-        guard appState.settings.randomizedDisplayValuesEnabled else {
-            return currency.formatted(amount)
-        }
-
-        return PrivacyDisplay.money(
-            amount,
-            seed: "account-section-\(section.kind.title)-\(section.accounts.map(\.id).joined(separator: "-"))",
-            currency: currency,
-            maximumDollars: 15_000
-        )
-    }
-
     private func loadLocal() async {
         await viewModel.loadLocal(
             budgetID: appState.settings.selectedBudgetID,
@@ -575,16 +564,7 @@ struct AccountRow: View {
     }
 
     private var balanceText: String {
-        guard isPrivacyModeEnabled else {
-            return currency.formatted(row.balance ?? 0)
-        }
-
-        return PrivacyDisplay.money(
-            row.balance,
-            seed: "account-balance-\(row.account.id)",
-            currency: currency,
-            maximumDollars: 15_000
-        )
+        AccountListLayout.balanceText(row, currency: currency, privacyEnabled: isPrivacyModeEnabled)
     }
 
     private var balanceColor: Color {

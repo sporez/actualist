@@ -168,6 +168,26 @@ struct AccountListLayoutTests {
         ) == nil)
     }
 
+    @Test func rowBalanceAndSectionTotalTextMatchGoldenValues() {
+        func row(_ id: String, balance: Int?) -> AccountDisplay {
+            AccountDisplay(account: ActualAccount(id: id, name: id, offbudget: false, closed: false), balance: balance)
+        }
+        let a1 = row("a1", balance: 250_000)
+        #expect(AccountListLayout.balanceText(a1, currency: .usd, privacyEnabled: false) == "$2,500.00")
+        #expect(AccountListLayout.balanceText(a1, currency: .usd, privacyEnabled: true) == "$14,289.68")
+        #expect(AccountListLayout.balanceText(row("a1", balance: nil), currency: .usd, privacyEnabled: false) == "$0.00")
+        #expect(AccountListLayout.balanceText(row("a1", balance: nil), currency: .usd, privacyEnabled: true) == "$14,289.68")
+        #expect(AccountListLayout.balanceText(row("a1", balance: -9), currency: .usd, privacyEnabled: true) == "-$14,289.68")
+
+        let sections = AccountListLayout.sections(
+            displays: [row("a1", balance: 1_000), row("a2", balance: 500)],
+            groups: [],
+            preferredIDs: []
+        )
+        #expect(sections[0].totalText(currency: .usd, privacyEnabled: false) == "$15.00")
+        #expect(sections[0].totalText(currency: .usd, privacyEnabled: true) == "$2,991.08")
+    }
+
     private func display(
         _ id: String,
         name: String,

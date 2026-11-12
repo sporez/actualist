@@ -18,6 +18,27 @@ enum AccountListLayout {
         var showsGroupHeaders: Bool {
             buckets.contains { $0.group != nil }
         }
+
+        /// Section total, or a sample value seeded by the section's accounts.
+        func totalText(currency: BudgetCurrency, privacyEnabled: Bool) -> String {
+            PrivacyDisplay.text(
+                totalMinorUnits,
+                enabled: privacyEnabled,
+                seed: "account-section-\(kind.title)-\(accounts.map(\.id).joined(separator: "-"))",
+                currency: currency,
+                maximumDollars: 15_000
+            )
+        }
+    }
+
+    static func balanceText(_ row: AccountDisplay, currency: BudgetCurrency, privacyEnabled: Bool) -> String {
+        PrivacyDisplay.text(
+            row.balance,
+            enabled: privacyEnabled,
+            seed: "account-balance-\(row.account.id)",
+            currency: currency,
+            maximumDollars: 15_000
+        )
     }
 
     enum Kind: String, Equatable, Sendable, Hashable {
