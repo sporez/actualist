@@ -15,9 +15,9 @@ struct TransactionMergeCommandSheet: View {
                 message: "Checking your selection…",
                 detents: [.large]
             )
-        case .reviewing(let reviewed):
+        case .reviewing(let review):
             TransactionMergeReviewSheet(
-                review: reviewed.review,
+                review: review,
                 currency: currency,
                 isPrivacyModeEnabled: isPrivacyModeEnabled,
                 onCancel: onCancel,

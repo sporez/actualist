@@ -1,171 +1,27 @@
 import Foundation
-import Observation
 
 /// Duplicate review and commit for every selected row, in tap order.
-/// Selection itself stays on `TransactionSelectionCoordinator`; this type only
-/// copies that order for the command and rejects a review that does not echo it.
-@MainActor
-@Observable
-final class TransactionDuplicateCoordinator {
-    struct Preparation: Hashable, Sendable, Identifiable {
-        let id: UUID
-        let generation: UInt64
-        let context: TransactionSelectionContext
-        let selections: [TransactionSelectionIdentity]
-    }
-
-    enum State: Equatable {
-        case idle
-        case preparing(Preparation)
-        case reviewing(TransactionDuplicateReview)
-        case submitting(TransactionDuplicateReview)
-        case failed(
-            context: TransactionSelectionContext,
-            message: String
-        )
-    }
-
-    private(set) var state: State = .idle
-    @ObservationIgnored private var generation: UInt64 = 0
-
-    var isSubmitting: Bool {
-        if case .submitting = state { return true }
-        return false
-    }
-
-    var hidesSelectionChrome: Bool {
-        switch state {
-        case .preparing, .reviewing, .submitting: true
-        case .idle, .failed: false
-        }
-    }
-
-    var failureMessage: String? {
-        if case .failed(_, let message) = state { return message }
-        return nil
-    }
-
-    @discardableResult
-    func beginPreparation(
-        context: TransactionSelectionContext,
-        selections: [TransactionSelectionIdentity]
-    ) -> Preparation? {
-        switch state {
-        case .idle, .failed:
-            break
-        case .preparing, .reviewing, .submitting:
-            return nil
-        }
-        guard !selections.isEmpty else { return nil }
-        generation &+= 1
-        let preparation = Preparation(
-            id: UUID(),
-            generation: generation,
-            context: context,
-            selections: selections
-        )
-        state = .preparing(preparation)
-        return preparation
-    }
-
-    func isCurrent(_ preparation: Preparation) -> Bool {
-        guard case .preparing(let current) = state else { return false }
-        return current == preparation && generation == preparation.generation
-    }
+/// Selection itself stays on `TransactionSelectionCoordinator`; the command
+/// copies that order and rejects a review that does not echo it.
+enum TransactionDuplicateCommand: ReviewCommand {
+    static func id(of review: TransactionDuplicateReview) -> String { review.id }
+    static func fingerprint(of review: TransactionDuplicateReview) -> String { review.reviewFingerprint }
+    static func context(of review: TransactionDuplicateReview) -> TransactionSelectionContext { review.context }
 
     /// Accepts only a review whose selections are the exact prepared order.
     /// A submittable review must also account for every selection in its groups.
     /// A non-submittable review is still accepted so the sheet can explain why
     /// before confirmation. A reordered echo is not accepted.
-    @discardableResult
-    func accept(_ review: TransactionDuplicateReview, for preparation: Preparation) -> Bool {
+    static func echoes(_ review: TransactionDuplicateReview, selections: [TransactionSelectionIdentity]) -> Bool {
         let groupedIDs = review.groups.flatMap(\.selectedTransactionIDs)
-        let preparedIDs = preparation.selections.map(\.transactionID)
+        let preparedIDs = selections.map(\.transactionID)
         let groupsAccountForSelections = Set(groupedIDs).count == groupedIDs.count
             && Set(groupedIDs) == Set(preparedIDs)
-        guard isCurrent(preparation),
-              !review.id.isEmpty,
-              !review.reviewFingerprint.isEmpty,
-              review.context == preparation.context,
-              review.selections == preparation.selections,
-              review.canSubmit ? groupsAccountForSelections && !review.groups.isEmpty : true else { return false }
-        state = .reviewing(review)
-        return true
+        return review.selections == selections
+            && (review.canSubmit ? groupsAccountForSelections && !review.groups.isEmpty : true)
     }
 
-    func failPreparation(_ preparation: Preparation, message: String) {
-        guard isCurrent(preparation) else { return }
-        state = .failed(
-            context: preparation.context,
-            message: message
-        )
-    }
-
-    func cancelPreparation(_ preparation: Preparation) {
-        guard isCurrent(preparation) else { return }
-        invalidatePendingWork()
-        state = .idle
-    }
-
-    func cancelReview() {
-        guard case .reviewing = state else { return }
-        state = .idle
-    }
-
-    func dismissFailure() {
-        guard case .failed = state else { return }
-        state = .idle
-    }
-
-    @discardableResult
-    func beginSubmission() -> TransactionDuplicateReview? {
-        guard case .reviewing(let review) = state, review.canSubmit else { return nil }
-        state = .submitting(review)
-        return review
-    }
-
-    /// Returns whether this review was the one in flight; stale completions change nothing.
-    @discardableResult
-    func completeSubmission(reviewID: String) -> Bool {
-        guard case .submitting(let review) = state, review.id == reviewID else { return false }
-        invalidatePendingWork()
-        state = .idle
-        return true
-    }
-
-    func failSubmission(reviewID: String, message: String) {
-        guard case .submitting(let review) = state, review.id == reviewID else { return }
-        state = .failed(
-            context: review.context,
-            message: message
-        )
-    }
-
-    /// Drops an in-flight review without touching a submit.
-    func invalidate() {
-        switch state {
-        case .submitting:
-            return
-        case .idle, .preparing, .reviewing, .failed:
-            invalidatePendingWork()
-            state = .idle
-        }
-    }
-
-    func cancelActive() {
-        switch state {
-        case .preparing(let preparation):
-            cancelPreparation(preparation)
-        case .reviewing:
-            cancelReview()
-        case .failed:
-            dismissFailure()
-        case .idle, .submitting:
-            break
-        }
-    }
-
-    private func invalidatePendingWork() {
-        generation &+= 1
-    }
+    static func allowsSubmission(of review: TransactionDuplicateReview) -> Bool { review.canSubmit }
 }
+
+typealias TransactionDuplicateCoordinator = ReviewCommandCoordinator<TransactionDuplicateCommand>
