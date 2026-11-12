@@ -159,9 +159,7 @@ extension BudgetDatabase {
             guard peers.contains(where: { $0.id == id }) else {
                 throw SavedTransactionFilterMutationError.missingFilter.asLocalFirstError
             }
-            let message = try builder.makeMessage(
-                dataset: "transaction_filters", row: id, column: "tombstone", value: .bool(true)
-            )
+            let message = try builder.tombstone(dataset: "transaction_filters", row: id)
             return LocalCommitPlan(drafts: [message], action: nil, outcome: true)
         }
         return SavedTransactionFilterCommitReceipt(
@@ -261,9 +259,9 @@ extension BudgetDatabase {
             }
         }
         if let tombstone, columns.contains("tombstone") {
-            messages.append(try builder.makeMessage(
-                dataset: "transaction_filters", row: id, column: "tombstone", value: .bool(tombstone)
-            ))
+            messages.append(try tombstone
+                ? builder.tombstone(dataset: "transaction_filters", row: id)
+                : builder.revive(dataset: "transaction_filters", row: id))
         }
         return messages
     }

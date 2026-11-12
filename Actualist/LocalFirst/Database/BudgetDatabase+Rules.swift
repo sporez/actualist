@@ -266,9 +266,7 @@ extension BudgetDatabase {
             )
             var messages = try ruleMessages(ruleID: ruleID, draft: draft, columns: columns, builder: &builder)
             if columns.contains("tombstone") {
-                messages.append(try builder.makeMessage(
-                    dataset: "rules", row: ruleID, column: "tombstone", value: .bool(false)
-                ))
+                messages.append(try builder.revive(dataset: "rules", row: ruleID))
             }
             return messages
         }
@@ -301,9 +299,7 @@ extension BudgetDatabase {
             guard try rowExists(table: "rules", rowID: ruleID, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("rule no longer exists")
             }
-            return [try builder.makeMessage(
-                dataset: "rules", row: ruleID, column: "tombstone", value: .bool(true)
-            )]
+            return [try builder.tombstone(dataset: "rules", row: ruleID)]
         }
     }
 

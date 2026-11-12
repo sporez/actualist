@@ -353,29 +353,19 @@ extension BudgetDatabase {
         case .tombstoneTransactions(let transactionIDs, let createdPayeeID, let learning):
             var messages: [ActualSyncDecodedMessage] = []
             for id in transactionIDs {
-                messages.append(try tombstoneMessage(rowID: id, builder: &builder))
+                messages.append(try builder.tombstone(dataset: "transactions", row: id))
             }
             messages += try learningUndoMessages(learning, db: db, builder: &builder)
             if let createdPayeeID,
                try createdPayeeIsUnused(createdPayeeID, ignoring: transactionIDs, db: db) {
                 messages.append(
-                    try builder.makeMessage(
-                        dataset: "payees",
-                        row: createdPayeeID,
-                        column: "tombstone",
-                        value: .bool(true)
-                    )
+                    try builder.tombstone(dataset: "payees", row: createdPayeeID)
                 )
             }
             return messages
         case .unTombstoneTransactions(let transactionIDs):
             return try transactionIDs.map { id in
-                try builder.makeMessage(
-                    dataset: "transactions",
-                    row: id,
-                    column: "tombstone",
-                    value: .bool(false)
-                )
+                try builder.revive(dataset: "transactions", row: id)
             }
         case .restoreSnapshots(let snapshots, let createdPayeeID, let learning):
             let columns = try resolveTransactionRowColumns(db: db)
@@ -404,12 +394,7 @@ extension BudgetDatabase {
             if let createdPayeeID,
                try createdPayeeIsUnused(createdPayeeID, ignoring: snapshots.map(\.id), db: db) {
                 messages.append(
-                    try builder.makeMessage(
-                        dataset: "payees",
-                        row: createdPayeeID,
-                        column: "tombstone",
-                        value: .bool(true)
-                    )
+                    try builder.tombstone(dataset: "payees", row: createdPayeeID)
                 )
             }
             return messages
@@ -545,12 +530,7 @@ extension BudgetDatabase {
             if columns.contains("tombstone") {
                 for ruleID in learning.createdRuleIDs {
                     messages.append(
-                        try builder.makeMessage(
-                            dataset: "rules",
-                            row: ruleID,
-                            column: "tombstone",
-                            value: .bool(true)
-                        )
+                        try builder.tombstone(dataset: "rules", row: ruleID)
                     )
                 }
             }

@@ -132,7 +132,7 @@ extension BudgetDatabase {
         switch plan {
         case .tombstoneDuplicateTransactions(let transactionIDs):
             return try transactionIDs.map { id in
-                try tombstoneMessage(rowID: id, builder: &builder)
+                try builder.tombstone(dataset: "transactions", row: id)
             }
         case .restoreMergedTransactions(let snapshots):
             let columns = try resolveTransactionRowColumns(db: db)

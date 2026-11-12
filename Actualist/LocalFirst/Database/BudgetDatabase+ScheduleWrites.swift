@@ -300,8 +300,8 @@ extension BudgetDatabase {
         _ = try scheduleRequiredColumns(table: "rules", required: ["id", "tombstone"], db: db)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = [
-            try builder.makeMessage(dataset: "rules", row: current.review.ruleID, column: "tombstone", value: .bool(true)),
-            try builder.makeMessage(dataset: "schedules", row: current.review.scheduleID, column: "tombstone", value: .bool(true))
+            try builder.tombstone(dataset: "rules", row: current.review.ruleID),
+            try builder.tombstone(dataset: "schedules", row: current.review.scheduleID)
         ]
         return ScheduleWriteDecision(
             messages: messages,

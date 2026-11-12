@@ -367,7 +367,7 @@ extension BudgetDatabase {
         for id in deletedIDs.sorted() {
             guard let old = oldByID[id] else { continue }
             if columns.hasTombstone {
-                messages.append(try tombstoneMessage(rowID: id, builder: &builder))
+                messages.append(try builder.tombstone(dataset: "transactions", row: id))
             }
             let transfer = try transferMessagesOnDelete(
                 old,
@@ -616,7 +616,7 @@ extension BudgetDatabase {
                 messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
                 messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
             } else if columns.hasTombstone {
-                messages.append(try tombstoneMessage(rowID: pairedID, builder: &builder))
+                messages.append(try builder.tombstone(dataset: "transactions", row: pairedID))
             }
         }
         if !old.deleted {

@@ -99,8 +99,7 @@ extension BudgetDatabase {
                                     column: "base_next_date", value: dateValue),
             try builder.makeMessage(dataset: "schedules_next_date", row: request.identity.nextDateID,
                                     column: "base_next_date_ts", value: .int(timestamp)),
-            try builder.makeMessage(dataset: "schedules_next_date", row: request.identity.nextDateID,
-                                    column: "tombstone", value: .bool(false))
+            try builder.revive(dataset: "schedules_next_date", row: request.identity.nextDateID)
         ]
         return messages
     }
@@ -124,7 +123,7 @@ extension BudgetDatabase {
                 dataset: "rules", row: ruleID, column: "conditions_op", value: .string("and")
             ))
         }
-        messages.append(try builder.makeMessage(dataset: "rules", row: ruleID, column: "tombstone", value: .bool(false)))
+        messages.append(try builder.revive(dataset: "rules", row: ruleID))
         return messages
     }
 }

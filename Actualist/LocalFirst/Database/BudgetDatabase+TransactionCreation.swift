@@ -479,13 +479,6 @@ extension BudgetDatabase {
         }
         return payeeID
     }
-
-    func tombstoneMessage(
-        rowID: String,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> ActualSyncDecodedMessage {
-        try builder.makeMessage(dataset: "transactions", row: rowID, column: "tombstone", value: .bool(true))
-    }
 }
 
 /// Which cells `transactionRowMessages` writes for a row.

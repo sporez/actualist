@@ -40,6 +40,9 @@ section "UIKit views"
 section "Date ownership"
 "$ROOT/scripts/lint-date-ownership.sh" || status=1
 
+section "Tombstone messages"
+"$ROOT/scripts/lint-tombstone-messages.sh" || status=1
+
 section "Concurrency escape hatches"
 "$ROOT/scripts/lint-concurrency-escape-hatches.sh" || status=1
 

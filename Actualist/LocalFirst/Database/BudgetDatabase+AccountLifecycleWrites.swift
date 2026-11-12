@@ -162,12 +162,7 @@ extension BudgetDatabase {
             }
             if accountColumns.contains("tombstone") {
                 messages.append(
-                    try builder.makeMessage(
-                        dataset: "accounts",
-                        row: trimmedAccountID,
-                        column: "tombstone",
-                        value: .bool(false)
-                    )
+                    try builder.revive(dataset: "accounts", row: trimmedAccountID)
                 )
             }
             if accountColumns.contains("sort_order") {

@@ -122,7 +122,7 @@ extension BudgetDatabase {
                     guard let transactionID = fact.transaction.id else {
                         throw ScheduleConversionError.reviewChanged
                     }
-                    messages.append(try tombstoneMessage(rowID: transactionID, builder: &builder))
+                    messages.append(try builder.tombstone(dataset: "transactions", row: transactionID))
                 }
                 return LocalCommitPlan(
                     drafts: messages,

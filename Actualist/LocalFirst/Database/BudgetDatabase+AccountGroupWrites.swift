@@ -36,12 +36,7 @@ extension BudgetDatabase {
             ]
             if columns.contains("tombstone") {
                 messages.append(
-                    try builder.makeMessage(
-                        dataset: "account_groups",
-                        row: trimmedID,
-                        column: "tombstone",
-                        value: .bool(false)
-                    )
+                    try builder.revive(dataset: "account_groups", row: trimmedID)
                 )
             }
             if columns.contains("sort_order") {
@@ -120,12 +115,7 @@ extension BudgetDatabase {
             }
 
             messages.append(
-                try builder.makeMessage(
-                    dataset: "account_groups",
-                    row: groupID,
-                    column: "tombstone",
-                    value: .bool(true)
-                )
+                try builder.tombstone(dataset: "account_groups", row: groupID)
             )
             return messages
         }

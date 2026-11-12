@@ -68,7 +68,7 @@ extension BudgetDatabase {
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
-        var messages = [try tombstoneMessage(rowID: transactionID, builder: &builder)]
+        var messages = [try builder.tombstone(dataset: "transactions", row: transactionID)]
         var affectedIDs: Set<String> = [transactionID]
         var affectedAccounts = Set([accountID].compactMap { $0 })
         if let pair {
@@ -78,7 +78,7 @@ extension BudgetDatabase {
                 messages.append(try builder.makeMessage(dataset: "transactions", row: pair.id, column: transferColumn, value: .null))
                 messages.append(try builder.makeMessage(dataset: "transactions", row: pair.id, column: columns.payee, value: .null))
             } else {
-                messages.append(try tombstoneMessage(rowID: pair.id, builder: &builder))
+                messages.append(try builder.tombstone(dataset: "transactions", row: pair.id))
             }
         }
         return TransactionWriteResult(

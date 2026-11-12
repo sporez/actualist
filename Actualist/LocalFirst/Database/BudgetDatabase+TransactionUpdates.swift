@@ -319,7 +319,7 @@ extension BudgetDatabase {
                 messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
                 messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
             } else if columns.hasTombstone {
-                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "tombstone", value: .bool(true)))
+                messages.append(try builder.tombstone(dataset: "transactions", row: pairedID))
             }
             messages.append(try builder.makeMessage(dataset: "transactions", row: mainID, column: transferColumn, value: .null))
         }

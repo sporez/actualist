@@ -122,6 +122,18 @@ struct LocalFirstSyncMessageBuilder: Sendable {
         )
     }
 
+    /// The delete mark Actual stores as a `tombstone` cell. Every writer goes
+    /// through `tombstone` and `revive` so the column name and the boolean
+    /// encoding exist once; `scripts/lint-tombstone-messages.sh` enforces it.
+    mutating func tombstone(dataset: String, row: String) throws -> ActualSyncDecodedMessage {
+        try makeMessage(dataset: dataset, row: row, column: "tombstone", value: .bool(true))
+    }
+
+    /// Clears the delete mark: the row is live again.
+    mutating func revive(dataset: String, row: String) throws -> ActualSyncDecodedMessage {
+        try makeMessage(dataset: dataset, row: row, column: "tombstone", value: .bool(false))
+    }
+
     static func envelope(
         for message: ActualSyncDecodedMessage,
         encryptionContext: ActualBudgetEncryptionContext? = nil

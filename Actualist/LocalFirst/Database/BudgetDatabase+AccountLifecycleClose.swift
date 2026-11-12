@@ -55,12 +55,7 @@ extension BudgetDatabase {
             switch action {
             case .deleteEmptyAccount:
                 operation = .delete
-                drafts.append(try builder.makeMessage(
-                    dataset: "accounts",
-                    row: fresh.account.id,
-                    column: "tombstone",
-                    value: .bool(true)
-                ))
+                drafts.append(try builder.tombstone(dataset: "accounts", row: fresh.account.id))
             case .closeAtZero:
                 operation = .close
                 resultingAccount = AccountLifecycleAccount(

@@ -52,7 +52,7 @@ extension BudgetDatabase {
                 messages.append(try builder.makeMessage(dataset: "categories", row: id, column: "hidden", value: .bool(false)))
             }
             if categoryColumns.contains("tombstone") {
-                messages.append(try builder.makeMessage(dataset: "categories", row: id, column: "tombstone", value: .bool(false)))
+                messages.append(try builder.revive(dataset: "categories", row: id))
             }
             messages.append(try builder.makeMessage(
                 dataset: "category_mapping", row: id, column: transferColumn, value: .string(id)
@@ -91,7 +91,7 @@ extension BudgetDatabase {
                 messages.append(try builder.makeMessage(dataset: "category_groups", row: id, column: "hidden", value: .bool(false)))
             }
             if columns.contains("tombstone") {
-                messages.append(try builder.makeMessage(dataset: "category_groups", row: id, column: "tombstone", value: .bool(false)))
+                messages.append(try builder.revive(dataset: "category_groups", row: id))
             }
             return messages
         }

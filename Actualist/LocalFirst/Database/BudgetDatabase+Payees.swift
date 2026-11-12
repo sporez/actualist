@@ -35,12 +35,7 @@ extension BudgetDatabase {
             ]
             if columns.contains("tombstone") {
                 messages.append(
-                    try builder.makeMessage(
-                        dataset: "payees",
-                        row: payeeID,
-                        column: "tombstone",
-                        value: .bool(false)
-                    )
+                    try builder.revive(dataset: "payees", row: payeeID)
                 )
             }
             if let mapping = try usablePayeeMappingColumns(db: db) {
@@ -130,12 +125,7 @@ extension BudgetDatabase {
         }
         for sourceID in sourcePayeeIDs.sorted() {
             messages.append(
-                try builder.makeMessage(
-                    dataset: "payees",
-                    row: sourceID,
-                    column: "tombstone",
-                    value: .bool(true)
-                )
+                try builder.tombstone(dataset: "payees", row: sourceID)
             )
         }
         return messages
@@ -160,12 +150,7 @@ extension BudgetDatabase {
             )
         }
         return [
-            try builder.makeMessage(
-                dataset: "payees",
-                row: payeeID,
-                column: "tombstone",
-                value: .bool(true)
-            )
+            try builder.tombstone(dataset: "payees", row: payeeID)
         ]
     }
 
@@ -265,18 +250,14 @@ extension BudgetDatabase {
         payeeID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        [try builder.makeMessage(
-            dataset: "payees", row: payeeID, column: "tombstone", value: .bool(false)
-        )]
+        [try builder.revive(dataset: "payees", row: payeeID)]
     }
 
     func payeeUndoMessagesForCreate(
         payeeID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        [try builder.makeMessage(
-            dataset: "payees", row: payeeID, column: "tombstone", value: .bool(true)
-        )]
+        [try builder.tombstone(dataset: "payees", row: payeeID)]
     }
 
     func payeeUndoMessagesForMerge(
@@ -306,9 +287,7 @@ extension BudgetDatabase {
             )
         }
         for sourceID in sourcePayeeIDs.sorted() {
-            messages.append(try builder.makeMessage(
-                dataset: "payees", row: sourceID, column: "tombstone", value: .bool(false)
-            ))
+            messages.append(try builder.revive(dataset: "payees", row: sourceID))
         }
         return messages
     }

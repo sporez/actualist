@@ -243,12 +243,7 @@ extension BudgetDatabase {
             guard let id = row["id"] as String?, !referencedIDs.contains(id) else {
                 return nil
             }
-            return try builder.makeMessage(
-                dataset: "cleanup_groups",
-                row: id,
-                column: "tombstone",
-                value: .bool(true)
-            )
+            return try builder.tombstone(dataset: "cleanup_groups", row: id)
         }
     }
 }

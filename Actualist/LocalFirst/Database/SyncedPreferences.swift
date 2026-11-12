@@ -93,9 +93,7 @@ enum SyncedPreferences {
         }
         var messages = [try valueMessage(key, value, builder: &builder)]
         if row == nil, columns.contains("tombstone") {
-            messages.append(try builder.makeMessage(
-                dataset: "preferences", row: key.id, column: "tombstone", value: .bool(false)
-            ))
+            messages.append(try builder.revive(dataset: "preferences", row: key.id))
         }
         return SetResult(messages: messages, previousValue: row?.value)
     }

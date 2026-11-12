@@ -67,6 +67,7 @@ scripts/*
 !scripts/lint-private-patterns.sh
 !scripts/lint-reference-links.sh
 !scripts/lint-testflight-notes.sh
+!scripts/lint-tombstone-messages.sh
 !scripts/lint-uikit-views.sh
 !scripts/parity.sh
 !scripts/run-ios-simulator.sh

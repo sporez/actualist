@@ -47,9 +47,7 @@ extension BudgetDatabase {
                     db: db, builder: &builder
                 )
             }
-            messages.append(try builder.makeMessage(
-                dataset: "categories", row: category.id, column: "tombstone", value: .bool(true)
-            ))
+            messages.append(try builder.tombstone(dataset: "categories", row: category.id))
             return messages
         }
     }
@@ -98,13 +96,9 @@ extension BudgetDatabase {
                 )
             }
             for child in allChildren {
-                messages.append(try builder.makeMessage(
-                    dataset: "categories", row: child.id, column: "tombstone", value: .bool(true)
-                ))
+                messages.append(try builder.tombstone(dataset: "categories", row: child.id))
             }
-            messages.append(try builder.makeMessage(
-                dataset: "category_groups", row: group.id, column: "tombstone", value: .bool(true)
-            ))
+            messages.append(try builder.tombstone(dataset: "category_groups", row: group.id))
             return messages
         }
     }
