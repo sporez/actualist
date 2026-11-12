@@ -306,6 +306,8 @@ A change that matches a domain's paths requires `scripts/parity.sh verify <domai
 
 ## Placement decision
 
+First check `AGENTS.md`, Reuse Before You Build. If its Canonical Owners table lists the concern (dates, month IDs, money, privacy masking, error text, column aliases, CRDT messages, sheet detents, theme values, test fixtures, and more), use that owner. Otherwise run the required `rg` search and record it. The table lives only in `AGENTS.md`; do not copy it here.
+
 Before adding code, classify it:
 
 - View-local layout or presentation toggle -> the feature `View`.

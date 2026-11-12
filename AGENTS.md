@@ -395,6 +395,9 @@ implementation shape:
 - Search with `rg` for existing types, helpers, formatters, calculations,
   derived-state projections, and state machines before adding another one. A
   locally convenient duplicate is not an acceptable implementation.
+- Run the Reuse Before You Build search for every helper, type, coordinator,
+  modifier or formatter you are about to add. Name the Canonical Owner you
+  will use, or record why none fits, before writing code.
 - State the ownership decision before implementation: view-local presentation,
   feature view model, pure domain/value helper, repository/store, database,
   sync transport, or app-wide coordination. Put the behavior at that seam from
@@ -521,6 +524,67 @@ current task.
   no gitignored files (`.artifacts/`, planning notes, audit evidence), and no
   device or simulator identifiers, hostnames, or IP addresses. Cite only
   tracked files or public upstream sources.
+
+## Reuse Before You Build
+
+Most primitives here already have one owner. Copies drift, and drifted
+copies become bugs: day IDs in different time zones, privacy masking with
+different ranges, guards fixed in one layout and not the other.
+
+1. **Check Canonical Owners first.** If the concern is listed, use that
+   owner. If it lacks a case you need, extend it there, with a test. Never
+   write a local copy, a private wrapper, a renamed near-variant or a
+   "just for this file" helper.
+2. **Search before creating anything.** Before adding a function, type,
+   extension, formatter, coordinator, view modifier, lint or script, run
+   `rg` across `Actualist/`, `ActualistWidget/` and, for test helpers,
+   `ActualistTests/`. Search for:
+   - its likely names, with synonyms: `dayID`/`dateID`/`isoDate`,
+     `money`/`amountText`/`formatted`, `isCurrent`/`generation`;
+   - its core expression: `TimeZone(secondsFromGMT: 0)`,
+     `PrivacyDisplay.money`, `column: "tombstone"`, `X-ACTUAL-TOKEN`.
+3. **Record the search.** The handoff names the searches you ran and the
+   owner you used. If no owner fits, it says why. "Didn't find one" without
+   a search is not acceptable.
+4. **Add a shared helper only when no owner exists.** Put it at the
+   narrowest shared seam, give it focused tests, and add its Canonical
+   Owners row in the same commit.
+5. **When two existing copies differ, do not pick one.** Pin both with
+   tests and report the difference. Consolidate only behind an explicit
+   parameter that keeps each caller's behaviour, unless the user approves
+   the change.
+6. **No overloads that emulate default arguments.** Use default parameter
+   values. A repository protocol has one requirement per operation.
+   Protocol-extension conveniences forward every parameter and never drop
+   one.
+
+### Canonical Owners
+
+| Concern | Use | Never |
+| --- | --- | --- |
+| Calendar day IDs (`yyyy-MM-dd`) ↔ `Date` | `ActualDateOnly` (`Shared/ActualDateOnly.swift`), with an explicit time zone | A local `dayID`/`date(from:)`, a `yyyy-MM-dd` `DateFormatter`, a raw `TimeZone(secondsFromGMT: 0)` |
+| Schedule recurrence dates | `Calendar.actualScheduleGregorian` (`Shared/ActualScheduleRecurrence*.swift`) | A new Gregorian or UTC calendar |
+| Month IDs (`yyyy-MM`) | `YearMonth` (`Repositories/TransactionModels.swift`, `Shared/YearMonthParsing.swift`) | A local `monthID`, `String(format: "%04d-%02d")` |
+| CSV/import date formats | `Shared/ImportDateParsing.swift` (Actual parity) | Reusing it for non-import dates |
+| Money display | `BudgetCurrency.formatted` / `signedFormatted`, `Money` | `NumberFormatter`, a local `money(_:)` |
+| Money text input | `BudgetMoneyInputFormat`, `BudgetCurrency.minorUnits(fromDisplay:)` | A hand-written separator normaliser or regex |
+| Sample Values / privacy masking | `PrivacyDisplay` (`Shared/Money.swift`) | An inline `privacy ? PrivacyDisplay.money(...) : ...` |
+| User-facing error text | `Error.userFacingMessage` (`Shared/Error+UserFacingMessage.swift`) | Showing `localizedDescription` directly |
+| Store write tail | `finish*` helpers (`LocalFirst/LocalFirstActualStore+CommitTail.swift`) | A hand-written commit, reload and flush sequence |
+| Synced preferences | `SyncedPreferences` (`LocalFirst/Database/SyncedPreferences.swift`) | Raw `preferences` rows |
+| Live (non-deleted) rows | `predicateForLiveRows` (`BudgetDatabase+Schema.swift`) | A hand-written `tombstone = 0` predicate |
+| Transaction column aliases | `TransactionRowColumns` (`BudgetDatabase.swift`) | A local `["acct", "account"]`-style list |
+| Table and column existence | `tableExists` / `columnSet` (`BudgetDatabase+Schema.swift`) | A raw `sqlite_master` or `PRAGMA table_info` query |
+| CRDT messages | `LocalFirstSyncMessageBuilder` (`LocalFirst/Sync/`) | Building messages outside the builder |
+| Budget screen sheets | `BudgetWorkspaceSheet` (`Features/Budget/BudgetWorkspaceActions.swift`). The compact `BudgetView` still uses one flag per sheet until its follow-up lands. | A new flag-based sheet on the compact Budget screen. If one cannot wait, it must also join `monthSwipePresentationBlocked`. |
+| Sheet detents | `reviewSheetPresentation`, `reviewSheetDetents`, `toolbarlessSheetDetents` (`DesignSystem/ReviewSheetForm.swift`) | `.presentationDetents(` |
+| Sheet secondary action | `ReviewSheetSecondaryButton` (`DesignSystem/ReviewSheetStyle.swift`) | A copied glass Cancel button |
+| Colours, typography, radii | `ActualistTheme`, `ActualistTypography`, `GroupedRowPosition` (`DesignSystem/`) | `Color(red:…)`, a repeated radius literal, `.font(.system(size:))` |
+| Test store fixtures | `makeOpenedWritableStoreBundle` (`ActualistTests/LocalFirstActualStoreTestSupport.swift`), `TestLocalDay` | A new private bundle or date helper |
+| Test waiting | `TestLatch`, `ObservedTestState`, a fake's `waitFor…()` | Yield loops, sleeps |
+
+Every new owner adds its row here in the commit that creates it. Removing
+a row needs the user's approval.
 
 ## UI Principles
 
@@ -998,6 +1062,9 @@ production-code change, review the completed diff against the architecture gate.
   derived-state/fallback expressions, parallel sources of truth, identity
   wrappers, and new Boolean-flag state machines. Resolve issues within the
   approved scope; report broader findings.
+- List the reuse searches you ran and the owners you used. Confirm that no new
+  code duplicates a Canonical Owners row, and that every new shared helper
+  added its row.
 - Audit every changed SwiftUI view against the ownership rules. Confirm that
   remaining `@State` values are presentation-only and that no binding/action
   computes payload values, money conversions, or business rules.
