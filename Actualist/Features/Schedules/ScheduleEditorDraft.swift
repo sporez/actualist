@@ -501,10 +501,9 @@ struct ScheduleEditorDraft: Hashable, Sendable {
     }
 
     private static func minorUnits(_ text: String, currency: BudgetCurrency, locale: Locale) -> Int? {
-        guard let amount = try? BudgetMoneyInputFormat(currency: currency, locale: locale).parse(text) else {
-            return nil
-        }
-        return currency.minorUnits(fromDisplay: amount)
+        try? BudgetMoneyInputFormat.minorUnits(
+            text, currency: currency, locale: locale, fractionPolicy: .round
+        ).get()
     }
 
     private static func normalizedName(_ name: String?) -> String? {

@@ -29,6 +29,26 @@ struct BudgetMoneyInputFormat: ParseableFormatStyle, ParseStrategy {
         return amount
     }
 
+    /// Whole-field text to integer minor units. `.reject` refuses digits beyond
+    /// the currency scale; `.round` rounds them half away from zero.
+    static func minorUnits(
+        _ text: String,
+        currency: BudgetCurrency,
+        locale: Locale,
+        fractionPolicy: MoneyFractionPolicy
+    ) -> Result<Int, MoneyInputError> {
+        guard let decimal = try? Self(currency: currency, locale: locale).parse(text) else {
+            return .failure(.invalid)
+        }
+        guard let amount = currency.minorUnits(fromDisplay: decimal) else {
+            return .failure(.outOfRange)
+        }
+        if fractionPolicy == .reject, currency.displayAmount(fromMinorUnits: amount) != decimal {
+            return .failure(.tooManyFractionDigits)
+        }
+        return .success(amount)
+    }
+
     // A stable, unpadded style avoids inserting cents during typing or replacing
     // unfinished native text when focus changes. BudgetCurrency still owns rounding.
     private var number: Decimal.FormatStyle {
@@ -38,4 +58,15 @@ struct BudgetMoneyInputFormat: ParseableFormatStyle, ParseStrategy {
     private var currency: Decimal.FormatStyle.Currency {
         .currency(code: currencyCode).precision(.fractionLength(0...38)).locale(locale)
     }
+}
+
+enum MoneyFractionPolicy: Sendable {
+    case reject
+    case round
+}
+
+enum MoneyInputError: Error, Hashable, Sendable {
+    case invalid
+    case tooManyFractionDigits
+    case outOfRange
 }

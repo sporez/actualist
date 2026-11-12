@@ -8,9 +8,9 @@ enum BudgetHoldAmountInput {
         currency: BudgetCurrency,
         locale: Locale
     ) -> Int? {
-        guard let decimal = try? BudgetMoneyInputFormat(currency: currency, locale: locale).parse(text),
-              let amount = currency.minorUnits(fromDisplay: decimal),
-              currency.displayAmount(fromMinorUnits: amount) == decimal,
+        guard let amount = try? BudgetMoneyInputFormat.minorUnits(
+                text, currency: currency, locale: locale, fractionPolicy: .reject
+              ).get(),
               amount > 0, amount <= available,
               amount <= Money.maximumUserAmountMinorUnits else {
             return nil
