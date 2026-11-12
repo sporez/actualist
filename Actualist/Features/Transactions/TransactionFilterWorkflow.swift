@@ -462,15 +462,18 @@ final class TransactionFilterWorkflow {
         return value.values.count == 1 && value.operation.isScalar
     }
 
-    private static func day(for date: Date) -> TransactionQueryDay? {
-        TransactionQueryDay(rawValue: ActualDateOnly.dayID(from: date, timeZone: .current))
+    static func day(for date: Date, timeZone: TimeZone = .current) -> TransactionQueryDay? {
+        TransactionQueryDay(rawValue: ActualDateOnly.dayID(from: date, timeZone: timeZone))
     }
 
-    /// Midnight in the device zone, where a DST change may skip it.
-    private static func date(from day: TransactionQueryDay) -> Date? {
+    /// Noon in the device zone, as Actual's `parseDate` builds a day
+    /// (shared/months.ts). Midnight does not exist on a DST change day in
+    /// some zones.
+    static func date(from day: TransactionQueryDay, timeZone: TimeZone = .current) -> Date? {
         ActualDateOnly.lenientDate(
             fromDayID: day.rawValue,
-            calendar: ActualDateOnly.calendar(timeZone: .current),
+            calendar: ActualDateOnly.calendar(timeZone: timeZone),
+            hour: 12,
             ignoringNonNumericParts: true
         )
     }

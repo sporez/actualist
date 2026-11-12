@@ -392,4 +392,26 @@ private final class HeldTransactionOptionsRepository: AccountTransactionsRecordi
     func failOptionsRequest(_ request: Int, error: any Error) {
         requestContinuations.removeValue(forKey: request)?.resume(throwing: error)
     }
+
+    /// The picker date is built at noon, so the day survives a zone whose
+    /// midnight is skipped by DST (Decision Register D3).
+    @Test func filterDayRoundTripsAtNoonOnDSTChangeDays() throws {
+        let cases: [(zone: String, day: String)] = [
+            ("America/Sao_Paulo", "2018-11-04"),
+            ("America/Santiago", "2022-09-11"),
+            ("America/Havana", "2024-03-10"),
+            ("Africa/Cairo", "2024-04-26"),
+            ("America/New_York", "2026-03-08"),
+            ("Pacific/Kiritimati", "2026-03-15"),
+            ("Pacific/Pago_Pago", "2026-03-15"),
+        ]
+        for item in cases {
+            let zone = try #require(TimeZone(identifier: item.zone))
+            let day = try #require(TransactionQueryDay(rawValue: item.day))
+            let date = try #require(TransactionFilterWorkflow.date(from: day, timeZone: zone))
+            let hour = ActualDateOnly.calendar(timeZone: zone).component(.hour, from: date)
+            #expect(hour == 12, "\(item.zone) \(item.day)")
+            #expect(TransactionFilterWorkflow.day(for: date, timeZone: zone) == day, "\(item.zone) \(item.day)")
+        }
+    }
 }

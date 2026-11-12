@@ -114,7 +114,7 @@ struct DateOwnershipCharacterizationTests {
 
     // MARK: Transaction filter
 
-    @Test func filterDayAndDateUseTheDeviceZoneAtLocalMidnight() throws {
+    @Test func filterDayAndDateUseTheDeviceZoneAtLocalNoon() throws {
         for (hour, minute, second) in [(0, 0, 30), (12, 0, 0), (23, 59, 59)] {
             var applied: [TransactionQueryCondition] = []
             let workflow = TransactionFilterWorkflow(onApply: { conditions, _ in applied = conditions })
@@ -135,7 +135,7 @@ struct DateOwnershipCharacterizationTests {
             let parts = Self.components(workflow.date, in: .current)
             let expected = dayID.split(separator: "-").compactMap { Int($0) }
             #expect([parts.year, parts.month, parts.day] == expected, "\(dayID)")
-            #expect(parts.hour == 0, "\(dayID)")
+            #expect(parts.hour == 12, "\(dayID)")
         }
     }
 
