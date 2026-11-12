@@ -54,7 +54,7 @@ struct BudgetGridView: View {
     private func groupRow(_ group: BudgetGridPresentation.Group) -> some View {
         HStack(spacing: 0) {
             Button {
-                viewport.toggleGroup(id: group.id)
+                withAnimation(reduceMotion ? nil : .smooth(duration: 0.2)) { viewport.toggleGroup(id: group.id) }
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "chevron.right")
