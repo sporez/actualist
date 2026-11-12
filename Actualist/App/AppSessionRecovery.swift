@@ -187,15 +187,15 @@ final class AppSessionRecovery {
         encryptionPassword: String?,
         store: LocalFirstActualStore
     ) async -> ReimportOutcome {
-        let identity = generation
+        let identity = generation.current
         do {
             try await store.reimportBudget(
                 budget, serverURLString: serverURLString, encryptionPassword: encryptionPassword
             )
-            guard identity == generation, !Task.isCancelled else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: true) else { return .superseded }
             return .succeeded
         } catch {
-            guard identity == generation, !Task.isCancelled, !error.isCancellation else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: true), !error.isCancellation else { return .superseded }
             let isOpen = store.isOpen(budgetID: budget.syncID)
             noteFailure(error, hasOpenBudget: isOpen)
             let status: ServerConnectionStatus = (error as? LocalFirstError) == .budgetEncryptionChanged
@@ -206,17 +206,17 @@ final class AppSessionRecovery {
 
     private(set) var state: State = .idle
     @ObservationIgnored let transitions = BudgetSessionTransitionCoordinator()
-    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var generation = OperationGeneration()
     @ObservationIgnored private var discoveryTask: Task<BudgetDiscovery, Error>?
     /// Callers currently awaiting `discoveryTask`. The shared task is cancelled
     /// when the last one is cancelled, not when only one of several joiners is.
     @ObservationIgnored private var discoveryCallers: Set<UUID> = []
 
-    var identity: Int { generation }
-    func isCurrent(_ identity: Int) -> Bool { identity == generation }
+    var identity: Int { generation.current }
+    func isCurrent(_ identity: Int) -> Bool { generation.isCurrent(identity, requiringNotCancelled: false) }
 
     func invalidate() {
-        generation &+= 1
+        generation.begin()
         discoveryTask?.cancel()
         discoveryTask = nil
         state = .idle
@@ -235,14 +235,14 @@ final class AppSessionRecovery {
     func clear() { state = .idle }
 
     func restore(settings: AppSettings, store: LocalFirstActualStore) async -> Outcome {
-        let identity = generation
+        let identity = generation.current
         guard let selectedBudgetID = settings.selectedBudgetID,
               let budget = ActualBudget.reconstructedFromSettings(settings) else { return .missingCache }
         // Reopening would cancel a background pull or Shortcut on this budget.
         if store.isOpen(budgetID: selectedBudgetID) { return .opened(budget) }
         do {
             let opened = try await store.openCachedBudget(budget, expectedGeneration: store.budgetSessionGeneration)
-            guard identity == generation, !Task.isCancelled else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: true) else { return .superseded }
             guard opened else { return .missingCache }
             guard store.isOpen(budgetID: selectedBudgetID) else {
                 store.reset()
@@ -250,7 +250,7 @@ final class AppSessionRecovery {
             }
             return .opened(budget)
         } catch {
-            guard identity == generation, !Task.isCancelled else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: true) else { return .superseded }
             // A store generation change with this identity unchanged means
             // another session change won; it owns the outcome.
             if error.isCancellation {
@@ -282,32 +282,32 @@ final class AppSessionRecovery {
         store: LocalFirstActualStore,
         isDemoMode: Bool
     ) async -> LaunchOutcome {
-        let identity = generation
+        let identity = generation.current
         let status = restoredStatus(isDemoMode: isDemoMode, keychain: keychain)
         switch await restore(settings: settings, store: store) {
         case .opened(let budget):
-            guard identity == generation, !Task.isCancelled else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: true) else { return .superseded }
             return .opened(budget, status)
         case .superseded: return .superseded
         case .missingCache, .failed: break
         }
-        guard identity == generation, !Task.isCancelled else { return .superseded }
+        guard generation.isCurrent(identity, requiringNotCancelled: true) else { return .superseded }
         if let error = blockedError(keychain: keychain) { return .blocked(error) }
 
         do {
             let discovery = try await discoverBudgets(settings: settings, store: store)
-            guard identity == generation, !Task.isCancelled else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: true) else { return .superseded }
             return .discovered(discovery)
         } catch {
-            guard identity == generation, !Task.isCancelled, !error.isCancellation else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: true), !error.isCancellation else { return .superseded }
             switch await restore(settings: settings, store: store) {
             case .opened(let budget):
-                guard identity == generation else { return .superseded }
+                guard generation.isCurrent(identity, requiringNotCancelled: false) else { return .superseded }
                 return .opened(budget, .offline)
             case .superseded: return .superseded
             case .missingCache, .failed: break
             }
-            guard identity == generation else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: false) else { return .superseded }
             if let blocked = blockedError(keychain: keychain) { return .blocked(blocked) }
             if case .absent = refreshCredentialAvailability(keychain: keychain) { return .needsConnection }
             return .failed(error)
@@ -322,16 +322,16 @@ final class AppSessionRecovery {
         canRestorePreviousBudget: Bool,
         store: LocalFirstActualStore
     ) async -> SelectionOutcome {
-        let identity = generation
+        let identity = generation.current
         do {
             let credentialError = try await store.openBudget(
                 budget, serverURLString: serverURLString, encryptionPassword: encryptionPassword
             )
-            guard identity == generation, !Task.isCancelled else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: true) else { return .superseded }
             guard store.isOpen(budgetID: budget.syncID) else { throw LocalFirstError.budgetNotOpened }
             return .opened(credentialError)
         } catch {
-            guard identity == generation else { return .superseded }
+            guard generation.isCurrent(identity, requiringNotCancelled: false) else { return .superseded }
             // A cancellation that did not come from a teardown (sign-out and
             // erase invalidate this identity) is the picker's stall watchdog or
             // a replaced open. `openSelection` already closed the previous
@@ -346,7 +346,7 @@ final class AppSessionRecovery {
                         previousBudget, expectedGeneration: store.budgetSessionGeneration
                     )) == true
                 }.value
-                guard identity == generation else { return .superseded }
+                guard generation.isCurrent(identity, requiringNotCancelled: false) else { return .superseded }
                 if restored { return .restored(error) }
             }
             return cancelled ? .superseded : .failed(error)
@@ -372,11 +372,11 @@ final class AppSessionRecovery {
     }
 
     func discoverBudgets(settings: AppSettings, store: LocalFirstActualStore) async throws -> BudgetDiscovery {
-        let identity = generation
+        let identity = generation.current
         if let discoveryTask {
             let result = try await awaitDiscovery(discoveryTask)
             try Task.checkCancellation()
-            guard identity == generation else { throw CancellationError() }
+            guard generation.isCurrent(identity, requiringNotCancelled: false) else { throw CancellationError() }
             return result
         }
         let task = Task {
@@ -384,10 +384,10 @@ final class AppSessionRecovery {
             return try await performDiscovery(settings: settings, store: store)
         }
         discoveryTask = task
-        defer { if identity == generation { discoveryTask = nil } }
+        defer { if generation.isCurrent(identity, requiringNotCancelled: false) { discoveryTask = nil } }
         let result = try await awaitDiscovery(task)
         try Task.checkCancellation()
-        guard identity == generation else { throw CancellationError() }
+        guard generation.isCurrent(identity, requiringNotCancelled: false) else { throw CancellationError() }
         return result
     }
 
@@ -408,12 +408,12 @@ final class AppSessionRecovery {
     }
 
     private func performDiscovery(settings: AppSettings, store: LocalFirstActualStore) async throws -> BudgetDiscovery {
-        let identity = generation
+        let identity = generation.current
         let budgets = AppBudgetList.unique(
             try await store.loadBudgets(serverURLString: settings.localFirstServerURLString)
         )
         try Task.checkCancellation()
-        guard identity == generation else { throw CancellationError() }
+        guard generation.isCurrent(identity, requiringNotCancelled: false) else { throw CancellationError() }
         guard let selectedBudgetID = settings.selectedBudgetID,
               let selected = budgets.first(where: { $0.syncID == selectedBudgetID }) else {
             return BudgetDiscovery(budgets: budgets, selectedBudget: nil, selectedIsOpen: false, credentialError: nil)
@@ -427,7 +427,7 @@ final class AppSessionRecovery {
             } ?? nil
         }
         try Task.checkCancellation()
-        guard identity == generation else { throw CancellationError() }
+        guard generation.isCurrent(identity, requiringNotCancelled: false) else { throw CancellationError() }
         return BudgetDiscovery(
             budgets: budgets,
             selectedBudget: selected,

@@ -47,7 +47,7 @@ final class TransactionScheduleConversionCoordinator {
     /// Bumped once per committed conversion; the presenting host plays the
     /// success haptic from it because the review sheet closes immediately.
     private(set) var commitFeedback = 0
-    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var generation = OperationGeneration()
     @ObservationIgnored private var operationTask: Task<Void, Never>?
 
     var isPresented: Bool {
@@ -161,7 +161,7 @@ final class TransactionScheduleConversionCoordinator {
         let canceled = operationTask
         canceled?.cancel()
         operationTask = nil
-        generation &+= 1
+        generation.begin()
         state = .idle
         return canceled
     }
@@ -173,17 +173,16 @@ final class TransactionScheduleConversionCoordinator {
 
     private func beginRequest() -> Int {
         operationTask?.cancel()
-        generation &+= 1
-        return generation
+        return generation.begin()
     }
 
     private func finish(_ request: Int) {
-        guard generation == request else { return }
+        guard generation.isCurrent(request, requiringNotCancelled: false) else { return }
         operationTask = nil
     }
 
     private func isCurrent(_ request: Int) -> Bool {
-        generation == request && !Task.isCancelled
+        generation.isCurrent(request, requiringNotCancelled: true)
     }
 
     private func message(for error: Error) -> String {

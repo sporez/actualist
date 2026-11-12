@@ -3,12 +3,12 @@ import Testing
 
 struct WidgetSnapshotPublicationGenerationTests {
     @Test func beginningANewerPublicationInvalidatesOlderWork() {
-        var generation = WidgetSnapshotPublicationGeneration()
+        var generation = OperationGeneration()
         let first = generation.begin()
         let second = generation.begin()
 
-        #expect(!generation.isCurrent(first))
-        #expect(generation.isCurrent(second))
+        #expect(!generation.isCurrent(first, requiringNotCancelled: false))
+        #expect(generation.isCurrent(second, requiringNotCancelled: false))
     }
 
     @Test func financialPublicationRejectsStaleObservationCallbacksAcrossSessions() {

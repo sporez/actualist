@@ -56,7 +56,7 @@ final class SchedulePostingCoordinator {
     /// plays the success haptic from this counter. A pending cache refresh needs
     /// no screen of its own; the host's reload covers it.
     private(set) var committedRevision: UInt64 = 0
-    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var generation = OperationGeneration()
     @ObservationIgnored private var operationTask: Task<Void, Never>?
 
     var isPresented: Bool {
@@ -217,7 +217,7 @@ final class SchedulePostingCoordinator {
         let canceled = operationTask
         canceled?.cancel()
         operationTask = nil
-        generation &+= 1
+        generation.begin()
         state = .idle
         return canceled
     }
@@ -229,17 +229,16 @@ final class SchedulePostingCoordinator {
 
     private func beginRequest() -> Int {
         operationTask?.cancel()
-        generation &+= 1
-        return generation
+        return generation.begin()
     }
 
     private func finish(_ request: Int) {
-        guard generation == request else { return }
+        guard generation.isCurrent(request, requiringNotCancelled: false) else { return }
         operationTask = nil
     }
 
     private func isCurrent(_ request: Int) -> Bool {
-        generation == request && !Task.isCancelled
+        generation.isCurrent(request, requiringNotCancelled: true)
     }
 
     private func replacing(

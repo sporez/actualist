@@ -2,19 +2,6 @@ import Foundation
 import Observation
 import WidgetKit
 
-struct WidgetSnapshotPublicationGeneration {
-    private var value = 0
-
-    mutating func begin() -> Int {
-        value &+= 1
-        return value
-    }
-
-    func isCurrent(_ candidate: Int) -> Bool {
-        value == candidate
-    }
-}
-
 struct WidgetFinancialPublicationGate {
     private var generation = 0
     private(set) var activeGeneration: Int?
@@ -47,7 +34,7 @@ final class WidgetSnapshotCoordinator {
     private var snapshotStore: WidgetSnapshotStore
     private var isArmed = false
     private var financialPublicationGate = WidgetFinancialPublicationGate()
-    private var publicationGeneration = WidgetSnapshotPublicationGeneration()
+    private var publicationGeneration = OperationGeneration()
     private var publishTask: Task<Void, Never>?
     private let themeStore: WidgetThemeStore
     private let reloadAllTimelines: () -> Void
@@ -181,7 +168,7 @@ final class WidgetSnapshotCoordinator {
         let budgetName = appState.settings.selectedBudgetName ?? ""
         let privacyEnabled = appState.settings.randomizedDisplayValuesEnabled
         await seedLastWritten()
-        guard !Task.isCancelled, publicationGeneration.isCurrent(generation) else { return }
+        guard publicationGeneration.isCurrent(generation, requiringNotCancelled: true) else { return }
         if let previous = lastWritten,
            previous.budgetID != budgetID || previous.privacyEnabled != privacyEnabled {
             removeSnapshot()
@@ -189,7 +176,7 @@ final class WidgetSnapshotCoordinator {
         guard financialPublicationGate.isActive else { return }
         do {
             guard let source = try await loadSource(appState, budgetID) else { return }
-            guard !Task.isCancelled, publicationGeneration.isCurrent(generation),
+            guard publicationGeneration.isCurrent(generation, requiringNotCancelled: true),
                   appState.settings.selectedBudgetID == budgetID,
                   appState.settings.randomizedDisplayValuesEnabled == privacyEnabled else { return }
             let snapshot = WidgetFinancialSnapshotBuilder.make(

@@ -65,7 +65,7 @@ final class ScheduleManagementCoordinator {
     /// `.idle`) by the time the commit lands.
     private(set) var contentRevision: UInt64 = 0
 
-    @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var generation = OperationGeneration()
     @ObservationIgnored private var operationTask: Task<Void, Never>?
 
     var isPresented: Bool {
@@ -514,7 +514,7 @@ final class ScheduleManagementCoordinator {
         let canceledOperation = operationTask
         canceledOperation?.cancel()
         operationTask = nil
-        generation &+= 1
+        generation.begin()
         state = .idle
         return canceledOperation
     }
@@ -526,13 +526,13 @@ final class ScheduleManagementCoordinator {
 
     private func beginRequest(title: String) -> Int {
         operationTask?.cancel()
-        generation &+= 1
+        let request = generation.begin()
         state = .loading(title)
-        return generation
+        return request
     }
 
     private func finish(_ request: Int) {
-        guard generation == request else { return }
+        guard generation.isCurrent(request, requiringNotCancelled: false) else { return }
         operationTask = nil
     }
 
@@ -545,7 +545,7 @@ final class ScheduleManagementCoordinator {
     }
 
     private func isCurrent(_ request: Int) -> Bool {
-        generation == request && !Task.isCancelled
+        generation.isCurrent(request, requiringNotCancelled: true)
     }
 
     private func currentContextMatches(
