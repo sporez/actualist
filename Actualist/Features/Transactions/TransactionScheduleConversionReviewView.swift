@@ -58,15 +58,7 @@ struct TransactionScheduleConversionReviewView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .reviewSheetBottomBar {
-            Button(role: .cancel) {
-                close()
-            } label: {
-                Text("Cancel")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
+            ReviewSheetSecondaryButton { close() }
             .accessibilityIdentifier("transaction-schedule-conversion-cancel")
             Button {
                 coordinator.confirm(repository: repository, onCommitted: onCommitted)

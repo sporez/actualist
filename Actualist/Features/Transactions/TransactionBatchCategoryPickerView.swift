@@ -71,13 +71,7 @@ struct TransactionBatchCategoryPickerView: View {
             }
         }
         .reviewSheetBottomBar {
-            Button(role: .cancel, action: onCancel) {
-                Text("Cancel")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
+            ReviewSheetSecondaryButton(action: onCancel)
             .accessibilityIdentifier("batch-category-picker-cancel")
             Spacer(minLength: 0)
         }

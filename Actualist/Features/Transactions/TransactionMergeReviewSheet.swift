@@ -105,13 +105,7 @@ struct TransactionMergeReviewSheet: View {
             }
         }
         .reviewSheetBottomBar {
-            Button(role: .cancel, action: onCancel) {
-                Text("Cancel")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
+            ReviewSheetSecondaryButton(action: onCancel)
 
             Button(action: onConfirm) {
                 Text(display.confirmationTitle)

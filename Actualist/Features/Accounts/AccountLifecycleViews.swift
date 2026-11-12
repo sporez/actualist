@@ -46,13 +46,7 @@ struct AccountRenameSheet: View {
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .reviewSheetBottomBar {
-                        Button(role: .cancel, action: cancel) {
-                            Text("Cancel")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 32)
-                                .padding(.horizontal, 12)
-                        }
-                        .buttonStyle(.glass)
+                        ReviewSheetSecondaryButton(action: cancel)
                         if coordinator.errorMessage != nil {
                             Button(action: onRetry) {
                                 Text("Edit Again")
@@ -152,13 +146,7 @@ struct AccountReopenSheet: View {
                         .actualistReviewCard(padding: 16)
                     }
                     .reviewSheetBottomBar {
-                        Button(role: .cancel, action: cancel) {
-                            Text("Cancel")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 32)
-                                .padding(.horizontal, 12)
-                        }
-                        .buttonStyle(.glass)
+                        ReviewSheetSecondaryButton(action: cancel)
                         if coordinator.errorMessage != nil {
                             Button(action: onRetry) {
                                 Text("Edit Again")
@@ -286,13 +274,7 @@ struct AccountLifecycleReviewSheet: View {
                         }
                     }
                     .reviewSheetBottomBar {
-                        Button(role: .cancel, action: cancel) {
-                            Text("Cancel")
-                                .font(.subheadline.weight(.semibold))
-                                .frame(minHeight: 32)
-                                .padding(.horizontal, 12)
-                        }
-                        .buttonStyle(.glass)
+                        ReviewSheetSecondaryButton(action: cancel)
                         if let actionTitle = presentation.actionTitle, let onConfirm {
                             Button(role: .destructive, action: onConfirm) {
                                 if isSubmitting {
@@ -385,13 +367,7 @@ private struct AccountLifecyclePrivacyUnavailableView: View {
                 .actualistReviewCard()
         }
         .reviewSheetBottomBar {
-            Button(role: .cancel, action: onCancel) {
-                Text("Cancel")
-                    .font(.subheadline.weight(.semibold))
-                    .frame(minHeight: 32)
-                    .padding(.horizontal, 12)
-            }
-            .buttonStyle(.glass)
+            ReviewSheetSecondaryButton(action: onCancel)
             Spacer(minLength: 0)
         }
     }

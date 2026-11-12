@@ -38,13 +38,7 @@ struct TransactionFilterSheet: View {
             .accessibilityIdentifier("transaction-filter-review-scroll")
             .toolbar(.hidden, for: .navigationBar)
             .reviewSheetBottomBar {
-                Button(role: .cancel) { dismiss() } label: {
-                    Text("Cancel")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(minHeight: 32)
-                        .padding(.horizontal, 12)
-                }
-                .buttonStyle(.glass)
+                ReviewSheetSecondaryButton { dismiss() }
                 .accessibilityIdentifier("transaction-filter-cancel")
 
                 Button {
