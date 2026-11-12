@@ -163,9 +163,9 @@ final class AccountReconciliationCoordinator {
         state = .enteringTarget(entry)
     }
 
-    func confirmTarget(locale: Locale = .current) {
+    func confirmTarget() {
         guard case .enteringTarget(var entry) = state else { return }
-        switch entry.input.minorUnits(currency: currency, locale: locale) {
+        switch entry.input.minorUnits(currency: currency) {
         case .success(let targetBalance):
             state = .reconciling(AccountReconciliationSession(
                 identity: entry.identity,
@@ -397,8 +397,6 @@ final class AccountReconciliationCoordinator {
             "Enter the balance shown by your bank."
         case .invalid:
             "Enter a valid balance."
-        case .tooManyFractionDigits:
-            "This balance has too many decimal places for the budget currency."
         case .outOfRange:
             "This balance is too large."
         }

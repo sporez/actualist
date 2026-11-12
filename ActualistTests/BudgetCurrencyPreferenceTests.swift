@@ -24,6 +24,37 @@ struct BudgetCurrencyPreferenceTests {
         #expect(currency.hideFraction)
     }
 
+    @Test(arguments: [
+        ("comma-dot", ActualNumberFormat.commaDot), ("dot-comma", .dotComma), ("space-comma", .spaceComma),
+        ("apostrophe-dot", .apostropheDot), ("comma-dot-in", .commaDotIn), ("nonsense", .commaDot)
+    ])
+    func readsTheNumberFormatPreference(stored: String, expected: ActualNumberFormat) async throws {
+        let fixtureURL = try LocalFirstActualStoreTests().makeSQLiteFixture(extraSQL: """
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('numberFormat', '\(stored)');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        #expect(try await database.fetchBudgetCurrency().numberFormat == expected)
+    }
+
+    @Test func absentNumberFormatPreferenceReadsAsCommaDot() async throws {
+        let fixtureURL = try LocalFirstActualStoreTests().makeSQLiteFixture(extraSQL: """
+            CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
+            INSERT INTO preferences VALUES ('hideFraction', 'false');
+            """)
+        let database = try BudgetDatabase(databaseURL: fixtureURL)
+        #expect(try await database.fetchBudgetCurrency().numberFormat == .commaDot)
+    }
+
+    @Test func launchSnapshotKeepsTheNumberFormatAndReadsOlderSnapshots() throws {
+        let currency = BudgetCurrency.catalog(code: "EUR", hideFraction: true, numberFormat: .apostropheDot)
+        let snapshot = BudgetLaunchSnapshot.Currency(currency)
+        let data = try JSONEncoder().encode(snapshot)
+        #expect(try JSONDecoder().decode(BudgetLaunchSnapshot.Currency.self, from: data).budgetCurrency == currency)
+        let older = Data(#"{"code":"EUR","decimalPlaces":2,"hideFraction":true}"#.utf8)
+        #expect(try JSONDecoder().decode(BudgetLaunchSnapshot.Currency.self, from: older).budgetCurrency.numberFormat == .commaDot)
+    }
+
     @Test func emptyCurrencyCodeUsesCurrencyNeutralDisplay() async throws {
         let fixtureURL = try LocalFirstActualStoreTests().makeSQLiteFixture(extraSQL: """
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);

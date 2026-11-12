@@ -52,10 +52,9 @@ enum AccountReconciliationPresentation {
     static func target(
         entry: AccountReconciliationTargetEntry,
         currency: BudgetCurrency,
-        privacyModeEnabled: Bool,
-        locale: Locale = .current
+        privacyModeEnabled: Bool
     ) -> AccountReconciliationTargetPresentation {
-        let parsedTarget = try? entry.input.minorUnits(currency: currency, locale: locale).get()
+        let parsedTarget = try? entry.input.minorUnits(currency: currency).get()
         let target = parsedTarget ?? entry.snapshot.clearedBalance
         let enteredAmountText: String
         if let parsedTarget {

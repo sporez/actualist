@@ -31,27 +31,6 @@ struct BudgetMoneyInputFormat: ParseableFormatStyle, ParseStrategy {
         return amount
     }
 
-    /// The device-locale reader the four inputs still use until they move to `minorUnits(_:currency:)`.
-    /// Whole-field text to integer minor units. `.reject` refuses digits beyond
-    /// the currency scale; `.round` rounds them half away from zero.
-    static func minorUnits(
-        _ text: String,
-        currency: BudgetCurrency,
-        locale: Locale,
-        fractionPolicy: MoneyFractionPolicy
-    ) -> Result<Int, MoneyInputError> {
-        guard let decimal = try? Self(currency: currency, locale: locale).parse(text) else {
-            return .failure(.invalid)
-        }
-        guard let amount = currency.minorUnits(fromDisplay: decimal) else {
-            return .failure(.outOfRange)
-        }
-        if fractionPolicy == .reject, currency.displayAmount(fromMinorUnits: amount) != decimal {
-            return .failure(.tooManyFractionDigits)
-        }
-        return .success(amount)
-    }
-
     /// A typed amount as integer minor units, the way Actual reads it: arithmetic such as
     /// `10+5`, then the budget's number format, then `Math.round(amount * 10^decimalPlaces)`
     /// with Double math, so `1.005` is 100. A blank field is `.empty`. Magnitudes above
@@ -109,14 +88,8 @@ struct BudgetMoneyInputFormat: ParseableFormatStyle, ParseStrategy {
     }
 }
 
-enum MoneyFractionPolicy: Sendable {
-    case reject
-    case round
-}
-
 enum MoneyInputError: Error, Hashable, Sendable {
     case empty
     case invalid
-    case tooManyFractionDigits
     case outOfRange
 }

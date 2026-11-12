@@ -4,6 +4,8 @@ import UIKit
 enum MoneyAmountEntryKeyboard {
     case digits
     case decimal
+    /// Digits plus both separators and the operators Actual's amount fields evaluate.
+    case expression
 }
 
 /// Shared large-amount entry used by money workflows that keep parsing and
@@ -40,7 +42,7 @@ struct MoneyAmountEntryField: View {
                 .font(font ?? ActualistTypography.editorAmount(for: density))
                 .foregroundStyle(foreground)
                 .multilineTextAlignment(alignment)
-                .keyboardType(keyboard == .digits ? .numberPad : .decimalPad)
+                .keyboardType(keyboard.uiKeyboardType)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .lineLimit(1)
@@ -65,6 +67,16 @@ struct MoneyAmountEntryField: View {
                     for: nil
                 )
             }
+        }
+    }
+}
+
+private extension MoneyAmountEntryKeyboard {
+    var uiKeyboardType: UIKeyboardType {
+        switch self {
+        case .digits: .numberPad
+        case .decimal: .decimalPad
+        case .expression: .numbersAndPunctuation
         }
     }
 }

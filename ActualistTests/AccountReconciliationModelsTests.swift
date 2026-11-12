@@ -30,45 +30,39 @@ struct AccountReconciliationModelsTests {
         #expect(!calculation.canLockTransactions)
     }
 
-    @Test func inputParsesSignedTwoZeroAndThreeDecimalCurrencies() {
-        #expect(
-            AccountReconciliationAmountInput(text: "+123.45")
-                .minorUnits(currency: .usd, locale: Locale(identifier: "en_US")) == .success(12_345)
-        )
-        #expect(
-            AccountReconciliationAmountInput(text: "-123")
-                .minorUnits(currency: .jpy, locale: Locale(identifier: "ja_JP")) == .success(-123)
-        )
-        let threeDecimal = BudgetCurrency(code: "BHD", decimalPlaces: 3, hideFraction: false)
-        #expect(
-            AccountReconciliationAmountInput(text: "1.234")
-                .minorUnits(currency: threeDecimal, locale: Locale(identifier: "en_US")) == .success(1_234)
-        )
+    @Test func inputParsesSignedTwoAndZeroDecimalCurrencies() {
+        #expect(AccountReconciliationAmountInput(text: "+123.45").minorUnits(currency: .usd) == .success(12_345))
+        #expect(AccountReconciliationAmountInput(text: "-123").minorUnits(currency: .jpy) == .success(-123))
     }
 
-    @Test func inputUsesLocaleSeparatorsWithoutGuessingExtraPrecision() {
-        let german = Locale(identifier: "de_DE")
-        #expect(
-            AccountReconciliationAmountInput(text: "1.234,56")
-                .minorUnits(currency: .usd, locale: german) == .success(123_456)
-        )
-        #expect(
-            AccountReconciliationAmountInput(text: "12,345")
-                .minorUnits(currency: .usd, locale: german) == .failure(.tooManyFractionDigits)
-        )
+    @Test func inputReadsTypedBalancesLikeActual() {
+        let cases: [(String, Int)] = [
+            ("1.005", 100), (".50", 50), ("10+5", 1_500), ("(12.34)", 1_234), ("12a", 1_200), ("1,234.56", 123_456)
+        ]
+        for (text, expected) in cases {
+            #expect(AccountReconciliationAmountInput(text: text).minorUnits(currency: .usd) == .success(expected), "\(text)")
+        }
+        #expect(AccountReconciliationAmountInput(text: "1.5").minorUnits(currency: .jpy) == .success(2))
     }
 
-    @Test func inputRejectsEmptyJunkOverflowAndFractionForZeroDecimalCurrency() {
+    @Test func inputFollowsTheBudgetsNumberFormatNotTheDeviceLocale() {
+        let german = BudgetCurrency.catalog(code: "EUR", numberFormat: .dotComma)
+        #expect(AccountReconciliationAmountInput(text: "1.234,56").minorUnits(currency: german) == .success(123_456))
+        #expect(AccountReconciliationAmountInput(text: "12,345").minorUnits(currency: german) == .success(1_235))
+        let french = BudgetCurrency.catalog(code: "EUR", numberFormat: .spaceComma)
+        #expect(AccountReconciliationAmountInput(text: "1 234,56").minorUnits(currency: french) == .success(123_456))
+        #expect(AccountReconciliationAmountInput(text: "1\u{202F}234,56").minorUnits(currency: french) == .success(123_456))
+        #expect(AccountReconciliationAmountInput(text: "1,234.56").minorUnits(currency: .usd) == .success(123_456))
+    }
+
+    @Test func inputRejectsEmptyJunkAndOverflow() {
         #expect(AccountReconciliationAmountInput().minorUnits(currency: .usd) == .failure(.empty))
+        #expect(AccountReconciliationAmountInput(text: "  ").minorUnits(currency: .usd) == .failure(.empty))
         #expect(AccountReconciliationAmountInput(text: "--1").minorUnits(currency: .usd) == .failure(.invalid))
-        #expect(AccountReconciliationAmountInput(text: ".50").minorUnits(currency: .usd) == .failure(.invalid))
-        #expect(
-            AccountReconciliationAmountInput(text: "1.0")
-                .minorUnits(currency: .jpy, locale: Locale(identifier: "en_US")) == .failure(.tooManyFractionDigits)
-        )
+        #expect(AccountReconciliationAmountInput(text: "abc").minorUnits(currency: .usd) == .failure(.invalid))
         #expect(
             AccountReconciliationAmountInput(text: "999999999999999999999999999999")
-                .minorUnits(currency: .usd, locale: Locale(identifier: "en_US")) == .failure(.outOfRange)
+                .minorUnits(currency: .usd) == .failure(.outOfRange)
         )
     }
 
@@ -89,12 +83,12 @@ struct AccountReconciliationModelsTests {
         input.setMagnitudeText("12.34")
         #expect(input.text == "-12.34")
         #expect(
-            input.minorUnits(currency: .usd, locale: Locale(identifier: "en_US")) == .success(-1_234)
+            input.minorUnits(currency: .usd) == .success(-1_234)
         )
         input.toggleSign()
         #expect(input.text == "12.34")
         #expect(
-            input.minorUnits(currency: .usd, locale: Locale(identifier: "en_US")) == .success(1_234)
+            input.minorUnits(currency: .usd) == .success(1_234)
         )
     }
 

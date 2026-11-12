@@ -19,7 +19,7 @@ struct AccountReconciliationCoordinatorTests {
         #expect(presentation.lastReconciledText.hasPrefix("Reconciled "))
         coordinator.useLastSyncedBalance()
         #expect(coordinator.targetEntry?.input.text == "150.00")
-        coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        coordinator.confirmTarget()
         #expect(coordinator.activeSession?.targetBalance == 15_000)
         #expect(!coordinator.presentsTargetSheet)
     }
@@ -39,7 +39,7 @@ struct AccountReconciliationCoordinatorTests {
         #expect(coordinator.targetEntry?.input.text == "-20.00")
         coordinator.useLastSyncedBalance()
         #expect(coordinator.targetEntry?.input.text == "-150.00")
-        coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        coordinator.confirmTarget()
         #expect(coordinator.activeSession?.targetBalance == -15_000)
     }
 
@@ -49,13 +49,13 @@ struct AccountReconciliationCoordinatorTests {
         coordinator.start(identity: identity, currency: .usd, repository: repository)
         await ObservedTestState { coordinator.targetEntry != nil }.wait()
 
-        coordinator.updateTargetText("12.345")
-        coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        coordinator.updateTargetText("abc")
+        coordinator.confirmTarget()
 
         #expect(coordinator.activeSession == nil)
         #expect(
             coordinator.targetPresentation(privacyModeEnabled: false)?.validationMessage
-                == "This balance has too many decimal places for the budget currency."
+                == "Enter a valid balance."
         )
     }
 
@@ -72,7 +72,7 @@ struct AccountReconciliationCoordinatorTests {
 
         coordinator.start(identity: identity, currency: .usd, repository: repository)
         await ObservedTestState { coordinator.targetEntry != nil }.wait()
-        coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        coordinator.confirmTarget()
         coordinator.targetSheetDismissed()
 
         #expect(coordinator.activeSession?.targetBalance == 1_000)
@@ -86,7 +86,7 @@ struct AccountReconciliationCoordinatorTests {
         coordinator.start(identity: identity, currency: .usd, repository: repository)
         await ObservedTestState { coordinator.targetEntry != nil }.wait()
         coordinator.updateTargetText("20.00")
-        coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        coordinator.confirmTarget()
 
         coordinator.createAdjustment(repository: repository) { mutationCount += 1 }
         coordinator.createAdjustment(repository: repository) { mutationCount += 1 }
@@ -118,7 +118,7 @@ struct AccountReconciliationCoordinatorTests {
         coordinator.start(identity: identity, currency: .usd, repository: repository)
         await ObservedTestState { coordinator.targetEntry != nil }.wait()
         coordinator.updateTargetText("20.00")
-        coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        coordinator.confirmTarget()
 
         coordinator.createAdjustment(repository: repository) { mutationCount += 1 }
         await ObservedTestState { coordinator.submittingAction == nil }.wait()
@@ -135,7 +135,7 @@ struct AccountReconciliationCoordinatorTests {
         let coordinator = AccountReconciliationCoordinator()
         coordinator.start(identity: identity, currency: .usd, repository: repository)
         await ObservedTestState { coordinator.targetEntry != nil }.wait()
-        coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        coordinator.confirmTarget()
 
         coordinator.lockTransactions(repository: repository) {}
         await ObservedTestState { coordinator.activeErrorMessage != nil }.wait()
@@ -151,7 +151,7 @@ struct AccountReconciliationCoordinatorTests {
         var lockMutationCount = 0
         lockCoordinator.start(identity: identity, currency: .usd, repository: lockRepository)
         await ObservedTestState { lockCoordinator.targetEntry != nil }.wait()
-        lockCoordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        lockCoordinator.confirmTarget()
         lockCoordinator.lockTransactions(repository: lockRepository) { lockMutationCount += 1 }
         await ObservedTestState { lockCoordinator.state == .idle }.wait()
         #expect(lockMutationCount == 1)
@@ -161,7 +161,7 @@ struct AccountReconciliationCoordinatorTests {
         exitCoordinator.start(identity: identity, currency: .usd, repository: exitRepository)
         await ObservedTestState { exitCoordinator.targetEntry != nil }.wait()
         exitCoordinator.updateTargetText("20.00")
-        exitCoordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        exitCoordinator.confirmTarget()
         exitCoordinator.exit(repository: exitRepository) {}
         await ObservedTestState { exitCoordinator.state == .idle }.wait()
         #expect(exitRepository.exitCalls == 1)
@@ -187,7 +187,7 @@ struct AccountReconciliationCoordinatorTests {
         let coordinator = AccountReconciliationCoordinator()
         coordinator.start(identity: identity, currency: .usd, repository: repository)
         await ObservedTestState { coordinator.targetEntry != nil }.wait()
-        coordinator.confirmTarget(locale: Locale(identifier: "en_US"))
+        coordinator.confirmTarget()
 
         coordinator.reconcileContext(AccountReconciliationIdentity(
             budgetID: "other-budget",
@@ -237,8 +237,7 @@ struct AccountReconciliationCoordinatorTests {
         let target = AccountReconciliationPresentation.target(
             entry: entry,
             currency: .usd,
-            privacyModeEnabled: true,
-            locale: Locale(identifier: "en_US")
+            privacyModeEnabled: true
         )
         #expect(!target.canContinue)
         #expect(target.isPrivacyProtected)

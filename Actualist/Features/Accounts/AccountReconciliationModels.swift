@@ -78,12 +78,7 @@ struct AccountReconciliationDatabaseWrite: Hashable, Sendable {
 }
 
 struct AccountReconciliationAmountInput: Hashable, Sendable {
-    enum ValidationError: Error, Hashable, Sendable {
-        case empty
-        case invalid
-        case tooManyFractionDigits
-        case outOfRange
-    }
+    typealias ValidationError = MoneyInputError
 
     var text: String
 
@@ -92,7 +87,7 @@ struct AccountReconciliationAmountInput: Hashable, Sendable {
     }
 
     init(minorUnits: Int, currency: BudgetCurrency) {
-        text = currency.editableAmountText(fromMinorUnits: minorUnits)
+        text = BudgetMoneyInputFormat.editText(minorUnits: minorUnits, currency: currency)
     }
 
     var isNegative: Bool {
@@ -130,47 +125,8 @@ struct AccountReconciliationAmountInput: Hashable, Sendable {
         }
     }
 
-    func minorUnits(
-        currency: BudgetCurrency,
-        locale: Locale = .current
-    ) -> Result<Int, ValidationError> {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return .failure(.empty) }
-
-        let decimalSeparator = locale.decimalSeparator ?? "."
-        let groupingSeparator = locale.groupingSeparator
-        var normalized = trimmed
-        if let groupingSeparator, groupingSeparator != decimalSeparator, !groupingSeparator.isEmpty {
-            normalized = normalized.replacingOccurrences(of: groupingSeparator, with: "")
-        }
-        if decimalSeparator != "." {
-            normalized = normalized.replacingOccurrences(of: decimalSeparator, with: ".")
-        }
-
-        var body = Substring(normalized)
-        if body.first == "+" || body.first == "-" {
-            body = body.dropFirst()
-        }
-        guard !body.isEmpty, body.first != "." else { return .failure(.invalid) }
-
-        let parts = body.split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count <= 2,
-              parts.allSatisfy({ $0.allSatisfy(\.isNumber) }),
-              parts.first?.isEmpty == false else {
-            return .failure(.invalid)
-        }
-        if parts.count == 2, parts[1].count > currency.decimalPlaces {
-            return .failure(.tooManyFractionDigits)
-        }
-        guard let decimal = Decimal(
-            string: normalized,
-            locale: Locale(identifier: "en_US_POSIX")
-        ) else {
-            return .failure(.invalid)
-        }
-        guard let value = currency.minorUnits(fromDisplay: decimal) else {
-            return .failure(.outOfRange)
-        }
-        return .success(value)
+    /// The typed balance the way Actual's reconcile field reads it (`fromEdit`).
+    func minorUnits(currency: BudgetCurrency) -> Result<Int, ValidationError> {
+        BudgetMoneyInputFormat.minorUnits(text, currency: currency)
     }
 }
