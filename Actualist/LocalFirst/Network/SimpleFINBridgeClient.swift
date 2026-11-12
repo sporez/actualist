@@ -239,20 +239,21 @@ actor SimpleFINBridgeClient {
     }
 
     /// `YYYY-MM-DD` (the lookback start the shared pipeline already builds)
-    /// → UTC UNIX seconds for the bridge query.
+    /// → UNIX seconds at UTC midnight for the bridge query, where Actual's
+    /// server asks the bridge from `new Date("YYYY-MM-DD")`
+    /// (sync-server `app-simplefin.js`), so the whole start day is included.
     static func unixSeconds(fromDay day: String) -> Int {
         let characters = Array(day)
         guard characters.count == 10, day.split(separator: "-").count == 3 else {
             return 0
         }
         var components = DateComponents()
-        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.timeZone = ActualDateOnly.utc
         components.year = Int(day.prefix(4))
         components.month = Int(day.dropFirst(5).prefix(2))
         components.day = Int(day.suffix(2))
-        components.hour = 12
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        calendar.timeZone = ActualDateOnly.utc
         return Int(calendar.date(from: components)?.timeIntervalSince1970 ?? 0)
     }
 }

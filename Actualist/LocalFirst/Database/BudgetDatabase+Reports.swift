@@ -446,7 +446,7 @@ extension BudgetDatabase {
         activityDays: [RawCalendarActivityDay]
     ) throws -> [TransactionCalendarMonth] {
         var displayCalendar = Calendar.current
-        displayCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        displayCalendar.timeZone = ActualDateOnly.utc
         var activityByDay: [String: ReportDailyActivity] = [:]
         for row in activityDays {
             var activity = activityByDay[row.dayID] ?? ReportDailyActivity()

@@ -20,11 +20,8 @@ ALLOWED=(
   "Actualist/Widgets/WidgetMonthID.swift|the widget target cannot see YearMonth"
   "ActualistWidget/WidgetPreviewData.swift|widget preview data; the widget target cannot see ActualDateOnly"
   # Left deliberately: changing them would change output.
-  "Actualist/Shared/ActualDateParsing.swift|String.actualDate is a lenient device-zone formatter (decision D7)"
-  "Actualist/LocalFirst/Network/SimpleFINBridgeClient.swift|unixSeconds(fromDay:) gives odd values for malformed 10-character text if migrated"
-  "Actualist/Features/Reports/ReportsModels.swift|ReportCalendar day, month and shift variants; gregorianUTC feeds the SwiftUI calendar environment"
-  "Actualist/Features/Reports/ReportsView.swift|SwiftUI timeZone environment matching ReportCalendar.gregorianUTC"
-  "Actualist/Features/Reports/ReportExplorerView.swift|SwiftUI timeZone environment matching ReportCalendar.gregorianUTC"
+  "Actualist/Shared/ActualDateParsing.swift|String.actualDate is a lenient device-zone yyyy-MM-dd formatter at noon (decision D7); short fields and rolling days are pinned"
+  "Actualist/Features/Reports/ReportsModels.swift|ReportCalendar day, month and shift variants (lenient rolling, system-locale calendar); they keep their own output"
   "Actualist/Features/Budget/BudgetViewportModel.swift|monthID(_:offsetBy:) is the Budget swipe wrapper over YearMonth.shiftedID"
   "Actualist/Features/Schedules/ScheduleEditorDraft.swift|dayID(from:timeZone:) forwarder to ActualDateOnly, pinned by DateOwnershipCharacterizationTests"
   "Actualist/Features/Settings/RuleEditorDraftState.swift|dayID(from:) forwarder to ActualDateOnly, pinned by DateOwnershipCharacterizationTests"
@@ -34,11 +31,6 @@ ALLOWED=(
   # Date-and-time formatters, not day IDs.
   "Actualist/Features/Settings/DiagnosticReport.swift|ISO 8601 timestamp formatters"
   "Actualist/LocalFirst/Sync/SyncTimestamp.swift|CRDT timestamp format"
-  # Hand-built UTC formatters and calendars not yet migrated onto ActualDateOnly.
-  "Actualist/LocalFirst/Database/BudgetDatabase+Rules.swift|UTC yyyy-MM-dd formatter for the payee-rule lookup window, not migrated"
-  "Actualist/LocalFirst/Database/BudgetDatabase+BasicReads.swift|UTC yyyy-MM-dd formatter for the 12-week cutoff, not migrated"
-  "Actualist/LocalFirst/Database/BudgetDatabase+Reports.swift|UTC display calendar for the transaction calendar, not migrated"
-  "Actualist/LocalFirst/Database/BudgetDatabase+TransactionQuery.swift|UTC calendar for the filter's approximate date bounds, not migrated"
 )
 
 if ! command -v rg >/dev/null 2>&1; then

@@ -349,14 +349,7 @@ extension BudgetDatabase {
             })
             guard !changedPayeeIDs.isEmpty else { return [] }
             let oldestDate = changedRows.compactMap { normalizedDateString($0["date"]) }.min() ?? "1970-01-01"
-            let formatter = DateFormatter()
-            formatter.calendar = Calendar(identifier: .gregorian)
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
-            formatter.dateFormat = "yyyy-MM-dd"
-            let oldest = formatter.date(from: oldestDate) ?? Date(timeIntervalSince1970: 0)
-            let lowerBound = formatter.string(from: Calendar(identifier: .gregorian).date(byAdding: .day, value: -180, to: oldest) ?? oldest)
-            let upperBound = formatter.string(from: Calendar(identifier: .gregorian).date(byAdding: .day, value: 180, to: Date()) ?? Date())
+            let (lowerBound, upperBound) = Self.categoryLearningWindow(oldestDate: oldestDate)
             let payeePlaceholders = Array(repeating: "?", count: changedPayeeIDs.count).joined(separator: ",")
             let parentPredicate: String
             if transactionColumns.contains("is_parent") { parentPredicate = "AND (t.is_parent = 0 OR t.is_parent IS NULL)" }
@@ -686,6 +679,24 @@ extension BudgetDatabase {
 
     private func globalCategoryLearningEnabled(db: Database) throws -> Bool {
         try SyncedPreferences.value(.learnCategories, in: self, db: db) != "false"
+    }
+
+    /// Payee category learning reads 180 days before the oldest changed
+    /// transaction and 180 days after today (`updateCategoryLearning`,
+    /// transaction-rules.ts). Both ends are day arithmetic and today is the
+    /// local day, as `currentDay()`. An unreadable oldest day counts as the epoch.
+    static func categoryLearningWindow(
+        oldestDate: String,
+        now: Date = Date(),
+        timeZone: TimeZone = .autoupdatingCurrent
+    ) -> (lower: String, upper: String) {
+        let epoch = "1970-01-01"
+        let oldest = ActualDateOnly.shiftedDayID(oldestDate, byDays: 0) == nil ? epoch : oldestDate
+        let today = ActualDateOnly.today(now: now, timeZone: timeZone)
+        return (
+            ActualDateOnly.shiftedDayID(oldest, byDays: -180) ?? oldest,
+            ActualDateOnly.shiftedDayID(today, byDays: 180) ?? today
+        )
     }
 
     private func normalizedDateString(_ value: DatabaseValueConvertible?) -> String? {

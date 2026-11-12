@@ -137,6 +137,13 @@ extension BudgetDatabase {
         }
     }
 
+    /// Common payees count transactions after 12 weeks (84 days) before the
+    /// local day (`getCommonPayees`, db/index.ts).
+    static func recentPayeeCutoff(now: Date = Date(), timeZone: TimeZone = .autoupdatingCurrent) -> String {
+        let today = ActualDateOnly.today(now: now, timeZone: timeZone)
+        return ActualDateOnly.shiftedDayID(today, byDays: -84) ?? today
+    }
+
     private func recentCommonPayeeRanks(db: Database) throws -> [String: Int] {
         guard try tableExists("transactions", db: db) else { return [:] }
         let transactionColumns = try columnSet(for: "transactions", db: db)
@@ -144,12 +151,6 @@ extension BudgetDatabase {
               let payeeColumn = TransactionRowColumns.payee(in: transactionColumns) else {
             return [:]
         }
-        let cutoff = Calendar(identifier: .iso8601).date(byAdding: .weekOfYear, value: -12, to: Date()) ?? Date()
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .iso8601)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
         let rawPayee = "t.\(quotedIdentifier(payeeColumn))"
         var resolvedPayee = rawPayee
         var mappingJoin = ""
@@ -175,7 +176,7 @@ extension BudgetDatabase {
                 ORDER BY usage_count DESC, payee_id
                 LIMIT 10
                 """,
-            arguments: [formatter.string(from: cutoff)]
+            arguments: [Self.recentPayeeCutoff()]
         )
         return Dictionary(uniqueKeysWithValues: rows.enumerated().compactMap { index, row in
             guard let id = row["payee_id"] as String? else { return nil }

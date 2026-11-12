@@ -633,26 +633,11 @@ private extension BudgetDatabase {
     /// cannot fail in practice. Should one fail, the bounds collapse to the day
     /// itself rather than trapping.
     func approximateDateBounds(_ day: TransactionQueryDay) -> (lower: String, upper: String) {
-        let parts = day.rawValue.split(separator: "-").compactMap { Int($0) }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-        guard parts.count == 3,
-              let date = calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2])),
-              let lowerDate = calendar.date(byAdding: .day, value: -2, to: date),
-              let upperDate = calendar.date(byAdding: .day, value: 2, to: date),
-              let lower = transactionQueryDay(lowerDate, calendar: calendar),
-              let upper = transactionQueryDay(upperDate, calendar: calendar) else {
+        guard let lower = ActualDateOnly.shiftedDayID(day.rawValue, byDays: -2),
+              let upper = ActualDateOnly.shiftedDayID(day.rawValue, byDays: 2) else {
             return (day.rawValue, day.rawValue)
         }
         return (lower, upper)
-    }
-
-    func transactionQueryDay(_ date: Date, calendar: Calendar) -> String? {
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        guard let year = components.year, let month = components.month, let day = components.day else {
-            return nil
-        }
-        return PackedDate.iso(year: year, month: month, day: day)
     }
 
     func idPredicate(

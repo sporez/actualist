@@ -147,15 +147,15 @@ enum BankSyncAmounts {
         now: Date = Date(),
         timeZone: TimeZone = .autoupdatingCurrent
     ) -> String {
-        let today = date(fromDayID: todayDayID(now: now, timeZone: timeZone), timeZone: ActualDateOnly.utc) ?? now
-        let earliestAllowed = Calendar.actualScheduleGregorian.date(byAdding: .day, value: -89, to: today) ?? today
-        var earliest = earliestAllowed
-        if let oldestLiveTransactionDayID,
-           let oldest = date(fromDayID: oldestLiveTransactionDayID, timeZone: ActualDateOnly.utc),
-           oldest > earliestAllowed {
-            earliest = oldest
+        let today = ActualDateOnly.today(now: now, timeZone: timeZone)
+        let earliestAllowed = ActualDateOnly.shiftedDayID(today, byDays: -89) ?? today
+        // Only a compact `YYYYMMDD` oldest day counts; anything else is ignored.
+        guard let oldestLiveTransactionDayID,
+              let oldestDate = date(fromDayID: oldestLiveTransactionDayID, timeZone: ActualDateOnly.utc) else {
+            return earliestAllowed
         }
-        return ActualDateOnly.dayID(from: earliest, timeZone: ActualDateOnly.utc)
+        let oldest = ActualDateOnly.dayID(from: oldestDate, timeZone: ActualDateOnly.utc)
+        return oldest > earliestAllowed ? oldest : earliestAllowed
     }
 }
 

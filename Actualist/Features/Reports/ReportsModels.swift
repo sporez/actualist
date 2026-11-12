@@ -171,7 +171,7 @@ enum ReportCalendar {
 
     static var gregorianUTC: Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        calendar.timeZone = ActualDateOnly.utc
         return calendar
     }
 

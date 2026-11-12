@@ -60,7 +60,7 @@ struct ReportsView: View {
                 viewModel.updatePrivacyMode(enabled)
             }
             .environment(\.calendar, ReportCalendar.gregorianUTC)
-            .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .gmt)
+            .environment(\.timeZone, ActualDateOnly.utc)
         }
     }
 }

@@ -175,7 +175,7 @@ struct ReportExplorerView: View {
             viewModel.updatePrivacyMode(enabled)
         }
         .environment(\.calendar, ReportCalendar.gregorianUTC)
-        .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .gmt)
+        .environment(\.timeZone, ActualDateOnly.utc)
     }
 
     private var loadIdentity: ReportExplorerLoadIdentity {
@@ -468,6 +468,6 @@ private struct ReportCustomRangeSheet: View {
         .accessibilityIdentifier("report-custom-range-sheet")
         .presentationBackground(ActualistTheme.background)
         .environment(\.calendar, ReportCalendar.gregorianUTC)
-        .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .gmt)
+        .environment(\.timeZone, ActualDateOnly.utc)
     }
 }

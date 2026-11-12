@@ -27,6 +27,17 @@ enum ActualDateOnly {
         ActualScheduleRecurrence.date(from: dayID, calendar: calendar(timeZone: timeZone))
     }
 
+    /// The day `days` calendar days from `dayID` (`yyyy-MM-dd`), as pure date
+    /// arithmetic in the fixed GMT calendar, so no zone or DST can move it.
+    /// Actual's `addDays` and `subDays` (shared/months.ts) work the same way.
+    /// Nil when `dayID` is not a real calendar day.
+    static func shiftedDayID(_ dayID: String, byDays days: Int) -> String? {
+        let calendar = Calendar.actualScheduleGregorian
+        guard let date = ActualScheduleRecurrence.date(from: dayID, calendar: calendar),
+              let shifted = calendar.date(byAdding: .day, value: days, to: date) else { return nil }
+        return ActualScheduleRecurrence.dayID(from: shifted, calendar: calendar)
+    }
+
     /// Lenient variant of `date(from:timeZone:)`: any digit count, and a day or
     /// month out of range rolls forward ("2026-02-31" is 2026-03-03). Reports,
     /// the schedule editor and the transaction filter rely on that, so it

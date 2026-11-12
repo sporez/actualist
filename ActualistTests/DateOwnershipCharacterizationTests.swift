@@ -229,7 +229,7 @@ struct DateOwnershipCharacterizationTests {
         #expect(BankSyncAmounts.todayDayID(now: Date(timeIntervalSince1970: 1_798_761_599), timeZone: .gmt) == "20261231")
     }
 
-    @Test func simpleFINUnixSecondsParseDaysAtUTCNoon() {
+    @Test func simpleFINBridgeQueryStartsAtUTCMidnightAndResponseDaysParseAtUTCNoon() {
         let flexible: [(String, Int64?)] = [
             ("2024-01-01", 1_704_110_400), ("2026-03-15", 1_773_576_000), ("1970-01-01", 43_200),
             ("0001-01-01", -62_135_726_400), ("9999-12-31", 253_402_257_600),
@@ -240,10 +240,10 @@ struct DateOwnershipCharacterizationTests {
             #expect(FlexibleUnixSeconds.unixSeconds(fromDay: input) == expected, "\(input)")
         }
         let bridge: [(String, Int)] = [
-            ("2024-01-01", 1_704_110_400), ("2026-03-15", 1_773_576_000),
-            ("2026-02-31", 1_772_539_200), ("2026-13-01", 1_798_804_800),
+            ("2024-01-01", 1_704_067_200), ("2026-03-15", 1_773_532_800),
+            ("2026-02-31", 1_772_496_000), ("2026-13-01", 1_798_761_600),
             ("", 0), ("2026-1-5", 0),
-            ("abcd-01-05", -62_135_380_800), ("-2026-1-05", -68_546_865_600),
+            ("abcd-01-05", -62_135_424_000), ("-2026-1-05", -68_546_908_800),
         ]
         for (input, expected) in bridge {
             #expect(SimpleFINBridgeClient.unixSeconds(fromDay: input) == expected, "\(input)")
@@ -252,7 +252,7 @@ struct DateOwnershipCharacterizationTests {
 
     // MARK: Device-zone parser
 
-    @Test func actualDateParsesInTheDeviceZoneAndAcceptsShortFields() {
+    @Test func actualDateParsesAtDeviceZoneNoonAndAcceptsShortFields() {
         let calendar = Calendar(identifier: .gregorian)
         let rows: [(String, [Int]?)] = [
             ("2026-03-15", [2026, 3, 15]),
@@ -270,6 +270,6 @@ struct DateOwnershipCharacterizationTests {
             let parts = date.map { calendar.dateComponents([.year, .month, .day], from: $0) }
             #expect(parts.map { [$0.year!, $0.month!, $0.day!] } == expected, "\(input)")
         }
-        #expect("2026-03-15".actualDate.map { calendar.component(.hour, from: $0) } == 0)
+        #expect("2026-03-15".actualDate.map { calendar.component(.hour, from: $0) } == 12)
     }
 }
