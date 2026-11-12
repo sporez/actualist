@@ -187,6 +187,71 @@ final class BudgetCategoryLifecycleController {
         )
     }
 
+    /// Starts a category delete from the month and budget the layout shows right
+    /// now. A transfer review goes to `onReview`; an immediate delete runs
+    /// `onDeleted` only while that budget is still the visible, selected one.
+    func startDeleteCategory(
+        _ category: BudgetMonthCategory,
+        groups: [BudgetMonthCategoryGroup],
+        isTrackingBudget: Bool,
+        month: String?,
+        budget: BudgetActionBudgetScope,
+        repository: any BudgetRepositoryProtocol,
+        onReview: @MainActor (BudgetCategoryLifecycleSheet) -> Void,
+        onDeleted: @MainActor () async -> Void
+    ) async {
+        let startBudgetID = budget.currentID()
+        let result = await requestDeleteCategory(
+            category,
+            groups: groups,
+            isTrackingBudget: isTrackingBudget,
+            selectedMonth: month,
+            budgetID: startBudgetID,
+            repository: repository
+        )
+        await route(result, startBudgetID: startBudgetID, budget: budget, onReview: onReview, onDeleted: onDeleted)
+    }
+
+    func startDeleteGroup(
+        _ group: BudgetMonthCategoryGroup,
+        groups: [BudgetMonthCategoryGroup],
+        isTrackingBudget: Bool,
+        month: String?,
+        budget: BudgetActionBudgetScope,
+        repository: any BudgetRepositoryProtocol,
+        onReview: @MainActor (BudgetCategoryLifecycleSheet) -> Void,
+        onDeleted: @MainActor () async -> Void
+    ) async {
+        let startBudgetID = budget.currentID()
+        let result = await requestDeleteGroup(
+            group,
+            groups: groups,
+            isTrackingBudget: isTrackingBudget,
+            selectedMonth: month,
+            budgetID: startBudgetID,
+            repository: repository
+        )
+        await route(result, startBudgetID: startBudgetID, budget: budget, onReview: onReview, onDeleted: onDeleted)
+    }
+
+    private func route(
+        _ result: BudgetCategoryDeletionRequestResult,
+        startBudgetID: String?,
+        budget: BudgetActionBudgetScope,
+        onReview: @MainActor (BudgetCategoryLifecycleSheet) -> Void,
+        onDeleted: @MainActor () async -> Void
+    ) async {
+        switch result {
+        case .review(let sheet):
+            onReview(sheet)
+        case .deleted:
+            guard budget.currentID() == startBudgetID else { return }
+            await onDeleted()
+        case .failed:
+            break
+        }
+    }
+
     func confirmDeletion(
         selectedMonth: String?,
         budgetID: String?,

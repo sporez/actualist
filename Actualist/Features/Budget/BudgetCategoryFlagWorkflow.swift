@@ -1,6 +1,20 @@
 import Foundation
 import Observation
 
+/// Which budget a layout shows and which one the app has selected. A category
+/// action runs only while both name the same budget, and its result is used only
+/// if they still do when the write returns.
+struct BudgetActionBudgetScope {
+    let visible: @MainActor () -> String?
+    let selected: @MainActor () -> String?
+
+    /// The budget id when the visible budget is the selected one, else nil.
+    @MainActor func currentID() -> String? {
+        guard let id = visible(), id == selected() else { return nil }
+        return id
+    }
+}
+
 @MainActor
 @Observable
 final class BudgetCategoryFlagWorkflow {
@@ -20,7 +34,7 @@ final class BudgetCategoryFlagWorkflow {
         groupHidden: Bool,
         selectedMonth: String?,
         budgetID: String?,
-        currentBudgetID: (@MainActor () -> String?)? = nil,
+        currentBudgetID: @MainActor () -> String?,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         if groupHidden {
@@ -46,7 +60,7 @@ final class BudgetCategoryFlagWorkflow {
         group: BudgetMonthCategoryGroup,
         selectedMonth: String?,
         budgetID: String?,
-        currentBudgetID: (@MainActor () -> String?)? = nil,
+        currentBudgetID: @MainActor () -> String?,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         if group.isIncome {
@@ -74,7 +88,7 @@ final class BudgetCategoryFlagWorkflow {
         expectedMode: BudgetModeIdentity?,
         selectedMonth: String?,
         budgetID: String?,
-        currentBudgetID: (@MainActor () -> String?)? = nil,
+        currentBudgetID: @MainActor () -> String?,
         repository: any BudgetRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         if category.isIncome {
@@ -96,10 +110,78 @@ final class BudgetCategoryFlagWorkflow {
         }
     }
 
+    /// Hide or show a category, then run the layout's `refresh`. Both layouts share
+    /// the guards: nothing is written unless the visible budget is the selected
+    /// one, and nothing is refreshed (or reported) if that changed during the write.
+    func commitCategoryHidden(
+        _ hidden: Bool,
+        categoryID: String,
+        groupHidden: Bool,
+        month: String?,
+        budget: BudgetActionBudgetScope,
+        repository: any BudgetRepositoryProtocol,
+        refresh: @MainActor () async -> Void
+    ) async {
+        guard let budgetID = budget.currentID() else { return }
+        guard await setCategoryHidden(
+            hidden,
+            categoryID: categoryID,
+            groupHidden: groupHidden,
+            selectedMonth: month,
+            budgetID: budgetID,
+            currentBudgetID: budget.currentID,
+            repository: repository
+        ) != nil else { return }
+        await refresh()
+    }
+
+    func commitGroupHidden(
+        _ hidden: Bool,
+        group: BudgetMonthCategoryGroup,
+        month: String?,
+        budget: BudgetActionBudgetScope,
+        repository: any BudgetRepositoryProtocol,
+        refresh: @MainActor () async -> Void
+    ) async {
+        guard let budgetID = budget.currentID() else { return }
+        guard await setGroupHidden(
+            hidden,
+            group: group,
+            selectedMonth: month,
+            budgetID: budgetID,
+            currentBudgetID: budget.currentID,
+            repository: repository
+        ) != nil else { return }
+        await refresh()
+    }
+
+    /// `expectedMode` comes from the layout's own loaded data.
+    func commitCategoryCarryover(
+        _ carryover: Bool,
+        category: BudgetMonthCategory,
+        expectedMode: BudgetModeIdentity?,
+        month: String?,
+        budget: BudgetActionBudgetScope,
+        repository: any BudgetRepositoryProtocol,
+        refresh: @MainActor () async -> Void
+    ) async {
+        guard let budgetID = budget.currentID() else { return }
+        guard await setCategoryCarryover(
+            carryover,
+            category: category,
+            expectedMode: expectedMode,
+            selectedMonth: month,
+            budgetID: budgetID,
+            currentBudgetID: budget.currentID,
+            repository: repository
+        ) != nil else { return }
+        await refresh()
+    }
+
     private func submit(
         selectedMonth: String?,
         budgetID: String?,
-        currentBudgetID: (@MainActor () -> String?)?,
+        currentBudgetID: @MainActor () -> String?,
         work: (String, String) async throws -> LoadedBudgetMonth
     ) async -> LoadedBudgetMonth? {
         guard !isSubmitting else {
@@ -118,11 +200,11 @@ final class BudgetCategoryFlagWorkflow {
             isSubmitting = false
             // The write committed to the budget captured above; if another budget
             // is selected now, the caller must not refresh or apply for it.
-            if let currentBudgetID, currentBudgetID() != budgetID { return nil }
+            if currentBudgetID() != budgetID { return nil }
             return loaded
         } catch {
             isSubmitting = false
-            if let currentBudgetID, currentBudgetID() != budgetID { return nil }
+            if currentBudgetID() != budgetID { return nil }
             errorMessage = error.userFacingMessage
             return nil
         }

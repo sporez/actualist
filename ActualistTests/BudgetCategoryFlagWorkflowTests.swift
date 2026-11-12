@@ -14,6 +14,7 @@ struct BudgetCategoryFlagWorkflowTests {
                 groupHidden: false,
                 selectedMonth: "2026-06",
                 budgetID: "budget",
+                currentBudgetID: { "budget" },
                 repository: repository
             )
         )
@@ -37,6 +38,7 @@ struct BudgetCategoryFlagWorkflowTests {
             expectedMode: mode,
             selectedMonth: "2026-06",
             budgetID: "budget",
+            currentBudgetID: { "budget" },
             repository: repository
         )
 
@@ -60,6 +62,7 @@ struct BudgetCategoryFlagWorkflowTests {
             expectedMode: nil,
             selectedMonth: "2026-06",
             budgetID: "budget",
+            currentBudgetID: { "budget" },
             repository: repository
         )
 
@@ -77,6 +80,7 @@ struct BudgetCategoryFlagWorkflowTests {
             expectedMode: nil,
             selectedMonth: "2026-06",
             budgetID: "budget",
+            currentBudgetID: { "budget" },
             repository: repository
         )
 
@@ -95,6 +99,7 @@ struct BudgetCategoryFlagWorkflowTests {
                 expectedMode: nil,
                 selectedMonth: "2026-06",
                 budgetID: "budget",
+                currentBudgetID: { "budget" },
                 repository: repository
             )
         }
@@ -107,6 +112,7 @@ struct BudgetCategoryFlagWorkflowTests {
             groupHidden: false,
             selectedMonth: "2026-06",
             budgetID: "budget",
+            currentBudgetID: { "budget" },
             repository: repository
         )
         #expect(second == nil)
@@ -127,6 +133,7 @@ struct BudgetCategoryFlagWorkflowTests {
             groupHidden: true,
             selectedMonth: "2026-06",
             budgetID: "budget",
+            currentBudgetID: { "budget" },
             repository: repository
         )
 
@@ -154,6 +161,7 @@ struct BudgetCategoryFlagWorkflowTests {
             group: income,
             selectedMonth: "2026-06",
             budgetID: "budget",
+            currentBudgetID: { "budget" },
             repository: repository
         )
         #expect(loaded == nil)
@@ -170,6 +178,7 @@ struct BudgetCategoryFlagWorkflowTests {
                 groupHidden: false,
                 selectedMonth: "2026-06",
                 budgetID: "budget",
+                currentBudgetID: { "budget" },
                 repository: repository
             )
         }
@@ -182,6 +191,7 @@ struct BudgetCategoryFlagWorkflowTests {
             groupHidden: false,
             selectedMonth: "2026-07",
             budgetID: "budget",
+            currentBudgetID: { "budget" },
             repository: repository
         )
         #expect(second == nil)
@@ -215,7 +225,173 @@ struct BudgetCategoryFlagWorkflowTests {
         #expect(!workflow.isSubmitting)
         #expect(workflow.errorMessage == nil)
     }
+
+    // MARK: Guarded commit (shared by the compact and wide Budget layouts)
+
+    @Test func commitHidesWithTheSharedBudgetThenRefreshesOnce() async throws {
+        let repository = RecordingBudgetRepository()
+        let workflow = BudgetCategoryFlagWorkflow()
+        let budgets = SwitchableBudgets("budget")
+        var refreshes = 0
+        await workflow.commitCategoryHidden(
+            true, categoryID: "mortgage", groupHidden: false, month: "2026-06",
+            budget: budgets.scope, repository: repository
+        ) { refreshes += 1 }
+
+        let recorded = try await repository.onlyCategoryHide()
+        #expect(recorded.budgetID == "budget")
+        #expect(recorded.month == "2026-06")
+        #expect(refreshes == 1)
+        #expect(workflow.errorMessage == nil)
+    }
+
+    @Test func commitWritesNothingWhileTheVisibleBudgetIsNotTheSelectedOne() async {
+        let repository = RecordingBudgetRepository()
+        let workflow = BudgetCategoryFlagWorkflow()
+        let budgets = SwitchableBudgets(visible: "budget", selected: "other")
+        var refreshes = 0
+        await workflow.commitCategoryHidden(
+            true, categoryID: "mortgage", groupHidden: false, month: "2026-06",
+            budget: budgets.scope, repository: repository
+        ) { refreshes += 1 }
+        await workflow.commitGroupHidden(
+            true, group: expenseGroup, month: "2026-06", budget: budgets.scope, repository: repository
+        ) { refreshes += 1 }
+        await workflow.commitCategoryCarryover(
+            true, category: rolloverCategory(isIncome: false), expectedMode: nil, month: "2026-06",
+            budget: budgets.scope, repository: repository
+        ) { refreshes += 1 }
+
+        #expect(await repository.recordedCategoryHides().isEmpty)
+        #expect(await repository.carryoverUpdateCount() == 0)
+        #expect(refreshes == 0)
+        #expect(workflow.errorMessage == nil)
+    }
+
+    @Test func commitDoesNotRefreshWhenTheSelectedBudgetChangesDuringTheWrite() async throws {
+        let repository = DelayedVisibilityRepository()
+        let workflow = BudgetCategoryFlagWorkflow()
+        let budgets = SwitchableBudgets("budget")
+        var refreshes = 0
+        let task = Task { @MainActor in
+            await workflow.commitCategoryHidden(
+                true, categoryID: "mortgage", groupHidden: false, month: "2026-06",
+                budget: budgets.scope, repository: repository
+            ) { refreshes += 1 }
+        }
+        await repository.waitUntilStarted()
+        budgets.selected = "other"
+        await repository.finish()
+        await task.value
+
+        #expect(refreshes == 0)
+        #expect(workflow.errorMessage == nil)
+        #expect(!workflow.isSubmitting)
+    }
+
+    @Test func commitDoesNotRefreshWhenTheVisibleBudgetChangesDuringTheWrite() async throws {
+        let repository = DelayedVisibilityRepository()
+        let workflow = BudgetCategoryFlagWorkflow()
+        let budgets = SwitchableBudgets("budget")
+        var refreshes = 0
+        let task = Task { @MainActor in
+            await workflow.commitCategoryHidden(
+                true, categoryID: "mortgage", groupHidden: false, month: "2026-06",
+                budget: budgets.scope, repository: repository
+            ) { refreshes += 1 }
+        }
+        await repository.waitUntilStarted()
+        budgets.visible = "other"
+        await repository.finish()
+        await task.value
+
+        #expect(refreshes == 0)
+        #expect(!workflow.isSubmitting)
+    }
+
+    @Test func aFailedWriteForTheOldBudgetShowsNoErrorForTheNewOne() async {
+        let repository = RecordingBudgetRepository(
+            carryoverError: BudgetModeWriteError.budgetChanged, suspendsCarryover: true
+        )
+        let workflow = BudgetCategoryFlagWorkflow()
+        let budgets = SwitchableBudgets("budget")
+        var refreshes = 0
+        let task = Task { @MainActor in
+            await workflow.commitCategoryCarryover(
+                true, category: rolloverCategory(isIncome: false), expectedMode: nil, month: "2026-06",
+                budget: budgets.scope, repository: repository
+            ) { refreshes += 1 }
+        }
+        await repository.waitUntilCarryoverStarted()
+        budgets.selected = "other"
+        await repository.resumeCarryover()
+        await task.value
+
+        #expect(workflow.errorMessage == nil)
+        #expect(refreshes == 0)
+    }
+
+    @Test func aFailedCommitReportsTheErrorAndDoesNotRefresh() async {
+        let repository = RecordingBudgetRepository(carryoverError: BudgetModeWriteError.budgetChanged)
+        let workflow = BudgetCategoryFlagWorkflow()
+        var refreshes = 0
+        await workflow.commitCategoryCarryover(
+            true, category: rolloverCategory(isIncome: false), expectedMode: nil, month: "2026-06",
+            budget: SwitchableBudgets("budget").scope, repository: repository
+        ) { refreshes += 1 }
+
+        #expect(workflow.errorMessage == BudgetModeWriteError.budgetChanged.userFacingMessage)
+        #expect(refreshes == 0)
+    }
+
+    @Test func commitCarryoverPassesTheLayoutsExpectedModeAndRefreshes() async throws {
+        let repository = RecordingBudgetRepository()
+        let workflow = BudgetCategoryFlagWorkflow()
+        let mode = BudgetModeIdentity(storageID: "db-1", table: .envelope, revision: "r1")
+        var refreshes = 0
+        await workflow.commitCategoryCarryover(
+            true, category: rolloverCategory(isIncome: false), expectedMode: mode, month: "2026-06",
+            budget: SwitchableBudgets("budget").scope, repository: repository
+        ) { refreshes += 1 }
+
+        let recorded = try await repository.onlyCarryoverUpdate()
+        #expect(recorded.expectedMode == mode)
+        #expect(recorded.startMonth == "2026-06")
+        #expect(refreshes == 1)
+    }
+
+    @Test func aMissingMonthReportsOpenABudgetFirstWithoutRefreshing() async {
+        let repository = RecordingBudgetRepository()
+        let workflow = BudgetCategoryFlagWorkflow()
+        var refreshes = 0
+        await workflow.commitCategoryHidden(
+            true, categoryID: "mortgage", groupHidden: false, month: nil,
+            budget: SwitchableBudgets("budget").scope, repository: repository
+        ) { refreshes += 1 }
+
+        #expect(workflow.errorMessage == "Open a budget first.")
+        #expect(refreshes == 0)
+    }
 }
+
+/// Visible and selected budget ids that a test can change mid-write.
+@MainActor
+final class SwitchableBudgets {
+    var visible: String?
+    var selected: String?
+
+    init(_ both: String?) { visible = both; selected = both }
+    init(visible: String?, selected: String?) { self.visible = visible; self.selected = selected }
+
+    var scope: BudgetActionBudgetScope {
+        BudgetActionBudgetScope(visible: { self.visible }, selected: { self.selected })
+    }
+}
+
+private let expenseGroup = BudgetMonthCategoryGroup(
+    id: "food", name: "Food", isIncome: false, hidden: false,
+    budgeted: 0, spent: 0, balance: 0, categories: []
+)
 
 private func rolloverCategory(isIncome: Bool) -> BudgetMonthCategory {
     BudgetMonthCategory(

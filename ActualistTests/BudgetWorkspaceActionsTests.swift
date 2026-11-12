@@ -227,7 +227,7 @@ struct BudgetWorkspaceActionsTests {
     @Test @MainActor func wideDeleteOfAnUnusedCategoryDeletesAndRefreshes() async throws {
         let fixture = try await wideCategoryFixture()
         let copycat = try #require(shownCategory("copycat", in: fixture.viewport))
-        await fixture.actions.requestDeleteCategory(copycat)
+        await fixture.actions.requestDeleteCategory(copycat, using: fixture.state)
         #expect(shownCategory("copycat", in: fixture.viewport) == nil)
         #expect(fixture.actions.sheet == nil)
         #expect(fixture.actions.errorMessage == nil)
@@ -236,7 +236,7 @@ struct BudgetWorkspaceActionsTests {
     @Test @MainActor func wideDeleteOfACategoryWithTransactionsOpensTheTransferReview() async throws {
         let fixture = try await wideCategoryFixture()
         let groceries = try #require(shownCategory("groceries", in: fixture.viewport))
-        await fixture.actions.requestDeleteCategory(groceries)
+        await fixture.actions.requestDeleteCategory(groceries, using: fixture.state)
         #expect(fixture.actions.sheet == .categoryLifecycle(.deleteCategory(groceries)))
         #expect(fixture.actions.actionMonth == "2026-07")
         #expect(fixture.actions.actionBudgetID == "group-1")
@@ -249,7 +249,7 @@ struct BudgetWorkspaceActionsTests {
             id: "ghost", name: "Ghost", isIncome: false, hidden: false,
             budgeted: 0, spent: 0, balance: 0, categories: []
         )
-        await fixture.actions.requestDeleteGroup(ghost)
+        await fixture.actions.requestDeleteGroup(ghost, using: fixture.state)
         #expect(fixture.actions.sheet == nil)
         #expect(fixture.viewport.snapshot(for: "2026-07")?.month.categoryGroups.contains { $0.id == "group" } == true)
     }

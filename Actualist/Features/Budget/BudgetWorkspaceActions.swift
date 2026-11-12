@@ -128,34 +128,32 @@ final class BudgetWorkspaceActions {
         ))
     }
 
-    func requestDeleteCategory(_ category: BudgetMonthCategory) async {
-        clearActionContext()
-        actionMonth = viewport.anchorMonth
-        actionBudgetID = viewport.budgetID
-        let result = await categoryLifecycle.requestDeleteCategory(
+    func requestDeleteCategory(_ category: BudgetMonthCategory, using appState: AppState) async {
+        beginDeleteContext()
+        await categoryLifecycle.startDeleteCategory(
             category,
             groups: categoryLifecycleGroups,
             isTrackingBudget: viewport.isTrackingBudget,
-            selectedMonth: actionMonth,
-            budgetID: actionBudgetID,
-            repository: viewport.repository
+            month: actionMonth,
+            budget: budgetScope(using: appState),
+            repository: viewport.repository,
+            onReview: { sheet = .categoryLifecycle($0) },
+            onDeleted: finishDelete
         )
-        await handleDeleteRequest(result)
     }
 
-    func requestDeleteGroup(_ group: BudgetMonthCategoryGroup) async {
-        clearActionContext()
-        actionMonth = viewport.anchorMonth
-        actionBudgetID = viewport.budgetID
-        let result = await categoryLifecycle.requestDeleteGroup(
+    func requestDeleteGroup(_ group: BudgetMonthCategoryGroup, using appState: AppState) async {
+        beginDeleteContext()
+        await categoryLifecycle.startDeleteGroup(
             group,
             groups: categoryLifecycleGroups,
             isTrackingBudget: viewport.isTrackingBudget,
-            selectedMonth: actionMonth,
-            budgetID: actionBudgetID,
-            repository: viewport.repository
+            month: actionMonth,
+            budget: budgetScope(using: appState),
+            repository: viewport.repository,
+            onReview: { sheet = .categoryLifecycle($0) },
+            onDeleted: finishDelete
         )
-        await handleDeleteRequest(result)
     }
 
     func openMonthNote(_ month: String) {
@@ -312,34 +310,27 @@ final class BudgetWorkspaceActions {
         month: String,
         using appState: AppState
     ) async {
-        guard let budgetID = viewport.budgetID,
-              budgetID == appState.settings.selectedBudgetID,
-              await categoryFlagWorkflow.setCategoryHidden(
+        await categoryFlagWorkflow.commitCategoryHidden(
             isHidden,
             categoryID: category.id,
             groupHidden: BudgetCategoryVisibility.isHidden(group.hidden),
-            selectedMonth: month,
-            budgetID: budgetID,
-            repository: appState.budgetRepository
-        ) != nil else { return }
-        guard viewport.budgetID == budgetID, appState.settings.selectedBudgetID == budgetID else { return }
-        await viewport.refreshVisibleMonths()
+            month: month,
+            budget: budgetScope(using: appState),
+            repository: appState.budgetRepository,
+            refresh: refreshVisibleMonths
+        )
     }
 
     func toggleCategoryCarryover(_ category: BudgetMonthCategory, month: String, using appState: AppState) async {
-        guard let budgetID = viewport.budgetID,
-              budgetID == appState.settings.selectedBudgetID,
-              await categoryFlagWorkflow.setCategoryCarryover(
+        await categoryFlagWorkflow.commitCategoryCarryover(
             !category.carryover,
             category: category,
             expectedMode: viewport.snapshot(for: month)?.modeIdentity,
-            selectedMonth: month,
-            budgetID: budgetID,
-            currentBudgetID: { appState.settings.selectedBudgetID },
-            repository: appState.budgetRepository
-        ) != nil else { return }
-        guard viewport.budgetID == budgetID, appState.settings.selectedBudgetID == budgetID else { return }
-        await viewport.refreshVisibleMonths()
+            month: month,
+            budget: budgetScope(using: appState),
+            repository: appState.budgetRepository,
+            refresh: refreshVisibleMonths
+        )
     }
 
     func setGroupHidden(
@@ -348,17 +339,14 @@ final class BudgetWorkspaceActions {
         month: String,
         using appState: AppState
     ) async {
-        guard let budgetID = viewport.budgetID,
-              budgetID == appState.settings.selectedBudgetID,
-              await categoryFlagWorkflow.setGroupHidden(
+        await categoryFlagWorkflow.commitGroupHidden(
             isHidden,
             group: group,
-            selectedMonth: month,
-            budgetID: budgetID,
-            repository: appState.budgetRepository
-        ) != nil else { return }
-        guard viewport.budgetID == budgetID, appState.settings.selectedBudgetID == budgetID else { return }
-        await viewport.refreshVisibleMonths()
+            month: month,
+            budget: budgetScope(using: appState),
+            repository: appState.budgetRepository,
+            refresh: refreshVisibleMonths
+        )
     }
 
     func toggleCategoryHidden(
@@ -465,16 +453,27 @@ final class BudgetWorkspaceActions {
         sheet = .categoryLifecycle(lifecycleSheet)
     }
 
-    private func handleDeleteRequest(_ result: BudgetCategoryDeletionRequestResult) async {
-        switch result {
-        case .review(let lifecycleSheet):
-            sheet = .categoryLifecycle(lifecycleSheet)
-        case .deleted:
-            clearActionContext()
-            await viewport.refreshVisibleMonths()
-        case .failed:
-            break
-        }
+    private func budgetScope(using appState: AppState) -> BudgetActionBudgetScope {
+        BudgetActionBudgetScope(
+            visible: { [viewport] in viewport.budgetID },
+            selected: { appState.settings.selectedBudgetID }
+        )
+    }
+
+    private func refreshVisibleMonths() async {
+        await viewport.refreshVisibleMonths()
+    }
+
+    /// A delete remembers the month and budget it started on.
+    private func beginDeleteContext() {
+        clearActionContext()
+        actionMonth = viewport.anchorMonth
+        actionBudgetID = viewport.budgetID
+    }
+
+    private func finishDelete() async {
+        clearActionContext()
+        await viewport.refreshVisibleMonths()
     }
 
     private func clearActionContext() {

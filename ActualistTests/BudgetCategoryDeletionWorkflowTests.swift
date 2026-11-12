@@ -193,6 +193,93 @@ struct BudgetCategoryDeletionWorkflowTests {
         #expect(deletingWorkflow.state == .idle)
         #expect(await deletingRepository.deletedCategories.count == 1)
     }
+
+    // MARK: startDelete (shared by the compact and wide Budget layouts)
+
+    @Test func startDeleteDeletesAnUnusedCategoryFromTheStartingMonthAndBudget() async {
+        let victim = category("victim", "Victim", false, "expense", hidden: false)
+        let groups = [group("expense", "Expenses", false, false, [victim])]
+        let repository = CategoryLifecycleRecordingRepository()
+        let controller = BudgetCategoryLifecycleController()
+        var reviews = 0
+        var deleted = 0
+        await controller.startDeleteCategory(
+            victim, groups: groups, isTrackingBudget: false, month: "2026-07",
+            budget: SwitchableBudgets("budget").scope, repository: repository,
+            onReview: { _ in reviews += 1 }, onDeleted: { deleted += 1 }
+        )
+        #expect(await repository.deletedCategories.map(\.id) == ["victim"])
+        #expect(reviews == 0)
+        #expect(deleted == 1)
+    }
+
+    @Test func startDeleteHandsATransferReviewToTheLayoutWithoutDeleting() async {
+        let victim = category("victim", "Victim", false, "expense", hidden: false)
+        let groups = [group("expense", "Expenses", false, false, [victim])]
+        let repository = CategoryLifecycleRecordingRepository(transferRequiredIDs: ["victim"])
+        let controller = BudgetCategoryLifecycleController()
+        var reviewed: [BudgetCategoryLifecycleSheet] = []
+        var deleted = 0
+        await controller.startDeleteCategory(
+            victim, groups: groups, isTrackingBudget: false, month: "2026-07",
+            budget: SwitchableBudgets("budget").scope, repository: repository,
+            onReview: { reviewed.append($0) }, onDeleted: { deleted += 1 }
+        )
+        #expect(reviewed == [.deleteCategory(victim)])
+        #expect(deleted == 0)
+        #expect(await repository.deletedCategories.isEmpty)
+    }
+
+    @Test func startDeleteDoesNothingWhileTheVisibleBudgetIsNotTheSelectedOne() async {
+        let victim = category("victim", "Victim", false, "expense", hidden: false)
+        let groups = [group("expense", "Expenses", false, false, [victim])]
+        let repository = CategoryLifecycleRecordingRepository()
+        let controller = BudgetCategoryLifecycleController()
+        var callbacks = 0
+        await controller.startDeleteCategory(
+            victim, groups: groups, isTrackingBudget: false, month: "2026-07",
+            budget: SwitchableBudgets(visible: "budget", selected: "other").scope, repository: repository,
+            onReview: { _ in callbacks += 1 }, onDeleted: { callbacks += 1 }
+        )
+        #expect(await repository.deletedCategories.isEmpty)
+        #expect(callbacks == 0)
+    }
+
+    @Test func startDeleteDoesNotRefreshWhenTheBudgetChangesDuringTheDelete() async {
+        let victim = category("victim", "Victim", false, "expense", hidden: false)
+        let groups = [group("expense", "Expenses", false, false, [victim])]
+        let repository = CategoryLifecycleRecordingRepository(suspendDeletes: true)
+        let controller = BudgetCategoryLifecycleController()
+        let budgets = SwitchableBudgets("budget")
+        var deleted = 0
+        let task = Task { @MainActor in
+            await controller.startDeleteCategory(
+                victim, groups: groups, isTrackingBudget: false, month: "2026-07",
+                budget: budgets.scope, repository: repository,
+                onReview: { _ in }, onDeleted: { deleted += 1 }
+            )
+        }
+        await repository.waitUntilDeleteStarted()
+        budgets.selected = "other"
+        await repository.finishDelete()
+        await task.value
+        #expect(await repository.deletedCategories.map(\.id) == ["victim"])
+        #expect(deleted == 0)
+    }
+
+    @Test func startDeleteGroupDeletesAnEmptyGroupAndReportsIt() async {
+        let empty = group("empty", "Empty", false, false, [])
+        let repository = CategoryLifecycleRecordingRepository()
+        let controller = BudgetCategoryLifecycleController()
+        var deleted = 0
+        await controller.startDeleteGroup(
+            empty, groups: [empty], isTrackingBudget: false, month: "2026-07",
+            budget: SwitchableBudgets("budget").scope, repository: repository,
+            onReview: { _ in }, onDeleted: { deleted += 1 }
+        )
+        #expect(await repository.deletedGroups.map(\.id) == ["empty"])
+        #expect(deleted == 1)
+    }
 }
 
 private func group(

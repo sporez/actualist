@@ -371,56 +371,54 @@ struct BudgetView: View {
         }
     }
 
+    private var categoryActionBudget: BudgetActionBudgetScope {
+        BudgetActionBudgetScope(
+            visible: { [viewModel] in viewModel.loadedBudgetID },
+            selected: { [appState] in appState.settings.selectedBudgetID }
+        )
+    }
+
     private func toggleCategoryHidden(
         _ category: BudgetMonthCategory,
         in group: BudgetMonthCategoryGroup
     ) {
         Task {
-            guard await categoryFlagWorkflow.setCategoryHidden(
+            await categoryFlagWorkflow.commitCategoryHidden(
                 !BudgetCategoryVisibility.isHidden(category.hidden),
                 categoryID: category.id,
                 groupHidden: BudgetCategoryVisibility.isHidden(group.hidden),
-                selectedMonth: viewModel.selectedMonth,
-                budgetID: appState.settings.selectedBudgetID,
-                currentBudgetID: { appState.settings.selectedBudgetID },
-                repository: appState.budgetRepository
-            ) != nil else {
-                return
-            }
-            await viewModel.refreshSelectedMonth(using: appState)
+                month: viewModel.selectedMonth,
+                budget: categoryActionBudget,
+                repository: appState.budgetRepository,
+                refresh: { await viewModel.refreshSelectedMonth(using: appState) }
+            )
         }
     }
 
     private func toggleCategoryCarryover(_ category: BudgetMonthCategory) {
         Task {
-            guard await categoryFlagWorkflow.setCategoryCarryover(
+            await categoryFlagWorkflow.commitCategoryCarryover(
                 !category.carryover,
                 category: category,
                 expectedMode: viewModel.modeIdentity,
-                selectedMonth: viewModel.selectedMonth,
-                budgetID: appState.settings.selectedBudgetID,
-                currentBudgetID: { appState.settings.selectedBudgetID },
-                repository: appState.budgetRepository
-            ) != nil else {
-                return
-            }
-            await viewModel.refreshSelectedMonth(using: appState)
+                month: viewModel.selectedMonth,
+                budget: categoryActionBudget,
+                repository: appState.budgetRepository,
+                refresh: { await viewModel.refreshSelectedMonth(using: appState) }
+            )
         }
     }
 
     private func toggleGroupHidden(_ group: BudgetMonthCategoryGroup) {
         Task {
-            guard await categoryFlagWorkflow.setGroupHidden(
+            await categoryFlagWorkflow.commitGroupHidden(
                 !BudgetCategoryVisibility.isHidden(group.hidden),
                 group: group,
-                selectedMonth: viewModel.selectedMonth,
-                budgetID: appState.settings.selectedBudgetID,
-                currentBudgetID: { appState.settings.selectedBudgetID },
-                repository: appState.budgetRepository
-            ) != nil else {
-                return
-            }
-            await viewModel.refreshSelectedMonth(using: appState)
+                month: viewModel.selectedMonth,
+                budget: categoryActionBudget,
+                repository: appState.budgetRepository,
+                refresh: { await viewModel.refreshSelectedMonth(using: appState) }
+            )
         }
     }
 
@@ -615,40 +613,31 @@ struct BudgetView: View {
 
     private func requestDeleteCategory(_ category: BudgetMonthCategory) {
         Task {
-            let result = await categoryLifecycle.requestDeleteCategory(
+            await categoryLifecycle.startDeleteCategory(
                 category,
                 groups: categoryLifecycleGroups,
                 isTrackingBudget: viewModel.isTrackingBudget,
-                selectedMonth: viewModel.selectedMonth,
-                budgetID: appState.settings.selectedBudgetID,
-                repository: appState.budgetRepository
+                month: viewModel.selectedMonth,
+                budget: categoryActionBudget,
+                repository: appState.budgetRepository,
+                onReview: { categoryLifecycleSheet = $0 },
+                onDeleted: { await viewModel.refreshSelectedMonth(using: appState) }
             )
-            await handleDeleteRequest(result)
         }
     }
 
     private func requestDeleteGroup(_ group: BudgetMonthCategoryGroup) {
         Task {
-            let result = await categoryLifecycle.requestDeleteGroup(
+            await categoryLifecycle.startDeleteGroup(
                 group,
                 groups: categoryLifecycleGroups,
                 isTrackingBudget: viewModel.isTrackingBudget,
-                selectedMonth: viewModel.selectedMonth,
-                budgetID: appState.settings.selectedBudgetID,
-                repository: appState.budgetRepository
+                month: viewModel.selectedMonth,
+                budget: categoryActionBudget,
+                repository: appState.budgetRepository,
+                onReview: { categoryLifecycleSheet = $0 },
+                onDeleted: { await viewModel.refreshSelectedMonth(using: appState) }
             )
-            await handleDeleteRequest(result)
-        }
-    }
-
-    private func handleDeleteRequest(_ result: BudgetCategoryDeletionRequestResult) async {
-        switch result {
-        case .review(let sheet):
-            categoryLifecycleSheet = sheet
-        case .deleted:
-            await viewModel.refreshSelectedMonth(using: appState)
-        case .failed:
-            break
         }
     }
 
