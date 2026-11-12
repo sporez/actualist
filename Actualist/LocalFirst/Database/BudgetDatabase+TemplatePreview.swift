@@ -459,17 +459,17 @@ extension BudgetDatabase {
         }
 
         let force = command.mode == .overwrite || !targeted.isEmpty
-        let currentBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
+        let currentBudgets = try categoryBudgets(month: YearMonth.id(packed: monthValue), db: db)
         let existingGoals = canWriteGoals
-            ? try categoryGoals(month: monthID(monthValue), db: db)
+            ? try categoryGoals(month: YearMonth.id(packed: monthValue), db: db)
             : [:]
 
         var unsupported: [String] = []
         var categoryTemplates: [String: [BudgetTemplateEntry]] = [:]
         var orphanGoalCategoryIDs: [String] = []
         let initialAvailableBudget = try isTracking
-            ? trackingTotalSaved(month: monthID(monthValue), db: db, history: history)
-            : envelopeToBudget(month: monthID(monthValue), db: db, history: history)
+            ? trackingTotalSaved(month: YearMonth.id(packed: monthValue), db: db, history: history)
+            : envelopeToBudget(month: YearMonth.id(packed: monthValue), db: db, history: history)
         var availableBudget = initialAvailableBudget
         var incomeCatalog = try templateIncomeCatalog(db: db)
         let activeSchedules = try templateActiveSchedules(db: db)

@@ -17,7 +17,7 @@ struct BudgetTemplateEditorMonth: Equatable {
         month = value % 100
     }
 
-    var storage: String { BudgetTemplateCalendar.monthID(year * 100 + month) }
+    var storage: String { YearMonth.id(packed: year * 100 + month) }
 
     func title(locale: Locale) -> String {
         ActualDateDisplay.monthYear(storage, width: .wide, locale: locale) ?? "Choose month"

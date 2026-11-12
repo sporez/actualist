@@ -10,7 +10,7 @@ enum BudgetTemplateDefinition {
 
     static func firstDayOfCurrentMonth(now: Date) -> String {
         let monthValue = BudgetTemplateCalendar.currentMonthValue(now: now)
-        return "\(BudgetTemplateCalendar.monthID(monthValue))-01"
+        return "\(YearMonth.id(packed: monthValue))-01"
     }
 
     static func parseEntries(

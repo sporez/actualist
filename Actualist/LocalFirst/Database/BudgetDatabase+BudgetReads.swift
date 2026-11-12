@@ -306,7 +306,7 @@ extension BudgetDatabase {
         guard canonicalMonthID(month) == month else {
             throw LocalFirstError.invalidLocalWrite("invalid budget month")
         }
-        let target = monthInt(month)
+        let target = YearMonth.packedUnchecked(month)
         return try templateHistoryCategoryValues(history, at: target, keepFrom: target, db: db)
     }
 
@@ -319,7 +319,7 @@ extension BudgetDatabase {
         guard canonicalMonthID(month) == month else {
             throw LocalFirstError.invalidLocalWrite("invalid budget month")
         }
-        let target = monthInt(month)
+        let target = YearMonth.packedUnchecked(month)
         let timeline = try categoryValueTimeline(
             inputs: try categoryValueInputs(db: db),
             through: target,

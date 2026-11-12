@@ -248,7 +248,7 @@ enum BudgetTemplateEditorInputInterpreter {
                   case .dateTarget(var value) = draft else {
                 return nil
             }
-            let monthID = BudgetTemplateCalendar.monthID(month)
+            let monthID = YearMonth.id(packed: month)
             if field == .targetMonth {
                 value.month = monthID
             } else {

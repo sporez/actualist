@@ -5,14 +5,7 @@ import Testing
 /// Pins what the packed-date and packed-month helpers return today, including
 /// their unvalidated and odd outputs, so consolidating them cannot change a
 /// call site's value or failure value. Expectations come from unchanged code.
-@MainActor
 struct PackedDateMonthCharacterizationTests {
-    private let fixtures = LocalFirstActualStoreTests()
-
-    private func makeDatabase() throws -> BudgetDatabase {
-        try BudgetDatabase(databaseURL: try fixtures.makeSQLiteFixture(), localNodeID: "node1")
-    }
-
     @Test func packedDateFromISOStripsDashesAndFailsToZero() {
         let rows: [(String?, Int)] = [
             ("2026-12-31", 20261231), ("2026-01-01", 20260101), ("2026-02-31", 20260231),
@@ -35,46 +28,42 @@ struct PackedDateMonthCharacterizationTests {
         }
     }
 
-    @Test func schemaMonthIntStripsDashesAndFailsToZero() async throws {
-        let database = try makeDatabase()
+    @Test func packedUncheckedStripsDashesAndFailsToZero() {
         let rows: [(String, Int)] = [
             ("2026-01", 202601), ("2026-1", 20261), ("202601", 202601), ("2026-13", 202613),
             ("2026-01-15", 20260115), ("", 0), ("abc", 0),
         ]
         for (text, expected) in rows {
-            #expect(await database.monthInt(text) == expected, "\(text)")
+            #expect(YearMonth.packedUnchecked(text) == expected, "\(text)")
         }
     }
 
-    @Test func schemaMonthIDFormatsWithoutValidation() async throws {
-        let database = try makeDatabase()
+    @Test func monthIDFormatsWithoutValidation() {
         let rows: [(Int, String)] = [
             (202601, "2026-01"), (202613, "2026-13"), (0, "0000-00"), (-5, "0000--5"), (20261, "0202-61"),
         ]
         for (month, expected) in rows {
-            #expect(await database.monthID(month) == expected, "\(month)")
+            #expect(YearMonth.id(packed: month) == expected, "\(month)")
         }
     }
 
-    @Test func schemaShiftedMonthRollsWithoutValidation() async throws {
-        let database = try makeDatabase()
+    @Test func shiftedUncheckedRollsWithoutValidation() {
         let rows: [(Int, Int, Int)] = [
             (202612, 1, 202701), (202601, -1, 202512), (202606, 13, 202707), (202606, -13, 202505),
             (202601, 0, 202601), (202613, 0, 202701), (202600, 0, 202512), (0, 0, 0),
             (202601, 12, 202701), (202601, -12, 202501),
         ]
         for (month, offset, expected) in rows {
-            #expect(await database.shiftedMonth(month, by: offset) == expected, "\(month) \(offset)")
+            #expect(YearMonth.shiftedUnchecked(packed: month, by: offset) == expected, "\(month) \(offset)")
         }
     }
 
-    @Test func schemaNextMonthIncrementsWithoutValidation() async throws {
-        let database = try makeDatabase()
+    @Test func nextUncheckedIncrementsWithoutValidation() {
         let rows: [(Int, Int)] = [
             (202612, 202701), (202601, 202602), (202613, 202614), (202600, 202601), (0, 1),
         ]
         for (month, expected) in rows {
-            #expect(await database.nextMonth(after: month) == expected, "\(month)")
+            #expect(YearMonth.nextUnchecked(packed: month) == expected, "\(month)")
         }
     }
 
@@ -97,8 +86,8 @@ struct PackedDateMonthCharacterizationTests {
     }
 
     @Test func templateCalendarMonthIDFormatsWithoutValidation() {
-        #expect(BudgetTemplateCalendar.monthID(202601) == "2026-01")
-        #expect(BudgetTemplateCalendar.monthID(202613) == "2026-13")
-        #expect(BudgetTemplateCalendar.monthID(0) == "0000-00")
+        #expect(YearMonth.id(packed: 202601) == "2026-01")
+        #expect(YearMonth.id(packed: 202613) == "2026-13")
+        #expect(YearMonth.id(packed: 0) == "0000-00")
     }
 }

@@ -31,7 +31,7 @@ extension BudgetDatabase {
             // Without an id column the row id is the derived one, as in `budgetRowID`.
             let id = columns.contains("id")
                 ? row["id"] as String?
-                : Self.budgetRowID(monthValue: monthInt(month), categoryID: categoryID)
+                : Self.budgetRowID(monthValue: YearMonth.packedUnchecked(month), categoryID: categoryID)
             if let id {
                 result[month, default: [:]][categoryID] = id
             }

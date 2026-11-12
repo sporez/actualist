@@ -142,7 +142,7 @@ extension BudgetDatabase {
         var messages: [ActualSyncDecodedMessage] = []
         // Bound the fan-out: a stray far-future budget row must not turn one
         // carryover toggle into a loop over thousands of months.
-        let cappedLastMonthValue = shiftedMonth(startMonthValue, by: Self.maximumCarryoverMonthSpan - 1)
+        let cappedLastMonthValue = YearMonth.shiftedUnchecked(packed: startMonthValue, by: Self.maximumCarryoverMonthSpan - 1)
         guard throughMonthValue <= cappedLastMonthValue else {
             throw LocalFirstError.refusedChange("That rollover month range is too large.")
         }
@@ -154,12 +154,12 @@ extension BudgetDatabase {
         for categoryID in categoryIDs {
             var monthValue = startMonthValue
             while monthValue <= effectiveThroughMonthValue {
-                let rowID = existingRowIDs[monthID(monthValue)]?[categoryID]
+                let rowID = existingRowIDs[YearMonth.id(packed: monthValue)]?[categoryID]
                     ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
 
                 // Actual writes the identity cells only when it inserts the row, and
                 // its carryover insert stores the month as text.
-                if existingRowIDs[monthID(monthValue)]?[categoryID] == nil {
+                if existingRowIDs[YearMonth.id(packed: monthValue)]?[categoryID] == nil {
                     messages += try budgetRowIdentityMessages(
                         table: table, rowID: rowID, monthValue: monthValue,
                         categoryID: categoryID, monthAsText: true, builder: &builder
@@ -174,7 +174,7 @@ extension BudgetDatabase {
                     )
                 )
 
-                monthValue = nextMonth(after: monthValue)
+                monthValue = YearMonth.nextUnchecked(packed: monthValue)
             }
         }
         return messages
@@ -192,7 +192,7 @@ extension BudgetDatabase {
             for: monthValue,
             lookBack: 1
         )
-        let previousMonth = monthID(previousMonthValue)
+        let previousMonth = YearMonth.id(packed: previousMonthValue)
         let previousValues = try categoryValues(through: previousMonth, db: db, history: history)[categoryID]
             ?? BudgetCategoryValue()
         // Actual: leftover < 0 && !carryover || is_income || tracking && !carryover
@@ -274,7 +274,7 @@ extension BudgetDatabase {
             required: ["month", "category", "amount"],
             db: db
         )
-        let initialBudgets = try categoryBudgets(month: monthID(monthValue), db: db)
+        let initialBudgets = try categoryBudgets(month: YearMonth.id(packed: monthValue), db: db)
         var budgetedByCategory = initialBudgets.mapValues(\.budgeted)
         var affectedCategoryIDs: Set<String> = []
 
@@ -387,7 +387,7 @@ extension BudgetDatabase {
     /// The latest month the budget has data for (budget rows or transactions), as
     /// Actual's created months extend through the budget's latest month.
     private func lastExistingBudgetMonth(db: Database) throws -> Int {
-        try fetchAvailableMonths(db: db).last.map(monthInt) ?? 0
+        try fetchAvailableMonths(db: db).last.map(YearMonth.packedUnchecked) ?? 0
     }
 
     func budgetRowID(
@@ -407,7 +407,7 @@ extension BudgetDatabase {
                 WHERE \(normalizedMonthExpression(monthColumn)) = ? AND \(categoryColumn) = ?
                 LIMIT 1
                 """,
-            arguments: [monthID(monthValue), categoryID]
+            arguments: [YearMonth.id(packed: monthValue), categoryID]
         )
         if columns.contains("id") {
             return row?["id"] as String?
@@ -463,6 +463,6 @@ extension BudgetDatabase {
         guard !categoryID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing category")
         }
-        return (monthValue, monthID(monthValue), categoryID)
+        return (monthValue, YearMonth.id(packed: monthValue), categoryID)
     }
 }

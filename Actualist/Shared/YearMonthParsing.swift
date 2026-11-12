@@ -15,16 +15,35 @@ extension YearMonth {
         id(year: monthValue / 100, month: monthValue % 100)
     }
 
-    /// This month moved by `months` (pure `year * 12 + month` arithmetic), or
-    /// nil when this is not a valid month or the result leaves `validYears`.
-    func adding(months: Int) -> YearMonth? {
-        guard let valid = YearMonth(parsing: rawValue),
-              let year = Int(valid.rawValue.prefix(4)),
-              let month = Int(valid.rawValue.suffix(2)) else {
-            return nil
+    /// Packed `YYYYMM` from month (or day) text: every `-` is dropped and the
+    /// rest read as one number, so `2026-01` is 202601 and text that is not
+    /// digits is 0. Nothing is range-checked.
+    static func packedUnchecked(_ id: String) -> Int {
+        Int(PackedDate.compact(id)) ?? 0
+    }
+
+    /// Packed `YYYYMM` moved by `offset` months with no validation: a month
+    /// outside 1...12 rolls over arithmetically and 0 stays 0. The template
+    /// calendar's range-checked, throwing variant is
+    /// `BudgetTemplateCalendar.shiftedMonth(_:by:)`.
+    static func shiftedUnchecked(packed month: Int, by offset: Int) -> Int {
+        let year = month / 100
+        let monthNumber = month % 100
+        let zeroBased = year * 12 + (monthNumber - 1) + offset
+        let shiftedYear = zeroBased / 12
+        let shiftedMonth = zeroBased % 12 + 1
+        return shiftedYear * 100 + shiftedMonth
+    }
+
+    /// The packed month after `month` by incrementing, with no validation
+    /// (202613 becomes 202614, where `shiftedUnchecked` would roll the year).
+    static func nextUnchecked(packed month: Int) -> Int {
+        let year = month / 100
+        let monthNumber = month % 100
+        if monthNumber == 12 {
+            return (year + 1) * 100 + 1
         }
-        let shifted = Self.shiftedID(year: year, month: month, by: months)
-        return YearMonth(parsing: shifted)
+        return year * 100 + monthNumber + 1
     }
 
     /// `YYYY-MM` text for `id` moved by `months`, with no range validation: a

@@ -3,32 +3,6 @@ import GRDB
 
 extension BudgetDatabase {
 
-    func monthInt(_ month: String) -> Int {
-        Int(PackedDate.compact(month)) ?? 0
-    }
-
-    func monthID(_ month: Int) -> String {
-        YearMonth.id(packed: month)
-    }
-
-    func shiftedMonth(_ month: Int, by offset: Int) -> Int {
-        let year = month / 100
-        let monthNumber = month % 100
-        let zeroBased = year * 12 + (monthNumber - 1) + offset
-        let shiftedYear = zeroBased / 12
-        let shiftedMonth = zeroBased % 12 + 1
-        return shiftedYear * 100 + shiftedMonth
-    }
-
-    func nextMonth(after month: Int) -> Int {
-        let year = month / 100
-        let monthNumber = month % 100
-        if monthNumber == 12 {
-            return (year + 1) * 100 + 1
-        }
-        return year * 100 + monthNumber + 1
-    }
-
     func budgetTable(db: Database) throws -> BudgetTable {
         try isTrackingBudget(db: db) ? .tracking : .envelope
     }

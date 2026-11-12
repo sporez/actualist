@@ -20,7 +20,7 @@ extension BudgetDatabase {
         previousValues: [String: BudgetCategoryValue],
         db: Database
     ) throws -> EnvelopeCarryIn {
-        let previousMonth = monthID(shiftedMonth(monthInt(month), by: -1))
+        let previousMonth = YearMonth.id(packed: YearMonth.shiftedUnchecked(packed: YearMonth.packedUnchecked(month), by: -1))
         let expenseCategoryIDs = groups.filter { !$0.isIncome }.flatMap(\.categories).map(\.id)
         let previous = expenseCategoryIDs.map { previousValues[$0] ?? BudgetCategoryValue() }
         let previousAvailability = try envelopeAvailability(

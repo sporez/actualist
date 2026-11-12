@@ -479,7 +479,7 @@ enum BudgetTemplateDraft: Equatable, Sendable {
 private func defaultDateTargetMonth(now: Date) -> String {
     let currentMonth = BudgetTemplateCalendar.currentMonthValue(now: now)
     let targetMonth = (try? BudgetTemplateCalendar.shiftedMonth(currentMonth, by: 12)) ?? currentMonth
-    return BudgetTemplateCalendar.monthID(targetMonth)
+    return YearMonth.id(packed: targetMonth)
 }
 
 private func normalizedDescription(_ value: String?) -> String? {

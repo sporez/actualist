@@ -182,11 +182,11 @@ extension BudgetDatabase {
         previous: [String: BudgetCategoryValue],
         monthsComputed: Int
     ) {
-        let targetMonthInt = monthInt(month)
+        let targetMonthInt = YearMonth.packedUnchecked(month)
         let earliestMonthInt = Array(
             Set(inputs.budgetedByMonth.keys).union(inputs.spentByMonth.keys)
         )
-            .compactMap { canonicalMonthID($0).map(monthInt) }
+            .compactMap { canonicalMonthID($0).map(YearMonth.packedUnchecked) }
             .filter { $0 <= targetMonthInt }
             .min() ?? targetMonthInt
         var valuesByCategory: [String: BudgetCategoryValue] = [:]
@@ -194,7 +194,7 @@ extension BudgetDatabase {
         var monthsComputed = 0
         var monthCursor = earliestMonthInt
         while monthCursor <= targetMonthInt {
-            let budgetMonth = monthID(monthCursor)
+            let budgetMonth = YearMonth.id(packed: monthCursor)
             let budgeted = inputs.budgetedByMonth[budgetMonth] ?? [:]
             let spent = inputs.spentByMonth[budgetMonth] ?? [:]
             let categoryIDs = Set(budgeted.keys).union(spent.keys).union(valuesByCategory.keys)
@@ -213,7 +213,7 @@ extension BudgetDatabase {
             previousValues = valuesByCategory
             valuesByCategory = nextValues
             monthsComputed += 1
-            monthCursor = nextMonth(after: monthCursor)
+            monthCursor = YearMonth.nextUnchecked(packed: monthCursor)
         }
         return (valuesByCategory, previousValues, monthsComputed)
     }

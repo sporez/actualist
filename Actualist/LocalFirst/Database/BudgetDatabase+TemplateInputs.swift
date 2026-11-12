@@ -174,7 +174,7 @@ extension BudgetDatabase {
                 by: -lookBack
             )
             copiedBudgetedByLookBack[lookBack] = try templateHistoryInputs(history, db: db)
-                .budgetedByMonth[monthID(sourceMonthValue)]?[categoryID]?.budgeted ?? 0
+                .budgetedByMonth[YearMonth.id(packed: sourceMonthValue)]?[categoryID]?.budgeted ?? 0
         }
 
         let fromLastMonth: Int
@@ -241,7 +241,7 @@ extension BudgetDatabase {
                 monthValue,
                 by: -lookBack
             )
-            let month = monthID(sourceMonthValue)
+            let month = YearMonth.id(packed: sourceMonthValue)
             var total = 0
             for categoryID in catalog.incomeCategoryIDs {
                 let activity = spentByMonth[month]?[categoryID] ?? 0
@@ -393,7 +393,7 @@ extension BudgetDatabase {
         let budgetedHistory = try templateHistoryInputs(history, db: db).budgetedByMonth
         var cursor = earliest
         while cursor < monthValue {
-            let month = monthID(cursor)
+            let month = YearMonth.id(packed: cursor)
             budgetedByMonth[cursor] = budgetedHistory[month]?[categoryID]?.budgeted ?? 0
             spentByMonthValue[cursor] = spentByMonth[month]?[categoryID] ?? 0
             leftoverByMonth[cursor] = try templateHistoryCategoryValues(

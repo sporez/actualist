@@ -41,17 +41,17 @@ extension BudgetDatabase {
     ) throws -> BudgetCategoryValueTimeline {
         var candidateMonths: Set<Int> = []
         for key in Set(inputs.budgetedByMonth.keys).union(inputs.spentByMonth.keys) {
-            if let month = canonicalMonthID(key).map(monthInt), month <= targetMonthInt {
+            if let month = canonicalMonthID(key).map(YearMonth.packedUnchecked), month <= targetMonthInt {
                 candidateMonths.insert(month)
             }
         }
         func categoryIDs(in month: Int) -> Set<String> {
-            let key = monthID(month)
+            let key = YearMonth.id(packed: month)
             return Set((inputs.budgetedByMonth[key] ?? [:]).keys)
                 .union((inputs.spentByMonth[key] ?? [:]).keys)
         }
         func hasRealData(in month: Int) -> Bool {
-            let key = monthID(month)
+            let key = YearMonth.id(packed: month)
             let budgeted = inputs.budgetedByMonth[key] ?? [:]
             let spent = inputs.spentByMonth[key] ?? [:]
             return budgeted.values.contains { $0.budgeted != 0 || $0.carryover }
@@ -71,7 +71,7 @@ extension BudgetDatabase {
         var monthsComputed = 0
         var monthCursor = start
         while monthCursor <= targetMonthInt {
-            let key = monthID(monthCursor)
+            let key = YearMonth.id(packed: monthCursor)
             let budgeted = inputs.budgetedByMonth[key] ?? [:]
             let spent = inputs.spentByMonth[key] ?? [:]
             var nextValues: [String: BudgetCategoryValue] = [:]
@@ -92,7 +92,7 @@ extension BudgetDatabase {
                 snapshots[monthCursor] = nextValues
             }
             monthsComputed += 1
-            monthCursor = nextMonth(after: monthCursor)
+            monthCursor = YearMonth.nextUnchecked(packed: monthCursor)
         }
         return BudgetCategoryValueTimeline(
             snapshots: snapshots,

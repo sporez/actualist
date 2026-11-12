@@ -63,17 +63,13 @@ enum BudgetTemplateCalendar {
         return year * 100 + monthNumber
     }
 
-    static func monthID(_ month: Int) -> String {
-        YearMonth.id(packed: month)
-    }
-
     static func currentMonthValue(now: Date = Date()) -> Int {
         let components = gregorian.dateComponents([.year, .month], from: now)
         return (components.year ?? 0) * 100 + (components.month ?? 0)
     }
 
     static func currentMonthID(now: Date = Date()) -> String {
-        monthID(currentMonthValue(now: now))
+        YearMonth.id(packed: currentMonthValue(now: now))
     }
 
     static func daysInMonth(_ monthValue: Int) throws -> Int {
@@ -264,7 +260,7 @@ enum BudgetTemplateCalendar {
     }
 
     static func monthStartDate(_ monthValue: Int) throws -> Date {
-        let monthStart = "\(monthID(try validatedMonth(monthValue)))-01"
+        let monthStart = "\(YearMonth.id(packed: try validatedMonth(monthValue)))-01"
         guard let date = validatedDate(monthStart) else {
             throw LocalFirstError.unsupportedTemplate("periodic month")
         }

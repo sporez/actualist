@@ -222,7 +222,7 @@ private extension BudgetDatabase {
         for row in rows {
             guard let canonical = canonicalMonthID(flexibleString(row["month"])),
                   let categoryID = row["category"] as String? else { continue }
-            let monthValue = monthInt(canonical)
+            let monthValue = YearMonth.packedUnchecked(canonical)
             let amount: Int = row["amount"] ?? 0
             months.insert(monthValue)
             if sourceIDs.contains(categoryID) {

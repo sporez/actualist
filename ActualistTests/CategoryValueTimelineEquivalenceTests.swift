@@ -81,7 +81,7 @@ extension BudgetDatabase {
                 }
                 let production = try categoryValuesWithPrevious(through: target, db: db)
                 let naive = try naiveCategoryValuesForTesting(inputs: inputs, through: target)
-                let month = monthInt(target)
+                let month = YearMonth.packedUnchecked(target)
                 let timeline = try categoryValueTimeline(inputs: inputs, through: month, keepFrom: month)
                 return TimelineComparison(
                     target: target,
@@ -98,14 +98,14 @@ extension BudgetDatabase {
             let inputs = try categoryValueInputs(db: db)
             let timeline = try categoryValueTimeline(
                 inputs: inputs,
-                through: monthInt(target),
+                through: YearMonth.packedUnchecked(target),
                 keepFrom: keepFrom
             )
             var mismatches: [String] = []
             for (month, values) in timeline.snapshots.sorted(by: { $0.key < $1.key }) {
-                let naive = try naiveCategoryValuesForTesting(inputs: inputs, through: monthID(month))
+                let naive = try naiveCategoryValuesForTesting(inputs: inputs, through: YearMonth.id(packed: month))
                 if BudgetHistoryFixture.digest(values) != BudgetHistoryFixture.digest(naive.current) {
-                    mismatches.append(monthID(month))
+                    mismatches.append(YearMonth.id(packed: month))
                 }
             }
             return mismatches
@@ -115,7 +115,7 @@ extension BudgetDatabase {
     func timelineMonthCountsForTesting(target: String) throws -> (naive: Int, timeline: Int) {
         try queue.read { db in
             let inputs = try categoryValueInputs(db: db)
-            let month = monthInt(target)
+            let month = YearMonth.packedUnchecked(target)
             return (
                 try naiveCategoryValuesForTesting(inputs: inputs, through: target).monthsComputed,
                 try categoryValueTimeline(inputs: inputs, through: month, keepFrom: month).monthsComputed

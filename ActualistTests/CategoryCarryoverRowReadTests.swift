@@ -92,7 +92,7 @@ extension BudgetDatabase {
             let categoryIDs = try templateCategoryIDsInBudgetOrder(
                 db: db, includeIncome: false, includeHidden: true
             )
-            let latestStored = try fetchAvailableMonths(db: db).last.map(monthInt) ?? 0
+            let latestStored = try fetchAvailableMonths(db: db).last.map(YearMonth.packedUnchecked) ?? 0
             let effectiveThrough = max(throughValue, latestStored)
             var messages: [ActualSyncDecodedMessage] = []
             for categoryID in categoryIDs {
@@ -114,7 +114,7 @@ extension BudgetDatabase {
                     messages.append(try builder.makeMessage(
                         dataset: table.rawValue, row: rowID, column: "carryover", value: .bool(carryover)
                     ))
-                    monthValue = nextMonth(after: monthValue)
+                    monthValue = YearMonth.nextUnchecked(packed: monthValue)
                 }
             }
             return messages
