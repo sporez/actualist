@@ -135,15 +135,6 @@ final class BudgetTemplateEditorViewModel {
         return BudgetTemplateEditorInputInterpreter.monetaryAmount(for: field, draft: draft) != nil
     }
 
-    func numericAmount(for field: BudgetTemplateEditorInputField, id: UUID) -> Decimal? {
-        guard !isPrivacyModeEnabled, isMoneyInput(field, id: id) else { return nil }
-        return BudgetTemplateAmountInput.numericValue(editor.inputText(for: field, id: id))
-    }
-
-    func setNumericAmount(_ amount: Decimal?, field: BudgetTemplateEditorInputField, id: UUID) {
-        edit(.setInput(BudgetTemplateAmountInput.inputText(amount), field: field, id: id))
-    }
-
     func integerValue(for field: BudgetTemplateEditorInputField, id: UUID) -> Int {
         BudgetTemplateAmountInput.parseInt(editor.inputText(for: field, id: id)) ?? 0
     }

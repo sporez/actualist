@@ -11,7 +11,6 @@ enum BudgetTemplateEditorFocus: Hashable {
 }
 
 struct BudgetTemplateEditorInput: View {
-    @Environment(\.locale) private var locale
     let title: String
     let field: BudgetTemplateEditorInputField
     let itemID: UUID
@@ -36,8 +35,8 @@ struct BudgetTemplateEditorInput: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             input
-            .keyboardType(viewModel.isMoneyInput(field, id: itemID) && field == .amount
-                ? .decimalPad : (isMonth || isDecimal ? .numbersAndPunctuation : .numberPad))
+            .keyboardType(viewModel.isMoneyInput(field, id: itemID) || isMonth || isDecimal
+                ? .numbersAndPunctuation : .numberPad)
             .autocorrectionDisabled()
             .textInputAutocapitalization(.never)
             .multilineTextAlignment(.leading)
@@ -50,23 +49,11 @@ struct BudgetTemplateEditorInput: View {
         }
     }
 
-    @ViewBuilder private var input: some View {
-        if viewModel.isMoneyInput(field, id: itemID) && !viewModel.isPrivacyModeEnabled {
-            TextField(title, value: amountBinding,
-                      format: BudgetMoneyInputFormat(currency: viewModel.editor.currency, locale: locale))
-        } else {
-            TextField(title, text: Binding(
-                get: { viewModel.inputText(for: field, id: itemID) },
-                set: { viewModel.edit(.setInput($0, field: field, id: itemID)) }
-            ))
-        }
-    }
-
-    private var amountBinding: Binding<Decimal?> {
-        Binding(
-            get: { viewModel.numericAmount(for: field, id: itemID) },
-            set: { viewModel.setNumericAmount($0, field: field, id: itemID) }
-        )
+    private var input: some View {
+        TextField(title, text: Binding(
+            get: { viewModel.inputText(for: field, id: itemID) },
+            set: { viewModel.edit(.setInput($0, field: field, id: itemID)) }
+        ))
     }
 }
 

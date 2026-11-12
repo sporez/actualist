@@ -13,7 +13,7 @@ struct BudgetTemplateAmountInputTests {
         #expect(formatted == fullPrecision.formatted(minor))
         #expect(BudgetTemplateAmountInput.formatAmount(-1400.25, currency: currency)
             == (currency.decimalPlaces == 0 ? "-1400" : "-1400.25"))
-        #expect(BudgetTemplateAmountInput.numericValue("NaN") == nil)
+        #expect(BudgetTemplateAmountInput.parseAmount("NaN", currency: currency) == nil)
     }
 
     @Test func moneyProjectionCoversAmountsAndOnlyFixedAdjustments() {

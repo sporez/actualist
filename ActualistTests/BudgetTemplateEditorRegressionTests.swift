@@ -25,10 +25,10 @@ struct BudgetTemplateEditorRegressionTests {
     @Test func unrelatedControlsPreserveInvalidTextAndSameTypeIsANoop() async throws {
         let (vm, _) = await loaded([.monthlyFixed(amount: 123.45, now: now)])
         let id = try #require(vm.editor.items.first?.id)
-        vm.edit(.setInput("12oops", field: .amount, id: id))
+        vm.edit(.setInput("--1", field: .amount, id: id))
         vm.edit(.setFixedCadence(.week, id: id))
         vm.edit(.setKind(.monthlyFixed, id: id))
-        #expect(vm.inputText(for: .amount, id: id) == "12oops")
+        #expect(vm.inputText(for: .amount, id: id) == "--1")
         #expect(!vm.canSave)
         vm.edit(.setInput("250.25", field: .amount, id: id))
         #expect(vm.canSave)
@@ -135,10 +135,14 @@ struct BudgetTemplateEditorRegressionTests {
         #expect(!vm.canSave)
     }
 
-    @Test func amountParserRejectsTrailingGarbageAndEditingRetainsHiddenCents() {
-        for text in ["12oops", "1.2.3", "1,234", "--1", "+", "-"] {
+    @Test func amountParserReadsLikeActualAndEditingRetainsHiddenCents() {
+        for text in ["--1", "+", "-", "abc", ""] {
             #expect(BudgetTemplateAmountInput.parseAmount(text, currency: .usd) == nil)
         }
+        #expect(BudgetTemplateAmountInput.parseAmount("12oops", currency: .usd) == 12)
+        #expect(BudgetTemplateAmountInput.parseAmount("1,234", currency: .usd) == 1234)
+        #expect(BudgetTemplateAmountInput.parseAmount("1.2.3", currency: .usd) == 12.3)
+        #expect(BudgetTemplateAmountInput.parseAmount("1.005", currency: .usd) == 1)
         #expect(BudgetTemplateAmountInput.formatAmount(123.45, currency: .catalog(code: "USD", hideFraction: true)) == "123.45")
     }
 

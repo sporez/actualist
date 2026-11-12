@@ -44,16 +44,15 @@ struct BudgetTemplateNativeFormTests {
     }
 
     @Test(arguments: [BudgetCurrency.usd, .jpy, .none, .catalog(code: "USD", hideFraction: true)])
-    func numericBindingSavesThroughExistingCurrencyBoundary(currency: BudgetCurrency) async throws {
+    func typedAmountSavesThroughExistingCurrencyBoundary(currency: BudgetCurrency) async throws {
         let (vm, repository, id) = try await loaded(currency: currency)
         vm.inputFocusChanged(to: .init(itemID: id, field: .amount))
-        vm.setNumericAmount(nil, field: .amount, id: id)
+        vm.edit(.setInput("", field: .amount, id: id))
         #expect(!vm.canSave)
-        #expect(vm.numericAmount(for: .amount, id: id) == nil)
         #expect(vm.previewState == .editing)
         #expect(await vm.save() == false)
-        vm.setNumericAmount(Decimal(string: "1234.56"), field: .amount, id: id)
-        #expect(vm.numericAmount(for: .amount, id: id) == Decimal(string: "1234.56"))
+        vm.edit(.setInput("1234.56", field: .amount, id: id))
+        #expect(vm.inputText(for: .amount, id: id) == "1234.56")
         #expect(vm.previewState == .editing)
         #expect(await vm.save())
         guard case .dateTarget(let saved) = await repository.savedDrafts().last?.first else {
@@ -64,16 +63,15 @@ struct BudgetTemplateNativeFormTests {
         #expect(saved.month == "2027-09")
     }
 
-    @Test func numericBindingRespectsPrivacyAndReadOnly() async throws {
+    @Test func privacyAndReadOnlyIgnoreTypedAmounts() async throws {
         let (vm, _, id) = try await loaded()
         let original = vm.editor.items
         vm.isPrivacyModeEnabled = true
-        vm.setNumericAmount(500, field: .amount, id: id)
-        #expect(vm.numericAmount(for: .amount, id: id) == nil)
+        vm.edit(.setInput("500", field: .amount, id: id))
         #expect(vm.editor.items == original)
         vm.isPrivacyModeEnabled = false
         vm.cancel()
-        vm.setNumericAmount(500, field: .amount, id: id)
+        vm.edit(.setInput("500", field: .amount, id: id))
         vm.setMonthYear(2030, field: .targetMonth, id: id)
         vm.setIntegerValue(2, field: .priority, id: id)
         #expect(vm.editor.items == original)

@@ -10,51 +10,52 @@ struct BudgetTemplateEditorInteractionTests {
     @Test(arguments: [BudgetCurrency.usd, .jpy, .none, .catalog(code: "USD", hideFraction: true)])
     func moneyFormattingPreservesTypingAndSavedAmounts(currency: BudgetCurrency) async throws {
         let (vm, repository, id) = try await loaded(currency: currency)
-        #expect(vm.numericAmount(for: .amount, id: id) == 100)
+        #expect(vm.inputText(for: .amount, id: id) == BudgetTemplateAmountInput.formatAmount(100, currency: currency))
         vm.inputFocusChanged(to: .init(itemID: id, field: .amount))
         for text in ["", "-", "-1400.2", "-1400.25"] {
             vm.edit(.setInput(text, field: .amount, id: id))
             #expect(vm.inputText(for: .amount, id: id) == text)
-            #expect(vm.numericAmount(for: .amount, id: id) == BudgetTemplateAmountInput.numericValue(text))
         }
         #expect(await repository.dryRunCount == 1)
         vm.inputFocusChanged(to: nil)
         let amount = try #require(BudgetTemplateAmountInput.parseAmount("-1400.25", currency: currency))
-        #expect(vm.numericAmount(for: .amount, id: id) == Decimal(string: "-1400.25"))
         #expect(vm.inputText(for: .amount, id: id) == "-1400.25")
         vm.inputFocusChanged(to: .init(itemID: id, field: .amount))
-        #expect(vm.numericAmount(for: .amount, id: id) == Decimal(string: "-1400.25"))
         #expect(vm.inputText(for: .amount, id: id) == "-1400.25")
         #expect(await vm.save())
         #expect(await repository.savedDrafts().last?.first == .monthlyFixed(amount: amount, now: now))
     }
 
-    @Test func numericProjectionRejectsInvalidInputsAndMasksPrivateAmounts() async throws {
+    @Test func unreadableAmountsCannotSaveAndPrivateAmountsAreMasked() async throws {
         let (vm, _, id) = try await loaded()
-        vm.edit(.setInput("12oops", field: .amount, id: id))
-        #expect(vm.numericAmount(for: .amount, id: id) == nil)
-        #expect(vm.inputText(for: .amount, id: id) == "12oops")
+        vm.edit(.setInput("--1", field: .amount, id: id))
+        #expect(vm.inputText(for: .amount, id: id) == "--1")
         #expect(!vm.canSave)
         vm.edit(.setInput("1400.25", field: .amount, id: id))
-        #expect(vm.numericAmount(for: .amount, id: id) != nil)
+        #expect(vm.canSave)
         vm.isPrivacyModeEnabled = true
-        #expect(vm.numericAmount(for: .amount, id: id) == nil)
         #expect(vm.inputText(for: .amount, id: id) == "Hidden")
-        #expect(vm.numericAmount(for: .priority, id: id) == nil)
         vm.cancel()
+    }
+
+    @Test(arguments: [("10+5", 15.0), ("1.005", 1.0), ("2*3.5", 7.0), ("1,234.56", 1234.56)])
+    func amountsAreReadLikeActual(text: String, expected: Double) async throws {
+        let (vm, repository, id) = try await loaded()
+        vm.edit(.setInput(text, field: .amount, id: id))
+        #expect(await vm.save())
+        #expect(await repository.savedDrafts().last?.first == .monthlyFixed(amount: expected, now: now))
     }
 
     @Test func changingAdjustmentUnitsSwitchesMoneyPresentationOnlyForFixedAmounts() async throws {
         let (vm, _, id) = try await loaded(draft: .average(adjustment: .fixed(-1400.25)))
-        #expect(vm.numericAmount(for: .adjustment, id: id) == Decimal(string: "-1400.25"))
-        #expect(vm.numericAmount(for: .numMonths, id: id) == nil)
+        #expect(vm.isMoneyInput(.adjustment, id: id))
+        #expect(!vm.isMoneyInput(.numMonths, id: id))
         vm.edit(.setAdjustmentMode(.percent, id: id))
         #expect(!vm.isMoneyInput(.adjustment, id: id))
         #expect(vm.inputText(for: .adjustment, id: id) == "1400.25")
         vm.edit(.setAdjustmentMode(.fixed, id: id))
-        #expect(vm.numericAmount(for: .adjustment, id: id) == Decimal(string: "-1400.25"))
+        #expect(vm.isMoneyInput(.adjustment, id: id))
         vm.isPrivacyModeEnabled = true
-        #expect(vm.numericAmount(for: .adjustment, id: id) == nil)
         #expect(vm.inputText(for: .adjustment, id: id) == "Hidden")
         vm.cancel()
     }
