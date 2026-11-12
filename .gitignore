@@ -61,6 +61,7 @@ Local.xcconfig
 scripts/*
 !scripts/check.sh
 !scripts/lint-concurrency-escape-hatches.sh
+!scripts/lint-date-ownership.sh
 !scripts/lint-known-divergences.sh
 !scripts/lint-liquid-glass.sh
 !scripts/lint-private-patterns.sh
