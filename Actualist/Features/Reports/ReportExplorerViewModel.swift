@@ -236,7 +236,7 @@ final class ReportExplorerViewModel {
         case .netWorth:
             return currency.formatted(totals.endingBalance)
         case .cashFlow:
-            return signedMoney(totals.net)
+            return currency.signedFormatted(totals.net)
         case .spending, .budgetOverview:
             return currency.formatted(totals.expenses)
         case .spendingAverage:
@@ -258,7 +258,7 @@ final class ReportExplorerViewModel {
         guard let totals = displaySnapshot?.totals else { return [] }
         switch query.metric {
         case .netWorth:
-            return [("Change", signedMoney(totals.balanceChange), comparisonTone(totals.balanceChange))]
+            return [("Change", currency.signedFormatted(totals.balanceChange), comparisonTone(totals.balanceChange))]
         case .cashFlow:
             return [
                 ("Income", currency.formatted(totals.income), .positive),
@@ -458,10 +458,6 @@ final class ReportExplorerViewModel {
             minimumDollars: 4,
             maximumDollars: 250_000
         )
-    }
-
-    private func signedMoney(_ amount: Int) -> String {
-        amount > 0 ? "+\(currency.formatted(amount))" : currency.formatted(amount)
     }
 
     private func comparisonTone(_ amount: Int) -> ReportValueTone {

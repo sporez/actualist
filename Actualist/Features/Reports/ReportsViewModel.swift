@@ -117,41 +117,41 @@ final class ReportsViewModel {
         return ReportCalendar.rangeTitle(startDay: range.startDay, endDay: range.endDay)
     }
 
-    var netWorthHeadline: String { money(displaySnapshot?.netWorth.balance ?? 0) }
-    var netWorthChangeText: String { signedMoney(displaySnapshot?.netWorth.change ?? 0) }
+    var netWorthHeadline: String { currency.formatted(displaySnapshot?.netWorth.balance ?? 0) }
+    var netWorthChangeText: String { currency.signedFormatted(displaySnapshot?.netWorth.change ?? 0) }
     var netWorthTone: ReportValueTone { comparisonTone(displaySnapshot?.netWorth.change ?? 0) }
 
     var cashFlowSubtitle: String {
         displaySnapshot.map { ReportCalendar.monthTitle($0.cashFlow.month) } ?? ""
     }
-    var cashFlowHeadline: String { signedMoney(displaySnapshot?.cashFlow.net ?? 0) }
+    var cashFlowHeadline: String { currency.signedFormatted(displaySnapshot?.cashFlow.net ?? 0) }
     var cashFlowTone: ReportValueTone { comparisonTone(displaySnapshot?.cashFlow.net ?? 0) }
-    var cashFlowIncomeText: String { money(displaySnapshot?.cashFlow.income ?? 0) }
-    var cashFlowExpenseText: String { money(displaySnapshot?.cashFlow.expenses ?? 0) }
+    var cashFlowIncomeText: String { currency.formatted(displaySnapshot?.cashFlow.income ?? 0) }
+    var cashFlowExpenseText: String { currency.formatted(displaySnapshot?.cashFlow.expenses ?? 0) }
     var uncategorizedText: String? {
         guard let value = displaySnapshot?.cashFlow.uncategorized, value != 0 else { return nil }
-        return "Uncategorized spending: \(money(value))"
+        return "Uncategorized spending: \(currency.formatted(value))"
     }
 
     var monthComparisonSubtitle: String {
         guard let report = displaySnapshot?.monthComparison else { return "" }
         return "Compare \(ReportCalendar.shortMonthTitle(report.currentMonth)) with \(ReportCalendar.shortMonthTitle(report.comparisonMonth))"
     }
-    var monthComparisonHeadline: String { signedMoney(displaySnapshot?.monthComparison.variance ?? 0) }
+    var monthComparisonHeadline: String { currency.signedFormatted(displaySnapshot?.monthComparison.variance ?? 0) }
     var monthComparisonTone: ReportValueTone { overspendingTone(displaySnapshot?.monthComparison.variance ?? 0) }
 
     var budgetOverviewSubtitle: String {
         guard let month = displaySnapshot?.budgetOverview.month else { return "" }
         return "Compare \(ReportCalendar.shortMonthTitle(month)) with budgeted"
     }
-    var budgetOverviewHeadline: String { signedMoney(displaySnapshot?.budgetOverview.variance ?? 0) }
+    var budgetOverviewHeadline: String { currency.signedFormatted(displaySnapshot?.budgetOverview.variance ?? 0) }
     var budgetOverviewTone: ReportValueTone { overspendingTone(displaySnapshot?.budgetOverview.variance ?? 0) }
 
     var threeMonthAverageSubtitle: String {
         guard let month = displaySnapshot?.threeMonthAverage.month else { return "" }
         return "Compare \(ReportCalendar.shortMonthTitle(month)) with the last 3 months"
     }
-    var threeMonthAverageHeadline: String { signedMoney(displaySnapshot?.threeMonthAverage.variance ?? 0) }
+    var threeMonthAverageHeadline: String { currency.signedFormatted(displaySnapshot?.threeMonthAverage.variance ?? 0) }
     var threeMonthAverageTone: ReportValueTone { overspendingTone(displaySnapshot?.threeMonthAverage.variance ?? 0) }
 
     var calendarRangeTitle: String {
@@ -179,11 +179,11 @@ final class ReportsViewModel {
 
     func calendarDayAccessibility(_ day: TransactionCalendarDay) -> String {
         let date = ReportCalendar.longDayTitle(day.dayID)
-        return "\(date), income \(money(day.income)), expenses \(money(day.expenses))"
+        return "\(date), income \(currency.formatted(day.income)), expenses \(currency.formatted(day.expenses))"
     }
 
-    func calendarMonthIncome(_ month: TransactionCalendarMonth) -> String { money(month.income) }
-    func calendarMonthExpenses(_ month: TransactionCalendarMonth) -> String { money(month.expenses) }
+    func calendarMonthIncome(_ month: TransactionCalendarMonth) -> String { currency.formatted(month.income) }
+    func calendarMonthExpenses(_ month: TransactionCalendarMonth) -> String { currency.formatted(month.expenses) }
 
     func explorerDefaultFilters(for reportCard: ReportCardKind) -> ReportExplorerFilters {
         reportCard.explorerDefaultFilters(calendarTransfers: snapshot?.calendarTransfers ?? .all)
@@ -324,15 +324,6 @@ final class ReportsViewModel {
             minimumDollars: 4,
             maximumDollars: maximumDollars
         )
-    }
-
-    private func money(_ amount: Int) -> String {
-        currency.formatted(amount)
-    }
-
-    private func signedMoney(_ amount: Int) -> String {
-        if amount > 0 { return "+\(money(amount))" }
-        return money(amount)
     }
 
     private func comparisonTone(_ amount: Int) -> ReportValueTone {
