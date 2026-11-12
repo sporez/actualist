@@ -61,8 +61,8 @@ struct BudgetMoneyInputFormat: ParseableFormatStyle, ParseStrategy {
         )
     }
 
-    /// The text for a stored amount in an editable field: every minor unit, no thousands
-    /// separators, and the budget's decimal separator, which `minorUnits` reads back.
+    /// The text for a stored amount in an editable field, as Actual's `forEdit` writes it: every
+    /// minor unit, the budget's thousands and decimal separators. `minorUnits` reads it back.
     static func editText(minorUnits: Int, currency: BudgetCurrency) -> String {
         decimalText(magnitudeDigits: String(minorUnits.magnitude), negative: minorUnits < 0, currency: currency)
     }
@@ -72,9 +72,25 @@ struct BudgetMoneyInputFormat: ParseableFormatStyle, ParseStrategy {
         let trimmed = magnitudeDigits.drop { $0 == "0" }
         let padded = String(repeating: "0", count: max(0, places + 1 - trimmed.count)) + trimmed
         let sign = negative ? "-" : ""
-        guard places > 0 else { return sign + padded }
+        let format = currency.numberFormat
+        guard places > 0 else { return sign + grouped(padded, format) }
         let split = padded.index(padded.endIndex, offsetBy: -places)
-        return sign + padded[..<split] + String(currency.numberFormat.decimalSeparator) + padded[split...]
+        return sign + grouped(String(padded[..<split]), format) + String(format.decimalSeparator) + padded[split...]
+    }
+
+    /// Thousands separators as Actual's `Intl.NumberFormat` places them: groups of three,
+    /// or a first group of three then pairs for `comma-dot-in`.
+    private static func grouped(_ integerDigits: String, _ format: ActualNumberFormat) -> String {
+        var groups: [Substring] = []
+        var rest = Substring(integerDigits)
+        var size = 3
+        while rest.count > size {
+            groups.insert(rest.suffix(size), at: 0)
+            rest = rest.dropLast(size)
+            if format == .commaDotIn { size = 2 }
+        }
+        groups.insert(rest, at: 0)
+        return groups.joined(separator: String(format.thousandsSeparator))
     }
 
     // A stable, unpadded style avoids inserting cents during typing or replacing

@@ -185,7 +185,7 @@ struct ScheduleEditorDraftTests {
             detail: detail(payeeID: "coffee"),
             currency: .jpy
         )
-        #expect(wholeCurrency.amountText == "12345")
+        #expect(wholeCurrency.amountText == "12,345")
         #expect(wholeCurrency.amountDraft(currency: .jpy) == .exact(12_345))
     }
 

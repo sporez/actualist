@@ -143,7 +143,7 @@ struct BudgetTemplateEditorRegressionTests {
         #expect(BudgetTemplateAmountInput.parseAmount("1,234", currency: .usd) == 1234)
         #expect(BudgetTemplateAmountInput.parseAmount("1.2.3", currency: .usd) == 12.3)
         #expect(BudgetTemplateAmountInput.parseAmount("1.005", currency: .usd) == 1)
-        #expect(BudgetTemplateAmountInput.formatAmount(123.45, currency: .catalog(code: "USD", hideFraction: true)) == "123.45")
+        #expect(BudgetTemplateAmountInput.formatAmount(1234.5, currency: .catalog(code: "USD", hideFraction: true)) == "1,234.50")
     }
 
     private func loaded(_ drafts: [BudgetTemplateDraft], currency: BudgetCurrency = .usd) async -> (BudgetTemplateEditorViewModel, EditorTemplateRepository) {

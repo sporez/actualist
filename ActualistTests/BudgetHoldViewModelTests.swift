@@ -41,7 +41,7 @@ struct BudgetHoldViewModelTests {
         let model = makeModel()
         await model.load(repository: repository)
         model.setAmountText("500000")
-        #expect(model.amountText == "5000.00")
+        #expect(model.amountText == "5,000.00")
         #expect(model.isLimitedToAvailable)
         #expect(model.amount == 10_000)
         #expect(model.canHold)

@@ -42,7 +42,7 @@ struct BudgetHoldAmountInputTests {
         #expect(BudgetHoldAmountInput.fieldText(typed: "0.015", currency: .usd) == "0.15")
         #expect(BudgetHoldAmountInput.fieldText(typed: "1005", currency: .usd) == "10.05")
         #expect(BudgetHoldAmountInput.fieldText(typed: "", currency: .usd) == "")
-        #expect(BudgetHoldAmountInput.fieldText(typed: "1005", currency: .jpy) == "1005")
+        #expect(BudgetHoldAmountInput.fieldText(typed: "1005", currency: .jpy) == "1,005")
         #expect(BudgetHoldAmountInput.fieldText(typed: "10.5", currency: .catalog(code: "USD", hideFraction: true)) == "10.5")
         let german = BudgetCurrency.catalog(code: "EUR", numberFormat: .dotComma)
         #expect(BudgetHoldAmountInput.fieldText(typed: "1005", currency: german) == "10,05")

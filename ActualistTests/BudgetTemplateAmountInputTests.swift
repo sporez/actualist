@@ -12,7 +12,7 @@ struct BudgetTemplateAmountInputTests {
         let formatted = amount.formatted(BudgetMoneyInputFormat(currency: currency, locale: .current))
         #expect(formatted == fullPrecision.formatted(minor))
         #expect(BudgetTemplateAmountInput.formatAmount(-1400.25, currency: currency)
-            == (currency.decimalPlaces == 0 ? "-1400" : "-1400.25"))
+            == (currency.decimalPlaces == 0 ? "-1,400" : "-1,400.25"))
         #expect(BudgetTemplateAmountInput.parseAmount("NaN", currency: currency) == nil)
     }
 
