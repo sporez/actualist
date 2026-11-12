@@ -165,7 +165,7 @@ final class ReportsViewModel {
 
     var weekdaySymbols: [String] {
         var calendar = Calendar.current
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        calendar.timeZone = ActualDateOnly.utc
         let symbols = calendar.veryShortStandaloneWeekdaySymbols
         guard !symbols.isEmpty else { return ["S", "M", "T", "W", "T", "F", "S"] }
         let offset = max(calendar.firstWeekday - 1, 0)

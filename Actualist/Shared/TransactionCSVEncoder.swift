@@ -12,7 +12,7 @@ struct TransactionCSVEncoder {
     func encode(
         _ rows: [TransactionCSVExportRow],
         generatedAt: Date = Date(),
-        calendar: Calendar = Self.utcCalendar
+        calendar: Calendar = .actualScheduleGregorian
     ) async -> TransactionCSVExport {
         #if DEBUG
         MainThreadCallLog.record("csvEncode", key: rows.map(\.id).joined(separator: ","))
@@ -77,12 +77,6 @@ struct TransactionCSVEncoder {
     /// zero-decimal budget's file still round-trips with Actual and with our importer.
     private static func actualAmount(_ minorUnits: Int) -> String {
         NSDecimalNumber(decimal: Decimal(minorUnits) / Decimal(100)).stringValue
-    }
-
-    private static var utcCalendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        return calendar
     }
 }
 

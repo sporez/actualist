@@ -382,22 +382,12 @@ extension RuleCondition {
         }
         if components.count == 3 {
             guard components[2].count == 2,
-                  let date = ruleDateFormatter.date(from: value),
-                  ruleDateFormatter.string(from: date) == value else { return false }
+                  let date = ActualDateOnly.date(from: value, timeZone: ActualDateOnly.utc),
+                  ActualDateOnly.dayID(from: date, timeZone: ActualDateOnly.utc) == value else { return false }
         }
         if operation != "is" { return components.count == 3 }
         return value.count == 4 || value.count == 7 || value.count == 10
     }
-
-    private static let ruleDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.isLenient = false
-        return formatter
-    }()
 }
 
 extension RuleAction {

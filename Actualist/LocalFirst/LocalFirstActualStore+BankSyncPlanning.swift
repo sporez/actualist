@@ -476,8 +476,7 @@ extension LocalFirstActualStore {
               let last = BankSyncAmounts.date(fromDayID: lastID, timeZone: ActualDateOnly.utc) else {
             return 0...99_999_999
         }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
+        let calendar = Calendar.actualScheduleGregorian
         guard let lowerDate = calendar.date(byAdding: .day, value: -7, to: first),
               let upperDate = calendar.date(byAdding: .day, value: 7, to: last),
               let lower = Int(BankSyncAmounts.dayID(fromUnixSeconds: Int64(lowerDate.timeIntervalSince1970))),

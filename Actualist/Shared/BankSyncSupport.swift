@@ -114,12 +114,8 @@ enum BankSyncAmounts {
     /// UTC calendar day (`YYYYMMDD`) from UNIX seconds, matching the server's
     /// `toISOString().split('T')[0]` interpretation of bridge timestamps.
     static func dayID(fromUnixSeconds seconds: Int64) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.dateFormat = "yyyyMMdd"
-        return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(seconds)))
+        ActualDateOnly.dayID(from: Date(timeIntervalSince1970: TimeInterval(seconds)), timeZone: ActualDateOnly.utc)
+            .replacing("-", with: "")
     }
 
     /// Inverse of the draft date convention: local noon on the given calendar
@@ -140,21 +136,14 @@ enum BankSyncAmounts {
     /// transaction date)` — the full 90-day window for an empty account
     /// (loot-core `getAccountSyncStartDate`).
     static func lookbackStartDate(oldestLiveTransactionDayID: String?, now: Date = Date()) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
-        let earliestAllowed = calendar.date(byAdding: .day, value: -89, to: now) ?? now
+        let earliestAllowed = Calendar.actualScheduleGregorian.date(byAdding: .day, value: -89, to: now) ?? now
         var earliest = earliestAllowed
         if let oldestLiveTransactionDayID,
            let oldest = date(fromDayID: oldestLiveTransactionDayID, timeZone: ActualDateOnly.utc),
            oldest > earliestAllowed {
             earliest = oldest
         }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = TimeZone(identifier: "UTC")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: earliest)
+        return ActualDateOnly.dayID(from: earliest, timeZone: ActualDateOnly.utc)
     }
 }
 
