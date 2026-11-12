@@ -294,6 +294,20 @@ Remove one layer of glass before handing off.
 
 ## Commit And TestFlight Notes
 
+Commit messages read like a developer wrote them. State what changed and why,
+as facts about the code and the product.
+
+- Never narrate the conversation or who decided. No "the user chose", "the user
+  asked", "per the user", "User decision <date>", "as requested", "we agreed",
+  "I", or "the agent".
+- A kept difference or deliberate trade-off states the reason itself.
+  Wrong: `Actual imports 1.00 there and Actualist 0.00; the user chose to keep
+  Actualist's behavior (2026-11-10).`
+  Right: `Actual imports 1.00 there and Actualist 0.00. Keep 0.00: only a
+  hand-edited mapping can reach this field.`
+- No session dates, plan or tracker names, private references, or verification
+  diaries ("ran the suite twice, 18 passed") in the message.
+
 Trailers are the What to Test changelog. They are not QA scripts. Only the
 newest note per `[topic]` reaches a release; earlier ones are dropped.
 
@@ -947,7 +961,9 @@ tree or range touches.
   `config/parity/known-divergences.json`. Never use `isIntermittent`. The fix
   removes the marker and the entry in the same commit. A difference the user
   decides to keep stays marked, with `"status": "intended"`, a decided date and
-  the reason. Intended entries never block a release or merge.
+  the reason. The registry's `User decision <date>:` wording stays in the
+  registry; the commit that marks it states the reason in developer voice.
+  Intended entries never block a release or merge.
 - `scripts/parity.sh` takes `ACTUALIST_PARITY_ORACLE_ROOT` from the
   environment or, when unset, from the gitignored `scripts/lib/lab.env`.
   Without either, `verify` skips the regenerate-and-diff step. Report that
