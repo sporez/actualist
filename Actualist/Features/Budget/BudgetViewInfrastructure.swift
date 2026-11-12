@@ -80,10 +80,7 @@ struct BudgetTemplateConfirmationModifier: ViewModifier {
                     apply(selectedConfirmation, reviewRevision, excluded)
                 }
             )
-            .presentationDetents([.large])
-            .appSwitcherPrivacyAwareDragIndicator()
-            .presentationBackground(ActualistTheme.background)
-            .appSwitcherPrivacyProtected(using: appState)
+            .reviewSheetPresentation(appState: appState)
         }
     }
 }

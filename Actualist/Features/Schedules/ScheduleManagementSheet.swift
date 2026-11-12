@@ -32,7 +32,7 @@ struct ScheduleManagementSheet: View {
         }
         .background(ActualistTheme.background)
         .frame(idealWidth: 580)
-        .presentationDetents([.large])
+        .reviewSheetDetents([.large])
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .presentationBackground(ActualistTheme.background)
         .interactiveDismissDisabled(coordinator.isSubmitting)

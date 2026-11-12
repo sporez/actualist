@@ -127,7 +127,7 @@ struct TransactionMergeReviewSheet: View {
         }
         .background(ActualistTheme.background)
         // Opens fully expanded so both inputs and the reason are visible without a swipe.
-        .presentationDetents([.large])
+        .reviewSheetDetents([.large])
         .presentationDragIndicator(.visible)
     }
 

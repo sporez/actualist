@@ -7,7 +7,7 @@ struct CategoryMonthDetailsView: View {
         NavigationStack {
             CategoryMonthDetailsContent(details: details)
         }
-        .presentationDetents([.large])
+        .reviewSheetDetents([.large])
         .appSwitcherPrivacyAwareDragIndicator()
     }
 }

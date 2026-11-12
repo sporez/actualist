@@ -67,6 +67,7 @@ scripts/*
 !scripts/lint-private-patterns.sh
 !scripts/lint-reference-links.sh
 !scripts/lint-server-token-header.sh
+!scripts/lint-sheet-detents.sh
 !scripts/lint-testflight-notes.sh
 !scripts/lint-tombstone-messages.sh
 !scripts/lint-uikit-views.sh

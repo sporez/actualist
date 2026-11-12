@@ -110,7 +110,7 @@ struct TransactionEditorView: View {
         }
         .frame(idealWidth: 620)
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
-        .presentationDetents([.large])
+        .reviewSheetDetents([.large])
         .presentationDragIndicator(.hidden)
         .task {
             guard !Task.isCancelled,

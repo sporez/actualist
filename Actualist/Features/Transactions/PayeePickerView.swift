@@ -133,7 +133,7 @@ struct PayeePickerView: View {
                 }
             }
         }
-        .presentationDetents([.large])
+        .reviewSheetDetents([.large])
         .task { isSearchFocused = true }
     }
 

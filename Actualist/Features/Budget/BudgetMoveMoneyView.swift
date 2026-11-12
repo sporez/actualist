@@ -77,7 +77,7 @@ struct BudgetMoveMoneyView: View {
                 .animation(.snappy(duration: 0.24), value: fit)
             }
         }
-        .presentationDetents([.large])
+        .reviewSheetDetents([.large])
         .presentationDragIndicator(.hidden)
         .sheet(isPresented: $isDestinationPickerPresented) {
             BudgetMoveMoneyDestinationPicker(viewModel: viewModel)

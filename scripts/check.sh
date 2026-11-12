@@ -37,6 +37,9 @@ section "Liquid Glass"
 section "UIKit views"
 "$ROOT/scripts/lint-uikit-views.sh" || status=1
 
+section "Sheet detents"
+"$ROOT/scripts/lint-sheet-detents.sh" || status=1
+
 section "Server token header"
 "$ROOT/scripts/lint-server-token-header.sh" || status=1
 

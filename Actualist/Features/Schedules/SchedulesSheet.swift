@@ -35,7 +35,7 @@ struct SchedulesSheet: View {
         }
         .id(appState.localFirstStore.budgetSessionGeneration)
         .frame(idealWidth: 580)
-        .presentationDetents([.large])
+        .reviewSheetDetents([.large])
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .presentationBackground(ActualistTheme.background)
         .accessibilityIdentifier("schedules-sheet")

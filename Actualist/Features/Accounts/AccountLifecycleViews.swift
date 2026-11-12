@@ -317,7 +317,7 @@ struct AccountLifecycleReviewSheet: View {
             .background(ActualistTheme.background)
             .toolbar(.hidden, for: .navigationBar)
         }
-        .presentationDetents([.large])
+        .reviewSheetDetents([.large])
     }
 
     private func lifecyclePicker(

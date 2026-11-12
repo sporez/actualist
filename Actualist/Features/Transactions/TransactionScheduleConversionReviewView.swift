@@ -22,7 +22,7 @@ struct TransactionScheduleConversionReviewView: View {
         }
         .background(ActualistTheme.background)
         .frame(idealWidth: 540)
-        .presentationDetents([.large])
+        .reviewSheetDetents([.large])
         .presentationSizing(.page.fitted(horizontal: true, vertical: false))
         .presentationBackground(ActualistTheme.background)
         .interactiveDismissDisabled(coordinator.state.isSubmitting)
