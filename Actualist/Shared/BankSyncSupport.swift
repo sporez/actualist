@@ -114,8 +114,7 @@ enum BankSyncAmounts {
     /// UTC calendar day (`YYYYMMDD`) from UNIX seconds, matching the server's
     /// `toISOString().split('T')[0]` interpretation of bridge timestamps.
     static func dayID(fromUnixSeconds seconds: Int64) -> String {
-        ActualDateOnly.dayID(from: Date(timeIntervalSince1970: TimeInterval(seconds)), timeZone: ActualDateOnly.utc)
-            .replacing("-", with: "")
+        PackedDate.compact(ActualDateOnly.dayID(from: Date(timeIntervalSince1970: TimeInterval(seconds)), timeZone: ActualDateOnly.utc))
     }
 
     /// Inverse of the draft date convention: local noon on the given calendar

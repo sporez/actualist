@@ -279,7 +279,7 @@ extension BudgetDatabase {
             id: id,
             amount: draft.amountMinorUnits,
             account: draft.accountID,
-            date: Self.isoDateString(fromPacked: dateValue),
+            date: PackedDate.iso(dateValue),
             category: draft.categoryID,
             payee: payeeID,
             notes: draft.notes,
@@ -395,7 +395,7 @@ extension BudgetDatabase {
         try transactionRowMessages(
             rowID: row.id,
             accountID: row.account ?? "",
-            dateValue: Self.packedDate(fromISO: row.date),
+            dateValue: PackedDate.packed(fromISO: row.date),
             amountMinorUnits: row.amount,
             payeeID: row.payee,
             categoryID: row.isParent ? nil : row.category,
@@ -426,7 +426,7 @@ extension BudgetDatabase {
             fields.append((columns.account, new.account.map(LocalFirstSyncValue.string) ?? .null))
         }
         if old.date != new.date {
-            fields.append(("date", .int(Int64(Self.packedDate(fromISO: new.date)))))
+            fields.append(("date", .int(Int64(PackedDate.packed(fromISO: new.date)))))
         }
         if old.amount != new.amount {
             fields.append(("amount", .int(Int64(new.amount))))
@@ -505,7 +505,7 @@ extension BudgetDatabase {
         let paired = try transactionRowMessages(
             rowID: pairedID,
             accountID: destination,
-            dateValue: Self.packedDate(fromISO: row.date),
+            dateValue: PackedDate.packed(fromISO: row.date),
             amountMinorUnits: -row.amount,
             payeeID: fromPayeeID,
             categoryID: nil,
@@ -730,7 +730,7 @@ extension BudgetDatabase {
             id: id,
             amount: row["amount"] ?? 0,
             account: (row[columns.account] as String?).flatMap { $0.isEmpty ? nil : $0 },
-            date: Self.isoDateString(fromPacked: dateValue),
+            date: PackedDate.iso(dateValue),
             category: (row["category"] as String?).flatMap { $0.isEmpty ? nil : $0 },
             payee: (row[columns.payee] as String?).flatMap { $0.isEmpty ? nil : $0 },
             notes: columns.hasNotes ? (row["notes"] as String?).flatMap { $0.isEmpty ? nil : $0 } : nil,
@@ -762,13 +762,5 @@ extension BudgetDatabase {
             return parentID != nil
         }
         return value != 0
-    }
-
-    static func isoDateString(fromPacked packed: Int) -> String {
-        String(format: "%04d-%02d-%02d", packed / 10_000, (packed / 100) % 100, packed % 100)
-    }
-
-    static func packedDate(fromISO date: String?) -> Int {
-        Int((date ?? "").replacingOccurrences(of: "-", with: "")) ?? 0
     }
 }

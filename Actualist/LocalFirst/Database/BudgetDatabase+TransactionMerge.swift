@@ -413,7 +413,7 @@ extension BudgetDatabase {
         return TransactionMergeReviewRow(
             transactionID: snapshot.id,
             accountID: accountID,
-            date: String(format: "%04d-%02d-%02d", dateValue / 10_000, (dateValue / 100) % 100, dateValue % 100),
+            date: PackedDate.iso(dateValue),
             amountMinorUnits: amount,
             payeeID: snapshot.payeeID,
             categoryID: snapshot.categoryID,
@@ -430,12 +430,7 @@ extension BudgetDatabase {
     private func transactionMergeAffectedResources(
         _ snapshots: [TransactionBatchTransactionSnapshot]
     ) -> TransactionMergeAffectedResources {
-        let months = Set(snapshots.compactMap { snapshot -> String? in
-            guard let value = snapshot.dateValue, value > 0 else { return nil }
-            let digits = String(format: "%08d", value)
-            guard digits.count == 8 else { return nil }
-            return "\(digits.prefix(4))-\(digits.dropFirst(4).prefix(2))"
-        })
+        let months = Set(snapshots.compactMap { PackedDate.monthID(ofDate: $0.dateValue) })
         return TransactionMergeAffectedResources(
             changed: ChangedResources(
                 accounts: Array(Set(snapshots.compactMap(\.accountID))).sorted(),

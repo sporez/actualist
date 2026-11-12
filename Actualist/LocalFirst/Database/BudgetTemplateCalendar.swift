@@ -21,7 +21,7 @@ enum BudgetTemplateCalendar {
 
     static func parseMonth(_ month: String) throws -> Int {
         let normalized = month.trimmingCharacters(in: .whitespacesAndNewlines)
-        let compact = normalized.replacingOccurrences(of: "-", with: "")
+        let compact = PackedDate.compact(normalized)
         guard compact.count == 6,
               let value = Int(compact) else {
             throw LocalFirstError.unsupportedTemplate("invalid by template")
@@ -260,12 +260,7 @@ enum BudgetTemplateCalendar {
             [.year, .month, .day],
             from: date
         )
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0
-        )
+        return PackedDate.iso(year: components.year ?? 0, month: components.month ?? 0, day: components.day ?? 0)
     }
 
     static func monthStartDate(_ monthValue: Int) throws -> Date {

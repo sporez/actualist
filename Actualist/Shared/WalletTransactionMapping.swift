@@ -127,8 +127,7 @@ enum WalletTransactionMapper {
     ) -> BankSyncReconciliation.Candidate {
         BankSyncReconciliation.Candidate(
             financialID: candidate.financialID,
-            dayID: ActualDateOnly.dayID(from: candidate.date, timeZone: timeZone)
-                .replacingOccurrences(of: "-", with: ""),
+            dayID: PackedDate.compact(ActualDateOnly.dayID(from: candidate.date, timeZone: timeZone)),
             amountMinorUnits: candidate.amountMinorUnits,
             payeeID: payeeID,
             payeeName: candidate.payeeName,

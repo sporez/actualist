@@ -18,7 +18,7 @@ struct SimpleRowChange {
     var categoryChanged: Bool { category != baseline.category }
 
     /// Dates compare as digits (baseline `2026-03-05` against `20260305`).
-    var dateChanged: Bool { BudgetDatabase.packedDate(fromISO: baseline.date) != dateValue }
+    var dateChanged: Bool { PackedDate.packed(fromISO: baseline.date) != dateValue }
 }
 
 extension BudgetDatabase {
@@ -52,7 +52,7 @@ extension BudgetDatabase {
         new.cleared = change.draft.cleared
         new.reconciled = change.draft.reconciled
         if change.dateChanged {
-            new.date = Self.isoDateString(fromPacked: change.dateValue)
+            new.date = PackedDate.iso(change.dateValue)
         }
         var messages = try messagesForChangedFields(from: old, to: new, columns: columns, builder: &builder)
         if let scheduleID = change.draft.scheduleID, columns.hasSchedule, scheduleID != baseline.schedule {

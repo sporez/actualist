@@ -214,7 +214,7 @@ extension BudgetDatabase {
                     affectedIDs.insert(selection.transactionID)
                 }
                 accountIDs.insert(row.accountID ?? "")
-                if let month = Self.monthID(row.dateValue) { monthIDs.insert(month) }
+                if let month = PackedDate.monthID(ofDate: row.dateValue) { monthIDs.insert(month) }
             } else {
                 let reconciled = try aggregateBatchReconciledRows(
                     transactionID: selection.transactionID,
@@ -262,7 +262,7 @@ extension BudgetDatabase {
                         learningIDs.insert(selection.transactionID)
                     }
                     if let account = row.accountID { accountIDs.insert(account) }
-                    if let month = Self.monthID(row.dateValue) { monthIDs.insert(month) }
+                    if let month = PackedDate.monthID(ofDate: row.dateValue) { monthIDs.insert(month) }
                 case .delete:
                     let write = try batchDeleteWrite(
                         transactionID: selection.transactionID,
@@ -276,7 +276,7 @@ extension BudgetDatabase {
                     affectedIDs.formUnion(write.affectedTransactionIDs)
                     accountIDs.formUnion(write.affectedAccountIDs)
                     if let account = row.accountID { accountIDs.insert(account) }
-                    if let month = Self.monthID(row.dateValue) { monthIDs.insert(month) }
+                    if let month = PackedDate.monthID(ofDate: row.dateValue) { monthIDs.insert(month) }
                 }
             }
 
@@ -619,13 +619,6 @@ extension BudgetDatabase {
     private func nonemptyBatchName(_ value: String?) -> String? {
         guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return value
-    }
-
-    private static func monthID(_ dateValue: Int?) -> String? {
-        guard let dateValue, dateValue > 0 else { return nil }
-        let date = String(format: "%08d", dateValue)
-        guard date.count == 8 else { return nil }
-        return String(date.prefix(4)) + "-" + String(date.dropFirst(4).prefix(2))
     }
 
     private static func effectDescription(_ intent: TransactionBatchIntent, categoryID: String?) -> String {

@@ -411,7 +411,7 @@ extension BudgetDatabase {
     }
 
     func scheduleDateValue(_ dayID: String) throws -> LocalFirstSyncValue {
-        guard let value = Int64(dayID.replacingOccurrences(of: "-", with: "")),
+        guard let value = Int64(PackedDate.compact(dayID)),
               ActualScheduleRecurrence.date(from: dayID) != nil else {
             throw ScheduleMutationCommandError.invalidCommand("The schedule date is invalid.")
         }

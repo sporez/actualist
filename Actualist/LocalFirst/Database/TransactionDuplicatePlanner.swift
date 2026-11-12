@@ -337,7 +337,7 @@ enum TransactionDuplicatePlanner {
 
     private static func splitRecord(from snapshot: TransactionBatchTransactionSnapshot) throws -> SplitTransactionRecord {
         guard let dateValue = snapshot.dateValue,
-              let dateID = actualDateID(for: dateValue),
+              let dateID = PackedDate.validatedISO(dateValue),
               let amount = snapshot.amount else {
             throw TransactionDuplicatePlannerError.missingRequiredField(snapshot.id)
         }
@@ -571,17 +571,6 @@ enum TransactionDuplicatePlanner {
             months: months.sorted(),
             transactions: Set(allSnapshots.map(\.id)).sorted()
         )
-    }
-
-    private static func actualDateID(for packedDate: Int) -> String? {
-        guard packedDate > 0 else { return nil }
-        let year = packedDate / 10_000
-        let month = (packedDate / 100) % 100
-        let day = packedDate % 100
-        guard (1...9_999).contains(year) else { return nil }
-        let dateID = String(format: "%04d-%02d-%02d", year, month, day)
-        guard ActualDateOnly.date(from: dateID, timeZone: .gmt) != nil else { return nil }
-        return dateID
     }
 
     private static func hasSplitError(_ error: String) -> Bool {

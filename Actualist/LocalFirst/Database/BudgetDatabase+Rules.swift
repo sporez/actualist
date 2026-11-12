@@ -694,10 +694,7 @@ extension BudgetDatabase {
 
     private func normalizedDateString(_ value: DatabaseValueConvertible?) -> String? {
         if let string = value as? String { return String(string.prefix(10)) }
-        if let int = value as? Int {
-            let text = String(format: "%08d", int)
-            return "\(text.prefix(4))-\(text.dropFirst(4).prefix(2))-\(text.suffix(2))"
-        }
+        if let int = value as? Int { return PackedDate.paddedISO(int) }
         if let int = value as? Int64 {
             return normalizedDateString(Int(int))
         }

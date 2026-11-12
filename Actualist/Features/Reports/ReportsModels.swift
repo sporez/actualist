@@ -191,12 +191,7 @@ enum ReportCalendar {
 
     static func dayID(for date: Date, calendar: Calendar = gregorianUTC) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0
-        )
+        return PackedDate.iso(year: components.year ?? 0, month: components.month ?? 0, day: components.day ?? 0)
     }
 
     static func monthID(for date: Date, calendar: Calendar = gregorianUTC) -> String {

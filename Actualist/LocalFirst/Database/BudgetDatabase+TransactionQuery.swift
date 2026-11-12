@@ -652,7 +652,7 @@ private extension BudgetDatabase {
         guard let year = components.year, let month = components.month, let day = components.day else {
             return nil
         }
-        return String(format: "%04d-%02d-%02d", year, month, day)
+        return PackedDate.iso(year: year, month: month, day: day)
     }
 
     func idPredicate(

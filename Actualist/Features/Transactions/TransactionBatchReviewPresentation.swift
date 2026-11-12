@@ -247,9 +247,7 @@ private struct MemberFactory {
 
     private func dateText(_ packed: Int?) -> String {
         guard let packed else { return "Date unavailable" }
-        let compact = String(format: "%08d", packed)
-        guard compact.count == 8 else { return compact }
-        let dayID = "\(compact.prefix(4))-\(compact.dropFirst(4).prefix(2))-\(compact.suffix(2))"
+        guard let dayID = PackedDate.paddedISOIfEightCharacters(packed) else { return PackedDate.paddedText(packed) }
         return ActualDateDisplay.mediumDay(dayID, locale: locale) ?? dayID
     }
 

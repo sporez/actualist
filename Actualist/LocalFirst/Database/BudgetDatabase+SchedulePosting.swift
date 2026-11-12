@@ -113,7 +113,7 @@ extension BudgetDatabase {
         guard ActualScheduleRecurrence.date(from: expectedDay) != nil else {
             throw SchedulePostingRefusal.occurrenceUnavailable
         }
-        guard try Self.actualDateValue(draft.date) == Int(expectedDay.replacingOccurrences(of: "-", with: "")),
+        guard try Self.actualDateValue(draft.date) == Int(PackedDate.compact(expectedDay)),
               draft.scheduleID == review.scheduleID else {
             throw SchedulePostingRefusal.draftMismatch
         }

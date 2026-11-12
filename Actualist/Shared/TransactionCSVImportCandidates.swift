@@ -38,7 +38,7 @@ enum TransactionCSVImportCandidates {
         return BankSyncReconciliation.Candidate(
             financialID: row.importedID.flatMap { $0.isEmpty ? nil : $0 },
             // ISO calendar day to YYYYMMDD: no instant, no time zone.
-            dayID: row.dateText.replacingOccurrences(of: "-", with: ""),
+            dayID: PackedDate.compact(row.dateText),
             amountMinorUnits: row.amountMinorUnits,
             payeeID: payeeName.flatMap { lookup.payeeIDByName[$0.lowercased()] },
             payeeName: payeeName,

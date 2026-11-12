@@ -138,8 +138,7 @@ extension BudgetDatabase {
         func packedDate(_ name: String) -> Int? {
             if let value = integer(name) { return value }
             guard available.contains(name), let raw = row[name] as String? else { return nil }
-            let digits = raw.filter(\.isNumber)
-            return digits.count == 8 ? Int(digits) : nil
+            return PackedDate.packed(fromEightDigitText: raw)
         }
         func flag(_ name: String) -> Bool? {
             guard available.contains(name) else { return nil }

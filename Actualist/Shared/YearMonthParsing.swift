@@ -103,13 +103,7 @@ extension YearMonth {
     /// (year 1...9999, Gregorian, GMT); nil for anything else, including a
     /// month or day outside its range.
     init?(validatingPackedDate packed: Int) {
-        guard packed > 0 else { return nil }
-        let year = packed / 10_000
-        let month = (packed / 100) % 100
-        let day = packed % 100
-        guard (1...9_999).contains(year) else { return nil }
-        let dateID = String(format: "%04d-%02d-%02d", year, month, day)
-        guard ActualDateOnly.date(from: dateID, timeZone: .gmt) != nil else { return nil }
+        guard let dateID = PackedDate.validatedISO(packed) else { return nil }
         self.init(rawValue: String(dateID.prefix(7)))
     }
 }

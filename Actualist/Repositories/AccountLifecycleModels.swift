@@ -75,7 +75,7 @@ struct AccountLifecycleDay: Hashable, Sendable {
         let month = components.month ?? 1
         let day = components.day ?? 1
         return Self(
-            isoDate: String(format: "%04d-%02d-%02d", year, month, day),
+            isoDate: PackedDate.iso(year: year, month: month, day: day),
             transactionDate: year * 10_000 + month * 100 + day
         )
     }

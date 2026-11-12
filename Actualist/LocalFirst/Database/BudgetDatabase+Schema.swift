@@ -4,7 +4,7 @@ import GRDB
 extension BudgetDatabase {
 
     func monthInt(_ month: String) -> Int {
-        Int(month.replacingOccurrences(of: "-", with: "")) ?? 0
+        Int(PackedDate.compact(month)) ?? 0
     }
 
     func monthID(_ month: Int) -> String {
@@ -257,7 +257,7 @@ extension BudgetDatabase {
 
     static func actualMonthValue(_ month: String) throws -> Int {
         let normalized = month.trimmingCharacters(in: .whitespacesAndNewlines)
-        let compact = normalized.replacingOccurrences(of: "-", with: "")
+        let compact = PackedDate.compact(normalized)
         guard compact.count == 6,
               let value = Int(compact),
               YearMonth(year: value / 100, month: value % 100) != nil else {

@@ -20,7 +20,7 @@ struct PackedDateMonthCharacterizationTests {
             ("abc", 0), (" 2026-12-31", 0), ("2026-12-31T00:00", 0), ("--2026", 2026),
         ]
         for (text, expected) in rows {
-            #expect(BudgetDatabase.packedDate(fromISO: text) == expected, "\(text ?? "nil")")
+            #expect(PackedDate.packed(fromISO: text) == expected, "\(text ?? "nil")")
         }
     }
 
@@ -31,7 +31,7 @@ struct PackedDateMonthCharacterizationTests {
             (20260231, "2026-02-31"),
         ]
         for (packed, expected) in rows {
-            #expect(BudgetDatabase.isoDateString(fromPacked: packed) == expected, "\(packed)")
+            #expect(PackedDate.iso(packed) == expected, "\(packed)")
         }
     }
 

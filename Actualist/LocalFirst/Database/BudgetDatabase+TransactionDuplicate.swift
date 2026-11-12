@@ -287,7 +287,7 @@ extension BudgetDatabase {
                     sourceTransactionID: sourceID,
                     duplicateTransactionID: allocation.duplicateTransactionID,
                     accountID: accountID,
-                    date: Self.isoDateString(fromPacked: dateValue),
+                    date: PackedDate.iso(dateValue),
                     amountMinorUnits: amount,
                     payeeID: change.duplicate.payeeID,
                     categoryID: change.duplicate.categoryID,

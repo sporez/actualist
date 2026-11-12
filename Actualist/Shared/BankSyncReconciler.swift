@@ -452,8 +452,7 @@ enum BankSyncReconciliation {
         projected.payeeID = preview.clearsPayee ? nil : preview.payeeID ?? projected.payeeID
         projected.amountMinorUnits = preview.amountMinorUnits ?? projected.amountMinorUnits
         if let date = preview.date {
-            projected.dayID = ActualDateOnly.dayID(from: date, timeZone: .autoupdatingCurrent)
-                .replacingOccurrences(of: "-", with: "")
+            projected.dayID = PackedDate.compact(ActualDateOnly.dayID(from: date, timeZone: .autoupdatingCurrent))
         }
         // Rule preview carries the final notes value, including `nil` when a
         // matching rule removes downloaded notes. Nil is not "no change".
@@ -499,7 +498,7 @@ enum BankSyncReconciliation {
     /// Today as a UTC `YYYYMMDD` string — the fallback day for an opening
     /// balance when the download had no dated candidates.
     static func todayUTCDayID(now: Date = Date()) -> String {
-        ActualDateOnly.dayID(from: now, timeZone: ActualDateOnly.utc).replacing("-", with: "")
+        PackedDate.compact(ActualDateOnly.dayID(from: now, timeZone: ActualDateOnly.utc))
     }
 
     // MARK: - Opening balance
