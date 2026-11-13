@@ -1,0 +1,324 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/payee-parity/generate.mjs and
+// removed after the run. Seeds the synthetic payee world through upstream's own db
+// functions, then for each case sends what Actual's UI sends to the real loot-core
+// handlers and records the CRDT messages, the resulting rows and one real undo.
+// Nothing here decides an expected outcome: refusals are recorded as observations.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test } from 'vitest';
+
+import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
+import { handlers } from '#server/main';
+import { payeeModel } from '#server/models';
+import { runHandler } from '#server/mutators';
+import { createSchedule } from '#server/schedules/app';
+import { setSyncingMode } from '#server/sync';
+import { deserializeValue } from '#server/sync/serialization';
+import {
+  insertRule,
+  loadRules,
+  resetState,
+} from '#server/transactions/transaction-rules';
+import { clearUndo, undo } from '#server/undo';
+import { getNormalisedString } from '#shared/normalisation';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const outputPath = __OUTPUT_PATH__;
+const WORLD = plan.world;
+const CASES = plan.cases;
+
+const DUMP_TABLES = [
+  'accounts',
+  'category_groups',
+  'categories',
+  'category_mapping',
+  'payees',
+  'payee_mapping',
+  'transactions',
+  'rules',
+  'schedules',
+];
+const DUMP_EXCLUDED_COLUMNS = /_ts$/;
+
+const scalar = value =>
+  value === null ||
+  typeof value === 'boolean' ||
+  typeof value === 'number' ||
+  typeof value === 'string'
+    ? value
+    : String(value);
+const normalizeRows = rows =>
+  rows.map(row =>
+    Object.fromEntries(Object.entries(row).map(([key, value]) => [key, scalar(value)])),
+  );
+const toJSON = value => (value === undefined ? null : JSON.parse(JSON.stringify(value)));
+const normalizeError = error =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+async function dumpWorld() {
+  const tables = {};
+  for (const table of DUMP_TABLES) {
+    const info = await db.all(`PRAGMA table_info(${table})`);
+    if (info.length === 0) throw new Error(`Missing table ${table}`);
+    const columns = info.map(column => column.name).filter(name => !DUMP_EXCLUDED_COLUMNS.test(name));
+    const keys = info
+      .filter(column => column.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map(column => column.name);
+    const rows = await db.all(`SELECT ${columns.join(', ')} FROM ${table}`);
+    const sortValue = row => keys.map(key => String(row[key] ?? '')).join('\u0000');
+    rows.sort((a, b) => (sortValue(a) < sortValue(b) ? -1 : sortValue(a) > sortValue(b) ? 1 : 0));
+    tables[table] = rows.map(row => Object.fromEntries(columns.map(column => [column, row[column] ?? null])));
+  }
+  return tables;
+}
+
+async function crdtMarker() {
+  const row = await db.first('SELECT MAX(id) AS maximum FROM messages_crdt');
+  return row?.maximum ?? 0;
+}
+
+async function crdtMessagesSince(marker) {
+  const rows = await db.all(
+    `SELECT id, dataset, row, column, CAST(value AS TEXT) AS serialized_value
+       FROM messages_crdt WHERE id > ? ORDER BY id`,
+    [marker],
+  );
+  return rows.map(row => ({
+    dataset: row.dataset,
+    row: row.row,
+    column: row.column,
+    value: deserializeValue(row.serialized_value),
+  }));
+}
+
+async function rowsOf(item) {
+  const all = sql => db.all(sql).then(normalizeRows);
+  const rows = {
+    payees: await all(
+      'SELECT id, name, transfer_acct, favorite, learn_categories, tombstone FROM payees ORDER BY id',
+    ),
+    payee_mapping: await all('SELECT id, targetId FROM payee_mapping ORDER BY id'),
+  };
+  if (item.kind === 'global-learning') {
+    rows.preferences = await all('SELECT id, value FROM preferences ORDER BY id');
+  }
+  return rows;
+}
+
+async function seedWorld(item) {
+  setSyncingMode('offline');
+  await global.emptyDatabase()();
+  clearUndo();
+  resetState();
+  await loadMappings();
+  for (const account of WORLD.accounts) {
+    await db.insertAccount({
+      id: account.id,
+      name: account.name,
+      offbudget: account.offbudget ? 1 : 0,
+      closed: account.closed ? 1 : 0,
+    });
+    // insertAccount appends at the end; the world pins its own order.
+    await db.update('accounts', {
+      id: account.id,
+      sort_order: account.sort_order ?? 1000,
+      tombstone: account.tombstone ? 1 : 0,
+    });
+  }
+  for (const group of WORLD.groups) {
+    await db.insertCategoryGroup({ id: group.id, name: group.name, is_income: 0 });
+  }
+  for (const category of WORLD.categories) {
+    await db.insertCategory({ id: category.id, name: category.name, cat_group: category.group, is_income: 0 });
+  }
+  for (const payee of WORLD.payees) {
+    await db.insertPayee({
+      id: payee.id,
+      name: payee.name,
+      transfer_acct: payee.transfer_acct ?? null,
+      favorite: payee.favorite ?? 0,
+      learn_categories: payee.learn_categories ?? 1,
+      tombstone: payee.tombstone ?? 0,
+    });
+    if (payee.mapsTo) await db.update('payee_mapping', { id: payee.id, targetId: payee.mapsTo });
+  }
+  for (const transaction of WORLD.transactions) {
+    await db.insertTransaction({
+      id: transaction.id,
+      account: 'acct-checking',
+      date: transaction.date,
+      amount: transaction.amount,
+      payee: transaction.payee,
+      category: null,
+      cleared: true,
+      is_parent: Boolean(transaction.is_parent),
+      is_child: Boolean(transaction.is_child),
+      parent_id: transaction.parent_id ?? null,
+    });
+    if (transaction.tombstone) await db.deleteTransaction({ id: transaction.id });
+  }
+  for (const rule of WORLD.rules) {
+    await insertRule({ id: rule.id, stage: null, conditionsOp: 'and', conditions: rule.conditions, actions: rule.actions });
+  }
+  for (const schedule of WORLD.schedules) {
+    await createSchedule({
+      schedule: { id: schedule.id, name: schedule.name, completed: schedule.completed ? 1 : 0 },
+      conditions: schedule.conditions,
+    });
+    // createSchedule mints the linked rule's id; pin it.
+    const row = await db.first('SELECT rule FROM schedules WHERE id = ?', [schedule.id]);
+    db.runQuery('UPDATE rules SET id = ? WHERE id = ?', [schedule.ruleID, row.rule]);
+    db.runQuery('UPDATE schedules SET rule = ? WHERE id = ?', [schedule.ruleID, schedule.id]);
+  }
+  for (const preference of item.preferences ?? []) {
+    await db.update('preferences', { id: preference.id, value: preference.value });
+  }
+  await loadRules();
+  global.resetRandomId();
+}
+
+async function payeeEntity(id) {
+  return payeeModel.fromDb(await db.getPayee(id));
+}
+
+// What Actual's UI sends for the case, or null when it sends nothing.
+async function plannedCall(item) {
+  const input = item.input;
+  switch (item.kind) {
+    case 'create': {
+      // PayeeAutocomplete.filterSuggestions drops "Create payee" when the top match
+      // normalizes to the typed text and is not a transfer payee. The model assumes
+      // the fuzzy ranking puts such an exact match first.
+      const live = (await db.getPayees()).filter(payee => payee.transfer_acct == null);
+      const exact = live.find(payee => getNormalisedString(payee.name) === getNormalisedString(input.typed));
+      if (exact) return { call: null, selectedExisting: exact.id };
+      return { call: { method: 'payee-create', payload: { name: input.typed.trim() } } };
+    }
+    case 'rename':
+      if (!input.typed.trim()) return { call: null };
+      return {
+        call: {
+          method: 'payees-batch-change',
+          payload: { updated: [{ id: input.payeeID, name: input.typed.trim() }] },
+        },
+      };
+    case 'merge':
+      return {
+        call: { method: 'payees-merge', payload: { targetId: input.targetID, mergeIds: input.mergeIDs } },
+      };
+    case 'delete':
+      return {
+        call: { method: 'payees-batch-change', payload: { deleted: input.payeeIDs.map(id => ({ id })) } },
+      };
+    case 'toggle-single': {
+      const payee = await payeeEntity(input.payeeID);
+      if (payee[input.field] === input.value) return { call: null };
+      return {
+        call: {
+          method: 'payees-batch-change',
+          payload: { updated: [{ id: input.payeeID, [input.field]: input.value }], added: [], deleted: [] },
+        },
+      };
+    }
+    case 'toggle-selection': {
+      const entities = await Promise.all(input.selection.map(payeeEntity));
+      const target = !entities.every(payee => payee[input.field]);
+      return {
+        call: {
+          method: 'payees-batch-change',
+          payload: {
+            updated: input.selection.map(id => ({ id, [input.field]: target })),
+            added: [],
+            deleted: [],
+          },
+        },
+      };
+    }
+    case 'global-learning': {
+      // CategoryLearning.tsx: the pref reads 'true' when unset; the button writes String(!enabled).
+      const row = await db.first("SELECT value FROM preferences WHERE id = 'learn-categories'");
+      const enabled = String(row?.value ?? 'true') === 'true';
+      return {
+        call: { method: 'preferences/save', payload: { id: 'learn-categories', value: String(!enabled) } },
+      };
+    }
+    default:
+      throw new Error(`Unknown case kind ${item.kind}`);
+  }
+}
+
+async function readSeed() {
+  const payees = (await runHandler(handlers['payees-get'], undefined, { name: 'payees-get' })) ?? [];
+  const ruleCounts = await runHandler(handlers['payees-get-rule-counts'], undefined, {
+    name: 'payees-get-rule-counts',
+  });
+  const orphaned = await runHandler(handlers['payees-get-orphaned'], undefined, {
+    name: 'payees-get-orphaned',
+  });
+  return {
+    payeesGet: payees.map(payee => ({ id: payee.id, name: payee.name })),
+    ruleCounts,
+    orphaned: orphaned.map(row => row.id),
+  };
+}
+
+test(
+  'captures the payee matrix from Actual handlers',
+  async () => {
+    const records = [];
+    try {
+      for (const item of CASES) {
+        await seedWorld(item);
+        const world = await dumpWorld();
+        const record = { id: item.id, kind: item.kind, input: item.input, world, preferencesSeed: item.preferences ?? [] };
+        if (item.kind === 'read') {
+          record.read = toJSON(await readSeed());
+          records.push(record);
+          continue;
+        }
+        const before = await rowsOf(item);
+        const { call, selectedExisting } = await plannedCall(item);
+        if (selectedExisting) record.selectedExisting = selectedExisting;
+        record.handlerCall = call;
+        record.handlerError = null;
+        record.handlerResult = null;
+        const marker = await crdtMarker();
+        {
+          if (call) {
+            try {
+              record.handlerResult = toJSON(
+                await runHandler(handlers[call.method], call.payload, { name: call.method }),
+              );
+            } catch (error) {
+              // A refusal is evidence, not an assumed failure.
+              record.handlerError = normalizeError(error);
+            }
+          }
+          record.messages = await crdtMessagesSince(marker);
+          record.rows = await rowsOf(item);
+          record.rowsBefore = before;
+          if (call) {
+            const undoMarker = await crdtMarker();
+            let undoError = null;
+            try {
+              await undo();
+            } catch (error) {
+              undoError = normalizeError(error);
+            }
+            record.undo = { error: undoError, messages: await crdtMessagesSince(undoMarker), rows: await rowsOf(item) };
+          } else {
+            record.undo = null;
+          }
+        }
+        records.push(record);
+      }
+    } finally {
+      setSyncingMode('disabled');
+    }
+    writeFileSync(outputPath, JSON.stringify(records));
+    expect(records.length).toBe(CASES.length);
+  },
+  170_000,
+);

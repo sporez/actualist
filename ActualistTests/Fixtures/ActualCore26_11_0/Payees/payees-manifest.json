@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.11.0",
+    "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+    "packageVersion": "26.11.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/payee-parity/generate.mjs",
+    "sha256": "308bebfd400a9c89f2451cedacb7857f07aacb60f75b30c85a8c668344bbd836"
+  },
+  "helpers": [
+    {
+      "path": "scripts/payee-parity/cases.mjs",
+      "sha256": "e901837ef35ccf4aed0959355eccc4a34ad8bb7925a26918dba3207d52366970"
+    },
+    {
+      "path": "scripts/payee-parity/oracle-runner.template",
+      "sha256": "70f68afc0c50bc7d6088074b1e70289385e98307e3b477daff7f642d36ab82ce"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": null,
+  "timeZone": "UTC",
+  "caseCount": 31,
+  "amountUnits": "integer minor units",
+  "execution": "Actual payee handlers (payee-create, payees-batch-change, payees-merge, preferences/save) on an offline in-memory SQLite database, called as the desktop client calls them, then one real undo",
+  "scope": "synthetic local handler behavior only; no server round trip",
+  "normalization": [
+    "ids Actual mints (id1, ... from the loot-core test uuid mock) are uuid-N by first appearance in the case; setup ids are explicit",
+    "writes are the net cell writes of messages: the last value per dataset, row and column, sorted",
+    "repeated CRDT messages are kept verbatim, in the order Actual wrote them",
+    "names, values and amounts are never normalized",
+    "undo is recorded and not replayed by PayeeOracleReplayTests"
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/payees/app.ts",
+      "sha256": "a981c54f585e900db7897f3c5165f43125bb8498a79a02a5c83636260c398f7a"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "4e99b6c8e3b0bcd4c2dfbdd4aa7e93d00875558c1e150eab7d9c703617bafcd7"
+    },
+    {
+      "path": "packages/loot-core/src/server/models.ts",
+      "sha256": "83ae5d25aeab9c52c72988360e77be2b11a83faa22ca40ee56c93bbf8d9b8cd0"
+    },
+    {
+      "path": "packages/loot-core/src/server/preferences/app.ts",
+      "sha256": "aa89bc608f81ee6a1498d5e5d89d6c7cc4c57d6ff02be78d29f8cecf43c68ce2"
+    },
+    {
+      "path": "packages/loot-core/src/server/undo.ts",
+      "sha256": "2b664e329d843c8022f935d131b7a88a40f85b3e64904faed50f8aeffd5deafe"
+    },
+    {
+      "path": "packages/loot-core/src/shared/normalisation.ts",
+      "sha256": "a3eb2322f8cce7ecf06a4c87aae444cf34ad4838140a76afd014af84dc047dfb"
+    },
+    {
+      "path": "packages/loot-core/src/server/schedules/app.ts",
+      "sha256": "c7aaddb94d6293016a6dad16952a5b978abc6cb637b62909078ce92e03e04613"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transaction-rules.ts",
+      "sha256": "4a8cb6f400859e2614c3a74c2ccdd18835e0bf31f78b5e253a99567505497988"
+    },
+    {
+      "path": "packages/desktop-client/src/payees/mutations.ts",
+      "sha256": "fc50e7abe312bdf6b9244feae3f9795c2482c724979f04eb7beb9b09d1157e87"
+    },
+    {
+      "path": "packages/desktop-client/src/components/autocomplete/PayeeAutocomplete.tsx",
+      "sha256": "01aebf5063ede285d10712e8f3bbfb0641f46e09b6d38f164d39f556c373c63d"
+    },
+    {
+      "path": "packages/desktop-client/src/components/mobile/payees/MobilePayeeEditPage.tsx",
+      "sha256": "590302163c03890e35999b25ae8abb7689421c0398bd8b2cb8989da43c2213c9"
+    },
+    {
+      "path": "packages/desktop-client/src/components/mobile/payees/MobilePayeesPage.tsx",
+      "sha256": "af151f905c9db39f01fd49caa5421aaa3ac1572ee8834efc50cad7d8404b675e"
+    },
+    {
+      "path": "packages/desktop-client/src/components/payees/ManagePayees.tsx",
+      "sha256": "8139b3f70745dcccc477095e53a8a01bee002ca088591740741c7134fde25ac3"
+    },
+    {
+      "path": "packages/desktop-client/src/components/payees/CategoryLearning.tsx",
+      "sha256": "cbac98e8e027c6f645244692a20e7546ecc39a5997b06b14866caa2d9fc2057a"
+    },
+    {
+      "path": "packages/desktop-client/src/prefs/prefsSlice.ts",
+      "sha256": "1bd2bae3f44ed3883b020c183718ef1cd2e63c6989b8c51e6172e926edc38bd6"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_11_0/Payees/payees-contract.json",
+      "sha256": "79b197067c04378bbf12db57fdc32191b09d98b2e0c6cf76c716012fc7574264",
+      "caseCount": 31,
+      "caseIDs": [
+        "read-seed",
+        "create-plain",
+        "create-trimmed",
+        "create-case-duplicate",
+        "create-diacritic-duplicate",
+        "create-padded-duplicate",
+        "create-account-name",
+        "rename-plain",
+        "rename-trimmed",
+        "rename-unchanged",
+        "rename-case-only",
+        "rename-to-existing",
+        "rename-empty",
+        "merge-one",
+        "merge-two",
+        "merge-rule-referenced",
+        "delete-unused",
+        "delete-two-unused",
+        "delete-with-transactions",
+        "delete-rule-condition",
+        "delete-rule-action",
+        "delete-deleted-txn-only",
+        "delete-mixed",
+        "favorite-one",
+        "unfavorite-one",
+        "favorite-selection-mixed",
+        "learn-off-one",
+        "learn-on-one",
+        "learn-selection-mixed",
+        "learn-global-off",
+        "learn-global-on"
+      ]
+    }
+  ],
+  "oracleOnly": [],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}

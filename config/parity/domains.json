@@ -441,16 +441,26 @@
     },
     {
       "id": "payees",
-      "title": "Payees: create, merge, rename, transfer payees",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "title": "Payees: create, rename, merge, delete, favorite and category learning",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/payee-parity",
+        "generate": "node scripts/payee-parity/generate.mjs",
+        "verify": "node scripts/payee-parity/verify.mjs",
+        "check": "node scripts/payee-parity/generate.mjs --check"
+      },
+      "fixture": "Payees",
+      "oracleSuites": [
+        "PayeeOracleReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+Payees.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+PayeeCreationPrecondition.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+ReviewPayeeNames.swift"
-      ]
+        "Actualist/LocalFirst/Database/BudgetDatabase+ReviewPayeeNames.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+Mutations.swift",
+        "Actualist/Repositories/PayeeRepository.swift"
+      ],
+      "notes": "31 cases from Actual's payee handlers as the desktop client calls them (read, create, rename, merge, delete, favorite, learning, global learning). PayeeOracleReplayTests replays net writes and rows through the store's payee commands; the recorded undo is not replayed."
     },
     {
       "id": "categories",
