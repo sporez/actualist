@@ -67,14 +67,6 @@ struct PayeeOracleReplayTests {
             let known = comparison.mismatches.filter { divergence.covers($0.path) }
             let report = Comment(rawValue: OracleComparison.report(caseID, known) + values)
             switch divergence.op {
-            case "OP-95":
-                withKnownIssue("OP-95: creating a payee also writes tombstone 0 for the new row") {
-                    #expect(known.isEmpty, report)
-                }
-            case "OP-96":
-                withKnownIssue("OP-96: a new payee name is checked for duplicates differently from Actual's picker") {
-                    #expect(known.isEmpty, report)
-                }
             case "OP-97":
                 withKnownIssue("OP-97: renaming a payee to another payee's name is refused") {
                     #expect(known.isEmpty, report)
@@ -83,16 +75,8 @@ struct PayeeOracleReplayTests {
                 withKnownIssue("OP-98: payee writes skip cells whose value does not change") {
                     #expect(known.isEmpty, report)
                 }
-            case "OP-99":
-                withKnownIssue("OP-99: deleting a payee with transactions or rules is refused") {
-                    #expect(known.isEmpty, report)
-                }
             case "OP-100":
                 withKnownIssue("OP-100: the payee list is sorted differently from Actual's payees-get") {
-                    #expect(known.isEmpty, report)
-                }
-            case "OP-101":
-                withKnownIssue("OP-101: a payee referenced only by a rule condition counts as unused") {
                     #expect(known.isEmpty, report)
                 }
             default:
@@ -114,22 +98,11 @@ struct PayeeOracleReplayTests {
     }
 
     private static let divergences: [String: [Divergence]] = [
-        "create-plain": [Divergence(op: "OP-95", paths: ["writes"])],
-        "create-trimmed": [Divergence(op: "OP-95", paths: ["writes"])],
-        "create-account-name": [Divergence(op: "OP-95", paths: ["writes"])],
-        "create-diacritic-duplicate": [Divergence(op: "OP-96", paths: [])],
-        "create-padded-duplicate": [Divergence(op: "OP-96", paths: [])],
-        "create-normalised-duplicate": [Divergence(op: "OP-96", paths: [])],
-        "create-normalised-padded": [Divergence(op: "OP-95", paths: ["writes"])],
         "rename-to-existing": [Divergence(op: "OP-97", paths: [])],
         "rename-unchanged": [Divergence(op: "OP-98", paths: ["writes"])],
         "favorite-selection-mixed": [Divergence(op: "OP-98", paths: ["writes"])],
         "learn-selection-mixed": [Divergence(op: "OP-98", paths: ["writes"])],
-        "delete-with-transactions": [Divergence(op: "OP-99", paths: [])],
-        "delete-rule-condition": [Divergence(op: "OP-99", paths: [])],
-        "delete-rule-action": [Divergence(op: "OP-99", paths: [])],
-        "delete-mixed": [Divergence(op: "OP-99", paths: [])],
-        "read-seed": [Divergence(op: "OP-100", paths: ["payees"]), Divergence(op: "OP-101", paths: ["orphaned"])],
+        "read-seed": [Divergence(op: "OP-100", paths: ["payees"])],
     ]
 
     @Test func partitionsEveryPayeeFixtureCase() throws {

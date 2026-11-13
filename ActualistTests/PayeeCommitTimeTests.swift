@@ -27,20 +27,18 @@ extension LocalFirstActualStoreTests {
         }
     }
 
-    @Test func deleteRefusesAPayeeAnotherDeviceStartedUsingBeforeCommit() async throws {
+    @Test func deleteStillTombstonesAPayeeAnotherDeviceStartedUsingBeforeCommit() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
             INSERT INTO payees VALUES ('late-use', 'Late Use', NULL, 0);
             INSERT INTO payee_mapping VALUES ('late-use', 'late-use');
             """)
         landPayeeRemote([payeeRemote("transactions", "txn", "description", "S:late-use")], on: store)
 
-        await #expect(throws: LocalFirstError.self) {
-            try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "late-use")
-        }
+        try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "late-use")
 
         let database = try #require(store.database)
         let live = try await database.fetchPayeeManagementSnapshot().payees
-        #expect(live.contains { $0.id == "late-use" })
+        #expect(!live.contains { $0.id == "late-use" })
     }
 
     @Test func mergeRetargetsAMappingRowThatLandedBeforeCommit() async throws {

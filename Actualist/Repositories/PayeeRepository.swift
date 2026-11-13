@@ -59,6 +59,8 @@ struct ManagedPayee: Identifiable, Hashable, Sendable {
     let transactionCount: Int
     let ruleReferenceCount: Int
     let canDelete: Bool
+    /// Actual's orphaned-payee rule: no live transaction and no rule condition naming it.
+    let isUnused: Bool
     let favorite: Bool
     let learnCategories: Bool
 
@@ -70,6 +72,7 @@ struct ManagedPayee: Identifiable, Hashable, Sendable {
         transactionCount: Int,
         ruleReferenceCount: Int,
         canDelete: Bool,
+        isUnused: Bool,
         favorite: Bool = false,
         learnCategories: Bool = true
     ) {
@@ -80,6 +83,7 @@ struct ManagedPayee: Identifiable, Hashable, Sendable {
         self.transactionCount = transactionCount
         self.ruleReferenceCount = ruleReferenceCount
         self.canDelete = canDelete
+        self.isUnused = isUnused
         self.favorite = favorite
         self.learnCategories = learnCategories
     }
@@ -97,10 +101,6 @@ struct ManagedPayee: Identifiable, Hashable, Sendable {
             }
         }
         return name.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var isUnused: Bool {
-        transactionCount == 0
     }
 }
 

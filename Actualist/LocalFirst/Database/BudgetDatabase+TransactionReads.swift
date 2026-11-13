@@ -309,7 +309,8 @@ extension BudgetDatabase {
 
 struct TransactionReadJoins {
     let sql: String
-    let mappedPayee: String
+    /// Actual's public `payee`: the mapped payee id, NULL when that payee is deleted.
+    let livePayee: String
     let mappedCategory: String
     let transferIDExpression: String
     let isTransferExpression: String
@@ -367,12 +368,15 @@ extension BudgetDatabase {
         var payeeJoin = ""
         var payeeAccountJoin = ""
         var payeeNameSelect = "NULL"
+        var livePayee = mappedPayee
         if try tableExists("payees", db: db) {
             let payeeColumns = try columnSet(for: "payees", db: db)
             let transferAccount = ["transfer_acct", "transfer_account"]
                 .first(where: payeeColumns.contains)
-            if includeNames || (hasTransactionPayee && transferAccount != nil) {
-                payeeJoin = "LEFT JOIN payees py ON py.id = \(mappedPayee)"
+            if hasTransactionPayee || includeNames {
+                let livePredicate = predicateForLiveRows(columns: payeeColumns, tableAlias: "py")
+                payeeJoin = "LEFT JOIN payees py ON py.id = \(mappedPayee) AND \(livePredicate)"
+                livePayee = "py.id"
             }
             if hasTransactionPayee, let transferAccount {
                 transferPredicates.append(
@@ -404,7 +408,7 @@ extension BudgetDatabase {
             sql: [categoryMappingJoin, payeeMappingJoin, payeeJoin, payeeAccountJoin, categoryNameJoin]
                 .filter { !$0.isEmpty }
                 .joined(separator: "\n"),
-            mappedPayee: mappedPayee,
+            livePayee: livePayee,
             mappedCategory: mappedCategory,
             transferIDExpression: transferIDExpression,
             isTransferExpression: isTransferExpression,
@@ -462,7 +466,7 @@ extension BudgetDatabase {
             normalizedDate: normalizedDate,
             joins: TransactionReadJoins(
                 sql: [joins.sql, extraJoin].filter { !$0.isEmpty }.joined(separator: "\n"),
-                mappedPayee: joins.mappedPayee,
+                livePayee: joins.livePayee,
                 mappedCategory: joins.mappedCategory,
                 transferIDExpression: joins.transferIDExpression,
                 isTransferExpression: joins.isTransferExpression,
@@ -483,7 +487,7 @@ extension BudgetDatabase {
             \(split.qualifiedAccount) AS account_id,
             \(normalizedDate) AS date,
             \(split.qualifiedAmount) AS amount,
-            \(joins.mappedPayee) AS payee_id,
+            \(joins.livePayee) AS payee_id,
             \(joins.payeeNameSelect) AS payee_name,
             \(split.qualifiedImportedPayee) AS imported_payee,
             \(split.effectiveCategory(mappedCategory: joins.mappedCategory)) AS category_id,

@@ -134,7 +134,9 @@ struct BudgetDatabaseScheduleConversionTests {
         )
         let staleMapReview = try await review(staleMap, today: dates.today)
         try execute(staleMap.url, sql: "UPDATE payee_mapping SET targetId = 'missing' WHERE id = 'canonical-payee'")
-        await #expect(throws: ScheduleConversionError.unsupportedSource("The transaction payee has no live canonical self-mapping.")) {
+        // The mapping now points at no live payee, so the transaction reads as having no payee
+        // (Actual's public view) and the commit sees a changed review before the mapping check.
+        await #expect(throws: ScheduleConversionError.reviewChanged) {
             _ = try await staleMap.database.convertFutureTransaction(review: staleMapReview)
         }
         #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", staleMap.url) == 0)

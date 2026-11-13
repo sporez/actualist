@@ -27,10 +27,12 @@ extension LocalFirstActualStoreTests {
 
         #expect(coffee.transactionCount == 1)
         #expect(coffee.ruleReferenceCount == 1)
-        #expect(!coffee.canDelete)
+        #expect(coffee.canDelete)
+        #expect(!coffee.isUnused)
         #expect(transfer.isTransfer)
         #expect(transfer.displayName == "Checking")
         #expect(!transfer.canDelete)
+        #expect(!transfer.isUnused)
         #expect(snapshot.supportsCreate)
         #expect(snapshot.supportsRename)
         #expect(snapshot.supportsMerge)
@@ -91,7 +93,7 @@ extension LocalFirstActualStoreTests {
         snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
 
         #expect(snapshot.payees.contains { $0.id == created.id && $0.name == "Neighborhood Market" })
-        #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") >= 4)
+        #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") >= 3)
 
         try await store.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
         snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
@@ -147,7 +149,7 @@ extension LocalFirstActualStoreTests {
         #expect(try await database.fetchTransactions().first { $0.id == "txn" }?.payee == "cafe-a")
     }
 
-    @Test func deleteAllowsOnlyUnusedUnreferencedPayees() async throws {
+    @Test func deleteAllowsEveryRegularPayeeButNotTransfers() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
             CREATE TABLE rules (
                 id TEXT PRIMARY KEY,
@@ -184,8 +186,9 @@ extension LocalFirstActualStoreTests {
         try await store.refreshPayeeManagementSnapshot(budgetID: "group-1")
         let initial = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         #expect(initial.payees.first { $0.id == "unused" }?.canDelete == true)
-        #expect(initial.payees.first { $0.id == "coffee" }?.canDelete == false)
-        #expect(initial.payees.first { $0.id == "ruled" }?.canDelete == false)
+        #expect(initial.payees.first { $0.id == "coffee" }?.canDelete == true)
+        #expect(initial.payees.first { $0.id == "ruled" }?.canDelete == true)
+        #expect(initial.payees.first { $0.id == "xfer-checking" }?.canDelete == false)
 
         try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "unused")
         #expect(store.cachedPayeeManagementSnapshot(budgetID: "group-1")?.payees.contains {
@@ -197,15 +200,90 @@ extension LocalFirstActualStoreTests {
         } == true)
         try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "unused")
 
+        try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "coffee")
+        try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "ruled")
+        let remaining = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(!remaining.payees.contains { $0.id == "coffee" || $0.id == "ruled" })
         await #expect(throws: LocalFirstError.self) {
-            try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "coffee")
-        }
-        await #expect(throws: LocalFirstError.self) {
-            try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "ruled")
+            try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "xfer-checking")
         }
     }
 
-    @Test func malformedRuleJSONConservativelyBlocksDeletion() async throws {
+    @Test func deletingAPayeeWithTransactionsWritesATombstoneAndLeavesTheTransactionsAlone() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            UPDATE transactions SET description = 'coffee' WHERE id = 'txn';
+            """)
+        try await store.refreshPayeeManagementSnapshot(budgetID: "group-1")
+        let before = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(before.payees.first { $0.id == "coffee" }?.transactionCount == 1)
+
+        try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "coffee")
+
+        let after = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(!after.payees.contains { $0.id == "coffee" })
+        let page = try await store.transactionPage(
+            budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery(), limit: 50, offset: 0
+        )
+        let row = try #require(page.transactions.first { $0.id == "txn" })
+        #expect(row.payee == nil)
+        #expect(row.payeeName == nil)
+    }
+
+    @Test func unusedFollowsRuleConditionsOnDescriptionNotActions() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            CREATE TABLE rules (
+                id TEXT PRIMARY KEY,
+                conditions TEXT,
+                actions TEXT,
+                tombstone INTEGER
+            );
+            INSERT INTO payees VALUES ('cond', 'Condition', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('cond', 'cond');
+            INSERT INTO payees VALUES ('act', 'Action', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('act', 'act');
+            INSERT INTO payees VALUES ('multi', 'Multi', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('multi', 'multi');
+            INSERT INTO rules VALUES (
+                'r1',
+                '[{"field":"description","op":"is","value":"cond"}]',
+                '[{"field":"description","op":"set","value":"act"}]',
+                0
+            );
+            INSERT INTO rules VALUES (
+                'r2',
+                '[{"field":"description","op":"oneOf","value":["multi"]}]',
+                '[]',
+                0
+            );
+            """)
+
+        try await store.refreshPayeeManagementSnapshot(budgetID: "group-1")
+        let snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+
+        #expect(snapshot.payees.first { $0.id == "cond" }?.isUnused == false)
+        #expect(snapshot.payees.first { $0.id == "cond" }?.transactionCount == 0)
+        #expect(snapshot.payees.first { $0.id == "act" }?.isUnused == true)
+        #expect(snapshot.payees.first { $0.id == "multi" }?.isUnused == true)
+    }
+
+    @Test func createRefusesNormalisedDuplicatesAndKeepsPaddedTextCreatable() async throws {
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            INSERT INTO payees VALUES ('eclair', 'Éclair', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('eclair', 'eclair');
+            INSERT INTO payees VALUES ('cafe', 'Strasse Cafe', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('cafe', 'cafe');
+            """)
+
+        await #expect(throws: LocalFirstError.self) {
+            try await store.createPayeeAndRefresh(budgetID: "group-1", name: "eclair")
+        }
+        // Actual compares the typed text untrimmed, so the leading space escapes the match.
+        try await store.createPayeeAndRefresh(budgetID: "group-1", name: " strasse cafe")
+        let snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        #expect(snapshot.payees.filter { $0.name == "strasse cafe" }.count == 1)
+    }
+
+    @Test func malformedRuleJSONMarksEveryPayeeAsNotUnused() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
             CREATE TABLE rules (
                 id TEXT PRIMARY KEY,
@@ -222,10 +300,8 @@ extension LocalFirstActualStoreTests {
         let snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
 
         #expect(snapshot.hasUnreadableRuleReferences)
-        #expect(snapshot.payees.first { $0.id == "unused" }?.canDelete == false)
-        await #expect(throws: LocalFirstError.self) {
-            try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "unused")
-        }
+        #expect(snapshot.payees.first { $0.id == "unused" }?.canDelete == true)
+        #expect(snapshot.payees.first { $0.id == "unused" }?.isUnused == false)
     }
 
     @Test func viewModelSearchAndSelectionStayWithinRegularPayees() {
@@ -239,7 +315,8 @@ extension LocalFirstActualStoreTests {
                     transferAccountName: nil,
                     transactionCount: 2,
                     ruleReferenceCount: 0,
-                    canDelete: false
+                    canDelete: true,
+                    isUnused: false
                 ),
                 ManagedPayee(
                     id: "market",
@@ -248,7 +325,8 @@ extension LocalFirstActualStoreTests {
                     transferAccountName: nil,
                     transactionCount: 0,
                     ruleReferenceCount: 0,
-                    canDelete: true
+                    canDelete: true,
+                    isUnused: true
                 ),
                 ManagedPayee(
                     id: "transfer",
@@ -257,7 +335,8 @@ extension LocalFirstActualStoreTests {
                     transferAccountName: "Checking",
                     transactionCount: 0,
                     ruleReferenceCount: 0,
-                    canDelete: false
+                    canDelete: false,
+                    isUnused: false
                 )
             ],
             supportsCreate: true,

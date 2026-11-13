@@ -67,7 +67,11 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func updateOneChildDoesNotRewriteSiblingPayeeOrNotes() async throws {
-        let store = try await makeOpenedWritableStore()
+        // A payee id with no live payees row reads as no payee, so the sibling's payee must exist.
+        let store = try await makeOpenedWritableStore(additionalFixtureSQL: """
+            INSERT INTO payees VALUES ('market', 'Market', NULL, 0);
+            INSERT INTO payee_mapping VALUES ('market', 'market');
+            """)
         let created = try await store.createTransactionAndRefresh(
             splitDraft(
                 amount: -10_000,

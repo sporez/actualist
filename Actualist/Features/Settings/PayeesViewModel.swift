@@ -57,6 +57,19 @@ final class PayeesViewModel {
         !selectedPayees.isEmpty && selectedPayees.allSatisfy(\.canDelete) && !isSubmitting
     }
 
+    /// Confirmation text for deleting one payee: transactions keep their rows and lose the payee.
+    func deleteMessage(for payee: ManagedPayee) -> String {
+        payee.transactionCount > 0
+            ? "Transactions that use this payee will show no payee. You can undo this change while this budget stays open."
+            : "This payee is not used and will be deleted."
+    }
+
+    var bulkDeleteMessage: String {
+        selectedPayees.contains { $0.transactionCount > 0 }
+            ? "Transactions that use these payees will show no payee. You can undo this change while this budget stays open."
+            : "The selected payees are not used and will be deleted. You can undo this change while this budget stays open."
+    }
+
     var selectedAreAllFavorites: Bool {
         !selectedPayees.isEmpty && selectedPayees.allSatisfy(\.favorite)
     }

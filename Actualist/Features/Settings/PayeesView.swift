@@ -70,7 +70,7 @@ struct PayeesView: View {
                                 }
                                 Button("Cancel", role: .cancel) {}
                             } message: {
-                                Text("Only payees that are not used in a transaction or a rule can be deleted.")
+                                Text(viewModel.deleteMessage(for: payee))
                             }
                     }
                 }
@@ -203,7 +203,7 @@ struct PayeesView: View {
                             }
                             Button("Cancel", role: .cancel) {}
                         } message: {
-                            Text("Only selected payees that are not used in a transaction or a rule will be deleted. You can undo this change while this budget stays open.")
+                            Text(viewModel.bulkDeleteMessage)
                         }
                     }
                 }
@@ -340,7 +340,7 @@ private struct PayeeManagementRow: View {
             return "Managed by account"
         }
         var parts = [
-            payee.transactionCount == 0
+            payee.isUnused
                 ? "Unused"
                 : "\(payee.transactionCount) \(payee.transactionCount == 1 ? "transaction" : "transactions")"
         ]
@@ -463,15 +463,13 @@ private struct PayeeDetailView: View {
                             }
                             Button("Cancel", role: .cancel) {}
                         } message: {
-                            Text("This payee is not used and will be deleted.")
+                            Text(viewModel.deleteMessage(for: payee))
                         }
-                    } footer: {
-                        Text("This payee is not used in any transaction or rule.")
                     }
                     .settingsSectionChrome()
                 } else {
                     Section {
-                        Text(deleteUnavailableReason(payee))
+                        Text("This budget does not allow deleting payees.")
                             .font(.caption)
                             .foregroundStyle(ActualistTheme.secondaryText)
                     }
@@ -512,18 +510,6 @@ private struct PayeeDetailView: View {
         return !trimmed.isEmpty && trimmed != payee.name && !viewModel.isSubmitting
     }
 
-    private func deleteUnavailableReason(_ payee: ManagedPayee) -> String {
-        if payee.transactionCount > 0 {
-            return "This payee is in use. Merge it into another payee before deleting it."
-        }
-        if payee.ruleReferenceCount > 0 {
-            return "This payee is used in a rule, so it cannot be deleted."
-        }
-        if viewModel.snapshot.hasUnreadableRuleReferences {
-            return "Actualist could not check your rules, so deleting is turned off for now."
-        }
-        return "This budget does not allow deleting payees."
-    }
 }
 
 private struct PayeeNameEntrySheet: View {

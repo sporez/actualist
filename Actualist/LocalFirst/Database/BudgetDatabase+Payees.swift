@@ -22,8 +22,8 @@ extension BudgetDatabase {
     ) throws -> [ActualSyncDecodedMessage] {
         let trimmedName = try Self.validatedName(name, label: "payee")
         return try queue.read { db in
-            let columns = try requiredColumns(table: "payees", required: ["name"], db: db)
-            try rejectDuplicatePayeeName(trimmedName, excluding: nil, db: db)
+            _ = try requiredColumns(table: "payees", required: ["name"], db: db)
+            try rejectPickerDuplicatePayeeName(name, db: db)
 
             var messages = [
                 try builder.makeMessage(
@@ -33,11 +33,6 @@ extension BudgetDatabase {
                     value: .string(trimmedName)
                 )
             ]
-            if columns.contains("tombstone") {
-                messages.append(
-                    try builder.revive(dataset: "payees", row: payeeID)
-                )
-            }
             if let mapping = try usablePayeeMappingColumns(db: db) {
                 messages.append(
                     try builder.makeMessage(
@@ -143,12 +138,6 @@ extension BudgetDatabase {
         )
         _ = try requiredRegularPayee(payeeID, db: db)
 
-        let snapshot = try fetchPayeeManagementSnapshot(in: db)
-        guard let payee = snapshot.payees.first(where: { $0.id == payeeID }), payee.canDelete else {
-            throw LocalFirstError.refusedChange(
-                "Only payees that are unused and not part of a rule can be deleted."
-            )
-        }
         return [
             try builder.tombstone(dataset: "payees", row: payeeID)
         ]
@@ -311,10 +300,9 @@ extension BudgetDatabase {
         )
         let accountNames = try fetchPayeeAccountNames(db: db)
         let usageCounts = try fetchPayeeTransactionCounts(db: db)
-        let ruleReferences = try fetchPayeeRuleReferences(
-            payeeIDs: Set(rows.compactMap { $0["id"] as String? }),
-            db: db
-        )
+        let livePayeeIDs = Set(rows.compactMap { $0["id"] as String? })
+        let ruleReferences = try fetchPayeeRuleReferences(payeeIDs: livePayeeIDs, db: db)
+        let conditionReferenced = try fetchConditionReferencedPayeeIDs(payeeIDs: livePayeeIDs, db: db)
         let canTombstone = payeeColumns.contains("tombstone")
         let payees = rows.compactMap { row -> ManagedPayee? in
             guard let id = row["id"] as String?, !id.isEmpty else { return nil }
@@ -328,8 +316,9 @@ extension BudgetDatabase {
                 transferAccountName: transfer.flatMap { accountNames[$0] },
                 transactionCount: transactionCount,
                 ruleReferenceCount: ruleCount,
-                canDelete: transfer == nil && transactionCount == 0 && ruleCount == 0
-                    && !ruleReferences.hasUnreadableRules && canTombstone,
+                canDelete: transfer == nil && canTombstone,
+                isUnused: transfer == nil && transactionCount == 0
+                    && !conditionReferenced.contains(id),
                 favorite: SQLiteValueCoercion.lenientBool(row["favorite"]),
                 learnCategories: row["learn_categories"] == nil
                     ? true
@@ -365,6 +354,76 @@ extension BudgetDatabase {
             return nil
         }
         return try SyncedPreferences.value(.learnCategories, in: self, db: db).map { $0 != "false" } ?? true
+    }
+
+    /// Actual's payee picker offers "Create payee" only when no non-transfer payee's normalised
+    /// name equals the normalised typed text, which is compared untrimmed.
+    private func rejectPickerDuplicatePayeeName(_ typedName: String, db: Database) throws {
+        let columns = try columnSet(for: "payees", db: db)
+        let regularPredicate = columns.contains("transfer_acct") ? "transfer_acct IS NULL" : "1"
+        let names = try String.fetchAll(
+            db,
+            sql: """
+                SELECT name FROM payees
+                WHERE \(predicateForLiveRows(columns: columns)) AND \(regularPredicate)
+                """
+        )
+        let typed = typedName.actualNormalised
+        guard !names.contains(where: { $0.actualNormalised == typed }) else {
+            throw LocalFirstError.refusedChange(
+                "A payee with that name already exists. Merge the duplicates instead."
+            )
+        }
+    }
+
+    /// Live payees whose mapping target is named by a live rule's top-level condition on
+    /// `description` with a string value, as Actual's orphaned-payee query reads it.
+    /// Completed-schedule rules count; actions and array values do not. Unreadable rule JSON
+    /// counts as referencing every payee.
+    private func fetchConditionReferencedPayeeIDs(
+        payeeIDs: Set<String>,
+        db: Database
+    ) throws -> Set<String> {
+        guard try tableExists("rules", db: db) else { return [] }
+        let columns = try columnSet(for: "rules", db: db)
+        guard columns.contains("conditions") else { return [] }
+        let rows = try Row.fetchAll(
+            db,
+            sql: "SELECT conditions FROM rules WHERE \(predicateForLiveRows(columns: columns))"
+        )
+        var values = Set<String>()
+        for row in rows {
+            guard let json = row["conditions"] as String?, !json.isEmpty else { continue }
+            guard let data = json.data(using: .utf8),
+                  let conditions = try? JSONSerialization.jsonObject(with: data) as? [Any] else {
+                return payeeIDs
+            }
+            for case let condition as [String: Any] in conditions {
+                if condition["field"] as? String == "description",
+                   let value = condition["value"] as? String {
+                    values.insert(value)
+                }
+            }
+        }
+        guard !values.isEmpty else { return [] }
+        var targets = Dictionary(uniqueKeysWithValues: payeeIDs.map { ($0, $0) })
+        if let mapping = try usablePayeeMappingColumns(db: db) {
+            let mappingRows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT \(quotedIdentifier(mapping.id)) AS id,
+                           \(quotedIdentifier(mapping.target)) AS target_id
+                    FROM payee_mapping
+                    """
+            )
+            for row in mappingRows {
+                if let id = row["id"] as String?, payeeIDs.contains(id),
+                   let target = row["target_id"] as String? {
+                    targets[id] = target
+                }
+            }
+        }
+        return Set(payeeIDs.filter { values.contains(targets[$0] ?? $0) })
     }
 
     private func rejectDuplicatePayeeName(

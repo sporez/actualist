@@ -580,7 +580,7 @@ private extension BudgetDatabase {
         case .account(let ids):
             return idPredicate(ids, expression: split.qualifiedAccount, arguments: &arguments)
         case .payee(let ids):
-            return idPredicate(ids, expression: joins.mappedPayee, arguments: &arguments)
+            return idPredicate(ids, expression: joins.livePayee, arguments: &arguments)
         case .category(let ids):
             let category = split.effectiveCategory(mappedCategory: joins.mappedCategory)
             if ids.operation == .isEqual, ids.values == [nil] {

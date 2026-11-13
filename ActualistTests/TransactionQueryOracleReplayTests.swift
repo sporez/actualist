@@ -152,10 +152,6 @@ struct TransactionQueryOracleReplayTests {
     private static let divergences: [String: (op: String, paths: Set<String>)] = [
         "q3-free-text-grouped-versus-physical": ("OP-78", ["rootIDs", "displayedIDs", "contextIDs", "unmatchedIDs"]),
         "dead-parent-excludes-orphan": ("OP-79", ["results.all.ids"]),
-        "condition-dp-payee-is-deleted": ("OP-102", ["physical", "rootIDs", "displayedIDs"]),
-        "condition-dp-payee-is-null": ("OP-102", ["physical", "rootIDs", "displayedIDs"]),
-        "condition-dp-payee-oneof": ("OP-102", ["physical", "rootIDs", "displayedIDs"]),
-        "display-deleted-payee": ("OP-102", ["rows.t-dp-deleted.payee", "rows.t-dp-deleted.payeeName"]),
     ]
 
     private static func assertReplay(_ caseID: String, expected: OracleValue, actual: OracleValue) {
@@ -180,10 +176,6 @@ struct TransactionQueryOracleReplayTests {
         case "OP-79":
             #expect(actual.field("results")?.field("all")?.field("ids") == .array([.string("simple")]))
             withKnownIssue("OP-79: the all-rows read hides children of a deleted or missing parent") {
-                #expect(known.isEmpty, report)
-            }
-        case "OP-102":
-            withKnownIssue("OP-102: a deleted payee still shows on its transactions") {
                 #expect(known.isEmpty, report)
             }
         default:

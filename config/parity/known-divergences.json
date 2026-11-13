@@ -740,39 +740,6 @@
       "reason": "User decided to keep refusing amounts above 9e15 and non-finite results; Actual accepts them then fails to display them."
     },
     {
-      "id": "OP-95",
-      "domain": "payees",
-      "cases": [
-        "PayeeOracleReplayTests/replaysPayeeCase"
-      ],
-      "fixtureCases": [
-        "create-plain",
-        "create-trimmed",
-        "create-account-name",
-        "create-normalised-padded"
-      ],
-      "summary": "Creating a payee writes three cells: name, payee_mapping targetId and payees.tombstone = 0. Actual's payee-create writes only the name and the mapping row; the stored rows end the same. Cause: BudgetDatabase+Payees.swift:38 (createPayeeMessages appends builder.revive).",
-      "opened": "2026-11-13",
-      "status": "open",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "OP-96",
-      "domain": "payees",
-      "cases": [
-        "PayeeOracleReplayTests/replaysPayeeCase"
-      ],
-      "fixtureCases": [
-        "create-diacritic-duplicate",
-        "create-padded-duplicate",
-        "create-normalised-duplicate"
-      ],
-      "summary": "Creating a payee whose name matches an existing one. Actual's payee picker drops 'Create payee' when the typed text, lowercased with diacritics removed (getNormalisedString), equals an existing non-transfer payee, and selects that payee instead; otherwise it creates the trimmed name, even when that duplicates an existing name ('Grocer ' makes a second 'Grocer'). Actualist refuses a trimmed name equal to an existing payee under SQLite NOCASE, so 'Eclair' beside 'Éclair' creates a new payee and 'Grocer ' is refused. Cause: BudgetDatabase+Payees.swift:26 and :370 (rejectDuplicatePayeeName).",
-      "opened": "2026-11-13",
-      "status": "open",
-      "reviewBy": "2026-12-15"
-    },
-    {
       "id": "OP-97",
       "domain": "payees",
       "cases": [
@@ -781,7 +748,7 @@
       "fixtureCases": [
         "rename-to-existing"
       ],
-      "summary": "Renaming a payee to another payee's name (case-insensitive) is refused with 'A payee with that name already exists. Merge the duplicates instead.' Actual's payees-batch-change renames it, leaving two payees with the same name. Cause: BudgetDatabase+Payees.swift:66 (rejectDuplicatePayeeName in renamePayeeMessages).",
+      "summary": "Renaming a payee to another payee's name (case-insensitive) is refused with 'A payee with that name already exists. Merge the duplicates instead.' Actual's payees-batch-change renames it, leaving two payees with the same name. Cause: BudgetDatabase+Payees.swift renamePayeeMessages (rejectDuplicatePayeeName).",
       "opened": "2026-11-13",
       "status": "intended",
       "decided": "2026-11-13",
@@ -798,28 +765,11 @@
         "favorite-selection-mixed",
         "learn-selection-mixed"
       ],
-      "summary": "Payee writes skip cells whose value would not change: an unchanged rename writes nothing, and a selection favorite or category-learning toggle writes only the payees whose value changes. Actual's mobile rename and its selection toggles write every submitted cell. The stored rows end the same. Cause: BudgetDatabase+Payees.swift:63 (unchanged name), :180 and :196 (unchanged favorite and learn_categories). Same pattern as intended OP-22 for account rename.",
+      "summary": "Payee writes skip cells whose value would not change: an unchanged rename writes nothing, and a selection favorite or category-learning toggle writes only the payees whose value changes. Actual's mobile rename and its selection toggles write every submitted cell. The stored rows end the same. Cause: BudgetDatabase+Payees.swift renamePayeeMessages (unchanged name) and updatePayeeManagementMessages (unchanged favorite and learn_categories). Same pattern as intended OP-22 for account rename.",
       "opened": "2026-11-13",
       "status": "intended",
       "decided": "2026-11-13",
       "reason": "User decision 2026-11-13: keep skipping cells whose value does not change, as decided for account rename (OP-22). The stored rows end the same."
-    },
-    {
-      "id": "OP-99",
-      "domain": "payees",
-      "cases": [
-        "PayeeOracleReplayTests/replaysPayeeCase"
-      ],
-      "fixtureCases": [
-        "delete-with-transactions",
-        "delete-rule-condition",
-        "delete-rule-action",
-        "delete-mixed"
-      ],
-      "summary": "Deleting a payee that has transactions or is named in a rule (condition or action) is refused, and a batch containing one is refused whole. Actual's payees-batch-change deletes any non-transfer payee; its transactions and rules keep pointing at the deleted payee id. Cause: BudgetDatabase+Payees.swift:147 (deletePayeeMessages requires ManagedPayee.canDelete).",
-      "opened": "2026-11-13",
-      "status": "open",
-      "reviewBy": "2026-12-15"
     },
     {
       "id": "OP-100",
@@ -830,42 +780,11 @@
       "fixtureCases": [
         "read-seed"
       ],
-      "summary": "Payee list order. Actual's payees-get sorts regular payees by name COLLATE NOCASE (ASCII-only case folding, so 'Éclair' sorts after 'zebra') and transfer payees by on-budget before off-budget, then account sort_order. Actualist sorts both groups by display name with localizedCaseInsensitiveCompare, so 'Éclair' sits among the E names and transfer payees are alphabetical. Cause: BudgetDatabase+Payees.swift:347.",
+      "summary": "Payee list order. Actual's payees-get sorts regular payees by name COLLATE NOCASE (ASCII-only case folding, so 'Éclair' sorts after 'zebra') and transfer payees by on-budget before off-budget, then account sort_order. Actualist sorts both groups by display name with localizedCaseInsensitiveCompare, so 'Éclair' sits among the E names and transfer payees are alphabetical. Cause: BudgetDatabase+Payees.swift fetchPayeeManagementSnapshot(in:) sort.",
       "opened": "2026-11-13",
       "status": "intended",
       "decided": "2026-11-13",
       "reason": "User decision 2026-11-13: keep the alphabetical payee list. Accented names sort with their letter and transfer payees read alphabetically, which suits a phone list better than SQLite's ASCII-only order."
-    },
-    {
-      "id": "OP-101",
-      "domain": "payees",
-      "cases": [
-        "PayeeOracleReplayTests/replaysPayeeCase"
-      ],
-      "fixtureCases": [
-        "read-seed"
-      ],
-      "summary": "'Unused' payees. Actual's unused (orphaned) payees have no live transactions and no live rule whose condition names them, including the rule of a completed schedule. Actualist's 'Unused' label and filter use the transaction count only, so a payee named only in a rule condition shows as unused. Cause: PayeeRepository.swift:102 (ManagedPayee.isUnused).",
-      "opened": "2026-11-13",
-      "status": "open",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "OP-102",
-      "domain": "transaction-queries",
-      "cases": [
-        "TransactionQueryOracleReplayTests/assertReplay"
-      ],
-      "fixtureCases": [
-        "condition-dp-payee-is-deleted",
-        "condition-dp-payee-is-null",
-        "condition-dp-payee-oneof",
-        "display-deleted-payee"
-      ],
-      "summary": "A transaction whose payee was deleted keeps showing it. Actual's transactions view joins payees only where tombstone = 0, so that payee reads as null: the row shows no payee, a 'payee is <deleted payee>' filter matches nothing, 'payee is nothing' matches it and 'payee oneOf' ignores the deleted id. Actualist reads the mapped payee id and joins payees with no live check, so the row shows the deleted payee's id and name, 'payee is <deleted payee>' and 'payee oneOf' match it, and 'payee is nothing' misses it. A payee merged away resolves to its live target in both. Cause: BudgetDatabase+TransactionReads.swift transactionReadJoins (mappedPayee and the payees join).",
-      "opened": "2026-11-13",
-      "status": "open",
-      "reviewBy": "2026-12-15"
     }
   ]
 }
