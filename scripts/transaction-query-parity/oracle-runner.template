@@ -80,7 +80,8 @@ async function seedWorld(world) {
       'INSERT INTO payees (id, name, transfer_acct, favorite, learn_categories, tombstone) VALUES (?, ?, NULL, 0, 0, 0)',
       [payee.id, payee.name],
     );
-    db.runQuery('INSERT INTO payee_mapping (id, targetId) VALUES (?, ?)', [payee.id, payee.id]);
+    db.runQuery('INSERT INTO payee_mapping (id, targetId) VALUES (?, ?)', [payee.id, payee.mapsTo ?? payee.id]);
+    if (payee.tombstone) db.runQuery('UPDATE payees SET tombstone = 1 WHERE id = ?', [payee.id]);
   }
   for (const mapping of world.payeeMappings) {
     db.runQuery('INSERT INTO payee_mapping (id, targetId) VALUES (?, ?)', [mapping.id, mapping.targetID]);
@@ -306,6 +307,15 @@ async function runCase(planCase) {
       );
       record.balances = { [planCase.account]: data };
     }
+  } else if (planCase.kind === 'display') {
+    // What an account read shows for the payee: the id and the joined name (null for a deleted payee).
+    const { data } = await aqlQuery(
+      q('transactions').filter({ account: planCase.account }).select(['id', 'payee', 'payee.name']),
+    );
+    const rows = data
+      .map(row => ({ id: row.id, payee: row.payee ?? null, payeeName: row['payee.name'] ?? null }))
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+    Object.assign(record, { account: planCase.account, rows });
   } else {
     throw new Error(`Unknown case kind ${planCase.kind}`);
   }

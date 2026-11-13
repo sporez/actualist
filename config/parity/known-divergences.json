@@ -748,7 +748,8 @@
       "fixtureCases": [
         "create-plain",
         "create-trimmed",
-        "create-account-name"
+        "create-account-name",
+        "create-normalised-padded"
       ],
       "summary": "Creating a payee writes three cells: name, payee_mapping targetId and payees.tombstone = 0. Actual's payee-create writes only the name and the mapping row; the stored rows end the same. Cause: BudgetDatabase+Payees.swift:38 (createPayeeMessages appends builder.revive).",
       "opened": "2026-11-13",
@@ -763,7 +764,8 @@
       ],
       "fixtureCases": [
         "create-diacritic-duplicate",
-        "create-padded-duplicate"
+        "create-padded-duplicate",
+        "create-normalised-duplicate"
       ],
       "summary": "Creating a payee whose name matches an existing one. Actual's payee picker drops 'Create payee' when the typed text, lowercased with diacritics removed (getNormalisedString), equals an existing non-transfer payee, and selects that payee instead; otherwise it creates the trimmed name, even when that duplicates an existing name ('Grocer ' makes a second 'Grocer'). Actualist refuses a trimmed name equal to an existing payee under SQLite NOCASE, so 'Eclair' beside 'Éclair' creates a new payee and 'Grocer ' is refused. Cause: BudgetDatabase+Payees.swift:26 and :370 (rejectDuplicatePayeeName).",
       "opened": "2026-11-13",
@@ -844,6 +846,23 @@
         "read-seed"
       ],
       "summary": "'Unused' payees. Actual's unused (orphaned) payees have no live transactions and no live rule whose condition names them, including the rule of a completed schedule. Actualist's 'Unused' label and filter use the transaction count only, so a payee named only in a rule condition shows as unused. Cause: PayeeRepository.swift:102 (ManagedPayee.isUnused).",
+      "opened": "2026-11-13",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-102",
+      "domain": "transaction-queries",
+      "cases": [
+        "TransactionQueryOracleReplayTests/assertReplay"
+      ],
+      "fixtureCases": [
+        "condition-dp-payee-is-deleted",
+        "condition-dp-payee-is-null",
+        "condition-dp-payee-oneof",
+        "display-deleted-payee"
+      ],
+      "summary": "A transaction whose payee was deleted keeps showing it. Actual's transactions view joins payees only where tombstone = 0, so that payee reads as null: the row shows no payee, a 'payee is <deleted payee>' filter matches nothing, 'payee is nothing' matches it and 'payee oneOf' ignores the deleted id. Actualist reads the mapped payee id and joins payees with no live check, so the row shows the deleted payee's id and name, 'payee is <deleted payee>' and 'payee oneOf' match it, and 'payee is nothing' misses it. A payee merged away resolves to its live target in both. Cause: BudgetDatabase+TransactionReads.swift transactionReadJoins (mappedPayee and the payees join).",
       "opened": "2026-11-13",
       "status": "open",
       "reviewBy": "2026-12-15"

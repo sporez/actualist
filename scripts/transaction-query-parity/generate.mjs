@@ -227,7 +227,7 @@ const manifestText = JSON.stringify({
   helpers: helperPaths.map(path => ({ path, sha256: sha256(readFileSync(join(repositoryRoot, path))) })),
   seed: SEED,
   timeZone: TIME_ZONE,
-  familyCounts: Object.fromEntries(['condition', 'family', 'filter', 'splitmodes'].map(family => [family, records.filter(record => record.family === family).length])),
+  familyCounts: Object.fromEntries(['condition', 'family', 'filter', 'splitmodes', 'display'].map(family => [family, records.filter(record => record.family === family).length])),
   caseCount: records.length,
   amountUnits: 'integer minor units; seeded dates are integer YYYYMMDD, conditions carry ISO day strings',
   execution: 'Actual filter handlers (filter-create, make-filters-from-conditions) and aqlQuery over an offline in-memory SQLite budget seeded from the plan worlds, in a vitest run with TZ pinned',

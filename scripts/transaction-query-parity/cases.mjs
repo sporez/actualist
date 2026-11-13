@@ -1,4 +1,4 @@
-// The transaction-query case plan: 51 named cases in four families.
+// The transaction-query case plan: 56 named cases in five families.
 //
 // Pure data. generate.mjs runs every case through Actual's own filter handlers,
 // condition compiler and transaction query executor; verify.mjs rebuilds this
@@ -83,6 +83,26 @@ const FAMILY_WORLD = {
   ],
 };
 
+// Payees whose rows are deleted (tombstone) or merged away, read through Actual's v_transactions
+// view, which joins payees only where tombstone = 0.
+const DELETED_PAYEE_WORLD = {
+  accounts: [{ id: 'acct-dp', name: 'Deleted Payee Account', offbudget: false }],
+  payees: [
+    { id: 'payee-dp-live', name: 'Live Payee' },
+    { id: 'payee-dp-deleted', name: 'Deleted Payee', tombstone: true },
+    { id: 'payee-dp-merged', name: 'Merged Away', tombstone: true, mapsTo: 'payee-dp-live' },
+  ],
+  payeeMappings: [],
+  categories: [],
+  categoryMappings: [],
+  transactions: [
+    row('t-dp-live', { account: 'acct-dp', date: 20260901, notes: 'Live payee', payee: 'payee-dp-live', sortOrder: 400 }),
+    row('t-dp-deleted', { account: 'acct-dp', date: 20260902, notes: 'Deleted payee', payee: 'payee-dp-deleted', sortOrder: 300 }),
+    row('t-dp-merged', { account: 'acct-dp', date: 20260903, notes: 'Merged-away payee', payee: 'payee-dp-merged', sortOrder: 200 }),
+    row('t-dp-none', { account: 'acct-dp', date: 20260904, notes: 'No payee', payee: null, sortOrder: 100 }),
+  ],
+};
+
 const EMPTY_WORLD = {
   accounts: [], payees: [], payeeMappings: [], categories: [], categoryMappings: [], transactions: [],
 };
@@ -103,6 +123,7 @@ export const WORLDS = {
   query: QUERY_WORLD,
   family: FAMILY_WORLD,
   empty: EMPTY_WORLD,
+  'deleted-payee': DELETED_PAYEE_WORLD,
   'splitmodes-two-child-family': splitModeWorld([
     ['simple', { amount: -1000, category: 'groceries', payee: 'coffee', date: 20260820, sortOrder: 3 }],
     ['parent', { amount: -5000, isParent: true, notes: 'S01 parent', date: 20260815, sortOrder: 2 }],
@@ -144,10 +165,10 @@ function idCondition(field, op, value) {
 // Operators Actualist's structured filters do not model (user decision 2026-10-11).
 const FEATURE_GAP = 'feature gap: operator not supported by Actualist filters (user decision 2026-10-11)';
 
-function conditionCase(id, description, condition, oracleOnly = null) {
+function conditionCase(id, description, condition, oracleOnly = null, world = 'query') {
   return {
     id, gate: 'Q1', family: 'condition', source: 'named', description, seed: null, oracleOnly,
-    world: 'query', kind: 'condition', condition, conditionsOp: 'and',
+    world, kind: 'condition', condition, conditionsOp: 'and',
   };
 }
 
@@ -186,6 +207,10 @@ function conditionCases() {
     conditionCase('q1-category-matches-name', 'category matches a name pattern', idCondition('category', 'matches', '^Mapped'), FEATURE_GAP),
     conditionCase('q1-category-does-not-contain-name', 'category doesNotContain a name fragment', idCondition('category', 'doesNotContain', 'Mapped'), FEATURE_GAP),
     conditionCase('q1-category-is-null-uncategorized', 'category is null (uncategorized)', idCondition('category', 'is', null)),
+    conditionCase('condition-dp-payee-is-deleted', 'payee is a deleted payee', idCondition('payee', 'is', 'payee-dp-deleted'), null, 'deleted-payee'),
+    conditionCase('condition-dp-payee-is-null', 'payee is null beside a deleted payee', idCondition('payee', 'is', null), null, 'deleted-payee'),
+    conditionCase('condition-dp-payee-isnot-live', 'payee isNot a live payee beside a deleted payee', idCondition('payee', 'isNot', 'payee-dp-live'), null, 'deleted-payee'),
+    conditionCase('condition-dp-payee-oneof', 'payee oneOf a deleted and a live payee', idCondition('payee', 'oneOf', ['payee-dp-deleted', 'payee-dp-live']), null, 'deleted-payee'),
   ];
 }
 
@@ -281,13 +306,25 @@ function splitModeCases() {
   ];
 }
 
+// ---------------------------------------------------------------- display
+
+function displayCases() {
+  return [
+    {
+      id: 'display-deleted-payee', gate: 'Q1', family: 'display', source: 'named',
+      description: 'payee id and name an account read shows for a deleted and a merged-away payee',
+      seed: null, oracleOnly: null, world: 'deleted-payee', kind: 'display', account: 'acct-dp',
+    },
+  ];
+}
+
 // ---------------------------------------------------------------- plan
 
 export const ORACLE_ONLY_FIELDS = [];
-export const FAMILIES = ['condition', 'family', 'filter', 'splitmodes'];
+export const FAMILIES = ['condition', 'family', 'filter', 'splitmodes', 'display'];
 
 export function buildPlan() {
-  const cases = [...conditionCases(), ...familyCases(), ...handlerCases(), ...splitModeCases()];
+  const cases = [...conditionCases(), ...familyCases(), ...handlerCases(), ...splitModeCases(), ...displayCases()];
   return { seed: SEED, timeZone: TIME_ZONE, worlds: WORLDS, cases };
 }
 

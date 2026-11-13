@@ -281,6 +281,41 @@ enum TransactionQueryOracleReplay {
         return .object(fields)
     }
 
+    // MARK: - Account read display
+
+    /// The payee id and joined payee name per transaction id. Actual's AQL `payee` and `payee.name`
+    /// come from `v_transactions`, which joins payees only where `tombstone = 0`.
+    static func expectedDisplay(_ entry: [String: Any]) throws -> OracleValue {
+        var rows: [String: OracleValue] = [:]
+        for row in try OracleJSON.objects(entry["rows"], "rows") {
+            rows[try OracleJSON.string(row, "id")] = .object([
+                "payee": try OracleValue(json: row["payee"] ?? NSNull()),
+                "payeeName": try OracleValue(json: row["payeeName"] ?? NSNull()),
+            ])
+        }
+        return .object(["rows": .object(rows)])
+    }
+
+    /// Reads the account through `fetchAccountTransactionQueryPage`, the read behind the account
+    /// Transactions screen's `loadedAccountTransactions`, and keeps each row's payee id and name.
+    static func replayDisplay(_ entry: [String: Any], world: [String: Any], makeDirectory: () throws -> URL) async throws -> OracleValue {
+        let permit = await OracleReplayGate.shared.acquire()
+        defer { permit.release() }
+        let session = try open(world: world, filters: [], directory: makeDirectory())
+        let page = try await session.database.fetchAccountTransactionQueryPage(
+            accountID: OracleJSON.string(entry, "account"),
+            query: TransactionFeedQuery()
+        ).page
+        var rows: [String: OracleValue] = [:]
+        for transaction in page.transactions {
+            rows[transaction.id ?? ""] = .object([
+                "payee": transaction.payee.map(OracleValue.string) ?? .null,
+                "payeeName": transaction.payeeName.map(OracleValue.string) ?? .null,
+            ])
+        }
+        return .object(["rows": .object(rows)])
+    }
+
     // MARK: - Helpers
 
     private static func strings(_ value: Any?) throws -> [String] {

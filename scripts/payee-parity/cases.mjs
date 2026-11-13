@@ -31,6 +31,7 @@ export const WORLD = {
     { id: 'payee-apple', name: 'apple' },
     { id: 'payee-banana', name: 'Banana' },
     { id: 'payee-zebra', name: 'zebra' },
+    { id: 'payee-strasse', name: 'Straße Café' },
   ],
   groups: [{ id: 'cat-group', name: 'Group' }],
   categories: [{ id: 'cat-food', name: 'Food', group: 'cat-group' }],
@@ -81,6 +82,8 @@ export const CASES = [
     ['create-diacritic-duplicate', 'Eclair'],
     ['create-padded-duplicate', 'Grocer '],
     ['create-account-name', 'Checking'],
+    ['create-normalised-duplicate', 'strasse cafe'],
+    ['create-normalised-padded', ' strasse cafe'],
   ].map(([id, typed]) => ({ id, kind: 'create', input: { typed } })),
 
   ...[

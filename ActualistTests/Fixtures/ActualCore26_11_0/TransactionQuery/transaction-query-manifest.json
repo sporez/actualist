@@ -7,16 +7,16 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/transaction-query-parity/generate.mjs",
-    "sha256": "c58715af47d5e75110956166d63eb3bd37d13614872ebefae681da6c84287719"
+    "sha256": "d4f2bff78e4656e6c16ae0b8ddeb2e390af1d9f37c266224678357d230fc205a"
   },
   "helpers": [
     {
       "path": "scripts/transaction-query-parity/cases.mjs",
-      "sha256": "579f96d0e21d2809cacf575e281a58838241c15a440b5a6f3b44614f00fbfa32"
+      "sha256": "e0f1f1af7276aec582e6c161f898d0467ea616883afb8d2684ec5b31d4d32c1f"
     },
     {
       "path": "scripts/transaction-query-parity/oracle-runner.template",
-      "sha256": "7c4d510e0ad4c15c159257b4a052d351f67d1339e6d6c353ac380ab58cbfd74f"
+      "sha256": "3737979fc928d35fae84c6a792794d5254420339c51499cf88eb177a943c222c"
     },
     {
       "path": "scripts/parity/lib/oracle-pin.mjs",
@@ -30,12 +30,13 @@
   "seed": null,
   "timeZone": "UTC",
   "familyCounts": {
-    "condition": 33,
+    "condition": 37,
     "family": 5,
     "filter": 8,
-    "splitmodes": 5
+    "splitmodes": 5,
+    "display": 1
   },
-  "caseCount": 51,
+  "caseCount": 56,
   "amountUnits": "integer minor units; seeded dates are integer YYYYMMDD, conditions carry ISO day strings",
   "execution": "Actual filter handlers (filter-create, make-filters-from-conditions) and aqlQuery over an offline in-memory SQLite budget seeded from the plan worlds, in a vitest run with TZ pinned",
   "scope": "synthetic local data only; no server round trip",
@@ -102,8 +103,8 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_11_0/TransactionQuery/transaction-query-contract.json",
-      "sha256": "7cce5e1fe59cc07f6c7332b56dcc7828dd055c94dfb1ed5c514726bfc866acdd",
-      "caseCount": 51,
+      "sha256": "68e8cb28bcb07efb905dff3dc41298f3b5b982ed94d00d194c7a6fcc71f72e69",
+      "caseCount": 56,
       "caseIDs": [
         "q1-date-is-day",
         "q1-date-isapprox-day",
@@ -138,6 +139,10 @@
         "q1-category-matches-name",
         "q1-category-does-not-contain-name",
         "q1-category-is-null-uncategorized",
+        "condition-dp-payee-is-deleted",
+        "condition-dp-payee-is-null",
+        "condition-dp-payee-isnot-live",
+        "condition-dp-payee-oneof",
         "q3-date-family-grouping",
         "q3-account-family-grouping",
         "q3-payee-child-selects-family",
@@ -155,7 +160,8 @@
         "child-note-search",
         "dead-parent-excludes-orphan",
         "flag-disagreement-parent-id-without-is-child",
-        "default-order"
+        "default-order",
+        "display-deleted-payee"
       ]
     },
     {

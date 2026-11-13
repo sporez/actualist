@@ -12,7 +12,7 @@
   "helpers": [
     {
       "path": "scripts/payee-parity/cases.mjs",
-      "sha256": "e901837ef35ccf4aed0959355eccc4a34ad8bb7925a26918dba3207d52366970"
+      "sha256": "6589591f4ff8aeb85d1aaff28179f446aaa2a1f17109451f4a6b3c5746ad7e1e"
     },
     {
       "path": "scripts/payee-parity/oracle-runner.template",
@@ -29,7 +29,7 @@
   ],
   "seed": null,
   "timeZone": "UTC",
-  "caseCount": 31,
+  "caseCount": 33,
   "amountUnits": "integer minor units",
   "execution": "Actual payee handlers (payee-create, payees-batch-change, payees-merge, preferences/save) on an offline in-memory SQLite database, called as the desktop client calls them, then one real undo",
   "scope": "synthetic local handler behavior only; no server round trip",
@@ -105,8 +105,8 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_11_0/Payees/payees-contract.json",
-      "sha256": "79b197067c04378bbf12db57fdc32191b09d98b2e0c6cf76c716012fc7574264",
-      "caseCount": 31,
+      "sha256": "fa076c6aa34e0a16b49538c937798b94698879d6d1de4fe650dcea5946ebf037",
+      "caseCount": 33,
       "caseIDs": [
         "read-seed",
         "create-plain",
@@ -115,6 +115,8 @@
         "create-diacritic-duplicate",
         "create-padded-duplicate",
         "create-account-name",
+        "create-normalised-duplicate",
+        "create-normalised-padded",
         "rename-plain",
         "rename-trimmed",
         "rename-unchanged",

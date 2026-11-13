@@ -10,7 +10,7 @@ commands.
   committed fixture. The Actual sources it depends on are pinned by sha256 in the file.
 - `verify.mjs`: checks the committed fixture against the manifest and `cases.mjs`.
   Needs no oracle.
-- `cases.mjs`: the seed world and the 31 case ids with their user input. Pure input, no
+- `cases.mjs`: the seed world and the 33 case ids with their user input. Pure input, no
   expectations.
 - `oracle-runner.template`: the vitest test copied into the oracle for one run and
   removed afterwards.

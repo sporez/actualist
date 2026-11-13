@@ -34,6 +34,10 @@ struct TransactionQueryOracleReplayTests {
         "q1-category-one-of",
         "q1-category-not-one-of",
         "q1-category-is-null-uncategorized",
+        "condition-dp-payee-is-deleted",
+        "condition-dp-payee-is-null",
+        "condition-dp-payee-isnot-live",
+        "condition-dp-payee-oneof",
         "q3-date-family-grouping",
         "q3-account-family-grouping",
         "q3-payee-child-selects-family",
@@ -60,8 +64,12 @@ struct TransactionQueryOracleReplayTests {
         "default-order",
     ]
 
+    nonisolated private static let displayCaseIDs = [
+        "display-deleted-payee",
+    ]
+
     private static var replayedCaseIDs: [String] {
-        queryCaseIDs + savedFilterCaseIDs + splitModeCaseIDs
+        queryCaseIDs + savedFilterCaseIDs + splitModeCaseIDs + displayCaseIDs
     }
 
     @Test func fixtureMatchesThePinnedOracle() throws {
@@ -113,6 +121,17 @@ struct TransactionQueryOracleReplayTests {
         Self.assertReplay(caseID, expected: try TransactionQueryOracleReplay.expectedSplitModes(entry), actual: actual)
     }
 
+    @Test(arguments: displayCaseIDs)
+    func replaysDisplayCase(caseID: String) async throws {
+        let cases = try OracleFixtureCases(domain: Self.domain, fileName: Self.fileName, outputKey: "rows")
+        let entry = try cases.entry(caseID)
+        let world = try Self.world(named: OracleJSON.string(entry, "world"))
+        let actual = try await TransactionQueryOracleReplay.replayDisplay(
+            entry, world: world, makeDirectory: Self.makeDirectory
+        )
+        Self.assertReplay(caseID, expected: try TransactionQueryOracleReplay.expectedDisplay(entry), actual: actual)
+    }
+
     @Test func partitionsEveryTransactionQueryFixtureCase() throws {
         let manifest = try OracleManifest(domain: Self.domain, manifestName: Self.manifestName, fileName: Self.fileName)
         let cases = try OracleFixtureCases(domain: Self.domain, fileName: Self.fileName, outputKey: "physical")
@@ -133,6 +152,10 @@ struct TransactionQueryOracleReplayTests {
     private static let divergences: [String: (op: String, paths: Set<String>)] = [
         "q3-free-text-grouped-versus-physical": ("OP-78", ["rootIDs", "displayedIDs", "contextIDs", "unmatchedIDs"]),
         "dead-parent-excludes-orphan": ("OP-79", ["results.all.ids"]),
+        "condition-dp-payee-is-deleted": ("OP-102", ["physical", "rootIDs", "displayedIDs"]),
+        "condition-dp-payee-is-null": ("OP-102", ["physical", "rootIDs", "displayedIDs"]),
+        "condition-dp-payee-oneof": ("OP-102", ["physical", "rootIDs", "displayedIDs"]),
+        "display-deleted-payee": ("OP-102", ["rows.t-dp-deleted.payee", "rows.t-dp-deleted.payeeName"]),
     ]
 
     private static func assertReplay(_ caseID: String, expected: OracleValue, actual: OracleValue) {
@@ -157,6 +180,10 @@ struct TransactionQueryOracleReplayTests {
         case "OP-79":
             #expect(actual.field("results")?.field("all")?.field("ids") == .array([.string("simple")]))
             withKnownIssue("OP-79: the all-rows read hides children of a deleted or missing parent") {
+                #expect(known.isEmpty, report)
+            }
+        case "OP-102":
+            withKnownIssue("OP-102: a deleted payee still shows on its transactions") {
                 #expect(known.isEmpty, report)
             }
         default:
