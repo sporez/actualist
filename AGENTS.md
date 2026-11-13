@@ -17,7 +17,7 @@ Glass-aware, and optimized for repeated budget review.
 - Development pipeline: `docs/DEVELOPMENT.md`.
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change, or
   reuse an applicable result when its relevant inputs are unchanged. It covers
-  whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, the server token header, concurrency escape hatches (`@unchecked Sendable`,
+  whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, the server token header, central-type extension files, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
   `// Invariant:` comment), private identifiers (patterns from an optional
   gitignored list), TestFlight notes, parity fixture hashes and the
@@ -489,6 +489,11 @@ current task.
   the actor's transaction. The actor stays the single owner of the queue,
   clock, merkle state, and write fence. Do not split it into multiple actors.
   Thin entry points on the central type are fine.
+  `scripts/lint-central-type-extensions.sh` enforces this: it fails on any
+  `BudgetDatabase+*.swift` or `LocalFirstActualStore+*.swift` not listed in
+  `config/structure/central-type-extensions.txt`, and on a listed file that no
+  longer exists. The list only shrinks as domains move out; adding a line needs
+  the maintainer's approval.
 - Prefer composition when a view model or coordinator owns multiple independent
   workflows. Extract a focused collaborator with an explicit input/output
   contract and focused tests, while leaving the parent responsible for

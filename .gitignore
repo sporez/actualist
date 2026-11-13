@@ -60,6 +60,7 @@ Local.xcconfig
 .release/
 scripts/*
 !scripts/check.sh
+!scripts/lint-central-type-extensions.sh
 !scripts/lint-concurrency-escape-hatches.sh
 !scripts/lint-date-ownership.sh
 !scripts/lint-known-divergences.sh

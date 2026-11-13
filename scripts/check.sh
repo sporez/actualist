@@ -49,6 +49,9 @@ section "Date ownership"
 section "Tombstone messages"
 "$ROOT/scripts/lint-tombstone-messages.sh" || status=1
 
+section "Central-type extension files"
+"$ROOT/scripts/lint-central-type-extensions.sh" || status=1
+
 section "Concurrency escape hatches"
 "$ROOT/scripts/lint-concurrency-escape-hatches.sh" || status=1
 
