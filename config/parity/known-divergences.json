@@ -831,8 +831,9 @@
       ],
       "summary": "Creating or deleting an income category in an envelope budget is refused. Actual's category-create and category-delete allow both; deleting an income category with a transfer re-points its mapping without moving budget amounts. Cause: BudgetDatabase+CategoryLifecycle.swift requireCategoryManagementAllowed.",
       "opened": "2026-11-13",
-      "status": "open",
-      "reviewBy": "2026-12-15"
+      "status": "intended",
+      "decided": "2026-11-14",
+      "reason": "User decision 2026-11-14: keep refusing to create or delete income categories in an envelope budget."
     },
     {
       "id": "OP-106",
@@ -845,8 +846,9 @@
       ],
       "summary": "Creating a group trims its name; Actual's category-group-create stores the name as typed ('  Savings  '). Category names are trimmed by both. This case's writes also carry OP-103's extra tombstone cell. Cause: BudgetDatabase+CategoryLifecycle.swift createCategoryGroupMessages (validatedName).",
       "opened": "2026-11-13",
-      "status": "open",
-      "reviewBy": "2026-12-15"
+      "status": "intended",
+      "decided": "2026-11-14",
+      "reason": "User decision 2026-11-14: keep trimming group names, as category, payee and account names are trimmed."
     },
     {
       "id": "OP-107",
@@ -868,8 +870,9 @@
       ],
       "summary": "Category and group edits write only the changed cell. Actual's web app sends the whole category or group to category-update / category-group-update, so a rename or hide also rewrites cat_group, is_income, hidden, name, goal_def, cleanup_def, template_settings and tombstone with their current values, and an unchanged rename still writes. Deleting with a transfer, Actual's doTransfer rewrites the transfer category's budget in every month even when unchanged. The stored rows end the same. Same pattern as intended OP-98 (payees) and OP-22 (accounts). Cause: renameCategoryMessages and renameCategoryGroupMessages (BudgetDatabase+CategoryLifecycle.swift), setCategoryHiddenMessages and setCategoryGroupHiddenMessages (BudgetDatabase+CategoryVisibility.swift), categoryBudgetTransferMessages (BudgetDatabase+CategoryLifecycleDeletion.swift).",
       "opened": "2026-11-13",
-      "status": "open",
-      "reviewBy": "2026-12-15"
+      "status": "intended",
+      "decided": "2026-11-14",
+      "reason": "User decision 2026-11-14: keep writing only the changed cell, as decided for payees (OP-98) and accounts (OP-22). The stored rows end the same."
     },
     {
       "id": "OP-108",
