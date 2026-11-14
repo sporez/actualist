@@ -578,6 +578,27 @@
         "Actualist/Shared/JavaScriptJSON.swift"
       ],
       "notes": "The generator records looselyParseAmount, amountToInteger, parseDate, parseCategoryFields, applyFieldMappings (saved-mapping shapes as [key, value] pairs), parseAmountFields (split, in/out, flip and multiplier) and the module-private getInitialMappings, getInitialDateFormat (also with a saved mapping) and decodeCsvBytes from the pinned Actual, plus a CSV import pipeline that reads the account's synced preferences as the modal does (delimiter, encoding, skip lines, header, mappings, date format, flip, in/out). CSV cases carry the CSV text or raw bytes and run through Actual's real parseFile. Every enforced function has every V8 block reached (no waivers), and regex alternatives are tracked in a checklist in cases.mjs. About 12,400 seeded and named cases. A parseCsvRecords family (about 2,400 cases, some from raw bytes, with skip lines and encodings) records csv-parse 7.0.3 on Actual's option set, with explicit checklists because csv-parse is not coverage-measured. The import-notes preference is written by the modal but never read. The pipeline also records Actual's own sample CSV files as raw bytes (13 cases, hash-frozen) and 36 reconstructed bank export layouts with synthetic values, each with default settings and with the settings a user would save (bank-layout-cases.mjs; not real exports). Swift ports are replayed by FileImportOracleReplayTests as they land; engine-defined sort orders are known divergences."
+    },
+    {
+      "id": "undo-history",
+      "title": "Undo history: History undo and payee undo against Actual's undo()",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/undo-parity",
+        "generate": "node scripts/undo-parity/generate.mjs",
+        "verify": "node scripts/undo-parity/verify.mjs",
+        "check": "node scripts/undo-parity/generate.mjs --check"
+      },
+      "fixture": "Undo",
+      "oracleSuites": [
+        "UndoOracleReplayTests"
+      ],
+      "paths": [
+        "Actualist/LocalFirst/ActionLog/*.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+ActionLog.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+ActionLog*.swift"
+      ],
+      "notes": "10 cases (assign, move, create, edit, delete x3, categorize, batch delete and categorize) compare Actualist's History undo with loot-core undo(); the Payees fixture's recorded undo is replayed through the one-step payee undo. Duplicate and merge are covered by TransactionCommandOracleReplayTests; the template action and categories/account groups have no comparison."
     }
   ]
 }

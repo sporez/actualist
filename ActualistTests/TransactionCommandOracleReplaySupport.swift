@@ -17,7 +17,7 @@ enum TransactionCommandOracleReplay {
     static let now = Date(timeIntervalSince1970: 1_789_344_000)
 
     /// Fixture key -> physical `transactions` column.
-    private static let transactionColumns: [(key: String, column: String)] = [
+    static let transactionColumns: [(key: String, column: String)] = [
         ("id", "id"), ("is_parent", "isParent"), ("is_child", "isChild"), ("account", "acct"),
         ("category_mapping_id", "category"), ("amount", "amount"), ("payee_mapping_id", "description"),
         ("notes", "notes"), ("date", "date"), ("imported_id", "financial_id"), ("type", "type"),
@@ -28,7 +28,7 @@ enum TransactionCommandOracleReplay {
         ("reconciled", "reconciled"), ("raw_synced_data", "raw_synced_data"),
     ]
 
-    private static let uncomparableKeys: Set<String> = ["sort_order"]
+    static let uncomparableKeys: Set<String> = ["sort_order"]
 
     private struct Session {
         let database: BudgetDatabase

@@ -1,0 +1,406 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/undo-parity/generate.mjs and removed
+// after the run. Seeds the synthetic envelope budget through upstream's own db functions and
+// spreadsheet, then for each case sends what Actual's mobile UI sends to the real loot-core
+// handlers (building the payloads with the shared client helpers the UI calls), and records the
+// CRDT messages, the rows, and then the messages and rows after loot-core's undo().
+// Nothing here decides an expected outcome: refusals are recorded as observations.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+
+import { aqlQuery } from '#server/aql';
+import * as budget from '#server/budget/base';
+import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
+import { handlers } from '#server/main';
+import { runHandler } from '#server/mutators';
+import * as sheet from '#server/sheet';
+import { setSyncingMode } from '#server/sync';
+import { deserializeValue } from '#server/sync/serialization';
+import { resetState } from '#server/transactions/transaction-rules';
+import { clearUndo, undo } from '#server/undo';
+import { q } from '#shared/query';
+import {
+  deleteTransaction,
+  realizeTempTransactions,
+  ungroupTransactions,
+  updateTransaction,
+} from '#shared/transactions';
+import { applyChanges, diffItems } from '#shared/util';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const outputPath = __OUTPUT_PATH__;
+const WORLD = plan.world;
+const CASES = plan.cases;
+// The currency code the mobile client sends with a transfer (the budget-month harness sends USD too).
+const CURRENCY_CODE = 'USD';
+
+const DUMP_TABLES = [
+  'accounts',
+  'category_groups',
+  'categories',
+  'category_mapping',
+  'payees',
+  'payee_mapping',
+  'transactions',
+  'zero_budgets',
+  'zero_budget_months',
+];
+const DUMP_EXCLUDED_COLUMNS = /_ts$/;
+const dbMonth = month => parseInt(month.replace('-', ''));
+
+const scalar = value =>
+  value === null ||
+  typeof value === 'boolean' ||
+  typeof value === 'number' ||
+  typeof value === 'string'
+    ? value
+    : String(value);
+const normalizeRows = rows =>
+  rows.map(row =>
+    Object.fromEntries(Object.entries(row).map(([key, value]) => [key, scalar(value)])),
+  );
+const toJSON = value => (value === undefined ? null : JSON.parse(JSON.stringify(value)));
+const normalizeError = error =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+async function dumpTables(tables) {
+  const dumped = {};
+  for (const table of tables) {
+    const info = await db.all(`PRAGMA table_info(${table})`);
+    if (info.length === 0) throw new Error(`Missing table ${table}`);
+    const columns = info.map(column => column.name).filter(name => !DUMP_EXCLUDED_COLUMNS.test(name));
+    const keys = info
+      .filter(column => column.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map(column => column.name);
+    const rows = await db.all(`SELECT ${columns.join(', ')} FROM ${table}`);
+    const sortValue = row => keys.map(key => String(row[key] ?? '')).join('\u0000');
+    rows.sort((a, b) => (sortValue(a) < sortValue(b) ? -1 : sortValue(a) > sortValue(b) ? 1 : 0));
+    dumped[table] = rows.map(row => Object.fromEntries(columns.map(column => [column, row[column] ?? null])));
+  }
+  return dumped;
+}
+
+async function crdtMarker() {
+  const row = await db.first('SELECT MAX(id) AS maximum FROM messages_crdt');
+  return row?.maximum ?? 0;
+}
+
+async function crdtMessagesSince(marker) {
+  const rows = await db.all(
+    `SELECT id, dataset, row, column, CAST(value AS TEXT) AS serialized_value
+       FROM messages_crdt WHERE id > ? ORDER BY id`,
+    [marker],
+  );
+  return rows.map(row => ({
+    dataset: row.dataset,
+    row: row.row,
+    column: row.column,
+    value: deserializeValue(row.serialized_value),
+  }));
+}
+
+// The physical transactions table (init.sql plus migrations), not the public AQL aliases.
+async function rowsOf() {
+  const all = sql => db.all(sql).then(normalizeRows);
+  return {
+    transactions: await all(
+      `SELECT id,
+              isParent AS is_parent,
+              isChild AS is_child,
+              acct AS account,
+              category AS category_mapping_id,
+              amount,
+              description AS payee_mapping_id,
+              notes,
+              date,
+              financial_id AS imported_id,
+              type,
+              location,
+              error,
+              imported_description AS imported_payee,
+              starting_balance_flag,
+              transferred_id AS transfer_id,
+              sort_order,
+              tombstone,
+              parent_id,
+              cleared,
+              pending,
+              reconciled,
+              schedule,
+              raw_synced_data
+         FROM transactions ORDER BY id`,
+    ),
+    zero_budgets: await all(
+      `SELECT id, month, category, amount, carryover FROM zero_budgets
+        WHERE month IN (${plan.sheetMonths.map(dbMonth).join(', ')}) ORDER BY id`,
+    ),
+    payees: await all(
+      'SELECT id, name, transfer_acct, favorite, learn_categories, tombstone FROM payees ORDER BY id',
+    ),
+    payee_mapping: await all('SELECT id, targetId FROM payee_mapping ORDER BY id'),
+  };
+}
+
+async function resetDatabase() {
+  if (sheet.get()) {
+    await sheet.waitOnSpreadsheet();
+    sheet.unloadSpreadsheet();
+  }
+  setSyncingMode('disabled');
+  await global.emptyDatabase()();
+  clearUndo();
+  resetState();
+  await loadMappings();
+}
+
+async function seedWorld() {
+  await resetDatabase();
+  for (const account of WORLD.accounts) {
+    await db.insertAccount({ id: account.id, name: account.name });
+  }
+  for (const group of WORLD.groups) {
+    await db.insertCategoryGroup({ id: group.id, name: group.name, is_income: group.is_income ?? 0 });
+  }
+  for (const category of WORLD.categories) {
+    await db.insertCategory({
+      id: category.id,
+      name: category.name,
+      cat_group: category.group,
+      is_income: category.is_income ?? 0,
+    });
+  }
+  for (const payee of WORLD.payees) {
+    await db.insertPayee({ id: payee.id, name: payee.name, transfer_acct: payee.transfer_acct ?? null });
+  }
+  await loadMappings();
+  for (const row of WORLD.budgets) {
+    await db.insert('zero_budgets', {
+      id: `${dbMonth(row.month)}-${row.category}`,
+      month: dbMonth(row.month),
+      category: row.category,
+      amount: row.amount,
+      carryover: 0,
+    });
+  }
+  let childOrder = 0;
+  for (const transaction of WORLD.transactions) {
+    childOrder = transaction.is_child ? childOrder + 1 : 0;
+    await db.insertTransaction({
+      cleared: true,
+      reconciled: false,
+      is_parent: false,
+      is_child: false,
+      parent_id: null,
+      payee: null,
+      notes: null,
+      sort_order: transaction.is_child ? -childOrder : 100,
+      ...transaction,
+    });
+  }
+  await sheet.loadSpreadsheet(db);
+  await budget.createBudget(plan.sheetMonths);
+  await sheet.waitOnSpreadsheet();
+  db.runQuery('DELETE FROM messages_crdt');
+  setSyncingMode('offline');
+  global.resetRandomId();
+}
+
+// The mobile transaction screens fetch a transaction with its splits grouped and edit the
+// flattened list (components/mobile/transactions/TransactionEdit.tsx).
+async function fetchFlat(ids) {
+  const { data } = await aqlQuery(
+    q('transactions').filter({ id: { $oneof: ids } }).select('*').options({ splits: 'grouped' }),
+  );
+  return ungroupTransactions(data);
+}
+
+const emptyDiff = () => ({ added: [], deleted: [], updated: [] });
+
+// What the UI sends for the case, as an ordered list of calls; a later payload may depend on an
+// earlier call's result. `send` runs one call and returns its result, or null when it threw.
+async function perform(item, send) {
+  const input = item.input;
+  switch (item.kind) {
+    case 'assign':
+      // mobile/budget/BudgetCell.tsx onUpdateBudget -> useBudgetActions 'budget-amount'.
+      await send('budget/budget-amount', {
+        month: input.month,
+        category: input.categoryID,
+        amount: input.amount,
+      });
+      return;
+    case 'move':
+      // mobile/budget/ExpenseCategoryListItem.tsx onTransfer -> useBudgetActions 'transfer-category'.
+      await send('budget/transfer-category', {
+        month: input.month,
+        amount: input.amount,
+        from: input.fromID,
+        to: input.toID,
+        currencyCode: CURRENCY_CODE,
+      });
+      return;
+    case 'create': {
+      // TransactionEdit.tsx: a temp transaction filled field by field, realized and diffed on save.
+      const temp = {
+        id: 'temp',
+        date: input.date,
+        account: input.accountID,
+        category: input.categoryID,
+        amount: input.amount,
+        cleared: false,
+        notes: '',
+      };
+      const changes = diffItems([], realizeTempTransactions([temp]));
+      await send('transactions-batch-update', {
+        added: changes.added,
+        deleted: changes.deleted,
+        updated: changes.updated,
+        learnCategories: true,
+      });
+      return;
+    }
+    case 'edit': {
+      // PayeeAutocomplete.handleSelect creates the typed payee first (payee-create, its own
+      // undo step); TransactionEdit.onSave then diffs the edited list against the fetched one.
+      const payeeID = await send('payee-create', { name: input.newPayeeName.trim() });
+      if (payeeID === null) return;
+      const fetched = await fetchFlat([input.transactionID]);
+      const edited = updateTransaction(fetched, {
+        ...fetched.find(t => t.id === input.transactionID),
+        amount: input.amount,
+        payee: payeeID,
+      }).data;
+      const changes = diffItems(fetched, edited);
+      await send('transactions-batch-update', {
+        added: changes.added,
+        deleted: changes.deleted,
+        updated: changes.updated,
+        learnCategories: true,
+      });
+      return;
+    }
+    case 'delete': {
+      // TransactionEdit.tsx onDelete: only the diff's deleted list is sent.
+      const fetched = await fetchFlat([input.transactionID]);
+      const changes = deleteTransaction(fetched, input.transactionID);
+      await send('transactions-batch-update', { deleted: changes.diff.deleted });
+      return;
+    }
+    case 'categorize': {
+      const fetched = await fetchFlat([input.transactionID]);
+      const edited = updateTransaction(fetched, {
+        ...fetched.find(t => t.id === input.transactionID),
+        category: input.categoryID,
+      }).data;
+      const changes = diffItems(fetched, edited);
+      await send('transactions-batch-update', {
+        added: changes.added,
+        deleted: changes.deleted,
+        updated: changes.updated,
+        learnCategories: true,
+      });
+      return;
+    }
+    case 'batch-delete': {
+      // hooks/useTransactionBatchActions.ts onBatchDelete, used by mobile/transactions/TransactionList.tsx.
+      let transactions = await fetchFlat(input.ids);
+      const idSet = new Set(input.ids);
+      const changes = emptyDiff();
+      transactions.forEach(trans => {
+        const parentId = trans.parent_id;
+        if (!idSet.has(trans.id) || (parentId && idSet.has(parentId))) return;
+        const { diff } = deleteTransaction(transactions, trans.id);
+        transactions = applyChanges(diff, transactions);
+        changes.deleted = diff.deleted ? changes.deleted.concat(diff.deleted) : diff.deleted;
+        changes.updated = diff.updated ? changes.updated.concat(diff.updated) : diff.updated;
+      });
+      await send('transactions-batch-update', changes);
+      return;
+    }
+    case 'batch-categorize': {
+      // hooks/useTransactionBatchActions.ts onBatchEdit with name 'category'.
+      const flat = await fetchFlat(input.ids);
+      let transactionsToChange = flat;
+      const idSet = new Set(input.ids);
+      const changes = emptyDiff();
+      flat.forEach(trans => {
+        if (!idSet.has(trans.id)) return;
+        const { diff } = updateTransaction(transactionsToChange, { ...trans, category: input.categoryID });
+        transactionsToChange = applyChanges(diff, transactionsToChange);
+        changes.deleted = changes.deleted ? changes.deleted.concat(diff.deleted) : diff.deleted;
+        changes.updated = changes.updated ? changes.updated.concat(diff.updated) : diff.updated;
+        changes.added = changes.added ? changes.added.concat(diff.added) : diff.added;
+      });
+      await send('transactions-batch-update', changes);
+      return;
+    }
+    default:
+      throw new Error(`Unknown case kind ${item.kind}`);
+  }
+}
+
+test(
+  'captures the undo matrix from Actual handlers',
+  async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(`${plan.today}T12:00:00.000Z`));
+    // Under IS_TESTING, monthUtils.currentMonth() reads this hook instead of the clock.
+    global.currentMonth = plan.today.slice(0, 7);
+    const records = [];
+    try {
+      for (const item of CASES) {
+        await seedWorld();
+        const world = await dumpTables(DUMP_TABLES);
+        const record = { id: item.id, kind: item.kind, input: item.input, world };
+        record.rowsBefore = await rowsOf();
+        record.handlerCall = [];
+        record.handlerResults = [];
+        record.handlerError = null;
+        let succeeded = 0;
+        const marker = await crdtMarker();
+        const send = async (method, payload) => {
+          record.handlerCall.push({ method, payload: toJSON(payload) });
+          try {
+            const result = toJSON(await runHandler(handlers[method], payload, { name: method }));
+            record.handlerResults.push(result);
+            succeeded += 1;
+            return result ?? true;
+          } catch (error) {
+            // A refusal is evidence, not an assumed failure.
+            record.handlerError = normalizeError(error);
+            record.handlerResults.push(null);
+            return null;
+          }
+        };
+        await perform(item, send);
+        await sheet.waitOnSpreadsheet();
+        record.messages = await crdtMessagesSince(marker);
+        record.rowsAfterAction = await rowsOf();
+
+        // One undo() per undoable call: the payee-create of an edit is its own undo step.
+        record.undoCalls = succeeded;
+        const undoMarker = await crdtMarker();
+        record.undoErrors = [];
+        for (let step = 0; step < succeeded; step += 1) {
+          try {
+            await undo();
+            await sheet.waitOnSpreadsheet();
+          } catch (error) {
+            record.undoErrors.push(normalizeError(error));
+          }
+        }
+        record.undoMessages = await crdtMessagesSince(undoMarker);
+        record.rowsAfterUndo = await rowsOf();
+        records.push(record);
+      }
+    } finally {
+      vi.useRealTimers();
+      setSyncingMode('disabled');
+    }
+    writeFileSync(outputPath, JSON.stringify(records));
+    expect(records.length).toBe(CASES.length);
+  },
+  600_000,
+);

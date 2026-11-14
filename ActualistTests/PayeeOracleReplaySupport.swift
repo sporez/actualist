@@ -5,8 +5,8 @@ import GRDB
 /// Replays the Payees oracle contract through the production store's payee commands (create, rename,
 /// merge, delete, favorite and category learning, global category learning) on a starter-schema
 /// budget seeded from the fixture's `world`. The compared and excluded parts are documented in
-/// `scripts/payee-parity/README.md`. The recorded undo is not replayed here; a later undo oracle
-/// owns it.
+/// `scripts/payee-parity/README.md`. The recorded undo is replayed by `UndoOracleReplayTests`, which
+/// reuses the seeding, command and row readers below.
 @MainActor
 enum PayeeOracleReplay {
     private static let budgetID = "budget"
@@ -99,7 +99,7 @@ enum PayeeOracleReplay {
     /// The production call for the case. What Actual's UI picked (the target value of a
     /// favorite or learning toggle, the global value) is read from the recorded call, so the
     /// all-on-turns-off selection rule is Actual's and not recomputed here.
-    private static func perform(
+    static func perform(
         kind: String,
         input: [String: Any],
         call: Any?,
@@ -162,7 +162,7 @@ enum PayeeOracleReplay {
         ])
     }
 
-    private static func readRows(_ database: BudgetDatabase, includePreferences: Bool) async throws -> OracleValue {
+    static func readRows(_ database: BudgetDatabase, includePreferences: Bool) async throws -> OracleValue {
         let queue = await database.queue
         return try await queue.read { db -> OracleValue in
             func table(_ sql: String) throws -> OracleValue {
@@ -188,7 +188,7 @@ enum PayeeOracleReplay {
     // MARK: Aliasing
 
     /// Ids the world seeds; an id outside it is one the action minted.
-    private static func seededIDs(_ world: [String: Any]) -> Set<String> {
+    static func seededIDs(_ world: [String: Any]) -> Set<String> {
         var ids: Set<String> = []
         for table in ["payees", "payee_mapping"] {
             for row in (world[table] as? [[String: Any]]) ?? [] {
@@ -199,7 +199,7 @@ enum PayeeOracleReplay {
     }
 
     /// Actual's minted ids are `uuid-N` by first appearance; the store mints UUIDs. Only payee ids are minted.
-    private static func newIDAliases(
+    static func newIDAliases(
         messages: [ActualSyncDecodedMessage],
         rows: OracleValue,
         seeded: Set<String>
@@ -226,7 +226,7 @@ enum PayeeOracleReplay {
         let values: [DatabaseValue]
     }
 
-    private static func seed(
+    static func seed(
         _ database: BudgetDatabase,
         world: [String: Any],
         preferences: [[String: Any]]
