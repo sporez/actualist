@@ -1,0 +1,144 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/portable-archive-parity/generate.mjs and
+// removed after the run. Seeds one synthetic budget through upstream's own db functions and
+// handlers, exports it with the export-budget handler, and imports ZIPs with the import-budget
+// handler (type "actual"). Nothing here decides an expected outcome.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { test, vi } from 'vitest';
+
+import * as pfs from '#platform/server/fs';
+import { aqlQuery } from '#server/aql';
+import * as db from '#server/db';
+import { handlers } from '#server/main';
+import { runHandler } from '#server/mutators';
+import { setSyncingMode } from '#server/sync';
+import { insertRule } from '#server/transactions/transaction-rules';
+import { q } from '#shared/query';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const call = (method, payload) => runHandler(handlers[method], payload, { name: method });
+
+// The world: about 30 rows once Actual's own starter rows are added. Explicit ids throughout.
+async function seedWorld() {
+  const created = await handlers['create-budget']({ budgetName: plan.budgetName, avoidUpload: true });
+  if (created.error) throw new Error(`create-budget: ${created.error}`);
+  setSyncingMode('offline');
+
+  // Account groups, then accounts (two on budget, one off budget, one closed).
+  for (const group of [{ id: 'grp-banks', name: 'Banks' }, { id: 'grp-other', name: 'Other' }]) {
+    await db.insertAccountGroup(group);
+  }
+  const accounts = [
+    { id: 'acct-checking', name: 'Checking', offbudget: 0, group: 'grp-banks' },
+    { id: 'acct-card', name: 'Credit Card', offbudget: 0, group: 'grp-banks' },
+    { id: 'acct-house', name: 'House', offbudget: 1, group: 'grp-other' },
+    { id: 'acct-old', name: 'Old Savings', offbudget: 0, group: null, closed: 1 },
+  ];
+  for (const account of accounts) {
+    await db.insertAccount({ id: account.id, name: account.name, offbudget: account.offbudget });
+    await db.update('accounts', { id: account.id, account_group_id: account.group, closed: account.closed ?? 0 });
+    // What the account-create handler adds beside the account.
+    await db.insertPayee({ id: `xfer-${account.id}`, name: '', transfer_acct: account.id });
+  }
+
+  // Category groups and categories, one hidden category and one hidden group.
+  await db.insertCategoryGroup({ id: 'cg-bills', name: 'Bills', is_income: 0, hidden: 0 });
+  await db.insertCategoryGroup({ id: 'cg-fun', name: 'Fun', is_income: 0, hidden: 1 });
+  await db.insertCategoryGroup({ id: 'cg-income', name: 'Pay', is_income: 1, hidden: 0 });
+  for (const category of [
+    { id: 'cat-rent', name: 'Rent', cat_group: 'cg-bills', is_income: 0, hidden: 0 },
+    { id: 'cat-food', name: 'Food', cat_group: 'cg-bills', is_income: 0, hidden: 0 },
+    { id: 'cat-old', name: 'Old Stuff', cat_group: 'cg-bills', is_income: 0, hidden: 1 },
+    { id: 'cat-games', name: 'Games', cat_group: 'cg-fun', is_income: 0, hidden: 0 },
+    { id: 'cat-salary', name: 'Salary', cat_group: 'cg-income', is_income: 1, hidden: 0 },
+  ]) {
+    await db.insertCategory(category, { atEnd: true });
+  }
+
+  // Payees; pay-dup is merged into pay-shop.
+  await db.insertPayee({ id: 'pay-shop', name: 'Corner Shop' });
+  await db.insertPayee({ id: 'pay-dup', name: 'Corner Shop Ltd' });
+  await db.insertPayee({ id: 'pay-employer', name: 'Employer' });
+
+  // Transactions: plain, a split, a transfer pair and a tombstoned row.
+  const tx = fields => db.insertTransaction({ cleared: true, ...fields });
+  await tx({ id: 'tx-salary', account: 'acct-checking', date: '2026-09-01', amount: 300000, payee: 'pay-employer', category: 'cat-salary', notes: 'September pay' });
+  await tx({ id: 'tx-rent', account: 'acct-checking', date: '2026-09-02', amount: -120000, payee: 'pay-employer', category: 'cat-rent' });
+  await tx({ id: 'tx-shop', account: 'acct-card', date: '2026-09-05', amount: -4599, payee: 'pay-dup', category: 'cat-food', cleared: false });
+  await tx({ id: 'tx-split', account: 'acct-card', date: '2026-09-06', amount: -10000, payee: 'pay-shop', is_parent: true, notes: 'Split lunch' });
+  await tx({ id: 'tx-split-a', account: 'acct-card', date: '2026-09-06', amount: -6000, payee: 'pay-shop', category: 'cat-food', is_child: true, parent_id: 'tx-split' });
+  await tx({ id: 'tx-split-b', account: 'acct-card', date: '2026-09-06', amount: -4000, payee: 'pay-shop', category: 'cat-games', is_child: true, parent_id: 'tx-split' });
+  await tx({ id: 'tx-xfer-out', account: 'acct-checking', date: '2026-09-10', amount: -25000, payee: 'xfer-acct-card', transfer_id: 'tx-xfer-in' });
+  await tx({ id: 'tx-xfer-in', account: 'acct-card', date: '2026-09-10', amount: 25000, payee: 'xfer-acct-checking', transfer_id: 'tx-xfer-out' });
+  await tx({ id: 'tx-house', account: 'acct-house', date: '2026-09-12', amount: 25000000, payee: 'pay-employer' });
+  await tx({ id: 'tx-dead', account: 'acct-checking', date: '2026-09-15', amount: -999, payee: 'pay-shop', category: 'cat-food' });
+  await db.deleteTransaction({ id: 'tx-dead' });
+  await db.mergePayees('pay-shop', ['pay-dup']);
+
+  // A rule and a schedule.
+  await insertRule({
+    id: 'rule-shop',
+    stage: null,
+    conditionsOp: 'and',
+    conditions: [{ op: 'is', field: 'payee', value: 'pay-shop' }],
+    actions: [{ op: 'set', field: 'category', value: 'cat-food' }],
+  });
+  await call('schedule/create', {
+    schedule: { id: 'sched-rent', name: 'Rent', posts_transaction: false },
+    conditions: [
+      { op: 'isapprox', field: 'date', value: { start: '2026-10-02', frequency: 'monthly', patterns: [], skipWeekend: false, weekendSolveMode: 'after', endMode: 'never' } },
+      { op: 'is', field: 'account', value: 'acct-checking' },
+      { op: 'isapprox', field: 'amount', value: -120000 },
+    ],
+  });
+
+  // Envelope budgets for two months, a note and synced preferences.
+  for (const [month, category, amount] of [
+    ['2026-09', 'cat-rent', 120000], ['2026-09', 'cat-food', 40000],
+    ['2026-10', 'cat-rent', 120000], ['2026-10', 'cat-food', 45000],
+  ]) {
+    await call('budget/budget-amount', { month, category, amount });
+  }
+  await db.insert('notes', { id: 'cat-food', note: 'Groceries and the shop' });
+  await db.insert('preferences', { id: 'numberFormat', value: 'comma-dot' });
+  await db.insert('preferences', { id: 'firstDayOfWeekIdx', value: '1' });
+}
+
+async function balances() {
+  const out = [];
+  for (const account of await db.getAccounts()) {
+    const { data } = await aqlQuery(
+      q('transactions').filter({ account: account.id }).options({ splits: 'inline' }).calculate({ $sum: '$amount' }),
+    );
+    out.push({ id: account.id, name: account.name, offbudget: !!account.offbudget, closed: !!account.closed, balance: data ?? 0 });
+  }
+  return out.sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+test(
+  'portable archive export and import through Actual handlers',
+  async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(`${plan.today}T12:00:00.000Z`));
+    pfs._setDocumentDir(process.env.ACTUAL_DATA_DIR);
+    const results = [];
+    for (const step of plan.steps) {
+      if (step.op === 'seed-export') {
+        await seedWorld();
+        const exported = await call('export-budget', undefined);
+        if (exported.error || !exported.data) throw new Error(`export-budget: ${exported.error}`);
+        writeFileSync(step.zip, Buffer.from(exported.data));
+        results.push({ label: step.label, warnings: exported.warnings });
+      } else if (step.op === 'import') {
+        const imported = await call('import-budget', { filepath: step.zip, type: 'actual' });
+        if (imported.error) throw new Error(`import-budget ${step.label}: ${imported.error}`);
+        results.push({ label: step.label, id: imported.id, balances: await balances() });
+        await call('close-budget', undefined);
+      } else {
+        throw new Error(`Unknown step ${step.op}`);
+      }
+    }
+    writeFileSync(__OUTPUT_PATH__, JSON.stringify(results));
+  },
+  120_000,
+);

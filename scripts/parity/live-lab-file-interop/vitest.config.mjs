@@ -10,6 +10,6 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 
 export default {
   ...base,
-  server: { fs: { allow: [...base.server.fs.allow, here] } },
+  server: { fs: { allow: [...base.server.fs.allow, here, path.join(here, '../lib')] } },
   test: { ...base.test, include: [path.join(here, 'peer.test.mjs')] },
 };

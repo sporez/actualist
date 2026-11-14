@@ -254,10 +254,17 @@
     {
       "id": "portable-archive",
       "title": "Budget ZIP import and export, portable sync reset",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/portable-archive-parity",
+        "generate": "node scripts/portable-archive-parity/generate.mjs",
+        "verify": "node scripts/portable-archive-parity/verify.mjs",
+        "check": "node scripts/portable-archive-parity/generate.mjs --check"
+      },
+      "fixture": "PortableArchive",
+      "oracleSuites": [
+        "PortableArchiveOracleReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/PortableBudgetArchive.swift",
         "Actualist/LocalFirst/PortableExportFiles.swift",
@@ -267,7 +274,7 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift",
         "Actualist/LocalFirst/Database/PortableBudgetSchema.swift"
       ],
-      "notes": "Portable archive tests build their archives in-test (hand-written, not oracle output). The sync reset (OP-03, fixed) is covered by PortableBudgetImportSyncResetTests, not an oracle case. The opt-in live-lab harness scripts/parity/live-lab-file-interop/ round-trips real ZIPs both ways with the pinned Actual (LiveLabFileInteropTests)."
+      "notes": "Actual's export-budget ZIP imported through the production portable import and an Actualist export read back by Actual's import-budget, compared by table digest and account balances; the sync reset (OP-03) also has PortableBudgetImportSyncResetTests. The opt-in live-lab harness scripts/parity/live-lab-file-interop/ remains for the server path."
     },
     {
       "id": "csv-import-export",

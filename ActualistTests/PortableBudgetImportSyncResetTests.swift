@@ -11,7 +11,7 @@ struct PortableBudgetImportSyncResetTests {
     private let support = LocalFirstActualStoreTests()
     private static let carriedTimestamp = "2026-07-04T12:05:00.000Z-0000-nodeb"
 
-    private actor AcceptingRegistrationTransport: ActualFileRegistrationTransport {
+    actor AcceptingRegistrationTransport: ActualFileRegistrationTransport {
         func uploadUserFile(
             fileID: String, name: String, groupID: String?, encryptMeta: ActualEncryptedMetadata?,
             bytes: Data, token: String

@@ -1,0 +1,684 @@
+{
+ "schemaVersion": 1,
+ "oracle": {
+  "tag": "v26.11.0",
+  "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+  "packageVersion": "26.11.0"
+ },
+ "syntheticData": {
+  "only": true
+ },
+ "source": "the committed Actualist export, as written (zip) and read by Actual import-budget (afterActualImport)",
+ "zip": {
+  "tables": {
+   "__meta__": {
+    "count": 1,
+    "hash": "f659c272c4831cbd1ebd272768c8413cdfb534e7b3ed4b99d5922d1c345c5a86",
+    "lines": [
+     "[[\"key\",\"view-hash\"],[\"value\",\"87d8f0362e93af2e4cb9a7584b789272\"]]"
+    ]
+   },
+   "__migrations__": {
+    "count": 60,
+    "hash": "f73f7b8ed3bd19bd8964f0cfae9c6954f2f9688de96c59f9d6d172ba0e6d79b1",
+    "lines": [
+     "[[\"id\",1548957970627]]",
+     "[[\"id\",1550601598648]]",
+     "[[\"id\",1555786194328]]",
+     "[[\"id\",1561751833510]]",
+     "[[\"id\",1567699552727]]",
+     "[[\"id\",1582384163573]]",
+     "[[\"id\",1597756566448]]",
+     "[[\"id\",1608652596043]]",
+     "[[\"id\",1608652596044]]",
+     "[[\"id\",1612625548236]]",
+     "[[\"id\",1614782639336]]",
+     "[[\"id\",1615745967948]]",
+     "[[\"id\",1616167010796]]",
+     "[[\"id\",1618975177358]]",
+     "[[\"id\",1632571489012]]",
+     "[[\"id\",1679728867040]]",
+     "[[\"id\",1681115033845]]",
+     "[[\"id\",1682974838138]]",
+     "[[\"id\",1685007876842]]",
+     "[[\"id\",1686139660866]]",
+     "[[\"id\",1688749527273]]",
+     "[[\"id\",1688841238000]]",
+     "[[\"id\",1691233396000]]",
+     "[[\"id\",1694438752000]]",
+     "[[\"id\",1697046240000]]",
+     "[[\"id\",1704572023730]]",
+     "[[\"id\",1704572023731]]",
+     "[[\"id\",1707267033000]]",
+     "[[\"id\",1712784523000]]",
+     "[[\"id\",1716359441000]]",
+     "[[\"id\",1720310586000]]",
+     "[[\"id\",1720664867241]]",
+     "[[\"id\",1720665000000]]",
+     "[[\"id\",1722717601000]]",
+     "[[\"id\",1722804019000]]",
+     "[[\"id\",1723665565000]]",
+     "[[\"id\",1730744182000]]",
+     "[[\"id\",1736640000000]]",
+     "[[\"id\",1737158400000]]",
+     "[[\"id\",1738491452000]]",
+     "[[\"id\",1739139550000]]",
+     "[[\"id\",1740506588539]]",
+     "[[\"id\",1745425408000]]",
+     "[[\"id\",1749799110000]]",
+     "[[\"id\",1749799110001]]",
+     "[[\"id\",1754611200000]]",
+     "[[\"id\",1759260219000]]",
+     "[[\"id\",1759842823172]]",
+     "[[\"id\",1762178745667]]",
+     "[[\"id\",1765518577215]]",
+     "[[\"id\",1768872504000]]",
+     "[[\"id\",1769000000000]]",
+     "[[\"id\",1778510362740]]",
+     "[[\"id\",1780099200000]]",
+     "[[\"id\",1780327681000]]",
+     "[[\"id\",1780606215000]]",
+     "[[\"id\",1780606215001]]",
+     "[[\"id\",1783004650757]]",
+     "[[\"id\",1787013118115]]",
+     "[[\"id\",1788468782000]]"
+    ]
+   },
+   "account_groups": {
+    "count": 2,
+    "hash": "9fcff5d923dc03d08ed6b28db46fc22e18563f1f336f961f31ab5e66a2ec3138",
+    "lines": [
+     "[[\"id\",\"grp-banks\"],[\"name\",\"Banks\"],[\"sort_order\",16384],[\"tombstone\",0]]",
+     "[[\"id\",\"grp-other\"],[\"name\",\"Other\"],[\"sort_order\",32768],[\"tombstone\",0]]"
+    ]
+   },
+   "accounts": {
+    "count": 4,
+    "hash": "503189f7f1f0f13ba8e67f6b176d9d0617d0bb68711f2425e2aebff4572f272b",
+    "lines": [
+     "[[\"account_group_id\",\"grp-banks\"],[\"account_id\",null],[\"account_sync_source\",null],[\"balance_available\",null],[\"balance_current\",null],[\"balance_limit\",null],[\"bank\",null],[\"bank_sync_status\",null],[\"closed\",0],[\"id\",\"acct-card\"],[\"last_reconciled\",null],[\"last_sync\",null],[\"mask\",null],[\"name\",\"Credit Card\"],[\"offbudget\",0],[\"official_name\",null],[\"sort_order\",32768],[\"subtype\",null],[\"tombstone\",0],[\"type\",null]]",
+     "[[\"account_group_id\",\"grp-banks\"],[\"account_id\",null],[\"account_sync_source\",null],[\"balance_available\",null],[\"balance_current\",null],[\"balance_limit\",null],[\"bank\",null],[\"bank_sync_status\",null],[\"closed\",0],[\"id\",\"acct-checking\"],[\"last_reconciled\",null],[\"last_sync\",null],[\"mask\",null],[\"name\",\"Checking\"],[\"offbudget\",0],[\"official_name\",null],[\"sort_order\",16384],[\"subtype\",null],[\"tombstone\",0],[\"type\",null]]",
+     "[[\"account_group_id\",\"grp-other\"],[\"account_id\",null],[\"account_sync_source\",null],[\"balance_available\",null],[\"balance_current\",null],[\"balance_limit\",null],[\"bank\",null],[\"bank_sync_status\",null],[\"closed\",0],[\"id\",\"acct-house\"],[\"last_reconciled\",null],[\"last_sync\",null],[\"mask\",null],[\"name\",\"House\"],[\"offbudget\",1],[\"official_name\",null],[\"sort_order\",16384],[\"subtype\",null],[\"tombstone\",0],[\"type\",null]]",
+     "[[\"account_group_id\",null],[\"account_id\",null],[\"account_sync_source\",null],[\"balance_available\",null],[\"balance_current\",null],[\"balance_limit\",null],[\"bank\",null],[\"bank_sync_status\",null],[\"closed\",1],[\"id\",\"acct-old\"],[\"last_reconciled\",null],[\"last_sync\",null],[\"mask\",null],[\"name\",\"Old Savings\"],[\"offbudget\",0],[\"official_name\",null],[\"sort_order\",49152],[\"subtype\",null],[\"tombstone\",0],[\"type\",null]]"
+    ]
+   },
+   "banks": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "categories": {
+    "count": 12,
+    "hash": "6b84d0b668e1fbfb961b2a1313e3b2f8218de127cfc26b3c3cef1b16dcc38bfe",
+    "lines": [
+     "[[\"cat_group\",\"2E1F5BDB-209B-43F9-AF2C-3CE28E380C00\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"3c1699a5-522a-435e-86dc-93d900a14f0e\"],[\"is_income\",1],[\"name\",\"Income\"],[\"sort_order\",32768],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"2E1F5BDB-209B-43F9-AF2C-3CE28E380C00\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"506e8d9d-7ed0-4397-84e4-07a9185dc6b2\"],[\"is_income\",1],[\"name\",\"Starting Balances\"],[\"sort_order\",32768],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"a137772f-cf2f-4089-9432-822d2ddc1466\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"6bbd8472-25d4-4cee-8a11-5bd9f7e83d61\"],[\"is_income\",0],[\"name\",\"Savings\"],[\"sort_order\",32768],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-bills\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"cat-food\"],[\"is_income\",0],[\"name\",\"Food\"],[\"sort_order\",98304],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-bills\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"cat-rent\"],[\"is_income\",0],[\"name\",\"Rent\"],[\"sort_order\",81920],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-bills\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",1],[\"id\",\"cat-old\"],[\"is_income\",0],[\"name\",\"Old Stuff\"],[\"sort_order\",114688],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-fun\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"cat-games\"],[\"is_income\",0],[\"name\",\"Games\"],[\"sort_order\",131072],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-income\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"cat-salary\"],[\"is_income\",1],[\"name\",\"Salary\"],[\"sort_order\",147456],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"29ec2c58-8cd3-42fe-9187-7b5dfe0f70a6\"],[\"is_income\",0],[\"name\",\"Bills (Flexible)\"],[\"sort_order\",65536],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"541836f1-e756-4473-a5d0-6c1d3f06c7fa\"],[\"is_income\",0],[\"name\",\"Food\"],[\"sort_order\",16384],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"af375fd4-d759-46b3-bffe-74a856151d57\"],[\"is_income\",0],[\"name\",\"General\"],[\"sort_order\",32768],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"d4b0f075-3343-4408-91ed-fae94f74e5bf\"],[\"is_income\",0],[\"name\",\"Bills\"],[\"sort_order\",49152],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]"
+    ]
+   },
+   "category_groups": {
+    "count": 6,
+    "hash": "1fd9b41930c9a8c2db915b08d41b0dce03881580582263c602c0a2dbbe7c9713",
+    "lines": [
+     "[[\"hidden\",0],[\"id\",\"2E1F5BDB-209B-43F9-AF2C-3CE28E380C00\"],[\"is_income\",1],[\"name\",\"Income\"],[\"sort_order\",32768],[\"tombstone\",0]]",
+     "[[\"hidden\",0],[\"id\",\"a137772f-cf2f-4089-9432-822d2ddc1466\"],[\"is_income\",0],[\"name\",\"Investments and Savings\"],[\"sort_order\",32768],[\"tombstone\",0]]",
+     "[[\"hidden\",0],[\"id\",\"cg-bills\"],[\"is_income\",0],[\"name\",\"Bills\"],[\"sort_order\",49152],[\"tombstone\",0]]",
+     "[[\"hidden\",0],[\"id\",\"cg-income\"],[\"is_income\",1],[\"name\",\"Pay\"],[\"sort_order\",81920],[\"tombstone\",0]]",
+     "[[\"hidden\",0],[\"id\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"is_income\",0],[\"name\",\"Usual Expenses\"],[\"sort_order\",16384],[\"tombstone\",0]]",
+     "[[\"hidden\",1],[\"id\",\"cg-fun\"],[\"is_income\",0],[\"name\",\"Fun\"],[\"sort_order\",65536],[\"tombstone\",0]]"
+    ]
+   },
+   "category_mapping": {
+    "count": 12,
+    "hash": "f30af01d44f875d2825c63034f8f40ef7dce700eb5edd445d90f5b2a0dc74231",
+    "lines": [
+     "[[\"id\",\"29ec2c58-8cd3-42fe-9187-7b5dfe0f70a6\"],[\"transferId\",\"29ec2c58-8cd3-42fe-9187-7b5dfe0f70a6\"]]",
+     "[[\"id\",\"3c1699a5-522a-435e-86dc-93d900a14f0e\"],[\"transferId\",\"3c1699a5-522a-435e-86dc-93d900a14f0e\"]]",
+     "[[\"id\",\"506e8d9d-7ed0-4397-84e4-07a9185dc6b2\"],[\"transferId\",\"506e8d9d-7ed0-4397-84e4-07a9185dc6b2\"]]",
+     "[[\"id\",\"541836f1-e756-4473-a5d0-6c1d3f06c7fa\"],[\"transferId\",\"541836f1-e756-4473-a5d0-6c1d3f06c7fa\"]]",
+     "[[\"id\",\"6bbd8472-25d4-4cee-8a11-5bd9f7e83d61\"],[\"transferId\",\"6bbd8472-25d4-4cee-8a11-5bd9f7e83d61\"]]",
+     "[[\"id\",\"af375fd4-d759-46b3-bffe-74a856151d57\"],[\"transferId\",\"af375fd4-d759-46b3-bffe-74a856151d57\"]]",
+     "[[\"id\",\"cat-food\"],[\"transferId\",\"cat-food\"]]",
+     "[[\"id\",\"cat-games\"],[\"transferId\",\"cat-games\"]]",
+     "[[\"id\",\"cat-old\"],[\"transferId\",\"cat-old\"]]",
+     "[[\"id\",\"cat-rent\"],[\"transferId\",\"cat-rent\"]]",
+     "[[\"id\",\"cat-salary\"],[\"transferId\",\"cat-salary\"]]",
+     "[[\"id\",\"d4b0f075-3343-4408-91ed-fae94f74e5bf\"],[\"transferId\",\"d4b0f075-3343-4408-91ed-fae94f74e5bf\"]]"
+    ]
+   },
+   "cleanup_groups": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "created_budgets": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "custom_reports": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "dashboard": {
+    "count": 12,
+    "hash": "369616e5979c1cd75ca35365482c79745cec288f69e85b919af3476bbb4c3fca",
+    "lines": [
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000000\"],[\"meta\",\"{\\\"name\\\":\\\"Total Income (YTD)\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"sum\\\\\\\",\\\\\\\"fontSize\\\\\\\":20}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-12-31\\\",\\\"mode\\\":\\\"yearToDate\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"amount\\\",\\\"op\\\":\\\"gt\\\",\\\"value\\\":0},{\\\"field\\\":\\\"account\\\",\\\"op\\\":\\\"onBudget\\\",\\\"value\\\":\\\"\\\"},{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",3],[\"x\",0],[\"y\",0]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000001\"],[\"meta\",\"{\\\"name\\\":\\\"Total Expenses (YTD)\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"sum\\\\\\\",\\\\\\\"fontSize\\\\\\\":20}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-12-31\\\",\\\"mode\\\":\\\"yearToDate\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"amount\\\",\\\"op\\\":\\\"lt\\\",\\\"value\\\":0},{\\\"field\\\":\\\"account\\\",\\\"op\\\":\\\"onBudget\\\",\\\"value\\\":\\\"\\\"},{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",3],[\"x\",3],[\"y\",0]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000002\"],[\"meta\",\"{\\\"name\\\":\\\"Avg Per Month\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"avgPerMonth\\\\\\\",\\\\\\\"fontSize\\\\\\\":20}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-12-31\\\",\\\"mode\\\":\\\"yearToDate\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"amount\\\",\\\"op\\\":\\\"lt\\\",\\\"value\\\":0},{\\\"field\\\":\\\"account\\\",\\\"op\\\":\\\"onBudget\\\",\\\"value\\\":\\\"\\\"},{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",3],[\"x\",6],[\"y\",0]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000003\"],[\"meta\",\"{\\\"name\\\":\\\"Avg Per Transaction\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"avgPerTransact\\\\\\\",\\\\\\\"fontSize\\\\\\\":20}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-12-31\\\",\\\"mode\\\":\\\"yearToDate\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"amount\\\",\\\"op\\\":\\\"lt\\\",\\\"value\\\":0},{\\\"field\\\":\\\"account\\\",\\\"op\\\":\\\"onBudget\\\",\\\"value\\\":\\\"\\\"},{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",3],[\"x\",9],[\"y\",0]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000004\"],[\"meta\",null],[\"tombstone\",0],[\"type\",\"net-worth-card\"],[\"width\",6],[\"x\",0],[\"y\",2]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000005\"],[\"meta\",null],[\"tombstone\",0],[\"type\",\"cash-flow-card\"],[\"width\",6],[\"x\",6],[\"y\",2]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000006\"],[\"meta\",\"{\\\"name\\\":\\\"This Month\\\",\\\"mode\\\":\\\"single-month\\\"}\"],[\"tombstone\",0],[\"type\",\"spending-card\"],[\"width\",4],[\"x\",0],[\"y\",5]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000007\"],[\"meta\",\"{\\\"name\\\":\\\"Budget Overview\\\",\\\"mode\\\":\\\"budget\\\"}\"],[\"tombstone\",0],[\"type\",\"spending-card\"],[\"width\",4],[\"x\",4],[\"y\",5]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000008\"],[\"meta\",\"{\\\"name\\\":\\\"3-Month Average\\\",\\\"mode\\\":\\\"average\\\"}\"],[\"tombstone\",0],[\"type\",\"spending-card\"],[\"width\",4],[\"x\",8],[\"y\",5]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000010\"],[\"meta\",\"{\\\"name\\\":\\\"Recent Net Worth Change\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"sum\\\\\\\",\\\\\\\"fontSize\\\\\\\":32}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-03-31\\\",\\\"mode\\\":\\\"sliding-window\\\"},\\\"conditions\\\":[],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",4],[\"x\",8],[\"y\",8]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000011\"],[\"meta\",\"{\\\"content\\\":\\\"## Dashboard Tips\\\\n\\\\nYou can add new widgets or edit existing widgets by using the buttons at the top of the page. Choose a widget type and customize it to fit your needs.\\\\n\\\\n**Moving cards:** Drag any card by its header to reposition it.\\\\n\\\\n**Deleting cards:** Click the three-dot menu on any card and select \\\\\\\"Remove\\\\\\\".\\\"}\"],[\"tombstone\",0],[\"type\",\"markdown-card\"],[\"width\",4],[\"x\",8],[\"y\",10]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",4],[\"id\",\"id100000009\"],[\"meta\",\"{\\\"name\\\":\\\"Transaction Calendar\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-03-31\\\",\\\"mode\\\":\\\"sliding-window\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"calendar-card\"],[\"width\",8],[\"x\",0],[\"y\",8]]"
+    ]
+   },
+   "dashboard_pages": {
+    "count": 1,
+    "hash": "1a6c18aae116aaccfe051ac253e841ee977427c4a9c2b0eb9b6284b790d2615a",
+    "lines": [
+     "[[\"id\",\"id100000012\"],[\"name\",\"Main\"],[\"tombstone\",0]]"
+    ]
+   },
+   "notes": {
+    "count": 1,
+    "hash": "3b66518148db8429637cf96e44f72e5251972f354109c77431582467325bd76c",
+    "lines": [
+     "[[\"id\",\"cat-food\"],[\"note\",\"Groceries and the shop\"]]"
+    ]
+   },
+   "payee_locations": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "payee_mapping": {
+    "count": 7,
+    "hash": "636c801e014f4991ca6f1caacb3b629a487ddddcc38ea01bcb0fa7454ff512ad",
+    "lines": [
+     "[[\"id\",\"pay-dup\"],[\"targetId\",\"pay-shop\"]]",
+     "[[\"id\",\"pay-employer\"],[\"targetId\",\"pay-employer\"]]",
+     "[[\"id\",\"pay-shop\"],[\"targetId\",\"pay-shop\"]]",
+     "[[\"id\",\"xfer-acct-card\"],[\"targetId\",\"xfer-acct-card\"]]",
+     "[[\"id\",\"xfer-acct-checking\"],[\"targetId\",\"xfer-acct-checking\"]]",
+     "[[\"id\",\"xfer-acct-house\"],[\"targetId\",\"xfer-acct-house\"]]",
+     "[[\"id\",\"xfer-acct-old\"],[\"targetId\",\"xfer-acct-old\"]]"
+    ]
+   },
+   "payees": {
+    "count": 6,
+    "hash": "4778e75ac03c63011b16465f1946b3ab01d19be7eb3530bdaf599e4c7f5aeb87",
+    "lines": [
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"pay-employer\"],[\"learn_categories\",1],[\"name\",\"Employer\"],[\"tombstone\",0],[\"transfer_acct\",null]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"pay-shop\"],[\"learn_categories\",1],[\"name\",\"Corner Shop\"],[\"tombstone\",0],[\"transfer_acct\",null]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"xfer-acct-card\"],[\"learn_categories\",1],[\"name\",\"\"],[\"tombstone\",0],[\"transfer_acct\",\"acct-card\"]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"xfer-acct-checking\"],[\"learn_categories\",1],[\"name\",\"\"],[\"tombstone\",0],[\"transfer_acct\",\"acct-checking\"]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"xfer-acct-house\"],[\"learn_categories\",1],[\"name\",\"\"],[\"tombstone\",0],[\"transfer_acct\",\"acct-house\"]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"xfer-acct-old\"],[\"learn_categories\",1],[\"name\",\"\"],[\"tombstone\",0],[\"transfer_acct\",\"acct-old\"]]"
+    ]
+   },
+   "pending_transactions": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "preferences": {
+    "count": 2,
+    "hash": "15b284003be23ceafe85b396a8217bb50f05ce6b3f9a3e0d0d49a42daddc1eb5",
+    "lines": [
+     "[[\"id\",\"firstDayOfWeekIdx\"],[\"value\",\"1\"]]",
+     "[[\"id\",\"numberFormat\"],[\"value\",\"comma-dot\"]]"
+    ]
+   },
+   "reflect_budgets": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "rules": {
+    "count": 2,
+    "hash": "ad53ca925c591c4fbfdc1ba7a311c1c8fbedad78740af79bfecec720071f99ea",
+    "lines": [
+     "[[\"actions\",\"[{\\\"op\\\":\\\"link-schedule\\\",\\\"value\\\":\\\"sched-rent\\\"}]\"],[\"conditions\",\"[{\\\"op\\\":\\\"isapprox\\\",\\\"field\\\":\\\"date\\\",\\\"value\\\":{\\\"start\\\":\\\"2026-10-02\\\",\\\"frequency\\\":\\\"monthly\\\",\\\"patterns\\\":[],\\\"skipWeekend\\\":false,\\\"weekendSolveMode\\\":\\\"after\\\",\\\"endMode\\\":\\\"never\\\"}},{\\\"op\\\":\\\"is\\\",\\\"field\\\":\\\"acct\\\",\\\"value\\\":\\\"acct-checking\\\"},{\\\"op\\\":\\\"isapprox\\\",\\\"field\\\":\\\"amount\\\",\\\"value\\\":-120000}]\"],[\"conditions_op\",\"and\"],[\"id\",\"id2\"],[\"stage\",null],[\"tombstone\",0]]",
+     "[[\"actions\",\"[{\\\"op\\\":\\\"set\\\",\\\"field\\\":\\\"category\\\",\\\"value\\\":\\\"cat-food\\\"}]\"],[\"conditions\",\"[{\\\"op\\\":\\\"is\\\",\\\"field\\\":\\\"description\\\",\\\"value\\\":\\\"pay-shop\\\"}]\"],[\"conditions_op\",\"and\"],[\"id\",\"rule-shop\"],[\"stage\",null],[\"tombstone\",0]]"
+    ]
+   },
+   "schedules": {
+    "count": 1,
+    "hash": "4636fedb4a5f95f215662c6c26c7605dd377d1ff92646de2a7f5ce61b65026e1",
+    "lines": [
+     "[[\"active\",0],[\"completed\",0],[\"custom_upcoming_length\",null],[\"id\",\"sched-rent\"],[\"name\",\"Rent\"],[\"posts_transaction\",0],[\"rule\",\"id2\"],[\"sort_order\",0],[\"tombstone\",0]]"
+    ]
+   },
+   "schedules_json_paths": {
+    "count": 1,
+    "hash": "5ec4e9e27dfb25da5139256d41953d23038d4634addb1a68bc8351c60fb128e3",
+    "lines": [
+     "[[\"account\",\"$[1]\"],[\"amount\",\"$[2]\"],[\"date\",\"$[0]\"],[\"payee\",null],[\"schedule_id\",\"sched-rent\"]]"
+    ]
+   },
+   "schedules_next_date": {
+    "count": 1,
+    "hash": "d22a5dcc5d160d273e7bd46db6fce2a16048aa50e72ac4b80b9c5927425449c0",
+    "lines": [
+     "[[\"base_next_date\",20261002],[\"base_next_date_ts\",1790510400000],[\"id\",\"id3\"],[\"local_next_date\",20261002],[\"local_next_date_ts\",1790510400000],[\"schedule_id\",\"sched-rent\"],[\"tombstone\",0]]"
+    ]
+   },
+   "tags": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "transaction_filters": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "transactions": {
+    "count": 9,
+    "hash": "0dc215be8b814a41aa8387d4ce0bfef4c492be4ef7653ba6d9e0b489ef80ba8a",
+    "lines": [
+     "[[\"acct\",\"acct-card\"],[\"amount\",-10000],[\"category\",null],[\"cleared\",1],[\"date\",20260906],[\"description\",\"pay-shop\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-split\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",1],[\"location\",null],[\"notes\",\"Split lunch\"],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-card\"],[\"amount\",-4000],[\"category\",\"cat-games\"],[\"cleared\",1],[\"date\",20260906],[\"description\",\"pay-shop\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-split-b\"],[\"imported_description\",null],[\"isChild\",1],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",\"tx-split\"],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-card\"],[\"amount\",-4599],[\"category\",\"cat-food\"],[\"cleared\",0],[\"date\",20260905],[\"description\",\"pay-dup\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-shop\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-card\"],[\"amount\",-6000],[\"category\",\"cat-food\"],[\"cleared\",1],[\"date\",20260906],[\"description\",\"pay-shop\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-split-a\"],[\"imported_description\",null],[\"isChild\",1],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",\"tx-split\"],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-card\"],[\"amount\",25000],[\"category\",null],[\"cleared\",1],[\"date\",20260910],[\"description\",\"xfer-acct-checking\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-xfer-in\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",\"tx-xfer-out\"],[\"type\",null]]",
+     "[[\"acct\",\"acct-checking\"],[\"amount\",-120000],[\"category\",\"cat-rent\"],[\"cleared\",1],[\"date\",20260902],[\"description\",\"pay-employer\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-rent\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-checking\"],[\"amount\",-25000],[\"category\",null],[\"cleared\",1],[\"date\",20260910],[\"description\",\"xfer-acct-card\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-xfer-out\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",\"tx-xfer-in\"],[\"type\",null]]",
+     "[[\"acct\",\"acct-checking\"],[\"amount\",300000],[\"category\",\"cat-salary\"],[\"cleared\",1],[\"date\",20260901],[\"description\",\"pay-employer\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-salary\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",\"September pay\"],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-house\"],[\"amount\",25000000],[\"category\",null],[\"cleared\",1],[\"date\",20260912],[\"description\",\"pay-employer\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-house\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]"
+    ]
+   },
+   "zero_budget_months": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "zero_budgets": {
+    "count": 4,
+    "hash": "8018dae073c697779a3d3507ef6e8e699a0c0c501666595044a21cf22bffeaa9",
+    "lines": [
+     "[[\"amount\",120000],[\"carryover\",0],[\"category\",\"cat-rent\"],[\"goal\",null],[\"id\",\"202609-cat-rent\"],[\"long_goal\",null],[\"month\",202609]]",
+     "[[\"amount\",120000],[\"carryover\",0],[\"category\",\"cat-rent\"],[\"goal\",null],[\"id\",\"202610-cat-rent\"],[\"long_goal\",null],[\"month\",202610]]",
+     "[[\"amount\",40000],[\"carryover\",0],[\"category\",\"cat-food\"],[\"goal\",null],[\"id\",\"202609-cat-food\"],[\"long_goal\",null],[\"month\",202609]]",
+     "[[\"amount\",45000],[\"carryover\",0],[\"category\",\"cat-food\"],[\"goal\",null],[\"id\",\"202610-cat-food\"],[\"long_goal\",null],[\"month\",202610]]"
+    ]
+   }
+  },
+  "excluded": {
+   "kvcache": 0,
+   "kvcache_key": 0,
+   "messages_clock": 0,
+   "messages_crdt": 0,
+   "messages_pending": 0,
+   "sqlite_stat1": 26,
+   "sqlite_stat4": 0
+  }
+ },
+ "afterActualImport": {
+  "tables": {
+   "__meta__": {
+    "count": 1,
+    "hash": "f659c272c4831cbd1ebd272768c8413cdfb534e7b3ed4b99d5922d1c345c5a86",
+    "lines": [
+     "[[\"key\",\"view-hash\"],[\"value\",\"87d8f0362e93af2e4cb9a7584b789272\"]]"
+    ]
+   },
+   "__migrations__": {
+    "count": 60,
+    "hash": "f73f7b8ed3bd19bd8964f0cfae9c6954f2f9688de96c59f9d6d172ba0e6d79b1",
+    "lines": [
+     "[[\"id\",1548957970627]]",
+     "[[\"id\",1550601598648]]",
+     "[[\"id\",1555786194328]]",
+     "[[\"id\",1561751833510]]",
+     "[[\"id\",1567699552727]]",
+     "[[\"id\",1582384163573]]",
+     "[[\"id\",1597756566448]]",
+     "[[\"id\",1608652596043]]",
+     "[[\"id\",1608652596044]]",
+     "[[\"id\",1612625548236]]",
+     "[[\"id\",1614782639336]]",
+     "[[\"id\",1615745967948]]",
+     "[[\"id\",1616167010796]]",
+     "[[\"id\",1618975177358]]",
+     "[[\"id\",1632571489012]]",
+     "[[\"id\",1679728867040]]",
+     "[[\"id\",1681115033845]]",
+     "[[\"id\",1682974838138]]",
+     "[[\"id\",1685007876842]]",
+     "[[\"id\",1686139660866]]",
+     "[[\"id\",1688749527273]]",
+     "[[\"id\",1688841238000]]",
+     "[[\"id\",1691233396000]]",
+     "[[\"id\",1694438752000]]",
+     "[[\"id\",1697046240000]]",
+     "[[\"id\",1704572023730]]",
+     "[[\"id\",1704572023731]]",
+     "[[\"id\",1707267033000]]",
+     "[[\"id\",1712784523000]]",
+     "[[\"id\",1716359441000]]",
+     "[[\"id\",1720310586000]]",
+     "[[\"id\",1720664867241]]",
+     "[[\"id\",1720665000000]]",
+     "[[\"id\",1722717601000]]",
+     "[[\"id\",1722804019000]]",
+     "[[\"id\",1723665565000]]",
+     "[[\"id\",1730744182000]]",
+     "[[\"id\",1736640000000]]",
+     "[[\"id\",1737158400000]]",
+     "[[\"id\",1738491452000]]",
+     "[[\"id\",1739139550000]]",
+     "[[\"id\",1740506588539]]",
+     "[[\"id\",1745425408000]]",
+     "[[\"id\",1749799110000]]",
+     "[[\"id\",1749799110001]]",
+     "[[\"id\",1754611200000]]",
+     "[[\"id\",1759260219000]]",
+     "[[\"id\",1759842823172]]",
+     "[[\"id\",1762178745667]]",
+     "[[\"id\",1765518577215]]",
+     "[[\"id\",1768872504000]]",
+     "[[\"id\",1769000000000]]",
+     "[[\"id\",1778510362740]]",
+     "[[\"id\",1780099200000]]",
+     "[[\"id\",1780327681000]]",
+     "[[\"id\",1780606215000]]",
+     "[[\"id\",1780606215001]]",
+     "[[\"id\",1783004650757]]",
+     "[[\"id\",1787013118115]]",
+     "[[\"id\",1788468782000]]"
+    ]
+   },
+   "account_groups": {
+    "count": 2,
+    "hash": "9fcff5d923dc03d08ed6b28db46fc22e18563f1f336f961f31ab5e66a2ec3138",
+    "lines": [
+     "[[\"id\",\"grp-banks\"],[\"name\",\"Banks\"],[\"sort_order\",16384],[\"tombstone\",0]]",
+     "[[\"id\",\"grp-other\"],[\"name\",\"Other\"],[\"sort_order\",32768],[\"tombstone\",0]]"
+    ]
+   },
+   "accounts": {
+    "count": 4,
+    "hash": "503189f7f1f0f13ba8e67f6b176d9d0617d0bb68711f2425e2aebff4572f272b",
+    "lines": [
+     "[[\"account_group_id\",\"grp-banks\"],[\"account_id\",null],[\"account_sync_source\",null],[\"balance_available\",null],[\"balance_current\",null],[\"balance_limit\",null],[\"bank\",null],[\"bank_sync_status\",null],[\"closed\",0],[\"id\",\"acct-card\"],[\"last_reconciled\",null],[\"last_sync\",null],[\"mask\",null],[\"name\",\"Credit Card\"],[\"offbudget\",0],[\"official_name\",null],[\"sort_order\",32768],[\"subtype\",null],[\"tombstone\",0],[\"type\",null]]",
+     "[[\"account_group_id\",\"grp-banks\"],[\"account_id\",null],[\"account_sync_source\",null],[\"balance_available\",null],[\"balance_current\",null],[\"balance_limit\",null],[\"bank\",null],[\"bank_sync_status\",null],[\"closed\",0],[\"id\",\"acct-checking\"],[\"last_reconciled\",null],[\"last_sync\",null],[\"mask\",null],[\"name\",\"Checking\"],[\"offbudget\",0],[\"official_name\",null],[\"sort_order\",16384],[\"subtype\",null],[\"tombstone\",0],[\"type\",null]]",
+     "[[\"account_group_id\",\"grp-other\"],[\"account_id\",null],[\"account_sync_source\",null],[\"balance_available\",null],[\"balance_current\",null],[\"balance_limit\",null],[\"bank\",null],[\"bank_sync_status\",null],[\"closed\",0],[\"id\",\"acct-house\"],[\"last_reconciled\",null],[\"last_sync\",null],[\"mask\",null],[\"name\",\"House\"],[\"offbudget\",1],[\"official_name\",null],[\"sort_order\",16384],[\"subtype\",null],[\"tombstone\",0],[\"type\",null]]",
+     "[[\"account_group_id\",null],[\"account_id\",null],[\"account_sync_source\",null],[\"balance_available\",null],[\"balance_current\",null],[\"balance_limit\",null],[\"bank\",null],[\"bank_sync_status\",null],[\"closed\",1],[\"id\",\"acct-old\"],[\"last_reconciled\",null],[\"last_sync\",null],[\"mask\",null],[\"name\",\"Old Savings\"],[\"offbudget\",0],[\"official_name\",null],[\"sort_order\",49152],[\"subtype\",null],[\"tombstone\",0],[\"type\",null]]"
+    ]
+   },
+   "banks": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "categories": {
+    "count": 12,
+    "hash": "6b84d0b668e1fbfb961b2a1313e3b2f8218de127cfc26b3c3cef1b16dcc38bfe",
+    "lines": [
+     "[[\"cat_group\",\"2E1F5BDB-209B-43F9-AF2C-3CE28E380C00\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"3c1699a5-522a-435e-86dc-93d900a14f0e\"],[\"is_income\",1],[\"name\",\"Income\"],[\"sort_order\",32768],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"2E1F5BDB-209B-43F9-AF2C-3CE28E380C00\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"506e8d9d-7ed0-4397-84e4-07a9185dc6b2\"],[\"is_income\",1],[\"name\",\"Starting Balances\"],[\"sort_order\",32768],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"a137772f-cf2f-4089-9432-822d2ddc1466\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"6bbd8472-25d4-4cee-8a11-5bd9f7e83d61\"],[\"is_income\",0],[\"name\",\"Savings\"],[\"sort_order\",32768],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-bills\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"cat-food\"],[\"is_income\",0],[\"name\",\"Food\"],[\"sort_order\",98304],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-bills\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"cat-rent\"],[\"is_income\",0],[\"name\",\"Rent\"],[\"sort_order\",81920],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-bills\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",1],[\"id\",\"cat-old\"],[\"is_income\",0],[\"name\",\"Old Stuff\"],[\"sort_order\",114688],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-fun\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"cat-games\"],[\"is_income\",0],[\"name\",\"Games\"],[\"sort_order\",131072],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"cg-income\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"cat-salary\"],[\"is_income\",1],[\"name\",\"Salary\"],[\"sort_order\",147456],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"29ec2c58-8cd3-42fe-9187-7b5dfe0f70a6\"],[\"is_income\",0],[\"name\",\"Bills (Flexible)\"],[\"sort_order\",65536],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"541836f1-e756-4473-a5d0-6c1d3f06c7fa\"],[\"is_income\",0],[\"name\",\"Food\"],[\"sort_order\",16384],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"af375fd4-d759-46b3-bffe-74a856151d57\"],[\"is_income\",0],[\"name\",\"General\"],[\"sort_order\",32768],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]",
+     "[[\"cat_group\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"cleanup_def\",null],[\"goal_def\",null],[\"hidden\",0],[\"id\",\"d4b0f075-3343-4408-91ed-fae94f74e5bf\"],[\"is_income\",0],[\"name\",\"Bills\"],[\"sort_order\",49152],[\"template_settings\",\"{\\\"source\\\": \\\"notes\\\"}\"],[\"tombstone\",0]]"
+    ]
+   },
+   "category_groups": {
+    "count": 6,
+    "hash": "1fd9b41930c9a8c2db915b08d41b0dce03881580582263c602c0a2dbbe7c9713",
+    "lines": [
+     "[[\"hidden\",0],[\"id\",\"2E1F5BDB-209B-43F9-AF2C-3CE28E380C00\"],[\"is_income\",1],[\"name\",\"Income\"],[\"sort_order\",32768],[\"tombstone\",0]]",
+     "[[\"hidden\",0],[\"id\",\"a137772f-cf2f-4089-9432-822d2ddc1466\"],[\"is_income\",0],[\"name\",\"Investments and Savings\"],[\"sort_order\",32768],[\"tombstone\",0]]",
+     "[[\"hidden\",0],[\"id\",\"cg-bills\"],[\"is_income\",0],[\"name\",\"Bills\"],[\"sort_order\",49152],[\"tombstone\",0]]",
+     "[[\"hidden\",0],[\"id\",\"cg-income\"],[\"is_income\",1],[\"name\",\"Pay\"],[\"sort_order\",81920],[\"tombstone\",0]]",
+     "[[\"hidden\",0],[\"id\",\"fc3825fd-b982-4b72-b768-5b30844cf832\"],[\"is_income\",0],[\"name\",\"Usual Expenses\"],[\"sort_order\",16384],[\"tombstone\",0]]",
+     "[[\"hidden\",1],[\"id\",\"cg-fun\"],[\"is_income\",0],[\"name\",\"Fun\"],[\"sort_order\",65536],[\"tombstone\",0]]"
+    ]
+   },
+   "category_mapping": {
+    "count": 12,
+    "hash": "f30af01d44f875d2825c63034f8f40ef7dce700eb5edd445d90f5b2a0dc74231",
+    "lines": [
+     "[[\"id\",\"29ec2c58-8cd3-42fe-9187-7b5dfe0f70a6\"],[\"transferId\",\"29ec2c58-8cd3-42fe-9187-7b5dfe0f70a6\"]]",
+     "[[\"id\",\"3c1699a5-522a-435e-86dc-93d900a14f0e\"],[\"transferId\",\"3c1699a5-522a-435e-86dc-93d900a14f0e\"]]",
+     "[[\"id\",\"506e8d9d-7ed0-4397-84e4-07a9185dc6b2\"],[\"transferId\",\"506e8d9d-7ed0-4397-84e4-07a9185dc6b2\"]]",
+     "[[\"id\",\"541836f1-e756-4473-a5d0-6c1d3f06c7fa\"],[\"transferId\",\"541836f1-e756-4473-a5d0-6c1d3f06c7fa\"]]",
+     "[[\"id\",\"6bbd8472-25d4-4cee-8a11-5bd9f7e83d61\"],[\"transferId\",\"6bbd8472-25d4-4cee-8a11-5bd9f7e83d61\"]]",
+     "[[\"id\",\"af375fd4-d759-46b3-bffe-74a856151d57\"],[\"transferId\",\"af375fd4-d759-46b3-bffe-74a856151d57\"]]",
+     "[[\"id\",\"cat-food\"],[\"transferId\",\"cat-food\"]]",
+     "[[\"id\",\"cat-games\"],[\"transferId\",\"cat-games\"]]",
+     "[[\"id\",\"cat-old\"],[\"transferId\",\"cat-old\"]]",
+     "[[\"id\",\"cat-rent\"],[\"transferId\",\"cat-rent\"]]",
+     "[[\"id\",\"cat-salary\"],[\"transferId\",\"cat-salary\"]]",
+     "[[\"id\",\"d4b0f075-3343-4408-91ed-fae94f74e5bf\"],[\"transferId\",\"d4b0f075-3343-4408-91ed-fae94f74e5bf\"]]"
+    ]
+   },
+   "cleanup_groups": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "created_budgets": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "custom_reports": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "dashboard": {
+    "count": 12,
+    "hash": "369616e5979c1cd75ca35365482c79745cec288f69e85b919af3476bbb4c3fca",
+    "lines": [
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000000\"],[\"meta\",\"{\\\"name\\\":\\\"Total Income (YTD)\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"sum\\\\\\\",\\\\\\\"fontSize\\\\\\\":20}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-12-31\\\",\\\"mode\\\":\\\"yearToDate\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"amount\\\",\\\"op\\\":\\\"gt\\\",\\\"value\\\":0},{\\\"field\\\":\\\"account\\\",\\\"op\\\":\\\"onBudget\\\",\\\"value\\\":\\\"\\\"},{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",3],[\"x\",0],[\"y\",0]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000001\"],[\"meta\",\"{\\\"name\\\":\\\"Total Expenses (YTD)\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"sum\\\\\\\",\\\\\\\"fontSize\\\\\\\":20}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-12-31\\\",\\\"mode\\\":\\\"yearToDate\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"amount\\\",\\\"op\\\":\\\"lt\\\",\\\"value\\\":0},{\\\"field\\\":\\\"account\\\",\\\"op\\\":\\\"onBudget\\\",\\\"value\\\":\\\"\\\"},{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",3],[\"x\",3],[\"y\",0]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000002\"],[\"meta\",\"{\\\"name\\\":\\\"Avg Per Month\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"avgPerMonth\\\\\\\",\\\\\\\"fontSize\\\\\\\":20}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-12-31\\\",\\\"mode\\\":\\\"yearToDate\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"amount\\\",\\\"op\\\":\\\"lt\\\",\\\"value\\\":0},{\\\"field\\\":\\\"account\\\",\\\"op\\\":\\\"onBudget\\\",\\\"value\\\":\\\"\\\"},{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",3],[\"x\",6],[\"y\",0]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000003\"],[\"meta\",\"{\\\"name\\\":\\\"Avg Per Transaction\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"avgPerTransact\\\\\\\",\\\\\\\"fontSize\\\\\\\":20}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-12-31\\\",\\\"mode\\\":\\\"yearToDate\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"amount\\\",\\\"op\\\":\\\"lt\\\",\\\"value\\\":0},{\\\"field\\\":\\\"account\\\",\\\"op\\\":\\\"onBudget\\\",\\\"value\\\":\\\"\\\"},{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",3],[\"x\",9],[\"y\",0]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000004\"],[\"meta\",null],[\"tombstone\",0],[\"type\",\"net-worth-card\"],[\"width\",6],[\"x\",0],[\"y\",2]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000005\"],[\"meta\",null],[\"tombstone\",0],[\"type\",\"cash-flow-card\"],[\"width\",6],[\"x\",6],[\"y\",2]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000006\"],[\"meta\",\"{\\\"name\\\":\\\"This Month\\\",\\\"mode\\\":\\\"single-month\\\"}\"],[\"tombstone\",0],[\"type\",\"spending-card\"],[\"width\",4],[\"x\",0],[\"y\",5]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000007\"],[\"meta\",\"{\\\"name\\\":\\\"Budget Overview\\\",\\\"mode\\\":\\\"budget\\\"}\"],[\"tombstone\",0],[\"type\",\"spending-card\"],[\"width\",4],[\"x\",4],[\"y\",5]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000008\"],[\"meta\",\"{\\\"name\\\":\\\"3-Month Average\\\",\\\"mode\\\":\\\"average\\\"}\"],[\"tombstone\",0],[\"type\",\"spending-card\"],[\"width\",4],[\"x\",8],[\"y\",5]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000010\"],[\"meta\",\"{\\\"name\\\":\\\"Recent Net Worth Change\\\",\\\"content\\\":\\\"{\\\\\\\"type\\\\\\\":\\\\\\\"sum\\\\\\\",\\\\\\\"fontSize\\\\\\\":32}\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-03-31\\\",\\\"mode\\\":\\\"sliding-window\\\"},\\\"conditions\\\":[],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"summary-card\"],[\"width\",4],[\"x\",8],[\"y\",8]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",2],[\"id\",\"id100000011\"],[\"meta\",\"{\\\"content\\\":\\\"## Dashboard Tips\\\\n\\\\nYou can add new widgets or edit existing widgets by using the buttons at the top of the page. Choose a widget type and customize it to fit your needs.\\\\n\\\\n**Moving cards:** Drag any card by its header to reposition it.\\\\n\\\\n**Deleting cards:** Click the three-dot menu on any card and select \\\\\\\"Remove\\\\\\\".\\\"}\"],[\"tombstone\",0],[\"type\",\"markdown-card\"],[\"width\",4],[\"x\",8],[\"y\",10]]",
+     "[[\"dashboard_page_id\",\"id100000012\"],[\"height\",4],[\"id\",\"id100000009\"],[\"meta\",\"{\\\"name\\\":\\\"Transaction Calendar\\\",\\\"timeFrame\\\":{\\\"start\\\":\\\"2024-01-01\\\",\\\"end\\\":\\\"2024-03-31\\\",\\\"mode\\\":\\\"sliding-window\\\"},\\\"conditions\\\":[{\\\"field\\\":\\\"transfer\\\",\\\"op\\\":\\\"is\\\",\\\"value\\\":false}],\\\"conditionsOp\\\":\\\"and\\\"}\"],[\"tombstone\",0],[\"type\",\"calendar-card\"],[\"width\",8],[\"x\",0],[\"y\",8]]"
+    ]
+   },
+   "dashboard_pages": {
+    "count": 1,
+    "hash": "1a6c18aae116aaccfe051ac253e841ee977427c4a9c2b0eb9b6284b790d2615a",
+    "lines": [
+     "[[\"id\",\"id100000012\"],[\"name\",\"Main\"],[\"tombstone\",0]]"
+    ]
+   },
+   "notes": {
+    "count": 1,
+    "hash": "3b66518148db8429637cf96e44f72e5251972f354109c77431582467325bd76c",
+    "lines": [
+     "[[\"id\",\"cat-food\"],[\"note\",\"Groceries and the shop\"]]"
+    ]
+   },
+   "payee_locations": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "payee_mapping": {
+    "count": 7,
+    "hash": "636c801e014f4991ca6f1caacb3b629a487ddddcc38ea01bcb0fa7454ff512ad",
+    "lines": [
+     "[[\"id\",\"pay-dup\"],[\"targetId\",\"pay-shop\"]]",
+     "[[\"id\",\"pay-employer\"],[\"targetId\",\"pay-employer\"]]",
+     "[[\"id\",\"pay-shop\"],[\"targetId\",\"pay-shop\"]]",
+     "[[\"id\",\"xfer-acct-card\"],[\"targetId\",\"xfer-acct-card\"]]",
+     "[[\"id\",\"xfer-acct-checking\"],[\"targetId\",\"xfer-acct-checking\"]]",
+     "[[\"id\",\"xfer-acct-house\"],[\"targetId\",\"xfer-acct-house\"]]",
+     "[[\"id\",\"xfer-acct-old\"],[\"targetId\",\"xfer-acct-old\"]]"
+    ]
+   },
+   "payees": {
+    "count": 6,
+    "hash": "4778e75ac03c63011b16465f1946b3ab01d19be7eb3530bdaf599e4c7f5aeb87",
+    "lines": [
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"pay-employer\"],[\"learn_categories\",1],[\"name\",\"Employer\"],[\"tombstone\",0],[\"transfer_acct\",null]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"pay-shop\"],[\"learn_categories\",1],[\"name\",\"Corner Shop\"],[\"tombstone\",0],[\"transfer_acct\",null]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"xfer-acct-card\"],[\"learn_categories\",1],[\"name\",\"\"],[\"tombstone\",0],[\"transfer_acct\",\"acct-card\"]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"xfer-acct-checking\"],[\"learn_categories\",1],[\"name\",\"\"],[\"tombstone\",0],[\"transfer_acct\",\"acct-checking\"]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"xfer-acct-house\"],[\"learn_categories\",1],[\"name\",\"\"],[\"tombstone\",0],[\"transfer_acct\",\"acct-house\"]]",
+     "[[\"category\",null],[\"favorite\",0],[\"id\",\"xfer-acct-old\"],[\"learn_categories\",1],[\"name\",\"\"],[\"tombstone\",0],[\"transfer_acct\",\"acct-old\"]]"
+    ]
+   },
+   "pending_transactions": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "preferences": {
+    "count": 2,
+    "hash": "15b284003be23ceafe85b396a8217bb50f05ce6b3f9a3e0d0d49a42daddc1eb5",
+    "lines": [
+     "[[\"id\",\"firstDayOfWeekIdx\"],[\"value\",\"1\"]]",
+     "[[\"id\",\"numberFormat\"],[\"value\",\"comma-dot\"]]"
+    ]
+   },
+   "reflect_budgets": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "rules": {
+    "count": 2,
+    "hash": "ad53ca925c591c4fbfdc1ba7a311c1c8fbedad78740af79bfecec720071f99ea",
+    "lines": [
+     "[[\"actions\",\"[{\\\"op\\\":\\\"link-schedule\\\",\\\"value\\\":\\\"sched-rent\\\"}]\"],[\"conditions\",\"[{\\\"op\\\":\\\"isapprox\\\",\\\"field\\\":\\\"date\\\",\\\"value\\\":{\\\"start\\\":\\\"2026-10-02\\\",\\\"frequency\\\":\\\"monthly\\\",\\\"patterns\\\":[],\\\"skipWeekend\\\":false,\\\"weekendSolveMode\\\":\\\"after\\\",\\\"endMode\\\":\\\"never\\\"}},{\\\"op\\\":\\\"is\\\",\\\"field\\\":\\\"acct\\\",\\\"value\\\":\\\"acct-checking\\\"},{\\\"op\\\":\\\"isapprox\\\",\\\"field\\\":\\\"amount\\\",\\\"value\\\":-120000}]\"],[\"conditions_op\",\"and\"],[\"id\",\"id2\"],[\"stage\",null],[\"tombstone\",0]]",
+     "[[\"actions\",\"[{\\\"op\\\":\\\"set\\\",\\\"field\\\":\\\"category\\\",\\\"value\\\":\\\"cat-food\\\"}]\"],[\"conditions\",\"[{\\\"op\\\":\\\"is\\\",\\\"field\\\":\\\"description\\\",\\\"value\\\":\\\"pay-shop\\\"}]\"],[\"conditions_op\",\"and\"],[\"id\",\"rule-shop\"],[\"stage\",null],[\"tombstone\",0]]"
+    ]
+   },
+   "schedules": {
+    "count": 1,
+    "hash": "4636fedb4a5f95f215662c6c26c7605dd377d1ff92646de2a7f5ce61b65026e1",
+    "lines": [
+     "[[\"active\",0],[\"completed\",0],[\"custom_upcoming_length\",null],[\"id\",\"sched-rent\"],[\"name\",\"Rent\"],[\"posts_transaction\",0],[\"rule\",\"id2\"],[\"sort_order\",0],[\"tombstone\",0]]"
+    ]
+   },
+   "schedules_json_paths": {
+    "count": 1,
+    "hash": "5ec4e9e27dfb25da5139256d41953d23038d4634addb1a68bc8351c60fb128e3",
+    "lines": [
+     "[[\"account\",\"$[1]\"],[\"amount\",\"$[2]\"],[\"date\",\"$[0]\"],[\"payee\",null],[\"schedule_id\",\"sched-rent\"]]"
+    ]
+   },
+   "schedules_next_date": {
+    "count": 1,
+    "hash": "d22a5dcc5d160d273e7bd46db6fce2a16048aa50e72ac4b80b9c5927425449c0",
+    "lines": [
+     "[[\"base_next_date\",20261002],[\"base_next_date_ts\",1790510400000],[\"id\",\"id3\"],[\"local_next_date\",20261002],[\"local_next_date_ts\",1790510400000],[\"schedule_id\",\"sched-rent\"],[\"tombstone\",0]]"
+    ]
+   },
+   "tags": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "transaction_filters": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "transactions": {
+    "count": 9,
+    "hash": "0dc215be8b814a41aa8387d4ce0bfef4c492be4ef7653ba6d9e0b489ef80ba8a",
+    "lines": [
+     "[[\"acct\",\"acct-card\"],[\"amount\",-10000],[\"category\",null],[\"cleared\",1],[\"date\",20260906],[\"description\",\"pay-shop\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-split\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",1],[\"location\",null],[\"notes\",\"Split lunch\"],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-card\"],[\"amount\",-4000],[\"category\",\"cat-games\"],[\"cleared\",1],[\"date\",20260906],[\"description\",\"pay-shop\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-split-b\"],[\"imported_description\",null],[\"isChild\",1],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",\"tx-split\"],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-card\"],[\"amount\",-4599],[\"category\",\"cat-food\"],[\"cleared\",0],[\"date\",20260905],[\"description\",\"pay-dup\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-shop\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-card\"],[\"amount\",-6000],[\"category\",\"cat-food\"],[\"cleared\",1],[\"date\",20260906],[\"description\",\"pay-shop\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-split-a\"],[\"imported_description\",null],[\"isChild\",1],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",\"tx-split\"],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-card\"],[\"amount\",25000],[\"category\",null],[\"cleared\",1],[\"date\",20260910],[\"description\",\"xfer-acct-checking\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-xfer-in\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",\"tx-xfer-out\"],[\"type\",null]]",
+     "[[\"acct\",\"acct-checking\"],[\"amount\",-120000],[\"category\",\"cat-rent\"],[\"cleared\",1],[\"date\",20260902],[\"description\",\"pay-employer\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-rent\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-checking\"],[\"amount\",-25000],[\"category\",null],[\"cleared\",1],[\"date\",20260910],[\"description\",\"xfer-acct-card\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-xfer-out\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",\"tx-xfer-in\"],[\"type\",null]]",
+     "[[\"acct\",\"acct-checking\"],[\"amount\",300000],[\"category\",\"cat-salary\"],[\"cleared\",1],[\"date\",20260901],[\"description\",\"pay-employer\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-salary\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",\"September pay\"],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]",
+     "[[\"acct\",\"acct-house\"],[\"amount\",25000000],[\"category\",null],[\"cleared\",1],[\"date\",20260912],[\"description\",\"pay-employer\"],[\"error\",null],[\"financial_id\",null],[\"id\",\"tx-house\"],[\"imported_description\",null],[\"isChild\",0],[\"isParent\",0],[\"location\",null],[\"notes\",null],[\"parent_id\",null],[\"pending\",0],[\"raw_synced_data\",null],[\"reconciled\",0],[\"schedule\",null],[\"sort_order\",1790510400000],[\"starting_balance_flag\",0],[\"tombstone\",0],[\"transferred_id\",null],[\"type\",null]]"
+    ]
+   },
+   "zero_budget_months": {
+    "count": 0,
+    "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "lines": []
+   },
+   "zero_budgets": {
+    "count": 4,
+    "hash": "8018dae073c697779a3d3507ef6e8e699a0c0c501666595044a21cf22bffeaa9",
+    "lines": [
+     "[[\"amount\",120000],[\"carryover\",0],[\"category\",\"cat-rent\"],[\"goal\",null],[\"id\",\"202609-cat-rent\"],[\"long_goal\",null],[\"month\",202609]]",
+     "[[\"amount\",120000],[\"carryover\",0],[\"category\",\"cat-rent\"],[\"goal\",null],[\"id\",\"202610-cat-rent\"],[\"long_goal\",null],[\"month\",202610]]",
+     "[[\"amount\",40000],[\"carryover\",0],[\"category\",\"cat-food\"],[\"goal\",null],[\"id\",\"202609-cat-food\"],[\"long_goal\",null],[\"month\",202609]]",
+     "[[\"amount\",45000],[\"carryover\",0],[\"category\",\"cat-food\"],[\"goal\",null],[\"id\",\"202610-cat-food\"],[\"long_goal\",null],[\"month\",202610]]"
+    ]
+   }
+  },
+  "excluded": {
+   "kvcache": 0,
+   "kvcache_key": 0,
+   "messages_clock": 1,
+   "messages_crdt": 0,
+   "messages_pending": 0,
+   "sqlite_stat1": 26,
+   "sqlite_stat4": 0
+  }
+ },
+ "balances": [
+  {
+   "id": "acct-card",
+   "name": "Credit Card",
+   "offbudget": false,
+   "closed": false,
+   "balance": 10401
+  },
+  {
+   "id": "acct-checking",
+   "name": "Checking",
+   "offbudget": false,
+   "closed": false,
+   "balance": 155000
+  },
+  {
+   "id": "acct-house",
+   "name": "House",
+   "offbudget": true,
+   "closed": false,
+   "balance": 25000000
+  },
+  {
+   "id": "acct-old",
+   "name": "Old Savings",
+   "offbudget": false,
+   "closed": true,
+   "balance": 0
+  }
+ ]
+}
