@@ -486,14 +486,24 @@
     },
     {
       "id": "account-groups",
-      "title": "Account groups",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "title": "Account groups: create, rename, order, delete, membership",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/account-group-parity",
+        "generate": "node scripts/account-group-parity/generate.mjs",
+        "verify": "node scripts/account-group-parity/verify.mjs",
+        "check": "node scripts/account-group-parity/generate.mjs --check"
+      },
+      "fixture": "AccountGroups",
+      "oracleSuites": [
+        "AccountGroupOracleReplayTests"
+      ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+AccountGroup*.swift"
-      ]
+        "Actualist/LocalFirst/Database/BudgetDatabase+AccountGroup*.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+AccountGroups.swift",
+        "Actualist/Features/Accounts/AccountListLayout.swift"
+      ],
+      "notes": "20 cases from Actual's account group handlers as the desktop client calls them (create, rename, move, delete, assign an account) plus the group list and the sidebar account tree (buildAccountSide). AccountGroupOracleReplayTests replays net writes, rows and order through the store and the Accounts screen's sections; the recorded undo is not replayed."
     },
     {
       "id": "reports",

@@ -1,0 +1,253 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/account-group-parity/generate.mjs and
+// removed after the run. Seeds the synthetic world through upstream's own db functions, then
+// for each case sends what Actual's UI sends to the real loot-core handlers and records the
+// CRDT messages, the resulting rows and one real undo. Nothing here decides an expected
+// outcome: refusals are recorded as observations.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+
+import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
+import { handlers } from '#server/main';
+import { runHandler } from '#server/mutators';
+import * as sheet from '#server/sheet';
+import { setSyncingMode } from '#server/sync';
+import { deserializeValue } from '#server/sync/serialization';
+import { resetState } from '#server/transactions/transaction-rules';
+import { clearUndo, undo } from '#server/undo';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const outputPath = __OUTPUT_PATH__;
+const WORLD = plan.world;
+const CASES = plan.cases;
+
+const DUMP_TABLES = ['account_groups', 'accounts'];
+const DUMP_EXCLUDED_COLUMNS = /_ts$/;
+
+const scalar = value =>
+  value === null ||
+  typeof value === 'boolean' ||
+  typeof value === 'number' ||
+  typeof value === 'string'
+    ? value
+    : String(value);
+const normalizeRows = rows =>
+  rows.map(row =>
+    Object.fromEntries(Object.entries(row).map(([key, value]) => [key, scalar(value)])),
+  );
+const toJSON = value => (value === undefined ? null : JSON.parse(JSON.stringify(value)));
+const normalizeError = error =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+
+async function dumpTables(tables) {
+  const dumped = {};
+  for (const table of tables) {
+    const info = await db.all(`PRAGMA table_info(${table})`);
+    if (info.length === 0) throw new Error(`Missing table ${table}`);
+    const columns = info.map(column => column.name).filter(name => !DUMP_EXCLUDED_COLUMNS.test(name));
+    const keys = info
+      .filter(column => column.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map(column => column.name);
+    const rows = await db.all(`SELECT ${columns.join(', ')} FROM ${table}`);
+    const sortValue = row => keys.map(key => String(row[key] ?? '')).join('\u0000');
+    rows.sort((a, b) => (sortValue(a) < sortValue(b) ? -1 : sortValue(a) > sortValue(b) ? 1 : 0));
+    dumped[table] = rows.map(row => Object.fromEntries(columns.map(column => [column, row[column] ?? null])));
+  }
+  return dumped;
+}
+
+async function crdtMarker() {
+  const row = await db.first('SELECT MAX(id) AS maximum FROM messages_crdt');
+  return row?.maximum ?? 0;
+}
+
+async function crdtMessagesSince(marker) {
+  const rows = await db.all(
+    `SELECT id, dataset, row, column, CAST(value AS TEXT) AS serialized_value
+       FROM messages_crdt WHERE id > ? ORDER BY id`,
+    [marker],
+  );
+  return rows.map(row => ({
+    dataset: row.dataset,
+    row: row.row,
+    column: row.column,
+    value: deserializeValue(row.serialized_value),
+  }));
+}
+
+async function rowsOf() {
+  const all = sql => db.all(sql).then(normalizeRows);
+  return {
+    account_groups: await all(
+      'SELECT id, name, sort_order, tombstone FROM account_groups ORDER BY id',
+    ),
+    accounts: await all(
+      `SELECT id, name, account_group_id, sort_order, offbudget, closed, tombstone
+         FROM accounts ORDER BY id`,
+    ),
+  };
+}
+
+// Live groups in Actual's own order (sort_order, id).
+async function orderOf() {
+  return (await db.getAccountGroups()).map(group => group.id);
+}
+
+async function resetDatabase() {
+  if (sheet.get()) {
+    await sheet.waitOnSpreadsheet();
+    sheet.unloadSpreadsheet();
+  }
+  setSyncingMode('disabled');
+  await global.emptyDatabase()();
+  clearUndo();
+  resetState();
+  await loadMappings();
+}
+
+async function seedWorld() {
+  await resetDatabase();
+  for (const group of WORLD.groups) {
+    await db.insertAccountGroup({ id: group.id, name: group.name });
+    // insertAccountGroup appends after the last group; the world pins listed sort_order.
+    await db.update('account_groups', { id: group.id, sort_order: group.sort_order });
+  }
+  for (const account of WORLD.accounts) {
+    await db.insertAccount({ id: account.id, name: account.name, offbudget: account.offbudget });
+    await db.update('accounts', {
+      id: account.id,
+      sort_order: account.sort_order,
+      account_group_id: account.group,
+      closed: account.closed ?? 0,
+    });
+  }
+  // Deleted after the accounts point at it, so the orphan keeps its stale reference.
+  for (const group of WORLD.groups) {
+    if (group.tombstone) await db.delete_('account_groups', group.id);
+  }
+  db.runQuery('DELETE FROM messages_crdt');
+  setSyncingMode('offline');
+  global.resetRandomId();
+}
+
+const call = (method, payload) => runHandler(handlers[method], payload, { name: method });
+const groupList = async () => toJSON(await call('account-groups-get', undefined));
+
+// What Actual's UI sends for the case, or null when it sends nothing.
+async function plannedCall(item) {
+  const input = item.input;
+  switch (item.kind) {
+    case 'group-create':
+      // AccountGroupsModal: createGroup.mutateAsync({ name: rawValue.trim() }).
+      return { method: 'account-group-create', payload: { name: input.typed.trim() } };
+    case 'group-rename': {
+      // AccountGroupRow.onRename: nothing for an empty or unchanged trimmed name.
+      const group = (await groupList()).find(candidate => candidate.id === input.groupID);
+      const trimmed = input.typed.trim();
+      if (!trimmed || trimmed === group.name) return null;
+      return { method: 'account-group-update', payload: { id: group.id, name: trimmed } };
+    }
+    case 'group-move': {
+      // AccountGroupsModal move buttons, over the live groups in order.
+      const groups = await groupList();
+      const index = groups.findIndex(candidate => candidate.id === input.groupID);
+      if (input.direction === 'up') {
+        if (index <= 0) return null;
+        return { method: 'account-group-move', payload: { id: input.groupID, targetId: groups[index - 1].id } };
+      }
+      if (index < 0 || index >= groups.length - 1) return null;
+      return {
+        method: 'account-group-move',
+        payload: { id: input.groupID, targetId: groups[index + 2]?.id ?? null },
+      };
+    }
+    case 'group-delete':
+      return { method: 'account-group-delete', payload: { id: input.groupID } };
+    case 'account-assign':
+      // onSelect through useUpdateAccountMutation: always sent, null for "None".
+      return { method: 'account-update', payload: { id: input.accountID, account_group_id: input.groupID } };
+    default:
+      throw new Error(`Unknown case kind ${item.kind}`);
+  }
+}
+
+async function readCase(item, record) {
+  switch (item.kind) {
+    case 'read-groups':
+      record.read = { groups: await groupList() };
+      break;
+    case 'read-tree': {
+      // The client's two queries (accountGroupQueries.list, accountQueries.list); the desktop-client
+      // run applies the hooks' selectors and buildAccountSide to them.
+      const accounts = toJSON(await call('accounts-get', undefined));
+      record.treeInput = { groups: await groupList(), accounts };
+      break;
+    }
+    default:
+      throw new Error(`Unknown read ${item.kind}`);
+  }
+}
+
+test(
+  'captures the account group matrix from Actual handlers',
+  async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(`${plan.today}T12:00:00.000Z`));
+    global.currentMonth = plan.today.slice(0, 7);
+    const records = [];
+    try {
+      for (const item of CASES) {
+        await seedWorld();
+        const world = await dumpTables(DUMP_TABLES);
+        const record = { id: item.id, kind: item.kind, input: item.input, world };
+        if (item.kind.startsWith('read-')) {
+          await readCase(item, record);
+          records.push(record);
+          continue;
+        }
+        const planned = await plannedCall(item);
+        record.handlerCall = planned;
+        record.handlerError = null;
+        record.handlerResult = null;
+        const marker = await crdtMarker();
+        if (planned) {
+          try {
+            record.handlerResult = toJSON(await call(planned.method, planned.payload));
+          } catch (error) {
+            // A refusal is evidence, not an assumed failure.
+            record.handlerError = normalizeError(error);
+          }
+        }
+        record.messages = await crdtMessagesSince(marker);
+        record.rows = await rowsOf();
+        record.order = await orderOf();
+        if (planned) {
+          const undoMarker = await crdtMarker();
+          let undoError = null;
+          try {
+            await undo();
+          } catch (error) {
+            undoError = normalizeError(error);
+          }
+          record.undo = {
+            error: undoError,
+            messages: await crdtMessagesSince(undoMarker),
+            rows: await rowsOf(),
+            order: await orderOf(),
+          };
+        } else {
+          record.undo = null;
+        }
+        records.push(record);
+      }
+    } finally {
+      vi.useRealTimers();
+      setSyncingMode('disabled');
+    }
+    writeFileSync(outputPath, JSON.stringify(records));
+    expect(records.length).toBe(CASES.length);
+  },
+  600_000,
+);

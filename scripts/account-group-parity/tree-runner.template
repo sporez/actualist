@@ -1,0 +1,43 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/account-group-parity/generate.mjs and
+// removed after the run. Feeds the accounts and groups the loot-core run read through
+// 'accounts-get' and 'account-groups-get' to the desktop client's own selectors
+// (accountQueries.listOnBudget/listOffBudget/listClosed) and to buildAccountSide, the pure
+// tree builder behind useSidebarAccountTree. Nothing here decides an expected value.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test } from 'vitest';
+
+import { accountQueries } from '#accounts';
+import { buildAccountSide } from './useSidebarAccountTree';
+
+const input = JSON.parse(readFileSync(__INPUT_PATH__, 'utf8'));
+const outputPath = __OUTPUT_PATH__;
+
+const buckets = side =>
+  side.buckets.map(bucket => ({
+    groupId: bucket.group?.id ?? null,
+    accountIds: bucket.accounts.map(account => account.id),
+  }));
+
+test('captures the sidebar account tree from Actual selectors', () => {
+  const output = input.map(entry => {
+    const { accounts, groups } = entry;
+    const onBudget = accountQueries.listOnBudget().select(accounts);
+    const offBudget = accountQueries.listOffBudget().select(accounts);
+    const closed = accountQueries.listClosed().select(accounts);
+    const onSide = buildAccountSide(onBudget, groups);
+    const offSide = buildAccountSide(offBudget, groups);
+    return {
+      id: entry.id,
+      read: {
+        onBudget: buckets(onSide),
+        offBudget: buckets(offSide),
+        closed: closed.map(account => account.id),
+        accountCounts: { onBudget: onSide.accountCount, offBudget: offSide.accountCount },
+        failedCounts: { onBudget: onSide.failedCount, offBudget: offSide.failedCount },
+      },
+    };
+  });
+  writeFileSync(outputPath, JSON.stringify(output));
+  expect(output.length).toBe(input.length);
+});

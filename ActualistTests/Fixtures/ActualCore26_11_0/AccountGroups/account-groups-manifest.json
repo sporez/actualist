@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.11.0",
+    "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+    "packageVersion": "26.11.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/account-group-parity/generate.mjs",
+    "sha256": "47b1eea5e0557aa3c9f04d6aed3fafe12ce8b52f45bdbdf86283a434e586a93f"
+  },
+  "helpers": [
+    {
+      "path": "scripts/account-group-parity/cases.mjs",
+      "sha256": "6e5d6ea75c0bfdf6239bdf917d02c07f2925d8e0384efd2161481dc403f87443"
+    },
+    {
+      "path": "scripts/account-group-parity/oracle-runner.template",
+      "sha256": "13abf66bbc0ae350719412c4eff77fe87dded27ca9fc648be8e76d30c683a86d"
+    },
+    {
+      "path": "scripts/account-group-parity/tree-runner.template",
+      "sha256": "1c97f0b8a27e7d2f7ab8b66aca6794f7677a3dd4d7bcf234707001068424496b"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": null,
+  "timeZone": "UTC",
+  "caseCount": 20,
+  "amountUnits": "integer minor units",
+  "execution": "Actual account group handlers (account-group-create, account-group-update, account-group-move, account-group-delete, account-update, account-groups-get, accounts-get) on an offline in-memory SQLite database, called as the desktop client calls them with the clock frozen, then one real undo; the sidebar tree comes from the desktop client selectors and buildAccountSide in a second vitest run",
+  "scope": "synthetic local handler behavior only; no server round trip",
+  "normalization": [
+    "ids Actual mints (id1, ... from the loot-core test uuid mock) are uuid-N by first appearance in the case; setup ids are explicit",
+    "writes are the net cell writes of messages: the last value per dataset, row and column, sorted",
+    "repeated CRDT messages are kept verbatim, in the order Actual wrote them",
+    "names, values and amounts are never normalized",
+    "undo is recorded and not replayed by AccountGroupOracleReplayTests"
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/account-groups/app.ts",
+      "sha256": "5bb7c51820cd55adc4b23006ca4b912f2bcfc6d7663daa0cf899c57a66fd4ded"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "4e99b6c8e3b0bcd4c2dfbdd4aa7e93d00875558c1e150eab7d9c703617bafcd7"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/sort.ts",
+      "sha256": "16a8c0e90d4c5d9ac5c9b47256e121f2be93f5beb31aa8685711307912435041"
+    },
+    {
+      "path": "packages/loot-core/src/server/accounts/app.ts",
+      "sha256": "d2303dee45557d54ce21daa7ecfab49cba4440b334dd5abe1e1318ef5fb79e1d"
+    },
+    {
+      "path": "packages/loot-core/src/server/models.ts",
+      "sha256": "83ae5d25aeab9c52c72988360e77be2b11a83faa22ca40ee56c93bbf8d9b8cd0"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/schema/index.ts",
+      "sha256": "0ca5282bb17655bbb27f876c5883a2af7f2fc2801e27ddae79606db833190366"
+    },
+    {
+      "path": "packages/desktop-client/src/account-groups/mutations.ts",
+      "sha256": "949ad938c72fbfda85fc43c65500b805c9de98bbda98bab1760bd84f835b7725"
+    },
+    {
+      "path": "packages/desktop-client/src/accounts/mutations.ts",
+      "sha256": "5beb4df24b74049e4bd66ce39252d01dd7feb6317dda6d9a60ee042cf6077b9b"
+    },
+    {
+      "path": "packages/desktop-client/src/accounts/queries.ts",
+      "sha256": "aa5c375948a3571e553a77cb90ab32991dbe487051ea461ec3a1a4d10d03490f"
+    },
+    {
+      "path": "packages/desktop-client/src/components/modals/AccountGroupsModal/AccountGroupsModal.tsx",
+      "sha256": "7733210b14ad5728851f9684caef7a57e886c5c47da324c7ee7e9ea05aac7c5a"
+    },
+    {
+      "path": "packages/desktop-client/src/components/modals/AccountGroupsModal/AccountGroupRow.tsx",
+      "sha256": "9ea35cd80c3968123cb4e6acd9b330f7c061ee6b5a5513ee186dd4c901a72084"
+    },
+    {
+      "path": "packages/desktop-client/src/components/sidebar/redesign/useSidebarAccountTree.ts",
+      "sha256": "8097e8ff45bfa23b106699ec4db9cf8a37e462f6ff64c507ee5be2df7c8e394a"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_11_0/AccountGroups/account-groups-contract.json",
+      "sha256": "c6db1249ce14c1948da2559b6f2e1fb947f67e98af22d52e462c243de67847e1",
+      "caseCount": 20,
+      "caseIDs": [
+        "grp-create-plain",
+        "grp-create-trimmed",
+        "grp-create-duplicate",
+        "grp-rename-plain",
+        "grp-rename-trimmed",
+        "grp-rename-case-only",
+        "grp-rename-unchanged",
+        "grp-rename-empty",
+        "grp-rename-duplicate",
+        "grp-move-up",
+        "grp-move-down",
+        "grp-move-down-to-end",
+        "grp-delete-with-accounts",
+        "grp-delete-empty",
+        "acct-assign",
+        "acct-unassign",
+        "acct-assign-same",
+        "acct-assign-orphan",
+        "read-groups",
+        "read-tree"
+      ]
+    }
+  ],
+  "oracleOnly": [],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}
