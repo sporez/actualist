@@ -464,15 +464,25 @@
     },
     {
       "id": "categories",
-      "title": "Category lifecycle and visibility",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "title": "Category and group create, rename, hide, move and delete with transfer",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/category-parity",
+        "generate": "node scripts/category-parity/generate.mjs",
+        "verify": "node scripts/category-parity/verify.mjs",
+        "check": "node scripts/category-parity/generate.mjs --check"
+      },
+      "fixture": "Categories",
+      "oracleSuites": [
+        "CategoryOracleReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+CategoryLifecycle*.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+CategoryVisibility.swift"
-      ]
+        "Actualist/LocalFirst/Database/BudgetDatabase+CategoryVisibility.swift",
+        "Actualist/LocalFirst/LocalFirstActualStore+CategoryLifecycle.swift",
+        "Actualist/Features/Budget/BudgetCategoryOutlineDraft.swift"
+      ],
+      "notes": "37 cases from Actual's category handlers as the desktop client calls them (create, rename, hide, move, delete with transfer, and three reads) on an envelope budget with a loaded spreadsheet. CategoryOracleReplayTests replays net writes, rows and order through the store; the recorded undo is not replayed."
     },
     {
       "id": "account-groups",

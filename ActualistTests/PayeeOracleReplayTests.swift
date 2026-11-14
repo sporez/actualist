@@ -85,24 +85,18 @@ struct PayeeOracleReplayTests {
         }
     }
 
-    /// Which mismatch paths a registered divergence accounts for. Anything outside them stays a
-    /// strict failure, so a new difference in a marked case still fails.
-    private struct Divergence {
-        let op: String
-        /// Path prefixes the divergence covers; empty covers every path of the case.
-        let paths: [String]
-
-        func covers(_ path: String) -> Bool {
-            paths.isEmpty || paths.contains { path == $0 || path.hasPrefix($0 + "[") || path.hasPrefix($0 + ".") }
-        }
+    /// A path prefix `p` as a pattern: `p` itself, or `p` followed by `.` or `[`. Anything outside a registered
+    /// divergence's paths stays a strict failure, so a new difference in a marked case still fails.
+    private static func prefix(_ path: String) -> String {
+        "^\(path)($|[.\\[].*)"
     }
 
-    private static let divergences: [String: [Divergence]] = [
-        "rename-to-existing": [Divergence(op: "OP-97", paths: [])],
-        "rename-unchanged": [Divergence(op: "OP-98", paths: ["writes"])],
-        "favorite-selection-mixed": [Divergence(op: "OP-98", paths: ["writes"])],
-        "learn-selection-mixed": [Divergence(op: "OP-98", paths: ["writes"])],
-        "read-seed": [Divergence(op: "OP-100", paths: ["payees"])],
+    private static let divergences: [String: [OracleKnownDivergence]] = [
+        "rename-to-existing": [OracleKnownDivergence(op: "OP-97", patterns: [])],
+        "rename-unchanged": [OracleKnownDivergence(op: "OP-98", patterns: [prefix("writes")])],
+        "favorite-selection-mixed": [OracleKnownDivergence(op: "OP-98", patterns: [prefix("writes")])],
+        "learn-selection-mixed": [OracleKnownDivergence(op: "OP-98", patterns: [prefix("writes")])],
+        "read-seed": [OracleKnownDivergence(op: "OP-100", patterns: [prefix("payees")])],
     ]
 
     @Test func partitionsEveryPayeeFixtureCase() throws {

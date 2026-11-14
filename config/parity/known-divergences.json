@@ -785,6 +785,124 @@
       "status": "intended",
       "decided": "2026-11-13",
       "reason": "User decision 2026-11-13: keep the alphabetical payee list. Accented names sort with their letter and transfer payees read alphabetically, which suits a phone list better than SQLite's ASCII-only order."
+    },
+    {
+      "id": "OP-103",
+      "domain": "categories",
+      "cases": [
+        "CategoryOracleReplayTests/replaysCategoryCase"
+      ],
+      "fixtureCases": [
+        "cat-create-plain",
+        "cat-create-trimmed",
+        "cat-create-other-group",
+        "cat-create-empty-group",
+        "grp-create-plain"
+      ],
+      "summary": "Creating a category or group writes tombstone = 0 for the new row; Actual's insertCategory / insertCategoryGroup write only the given fields. The stored rows end the same. Same pattern as fixed OP-95 for payees. Cause: BudgetDatabase+CategoryLifecycle.swift createCategoryMessages and createCategoryGroupMessages.",
+      "opened": "2026-11-13",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-104",
+      "domain": "categories",
+      "cases": [
+        "CategoryOracleReplayTests/replaysCategoryCase"
+      ],
+      "fixtureCases": [
+        "grp-create-plain",
+        "grp-create-trimmed"
+      ],
+      "summary": "A new expense group is placed after the income group in Actualist's category outline. Actual's category list keeps income groups last whatever their sort_order, so the new group sits before Income. Both store the new group's sort_order after the last group. Cause: BudgetDatabase+BudgetReads.swift fetchCategoryGroups, which orders groups by sort_order and name only; budgetMonth(...).month.categoryGroups is built from it.",
+      "opened": "2026-11-13",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-105",
+      "domain": "categories",
+      "cases": [
+        "CategoryOracleReplayTests/replaysCategoryCase"
+      ],
+      "fixtureCases": [
+        "cat-create-income",
+        "cat-delete-income-transfer"
+      ],
+      "summary": "Creating or deleting an income category in an envelope budget is refused. Actual's category-create and category-delete allow both; deleting an income category with a transfer re-points its mapping without moving budget amounts. Cause: BudgetDatabase+CategoryLifecycle.swift requireCategoryManagementAllowed.",
+      "opened": "2026-11-13",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-106",
+      "domain": "categories",
+      "cases": [
+        "CategoryOracleReplayTests/replaysCategoryCase"
+      ],
+      "fixtureCases": [
+        "grp-create-trimmed"
+      ],
+      "summary": "Creating a group trims its name; Actual's category-group-create stores the name as typed ('  Savings  '). Category names are trimmed by both. This case's writes also carry OP-103's extra tombstone cell. Cause: BudgetDatabase+CategoryLifecycle.swift createCategoryGroupMessages (validatedName).",
+      "opened": "2026-11-13",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-107",
+      "domain": "categories",
+      "cases": [
+        "CategoryOracleReplayTests/replaysCategoryCase"
+      ],
+      "fixtureCases": [
+        "cat-rename-plain",
+        "cat-rename-trimmed",
+        "cat-rename-case-only",
+        "cat-rename-unchanged",
+        "cat-hide",
+        "cat-unhide",
+        "grp-rename-plain",
+        "grp-hide",
+        "grp-unhide",
+        "cat-delete-budget-transfer"
+      ],
+      "summary": "Category and group edits write only the changed cell. Actual's web app sends the whole category or group to category-update / category-group-update, so a rename or hide also rewrites cat_group, is_income, hidden, name, goal_def, cleanup_def, template_settings and tombstone with their current values, and an unchanged rename still writes. Deleting with a transfer, Actual's doTransfer rewrites the transfer category's budget in every month even when unchanged. The stored rows end the same. Same pattern as intended OP-98 (payees) and OP-22 (accounts). Cause: renameCategoryMessages and renameCategoryGroupMessages (BudgetDatabase+CategoryLifecycle.swift), setCategoryHiddenMessages and setCategoryGroupHiddenMessages (BudgetDatabase+CategoryVisibility.swift), categoryBudgetTransferMessages (BudgetDatabase+CategoryLifecycleDeletion.swift).",
+      "opened": "2026-11-13",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-108",
+      "domain": "categories",
+      "cases": [
+        "CategoryOracleReplayTests/replaysCategoryCase"
+      ],
+      "fixtureCases": [
+        "cat-move-within",
+        "cat-move-to-end",
+        "cat-move-other-group",
+        "cat-move-into-empty",
+        "grp-move-first",
+        "grp-move-end"
+      ],
+      "summary": "Moving a category or group rewrites the sort_order of every row in its group (or every group) to multiples of 16384. Actual's moveCategory / moveCategoryGroup give only the moved row a midpoint sort_order and shove neighbours only when there is no room. The resulting order is the same; the stored sort_order values and the number of synced writes differ. Cause: BudgetDatabase+CategoryLifecycle.swift applyCategoryOutlineMessages.",
+      "opened": "2026-11-13",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-109",
+      "domain": "categories",
+      "cases": [
+        "CategoryOracleReplayTests/replaysCategoryCase"
+      ],
+      "fixtureCases": [
+        "read-deleted-category-display"
+      ],
+      "summary": "A transaction whose category was deleted without a transfer keeps the category id in Actualist's transaction list. Actual's transactions view joins categories only where tombstone = 0, so the category reads as null (also for a row stored with an earlier, merged-away category that maps to it). Same pattern as fixed OP-102 for payees. Cause: BudgetDatabase+TransactionReads.swift transactionReadJoins (mappedCategory and the categories join).",
+      "opened": "2026-11-13",
+      "status": "open",
+      "reviewBy": "2026-12-15"
     }
   ]
 }

@@ -1,0 +1,379 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/category-parity/generate.mjs and
+// removed after the run. Seeds the synthetic envelope budget through upstream's own db
+// functions and spreadsheet, then for each case sends what Actual's UI sends to the real
+// loot-core handlers and records the CRDT messages, the resulting rows and one real undo.
+// Nothing here decides an expected outcome: refusals are recorded as observations.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { expect, test, vi } from 'vitest';
+
+import { aqlQuery } from '#server/aql';
+import * as budget from '#server/budget/base';
+import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
+import { handlers } from '#server/main';
+import { runHandler } from '#server/mutators';
+import * as sheet from '#server/sheet';
+import { setSyncingMode } from '#server/sync';
+import { deserializeValue } from '#server/sync/serialization';
+import { resetState } from '#server/transactions/transaction-rules';
+import { clearUndo, undo } from '#server/undo';
+import { q } from '#shared/query';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const outputPath = __OUTPUT_PATH__;
+const WORLD = plan.world;
+const CASES = plan.cases;
+const SORT_INCREMENT = 16384;
+
+const DUMP_TABLES = [
+  'accounts',
+  'category_groups',
+  'categories',
+  'category_mapping',
+  'transactions',
+  'zero_budgets',
+  'zero_budget_months',
+];
+const DUMP_EXCLUDED_COLUMNS = /_ts$/;
+const dbMonth = month => parseInt(month.replace('-', ''));
+
+const scalar = value =>
+  value === null ||
+  typeof value === 'boolean' ||
+  typeof value === 'number' ||
+  typeof value === 'string'
+    ? value
+    : String(value);
+const normalizeRows = rows =>
+  rows.map(row =>
+    Object.fromEntries(Object.entries(row).map(([key, value]) => [key, scalar(value)])),
+  );
+const toJSON = value => (value === undefined ? null : JSON.parse(JSON.stringify(value)));
+const normalizeError = error =>
+  error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+const upper = text => text.toUpperCase();
+
+async function dumpTables(tables) {
+  const dumped = {};
+  for (const table of tables) {
+    const info = await db.all(`PRAGMA table_info(${table})`);
+    if (info.length === 0) throw new Error(`Missing table ${table}`);
+    const columns = info.map(column => column.name).filter(name => !DUMP_EXCLUDED_COLUMNS.test(name));
+    const keys = info
+      .filter(column => column.pk > 0)
+      .sort((a, b) => a.pk - b.pk)
+      .map(column => column.name);
+    const rows = await db.all(`SELECT ${columns.join(', ')} FROM ${table}`);
+    const sortValue = row => keys.map(key => String(row[key] ?? '')).join('\u0000');
+    rows.sort((a, b) => (sortValue(a) < sortValue(b) ? -1 : sortValue(a) > sortValue(b) ? 1 : 0));
+    dumped[table] = rows.map(row => Object.fromEntries(columns.map(column => [column, row[column] ?? null])));
+  }
+  return dumped;
+}
+
+async function crdtMarker() {
+  const row = await db.first('SELECT MAX(id) AS maximum FROM messages_crdt');
+  return row?.maximum ?? 0;
+}
+
+async function crdtMessagesSince(marker) {
+  const rows = await db.all(
+    `SELECT id, dataset, row, column, CAST(value AS TEXT) AS serialized_value
+       FROM messages_crdt WHERE id > ? ORDER BY id`,
+    [marker],
+  );
+  return rows.map(row => ({
+    dataset: row.dataset,
+    row: row.row,
+    column: row.column,
+    value: deserializeValue(row.serialized_value),
+  }));
+}
+
+async function rowsOf() {
+  const all = sql => db.all(sql).then(normalizeRows);
+  return {
+    category_groups: await all(
+      'SELECT id, name, is_income, hidden, sort_order, tombstone FROM category_groups ORDER BY id',
+    ),
+    categories: await all(
+      'SELECT id, name, cat_group, is_income, hidden, sort_order, tombstone FROM categories ORDER BY id',
+    ),
+    category_mapping: await all('SELECT id, transferId FROM category_mapping ORDER BY id'),
+    zero_budgets: await all(
+      `SELECT id, month, category, amount, carryover FROM zero_budgets
+        WHERE month IN (${plan.sheetMonths.map(dbMonth).join(', ')}) ORDER BY id`,
+    ),
+  };
+}
+
+// Live groups in Actual's own order, each with its live category ids in order.
+async function orderOf() {
+  const groups = await db.getCategoriesGrouped();
+  return groups.map(group => ({ id: group.id, categories: group.categories.map(category => category.id) }));
+}
+
+async function resetDatabase() {
+  if (sheet.get()) {
+    await sheet.waitOnSpreadsheet();
+    sheet.unloadSpreadsheet();
+  }
+  setSyncingMode('disabled');
+  await global.emptyDatabase()();
+  clearUndo();
+  resetState();
+  await loadMappings();
+}
+
+async function seedWorld() {
+  await resetDatabase();
+  for (const account of WORLD.accounts) {
+    await db.insertAccount({ id: account.id, name: account.name });
+  }
+  for (const group of WORLD.groups) {
+    await db.insertCategoryGroup({
+      id: group.id,
+      name: group.name,
+      is_income: group.is_income ?? 0,
+      hidden: group.hidden ?? 0,
+    });
+  }
+  const placed = new Map();
+  for (const category of WORLD.categories) {
+    await db.insertCategory({
+      id: category.id,
+      name: category.name,
+      cat_group: category.group,
+      is_income: category.is_income ?? 0,
+      hidden: category.hidden ?? 0,
+    });
+    // insertCategory shoves new rows to the front of the group; the world pins listed order.
+    const position = (placed.get(category.group) ?? 0) + 1;
+    placed.set(category.group, position);
+    await db.update('categories', { id: category.id, sort_order: position * SORT_INCREMENT });
+    if (category.tombstone) await db.delete_('categories', category.id);
+    if (category.mapsTo) await db.update('category_mapping', { id: category.id, transferId: category.mapsTo });
+  }
+  for (const row of WORLD.budgets) {
+    await db.insert('zero_budgets', {
+      id: `${dbMonth(row.month)}-${row.category}`,
+      month: dbMonth(row.month),
+      category: row.category,
+      amount: row.amount,
+      carryover: 0,
+    });
+  }
+  for (const transaction of WORLD.transactions) {
+    await db.insertTransaction({
+      id: transaction.id,
+      account: 'acct-checking',
+      date: transaction.date,
+      amount: transaction.amount,
+      category: transaction.category,
+      cleared: true,
+    });
+  }
+  await sheet.loadSpreadsheet(db);
+  await budget.createBudget(plan.sheetMonths);
+  await sheet.waitOnSpreadsheet();
+  db.runQuery('DELETE FROM messages_crdt');
+  setSyncingMode('offline');
+  global.resetRandomId();
+}
+
+// The client's category list query (budget/queries.ts) is send('get-categories').
+async function categoryList() {
+  return toJSON(await runHandler(handlers['get-categories'], undefined, { name: 'get-categories' }));
+}
+
+const hasSameNameIn = (categories, name, exceptID) =>
+  (categories ?? []).some(category => category.id !== exceptID && upper(category.name) === upper(name));
+
+async function mustTransfer(id) {
+  return Boolean(await runHandler(handlers['must-category-transfer'], { id }, { name: 'must-category-transfer' }));
+}
+
+// What Actual's UI sends for the case, or null when it sends nothing.
+async function plannedCall(item, record) {
+  const input = item.input;
+  const { grouped, list } = await categoryList();
+  const categoryOf = id => list.find(category => category.id === id);
+  const groupOf = id => grouped.find(group => group.id === id);
+  const withoutCategories = ({ categories: _, ...group }) => group;
+  switch (item.kind) {
+    case 'category-create': {
+      // useSaveCategoryMutation: a same-named category (UPPER) in the target group stops it.
+      if (hasSameNameIn(groupOf(input.groupID)?.categories, input.typed, 'new')) return null;
+      return {
+        method: 'category-create',
+        payload: { name: input.typed, groupId: input.groupID, isIncome: input.isIncome, hidden: false },
+      };
+    }
+    case 'group-create':
+      return { method: 'category-group-create', payload: { name: input.typed } };
+    case 'category-rename': {
+      const category = categoryOf(input.categoryID);
+      if (hasSameNameIn(groupOf(category.group)?.categories, input.typed, category.id)) return null;
+      return { method: 'category-update', payload: { ...category, name: input.typed } };
+    }
+    case 'category-hide': {
+      const category = categoryOf(input.categoryID);
+      if (hasSameNameIn(groupOf(category.group)?.categories, category.name, category.id)) return null;
+      return { method: 'category-update', payload: { ...category, hidden: !category.hidden } };
+    }
+    case 'group-rename': {
+      const group = groupOf(input.groupID);
+      if (grouped.some(other => other.id !== group.id && upper(other.name) === upper(input.typed))) return null;
+      return { method: 'category-group-update', payload: { ...withoutCategories(group), name: input.typed } };
+    }
+    case 'group-hide': {
+      const group = groupOf(input.groupID);
+      if (grouped.some(other => other.id !== group.id && upper(other.name) === upper(group.name))) return null;
+      return { method: 'category-group-update', payload: { ...withoutCategories(group), hidden: !group.hidden } };
+    }
+    case 'category-move': {
+      // useReorderCategoryMutation: a same-named category (UPPER) in the target group stops it.
+      const candidate = categoryOf(input.categoryID);
+      if (hasSameNameIn(groupOf(input.groupID)?.categories, candidate.name, candidate.id)) return null;
+      return {
+        method: 'category-move',
+        payload: { id: input.categoryID, groupId: input.groupID, targetId: input.targetID },
+      };
+    }
+    case 'group-move':
+      return { method: 'category-group-move', payload: { id: input.groupID, targetId: input.targetID } };
+    case 'category-delete': {
+      record.mustTransfer = await mustTransfer(input.categoryID);
+      return {
+        method: 'category-delete',
+        payload: record.mustTransfer ? { id: input.categoryID, transferId: input.transferID } : { id: input.categoryID },
+      };
+    }
+    case 'group-delete': {
+      // useDeleteCategoryGroupMutation asks for each category until one needs a transfer.
+      record.mustTransfer = false;
+      for (const category of groupOf(input.groupID)?.categories ?? []) {
+        if (await mustTransfer(category.id)) {
+          record.mustTransfer = true;
+          break;
+        }
+      }
+      return {
+        method: 'category-group-delete',
+        payload: record.mustTransfer ? { id: input.groupID, transferId: input.transferID } : { id: input.groupID },
+      };
+    }
+    default:
+      throw new Error(`Unknown case kind ${item.kind}`);
+  }
+}
+
+async function readCase(item, record) {
+  switch (item.kind) {
+    case 'read-must-transfer': {
+      const result = {};
+      for (const category of await db.getCategories()) result[category.id] = await mustTransfer(category.id);
+      record.read = { mustTransfer: result };
+      break;
+    }
+    case 'read-outline': {
+      const { grouped } = await categoryList();
+      record.read = {
+        groups: grouped.map(group => ({
+          id: group.id,
+          name: group.name,
+          hidden: Boolean(group.hidden),
+          categories: (group.categories ?? []).map(category => ({
+            id: category.id,
+            name: category.name,
+            hidden: Boolean(category.hidden),
+          })),
+        })),
+      };
+      break;
+    }
+    case 'read-deleted-display': {
+      for (const id of item.input.tombstoned) await db.delete_('categories', id);
+      record.stateRows = await dumpTables(['categories', 'category_mapping']);
+      const { data } = await aqlQuery(
+        q('transactions').filter({ account: item.input.account }).select(['id', 'category', 'category.name']),
+      );
+      record.read = {
+        transactions: toJSON(data).map(row => ({
+          id: row.id,
+          category: row.category ?? null,
+          categoryName: row['category.name'] ?? null,
+        })).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+      };
+      break;
+    }
+    default:
+      throw new Error(`Unknown read ${item.kind}`);
+  }
+}
+
+test(
+  'captures the category matrix from Actual handlers',
+  async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(`${plan.today}T12:00:00.000Z`));
+    // Under IS_TESTING, monthUtils.currentMonth() reads this hook instead of the clock.
+    global.currentMonth = plan.today.slice(0, 7);
+    const records = [];
+    try {
+      for (const item of CASES) {
+        await seedWorld();
+        const world = await dumpTables(DUMP_TABLES);
+        const record = { id: item.id, kind: item.kind, input: item.input, world };
+        if (item.kind.startsWith('read-')) {
+          await readCase(item, record);
+          records.push(record);
+          continue;
+        }
+        const call = await plannedCall(item, record);
+        record.handlerCall = call;
+        record.handlerError = null;
+        record.handlerResult = null;
+        const marker = await crdtMarker();
+        if (call) {
+          try {
+            record.handlerResult = toJSON(await runHandler(handlers[call.method], call.payload, { name: call.method }));
+          } catch (error) {
+            // A refusal is evidence, not an assumed failure.
+            record.handlerError = normalizeError(error);
+          }
+        }
+        await sheet.waitOnSpreadsheet();
+        record.messages = await crdtMessagesSince(marker);
+        record.rows = await rowsOf();
+        record.order = await orderOf();
+        if (call) {
+          const undoMarker = await crdtMarker();
+          let undoError = null;
+          try {
+            await undo();
+            await sheet.waitOnSpreadsheet();
+          } catch (error) {
+            undoError = normalizeError(error);
+          }
+          record.undo = {
+            error: undoError,
+            messages: await crdtMessagesSince(undoMarker),
+            rows: await rowsOf(),
+            order: await orderOf(),
+          };
+        } else {
+          record.undo = null;
+        }
+        records.push(record);
+      }
+    } finally {
+      vi.useRealTimers();
+      setSyncingMode('disabled');
+    }
+    writeFileSync(outputPath, JSON.stringify(records));
+    expect(records.length).toBe(CASES.length);
+  },
+  600_000,
+);

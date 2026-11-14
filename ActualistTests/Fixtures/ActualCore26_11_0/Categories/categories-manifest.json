@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.11.0",
+    "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+    "packageVersion": "26.11.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/category-parity/generate.mjs",
+    "sha256": "bf3e0e2ec8ec6b9b1c517eb8cc3c739f2f4fbe80b63bc9394066a19ff4ae6363"
+  },
+  "helpers": [
+    {
+      "path": "scripts/category-parity/cases.mjs",
+      "sha256": "186449bc49b6e8ed1e0a258110976e9994a77ef8124fd6281f94f639b3519272"
+    },
+    {
+      "path": "scripts/category-parity/oracle-runner.template",
+      "sha256": "46316ee9ccd9154bb2dd1481f859397e8fc429f42ea4ba277bd2eaa5af318f5e"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": null,
+  "timeZone": "UTC",
+  "caseCount": 37,
+  "amountUnits": "integer minor units",
+  "execution": "Actual category handlers (category-create, category-update, category-move, category-delete, category-group-create, category-group-update, category-group-move, category-group-delete, must-category-transfer, get-categories) on an offline in-memory SQLite database with a loaded envelope spreadsheet, called as the desktop client calls them with the clock frozen, then one real undo",
+  "scope": "synthetic local handler behavior only; no server round trip",
+  "normalization": [
+    "ids Actual mints (id1, ... from the loot-core test uuid mock) are uuid-N by first appearance in the case; setup ids are explicit",
+    "writes are the net cell writes of messages: the last value per dataset, row and column, sorted",
+    "repeated CRDT messages are kept verbatim, in the order Actual wrote them",
+    "names, values and amounts are never normalized",
+    "undo is recorded and not replayed by CategoryOracleReplayTests"
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/budget/app.ts",
+      "sha256": "dad317c2af3723a7ebb10269c67585b9f81d607f1a43593645bd35d3a6c389d8"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/base.ts",
+      "sha256": "0e55e0f309adb0cebb015ec92f56d95ebb385ce21093a8f32d3be0adc7e26f6e"
+    },
+    {
+      "path": "packages/loot-core/src/server/budget/actions.ts",
+      "sha256": "5fa3915814c773ee998e6836e5fe7c5a562cad643b310a1ac74faad662ec3294"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "4e99b6c8e3b0bcd4c2dfbdd4aa7e93d00875558c1e150eab7d9c703617bafcd7"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/sort.ts",
+      "sha256": "16a8c0e90d4c5d9ac5c9b47256e121f2be93f5beb31aa8685711307912435041"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/mappings.ts",
+      "sha256": "6ec833744859b6e14f9a83a91cbfa99980bfe1b69750c567a146e7b2ff0573b9"
+    },
+    {
+      "path": "packages/loot-core/src/server/models.ts",
+      "sha256": "83ae5d25aeab9c52c72988360e77be2b11a83faa22ca40ee56c93bbf8d9b8cd0"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/schema/index.ts",
+      "sha256": "0ca5282bb17655bbb27f876c5883a2af7f2fc2801e27ddae79606db833190366"
+    },
+    {
+      "path": "packages/loot-core/src/server/undo.ts",
+      "sha256": "2b664e329d843c8022f935d131b7a88a40f85b3e64904faed50f8aeffd5deafe"
+    },
+    {
+      "path": "packages/desktop-client/src/budget/mutations.ts",
+      "sha256": "d0781dba39ddccd4de2cb5939d0559076741a91f272ad9c9921ca9507f1c01b9"
+    },
+    {
+      "path": "packages/desktop-client/src/budget/queries.ts",
+      "sha256": "2f731199e57259667817f12b60f24df6b9c3cc3960dbb0f1dcf0c4d88c70ef10"
+    },
+    {
+      "path": "packages/desktop-client/src/hooks/useDeleteCategoryFlow.ts",
+      "sha256": "2458ad6402c005cd7e01c04a7508089241b62f83e37ce51a89fb9094223a8063"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_11_0/Categories/categories-contract.json",
+      "sha256": "1a63d5da16b1165d080b32bad513a30ee670948d55ef5b8b5b2f749f198bedd3",
+      "caseCount": 37,
+      "caseIDs": [
+        "cat-create-plain",
+        "cat-create-trimmed",
+        "cat-create-duplicate-case",
+        "cat-create-other-group",
+        "cat-create-empty-group",
+        "cat-create-income",
+        "grp-create-plain",
+        "grp-create-trimmed",
+        "grp-create-duplicate-case",
+        "cat-rename-plain",
+        "cat-rename-trimmed",
+        "cat-rename-case-only",
+        "cat-rename-unchanged",
+        "cat-rename-duplicate",
+        "grp-rename-plain",
+        "grp-rename-duplicate",
+        "cat-hide",
+        "cat-unhide",
+        "grp-hide",
+        "grp-unhide",
+        "cat-move-within",
+        "cat-move-to-end",
+        "cat-move-other-group",
+        "cat-move-into-empty",
+        "cat-move-duplicate-name",
+        "grp-move-first",
+        "grp-move-end",
+        "cat-delete-unused",
+        "cat-delete-budget-transfer",
+        "cat-delete-transactions-transfer",
+        "cat-delete-income-transfer",
+        "grp-delete-empty",
+        "grp-delete-transfer",
+        "grp-delete-no-transfer",
+        "read-must-transfer",
+        "read-outline",
+        "read-deleted-category-display"
+      ]
+    }
+  ],
+  "oracleOnly": [],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}

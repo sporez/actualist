@@ -38,8 +38,8 @@ enum PayeeOracleReplay {
             ])
         }
         var fields: [String: OracleValue] = [
-            "writes": sortedWrites(try OracleValue(json: entry["writes"] ?? NSNull())),
-            "rows": sortedRows(try OracleValue(json: entry["rows"] ?? NSNull())),
+            "writes": OracleWriteReplay.sortedWrites(try OracleValue(json: entry["writes"] ?? NSNull())),
+            "rows": OracleWriteReplay.sortedRows(try OracleValue(json: entry["rows"] ?? NSNull())),
         ]
         // An action Actual's UI never sends has no outcome to compare.
         if !(entry["handlerCall"] is NSNull) {
@@ -87,8 +87,8 @@ enum PayeeOracleReplay {
         let aliases = newIDAliases(messages: messages, rows: rows, seeded: seeded)
 
         var fields: [String: OracleValue] = [
-            "writes": sortedWrites(aliased(netWrites(messages), aliases)),
-            "rows": sortedRows(aliased(rows, aliases)),
+            "writes": OracleWriteReplay.sortedWrites(OracleWriteReplay.aliased(OracleWriteReplay.netWrites(messages), aliases)),
+            "rows": OracleWriteReplay.sortedRows(OracleWriteReplay.aliased(rows, aliases)),
         ]
         if !(entry["handlerCall"] is NSNull) {
             fields["outcome"] = .string(outcome)
@@ -185,40 +185,7 @@ enum PayeeOracleReplay {
         }
     }
 
-    // MARK: Messages
-
-    private static func netWrites(_ messages: [ActualSyncDecodedMessage]) -> OracleValue {
-        var last: [String: ActualSyncDecodedMessage] = [:]
-        for message in messages {
-            last["\(message.dataset)\u{0}\(message.row)\u{0}\(message.column)"] = message
-        }
-        return .array(last.values.map { message in
-            .object([
-                "dataset": .string(message.dataset),
-                "row": .string(message.row),
-                "column": .string(message.column),
-                "value": ReplayNormalizer.parse(message.serializedValue),
-            ])
-        })
-    }
-
-    // MARK: Ordering and aliasing
-
-    private static func sortedWrites(_ writes: OracleValue) -> OracleValue {
-        guard case .array(let items) = writes else { return writes }
-        func key(_ item: OracleValue) -> [String] {
-            ["dataset", "row", "column"].map { field in
-                if case .string(let text)? = item.field(field) { return text }
-                return ""
-            }
-        }
-        return .array(items.sorted { key($0).lexicographicallyPrecedes(key($1)) })
-    }
-
-    private static func sortedRows(_ rows: OracleValue) -> OracleValue {
-        guard case .object(let tables) = rows else { return rows }
-        return .object(tables.mapValues(\.sortedByID))
-    }
+    // MARK: Aliasing
 
     /// Ids the world seeds; an id outside it is one the action minted.
     private static func seededIDs(_ world: [String: Any]) -> Set<String> {
@@ -252,19 +219,6 @@ enum PayeeOracleReplay {
         return Dictionary(uniqueKeysWithValues: ordered.enumerated().map { ($0.element, "uuid-\($0.offset + 1)") })
     }
 
-    private static func aliased(_ value: OracleValue, _ aliases: [String: String]) -> OracleValue {
-        switch value {
-        case .string(let text):
-            return .string(aliases[text] ?? text)
-        case .array(let items):
-            return .array(items.map { aliased($0, aliases) })
-        case .object(let fields):
-            return .object(fields.mapValues { aliased($0, aliases) })
-        default:
-            return value
-        }
-    }
-
     // MARK: Seeding
 
     private struct SeedRow: Sendable {
@@ -284,7 +238,7 @@ enum PayeeOracleReplay {
                 let placeholders = Array(repeating: "?", count: columns.count).joined(separator: ", ")
                 rows.append(SeedRow(
                     sql: "INSERT INTO \(table) (\(columns.joined(separator: ", "))) VALUES (\(placeholders))",
-                    values: try columns.map { try databaseValue(row[$0] ?? NSNull(), column: "\(table).\($0)") }
+                    values: try columns.map { try OracleWriteReplay.seedValue(row[$0] ?? NSNull(), column: "\(table).\($0)") }
                 ))
             }
         }
@@ -308,20 +262,6 @@ enum PayeeOracleReplay {
                     arguments: [preference.id, preference.value]
                 )
             }
-        }
-    }
-
-    private static func databaseValue(_ value: Any, column: String) throws -> DatabaseValue {
-        switch value {
-        case is NSNull:
-            return .null
-        case let string as String:
-            return string.databaseValue
-        case let number as NSNumber:
-            if String(cString: number.objCType) == "d" { return number.doubleValue.databaseValue }
-            return number.int64Value.databaseValue
-        default:
-            throw OracleReplayError.malformedFixture("unsupported value in \(column)")
         }
     }
 }
