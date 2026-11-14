@@ -869,8 +869,9 @@
       ],
       "summary": "Picking an account's current group writes nothing; Actual's Account Groups modal sends account-update with the unchanged account_group_id. The stored rows end the same. Same pattern as intended OP-98, OP-107 and OP-22. Cause: moveAccountToGroupMessages (unchanged-group guard).",
       "opened": "2026-11-14",
-      "status": "open",
-      "reviewBy": "2026-12-15"
+      "status": "intended",
+      "decided": "2026-11-14",
+      "reason": "User decision 2026-11-14: keep writing nothing when an account's group does not change, as decided for OP-98, OP-107 and OP-22. The stored rows end the same."
     },
     {
       "id": "OP-112",
