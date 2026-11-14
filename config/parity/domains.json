@@ -508,15 +508,25 @@
     {
       "id": "reports",
       "title": "Report totals and explorer queries",
-      "status": "uncovered",
-      "harness": null,
-      "fixture": null,
-      "oracleSuites": [],
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/report-parity",
+        "generate": "node scripts/report-parity/generate.mjs",
+        "verify": "node scripts/report-parity/verify.mjs",
+        "check": "node scripts/report-parity/generate.mjs --check"
+      },
+      "fixture": "Reports",
+      "oracleSuites": [
+        "ReportOracleReplayTests"
+      ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+Report*.swift",
         "Actualist/LocalFirst/Database/ReportArithmetic.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+Reports.swift"
-      ]
+        "Actualist/LocalFirst/LocalFirstActualStore+Reports.swift",
+        "Actualist/Features/Reports/ReportsModels.swift",
+        "Actualist/Features/Reports/ReportExplorerModels.swift"
+      ],
+      "notes": "25 cases from Actual's net worth, cash flow, spending and calendar spreadsheets (monthly and daily, envelope and tracking, two clocks) compared strictly with the dashboard cards and the explorer. Weekly and yearly intervals and the reports Actualist lacks are out of scope; transfers, balance and spending asset/debt splits are recorded but not compared."
     },
     {
       "id": "sync-merkle",

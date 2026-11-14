@@ -1,0 +1,268 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by scripts/report-parity/generate.mjs and removed after
+// the run. Seeds the synthetic worlds through upstream's own db functions, then calls the same
+// report spreadsheets the desktop client's Reports pages call (net worth, cash flow, spending and
+// calendar) with the client's `send` forwarded to the in-process handlers. Nothing here decides an
+// expected outcome: the spreadsheets' return values are recorded as observations.
+import { readFileSync, writeFileSync } from 'node:fs';
+import * as d from 'date-fns';
+import { enUS } from 'date-fns/locale';
+import { expect, test, vi } from 'vitest';
+
+import { send } from '#platform/client/connection';
+import * as db from '#server/db';
+import { loadMappings } from '#server/db/mappings';
+import { handlers } from '#server/main';
+import { runHandler } from '#server/mutators';
+import * as sheet from '#server/sheet';
+import { setSyncingMode } from '#server/sync';
+import * as monthUtils from '#shared/months';
+
+import { calendarSpreadsheet } from '../../desktop-client/src/components/reports/spreadsheets/calendar-spreadsheet';
+import { cashFlowByDate } from '../../desktop-client/src/components/reports/spreadsheets/cash-flow-spreadsheet';
+import { createSpreadsheet } from '../../desktop-client/src/components/reports/spreadsheets/net-worth-spreadsheet';
+import { createSpendingSpreadsheet } from '../../desktop-client/src/components/reports/spreadsheets/spending-spreadsheet';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const outputPath = __OUTPUT_PATH__;
+const WORLD = plan.world;
+const CASES = plan.cases;
+
+const DUMP_TABLES = [
+  'accounts', 'payees', 'payee_mapping', 'category_groups', 'categories', 'category_mapping',
+  'transactions', 'zero_budgets', 'reflect_budgets', 'preferences',
+];
+const DUMP_EXCLUDED_COLUMNS = /_ts$/;
+
+const toJSON = value => (value === undefined ? null : JSON.parse(JSON.stringify(value)));
+const call = (method, payload) => runHandler(handlers[method], payload, { name: method });
+const format = value => String(value);
+
+async function dumpTables(tables) {
+  const dumped = {};
+  for (const table of tables) {
+    const info = await db.all(`PRAGMA table_info(${table})`);
+    if (info.length === 0) throw new Error(`Missing table ${table}`);
+    const columns = info.map(column => column.name).filter(name => !DUMP_EXCLUDED_COLUMNS.test(name));
+    const keys = info.filter(column => column.pk > 0).sort((a, b) => a.pk - b.pk).map(column => column.name);
+    const rows = await db.all(`SELECT ${columns.join(', ')} FROM ${table}`);
+    const sortValue = row => keys.map(key => String(row[key] ?? '')).join('\u0000');
+    rows.sort((a, b) => (sortValue(a) < sortValue(b) ? -1 : sortValue(a) > sortValue(b) ? 1 : 0));
+    dumped[table] = rows.map(row => Object.fromEntries(columns.map(column => [column, row[column] ?? null])));
+  }
+  return dumped;
+}
+
+async function resetDatabase() {
+  if (sheet.get()) {
+    await sheet.waitOnSpreadsheet();
+    sheet.unloadSpreadsheet();
+  }
+  setSyncingMode('disabled');
+  await global.emptyDatabase()();
+  await loadMappings();
+}
+
+async function seedWorld(budgetType) {
+  await resetDatabase();
+  for (const group of WORLD.groups) {
+    await db.insertCategoryGroup({
+      id: group.id, name: group.name, is_income: group.is_income, hidden: group.hidden,
+    });
+  }
+  for (const category of WORLD.categories) {
+    await db.insertCategory({
+      id: category.id, name: category.name, cat_group: category.cat_group,
+      is_income: category.is_income, hidden: category.hidden,
+    });
+  }
+  for (const account of WORLD.accounts) {
+    await db.insertAccount({ id: account.id, name: account.name, offbudget: account.offbudget });
+    if (account.closed) await db.update('accounts', { id: account.id, closed: 1 });
+  }
+  for (const payee of WORLD.payees) {
+    await db.insertPayee({ id: payee.id, name: payee.name, transfer_acct: payee.transfer_acct ?? null });
+  }
+  for (const transaction of WORLD.transactions) {
+    const { tombstone, ...fields } = transaction;
+    await db.insertTransaction({ ...fields, cleared: true });
+    if (tombstone) await db.delete_('transactions', transaction.id);
+  }
+  for (const account of WORLD.accounts) {
+    if (account.tombstone) await db.delete_('accounts', account.id);
+  }
+  const table = budgetType === 'tracking' ? 'reflect_budgets' : 'zero_budgets';
+  for (const row of WORLD.budgets[budgetType]) {
+    const month = parseInt(row.month.replace('-', ''));
+    await db.insert(table, {
+      id: `${month}-${row.category}`, month, category: row.category, amount: row.amount, carryover: 0,
+    });
+  }
+  if (budgetType === 'tracking') {
+    db.runQuery("INSERT OR REPLACE INTO preferences (id, value) VALUES ('budgetType', 'tracking')");
+  }
+  setSyncingMode('offline');
+}
+
+// monthUtils.currentDay() ignores the clock while IS_TESTING is set. The flag is cleared only
+// around the report call, with the clock frozen at the case's day, and restored in finally.
+async function atToday(today, run) {
+  const prior = global.IS_TESTING;
+  vi.setSystemTime(new Date(`${today}T12:00:00.000Z`));
+  global.IS_TESTING = false;
+  try {
+    return await run();
+  } finally {
+    global.IS_TESTING = prior;
+  }
+}
+
+const dayText = date => d.format(date, 'yyyy-MM-dd');
+
+async function netWorth(item, input) {
+  const all = toJSON(await call('accounts-get', undefined));
+  const accounts = input.accountSet === 'open'
+    ? all.filter(account => !account.closed)
+    : input.accountSet === 'onbudget'
+      ? all.filter(account => !account.offbudget)
+      : all;
+  let data = null;
+  await atToday(item.today, async () => {
+    await createSpreadsheet(
+      input.start, input.end, accounts, [], 'and', enUS, input.interval, '0', format,
+    )({}, result => { data = result; });
+  });
+  const graph = data.graphData;
+  const periods = input.interval === 'Daily'
+    ? monthUtils.dayRangeInclusive(graph.start, graph.end)
+    : monthUtils.rangeInclusive(monthUtils.getMonth(graph.start), monthUtils.getMonth(graph.end));
+  if (periods.length !== graph.data.length) throw new Error(`${item.id}: period count mismatch`);
+  return {
+    accountIDs: accounts.map(account => account.id),
+    start: graph.start,
+    end: graph.end,
+    points: graph.data.map((point, index) => ({
+      period: periods[index],
+      date: point.date,
+      y: point.y,
+      balances: Object.fromEntries(accounts.map(account => [account.id, point[account.id]])),
+    })),
+    netWorth: data.netWorth,
+    totalChange: data.totalChange,
+  };
+}
+
+async function cashFlow(item, input) {
+  let data = null;
+  await atToday(item.today, async () => {
+    await cashFlowByDate(
+      input.start, input.end, input.concise, input.conditions, 'and', enUS, format,
+    )({}, result => { data = result; });
+  });
+  const graph = data.graphData;
+  const text = input.concise ? date => d.format(date, 'yyyy-MM') : dayText;
+  return {
+    periods: graph.income.map((point, index) => ({
+      period: text(point.x),
+      income: point.y,
+      expenses: graph.expenses[index].y,
+      transfers: graph.transfers[index].y,
+      balance: graph.balances[index].y,
+    })),
+    totalIncome: data.totalIncome,
+    totalExpenses: data.totalExpenses,
+    totalTransfers: data.totalTransfers,
+    totalChange: data.totalChange,
+    balance: data.balance,
+  };
+}
+
+async function spending(item, input) {
+  let data = null;
+  await atToday(item.today, async () => {
+    await createSpendingSpreadsheet({
+      compare: input.compare,
+      compareTo: input.compareTo,
+      conditions: input.conditions,
+      conditionsOp: 'and',
+      averageRange: input.averageRange,
+      budgetType: input.budgetType,
+    })({}, result => { data = result; });
+  });
+  return {
+    startDate: data.startDate,
+    endDate: data.endDate,
+    intervalData: data.intervalData.map(row => ({
+      day: Number(row.day),
+      compare: row.compare,
+      compareTo: row.compareTo,
+      average: row.average,
+      budget: row.budget,
+    })),
+    totalAssets: data.totalAssets,
+    totalDebts: data.totalDebts,
+    totalTotals: data.totalTotals,
+  };
+}
+
+async function calendar(item, input) {
+  let data = null;
+  await atToday(item.today, async () => {
+    await calendarSpreadsheet(
+      input.start, input.end, input.conditions, 'and', input.firstDayOfWeekIdx ?? '0',
+    )({}, result => { data = result; });
+  });
+  return {
+    months: data.calendarData.map(month => ({
+      start: dayText(month.start),
+      end: dayText(month.end),
+      totalIncome: month.totalIncome,
+      totalExpense: month.totalExpense,
+      data: month.data.map(day => ({
+        date: dayText(day.date),
+        incomeValue: day.incomeValue,
+        expenseValue: day.expenseValue,
+      })),
+    })),
+  };
+}
+
+const readers = { 'net-worth': netWorth, 'cash-flow': cashFlow, spending, calendar };
+
+test(
+  'captures the report matrix from Actual spreadsheets',
+  async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.mocked(send).mockImplementation(async (name, args) => (
+      runHandler(handlers[name], args, { name })
+    ));
+    const worlds = {};
+    const records = [];
+    try {
+      for (const budgetType of ['envelope', 'tracking']) {
+        await seedWorld(budgetType);
+        worlds[budgetType] = await dumpTables(DUMP_TABLES);
+        for (const item of CASES.filter(candidate => (candidate.world ?? 'envelope') === budgetType)) {
+          const resolved = { ...item, today: item.input.today ?? plan.today };
+          const expected = await readers[item.kind](resolved, item.input);
+          records.push({
+            id: item.id,
+            kind: item.kind,
+            world: budgetType,
+            today: resolved.today,
+            input: item.input,
+            expected,
+          });
+        }
+      }
+    } finally {
+      vi.useRealTimers();
+      setSyncingMode('disabled');
+    }
+    const order = new Map(CASES.map((item, index) => [item.id, index]));
+    records.sort((a, b) => order.get(a.id) - order.get(b.id));
+    writeFileSync(outputPath, JSON.stringify({ worlds, records: toJSON(records) }));
+    expect(records.length).toBe(CASES.length);
+  },
+  600_000,
+);

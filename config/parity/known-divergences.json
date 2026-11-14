@@ -872,6 +872,91 @@
       "status": "intended",
       "decided": "2026-11-14",
       "reason": "User decision 2026-11-14: keep showing empty account groups. Actualist manages groups (rename, delete, reorder) from their headers in the Accounts list, and New Group creates an empty group; Actual manages them in its Account Groups modal instead."
+    },
+    {
+      "id": "OP-114",
+      "domain": "reports",
+      "cases": [
+        "ReportOracleReplayTests/replaysReportCase"
+      ],
+      "fixtureCases": [
+        "sp-single-sep",
+        "sp-single-jul",
+        "sp-budget-envelope-sep",
+        "sp-budget-envelope-aug",
+        "sp-budget-tracking-sep",
+        "sp-budget-tracking-aug",
+        "sp-average-sep",
+        "sp-condition-account",
+        "sp-single-sep-late"
+      ],
+      "summary": "Reports treat an expense category (is_income 0) inside an income group as income, so its rows leave spending and its budget leaves the budget line. Actual's spending report decides by the category's own is_income (spending-spreadsheet.ts filters !categoryIncome; getSpendingBudgetFilters). Cause: the is_income OR group is_income test in BudgetDatabase+ReportActivity.swift and reportExplorerFilterCatalog (BudgetDatabase+ReportExplorerQuery.swift).",
+      "opened": "2026-11-14",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-115",
+      "domain": "reports",
+      "cases": [
+        "ReportOracleReplayTests/replaysReportCase"
+      ],
+      "fixtureCases": [
+        "sp-budget-tracking-sep",
+        "sp-budget-tracking-aug"
+      ],
+      "summary": "In a tracking budget the Reports dashboard's Budget Overview budget line leaves out hidden categories and categories in hidden groups. Actual's spending report includes every non-income category's budget, hidden or not, for both budget types (getSpendingBudgetFilters). The dashboard budget values also carry OP-114's income-group category; the Report Explorer includes hidden categories, so its difference is OP-114 alone. Cause: reportBudgetedExpenses(month:db:) (tracking branch) in BudgetDatabase+ReportActivity.swift.",
+      "opened": "2026-11-14",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-116",
+      "domain": "reports",
+      "cases": [
+        "ReportOracleReplayTests/replaysReportCase"
+      ],
+      "fixtureCases": [
+        "nw-monthly-open",
+        "nw-monthly-ui",
+        "nw-monthly-onbudget",
+        "nw-daily-ui",
+        "nw-monthly-early-start",
+        "nw-daily-ui-late"
+      ],
+      "summary": "When a transfer's two legs carry different dates, Actual's net worth report moves the earlier leg to the later leg's date (alignInternalTransferDates, moveTransferLeg in net-worth-spreadsheet.ts), so the balance never dips between them. Actualist sums each leg on its own date, so the account and total balance differ on the days between. Cause: reportNetWorthDays / buildNetWorth and reportExplorerBalanceChanges.",
+      "opened": "2026-11-14",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-117",
+      "domain": "reports",
+      "cases": [
+        "ReportOracleReplayTests/replaysReportCase"
+      ],
+      "fixtureCases": [
+        "cf-monthly",
+        "cf-monthly-checking"
+      ],
+      "summary": "Monthly cash flow counts the current month only through today. Actual's monthly cash flow counts the whole last month, including future-dated transactions (cash-flow-spreadsheet.tsx compares $month <= end). Daily cash flow agrees. Cause: buildCashFlow (BudgetDatabase+Reports.swift) and reportExplorerTransactionRequest (BudgetDatabase+ReportExplorerQuery.swift), which stop at the range's endDay, set to today by ReportDateRange.dashboard and the explorer range presets.",
+      "opened": "2026-11-14",
+      "status": "open",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "OP-118",
+      "domain": "reports",
+      "cases": [
+        "ReportOracleReplayTests/replaysReportCase"
+      ],
+      "fixtureCases": [
+        "cal-no-transfers"
+      ],
+      "summary": "The Report Explorer's transfers filter treats a transaction with a transfer payee but no linked transfer as a transfer and drops it. Actual's transfer condition, and Actualist's own calendar card, use the transfer link (transfer_id) only. Cause: isTransferExpression in transactionReadJoins (BudgetDatabase+TransactionReads.swift) used by the .transfer condition.",
+      "opened": "2026-11-14",
+      "status": "open",
+      "reviewBy": "2026-12-15"
     }
   ]
 }

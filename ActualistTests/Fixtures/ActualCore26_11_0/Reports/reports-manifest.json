@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.11.0",
+    "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+    "packageVersion": "26.11.0"
+  },
+  "generator": {
+    "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/report-parity/generate.mjs",
+    "sha256": "cc8971ddd2dc175df39c041474e585d3005966398807c205aa89e988deca3c15"
+  },
+  "helpers": [
+    {
+      "path": "scripts/report-parity/cases.mjs",
+      "sha256": "438a5c1882055de6ba634498242b08f84bdad27e666c3e33c0789440a45e523b"
+    },
+    {
+      "path": "scripts/report-parity/oracle-runner.template",
+      "sha256": "c9bf0d1c253c44afb8ddaaad56a8de6a7e03dd62c4294c54a92201895ac9ba5d"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "seed": null,
+  "timeZone": "UTC",
+  "caseCount": 25,
+  "amountUnits": "integer minor units (budget values are fractional as Actual returns them)",
+  "execution": "Actual desktop client report spreadsheets (createSpreadsheet, cashFlowByDate, createSpendingSpreadsheet, calendarSpreadsheet) in loot-core vitest on an offline in-memory SQLite database, with the client send forwarded to the in-process handlers and the clock frozen",
+  "scope": "synthetic local report behavior only; Actualist-only outputs and the Actual reports Actualist lacks are not generated (README.md)",
+  "normalization": [
+    "dates the spreadsheets return as Date objects are recorded as yyyy-MM-dd or yyyy-MM text",
+    "net worth and cash flow points carry the period they cover, derived with the same months.ts range functions the spreadsheet uses",
+    "cash flow labels (JSX) and net worth display strings are dropped",
+    "amounts, names and values are never normalized"
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/desktop-client/src/components/reports/spreadsheets/net-worth-spreadsheet.ts",
+      "sha256": "712fe9b49e1b5a85b0ba2c45a474c5285f5da050d7e58a0348272bd50b86c4dd"
+    },
+    {
+      "path": "packages/desktop-client/src/components/reports/spreadsheets/cash-flow-spreadsheet.tsx",
+      "sha256": "4313ade40e83d7e1412a291b741cc2de57d8bb699afc5c271741894d3e4d8fcd"
+    },
+    {
+      "path": "packages/desktop-client/src/components/reports/spreadsheets/spending-spreadsheet.ts",
+      "sha256": "2b9afa135c5cd678287d8842647ea02d9e9f39693d7396394d50715ad04ec239"
+    },
+    {
+      "path": "packages/desktop-client/src/components/reports/spreadsheets/calendar-spreadsheet.ts",
+      "sha256": "bf873e73f92ab6ff7ca9c14940c0fd701791ae0a9be499ba9950969432b1de7f"
+    },
+    {
+      "path": "packages/desktop-client/src/components/reports/spreadsheets/makeQuery.ts",
+      "sha256": "97b13db65d4668fcab66edea41b010d60ac2c78a28cb0614feb8522adc790a33"
+    },
+    {
+      "path": "packages/desktop-client/src/components/reports/spreadsheets/budgetDataQuery.ts",
+      "sha256": "2a8a2557717a7558a316f69f2bca15c2b9828a2e37c4a6fbb822468ca54c50f2"
+    },
+    {
+      "path": "packages/desktop-client/src/components/reports/util.ts",
+      "sha256": "3b4e921eddcd303fd8d59343e74ed5b74fa607d8d66647799202835ca55f0f2a"
+    },
+    {
+      "path": "packages/desktop-client/src/components/reports/spendingAverageRange.ts",
+      "sha256": "fc9e8e153d144895298fc25aa42ec959f9646da6dd1b2aae6747a92e8b79c467"
+    },
+    {
+      "path": "packages/desktop-client/src/components/reports/ReportOptions.ts",
+      "sha256": "91764a80e5f847db4ea307530ed41f4bfc84db0afde56153f9abee5ec75f87c3"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/schema/index.ts",
+      "sha256": "0ca5282bb17655bbb27f876c5883a2af7f2fc2801e27ddae79606db833190366"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/views.ts",
+      "sha256": "8eaef3aa83330cee6eab6a7d53bb0f4c0b54976aaf98a995344d8a32e35f2663"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/exec.ts",
+      "sha256": "2302ee46e8c5103fceef81e1b7069bf5fad97d9ea17c705fa42cdf416195e120"
+    },
+    {
+      "path": "packages/loot-core/src/server/aql/compiler.ts",
+      "sha256": "6448895f96f1d01bf861aad524d7828b6f751fe5f824b7d88ba2039860dcdfc3"
+    },
+    {
+      "path": "packages/loot-core/src/shared/months.ts",
+      "sha256": "2bec8ac7beca3a9f4bae07d7da1e12ef140c239d481059bf4b9b97617a8fe0a3"
+    },
+    {
+      "path": "packages/loot-core/src/server/db/index.ts",
+      "sha256": "4e99b6c8e3b0bcd4c2dfbdd4aa7e93d00875558c1e150eab7d9c703617bafcd7"
+    },
+    {
+      "path": "packages/loot-core/src/server/transactions/transaction-rules.ts",
+      "sha256": "4a8cb6f400859e2614c3a74c2ccdd18835e0bf31f78b5e253a99567505497988"
+    },
+    {
+      "path": "packages/loot-core/vitest.config.ts",
+      "sha256": "849cf638625cadad9b2b4c3b962eb19c58e398c4236198d94cdb1162921a77ed"
+    }
+  ],
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_11_0/Reports/reports-contract.json",
+      "sha256": "1b8d0d91a89d86a3549335de13e977ddfe8440eadd3ca41286b2e1bbc0d63994",
+      "caseCount": 25,
+      "caseIDs": [
+        "nw-monthly-open",
+        "nw-monthly-ui",
+        "nw-monthly-onbudget",
+        "nw-daily-ui",
+        "nw-monthly-early-start",
+        "nw-daily-ui-late",
+        "cf-monthly",
+        "cf-daily",
+        "cf-monthly-checking",
+        "cf-daily-late",
+        "sp-single-sep",
+        "sp-single-jul",
+        "sp-budget-envelope-sep",
+        "sp-budget-envelope-aug",
+        "sp-budget-tracking-sep",
+        "sp-budget-tracking-aug",
+        "sp-average-sep",
+        "sp-condition-category",
+        "sp-condition-account",
+        "sp-single-sep-late",
+        "cal-default",
+        "cal-first-day-1",
+        "cal-first-day-invalid",
+        "cal-no-transfers",
+        "cal-default-late"
+      ]
+    }
+  ],
+  "oracleOnly": [],
+  "privacy": {
+    "syntheticOnly": true,
+    "containsServerCredentials": false,
+    "containsPersonalFinancialData": false
+  }
+}
