@@ -46,8 +46,27 @@ struct AccountListLayoutTests {
         #expect(sections[0].buckets[3].accounts.map(\.id) == ["checking"])
         #expect(sections[1].buckets.map(\.id) == ["cash"])
         #expect(sections[1].accounts.map(\.id) == ["brokerage"])
-        #expect(sections[2].buckets.map(\.id) == ["credit"])
+        #expect(sections[2].buckets.map(\.id) == ["ungrouped"])
+        #expect(!sections[2].showsGroupHeaders)
         #expect(sections[2].accounts.map(\.id) == ["old-visa"])
+    }
+
+    @Test func aGroupWithOnlyClosedAccountsStaysAsAnEmptyBudgetHeader() {
+        let checking = display("checking", name: "Checking")
+        let oldVisa = display("old-visa", name: "Old Visa", closed: true, groupID: "credit")
+        let credit = ActualAccountGroup(id: "credit", name: "Credit", sortOrder: 16_384)
+
+        let sections = AccountListLayout.sections(
+            displays: [checking, oldVisa],
+            groups: [credit],
+            preferredIDs: []
+        )
+
+        #expect(sections.map(\.kind) == [.budget, .closed])
+        #expect(sections[0].buckets.map(\.id) == ["ungrouped", "credit"])
+        #expect(sections[0].buckets[1].accounts.isEmpty)
+        #expect(sections[1].buckets.map(\.id) == ["ungrouped"])
+        #expect(sections[1].accounts.map(\.id) == ["old-visa"])
     }
 
     @Test func danglingGroupIdsAreUngroupedAndDoNotCreateHeaders() {

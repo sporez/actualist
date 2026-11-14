@@ -34,11 +34,6 @@ extension BudgetDatabase {
                     value: .string(trimmedName)
                 )
             ]
-            if columns.contains("tombstone") {
-                messages.append(
-                    try builder.revive(dataset: "account_groups", row: trimmedID)
-                )
-            }
             if columns.contains("sort_order") {
                 messages.append(
                     try builder.makeMessage(

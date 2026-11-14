@@ -55,20 +55,12 @@ struct AccountGroupOracleReplayTests {
             let known = comparison.mismatches.filter { divergence.covers($0.path) }
             let report = Comment(rawValue: OracleComparison.report(caseID, known) + values)
             switch divergence.op {
-            case "OP-110":
-                withKnownIssue("OP-110: creating an account group also writes tombstone 0") {
-                    #expect(known.isEmpty, report)
-                }
             case "OP-111":
                 withKnownIssue("OP-111: assigning an account to its current group writes nothing") {
                     #expect(known.isEmpty, report)
                 }
             case "OP-112":
                 withKnownIssue("OP-112: an empty account group shows in the Accounts list") {
-                    #expect(known.isEmpty, report)
-                }
-            case "OP-113":
-                withKnownIssue("OP-113: closed accounts are grouped by account group") {
                     #expect(known.isEmpty, report)
                 }
             default:
@@ -80,12 +72,9 @@ struct AccountGroupOracleReplayTests {
     /// Registered divergences by fixture case. Anything outside a divergence's patterns stays a strict
     /// failure, so a new difference in a marked case still fails.
     private static let divergences: [String: [OracleKnownDivergence]] = [
-        "grp-create-plain": [OracleKnownDivergence(op: "OP-110", patterns: ["^writes"])],
-        "grp-create-trimmed": [OracleKnownDivergence(op: "OP-110", patterns: ["^writes"])],
         "acct-assign-same": [OracleKnownDivergence(op: "OP-111", patterns: ["^writes"])],
         "read-tree": [
             OracleKnownDivergence(op: "OP-112", patterns: [#"^(onBudget|offBudget)"#]),
-            OracleKnownDivergence(op: "OP-113", patterns: [#"^closed"#]),
         ],
     ]
 

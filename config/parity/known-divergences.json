@@ -844,21 +844,6 @@
       "reason": "User decision 2026-11-14: keep writing only the changed cell, as decided for payees (OP-98) and accounts (OP-22). The stored rows end the same."
     },
     {
-      "id": "OP-110",
-      "domain": "account-groups",
-      "cases": [
-        "AccountGroupOracleReplayTests/replaysAccountGroupCase"
-      ],
-      "fixtureCases": [
-        "grp-create-plain",
-        "grp-create-trimmed"
-      ],
-      "summary": "Creating an account group writes tombstone = 0 for the new row; Actual's insertAccountGroup writes only name and sort_order. The stored rows end the same. Same pattern as fixed OP-95 and OP-103. Cause: createAccountGroupMessages.",
-      "opened": "2026-11-14",
-      "status": "open",
-      "reviewBy": "2026-12-15"
-    },
-    {
       "id": "OP-111",
       "domain": "account-groups",
       "cases": [
@@ -882,24 +867,11 @@
       "fixtureCases": [
         "read-tree"
       ],
-      "summary": "The Accounts list shows a group header for an account group with no accounts (grp-empty, on the on-budget side). Actual's sidebar (buildAccountSide) shows a group only when it has at least one account on that side. Cause: AccountListLayout.sections.",
+      "summary": "The Accounts list shows a group header for an account group with no open accounts (grp-empty, on the on-budget side). Actual's sidebar (buildAccountSide) shows a group only when it has at least one account on that side. Cause: AccountListLayout.sections.",
       "opened": "2026-11-14",
-      "status": "open",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "OP-113",
-      "domain": "account-groups",
-      "cases": [
-        "AccountGroupOracleReplayTests/replaysAccountGroupCase"
-      ],
-      "fixtureCases": [
-        "read-tree"
-      ],
-      "summary": "Actualist's Closed section groups closed accounts under their account group; Actual's sidebar lists closed accounts as one flat list. Cause: AccountListLayout.sections.",
-      "opened": "2026-11-14",
-      "status": "open",
-      "reviewBy": "2026-12-15"
+      "status": "intended",
+      "decided": "2026-11-14",
+      "reason": "User decision 2026-11-14: keep showing empty account groups. Actualist manages groups (rename, delete, reorder) from their headers in the Accounts list, and New Group creates an empty group; Actual manages them in its Account Groups modal instead."
     }
   ]
 }

@@ -84,13 +84,26 @@ enum AccountListLayout {
                 return display.account.id
             }
         )
+        // Group headers carry rename, delete and reorder, so a group with no open account
+        // still shows as an empty header in Budget Accounts (Closed lists no groups).
         let emptyGroups = liveGroups.filter { group in
-            !displays.contains { $0.account.accountGroupId == group.id }
+            !displays.contains { !$0.account.closed && $0.account.accountGroupId == group.id }
         }
 
         return Kind.allCases.compactMap { kind in
             let members = displays.filter { display in
                 belongs(display.account, to: kind)
+            }
+            // Closed accounts are one flat list, as in Actual's sidebar (`useSidebarAccountTree`).
+            if kind == .closed {
+                guard !members.isEmpty else { return nil }
+                return Section(
+                    kind: kind,
+                    buckets: [Bucket(
+                        group: nil,
+                        accounts: AccountOrderPreference.ordered(members, preferredIDs: preferredIDs)
+                    )]
+                )
             }
             let includeEmptyGroups = kind == .budget && !emptyGroups.isEmpty
             guard !members.isEmpty || includeEmptyGroups else {
