@@ -44,14 +44,17 @@ struct TransactionStatusFilterBaselineTests {
         #expect(mixedParent.subtransactions[1].reconciled)
 
         let reviewRows = try await database.fetchUncategorizedTransactions()
+        // "raw-category" maps to NULL and has no live categories row, so the row reads as
+        // uncategorized, as Actual's transactions view reads it (category from the mapping,
+        // joined to live categories only).
         #expect(reviewRows.compactMap(\.id) == [
+            "mapped-null-target",
             "mapped-empty-target",
             "unknown-source-account",
             "mixed-uncategorized-child",
             "ordinary-uncategorized",
             "offbudget-destination-transfer",
         ])
-        #expect(!reviewRows.contains { $0.id == "mapped-null-target" })
         #expect(!reviewRows.contains { $0.id == "offbudget-source" })
         #expect(!reviewRows.contains { $0.id == "onbudget-transfer" })
         #expect(!reviewRows.contains { $0.id == "mixed-parent" || $0.id == "mixed-categorized-child" })
@@ -150,7 +153,7 @@ struct TransactionStatusFilterBaselineTests {
         )
 
         #expect(grouped.transactions.compactMap(\.id) == [
-            "mapped-empty-target", "mixed-parent",
+            "mapped-null-target", "mapped-empty-target", "mixed-parent",
             "ordinary-uncategorized", "offbudget-destination-transfer",
         ])
         #expect(spending.transactions.contains { $0.id == "unknown-source-account" })
@@ -158,7 +161,7 @@ struct TransactionStatusFilterBaselineTests {
             "mixed-uncategorized-child", "mixed-categorized-child",
         ])
         #expect(search.transactions.map(\.id) == ["mixed-uncategorized-child"])
-        #expect(!grouped.transactions.contains { $0.id == "mapped-null-target" || $0.id == "unknown-source-account" })
+        #expect(!grouped.transactions.contains { $0.id == "unknown-source-account" })
         #expect(!grouped.transactions.contains { $0.id == "offbudget-source" || $0.id == "onbudget-transfer" })
         #expect(!grouped.transactions.contains { $0.id == "mixed-tombstoned-child" || $0.id == "dead-parent" })
         #expect(!grouped.transactions.contains {

@@ -71,14 +71,6 @@ struct CategoryOracleReplayTests {
             let known = comparison.mismatches.filter { divergence.covers($0.path) }
             let report = Comment(rawValue: OracleComparison.report(caseID, known) + values)
             switch divergence.op {
-            case "OP-103":
-                withKnownIssue("OP-103: creating a category or group also writes tombstone 0") {
-                    #expect(known.isEmpty, report)
-                }
-            case "OP-104":
-                withKnownIssue("OP-104: income groups are not kept last in the category outline") {
-                    #expect(known.isEmpty, report)
-                }
             case "OP-105":
                 withKnownIssue("OP-105: income categories can't be created or deleted in an envelope budget") {
                     #expect(known.isEmpty, report)
@@ -91,14 +83,6 @@ struct CategoryOracleReplayTests {
                 withKnownIssue("OP-107: category writes skip cells whose value does not change") {
                     #expect(known.isEmpty, report)
                 }
-            case "OP-108":
-                withKnownIssue("OP-108: reordering renumbers every row in the group") {
-                    #expect(known.isEmpty, report)
-                }
-            case "OP-109":
-                withKnownIssue("OP-109: a deleted category still shows on its transactions") {
-                    #expect(known.isEmpty, report)
-                }
             default:
                 Issue.record("divergence \(divergence.op) has no known-issue wrapper")
             }
@@ -106,21 +90,11 @@ struct CategoryOracleReplayTests {
     }
 
     private static let writes = "^writes"
-    private static let sortOrders = #"^rows\.(categories|category_groups)\[\d+\]\.sort_order$"#
 
     /// Registered divergences by fixture case. Anything outside a divergence's patterns stays a strict
     /// failure, so a new difference in a marked case still fails.
     private static let divergences: [String: [OracleKnownDivergence]] = [
-        "cat-create-plain": [OracleKnownDivergence(op: "OP-103", patterns: [writes])],
-        "cat-create-trimmed": [OracleKnownDivergence(op: "OP-103", patterns: [writes])],
-        "cat-create-other-group": [OracleKnownDivergence(op: "OP-103", patterns: [writes])],
-        "cat-create-empty-group": [OracleKnownDivergence(op: "OP-103", patterns: [writes])],
-        "grp-create-plain": [
-            OracleKnownDivergence(op: "OP-103", patterns: [writes]),
-            OracleKnownDivergence(op: "OP-104", patterns: ["^order"]),
-        ],
         "grp-create-trimmed": [
-            OracleKnownDivergence(op: "OP-104", patterns: ["^order"]),
             OracleKnownDivergence(op: "OP-106", patterns: [writes, #"^rows\.category_groups"#]),
         ],
         "cat-create-income": [OracleKnownDivergence(op: "OP-105", patterns: [])],
@@ -132,18 +106,11 @@ struct CategoryOracleReplayTests {
         "cat-hide": [OracleKnownDivergence(op: "OP-107", patterns: [writes])],
         "cat-unhide": [OracleKnownDivergence(op: "OP-107", patterns: [writes])],
         "grp-rename-plain": [OracleKnownDivergence(op: "OP-107", patterns: [writes])],
+        "cat-move-within": [OracleKnownDivergence(op: "OP-107", patterns: [writes])],
+        "cat-move-to-end": [OracleKnownDivergence(op: "OP-107", patterns: [writes])],
         "grp-hide": [OracleKnownDivergence(op: "OP-107", patterns: [writes])],
         "grp-unhide": [OracleKnownDivergence(op: "OP-107", patterns: [writes])],
         "cat-delete-budget-transfer": [OracleKnownDivergence(op: "OP-107", patterns: [writes])],
-        "cat-move-within": [OracleKnownDivergence(op: "OP-108", patterns: [writes, sortOrders])],
-        "cat-move-to-end": [OracleKnownDivergence(op: "OP-108", patterns: [writes, sortOrders])],
-        "cat-move-other-group": [OracleKnownDivergence(op: "OP-108", patterns: [writes, sortOrders])],
-        "cat-move-into-empty": [OracleKnownDivergence(op: "OP-108", patterns: [writes, sortOrders])],
-        "grp-move-first": [OracleKnownDivergence(op: "OP-108", patterns: [writes, sortOrders])],
-        "grp-move-end": [OracleKnownDivergence(op: "OP-108", patterns: [writes, sortOrders])],
-        "read-deleted-category-display": [
-            OracleKnownDivergence(op: "OP-109", patterns: [#"^transactions\[(0|2)\]\.category$"#]),
-        ],
     ]
 
     @Test func partitionsEveryCategoryFixtureCase() throws {

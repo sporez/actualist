@@ -142,18 +142,21 @@ struct CategoryLifecycleWriteTests {
         let unchanged = BudgetCategoryOutlineCommand(groups: [
             .init(id: "group", categoryIDs: ["groceries", "fuel"]),
             .init(id: "bills", categoryIDs: ["rent"])
-        ])
+        ], moves: [])
         #expect(try await database.applyCategoryOutlineMessages(unchanged, builder: &builder).isEmpty)
         let command = BudgetCategoryOutlineCommand(groups: [
             .init(id: "bills", categoryIDs: ["fuel", "rent"]),
             .init(id: "group", categoryIDs: ["groceries"])
+        ], moves: [
+            .group(id: "bills", beforeGroupID: "group"),
+            .category(id: "fuel", toGroupID: "bills", beforeCategoryID: "rent"),
         ])
         let messages = try await database.applyCategoryOutlineMessages(command, builder: &builder)
         #expect(messages.contains { $0.dataset == "category_groups" && $0.row == "bills" && $0.column == "sort_order" })
         #expect(messages.contains { $0.dataset == "categories" && $0.row == "fuel" && $0.column == "cat_group" && $0.serializedValue == "S:bills" })
-        #expect(messages.contains { $0.dataset == "categories" && $0.row == "rent" && $0.column == "sort_order" && $0.serializedValue == "N:32768.0" })
+        #expect(messages.contains { $0.dataset == "categories" && $0.row == "rent" && $0.column == "sort_order" && $0.serializedValue == "N:16385.0" })
 
-        let stale = BudgetCategoryOutlineCommand(groups: [.init(id: "bills", categoryIDs: ["missing"])])
+        let stale = BudgetCategoryOutlineCommand(groups: [.init(id: "bills", categoryIDs: ["missing"])], moves: [])
         await #expect(throws: LocalFirstError.refusedChange("Your categories changed before this could be saved. Try again.")) {
             _ = try await database.applyCategoryOutlineMessages(stale, builder: &builder)
         }
@@ -173,10 +176,65 @@ struct CategoryLifecycleWriteTests {
             .init(id: "group", categoryIDs: ["groceries", "salary"]),
             .init(id: "bills", categoryIDs: ["fuel", "rent"]),
             .init(id: "income", categoryIDs: [])
-        ])
+        ], moves: [])
         await #expect(throws: LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")) {
             _ = try await trackingDatabase.applyCategoryOutlineMessages(incomeMove, builder: &builder)
         }
+    }
+
+    @Test func outlineReplaysEachDragWithActualsShoveInOrder() async throws {
+        let database = try BudgetDatabase(
+            databaseURL: try makeSQLiteFixture(extraSQL: """
+                INSERT INTO category_groups VALUES ('bills', 'Bills', 0, 0, 0, 2);
+                INSERT INTO categories VALUES ('fuel', 'Fuel', 'group', 0, 0, 0, 2);
+                INSERT INTO categories VALUES ('rent', 'Rent', 'bills', 0, 0, 0, 1);
+                INSERT INTO category_mapping VALUES ('fuel', 'fuel');
+                INSERT INTO category_mapping VALUES ('rent', 'rent');
+                """),
+            localNodeID: "node1"
+        )
+        var builder = LocalFirstSyncMessageBuilder()
+        // The second drag targets the first drag's new position, so a one-pass renumbering of the final
+        // order would write different values than Actual's two shoves.
+        let command = BudgetCategoryOutlineCommand(groups: [
+            .init(id: "group", categoryIDs: []),
+            .init(id: "bills", categoryIDs: ["groceries", "fuel", "rent"]),
+        ], moves: [
+            .category(id: "fuel", toGroupID: "bills", beforeCategoryID: "rent"),
+            .category(id: "groceries", toGroupID: "bills", beforeCategoryID: "fuel"),
+        ])
+        let messages = try await database.applyCategoryOutlineMessages(command, builder: &builder)
+        func value(_ row: String, _ column: String) -> String? {
+            messages.last { $0.dataset == "categories" && $0.row == row && $0.column == column }?.serializedValue
+        }
+        #expect(value("groceries", "sort_order") == "N:0.25")
+        #expect(value("fuel", "sort_order") == "N:16384.0")
+        #expect(value("rent", "sort_order") == "N:32768.0")
+        #expect(value("groceries", "cat_group") == "S:bills")
+        #expect(value("fuel", "cat_group") == "S:bills")
+        #expect(value("rent", "cat_group") == nil)
+        #expect(messages.allSatisfy { $0.dataset == "categories" })
+    }
+
+    @Test func feedRowWhoseCategoryWasDeletedReadsAsHavingNoCategory() async throws {
+        let database = try BudgetDatabase(
+            databaseURL: try makeSQLiteFixture(extraSQL: "UPDATE categories SET tombstone = 1 WHERE id = 'groceries';"),
+            localNodeID: "node1"
+        )
+        let transaction = try #require(try await database.fetchTransactions().first { $0.id == "txn" })
+        #expect(transaction.category == nil)
+    }
+
+    @Test func fetchCategoryGroupsKeepsIncomeGroupsLast() async throws {
+        let database = try BudgetDatabase(
+            databaseURL: try makeSQLiteFixture(extraSQL: """
+                INSERT INTO category_groups VALUES ('income', 'Income', 1, 0, 0, 0.5);
+                INSERT INTO category_groups VALUES ('bills', 'Bills', 0, 0, 0, 9);
+                """),
+            localNodeID: "node1"
+        )
+        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        #expect(month.categoryGroups.map(\.id) == ["group", "bills", "income"])
     }
 
     @Test func storeCategoryLifecycleCommitsReloadsAndReturnsTheRequestedMonth() async throws {

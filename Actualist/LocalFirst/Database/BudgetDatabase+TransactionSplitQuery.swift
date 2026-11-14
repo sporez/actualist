@@ -57,8 +57,8 @@ struct TransactionSplitQueryExpressions: Equatable, Sendable {
     }
 
     /// Parent category is null in the effective view.
-    func effectiveCategory(mappedCategory: String) -> String {
-        "CASE WHEN (\(qualifiedIsParent)) = 1 THEN NULL ELSE \(mappedCategory) END"
+    func effectiveCategory(category: String) -> String {
+        "CASE WHEN (\(qualifiedIsParent)) = 1 THEN NULL ELSE \(category) END"
     }
 
     /// `v_transactions_internal` row filter.

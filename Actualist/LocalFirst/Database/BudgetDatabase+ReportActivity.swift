@@ -45,16 +45,14 @@ extension BudgetDatabase {
         let offBudget = column("offbudget", fallback: "0", columns: accountColumns)
         let hasCategories = try tableExists("categories", db: db)
         let hasGroups = hasCategories ? try tableExists("category_groups", db: db) : false
-        var categoryJoin = ""
         var groupJoin = ""
         var isIncome = "0"
         if hasCategories {
             let columns = try columnSet(for: "categories", db: db)
-            let categoryIncome = columns.contains("is_income") ? "c.is_income" : "0"
+            let categoryIncome = columns.contains("is_income") ? "cat.is_income" : "0"
             let categoryGroup = columns.contains("cat_group")
-                ? "c.cat_group"
-                : columns.contains("group_id") ? "c.group_id" : "NULL"
-            categoryJoin = "LEFT JOIN categories c ON c.id = \(joins.mappedCategory)"
+                ? "cat.cat_group"
+                : columns.contains("group_id") ? "cat.group_id" : "NULL"
             if hasGroups {
                 let groupColumns = try columnSet(for: "category_groups", db: db)
                 let groupIncome = groupColumns.contains("is_income") ? "g.is_income" : "0"
@@ -68,7 +66,7 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT \(normalizedDate) AS day,
-                       \(joins.mappedCategory) AS category_id,
+                       \(joins.liveCategory) AS category_id,
                        \(isIncome) AS is_income,
                        \(joins.isTransferExpression) AS is_transfer,
                        CASE WHEN \(split.qualifiedAmount) > 0 THEN 1 ELSE 0 END AS is_inflow,
@@ -77,7 +75,6 @@ extension BudgetDatabase {
                 JOIN accounts a ON a.id = \(split.qualifiedAccount)
                 \(split.parentJoin())
                 \(joins.sql)
-                \(categoryJoin)
                 \(groupJoin)
                 WHERE \(split.liveInlinePredicate())
                   AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))

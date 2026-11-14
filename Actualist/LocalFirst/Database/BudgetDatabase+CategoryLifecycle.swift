@@ -51,9 +51,6 @@ extension BudgetDatabase {
             if categoryColumns.contains("hidden") {
                 messages.append(try builder.makeMessage(dataset: "categories", row: id, column: "hidden", value: .bool(false)))
             }
-            if categoryColumns.contains("tombstone") {
-                messages.append(try builder.revive(dataset: "categories", row: id))
-            }
             messages.append(try builder.makeMessage(
                 dataset: "category_mapping", row: id, column: transferColumn, value: .string(id)
             ))
@@ -89,9 +86,6 @@ extension BudgetDatabase {
             ]
             if columns.contains("hidden") {
                 messages.append(try builder.makeMessage(dataset: "category_groups", row: id, column: "hidden", value: .bool(false)))
-            }
-            if columns.contains("tombstone") {
-                messages.append(try builder.revive(dataset: "category_groups", row: id))
             }
             return messages
         }
@@ -181,38 +175,26 @@ extension BudgetDatabase {
                 }
             }
 
+            let replay = try CategoryOutlineMoveReplay(
+                groups: allGroups, categories: allCategories, moves: command.moves
+            )
             var messages: [ActualSyncDecodedMessage] = []
-            if desiredGroupIDs != managedGroups.map(\.id) {
-                for (index, id) in desiredGroupIDs.enumerated() {
-                    let sortOrder = Double(index + 1) * ActualSortOrder.increment
-                    if groupsByID[id]?.sortOrder != sortOrder {
-                        messages.append(try builder.makeMessage(
-                            dataset: "category_groups", row: id, column: "sort_order", value: .double(sortOrder)
-                        ))
-                    }
-                }
+            for (id, sortOrder) in replay.changedGroupSortOrders where groupsByID[id]?.sortOrder != sortOrder {
+                messages.append(try builder.makeMessage(
+                    dataset: "category_groups", row: id, column: "sort_order", value: .double(sortOrder)
+                ))
             }
-
-            let existingByGroup = Dictionary(grouping: managedCategories, by: \.groupID)
-                .mapValues { $0.sorted { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }.map(\.id) }
-            let affectedGroupIDs = Set(command.groups.compactMap { group in
-                existingByGroup[group.id, default: []] == group.categoryIDs ? nil : group.id
-            })
-
-            for group in command.groups where affectedGroupIDs.contains(group.id) {
-                for (index, categoryID) in group.categoryIDs.enumerated() {
-                    guard let category = categoriesByID[categoryID] else { continue }
-                    let sortOrder = Double(index + 1) * ActualSortOrder.increment
-                    if category.sortOrder != sortOrder {
-                        messages.append(try builder.makeMessage(
-                            dataset: "categories", row: categoryID, column: "sort_order", value: .double(sortOrder)
-                        ))
-                    }
-                    if category.groupID != group.id {
-                        messages.append(try builder.makeMessage(
-                            dataset: "categories", row: categoryID, column: groupColumn, value: .string(group.id)
-                        ))
-                    }
+            for (id, state) in replay.changedCategories {
+                guard let stored = categoriesByID[id] else { continue }
+                if stored.sortOrder != state.sortOrder {
+                    messages.append(try builder.makeMessage(
+                        dataset: "categories", row: id, column: "sort_order", value: .double(state.sortOrder)
+                    ))
+                }
+                if stored.groupID != state.groupID {
+                    messages.append(try builder.makeMessage(
+                        dataset: "categories", row: id, column: groupColumn, value: .string(state.groupID)
+                    ))
                 }
             }
             return messages
@@ -382,5 +364,68 @@ extension BudgetDatabase {
             let prefix = SQLiteValueCoercion.lenientBool(row["hidden"]) ? "A hidden category group" : "A category group"
             throw LocalFirstError.refusedChange("\(prefix) with the name \(row["name"] as String? ?? name) already exists.")
         }
+    }
+}
+
+/// Replays reorder drags in order on in-memory copies of the live rows, as Actual's `moveCategory` and
+/// `moveCategoryGroup` do for each drag it receives (`shoveSortOrders` over the live rows by
+/// `sort_order, id`). The caller writes only the cells whose final value differs from the stored row.
+struct CategoryOutlineMoveReplay {
+    struct CategoryState: Equatable {
+        var sortOrder: Double
+        var groupID: String
+    }
+
+    private(set) var changedGroupSortOrders: [(id: String, sortOrder: Double)] = []
+    private(set) var changedCategories: [(id: String, state: CategoryState)] = []
+
+    init(
+        groups: [BudgetDatabase.CategoryLifecycleGroup],
+        categories: [BudgetDatabase.CategoryLifecycleCategory],
+        moves: [BudgetCategoryOutlineCommand.Move]
+    ) throws {
+        var groupOrders = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0.sortOrder) })
+        var categoryStates = Dictionary(uniqueKeysWithValues: categories.map {
+            ($0.id, CategoryState(sortOrder: $0.sortOrder, groupID: $0.groupID))
+        })
+        var touchedGroups: [String] = []
+        var touchedCategories: [String] = []
+        let changed = LocalFirstError.refusedChange("Your categories changed before this could be saved. Try again.")
+
+        for move in moves {
+            switch move {
+            case .category(let id, let toGroupID, let beforeCategoryID):
+                guard categoryStates[id] != nil, groupOrders[toGroupID] != nil else { throw changed }
+                let items = categoryStates
+                    .filter { $0.value.groupID == toGroupID }
+                    .map { ActualSortOrder.Item(id: $0.key, sortOrder: $0.value.sortOrder) }
+                    .sorted { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }
+                let shove = ActualSortOrder.shove(items: items, targetID: beforeCategoryID)
+                for update in shove.updates {
+                    categoryStates[update.id]?.sortOrder = update.sortOrder
+                    Self.note(update.id, in: &touchedCategories)
+                }
+                categoryStates[id] = CategoryState(sortOrder: shove.sortOrder, groupID: toGroupID)
+                Self.note(id, in: &touchedCategories)
+            case .group(let id, let beforeGroupID):
+                guard groupOrders[id] != nil else { throw changed }
+                let items = groupOrders
+                    .map { ActualSortOrder.Item(id: $0.key, sortOrder: $0.value) }
+                    .sorted { ($0.sortOrder, $0.id) < ($1.sortOrder, $1.id) }
+                let shove = ActualSortOrder.shove(items: items, targetID: beforeGroupID)
+                for update in shove.updates {
+                    groupOrders[update.id] = update.sortOrder
+                    Self.note(update.id, in: &touchedGroups)
+                }
+                groupOrders[id] = shove.sortOrder
+                Self.note(id, in: &touchedGroups)
+            }
+        }
+        changedGroupSortOrders = touchedGroups.compactMap { id in groupOrders[id].map { (id, $0) } }
+        changedCategories = touchedCategories.compactMap { id in categoryStates[id].map { (id, $0) } }
+    }
+
+    private static func note(_ id: String, in touched: inout [String]) {
+        if !touched.contains(id) { touched.append(id) }
     }
 }

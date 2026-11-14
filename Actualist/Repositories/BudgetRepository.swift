@@ -376,7 +376,15 @@ struct BudgetCategoryOutlineCommand: Hashable, Sendable {
         let categoryIDs: [String]
     }
 
+    /// One reorder drag, as Actual's `category-move` / `category-group-move` receive it.
+    enum Move: Hashable, Sendable {
+        case category(id: String, toGroupID: String, beforeCategoryID: String?)
+        case group(id: String, beforeGroupID: String?)
+    }
+
     let groups: [Group]
+    /// The drags in the order they were made; the store replays each one on the stored sort orders.
+    let moves: [Move]
 }
 
 enum BudgetTemplateApplicationMode: String, Codable, Hashable, Sendable {

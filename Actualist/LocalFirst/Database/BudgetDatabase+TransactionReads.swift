@@ -311,7 +311,8 @@ struct TransactionReadJoins {
     let sql: String
     /// Actual's public `payee`: the mapped payee id, NULL when that payee is deleted.
     let livePayee: String
-    let mappedCategory: String
+    /// Actual's public `category`: the mapped category id, NULL when that category is deleted.
+    let liveCategory: String
     let transferIDExpression: String
     let isTransferExpression: String
     let payeeNameSelect: String
@@ -397,19 +398,23 @@ extension BudgetDatabase {
             ? "0"
             : "CASE WHEN \(transferPredicates.joined(separator: " OR ")) THEN 1 ELSE 0 END"
 
-        var categoryNameJoin = ""
+        var categoryJoin = ""
         var categoryNameSelect = "NULL"
-        if includeNames, try tableExists("categories", db: db) {
-            categoryNameJoin = "LEFT JOIN categories cat ON cat.id = \(mappedCategory)"
-            categoryNameSelect = "cat.name"
+        var liveCategory = mappedCategory
+        if try tableExists("categories", db: db) {
+            let categoryColumns = try columnSet(for: "categories", db: db)
+            let livePredicate = predicateForLiveRows(columns: categoryColumns, tableAlias: "cat")
+            categoryJoin = "LEFT JOIN categories cat ON cat.id = \(mappedCategory) AND \(livePredicate)"
+            liveCategory = "cat.id"
+            if includeNames { categoryNameSelect = "cat.name" }
         }
 
         return TransactionReadJoins(
-            sql: [categoryMappingJoin, payeeMappingJoin, payeeJoin, payeeAccountJoin, categoryNameJoin]
+            sql: [categoryMappingJoin, payeeMappingJoin, payeeJoin, payeeAccountJoin, categoryJoin]
                 .filter { !$0.isEmpty }
                 .joined(separator: "\n"),
             livePayee: livePayee,
-            mappedCategory: mappedCategory,
+            liveCategory: liveCategory,
             transferIDExpression: transferIDExpression,
             isTransferExpression: isTransferExpression,
             payeeNameSelect: payeeNameSelect,
@@ -447,7 +452,7 @@ extension BudgetDatabase {
         var extraJoin = ""
         var conditions: [String] = [
             split.liveEffectivePredicate(),
-            "(\(joins.mappedCategory) IS NULL OR \(joins.mappedCategory) = '')",
+            "(\(joins.liveCategory) IS NULL OR \(joins.liveCategory) = '')",
         ]
         if try tableExists("accounts", db: db) {
             extraJoin = "LEFT JOIN accounts src ON src.id = \(split.qualifiedAccount)"
@@ -467,7 +472,7 @@ extension BudgetDatabase {
             joins: TransactionReadJoins(
                 sql: [joins.sql, extraJoin].filter { !$0.isEmpty }.joined(separator: "\n"),
                 livePayee: joins.livePayee,
-                mappedCategory: joins.mappedCategory,
+                liveCategory: joins.liveCategory,
                 transferIDExpression: joins.transferIDExpression,
                 isTransferExpression: joins.isTransferExpression,
                 payeeNameSelect: joins.payeeNameSelect,
@@ -490,7 +495,7 @@ extension BudgetDatabase {
             \(joins.livePayee) AS payee_id,
             \(joins.payeeNameSelect) AS payee_name,
             \(split.qualifiedImportedPayee) AS imported_payee,
-            \(split.effectiveCategory(mappedCategory: joins.mappedCategory)) AS category_id,
+            \(split.effectiveCategory(category: joins.liveCategory)) AS category_id,
             \(split.qualifiedNotes) AS notes,
             \(split.qualifiedCleared) AS cleared,
             \(split.qualifiedReconciled) AS reconciled,

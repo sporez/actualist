@@ -9,6 +9,20 @@ struct BudgetCategoryOutlineDraftTests {
         try draft.moveCategory(id: "fuel", toGroupID: "everyday", beforeCategoryID: "food")
         #expect(draft.groups[0].categories.map(\.id) == ["fuel", "food"])
         #expect(draft.command?.groups[0].categoryIDs == ["fuel", "food"])
+        #expect(draft.command?.moves == [.category(id: "fuel", toGroupID: "everyday", beforeCategoryID: "food")])
+    }
+
+    @Test func recordsEverySuccessfulDragInOrderAndSkipsRejectedOnes() throws {
+        var draft = BudgetCategoryOutlineDraft(groups: groups, isTrackingBudget: false)
+        try draft.moveCategory(id: "fuel", toGroupID: "bills", beforeCategoryID: nil)
+        try draft.moveGroup(id: "bills", beforeGroupID: "everyday")
+        #expect(throws: LocalFirstError.self) {
+            try draft.moveCategory(id: "food", toGroupID: "missing", beforeCategoryID: nil)
+        }
+        #expect(draft.moves == [
+            .category(id: "fuel", toGroupID: "bills", beforeCategoryID: nil),
+            .group(id: "bills", beforeGroupID: "everyday"),
+        ])
     }
 
     @Test func movesAcrossGroupsAndRejectsDuplicateAndIncomeDestinations() throws {

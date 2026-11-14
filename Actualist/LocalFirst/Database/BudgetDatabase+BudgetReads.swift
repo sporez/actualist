@@ -198,7 +198,10 @@ extension BudgetDatabase {
         let groupColumns = try columnSet(for: "category_groups", db: db)
         let groupHidden = column("hidden", fallback: "0", columns: groupColumns)
         let groupIncome = column("is_income", fallback: "0", columns: groupColumns)
-        let groupOrder = groupColumns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
+        // Actual's category list: income groups last, then sort_order and id.
+        let groupOrder = groupColumns.contains("sort_order")
+            ? "\(groupIncome), sort_order, id"
+            : "\(groupIncome), lower(name)"
         let groupRows = try Row.fetchAll(
             db,
             sql: """

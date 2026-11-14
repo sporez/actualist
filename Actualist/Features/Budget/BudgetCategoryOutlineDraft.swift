@@ -18,6 +18,7 @@ struct BudgetCategoryOutlineDraft: Equatable, Sendable {
 
     private let originalGroups: [Group]
     private(set) var groups: [Group]
+    private(set) var moves: [BudgetCategoryOutlineCommand.Move] = []
 
     init(groups: [BudgetMonthCategoryGroup], isTrackingBudget: Bool) {
         let managedGroups = isTrackingBudget ? groups : groups.filter { !$0.isIncome }
@@ -38,9 +39,10 @@ struct BudgetCategoryOutlineDraft: Equatable, Sendable {
 
     var command: BudgetCategoryOutlineCommand? {
         guard groups != originalGroups else { return nil }
-        return BudgetCategoryOutlineCommand(groups: groups.map {
-            .init(id: $0.id, categoryIDs: $0.categories.map(\.id))
-        })
+        return BudgetCategoryOutlineCommand(
+            groups: groups.map { .init(id: $0.id, categoryIDs: $0.categories.map(\.id)) },
+            moves: moves
+        )
     }
 
     mutating func moveCategory(
@@ -78,6 +80,7 @@ struct BudgetCategoryOutlineDraft: Equatable, Sendable {
             groups[updatedDestinationIndex].categories.firstIndex { $0.id == targetID }
         } ?? groups[updatedDestinationIndex].categories.endIndex
         groups[updatedDestinationIndex].categories.insert(category, at: insertionIndex)
+        moves.append(.category(id: id, toGroupID: toGroupID, beforeCategoryID: beforeCategoryID))
     }
 
     mutating func moveGroup(id: String, beforeGroupID: String?) throws {
@@ -105,5 +108,6 @@ struct BudgetCategoryOutlineDraft: Equatable, Sendable {
         groups = groups.map { group in
             group.isIncome == moving.isIncome ? replacement.next() ?? group : group
         }
+        moves.append(.group(id: id, beforeGroupID: beforeGroupID))
     }
 }

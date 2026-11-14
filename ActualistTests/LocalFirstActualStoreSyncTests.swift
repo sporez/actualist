@@ -398,7 +398,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func encryptedBudgetLogsAndAllowsMixedPlaintextEnvelopesByDefault() async throws {
-        let database = try BudgetDatabase(databaseURL: makeSQLiteFixture())
+        let database = try BudgetDatabase(databaseURL: makeSQLiteFixture(extraSQL: "INSERT INTO categories VALUES ('utilities', 'Utilities', 'group', 0, 0, 0, 2);"))
         let context = ActualBudgetEncryptionContext(
             keyID: "key-1",
             keyData: try ActualBudgetCrypto.deriveKey(password: "password", salt: "salt")
@@ -525,7 +525,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func localCommitUpdatesSQLiteAndMessagesTable() async throws {
-        let fixtureURL = try makeSQLiteFixture()
+        let fixtureURL = try makeSQLiteFixture(extraSQL: "INSERT INTO categories VALUES ('gas', 'Gas', 'group', 0, 0, 0, 2);")
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         let draft = try builder.makeMessage(
@@ -544,7 +544,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func localCommitRefusesAWriteSupersededByANewerStoredMessage() async throws {
-        let fixtureURL = try makeSQLiteFixture()
+        let fixtureURL = try makeSQLiteFixture(extraSQL: "INSERT INTO categories VALUES ('first', 'First', 'group', 0, 0, 0, 2);")
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         _ = try await database.commitLocalSyncMessagesAndEnqueue([
@@ -628,7 +628,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func localCommitEnqueuesPendingOutboxMessages() async throws {
-        let fixtureURL = try makeSQLiteFixture()
+        let fixtureURL = try makeSQLiteFixture(extraSQL: "INSERT INTO categories VALUES ('gas', 'Gas', 'group', 0, 0, 0, 2);")
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         // Prime the cached miss before the first write creates the outbox.
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
@@ -682,7 +682,7 @@ extension LocalFirstActualStoreTests {
     }
 
     @Test func remoteUnknownDatasetOrColumnIsRetainedInCRDTWithoutMutatingLocalTables() async throws {
-        let fixtureURL = try makeSQLiteFixture()
+        let fixtureURL = try makeSQLiteFixture(extraSQL: "INSERT INTO categories VALUES ('gas', 'Gas', 'group', 0, 0, 0, 2);")
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let unknownDataset = ActualSyncDecodedMessage(
             timestamp: "2026-07-04T12:34:56.789Z-0000-node1",
