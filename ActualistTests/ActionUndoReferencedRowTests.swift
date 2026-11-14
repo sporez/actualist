@@ -29,7 +29,10 @@ import Testing
             record: record, liveBudgeted: [:], liveTransactions: live,
             liveReferences: Refs(accountIDs: ["checking", "savings"], categoryIDs: [])
         )
-        #expect(bothLive == .clean(.unTombstoneTransactions(transactionIDs: ["leg-a", "leg-b"])))
+        // The delete cleared leg-a's link, so the undo writes it back.
+        #expect(bothLive == .clean(.unTombstoneTransactions(
+            transactionIDs: ["leg-a", "leg-b"], transferLinks: ["leg-a": "leg-b"]
+        )))
     }
 
     @Test func deleteUndoChecksSplitChildCategoriesButNotNilCategories() {

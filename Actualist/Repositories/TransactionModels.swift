@@ -43,6 +43,12 @@ struct TransactionDraft: Hashable, Sendable {
         YearMonth(date: date)
     }
 
+    /// The notes a new transfer counterpart gets: Actual's `addTransfer` copies `notes || null`,
+    /// so an empty note leaves the counterpart without one.
+    var counterpartNotes: String? {
+        notes.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
     var isSplit: Bool {
         !splits.isEmpty
     }

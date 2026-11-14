@@ -875,47 +875,6 @@
       "reason": "User decision 2026-11-14: keep showing empty account groups. Actualist manages groups (rename, delete, reorder) from their headers in the Accounts list, and New Group creates an empty group; Actual manages them in its Account Groups modal instead."
     },
     {
-      "id": "OP-119",
-      "domain": "undo-history",
-      "cases": [
-        "UndoOracleReplayTests/replaysUndoCase"
-      ],
-      "fixtureCases": [
-        "create-simple"
-      ],
-      "summary": "A transaction created with no notes stores notes = NULL; Actual's mobile new-transaction screen stores an empty string (TransactionEdit.tsx sets notes: ''). Cause: TransactionDraftBuilder.makeSubmissionDraft turns empty notes into nil.",
-      "opened": "2026-11-14",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "OP-120",
-      "domain": "undo-history",
-      "cases": [
-        "UndoOracleReplayTests/replaysUndoCase"
-      ],
-      "fixtureCases": [
-        "delete-transfer"
-      ],
-      "summary": "Deleting one leg of a transfer leaves transferred_id on the deleted leg. Actual's transfer onDelete clears it, so its undo restores the link. Cause: BudgetDatabase.deleteTransactionMessages (plainTransactionDeleteWrite) writes no transferred_id clear.",
-      "opened": "2026-11-14",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "OP-121",
-      "domain": "undo-history",
-      "cases": [
-        "UndoOracleReplayTests/replaysUndoCase"
-      ],
-      "fixtureCases": [
-        "batch-delete",
-        "batch-categorize",
-        "edit-amount-payee"
-      ],
-      "summary": "Undoing a transaction edit or batch writes every column of each restored row (restoreSnapshots via transactionRowMessages with .snapshot cells; restoreBatchTransactions via transactionBatchRestoreMessages). Actual's undo writes back only the cells the action changed. The rows end the same, but the extra cells can overwrite another device's later change to a column the action never touched. An edit that created a payee is also one undo step in Actualist, where Actual's payee creation is its own undo step. Cause: the undo plan builder in BudgetDatabase+ActionLogTransactions.swift.",
-      "opened": "2026-11-14",
-      "reviewBy": "2026-12-15"
-    },
-    {
       "id": "OP-122",
       "domain": "undo-history",
       "cases": [

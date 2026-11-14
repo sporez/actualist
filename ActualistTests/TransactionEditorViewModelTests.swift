@@ -41,7 +41,8 @@ struct TransactionEditorViewModelTests {
         #expect(draft.payeeID == "employer")
         #expect(draft.payeeName == "Employer")
         #expect(draft.categoryID == "income")
-        #expect(draft.notes == nil)
+        // A blank notes field is an empty string, as Actual's mobile editor sends it.
+        #expect(draft.notes == "")
     }
 
     @Test func applyShortcutPrefillSetsPayeeCategoryAndAmount() {

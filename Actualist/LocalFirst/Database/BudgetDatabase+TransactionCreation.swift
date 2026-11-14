@@ -341,7 +341,7 @@ extension BudgetDatabase {
                 amountMinorUnits: -draft.amountMinorUnits,
                 payeeID: fromPayeeID,
                 categoryID: transferCategories.destination,
-                notes: schedulePostingMetadata.map(\.notes) ?? draft.notes,
+                notes: schedulePostingMetadata.map(\.notes) ?? draft.counterpartNotes,
                 cleared: schedulePostingMetadata?.cleared ?? false,
                 isParent: false,
                 parentID: nil,

@@ -14,7 +14,9 @@ struct SimpleRowChange {
     var accountChanged: Bool { draft.accountID != baseline.account }
     var payeeChanged: Bool { payeeID != baseline.payee }
     var amountChanged: Bool { draft.amountMinorUnits != (baseline.amount ?? 0) }
-    var notesChanged: Bool { draft.notes != baseline.notes }
+    /// A stored NULL and an empty field are the same note: Actual's editor writes notes only
+    /// when the field's value differs from the transaction's (`notes ?? ''`).
+    var notesChanged: Bool { (draft.notes ?? "") != (baseline.notes ?? "") }
     var categoryChanged: Bool { category != baseline.category }
 
     /// Dates compare as digits (baseline `2026-03-05` against `20260305`).

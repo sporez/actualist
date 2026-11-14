@@ -86,7 +86,9 @@ enum BudgetActionUndoPlan: Equatable, Sendable {
         createdPayeeID: String?,
         learning: BudgetActionLearningSideEffect
     )
-    case unTombstoneTransactions(transactionIDs: [String])
+    /// `transferLinks` maps a deleted transfer leg to the leg it was linked to, which
+    /// the delete cleared (Actual's `onDelete`).
+    case unTombstoneTransactions(transactionIDs: [String], transferLinks: [String: String] = [:])
     case restoreSnapshots(
         snapshots: [TransactionUndoSnapshot],
         createdPayeeID: String?,
@@ -256,7 +258,12 @@ enum BudgetActionUndo {
             if referencesMissing(record.inverse, liveTransactions: liveTransactions, live: liveReferences) {
                 return .blocked(.referencedRowMissing)
             }
-            return .clean(.unTombstoneTransactions(transactionIDs: delete.transactionIDs))
+            var transferLinks: [String: String] = [:]
+            if case .transfer(let pairedID) = delete.graph,
+               let deletedID = delete.transactionIDs.first(where: { $0 != pairedID }) {
+                transferLinks[deletedID] = pairedID
+            }
+            return .clean(.unTombstoneTransactions(transactionIDs: delete.transactionIDs, transferLinks: transferLinks))
 
         case .editTransaction(let edit):
             if edit.unsafeGraph {

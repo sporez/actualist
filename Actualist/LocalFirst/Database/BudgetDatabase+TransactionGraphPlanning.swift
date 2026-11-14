@@ -50,7 +50,7 @@ extension BudgetDatabase {
                 payeeID: destinationPayeeID,
                 payeeName: try rulePayeeName(for: destinationPayeeID, db: db) ?? "",
                 categoryID: nil,
-                notes: draft.notes,
+                notes: draft.counterpartNotes,
                 cleared: false,
                 isTransfer: true,
                 scheduleID: draft.scheduleID

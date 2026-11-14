@@ -363,15 +363,27 @@ extension BudgetDatabase {
                 )
             }
             return messages
-        case .unTombstoneTransactions(let transactionIDs):
-            return try transactionIDs.map { id in
-                try builder.revive(dataset: "transactions", row: id)
+        case .unTombstoneTransactions(let transactionIDs, let transferLinks):
+            // Actual's delete clears the deleted leg's link, and its undo writes the link back
+            // with the revive. A link the row still holds (deleted before the clear) is no write.
+            let columns = try resolveTransactionRowColumns(db: db)
+            var messages: [ActualSyncDecodedMessage] = []
+            for id in transactionIDs {
+                messages.append(try builder.revive(dataset: "transactions", row: id))
+                if let pairedID = transferLinks[id], let transferColumn = columns.transferID {
+                    messages += try TransactionUndoCellDiff.changedCells(
+                        [try builder.makeMessage(dataset: "transactions", row: id, column: transferColumn, value: .string(pairedID))],
+                        currentRow: try TransactionRowReader.row(id: id, db: db),
+                        flagColumns: TransactionUndoCellDiff.flagColumns(columns)
+                    )
+                }
             }
+            return messages
         case .restoreSnapshots(let snapshots, let createdPayeeID, let learning):
             let columns = try resolveTransactionRowColumns(db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for snapshot in snapshots {
-                messages += try transactionRowMessages(
+                let restored = try transactionRowMessages(
                     rowID: snapshot.id,
                     accountID: snapshot.accountID,
                     dateValue: snapshot.dateValue,
@@ -389,6 +401,11 @@ extension BudgetDatabase {
                     builder: &builder,
                     cells: .snapshot
                 )
+                messages += try TransactionUndoCellDiff.changedCells(
+                    restored,
+                    currentRow: try TransactionRowReader.row(id: snapshot.id, db: db),
+                    flagColumns: TransactionUndoCellDiff.flagColumns(columns)
+                )
             }
             messages += try learningUndoMessages(learning, db: db, builder: &builder)
             if let createdPayeeID,
@@ -402,10 +419,15 @@ extension BudgetDatabase {
             let columns = try resolveTransactionRowColumns(db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for snapshot in snapshots {
-                messages += try transactionBatchRestoreMessages(
+                let restored = try transactionBatchRestoreMessages(
                     snapshot,
                     columns: columns,
                     builder: &builder
+                )
+                messages += try TransactionUndoCellDiff.changedCells(
+                    restored,
+                    currentRow: try TransactionRowReader.row(id: snapshot.id, db: db),
+                    flagColumns: TransactionUndoCellDiff.flagColumns(columns)
                 )
             }
             messages += try learningUndoMessages(learning, db: db, builder: &builder)

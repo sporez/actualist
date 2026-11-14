@@ -297,7 +297,7 @@ extension BudgetDatabase {
                     amountMinorUnits: -draft.amountMinorUnits,
                     payeeID: fromPayeeID,
                     categoryID: pairedCategory,
-                    notes: draft.notes,
+                    notes: draft.counterpartNotes,
                     cleared: false,
                     isParent: false,
                     parentID: nil,

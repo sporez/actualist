@@ -96,7 +96,7 @@ struct TransactionDraftBuilderTests {
 
     // MARK: - trimmed payee/notes
 
-    @Test func submitDraftTrimsPayeeAndNotesAndNilsBlankNotes() throws {
+    @Test func submitDraftTrimsPayeeAndNotes() throws {
         let draft = try #require(TransactionDraftBuilder.makeSubmissionDraft(from: baseSubmissionInput(
             payeeName: "  Corner Store  ",
             notes: "  weekly groceries  "
@@ -105,9 +105,10 @@ struct TransactionDraftBuilderTests {
         #expect(draft.notes == "weekly groceries")
     }
 
-    @Test func submitDraftNilsNotesWhenBlank() throws {
+    /// Actual's mobile editor starts a transaction with `notes: ''`, so a blank field is the empty string.
+    @Test func submitDraftKeepsBlankNotesAsTheEmptyString() throws {
         let draft = try #require(TransactionDraftBuilder.makeSubmissionDraft(from: baseSubmissionInput(notes: "   ")))
-        #expect(draft.notes == nil)
+        #expect(draft.notes == "")
     }
 
     // MARK: - transfer and category behavior

@@ -78,7 +78,9 @@ enum TransactionDraftBuilder {
             payeeID: input.payeeID,
             payeeName: trimmedPayee,
             categoryID: submitsNoCategory ? nil : input.categoryID,
-            notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+            // Actual's mobile editor starts a transaction with `notes: ''` and sends a cleared field
+            // as `''`, so an empty note is the empty string, not nil.
+            notes: trimmedNotes,
             cleared: input.cleared,
             isTransfer: input.isTransfer,
             importedPayee: input.realImportedPayee,

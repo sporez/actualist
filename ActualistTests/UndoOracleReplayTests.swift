@@ -76,18 +76,6 @@ struct UndoOracleReplayTests {
             let known = comparison.mismatches.filter { divergence.covers($0.path) }
             let report = Comment(rawValue: OracleComparison.report(caseID, known) + values)
             switch divergence.op {
-            case "OP-119":
-                withKnownIssue("OP-119: a new transaction with no notes stores null, not an empty string") {
-                    #expect(known.isEmpty, report)
-                }
-            case "OP-120":
-                withKnownIssue("OP-120: deleting one leg of a transfer keeps its link") {
-                    #expect(known.isEmpty, report)
-                }
-            case "OP-121":
-                withKnownIssue("OP-121: History undo rewrites whole transaction rows") {
-                    #expect(known.isEmpty, report)
-                }
             case "OP-122":
                 withKnownIssue("OP-122: undoing a move clears no Reassigned note") {
                     #expect(known.isEmpty, report)
@@ -136,17 +124,6 @@ struct UndoOracleReplayTests {
     }
 
     private static let divergences: [String: [OracleKnownDivergence]] = [
-        "create-simple": [OracleKnownDivergence(op: "OP-119", patterns: [
-            "^rowsAfterAction\\.transactions\\[\\d+\\]\\.notes$",
-            "^rowsAfterUndo\\.transactions\\[\\d+\\]\\.notes$",
-        ])],
-        "delete-transfer": [OracleKnownDivergence(op: "OP-120", patterns: [
-            "^rowsAfterAction\\.transactions\\[\\d+\\]\\.transfer_id$",
-            prefix("undoWrites"),
-        ])],
-        "batch-delete": [OracleKnownDivergence(op: "OP-121", patterns: [prefix("undoWrites")])],
-        "batch-categorize": [OracleKnownDivergence(op: "OP-121", patterns: [prefix("undoWrites")])],
-        "edit-amount-payee": [OracleKnownDivergence(op: "OP-121", patterns: [prefix("undoWrites")])],
         "move-dining-to-groceries": [OracleKnownDivergence(op: "OP-122", patterns: [prefix("undoWrites")])],
     ]
 

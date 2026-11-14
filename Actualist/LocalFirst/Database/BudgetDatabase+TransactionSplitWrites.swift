@@ -439,7 +439,8 @@ extension BudgetDatabase {
         if oldCategory != newCategory {
             fields.append(("category", newCategory.map(LocalFirstSyncValue.string) ?? .null))
         }
-        if columns.hasNotes, old.notes != new.notes {
+        // NULL and '' are the same note: an untouched empty field is no change.
+        if columns.hasNotes, (old.notes ?? "") != (new.notes ?? "") {
             fields.append(("notes", new.notes.map(LocalFirstSyncValue.string) ?? .null))
         }
         if columns.hasCleared, old.cleared != new.cleared {

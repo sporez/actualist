@@ -60,10 +60,13 @@ struct PlainTransactionDeletePair {
 extension BudgetDatabase {
     /// Deletes a plain (non-split) row. A transfer counterpart that is a split
     /// child only loses its link and payee; any other counterpart is deleted.
+    /// The deleted leg's own link is cleared whenever it had one, even when the
+    /// counterpart is gone (Actual's transfer `onDelete` and `removeTransfer`).
     /// Shared by single delete and batch delete.
     func plainTransactionDeleteWrite(
         transactionID: String,
         accountID: String?,
+        transferID: String?,
         pair: PlainTransactionDeletePair?,
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder
@@ -80,6 +83,9 @@ extension BudgetDatabase {
             } else {
                 messages.append(try builder.tombstone(dataset: "transactions", row: pair.id))
             }
+        }
+        if let transferID, !transferID.isEmpty, let transferColumn = columns.transferID {
+            messages.append(try builder.makeMessage(dataset: "transactions", row: transactionID, column: transferColumn, value: .null))
         }
         return TransactionWriteResult(
             messages: messages,
@@ -126,6 +132,7 @@ extension BudgetDatabase {
             write = try plainTransactionDeleteWrite(
                 transactionID: transactionID,
                 accountID: record.account,
+                transferID: record.transferID,
                 pair: pair,
                 columns: columns,
                 builder: &builder

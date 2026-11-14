@@ -107,6 +107,7 @@ extension BudgetDatabase {
         return try plainTransactionDeleteWrite(
             transactionID: trimmedTransactionID,
             accountID: existing.account,
+            transferID: existing.transferID,
             pair: pair,
             columns: columns,
             builder: &builder
