@@ -1,11 +1,6 @@
 import Foundation
 import GRDB
 
-private struct RawReportExplorerAmount: Sendable {
-    let dayID: String
-    let amount: Int
-}
-
 private struct ReportExplorerSpendingPrefix: Sendable {
     let dayIndex: [String: Int]
     let cumulative: [Int]
@@ -97,7 +92,7 @@ extension BudgetDatabase {
         through endDay: String,
         accountIDs: Set<String>,
         db: Database
-    ) throws -> [RawReportExplorerAmount] {
+    ) throws -> [RawNetWorthDay] {
         guard try tableExists("transactions", db: db),
               try tableExists("accounts", db: db),
               !accountIDs.isEmpty else {
@@ -129,15 +124,20 @@ extension BudgetDatabase {
                 """,
             arguments: StatementArguments(arguments)
         )
-        return rows.compactMap { row in
+        let days = rows.compactMap { row -> RawNetWorthDay? in
             guard let dayID = SQLiteValueCoercion.lenientString(row["day"]) else { return nil }
-            return RawReportExplorerAmount(dayID: dayID, amount: row["amount"] ?? 0)
+            return RawNetWorthDay(dayID: dayID, amount: row["amount"] ?? 0)
         }
+        return try ReportTransferAlignment.align(
+            days,
+            legs: try reportTransferLegs(accountIDs: accountIDs, db: db),
+            through: endDay
+        )
     }
 
     private func buildNetWorthExplorer(
         query: ReportExplorerQuery,
-        rows: [RawReportExplorerAmount],
+        rows: [RawNetWorthDay],
         catalog: ReportExplorerFilterCatalog
     ) throws -> ReportExplorerSnapshot {
         let openingBalance = try ReportArithmetic.sum(rows.lazy.filter { $0.dayID < query.startDay }.map(\.amount))

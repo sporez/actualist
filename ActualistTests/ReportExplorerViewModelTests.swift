@@ -192,6 +192,8 @@ struct ReportExplorerViewModelTests {
         #expect(calendar.query.metric == .cashFlow)
         #expect(calendar.query.filters.includesOffBudget)
         #expect(calendar.query.filters.transfers == .transfers)
+        #expect(calendar.query.filters.transferRule == .link)
+        #expect(cashFlow.query.filters.transferRule == .payee)
         #expect(calendar.activeFilterCount == 0)
         #expect(!cashFlow.query.filters.includesOffBudget)
         #expect(cashFlow.query.filters.transfers == .nonTransfers)

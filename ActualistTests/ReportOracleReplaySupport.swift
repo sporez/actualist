@@ -11,6 +11,10 @@ import GRDB
 /// `ReportExplorerQuery` carry every day they read, so each case builds its ranges from the case's
 /// recorded `today` (`ReportDateRange.dashboard(through:)` when the compared month is today's month).
 ///
+/// Recorded, not compared: Actual's per-account net worth balances (`balances.<acct>`). Actual
+/// computes them after aligning transfer legs across the whole account set, and Actualist has no
+/// per-account net worth breakdown, so a one-account read is not the same quantity.
+///
 /// Mapping rules, applied to Actual's recorded values and nothing else:
 /// - (a) Sign: Actualist shows spending, expenses and budget as positive where Actual has negative;
 ///   the replay compares `-actualist` with Actual.
@@ -77,15 +81,10 @@ enum ReportOracleReplay {
 
     private static func expectedNetWorth(input: [String: Any], recorded: [String: Any]) throws -> Value {
         let points = try OracleJSON.objects(recorded["points"], "points")
-        let accountIDs = (recorded["accountIDs"] as? [String]) ?? []
         let explorerPoints = try points.map { point -> Value in
-            let balances = try OracleJSON.object(point["balances"], "balances")
-            return .object([
+            .object([
                 "period": .string(try OracleJSON.string(point, "period")),
                 "y": .number(try double(point["y"], "y")),
-                "balances": .object(Dictionary(uniqueKeysWithValues: try accountIDs.map {
-                    ($0, Value.number(try double(balances[$0], "balance of \($0)")))
-                })),
             ])
         }
         var fields: [String: Value] = [
@@ -288,22 +287,10 @@ enum ReportOracleReplay {
         let all = try await explorer(
             database, metric: .netWorth, startDay: startDay, endDay: endDay, interval: interval, filters: filters
         )
-        var perAccount: [String: [Int]] = [:]
-        for id in accountIDs {
-            var single = ReportExplorerFilters.defaults(for: .netWorth)
-            single.accounts = .only([id])
-            let snapshot = try await explorer(
-                database, metric: .netWorth, startDay: startDay, endDay: endDay, interval: interval, filters: single
-            )
-            perAccount[id] = snapshot.points.map(\.endingBalance)
-        }
-        let points = all.points.enumerated().map { index, point -> Value in
+        let points = all.points.map { point -> Value in
             .object([
                 "period": .string(periodKey(point, interval: interval)),
                 "y": number(point.endingBalance),
-                "balances": .object(Dictionary(uniqueKeysWithValues: accountIDs.map { id in
-                    (id, number(perAccount[id]?[index] ?? 0))
-                })),
             ])
         }
         var fields: [String: Value] = [
@@ -488,9 +475,10 @@ enum ReportOracleReplay {
             endDay: monthEnd(endMonth)
         )
         let dashboard = try await database.fetchReportsDashboard(range: range)
-        var filters = ReportExplorerFilters.defaults(for: .cashFlow)
-        filters.includesOffBudget = true
-        filters.transfers = dashboard.calendarTransfers
+        // The calendar card's filters, as the card opens its detail (transfer rule: the link).
+        let filters = ReportCardKind.transactionCalendar.explorerDefaultFilters(
+            calendarTransfers: dashboard.calendarTransfers
+        )
         let snapshot = try await explorer(
             database,
             metric: .cashFlow,

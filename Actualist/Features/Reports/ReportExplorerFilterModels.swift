@@ -17,6 +17,14 @@ enum ReportTransferFilter: Hashable, Sendable {
     case nonTransfers
 }
 
+/// How the transfers filter classifies a row. Actual's cash-flow report splits transfers by the
+/// payee (`payee.transfer_acct`); its `transfer` condition, which the Calendar card uses, reads
+/// the transfer link (`transfer_id`).
+enum ReportTransferRule: Hashable, Sendable {
+    case payee
+    case link
+}
+
 struct ReportExplorerFilters: Hashable, Sendable {
     var accounts: ReportFilterSelection
     var categories: ReportFilterSelection
@@ -24,6 +32,7 @@ struct ReportExplorerFilters: Hashable, Sendable {
     var includesHiddenCategories: Bool
     var includesUncategorized: Bool
     var transfers: ReportTransferFilter = .nonTransfers
+    var transferRule: ReportTransferRule = .payee
 
     /// Net worth counts every account, matching the Reports dashboard card;
     /// activity reports start from on-budget accounts.

@@ -51,18 +51,15 @@ extension BudgetDatabase {
             let groupJoin: String
             let groupName: String
             let groupHidden: String
-            let groupIncome: String
             if hasGroups {
                 let groupColumns = try columnSet(for: "category_groups", db: db)
                 groupJoin = "LEFT JOIN category_groups g ON g.id = \(groupIDExpression)"
                 groupName = groupColumns.contains("name") ? "g.name" : "g.id"
                 groupHidden = groupColumns.contains("hidden") ? "g.hidden" : "0"
-                groupIncome = groupColumns.contains("is_income") ? "g.is_income" : "0"
             } else {
                 groupJoin = ""
                 groupName = "''"
                 groupHidden = "0"
-                groupIncome = "0"
             }
             categories = try Row.fetchAll(
                 db,
@@ -71,8 +68,7 @@ extension BudgetDatabase {
                            \(nameExpression) AS name,
                            \(groupIDExpression) AS group_id,
                            \(groupName) AS group_name,
-                           CASE WHEN COALESCE(\(incomeExpression), 0) != 0
-                                      OR COALESCE(\(groupIncome), 0) != 0 THEN 1 ELSE 0 END AS is_income,
+                           CASE WHEN COALESCE(\(incomeExpression), 0) != 0 THEN 1 ELSE 0 END AS is_income,
                            CASE WHEN COALESCE(\(hiddenExpression), 0) != 0
                                       OR COALESCE(\(groupHidden), 0) != 0 THEN 1 ELSE 0 END AS hidden
                     FROM categories c
@@ -108,7 +104,7 @@ extension BudgetDatabase {
         let currentRequest = try reportExplorerTransactionRequest(
             query: query,
             startDay: query.startDay,
-            endDay: query.endDay,
+            endDay: query.activityEndDay,
             catalog: catalog
         )
         let current = try transactionDrilldown(currentRequest, db: db)
@@ -155,8 +151,10 @@ extension BudgetDatabase {
         if query.metric == .cashFlow {
             switch query.filters.transfers {
             case .all: break
-            case .transfers: conditions.append(.transfer(true))
-            case .nonTransfers: conditions.append(.transfer(false))
+            case .transfers:
+                conditions.append(query.filters.transferRule == .link ? .transfer(true) : .transferPayee(true))
+            case .nonTransfers:
+                conditions.append(query.filters.transferRule == .link ? .transfer(false) : .transferPayee(false))
             }
         }
         return TransactionDrilldownRequest(

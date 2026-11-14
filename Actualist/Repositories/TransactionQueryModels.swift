@@ -124,7 +124,11 @@ enum TransactionQueryCondition: Hashable, Sendable {
     case account(TransactionQueryIDCondition)
     case payee(TransactionQueryIDCondition)
     case category(TransactionQueryIDCondition)
+    /// Actual's `transfer` condition: the row carries a transfer link (`transfer_id`).
     case transfer(Bool)
+    /// The row's live payee is a transfer payee (`payee.transfer_acct`), which is how
+    /// Actual's cash-flow report separates transfers.
+    case transferPayee(Bool)
 
     fileprivate var canonicalKey: String {
         switch self {
@@ -138,6 +142,8 @@ enum TransactionQueryCondition: Hashable, Sendable {
             return idCanonicalKey(field: "category", condition: condition)
         case .transfer(let isTransfer):
             return "transfer|\(isTransfer)"
+        case .transferPayee(let isTransfer):
+            return "transferPayee|\(isTransfer)"
         }
     }
 

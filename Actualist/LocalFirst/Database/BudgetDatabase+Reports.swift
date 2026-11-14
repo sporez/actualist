@@ -1,11 +1,6 @@
 import Foundation
 import GRDB
 
-private struct RawNetWorthDay: Sendable {
-    let dayID: String
-    let amount: Int
-}
-
 private struct RawCalendarActivityDay: Sendable {
     let dayID: String
     let isInflow: Bool
@@ -81,11 +76,67 @@ extension BudgetDatabase {
             arguments: [endDay]
         )
 
-        return rows.compactMap { row in
+        let days = rows.compactMap { row -> RawNetWorthDay? in
             guard let dayID = SQLiteValueCoercion.lenientString(row["day"]) else { return nil }
             return RawNetWorthDay(
                 dayID: dayID,
                 amount: row["amount"] ?? 0
+            )
+        }
+        return try ReportTransferAlignment.align(
+            days,
+            legs: try reportTransferLegs(accountIDs: nil, db: db),
+            through: endDay
+        )
+    }
+
+    /// Every live transfer-linked row in a live account, optionally limited to
+    /// `accountIDs`, in one read. No date bound: a leg after the report's end still
+    /// tells the alignment to drop its mate's amount.
+    func reportTransferLegs(accountIDs: Set<String>?, db: Database) throws -> [ReportTransferLeg] {
+        guard try tableExists("transactions", db: db), try tableExists("accounts", db: db) else {
+            return []
+        }
+        let transactionColumns = try columnSet(for: "transactions", db: db)
+        guard let transferColumn = TransactionRowColumns.transferID(in: transactionColumns) else {
+            return []
+        }
+        let accountColumns = try columnSet(for: "accounts", db: db)
+        let split = transactionSplitQueryExpressions(columns: transactionColumns)
+        let sortedAccountIDs = accountIDs?.sorted() ?? []
+        let accountFilter = accountIDs == nil
+            ? ""
+            : "AND \(split.qualifiedAccount) IN (\(Array(repeating: "?", count: sortedAccountIDs.count).joined(separator: ", ")))"
+        if accountIDs != nil, sortedAccountIDs.isEmpty { return [] }
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT t.id AS id,
+                       t.\(transferColumn) AS transfer_id,
+                       \(split.qualifiedAccount) AS account,
+                       \(split.qualifiedAmount) AS amount,
+                       \(normalizedDateExpression(split.qualifiedDate)) AS day
+                FROM transactions t
+                JOIN accounts a ON a.id = \(split.qualifiedAccount)
+                \(split.parentJoin())
+                WHERE \(split.liveInlinePredicate())
+                  AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
+                  AND t.\(transferColumn) IS NOT NULL
+                  \(accountFilter)
+                """,
+            arguments: StatementArguments(sortedAccountIDs)
+        )
+        return rows.compactMap { row in
+            guard let id = SQLiteValueCoercion.lenientString(row["id"]),
+                  let transferID = SQLiteValueCoercion.lenientString(row["transfer_id"]),
+                  let account = SQLiteValueCoercion.lenientString(row["account"]),
+                  let day = SQLiteValueCoercion.lenientString(row["day"]) else { return nil }
+            return ReportTransferLeg(
+                id: id,
+                transferID: transferID,
+                accountID: account,
+                amount: row["amount"] ?? 0,
+                dayID: day
             )
         }
     }
@@ -263,12 +314,14 @@ extension BudgetDatabase {
         )
     }
 
+    /// The anchor month is counted whole, as Actual's monthly cash flow does
+    /// (`cashFlowByDate` compares `$month <= end`); the activity read already stops at its end.
     private func buildCashFlow(
         range: ReportDateRange,
         activityByDay: [String: ReportDailyActivity]
     ) throws -> CashFlowSummary {
         let activities = activityByDay
-            .filter { $0.key.hasPrefix(range.anchorMonth) && $0.key <= range.endDay }
+            .filter { $0.key.hasPrefix(range.anchorMonth) }
             .map(\.value)
         let income = try ReportArithmetic.sum(activities.map(\.income))
         let expenses = try ReportArithmetic.sum(activities.map(\.expenses))

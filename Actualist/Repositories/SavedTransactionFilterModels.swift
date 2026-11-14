@@ -90,7 +90,7 @@ extension RuleCondition {
             self.init(savedIDCondition: id, field: "description")
         case .category(let id):
             self.init(savedIDCondition: id, field: "category")
-        case .transfer:
+        case .transfer, .transferPayee:
             return nil
         }
     }

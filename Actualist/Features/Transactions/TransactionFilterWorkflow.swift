@@ -338,7 +338,7 @@ final class TransactionFilterWorkflow {
                 categoryOperation = value.operation
                 selectedCategoryIDs.formUnion(value.values.compactMap { $0 })
                 includesUncategorized = value.values.contains(where: { $0 == nil })
-            case .transfer:
+            case .transfer, .transferPayee:
                 preservedConditions.append(condition)
             }
         }
@@ -453,7 +453,8 @@ final class TransactionFilterWorkflow {
         case .account(let value): summary(field: .account, value: value)
         case .payee(let value): summary(field: .payee, value: value)
         case .category(let value): summary(field: .category, value: value)
-        case .transfer(let value): "\(value ? "Transfer" : "Non-transfer") transactions (not editable here)"
+        case .transfer(let value), .transferPayee(let value):
+            "\(value ? "Transfer" : "Non-transfer") transactions (not editable here)"
         }
     }
 

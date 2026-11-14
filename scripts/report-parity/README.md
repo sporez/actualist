@@ -63,7 +63,7 @@ that case (`dashboard`, `explorer`).
 
 | Actual | Dashboard | Explorer |
 | --- | --- | --- |
-| net worth `graphData.data[].y`, `<acct>`, `netWorth` | `netWorth.points`, `balance`, `change` (monthly, all live accounts only) | `netWorth` points' `endingBalance` and `totals.endingBalance`; each account's balance from a one-account query |
+| net worth `graphData.data[].y`, `netWorth` | `netWorth.points`, `balance`, `change` (monthly, all live accounts only) | `netWorth` points' `endingBalance` and `totals.endingBalance` |
 | cash flow per period income and expenses; `totalIncome`, `totalExpenses` | `cashFlow` income and expenses (monthly, unfiltered, anchor month) | `cashFlow` points and totals |
 | spending `compare`, `compareTo`, `average`, `budget` | `monthComparison`, `budgetOverview` actual and budget points, `threeMonthAverage` (unfiltered cases) | `spendingAverage` (month to date for `compare`, whole month for `average`), `budgetOverview` over the whole month for `budget`, `spending` over `startDate..endDate` for `totalTotals` |
 | calendar months and days | `transactionCalendar` (leading blanks, day income and expenses, month totals) | `cashFlow` daily with off-budget accounts and the card's transfer filter |
@@ -72,7 +72,8 @@ Ranges: an explorer or dashboard range ends at `min(end of the last month, today
 spreadsheet applies, except net worth (Actual's recorded `start`/`end`) and the spending reads described
 above. Filters: an `account is X` condition is an account filter; a `category is X` condition is a category
 filter with uncategorized rows excluded (Actual's filter excludes them); `transfer is false` is the
-calendar card's `transfer is false` condition, which Actualist reads from the `calendar-card` dashboard row.
+calendar card's `transfer is false` condition (the transfer link, `transfer_id`; the cash-flow cases split
+transfers by payee instead), which Actualist reads from the `calendar-card` dashboard row.
 
 ## Mapping rules
 
@@ -92,6 +93,9 @@ No other mapping. Every case is compared strictly: no `withKnownIssue`, no known
 
 Actualist has no counterpart:
 
+- net worth per-account balances `<acct>` (Actual aligns transfer legs across the whole account set before
+  splitting by account; Actualist has no per-account net worth breakdown, and a one-account read is a
+  different quantity);
 - cash flow `totalTransfers`, `totalChange`, `balance` and per-period transfers and balance (Actualist
   separates transfers only through a filter, and has no running balance);
 - spending `totalAssets`, `totalDebts` (Actual splits positive and negative rows; only the net,

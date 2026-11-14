@@ -177,6 +177,15 @@ struct ReportExplorerQuery: Hashable, Sendable {
         ReportCalendar.dayRangeTitle(startDay: startDay, endDay: endDay)
     }
 
+    /// Last day whose activity the chart counts. Actual's monthly cash flow compares
+    /// `$month <= end`, so its last month is counted whole, future-dated rows included
+    /// (cash-flow-spreadsheet.tsx `cashFlowByDate`). Every other metric stops at `endDay`.
+    var activityEndDay: String {
+        guard metric == .cashFlow, interval == .month else { return endDay }
+        let month = String(endDay.prefix(7))
+        return ReportCalendar.dayID(month: month, day: max(ReportCalendar.days(in: month), 1))
+    }
+
     var periods: [ReportExplorerPeriod] {
         guard hasValidRange else { return [] }
         switch interval {
@@ -195,7 +204,7 @@ struct ReportExplorerQuery: Hashable, Sendable {
                 )
                 return ReportExplorerPeriod(
                     startDay: max(startDay, firstDay),
-                    endDay: min(endDay, lastDay)
+                    endDay: min(activityEndDay, lastDay)
                 )
             }
         }
@@ -322,6 +331,7 @@ extension ReportCardKind {
         if self == .transactionCalendar {
             filters.includesOffBudget = true
             filters.transfers = calendarTransfers
+            filters.transferRule = .link
         }
         return filters
     }

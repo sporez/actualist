@@ -238,7 +238,7 @@ private extension BudgetDatabase {
         let hasOnlyParentSafeConditions = query.conditions.allSatisfy { condition in
             switch condition {
             case .date, .account: true
-            case .payee, .category, .transfer: false
+            case .payee, .category, .transfer, .transferPayee: false
             }
         }
         let usesGroupedParentSelection = query.text == nil
@@ -596,7 +596,11 @@ private extension BudgetDatabase {
                 arguments: &arguments
             )
         case .transfer(let isTransfer):
-            return "(\(joins.isTransferExpression)) = \(isTransfer ? 1 : 0)"
+            // Actual compiles `transfer is true/false` to `transfer_id IS [NOT] NULL`
+            // (transaction-rules.ts conditionsToAQL); a transfer payee alone does not count.
+            return "\(joins.transferIDExpression) IS \(isTransfer ? "NOT " : "")NULL"
+        case .transferPayee(let isTransfer):
+            return "(\(joins.isTransferPayeeExpression)) = \(isTransfer ? 1 : 0)"
         }
     }
 

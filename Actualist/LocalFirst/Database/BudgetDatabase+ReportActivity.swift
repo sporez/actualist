@@ -43,24 +43,13 @@ extension BudgetDatabase {
         )
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
         let offBudget = column("offbudget", fallback: "0", columns: accountColumns)
-        let hasCategories = try tableExists("categories", db: db)
-        let hasGroups = hasCategories ? try tableExists("category_groups", db: db) : false
-        var groupJoin = ""
+        // Actual's spending report decides income by the category's own is_income
+        // (spending-spreadsheet.ts filters !categoryIncome); the group's flag is not read.
         var isIncome = "0"
-        if hasCategories {
+        if try tableExists("categories", db: db) {
             let columns = try columnSet(for: "categories", db: db)
             let categoryIncome = columns.contains("is_income") ? "cat.is_income" : "0"
-            let categoryGroup = columns.contains("cat_group")
-                ? "cat.cat_group"
-                : columns.contains("group_id") ? "cat.group_id" : "NULL"
-            if hasGroups {
-                let groupColumns = try columnSet(for: "category_groups", db: db)
-                let groupIncome = groupColumns.contains("is_income") ? "g.is_income" : "0"
-                groupJoin = "LEFT JOIN category_groups g ON g.id = \(categoryGroup)"
-                isIncome = "CASE WHEN COALESCE(\(categoryIncome), 0) != 0 OR COALESCE(\(groupIncome), 0) != 0 THEN 1 ELSE 0 END"
-            } else {
-                isIncome = "CASE WHEN COALESCE(\(categoryIncome), 0) != 0 THEN 1 ELSE 0 END"
-            }
+            isIncome = "CASE WHEN COALESCE(\(categoryIncome), 0) != 0 THEN 1 ELSE 0 END"
         }
         let rows = try Row.fetchAll(
             db,
@@ -75,7 +64,6 @@ extension BudgetDatabase {
                 JOIN accounts a ON a.id = \(split.qualifiedAccount)
                 \(split.parentJoin())
                 \(joins.sql)
-                \(groupJoin)
                 WHERE \(split.liveInlinePredicate())
                   AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
                   AND COALESCE(a.\(offBudget), 0) = 0
@@ -151,15 +139,12 @@ extension BudgetDatabase {
         return row?["amount"] ?? 0
     }
 
-    /// Dashboard variant: live non-income categories. Envelope budgets keep
-    /// hidden categories; tracking budgets exclude them (upstream
-    /// budget-analysis-spreadsheet `showHiddenCategories || !cat.hidden`).
+    /// Dashboard variant: every live non-income category, hidden or not, for
+    /// envelope and tracking budgets alike (Actual's `getSpendingBudgetFilters`
+    /// in spending-spreadsheet.ts).
     func reportBudgetedExpenses(month: String, db: Database) throws -> Int {
-        let includesHidden = try !isTrackingBudget(db: db)
         let catalog = try reportExplorerFilterCatalog(db: db)
-        let categoryIDs = Set(catalog.categories.lazy.filter {
-            !$0.isIncome && (includesHidden || !$0.isHidden)
-        }.map(\.id))
+        let categoryIDs = Set(catalog.categories.lazy.filter { !$0.isIncome }.map(\.id))
         return try reportBudgetedExpenses(month: month, categoryIDs: categoryIDs, db: db)
     }
 }

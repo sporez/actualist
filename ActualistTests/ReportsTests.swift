@@ -36,9 +36,10 @@ struct ReportsTests {
         #expect(snapshot.netWorth.points.first?.dayID == "2026-01-01")
         #expect(snapshot.netWorth.points.last?.dayID == "2026-07-01")
 
-        #expect(snapshot.cashFlow.income == 503_500)
-        #expect(snapshot.cashFlow.expenses == 13_700)
-        #expect(snapshot.cashFlow.net == 489_800)
+        // The anchor month is counted whole, rows dated after the 16th included.
+        #expect(snapshot.cashFlow.income == 603_499)
+        #expect(snapshot.cashFlow.expenses == 17_700)
+        #expect(snapshot.cashFlow.net == 585_799)
         #expect(snapshot.cashFlow.uncategorized == 800)
 
         #expect(snapshot.monthComparison.comparisonMonth == "2026-06")
@@ -83,7 +84,7 @@ struct ReportsTests {
             metric: .cashFlow,
             startDay: "2026-07-01",
             endDay: reportRange.endDay,
-            interval: .day,
+            interval: ReportCardKind.cashFlow.explorerDefaultInterval,
             filters: ReportCardKind.cashFlow.explorerDefaultFilters(calendarTransfers: snapshot.calendarTransfers)
         ))
         #expect(cashFlow.totals.income == snapshot.cashFlow.income)
@@ -101,6 +102,70 @@ struct ReportsTests {
         ))
         #expect(calendar.totals.income == calendarMonth.income)
         #expect(calendar.totals.expenses == calendarMonth.expenses)
+    }
+
+    @Test func monthlyCashFlowCountsTheWholeLastMonthButDailyStopsAtTheEndDay() async throws {
+        let database = try BudgetDatabase(databaseURL: makeReportsFixture())
+        let filters = ReportCardKind.cashFlow.explorerDefaultFilters(calendarTransfers: .all)
+
+        // The fixture has a row dated 2026-07-20, after the 16th.
+        let monthly = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .cashFlow, startDay: "2026-07-01", endDay: "2026-07-16", interval: .month, filters: filters
+        ))
+        #expect(monthly.totals.income == 603_499)
+        #expect(monthly.totals.expenses == 17_700)
+        #expect(monthly.points.last?.period.endDay == "2026-07-31")
+        let request = try #require(monthly.drilldown.request)
+        let lastDay = try #require(TransactionQueryDay(rawValue: "2026-07-31"))
+        #expect(request.query.conditions.contains(.date(TransactionQueryDateCondition(operation: .isOnOrBefore, day: lastDay))))
+
+        let daily = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .cashFlow, startDay: "2026-07-01", endDay: "2026-07-16", interval: .day, filters: filters
+        ))
+        #expect(daily.totals.income == 503_500)
+        #expect(daily.totals.expenses == 13_700)
+    }
+
+    @Test func calendarCardFiltersUseTheTransferLinkAndCashFlowUsesThePayee() async throws {
+        let database = try BudgetDatabase(databaseURL: makeReportsFixture())
+        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+        #expect(snapshot.calendarTransfers == .nonTransfers)
+
+        func conditions(_ filters: ReportExplorerFilters) async throws -> [TransactionQueryCondition] {
+            let explorer = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+                metric: .cashFlow, startDay: "2026-07-01", endDay: "2026-07-16", interval: .day, filters: filters
+            ))
+            return try #require(explorer.drilldown.request).query.conditions
+        }
+        let calendar = try await conditions(ReportCardKind.transactionCalendar.explorerDefaultFilters(
+            calendarTransfers: snapshot.calendarTransfers
+        ))
+        #expect(calendar.contains(.transfer(false)))
+        #expect(!calendar.contains(.transferPayee(false)))
+        let cashFlow = try await conditions(ReportCardKind.cashFlow.explorerDefaultFilters(
+            calendarTransfers: snapshot.calendarTransfers
+        ))
+        #expect(cashFlow.contains(.transferPayee(false)))
+        #expect(!cashFlow.contains(.transfer(false)))
+    }
+
+    @Test func expenseCategoryInAnIncomeGroupCountsAsSpendingAndBudget() async throws {
+        let url = try makeReportsFixture(extraSQL: """
+            INSERT INTO categories VALUES ('side', 'Side', 'income-group', 0, 0, 0);
+            INSERT INTO zero_budgets VALUES (202607, 'side', 7000, 0);
+            INSERT INTO transactions VALUES ('side-spend', 'checking', 20260710, -2500, 'side', NULL, 0, NULL, 0, NULL);
+            """)
+        let database = try BudgetDatabase(databaseURL: url)
+        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+
+        // Actual reads is_income from the category itself, not its group.
+        #expect(snapshot.budgetOverview.actualExpenses == 22_700)
+        #expect(snapshot.budgetOverview.budgetPoints.last?.value == 67_000)
+        let explorer = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            metric: .spending, startDay: "2026-07-01", endDay: "2026-07-16", interval: .day
+        ))
+        #expect(explorer.totals.expenses == 22_700)
+        #expect(explorer.filterCatalog.categories.first { $0.id == "side" }?.isIncome == false)
     }
 
     @Test func storeCachesReportsAndInvalidatesThemExplicitly() async throws {
@@ -368,7 +433,7 @@ struct ReportsTests {
         #expect(snapshot.budgetOverview.budgetedExpenses == 60_300)
     }
 
-    @Test func trackingBudgetedExpensesExcludeHiddenAndIncomeCategories() async throws {
+    @Test func trackingBudgetedExpensesIncludeHiddenAndExcludeIncomeCategories() async throws {
         let url = try makeReportsFixture(extraSQL: """
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
             INSERT INTO preferences VALUES ('budgetType', 'tracking');
@@ -384,7 +449,8 @@ struct ReportsTests {
             endDay: "2026-07-31"
         ))
 
-        #expect(snapshot.budgetOverview.budgetedExpenses == 50_000)
+        // Actual's getSpendingBudgetFilters: every non-income category, hidden or not.
+        #expect(snapshot.budgetOverview.budgetedExpenses == 60_000)
     }
 
     @Test(arguments: [

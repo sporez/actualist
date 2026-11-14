@@ -315,6 +315,9 @@ struct TransactionReadJoins {
     let liveCategory: String
     let transferIDExpression: String
     let isTransferExpression: String
+    /// True when the live payee is a transfer payee (`payee.transfer_acct` non-empty), whether or not
+    /// the row is linked. "0" when the payee table or column is unavailable.
+    let isTransferPayeeExpression: String
     let payeeNameSelect: String
     let categoryNameSelect: String
 }
@@ -360,6 +363,7 @@ extension BudgetDatabase {
         let transferIDColumn = TransactionRowColumns.transferID(in: transactionColumns)
         let transferIDExpression = transferIDColumn.map { "\(split.tableAlias).\($0)" } ?? "NULL"
         var transferPredicates: [String] = []
+        var transferPayeePredicate: String?
         if transferIDColumn != nil {
             transferPredicates.append(
                 "(\(transferIDExpression) IS NOT NULL AND \(transferIDExpression) != '')"
@@ -380,9 +384,9 @@ extension BudgetDatabase {
                 livePayee = "py.id"
             }
             if hasTransactionPayee, let transferAccount {
-                transferPredicates.append(
-                    "(py.\(transferAccount) IS NOT NULL AND py.\(transferAccount) != '')"
-                )
+                let payeePredicate = "(py.\(transferAccount) IS NOT NULL AND py.\(transferAccount) != '')"
+                transferPredicates.append(payeePredicate)
+                transferPayeePredicate = payeePredicate
             }
             if includeNames {
                 if let transferAccount, try tableExists("accounts", db: db) {
@@ -417,6 +421,7 @@ extension BudgetDatabase {
             liveCategory: liveCategory,
             transferIDExpression: transferIDExpression,
             isTransferExpression: isTransferExpression,
+            isTransferPayeeExpression: transferPayeePredicate.map { "CASE WHEN \($0) THEN 1 ELSE 0 END" } ?? "0",
             payeeNameSelect: payeeNameSelect,
             categoryNameSelect: categoryNameSelect
         )
@@ -475,6 +480,7 @@ extension BudgetDatabase {
                 liveCategory: joins.liveCategory,
                 transferIDExpression: joins.transferIDExpression,
                 isTransferExpression: joins.isTransferExpression,
+                isTransferPayeeExpression: joins.isTransferPayeeExpression,
                 payeeNameSelect: joins.payeeNameSelect,
                 categoryNameSelect: joins.categoryNameSelect
             ),

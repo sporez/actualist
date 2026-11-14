@@ -22,8 +22,16 @@ struct ReportExplorerTests {
         #expect(monthly.periods == [
             ReportExplorerPeriod(startDay: "2024-01-15", endDay: "2024-01-31"),
             ReportExplorerPeriod(startDay: "2024-02-01", endDay: "2024-02-29"),
-            ReportExplorerPeriod(startDay: "2024-03-01", endDay: "2024-03-03"),
+            // Monthly cash flow counts its last month whole (cashFlowByDate compares `$month <= end`).
+            ReportExplorerPeriod(startDay: "2024-03-01", endDay: "2024-03-31"),
         ])
+        let monthlySpending = ReportExplorerQuery(
+            metric: .spending,
+            startDay: "2024-01-15",
+            endDay: "2024-03-03",
+            interval: .month
+        )
+        #expect(monthlySpending.periods.last == ReportExplorerPeriod(startDay: "2024-03-01", endDay: "2024-03-03"))
 
         let daily = ReportExplorerQuery(
             metric: .spending,
@@ -599,6 +607,7 @@ struct ReportExplorerTests {
                     category TEXT,
                     amount INTEGER
                 );
+                CREATE TABLE payees (id TEXT PRIMARY KEY, name TEXT, transfer_acct TEXT, tombstone INTEGER);
                 CREATE TABLE transactions (
                     id TEXT PRIMARY KEY,
                     acct TEXT,
@@ -614,6 +623,8 @@ struct ReportExplorerTests {
                 );
 
                 INSERT INTO accounts VALUES ('checking', 'Checking', 0, 0, 0);
+                INSERT INTO payees VALUES ('to-savings', 'Savings', 'savings', 0);
+                INSERT INTO payees VALUES ('to-checking', 'Checking', 'checking', 0);
                 INSERT INTO accounts VALUES ('savings', 'Savings', 0, 0, 0);
                 INSERT INTO accounts VALUES ('brokerage', 'Brokerage', 1, 0, 0);
                 INSERT INTO accounts VALUES ('closed', 'Closed', 0, 1, 0);
@@ -630,8 +641,8 @@ struct ReportExplorerTests {
                 INSERT INTO transactions VALUES ('income', 'checking', 20260120, 50000, 'salary', NULL, 0, NULL, 0, 0, NULL);
                 INSERT INTO transactions VALUES ('expense', 'checking', 20260120, -10000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
                 INSERT INTO transactions VALUES ('refund', 'checking', 20260120, 2000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
-                INSERT INTO transactions VALUES ('transfer-out', 'checking', 20260121, -2000, NULL, NULL, 0, NULL, 0, 0, 'transfer-in');
-                INSERT INTO transactions VALUES ('transfer-in', 'savings', 20260123, 2000, NULL, NULL, 0, NULL, 0, 0, 'transfer-out');
+                INSERT INTO transactions VALUES ('transfer-out', 'checking', 20260121, -2000, NULL, 'to-savings', 0, NULL, 0, 0, 'transfer-in');
+                INSERT INTO transactions VALUES ('transfer-in', 'savings', 20260123, 2000, NULL, 'to-checking', 0, NULL, 0, 0, 'transfer-out');
                 INSERT INTO transactions VALUES ('split-parent', 'checking', 20260120, -3000, NULL, NULL, 0, NULL, 1, 0, NULL);
                 INSERT INTO transactions VALUES ('split-one', 'checking', 20260120, -1000, 'groceries', NULL, 0, 'split-parent', 0, 1, NULL);
                 INSERT INTO transactions VALUES ('split-two', 'checking', 20260120, -2000, 'groceries', NULL, 0, 'split-parent', 0, 1, NULL);

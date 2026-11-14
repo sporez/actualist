@@ -199,7 +199,9 @@ struct TransactionStructuredQueryDatabaseTests {
         )
     }
 
-    @Test func transferConditionClassifiesRawAndMappedPayeesAndPreservesSplitContext() async throws {
+    /// Actual's `transfer` condition reads the transfer link only (`transfer_id IS [NOT] NULL`), so a
+    /// transfer-payee row with no linked leg is not a transfer.
+    @Test func transferConditionReadsTheTransferLinkAndPreservesSplitContext() async throws {
         for storage in TransferStorageShape.allCases {
             let database = try transferDatabase(storage: storage)
             let transfers = try await database.fetchTransactionQueryPage(
@@ -211,29 +213,72 @@ struct TransactionStructuredQueryDatabaseTests {
                 query: TransactionFeedQuery(conditions: [.transfer(false)])
             )
 
-            #expect(transfers.transactions.map(\.id) == [
-                "direct-transfer", "mapped-payee-transfer", "split-parent",
-            ])
-            #expect(transfers.matchingTransactionIDs == [
-                "direct-transfer", "mapped-payee-transfer", "split-transfer-child",
-            ])
-            #expect(transfers.contributingTransactionIDs == transfers.matchingTransactionIDs)
-            #expect(transfers.attachedContextTransactionIDs == ["split-parent", "split-context"])
-            #expect(transfers.totalMatchCount == 3)
+            #expect(transfers.transactions.map(\.id) == ["direct-transfer"])
+            #expect(transfers.matchingTransactionIDs == ["direct-transfer"])
+            #expect(transfers.contributingTransactionIDs == ["direct-transfer"])
+            #expect(transfers.attachedContextTransactionIDs.isEmpty)
+            #expect(transfers.totalMatchCount == 1)
 
-            #expect(nonTransfers.transactions.map(\.id) == ["ordinary", "split-parent"])
-            #expect(nonTransfers.matchingTransactionIDs == ["ordinary", "split-parent", "split-context"])
-            #expect(nonTransfers.contributingTransactionIDs == ["ordinary", "split-context"])
-            #expect(nonTransfers.attachedContextTransactionIDs == ["split-transfer-child"])
-            #expect(nonTransfers.totalMatchCount == 2)
+            // The unlinked transfer-payee row and the split child with a transfer payee are kept.
+            #expect(nonTransfers.transactions.map(\.id) == ["mapped-payee-transfer", "ordinary", "split-parent"])
+            #expect(Set(nonTransfers.matchingTransactionIDs) == [
+                "mapped-payee-transfer", "ordinary", "split-parent", "split-transfer-child", "split-context",
+            ])
+            #expect(Set(nonTransfers.contributingTransactionIDs) == [
+                "mapped-payee-transfer", "ordinary", "split-transfer-child", "split-context",
+            ])
+            #expect(nonTransfers.attachedContextTransactionIDs.isEmpty)
+            #expect(nonTransfers.totalMatchCount == 3)
         }
+    }
+
+    /// `transferPayee` is the live payee's `transfer_acct` (Actual's cash-flow report), whether or not the
+    /// row is linked.
+    @Test func transferPayeeConditionClassifiesRawAndMappedPayeesAndPreservesSplitContext() async throws {
+        for storage in TransferStorageShape.allCases {
+            let database = try transferDatabase(storage: storage)
+            let transfers = try await database.fetchTransactionQueryPage(
+                scope: .spending,
+                query: TransactionFeedQuery(conditions: [.transferPayee(true)])
+            )
+            let nonTransfers = try await database.fetchTransactionQueryPage(
+                scope: .spending,
+                query: TransactionFeedQuery(conditions: [.transferPayee(false)])
+            )
+
+            #expect(transfers.transactions.map(\.id) == ["mapped-payee-transfer", "split-parent"])
+            #expect(Set(transfers.matchingTransactionIDs) == ["mapped-payee-transfer", "split-transfer-child"])
+            #expect(transfers.contributingTransactionIDs == transfers.matchingTransactionIDs)
+            #expect(Set(transfers.attachedContextTransactionIDs) == ["split-parent", "split-context"])
+            #expect(transfers.totalMatchCount == 2)
+
+            // The linked row whose payee is not a transfer payee is kept.
+            #expect(nonTransfers.transactions.map(\.id) == ["direct-transfer", "ordinary", "split-parent"])
+            #expect(Set(nonTransfers.contributingTransactionIDs) == ["direct-transfer", "ordinary", "split-context"])
+            #expect(Set(nonTransfers.attachedContextTransactionIDs) == ["split-transfer-child"])
+            #expect(nonTransfers.totalMatchCount == 3)
+        }
+    }
+
+    @Test func unlinkedTransferPayeeRowIsKeptByTransferAndExcludedByTransferPayee() async throws {
+        let database = try transferDatabase(storage: .actualMapped)
+        let link = try await database.fetchTransactionQueryPage(
+            scope: .spending,
+            query: TransactionFeedQuery(conditions: [.transfer(false)])
+        )
+        let payee = try await database.fetchTransactionQueryPage(
+            scope: .spending,
+            query: TransactionFeedQuery(conditions: [.transferPayee(false)])
+        )
+        #expect(link.transactions.map(\.id).contains("mapped-payee-transfer"))
+        #expect(!payee.transactions.map(\.id).contains("mapped-payee-transfer"))
     }
 
     @Test func existingReadDrilldownOverloadMatchesPublicUnpagedContributors() async throws {
         let database = try transferDatabase(storage: .actualMapped)
         let request = TransactionDrilldownRequest(
             scope: .spending,
-            query: TransactionFeedQuery(conditions: [.transfer(true)])
+            query: TransactionFeedQuery(conditions: [.transferPayee(true)])
         )
 
         let wrapped = try await database.fetchTransactionDrilldown(request)
@@ -241,7 +286,7 @@ struct TransactionStructuredQueryDatabaseTests {
 
         #expect(existingRead == wrapped)
         #expect(existingRead.contributingTransactions.map(\.id) == [
-            "direct-transfer", "mapped-payee-transfer", "split-transfer-child",
+            "mapped-payee-transfer", "split-transfer-child",
         ])
         #expect(existingRead.attachedContextTransactionIDs == ["split-parent", "split-context"])
     }
