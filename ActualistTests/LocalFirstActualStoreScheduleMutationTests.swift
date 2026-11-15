@@ -10,17 +10,17 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let bundle = try await makeBundle()
         let store = bundle.store
         let database = try #require(store.database)
-        let context = try store.scheduleMutationSessionContext(budgetID: "group-1")
-        let reviewed = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
+        let context = try store.schedules.scheduleMutationSessionContext(budgetID: "group-1")
+        let reviewed = try await store.schedules.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
 
         store.closeOpenBudget()
         #expect(try await store.openCachedBudget(bundle.budget))
 
         await expectCommandError(.reviewChanged) {
-            _ = try await store.createSchedule(createCommand, context: context)
+            _ = try await store.schedules.createSchedule(createCommand, context: context)
         }
         await expectCommandError(.reviewChanged) {
-            _ = try await store.updateSchedule(
+            _ = try await store.schedules.updateSchedule(
                 review: reviewed,
                 fields: ScheduleEditFields(name: .set("Utilities")),
                 asOfDayID: "2026-09-27",
@@ -34,7 +34,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let bundle = try await makeBundle()
         let store = bundle.store
         let database = try #require(store.database)
-        let reviewed = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
+        let reviewed = try await store.schedules.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         let gate = ScheduleMutationTestGate()
         store.seams.scheduleMutationBeforeCommitHook = { await gate.pause() }
         defer {
@@ -44,7 +44,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
 
         let submission = Task { @MainActor in
             defer { gate.finish() }
-            return try await store.updateSchedule(
+            return try await store.schedules.updateSchedule(
                 review: reviewed,
                 fields: ScheduleEditFields(name: .set("Utilities")),
                 asOfDayID: "2026-09-27",
@@ -77,7 +77,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let bundle = try await makeBundle()
         let store = bundle.store
         let database = try #require(store.database)
-        let reviewed = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
+        let reviewed = try await store.schedules.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         let gate = ScheduleMutationTestGate()
         store.seams.scheduleMutationBeforeCommitHook = { await gate.pause() }
         defer {
@@ -87,7 +87,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
 
         let submission = Task { @MainActor in
             defer { gate.finish() }
-            return try await store.updateSchedule(
+            return try await store.schedules.updateSchedule(
                 review: reviewed,
                 fields: ScheduleEditFields(name: .set("Cancelled")),
                 asOfDayID: "2026-09-27",
@@ -118,13 +118,13 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let bundle = try await makeBundle()
         let store = bundle.store
         let database = try #require(store.database)
-        let loaded = try await store.refreshSchedules(budgetID: "group-1", asOf: "2026-09-27")
-        let review = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
+        let loaded = try await store.schedules.refreshSchedules(budgetID: "group-1", asOf: "2026-09-27")
+        let review = try await store.schedules.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         let pendingBefore = try await database.pendingLocalSyncMessageCount()
         let refreshCounter = ScheduleMutationFlag()
         store.seams.scheduleMutationBeforeRefreshHook = { refreshCounter.value = true }
 
-        let outcome = try await store.updateSchedule(
+        let outcome = try await store.schedules.updateSchedule(
             review: review,
             fields: ScheduleEditFields(),
             asOfDayID: "2026-09-27",
@@ -134,32 +134,32 @@ struct LocalFirstActualStoreScheduleMutationTests {
         #expect(outcome.receipt.kind == .unchanged)
         #expect(!outcome.refreshPending)
         #expect(!refreshCounter.value)
-        #expect(store.cachedSchedules(budgetID: "group-1") == loaded)
+        #expect(store.schedules.cachedSchedules(budgetID: "group-1") == loaded)
         #expect(try await database.pendingLocalSyncMessageCount() == pendingBefore)
     }
 
     @Test func duplicateNameAndIdentityErrorsRemainTypedThroughStoreCommit() async throws {
         let bundle = try await makeBundle()
         let store = bundle.store
-        let context = try store.scheduleMutationSessionContext(budgetID: "group-1")
+        let context = try store.schedules.scheduleMutationSessionContext(budgetID: "group-1")
         await expectCommandError(.duplicateName) {
-            _ = try await store.createSchedule(createCommand(name: " Rent "), context: context)
+            _ = try await store.schedules.createSchedule(createCommand(name: " Rent "), context: context)
         }
 
         let database = try #require(store.database)
         let newNameWithExistingIdentity = createCommand(name: "Utilities")
         // Use a new name so the schedule-ID collision is the deciding failure.
-        let first = try await store.createSchedule(newNameWithExistingIdentity, context: context)
+        let first = try await store.schedules.createSchedule(newNameWithExistingIdentity, context: context)
         #expect(first.receipt.kind == .created)
         let pendingAfterCreate = try await database.pendingLocalSyncMessageCount()
         await expectCommandError(.identityConflict) {
-            _ = try await store.createSchedule(createCommand(name: "Other"), context: context)
+            _ = try await store.schedules.createSchedule(createCommand(name: "Other"), context: context)
         }
         #expect(try await database.pendingLocalSyncMessageCount() == pendingAfterCreate)
 
-        let rentReview = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
+        let rentReview = try await store.schedules.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         await expectCommandError(.duplicateName) {
-            _ = try await store.updateSchedule(
+            _ = try await store.schedules.updateSchedule(
                 review: rentReview,
                 fields: ScheduleEditFields(name: .set(" Utilities ")),
                 asOfDayID: "2026-09-27",
@@ -172,15 +172,15 @@ struct LocalFirstActualStoreScheduleMutationTests {
 
     @Test func caseVariantScheduleNamesRemainDistinct() async throws {
         let bundle = try await makeBundle()
-        let context = try bundle.store.scheduleMutationSessionContext(budgetID: "group-1")
+        let context = try bundle.store.schedules.scheduleMutationSessionContext(budgetID: "group-1")
 
-        let outcome = try await bundle.store.createSchedule(
+        let outcome = try await bundle.store.schedules.createSchedule(
             createCommand(name: "rent"),
             context: context
         )
 
         #expect(outcome.receipt.kind == .created)
-        let loaded = try #require(bundle.store.cachedSchedules(budgetID: "group-1"))
+        let loaded = try #require(bundle.store.schedules.cachedSchedules(budgetID: "group-1"))
         #expect(loaded.detail(id: "rent")?.name == "Rent")
         #expect(loaded.detail(id: "new-schedule")?.name == "rent")
     }
@@ -189,15 +189,15 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let bundle = try await makeBundle(
             additionalFixtureSQL: "UPDATE schedules SET tombstone = 1 WHERE id = 'rent';"
         )
-        let context = try bundle.store.scheduleMutationSessionContext(budgetID: "group-1")
+        let context = try bundle.store.schedules.scheduleMutationSessionContext(budgetID: "group-1")
 
-        let outcome = try await bundle.store.createSchedule(
+        let outcome = try await bundle.store.schedules.createSchedule(
             createCommand(name: "Rent"),
             context: context
         )
 
         #expect(outcome.receipt.kind == .created)
-        let loaded = try #require(bundle.store.cachedSchedules(budgetID: "group-1"))
+        let loaded = try #require(bundle.store.schedules.cachedSchedules(budgetID: "group-1"))
         #expect(loaded.detail(id: "rent") == nil)
         #expect(loaded.detail(id: "new-schedule")?.name == "Rent")
     }
@@ -206,11 +206,11 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let bundle = try await makeBundle()
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         let holder = ScheduleMutationTaskHolder()
         store.seams.scheduleMutationAfterCommitHook = { holder.task?.cancel() }
         holder.task = Task { @MainActor in
-            try await store.updateSchedule(
+            try await store.schedules.updateSchedule(
                 review: review,
                 fields: ScheduleEditFields(name: .set("Paid Rent")),
                 asOfDayID: "2026-09-27",
@@ -223,12 +223,12 @@ struct LocalFirstActualStoreScheduleMutationTests {
         #expect(submission.isCancelled)
         #expect(outcome.receipt.kind == .updated)
         #expect(!outcome.refreshPending)
-        #expect(store.cachedSchedules(budgetID: "group-1")?.detail(id: "rent")?.name == "Paid Rent")
+        #expect(store.schedules.cachedSchedules(budgetID: "group-1")?.detail(id: "rent")?.name == "Paid Rent")
         #expect(try await database.pendingLocalSyncMessageCount() > 0)
 
-        let nextReview = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
+        let nextReview = try await store.schedules.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         store.seams.scheduleMutationBeforeRefreshHook = { throw ScheduleMutationTestError.refreshFailed }
-        let failedRefresh = try await store.updateSchedule(
+        let failedRefresh = try await store.schedules.updateSchedule(
             review: nextReview,
             fields: ScheduleEditFields(name: .set("Rent Updated")),
             asOfDayID: "2026-09-27",
@@ -236,7 +236,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         )
         #expect(failedRefresh.receipt.kind == .updated)
         #expect(failedRefresh.refreshPending)
-        #expect(store.cachedSchedules(budgetID: "group-1") == nil)
+        #expect(store.schedules.cachedSchedules(budgetID: "group-1") == nil)
         #expect(try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: "2026-09-27", in: database)
             .detail(id: "rent")?.name == "Rent Updated")
     }
@@ -245,14 +245,14 @@ struct LocalFirstActualStoreScheduleMutationTests {
         let bundle = try await makeBundle()
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
         store.seams.scheduleMutationAfterCommitHook = { [weak store] in
             guard let store else { return }
             store.closeOpenBudget()
             _ = try? await store.openCachedBudget(bundle.budget)
         }
 
-        let outcome = try await store.updateSchedule(
+        let outcome = try await store.schedules.updateSchedule(
             review: review,
             fields: ScheduleEditFields(name: .set("Committed")),
             asOfDayID: "2026-09-27",
@@ -263,7 +263,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         #expect(outcome.refreshPending)
         #expect(try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: "2026-09-27", in: database)
             .detail(id: "rent")?.name == "Committed")
-        #expect(store.cachedSchedules(budgetID: "group-1") == nil)
+        #expect(store.schedules.cachedSchedules(budgetID: "group-1") == nil)
     }
 
     @Test func staleRulesReadCannotRepublishAfterScheduleMutation() async throws {
@@ -287,8 +287,8 @@ struct LocalFirstActualStoreScheduleMutationTests {
             }
 
             store.seams.rulesReadHook = nil
-            let review = try await store.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
-            _ = try await store.updateSchedule(
+            let review = try await store.schedules.scheduleMutationReview(budgetID: "group-1", scheduleID: "rent")
+            _ = try await store.schedules.updateSchedule(
                 review: review,
                 fields: ScheduleEditFields(name: .set("Renamed")),
                 asOfDayID: "2026-09-27",

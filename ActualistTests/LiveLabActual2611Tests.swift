@@ -101,8 +101,8 @@ struct LiveLabActual2611Tests {
 
         // OP-90: convert Actual's future split transaction; the peer posts the schedule.
         let splitParentID = try #require(seed["splitParentID"] as? String)
-        let conversion = try await store.convertFutureTransaction(
-            review: try await store.scheduleConversionReview(
+        let conversion = try await store.schedules.convertFutureTransaction(
+            review: try await store.schedules.scheduleConversionReview(
                 budgetID: budget.syncID, transactionID: splitParentID, asOfDayID: today
             )
         )
@@ -113,7 +113,7 @@ struct LiveLabActual2611Tests {
         result["markerBeforeCreate"] = await dayMarker(database) ?? NSNull()
         #expect(await dayMarker(database) == today)
         let identity = ScheduleCreateIdentity.make()
-        _ = try await store.createSchedule(
+        _ = try await store.schedules.createSchedule(
             ScheduleCreateCommand(
                 budgetID: budget.syncID,
                 identity: identity,
@@ -126,7 +126,7 @@ struct LiveLabActual2611Tests {
                 customUpcomingLength: nil,
                 asOfDayID: today
             ),
-            context: try store.scheduleMutationSessionContext(budgetID: budget.syncID)
+            context: try store.schedules.scheduleMutationSessionContext(budgetID: budget.syncID)
         )
         result["markerAfterCreate"] = await dayMarker(database) ?? NSNull()
         let postedQuery = "SELECT COUNT(*) FROM transactions WHERE schedule = ? AND tombstone = 0"

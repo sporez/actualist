@@ -6,21 +6,21 @@ extension LocalFirstActualStoreTests {
     @Test func scheduleRefreshPublishesOneBudgetKeyedSnapshot() async throws {
         let bundle = try await makeScheduleStoreBundle()
 
-        let loaded = try await bundle.store.refreshSchedules(
+        let loaded = try await bundle.store.schedules.refreshSchedules(
             budgetID: "group-1",
             asOf: "2026-09-27"
         )
 
         #expect(loaded.detail(id: "rent")?.status == .due)
-        #expect(bundle.store.cachedSchedules(budgetID: "group-1") == loaded)
-        #expect(bundle.store.cachedSchedules(budgetID: "another-budget") == nil)
+        #expect(bundle.store.schedules.cachedSchedules(budgetID: "group-1") == loaded)
+        #expect(bundle.store.schedules.cachedSchedules(budgetID: "another-budget") == nil)
 
         bundle.store.scheduleAutoPostRefusals = [ScheduleAutoPostRefusal(
             scheduleID: "rent", scheduleName: "Rent", occurrenceDayID: "2026-09-27",
             refusal: .draftMismatch
         )]
         bundle.store.reset()
-        #expect(bundle.store.cachedSchedules(budgetID: "group-1") == nil)
+        #expect(bundle.store.schedules.cachedSchedules(budgetID: "group-1") == nil)
         #expect(bundle.store.scheduleAutoPostRefusals.isEmpty)
     }
 
@@ -45,7 +45,7 @@ extension LocalFirstActualStoreTests {
         do {
             try await gate.waitUntilSuspended()
 
-            let fresh = try await bundle.store.refreshSchedules(
+            let fresh = try await bundle.store.schedules.refreshSchedules(
                 budgetID: "group-1",
                 asOf: "2026-09-28"
             )
@@ -55,7 +55,7 @@ extension LocalFirstActualStoreTests {
             await #expect(throws: CancellationError.self) {
                 _ = try await stale.value
             }
-            #expect(bundle.store.cachedSchedules(budgetID: "group-1") == fresh)
+            #expect(bundle.store.schedules.cachedSchedules(budgetID: "group-1") == fresh)
         } catch {
             await cancelAndDrain(stale, gate: gate)
             throw error
@@ -103,7 +103,7 @@ extension LocalFirstActualStoreTests {
             let loaded = try await valid.value
 
             #expect(loaded.detail(id: "rent")?.status == .missed)
-            #expect(bundle.store.cachedSchedules(budgetID: "group-1") == loaded)
+            #expect(bundle.store.schedules.cachedSchedules(budgetID: "group-1") == loaded)
         } catch {
             obsoleteMayEnter.trip()
             await cancelAndDrain(obsolete, gate: obsoleteGate)
@@ -138,7 +138,7 @@ extension LocalFirstActualStoreTests {
             await #expect(throws: CancellationError.self) {
                 _ = try await pending.value
             }
-            #expect(bundle.store.cachedSchedules(budgetID: "group-1") == nil)
+            #expect(bundle.store.schedules.cachedSchedules(budgetID: "group-1") == nil)
         } catch {
             await cancelAndDrain(pending, gate: gate)
             throw error
@@ -198,7 +198,7 @@ extension LocalFirstActualStoreTests {
             await #expect(throws: CancellationError.self) {
                 _ = try await retired.value
             }
-            #expect(bundle.store.cachedSchedules(budgetID: "group-1") == nil)
+            #expect(bundle.store.schedules.cachedSchedules(budgetID: "group-1") == nil)
         } catch {
             await cancelAndDrain(retired, gate: gate)
             throw error
@@ -207,7 +207,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func transactionMutationInvalidatesCachedSchedulesAndPendingTickets() async throws {
         let bundle = try await makeScheduleStoreBundle()
-        _ = try await bundle.store.refreshSchedules(
+        _ = try await bundle.store.schedules.refreshSchedules(
             budgetID: "group-1",
             asOf: "2026-09-27"
         )
@@ -245,7 +245,7 @@ extension LocalFirstActualStoreTests {
                 budgetID: "group-1"
             ) {}
 
-            #expect(bundle.store.cachedSchedules(budgetID: "group-1") == nil)
+            #expect(bundle.store.schedules.cachedSchedules(budgetID: "group-1") == nil)
             gate.release()
             await #expect(throws: CancellationError.self) {
                 _ = try await stale.value
@@ -258,7 +258,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func ruleMutationInvalidatesCachedSchedules() async throws {
         let bundle = try await makeScheduleStoreBundle()
-        _ = try await bundle.store.refreshSchedules(
+        _ = try await bundle.store.schedules.refreshSchedules(
             budgetID: "group-1",
             asOf: "2026-09-27"
         )
@@ -268,7 +268,7 @@ extension LocalFirstActualStoreTests {
             draft: .categoryRule(payeeID: "coffee")
         )
 
-        #expect(bundle.store.cachedSchedules(budgetID: "group-1") == nil)
+        #expect(bundle.store.schedules.cachedSchedules(budgetID: "group-1") == nil)
     }
 
     private func makeScheduleStoreBundle() async throws -> OpenedWritableStoreBundle {
@@ -287,7 +287,7 @@ extension LocalFirstActualStoreTests {
             if let mayEnter {
                 await mayEnter.wait()
             }
-            return try await store.refreshSchedules(budgetID: budgetID, asOf: today)
+            return try await store.schedules.refreshSchedules(budgetID: budgetID, asOf: today)
         }
     }
 

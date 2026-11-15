@@ -10,9 +10,9 @@ struct SchedulesSheet: View {
             Group {
                 if let budgetID = appState.settings.selectedBudgetID {
                     SchedulesView(
-                        repository: appState.localFirstStore,
-                        mutationRepository: appState.localFirstStore,
-                        postingRepository: appState.localFirstStore,
+                        repository: appState.localFirstStore.schedules,
+                        mutationRepository: appState.localFirstStore.schedules,
+                        postingRepository: appState.localFirstStore.schedules,
                         transactionRepository: appState.transactionRepository,
                         budgetID: budgetID,
                         budgetSessionGeneration: appState.localFirstStore.budgetSessionGeneration,

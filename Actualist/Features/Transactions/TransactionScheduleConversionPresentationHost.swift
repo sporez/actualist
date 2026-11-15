@@ -56,7 +56,7 @@ struct TransactionScheduleConversionPresentationHost: ViewModifier {
             .sheet(isPresented: sheetBinding) {
                 TransactionScheduleConversionReviewView(
                     coordinator: coordinator,
-                    repository: appState.localFirstStore,
+                    repository: appState.localFirstStore.schedules,
                     onCommitted: conversionCommitted
                 )
                 .appSwitcherPrivacyProtected(using: appState)

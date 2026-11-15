@@ -80,7 +80,7 @@ struct AccountTransactionsView: View {
     /// path's tester-voiced failure remains the backstop.
     private var supportsScheduleAuthoring: Bool {
         guard let budgetID else { return true }
-        return appState.localFirstStore.cachedSchedules(budgetID: budgetID)?.supportsAuthoring ?? true
+        return appState.localFirstStore.schedules.cachedSchedules(budgetID: budgetID)?.supportsAuthoring ?? true
     }
 
     private var transactionRepository: any TransactionRepositoryProtocol {
@@ -209,7 +209,7 @@ struct AccountTransactionsView: View {
                         entryPoint: entryPoint,
                         currency: budgetCurrency,
                         isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                        repository: appState.localFirstStore
+                        repository: appState.localFirstStore.schedules
                     )
                 },
                 onRequestDelete: { transaction in

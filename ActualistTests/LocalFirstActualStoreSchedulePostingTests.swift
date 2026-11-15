@@ -14,14 +14,14 @@ struct LocalFirstActualStoreSchedulePostingTests {
         try bundle.keychain.saveActualSyncToken("synthetic-token")
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         let outboxObservation = SchedulePostingOutboxObservation()
         store.seams.scheduleMutationAfterCommitHook = {
             await outboxObservation.capturePendingCount(database: database)
         }
         defer { store.seams.scheduleMutationAfterCommitHook = nil }
 
-        let receipt = try await store.postSchedule(review: review, date: .scheduled)
+        let receipt = try await store.schedules.postSchedule(review: review, date: .scheduled)
 
         #expect(receipt.scheduleID == "rent")
         #expect(receipt.postedDayID == Self.today())
@@ -41,11 +41,11 @@ struct LocalFirstActualStoreSchedulePostingTests {
         try bundle.keychain.saveActualSyncToken("synthetic-token")
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         let pendingBefore = try await database.pendingLocalSyncMessageCount()
 
         await #expect(throws: LocalFirstTestSyncError.self) {
-            try await store.postSchedule(review: review, date: .scheduled)
+            try await store.schedules.postSchedule(review: review, date: .scheduled)
         }
 
         #expect(try await database.pendingLocalSyncMessageCount() == pendingBefore)
@@ -69,10 +69,10 @@ struct LocalFirstActualStoreSchedulePostingTests {
         try bundle.keychain.saveActualSyncToken("synthetic-token")
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
 
         await #expect(throws: SchedulePostingError.occurrenceNoLongerPostable) {
-            try await store.postSchedule(review: review, date: .scheduled)
+            try await store.schedules.postSchedule(review: review, date: .scheduled)
         }
 
         #expect(try await database.fetchTransaction(id: "peer-posted")?.schedule == "rent")
@@ -86,7 +86,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         try bundle.keychain.saveActualSyncToken("synthetic-token")
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         let gate = SchedulePostingCommitGate()
         let outboxObservation = SchedulePostingOutboxObservation()
         store.seams.scheduleMutationAfterCommitHook = {
@@ -99,7 +99,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         }
 
         let posting = Task {
-            try await store.postSchedule(review: review, date: .scheduled)
+            try await store.schedules.postSchedule(review: review, date: .scheduled)
         }
         do {
             try await gate.waitForEntry()
@@ -124,9 +124,9 @@ struct LocalFirstActualStoreSchedulePostingTests {
         try bundle.keychain.saveActualSyncToken("synthetic-token")
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
 
-        let first = Task { try await store.postSchedule(review: review, date: .scheduled) }
+        let first = Task { try await store.schedules.postSchedule(review: review, date: .scheduled) }
         do {
             try await transport.waitForFirstCall()
         } catch {
@@ -136,22 +136,22 @@ struct LocalFirstActualStoreSchedulePostingTests {
             throw error
         }
         await #expect(throws: SchedulePostingError.alreadyInFlight) {
-            try await store.postSchedule(review: review, date: .scheduled)
+            try await store.schedules.postSchedule(review: review, date: .scheduled)
         }
         first.cancel()
         await transport.releaseFirstCall()
         await #expect(throws: CancellationError.self) { try await first.value }
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
 
-        let freshReview = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
-        let retried = try await store.postSchedule(review: freshReview, date: .scheduled)
+        let freshReview = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        let retried = try await store.schedules.postSchedule(review: freshReview, date: .scheduled)
         #expect(try await database.fetchTransaction(id: retried.transactionID)?.schedule == "rent")
     }
 
     @Test func sameBudgetSessionChangePreventsOldLeaseReleasingNewPost() async throws {
         let bundle = try await makeBundle(transport: RecordingSyncTransport())
         let store = bundle.store
-        let gate = store.schedulePostingGate
+        let gate = store.schedules.postingGate
         let oldGeneration = store.budgetSessionGeneration
         let old = try gate.acquire(
             budgetID: "group-1", scheduleID: "rent", sessionGeneration: oldGeneration
@@ -177,11 +177,11 @@ struct LocalFirstActualStoreSchedulePostingTests {
         try bundle.keychain.saveActualSyncToken("synthetic-token")
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         store.seams.scheduleReadHook = { _, _ in store.closeOpenBudget() }
         defer { store.seams.scheduleReadHook = nil }
 
-        let receipt = try await store.postSchedule(review: review, date: .scheduled)
+        let receipt = try await store.schedules.postSchedule(review: review, date: .scheduled)
 
         #expect(receipt.refreshPending)
         #expect(try await database.fetchTransaction(id: receipt.transactionID)?.schedule == "rent")
@@ -193,13 +193,13 @@ struct LocalFirstActualStoreSchedulePostingTests {
         let bundle = try await makeBundle(transport: transport)
         try bundle.keychain.saveActualSyncToken("synthetic-token")
         let store = bundle.store
-        let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         // A newer schedules read (here its invalidation) supersedes the finisher's
         // own refresh. The data is fine, so the receipt must not claim a pending refresh.
-        store.seams.scheduleReadHook = { budgetID, _ in store.invalidateScheduleCache(budgetID: budgetID) }
+        store.seams.scheduleReadHook = { budgetID, _ in store.schedules.invalidateScheduleCache(budgetID: budgetID) }
         defer { store.seams.scheduleReadHook = nil }
 
-        let receipt = try await store.postSchedule(review: review, date: .scheduled)
+        let receipt = try await store.schedules.postSchedule(review: review, date: .scheduled)
 
         #expect(!receipt.refreshPending)
     }
@@ -219,7 +219,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         let database = try #require(store.database)
         try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) != nil)
-        let review = try await store.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
+        let review = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         let outboxObservation = SchedulePostingOutboxObservation()
         store.seams.scheduleMutationAfterCommitHook = {
             await outboxObservation.capturePendingCount(database: database)
@@ -227,7 +227,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         }
         defer { store.seams.scheduleMutationAfterCommitHook = nil }
 
-        let receipt = try await store.postSchedule(review: review, date: .scheduled)
+        let receipt = try await store.schedules.postSchedule(review: review, date: .scheduled)
 
         #expect(receipt.refreshPending)
         #expect(try await database.fetchTransaction(id: receipt.transactionID)?.schedule == "rent")

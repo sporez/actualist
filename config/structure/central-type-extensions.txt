@@ -115,11 +115,6 @@ Actualist/LocalFirst/LocalFirstActualStore+Reads.swift
 Actualist/LocalFirst/LocalFirstActualStore+Reconciliation.swift
 Actualist/LocalFirst/LocalFirstActualStore+Reports.swift
 Actualist/LocalFirst/LocalFirstActualStore+Rules.swift
-Actualist/LocalFirst/LocalFirstActualStore+ScheduleAdvancement.swift
-Actualist/LocalFirst/LocalFirstActualStore+ScheduleConversion.swift
-Actualist/LocalFirst/LocalFirstActualStore+ScheduleMutations.swift
-Actualist/LocalFirst/LocalFirstActualStore+SchedulePosting.swift
-Actualist/LocalFirst/LocalFirstActualStore+Schedules.swift
 Actualist/LocalFirst/LocalFirstActualStore+Sync.swift
 Actualist/LocalFirst/LocalFirstActualStore+SyncQuarantine.swift
 Actualist/LocalFirst/LocalFirstActualStore+Templates.swift

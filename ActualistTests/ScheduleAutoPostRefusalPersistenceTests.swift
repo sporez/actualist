@@ -153,19 +153,19 @@ struct ScheduleAutoPostRefusalStoreTests {
         let database = try #require(store.database)
         let today = TestLocalDay.today()
 
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "group-1", database: database, generation: store.budgetSessionGeneration
         )
         #expect(store.scheduleAutoPostRefusals.map(\.scheduleID) == ["rent"])
 
         // A relaunch loses the in-memory copy, and today's run is skipped by the marker.
         store.scheduleAutoPostRefusals = []
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "group-1", database: database, generation: store.budgetSessionGeneration
         )
         #expect(store.scheduleAutoPostRefusals.isEmpty)
 
-        _ = try await store.refreshSchedules(budgetID: "group-1", asOf: today)
+        _ = try await store.schedules.refreshSchedules(budgetID: "group-1", asOf: today)
         #expect(store.scheduleAutoPostRefusals.map(\.scheduleID) == ["rent"])
         #expect(store.scheduleAutoPostRefusals.first?.refusal == .ruleDeletesTransaction)
     }
@@ -175,14 +175,14 @@ struct ScheduleAutoPostRefusalStoreTests {
         let store = bundle.store
         store.openedServerURLString = nil
         let database = try #require(store.database)
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "group-1", database: database, generation: store.budgetSessionGeneration
         )
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
         let queue = try DatabaseQueue(path: url.path)
         try await queue.write { db in try db.execute(sql: "UPDATE schedules SET tombstone = 1 WHERE id = 'rent'") }
 
-        _ = try await store.refreshSchedules(budgetID: "group-1", asOf: TestLocalDay.today())
+        _ = try await store.schedules.refreshSchedules(budgetID: "group-1", asOf: TestLocalDay.today())
 
         #expect(store.scheduleAutoPostRefusals.isEmpty)
         #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: database).isEmpty)
@@ -193,7 +193,7 @@ struct ScheduleAutoPostRefusalStoreTests {
         let store = bundle.store
         store.openedServerURLString = nil
         let database = try #require(store.database)
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "group-1", database: database, generation: store.budgetSessionGeneration
         )
         #expect(!store.scheduleAutoPostRefusals.isEmpty)

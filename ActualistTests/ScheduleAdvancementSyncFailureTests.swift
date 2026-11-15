@@ -192,7 +192,7 @@ struct ScheduleAdvancementSyncFailureStoreTests {
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
         #expect(try scheduleCounts(bundle) == (0, 1))
         #expect(marker(url) == nil)
-        let loaded = try await bundle.store.refreshSchedules(budgetID: "group-1", asOf: TestLocalDay.today())
+        let loaded = try await bundle.store.schedules.refreshSchedules(budgetID: "group-1", asOf: TestLocalDay.today())
         #expect(loaded.detail(id: "gym")?.status == .scheduled || loaded.detail(id: "gym")?.status == .upcoming)
         #expect(loaded.detail(id: "rent")?.status == .due)
 
@@ -209,13 +209,13 @@ struct ScheduleAdvancementSyncFailureStoreTests {
         let database = try #require(store.database)
         let before = try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: TestLocalDay.today(), in: database)
 
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "group-1", database: database,
             generation: store.budgetSessionGeneration + 1, syncSucceeded: false
         )
         await Task { @MainActor in
             withUnsafeCurrentTask { $0?.cancel() }
-            await store.advanceSchedulesAfterSync(
+            await store.schedules.advanceSchedulesAfterSync(
                 budgetID: "group-1", database: database,
                 generation: store.budgetSessionGeneration, syncSucceeded: false
             )

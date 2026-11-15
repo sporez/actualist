@@ -12,7 +12,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
         let databaseURL = try bundle.fileManager.databaseURL(fileID: try #require(bundle.budget.budgetID))
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.scheduleConversionReview(
+        let review = try await store.schedules.scheduleConversionReview(
             budgetID: "group-1",
             transactionID: "future",
             asOfDayID: Self.today
@@ -21,7 +21,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
         store.closeOpenBudget()
         #expect(try await store.openCachedBudget(bundle.budget))
         await #expect(throws: ScheduleConversionError.reviewChanged) {
-            _ = try await store.convertFutureTransaction(review: review)
+            _ = try await store.schedules.convertFutureTransaction(review: review)
         }
 
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
@@ -33,7 +33,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
         let databaseURL = try bundle.fileManager.databaseURL(fileID: try #require(bundle.budget.budgetID))
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.scheduleConversionReview(
+        let review = try await store.schedules.scheduleConversionReview(
             budgetID: "group-1", transactionID: "future", asOfDayID: Self.today
         )
         let gate = ConversionCommitGate()
@@ -46,7 +46,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
         }
 
         let submission = Task { @MainActor in
-            try await store.convertFutureTransaction(review: review)
+            try await store.schedules.convertFutureTransaction(review: review)
         }
         guard await gate.waitForEntry() else {
             submission.cancel()
@@ -69,7 +69,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
         let databaseURL = try bundle.fileManager.databaseURL(fileID: try #require(bundle.budget.budgetID))
         let store = bundle.store
         let database = try #require(store.database)
-        let review = try await store.scheduleConversionReview(
+        let review = try await store.schedules.scheduleConversionReview(
             budgetID: "group-1", transactionID: "future", asOfDayID: Self.today
         )
         let holder = ConversionTaskHolder()
@@ -80,7 +80,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
             _ = try? await store.openCachedBudget(bundle.budget)
         }
         holder.task = Task { @MainActor in
-            try await store.convertFutureTransaction(review: review)
+            try await store.schedules.convertFutureTransaction(review: review)
         }
 
         let submission = try #require(holder.task)
@@ -93,7 +93,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
         #expect(receipt.refreshPending)
         #expect(try await database.pendingLocalSyncMessageCount() > 0)
         #expect(try readInt("SELECT tombstone FROM transactions WHERE id='future'", databaseURL) == 1)
-        #expect(store.cachedSchedules(budgetID: "group-1") == nil)
+        #expect(store.schedules.cachedSchedules(budgetID: "group-1") == nil)
         #expect(store.transactionFeedPagesByKey.isEmpty)
     }
 
@@ -108,10 +108,10 @@ struct LocalFirstActualStoreScheduleConversionTests {
         #expect(initialFeed.transactions.contains { $0.id == "future" })
         #expect(store.cachedRules(budgetID: "group-1") != nil)
 
-        let review = try await store.scheduleConversionReview(
+        let review = try await store.schedules.scheduleConversionReview(
             budgetID: "group-1", transactionID: "future", asOfDayID: Self.today
         )
-        let receipt = try await store.convertFutureTransaction(review: review)
+        let receipt = try await store.schedules.convertFutureTransaction(review: review)
 
         #expect(!receipt.refreshPending)
         #expect(store.cachedRules(budgetID: "group-1")?.contains { $0.id == review.identity.ruleID } == true)
@@ -137,10 +137,10 @@ struct LocalFirstActualStoreScheduleConversionTests {
         #expect(store.cachedRules(budgetID: "group-1") != nil)
 
         hook.failNextRead = true
-        let review = try await store.scheduleConversionReview(
+        let review = try await store.schedules.scheduleConversionReview(
             budgetID: "group-1", transactionID: "future", asOfDayID: Self.today
         )
-        let receipt = try await store.convertFutureTransaction(review: review)
+        let receipt = try await store.schedules.convertFutureTransaction(review: review)
 
         #expect(receipt.refreshPending)
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)

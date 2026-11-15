@@ -10,8 +10,6 @@ final class LocalFirstActualStore:
     EntityNotesRepositoryProtocol,
     PayeeRepositoryProtocol,
     RuleRepositoryProtocol,
-    ScheduleMutationRepositoryProtocol,
-    ScheduleRepositoryProtocol,
     TransactionRepositoryProtocol,
     SavedTransactionFilterRepositoryProtocol,
     ReportsRepositoryProtocol
@@ -79,8 +77,7 @@ final class LocalFirstActualStore:
     var schedulesByBudget: [String: LoadedSchedules] = [:]
     /// Automatic posts refused by the latest schedule run, in user-facing form.
     var scheduleAutoPostRefusals: [ScheduleAutoPostRefusal] = []
-    @ObservationIgnored var scheduleRequestIdentity = ScheduleRequestIdentity()
-    @ObservationIgnored let schedulePostingGate = SchedulePostingGate()
+    @ObservationIgnored private(set) lazy var schedules = ScheduleWorkflows(store: self)
     var transactionFeedPagesByKey: [TransactionFeedCacheKey: TransactionFeedPage] = [:]
     @ObservationIgnored var transactionFeedRequestIdentity = TransactionFeedRequestIdentity()
     var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
@@ -241,10 +238,10 @@ final class LocalFirstActualStore:
 
     // Keep the authenticated budget list while switching databases.
     func closeOpenBudget() {
-        schedulePostingGate.invalidate(sessionGeneration: budgetSessionGeneration)
+        schedules.postingGate.invalidate(sessionGeneration: budgetSessionGeneration)
         activeReimportID = nil
         database?.invalidateSessionWrites()
-        scheduleRequestIdentity.resetSession()
+        schedules.resetRequestSession()
         transactionFeedRequestIdentity.resetSession()
         budgetReadGeneration &+= 1
         budgetSessionGeneration &+= 1

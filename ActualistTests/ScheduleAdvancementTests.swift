@@ -331,12 +331,12 @@ struct ScheduleAdvancementTests {
         try JSONSerialization.data(withJSONObject: metadata).write(to: metadataURL, options: .atomic)
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
 
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "group-1",
             database: database,
             generation: store.budgetSessionGeneration + 1
         )
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "other-budget",
             database: database,
             generation: store.budgetSessionGeneration
@@ -344,14 +344,14 @@ struct ScheduleAdvancementTests {
 
         #expect(try scheduleTransactionCount("rent", databaseURL) == 0)
         #expect(try metadataObject(at: metadataURL)["lastScheduleRun"] == nil)
-        #expect(store.cachedSchedules(budgetID: "group-1") == nil)
+        #expect(store.schedules.cachedSchedules(budgetID: "group-1") == nil)
 
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "group-1",
             database: database,
             generation: store.budgetSessionGeneration
         )
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "group-1",
             database: database,
             generation: store.budgetSessionGeneration
@@ -367,7 +367,7 @@ struct ScheduleAdvancementTests {
         #expect(patched["budgetName"] as? String == "Writable Budget")
         let vendorExtension = try #require(patched["vendorExtension"] as? [String: Any])
         #expect(vendorExtension["keep"] as? Bool == true)
-        #expect(store.cachedSchedules(budgetID: "group-1")?.detail(id: "rent")?.status == .paid)
+        #expect(store.schedules.cachedSchedules(budgetID: "group-1")?.detail(id: "rent")?.status == .paid)
         #expect(store.openedServerURLString == nil)
     }
 
@@ -385,7 +385,7 @@ struct ScheduleAdvancementTests {
             expectedMode: nil, categoryID: "groceries", budgeted: 61_000,
             budgetID: "group-1", month: "2026-07"
         ) {}
-        await store.advanceSchedulesAfterSync(
+        await store.schedules.advanceSchedulesAfterSync(
             budgetID: "group-1", database: database, generation: store.budgetSessionGeneration
         )
 

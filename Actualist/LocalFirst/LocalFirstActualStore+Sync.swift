@@ -544,7 +544,7 @@ extension LocalFirstActualStore {
             // passes false so this pull does not post the occurrence it is
             // about to write, and so advancement cannot re-enter this pull.
             if performsScheduleAdvancement {
-                await advanceSchedulesAfterSync(
+                await schedules.advanceSchedulesAfterSync(
                     budgetID: budgetID,
                     database: database,
                     generation: generation
@@ -575,7 +575,7 @@ extension LocalFirstActualStore {
             // unauthorized event, and only skips posting. The original error
             // is rethrown unchanged.
             if performsScheduleAdvancement, !resolvedError.isCancellation {
-                await advanceSchedulesAfterSync(
+                await schedules.advanceSchedulesAfterSync(
                     budgetID: budgetID, database: database, generation: generation, syncSucceeded: false
                 )
             }
