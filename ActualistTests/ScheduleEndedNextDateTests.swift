@@ -31,7 +31,7 @@ struct ScheduleEndedNextDateTests {
             asOfDayID: "2026-09-27"
         )
 
-        _ = try await database.createSchedule(command)
+        _ = try await ScheduleEditSQL.createSchedule(command, in: database)
 
         let queue = try DatabaseQueue(path: url.path)
         let stored = try queue.readSync { db in

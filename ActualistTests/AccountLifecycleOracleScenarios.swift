@@ -375,10 +375,11 @@ extension AccountLifecycleReplayBudget {
 
     func advanceSchedules() async throws {
         try clearScheduleDayMarker()
-        _ = try await database.advanceSchedules(
+        _ = try await SchedulePostingSQL.advanceSchedules(
             budgetID: Self.budgetID,
             today: AccountLifecycleScenarios.localDay.isoDate,
-            now: AccountLifecycleScenarios.now
+            now: AccountLifecycleScenarios.now,
+            in: database
         )
     }
 }

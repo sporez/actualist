@@ -141,9 +141,10 @@ struct BudgetDatabaseScheduleReadTests {
             INSERT INTO schedules VALUES ('legacy', 'missing-rule');
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        let loaded = try await database.fetchSchedules(
+        let loaded = try await ScheduleSQL.fetchSchedules(
             budgetID: "legacy-budget",
-            today: "2026-09-27"
+            today: "2026-09-27",
+            in: database
         )
         let detail = try #require(loaded.detail(id: "legacy"))
         #expect(detail.status == .scheduled)
@@ -172,7 +173,7 @@ struct BudgetDatabaseScheduleReadTests {
             INSERT INTO schedules VALUES ('legacy', 'rule', 'Legacy', 0, 0, NULL, 0);
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        let loaded = try await database.fetchSchedules(budgetID: "budget", today: "2026-09-27")
+        let loaded = try await ScheduleSQL.fetchSchedules(budgetID: "budget", today: "2026-09-27", in: database)
         let detail = try #require(loaded.detail(id: "legacy"))
         #expect(detail.capabilities.canEditMetadata)
         #expect(detail.capabilities.canEditPayee)
@@ -209,18 +210,20 @@ struct BudgetDatabaseScheduleReadTests {
             );
             """)
         let legacyDatabase = try BudgetDatabase(databaseURL: legacy)
-        let legacyLoaded = try await legacyDatabase.fetchSchedules(
+        let legacyLoaded = try await ScheduleSQL.fetchSchedules(
             budgetID: "legacy-budget",
-            today: "2026-09-27"
+            today: "2026-09-27",
+            in: legacyDatabase
         )
         #expect(!legacyLoaded.supportsAuthoring)
 
         // A budget without a schedules table at all cannot accept authoring.
         let missingTable = try support.makeSQLiteFixture(extraSQL: "")
         let missingTableDatabase = try BudgetDatabase(databaseURL: missingTable)
-        let missingTableLoaded = try await missingTableDatabase.fetchSchedules(
+        let missingTableLoaded = try await ScheduleSQL.fetchSchedules(
             budgetID: "budget",
-            today: "2026-09-27"
+            today: "2026-09-27",
+            in: missingTableDatabase
         )
         #expect(!missingTableLoaded.supportsAuthoring)
     }
@@ -228,9 +231,10 @@ struct BudgetDatabaseScheduleReadTests {
     private func makeLoadedSchedules() async throws -> LoadedSchedules {
         let url = try support.makeSQLiteFixture(extraSQL: fixtureSQL)
         let database = try BudgetDatabase(databaseURL: url)
-        return try await database.fetchSchedules(
+        return try await ScheduleSQL.fetchSchedules(
             budgetID: "budget",
-            today: "2026-09-27"
+            today: "2026-09-27",
+            in: database
         )
     }
 

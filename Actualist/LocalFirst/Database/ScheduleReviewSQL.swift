@@ -9,35 +9,39 @@ struct ScheduleMutationCurrentState: Sendable {
     var accountID: String? { projection.accountID }
 }
 
-extension BudgetDatabase {
-    func scheduleRequiredColumns(
+enum ScheduleReviewSQL {
+    static func scheduleRequiredColumns(
         table: String,
         required: [String],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> Set<String> {
         do {
-            return try requiredColumns(table: table, required: required, db: db)
+            return try database.requiredColumns(table: table, required: required, db: db)
         } catch LocalFirstError.schemaUnavailable {
             throw ScheduleMutationCommandError.unsupportedSchema
         }
     }
 
-    func scheduleMutationReview(
+    static func scheduleMutationReview(
         budgetID: String,
-        scheduleID: String
+        scheduleID: String,
+        in database: isolated BudgetDatabase
     ) throws -> ScheduleMutationReview {
-        try queue.read { db in
-            try captureScheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID, db: db)
+        try database.queue.read { db in
+            try captureScheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID, in: database, db: db)
         }
     }
 
-    func validateScheduleMutationReview(
+    static func validateScheduleMutationReview(
         _ review: ScheduleMutationReview,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> ScheduleMutationCurrentState {
         let current = try captureScheduleMutationReview(
             budgetID: review.budgetID,
             scheduleID: review.scheduleID,
+            in: database,
             db: db
         )
         guard current == review else {
@@ -54,9 +58,10 @@ extension BudgetDatabase {
         guard projection.capabilities.canDelete else {
             throw ScheduleMutationCommandError.unsupportedCapability("The schedule's rule link cannot be edited safely.")
         }
-        guard try !scheduleRuleHasAnotherLiveOwner(
+        guard try !ScheduleSQL.scheduleRuleHasAnotherLiveOwner(
             ruleID: current.ruleID,
             scheduleID: current.scheduleID,
+            in: database,
             db: db
         ) else {
             throw ScheduleMutationCommandError.unsupportedCapability("The schedule's rule is shared by another live schedule.")
@@ -67,26 +72,28 @@ extension BudgetDatabase {
         )
     }
 
-    private func captureScheduleMutationReview(
+    private static func captureScheduleMutationReview(
         budgetID: String,
         scheduleID: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> ScheduleMutationReview {
         let scheduleColumns = try scheduleRequiredColumns(
             table: "schedules",
             required: ["id", "rule"],
+            in: database,
             db: db
         )
         let scheduleFields = ["name", "completed", "posts_transaction", "custom_upcoming_length", "sort_order", "tombstone", "active"]
         let selection = scheduleFields.map { field in
-            column(field, fallback: "NULL", columns: scheduleColumns) + " AS \(quotedIdentifier(field))"
+            database.column(field, fallback: "NULL", columns: scheduleColumns) + " AS \(database.quotedIdentifier(field))"
         }.joined(separator: ", ")
         guard let row = try Row.fetchOne(
             db,
             sql: """
                 SELECT rule, \(selection)
                 FROM schedules
-                WHERE id = ? AND \(predicateForLiveRows(columns: scheduleColumns))
+                WHERE id = ? AND \(database.predicateForLiveRows(columns: scheduleColumns))
                 LIMIT 1
                 """,
             arguments: [scheduleID]
@@ -100,7 +107,7 @@ extension BudgetDatabase {
             completed: SQLiteValueCoercion.lenientBool(row["completed"]),
             postsTransaction: SQLiteValueCoercion.lenientBool(row["posts_transaction"]),
             customUpcomingLength: row["custom_upcoming_length"] as String?,
-            sortOrder: optionalScheduleDouble(row["sort_order"]),
+            sortOrder: ScheduleSQL.optionalScheduleDouble(row["sort_order"]),
             tombstone: SQLiteValueCoercion.lenientBool(row["tombstone"]),
             active: SQLiteValueCoercion.lenientBool(row["active"])
         )
@@ -108,19 +115,20 @@ extension BudgetDatabase {
         let ruleColumns = try scheduleRequiredColumns(
             table: "rules",
             required: ["id", "tombstone"],
+            in: database,
             db: db
         )
-        let conditions = column("conditions", fallback: "NULL", columns: ruleColumns)
-        let actions = column("actions", fallback: "NULL", columns: ruleColumns)
+        let conditions = database.column("conditions", fallback: "NULL", columns: ruleColumns)
+        let actions = database.column("actions", fallback: "NULL", columns: ruleColumns)
         let ruleSelection = ["stage", "conditions_op"].map { field in
-            column(field, fallback: "NULL", columns: ruleColumns) + " AS \(quotedIdentifier(field))"
+            database.column(field, fallback: "NULL", columns: ruleColumns) + " AS \(database.quotedIdentifier(field))"
         }.joined(separator: ", ")
         guard let ruleRow = try Row.fetchOne(
             db,
             sql: """
                 SELECT \(conditions) AS conditions, \(actions) AS actions, tombstone, \(ruleSelection)
                 FROM rules
-                WHERE id = ? AND \(predicateForLiveRows(columns: ruleColumns))
+                WHERE id = ? AND \(database.predicateForLiveRows(columns: ruleColumns))
                 LIMIT 1
                 """,
             arguments: [ruleID]
@@ -140,8 +148,8 @@ extension BudgetDatabase {
             conditionsJSON: rule.conditionsJSON,
             actionsJSON: rule.actionsJSON
         )
-        let nextDates = try captureScheduleNextDates(scheduleID: scheduleID, db: db)
-        let account = try projection.accountID.flatMap { try captureScheduleAccount(id: $0, db: db) }
+        let nextDates = try captureScheduleNextDates(scheduleID: scheduleID, in: database, db: db)
+        let account = try projection.accountID.flatMap { try captureScheduleAccount(id: $0, in: database, db: db) }
         return ScheduleMutationReview(
             budgetID: budgetID,
             scheduleID: scheduleID,
@@ -153,18 +161,19 @@ extension BudgetDatabase {
         )
     }
 
-    private func captureScheduleNextDates(
+    private static func captureScheduleNextDates(
         scheduleID: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [ScheduleNextDateRevision] {
-        guard try tableExists("schedules_next_date", db: db) else { return [] }
-        let columns = try columnSet(for: "schedules_next_date", db: db)
+        guard try database.tableExists("schedules_next_date", db: db) else { return [] }
+        let columns = try database.columnSet(for: "schedules_next_date", db: db)
         guard columns.isSuperset(of: ["id", "schedule_id"]) else { return [] }
-        let localDate = column("local_next_date", fallback: "NULL", columns: columns)
-        let localTimestamp = column("local_next_date_ts", fallback: "NULL", columns: columns)
-        let baseDate = column("base_next_date", fallback: "NULL", columns: columns)
-        let baseTimestamp = column("base_next_date_ts", fallback: "NULL", columns: columns)
-        let tombstone = column("tombstone", fallback: "0", columns: columns)
+        let localDate = database.column("local_next_date", fallback: "NULL", columns: columns)
+        let localTimestamp = database.column("local_next_date_ts", fallback: "NULL", columns: columns)
+        let baseDate = database.column("base_next_date", fallback: "NULL", columns: columns)
+        let baseTimestamp = database.column("base_next_date_ts", fallback: "NULL", columns: columns)
+        let tombstone = database.column("tombstone", fallback: "0", columns: columns)
         let rows = try Row.fetchAll(
             db,
             sql: """
@@ -192,14 +201,14 @@ extension BudgetDatabase {
         }
     }
 
-    private func captureScheduleAccount(id: String, db: Database) throws -> ScheduleAccountRevision? {
-        guard try tableExists("accounts", db: db) else { return nil }
-        let columns = try columnSet(for: "accounts", db: db)
+    private static func captureScheduleAccount(id: String, in database: isolated BudgetDatabase, db: Database) throws -> ScheduleAccountRevision? {
+        guard try database.tableExists("accounts", db: db) else { return nil }
+        let columns = try database.columnSet(for: "accounts", db: db)
         guard columns.contains("id") else { return nil }
-        let name = column("name", fallback: "NULL", columns: columns)
-        let offBudget = column("offbudget", fallback: "0", columns: columns)
-        let closed = column("closed", fallback: "0", columns: columns)
-        let tombstone = column("tombstone", fallback: "0", columns: columns)
+        let name = database.column("name", fallback: "NULL", columns: columns)
+        let offBudget = database.column("offbudget", fallback: "0", columns: columns)
+        let closed = database.column("closed", fallback: "0", columns: columns)
+        let tombstone = database.column("tombstone", fallback: "0", columns: columns)
         guard let row = try Row.fetchOne(
             db,
             sql: "SELECT \(name) AS name, \(offBudget) AS offbudget, \(closed) AS closed, \(tombstone) AS tombstone FROM accounts WHERE id = ? LIMIT 1",

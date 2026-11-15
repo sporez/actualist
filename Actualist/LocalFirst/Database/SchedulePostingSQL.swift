@@ -1,4 +1,16 @@
 import Foundation
+import GRDB
+
+struct SchedulePostingWriteReceipt: Hashable, Sendable {
+    let scheduleID: String
+    let transactionID: String
+    let occurrenceDayID: String
+    let postedDayID: String
+    let appliedMessageCount: Int
+    let affectedAccountIDs: [String]
+    let affectedTransactionIDs: [String]
+    let affectedMonthIDs: [String]
+}
 
 /// One schedule whose automatic post was deterministically refused.
 struct ScheduleAutoPostRefusal: Hashable, Sendable {
@@ -20,7 +32,216 @@ struct ScheduleAdvancementResult: Sendable {
     var skippedForToday = false
 }
 
-extension BudgetDatabase {
+enum SchedulePostingSQL {
+    static func postScheduleOccurrence(
+        review: ScheduleMutationReview,
+        draft: TransactionDraft,
+        transactionID: String,
+        postedDayID: String,
+        asOf today: String,
+        source: BudgetActionSource = .ui,
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
+    ) throws -> SchedulePostingWriteReceipt {
+        guard !transactionID.isEmpty,
+              draft.scheduleID == review.scheduleID,
+              ActualScheduleRecurrence.date(from: postedDayID) != nil,
+              ActualScheduleRecurrence.date(from: today) != nil else {
+            throw SchedulePostingRefusal.invalidCommand
+        }
+        try Task.checkCancellation()
+        let committed = try database.commitLocalPlan(now: now) { db in
+            // Schema gaps (a missing table or column) and deleted or closed
+            // referenced rows are deterministic per schedule, so they are
+            // refusals rather than errors that would stop automatic advancement
+            // on every sync.
+            // I/O and cancellation propagate unchanged.
+            do {
+                return try schedulePostingPlan(
+                    review: review, draft: draft, transactionID: transactionID,
+                    postedDayID: postedDayID, today: today, source: source, now: now, in: database, db: db
+                )
+            } catch LocalFirstError.schemaUnavailable {
+                throw SchedulePostingRefusal.unsupportedBudgetSchema
+            } catch LocalFirstError.referencedRowUnavailable {
+                throw SchedulePostingRefusal.referencedRowUnavailable
+            }
+        }
+        let planned = committed.outcome
+        return SchedulePostingWriteReceipt(
+            scheduleID: planned.scheduleID,
+            transactionID: planned.transactionID,
+            occurrenceDayID: planned.occurrenceDayID,
+            postedDayID: planned.postedDayID,
+            appliedMessageCount: committed.appliedCount,
+            affectedAccountIDs: planned.affectedAccountIDs,
+            affectedTransactionIDs: planned.affectedTransactionIDs,
+            affectedMonthIDs: planned.affectedMonthIDs
+        )
+    }
+
+    private static func schedulePostingPlan(
+        review: ScheduleMutationReview,
+        draft: TransactionDraft,
+        transactionID: String,
+        postedDayID: String,
+        today: String,
+        source: BudgetActionSource,
+        now: Date,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> BudgetDatabase.LocalCommitPlan<SchedulePostingWriteReceipt> {
+        let current = try ScheduleReviewSQL.validateScheduleMutationReview(review, in: database, db: db)
+        guard let accountID = current.projection.accountID,
+              let accountColumns = try? database.columnSet(for: "accounts", db: db),
+              accountColumns.contains("id") else {
+            throw SchedulePostingRefusal.accountUnavailable
+        }
+        let closed = database.column("closed", fallback: "0", columns: accountColumns)
+        let tombstone = database.column("tombstone", fallback: "0", columns: accountColumns)
+        guard let accountRow = try Row.fetchOne(
+            db,
+            sql: "SELECT \(closed) AS closed, \(tombstone) AS tombstone FROM accounts WHERE id = ? LIMIT 1",
+            arguments: [accountID]
+        ), !SQLiteValueCoercion.lenientBool(accountRow["closed"]), !SQLiteValueCoercion.lenientBool(accountRow["tombstone"]) else {
+            throw SchedulePostingRefusal.accountUnavailable
+        }
+
+        guard let schedule = try ScheduleSQL.fetchScheduleDetail(
+            budgetID: review.budgetID,
+            scheduleID: review.scheduleID,
+            today: today,
+            in: database,
+            db: db
+        ),
+              schedule.capabilities.canPost,
+              schedule.status.allowsManualPosting,
+              schedule.account.availability == .available,
+              current.projection.amount.postingAmount != nil,
+              current.review.schedule.completed == false,
+              !current.review.schedule.tombstone,
+              !current.review.rule.tombstone else {
+            throw SchedulePostingRefusal.occurrenceUnavailable
+        }
+        let expectedDay: String
+        if postedDayID == today {
+            expectedDay = today
+        } else {
+            guard let effectiveDate = current.effectiveNextDate,
+                  postedDayID == effectiveDate else {
+                throw SchedulePostingRefusal.occurrenceDateMismatch
+            }
+            expectedDay = effectiveDate
+        }
+        guard ActualScheduleRecurrence.date(from: expectedDay) != nil else {
+            throw SchedulePostingRefusal.occurrenceUnavailable
+        }
+        guard try BudgetDatabase.actualDateValue(draft.date) == Int(PackedDate.compact(expectedDay)),
+              draft.scheduleID == review.scheduleID else {
+            throw SchedulePostingRefusal.draftMismatch
+        }
+        let initialTransfer = try draft.payeeID.map {
+            try database.transferAccountID(ifPayee: $0, db: db) != nil
+        } ?? false
+        let ruleInputDraft = schedulePostingDraft(draft, isTransfer: initialTransfer)
+        let evaluated = try database.previewRules(for: ruleInputDraft, db: db)
+        guard !evaluated.deletesTransaction else {
+            throw SchedulePostingRefusal.ruleDeletesTransaction
+        }
+        let projected = TransactionRulePreviewProjection.applying(evaluated, to: ruleInputDraft)
+        let finalTransfer = try projected.payeeID.map {
+            try database.transferAccountID(ifPayee: $0, db: db) != nil
+        } ?? false
+        let finalPayeeName = try database.rulePayeeName(for: projected.payeeID, db: db) ?? projected.payeeName
+        let finalDraft = schedulePostingDraft(
+            projected,
+            isTransfer: finalTransfer,
+            payeeName: finalPayeeName,
+            // Actual's scheduled post sets sort_order to the clock in milliseconds. Transfer and
+            // split posts keep their own writers' ordering.
+            sortOrder: finalTransfer || !projected.splits.isEmpty
+                ? nil
+                : projected.sortOrder ?? now.timeIntervalSince1970 * 1_000
+        )
+        let trimmedName = finalDraft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
+        var builderForPlan = LocalFirstSyncMessageBuilder()
+        let graph = try database.schedulePostingTransactionGraph(
+            draft: finalDraft,
+            transactionID: transactionID,
+            builder: &builderForPlan,
+            db: db
+        )
+        guard graph.primaryScheduleID == review.scheduleID else {
+            throw SchedulePostingRefusal.ruleChangedScheduleLink
+        }
+        guard let occurrenceDate = schedule.effectiveNextDate else {
+            throw SchedulePostingRefusal.occurrenceUnavailable
+        }
+        // Like Actual's "Post transaction today", a transaction dated before the
+        // occurrence's match window is created anyway. It is linked to the
+        // schedule but leaves the occurrence unpaid.
+        let descriptor = CreateTransactionDescriptor(
+            month: YearMonth(date: finalDraft.date).rawValue,
+            amount: finalDraft.amountMinorUnits,
+            payeeName: trimmedName.isEmpty ? nil : trimmedName,
+            categoryID: finalDraft.categoryID,
+            primaryTransactionID: transactionID,
+            transactionIDs: graph.write.affectedTransactionIDs,
+            graph: graph.graph,
+            createdPayeeID: nil
+        )
+        let receipt = SchedulePostingWriteReceipt(
+            scheduleID: review.scheduleID,
+            transactionID: transactionID,
+            occurrenceDayID: occurrenceDate,
+            postedDayID: ActualDateOnly.dayID(from: finalDraft.date, timeZone: .autoupdatingCurrent),
+            appliedMessageCount: 0,
+            affectedAccountIDs: graph.write.affectedAccountIDs,
+            affectedTransactionIDs: graph.write.affectedTransactionIDs,
+            affectedMonthIDs: [YearMonth(date: finalDraft.date).rawValue]
+        )
+        return BudgetDatabase.LocalCommitPlan(
+            drafts: graph.write.messages,
+            action: ActionLogCommit(
+                descriptor: .createTransaction(descriptor),
+                source: source,
+                actionID: transactionID,
+                // An automatic post is not a user categorization, so it teaches nothing.
+                learningTransactionIDs: source != .automatic
+                    && !finalDraft.isTransfer && !finalDraft.isSplit && finalDraft.categoryID != nil
+                    ? [transactionID]
+                    : []
+            ),
+            outcome: receipt
+        )
+    }
+
+    private static func schedulePostingDraft(
+        _ draft: TransactionDraft,
+        isTransfer: Bool,
+        payeeName: String? = nil,
+        sortOrder: Double? = nil
+    ) -> TransactionDraft {
+        TransactionDraft(
+            accountID: draft.accountID,
+            date: draft.date,
+            amountMinorUnits: draft.amountMinorUnits,
+            payeeID: draft.payeeID,
+            payeeName: payeeName ?? draft.payeeName,
+            categoryID: draft.categoryID,
+            notes: draft.notes,
+            cleared: draft.cleared,
+            isTransfer: isTransfer,
+            importedPayee: draft.importedPayee,
+            importedID: draft.importedID,
+            sortOrder: sortOrder ?? draft.sortOrder,
+            reconciled: draft.reconciled,
+            isParent: draft.isParent,
+            splits: draft.splits,
+            scheduleID: draft.scheduleID
+        )
+    }
+
     /// Posts due or missed automatic schedules and advances paid occurrences.
     /// `metadata.json` `lastScheduleRun` is local, like Actual's metadata marker,
     /// and is patched with JSONSerialization so unknown keys survive. It is
@@ -36,13 +257,14 @@ extension BudgetDatabase {
     /// and past paid one-time schedules still complete. The run neither writes
     /// the day marker nor replaces the persisted refusals, so the next
     /// successful sync still posts today.
-    func advanceSchedules(
+    static func advanceSchedules(
         budgetID: String,
         today: String,
         postingAllowed: Bool = true,
-        now: Date = Date()
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
     ) throws -> ScheduleAdvancementResult {
-        if scheduleAdvancementDayMarker() == today {
+        if scheduleAdvancementDayMarker(in: database) == today {
             return ScheduleAdvancementResult(receipts: [], scheduleMutated: false, skippedForToday: true)
         }
 
@@ -50,7 +272,7 @@ extension BudgetDatabase {
         var refusals: [ScheduleAutoPostRefusal] = []
         var scheduleMutated = false
         let ordered = schedulesInAdvancementOrder(
-            Array(try fetchSchedules(budgetID: budgetID, today: today).detailsByID.values)
+            Array(try ScheduleSQL.fetchSchedules(budgetID: budgetID, today: today, in: database).detailsByID.values)
         )
         for detail in ordered {
             if Task.isCancelled {
@@ -66,7 +288,8 @@ extension BudgetDatabase {
                     postingAllowed: postingAllowed,
                     receipts: &receipts,
                     refusals: &refusals,
-                    scheduleMutated: &scheduleMutated
+                    scheduleMutated: &scheduleMutated,
+                    in: database
                 )
             } catch is CancellationError {
                 return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
@@ -83,8 +306,8 @@ extension BudgetDatabase {
         // marker unset makes the next successful sync retry. The refusals are
         // stored first so a marked day never lacks its refusal set.
         do {
-            try replaceScheduleAutoPostRefusals(refusals)
-            try writeScheduleAdvancementDayMarker(today)
+            try replaceScheduleAutoPostRefusals(refusals, in: database)
+            try writeScheduleAdvancementDayMarker(today, in: database)
         } catch {
             return ScheduleAdvancementResult(receipts: receipts, scheduleMutated: scheduleMutated, refusals: refusals)
         }
@@ -93,17 +316,17 @@ extension BudgetDatabase {
         )
     }
 
-    func scheduleAutoPostRefusals() throws -> [ScheduleAutoPostRefusal] {
-        try queue.read { db in try ScheduleAutoPostRefusalTable.read(db) }
+    static func scheduleAutoPostRefusals(in database: isolated BudgetDatabase) throws -> [ScheduleAutoPostRefusal] {
+        try database.queue.read { db in try ScheduleAutoPostRefusalTable.read(db) }
     }
 
-    func removeScheduleAutoPostRefusals(_ refusals: [ScheduleAutoPostRefusal]) throws {
+    static func removeScheduleAutoPostRefusals(_ refusals: [ScheduleAutoPostRefusal], in database: isolated BudgetDatabase) throws {
         guard !refusals.isEmpty else { return }
-        try queue.write { db in try ScheduleAutoPostRefusalTable.remove(refusals, db) }
+        try database.queue.write { db in try ScheduleAutoPostRefusalTable.remove(refusals, db) }
     }
 
-    private func replaceScheduleAutoPostRefusals(_ refusals: [ScheduleAutoPostRefusal]) throws {
-        try queue.write { db in try ScheduleAutoPostRefusalTable.replace(with: refusals, db) }
+    private static func replaceScheduleAutoPostRefusals(_ refusals: [ScheduleAutoPostRefusal], in database: isolated BudgetDatabase) throws {
+        try database.queue.write { db in try ScheduleAutoPostRefusalTable.replace(with: refusals, db) }
     }
 
     private enum ScheduleAdvancementStep {
@@ -114,7 +337,7 @@ extension BudgetDatabase {
     private static let maximumOccurrencesPerSchedule = 366
     private static let dayMarkerKey = "lastScheduleRun"
 
-    private func advanceSchedule(
+    private static func advanceSchedule(
         _ scheduleID: String,
         budgetID: String,
         today: String,
@@ -122,11 +345,12 @@ extension BudgetDatabase {
         postingAllowed: Bool,
         receipts: inout [SchedulePostingWriteReceipt],
         refusals: inout [ScheduleAutoPostRefusal],
-        scheduleMutated: inout Bool
+        scheduleMutated: inout Bool,
+        in database: isolated BudgetDatabase
     ) throws -> ScheduleAdvancementStep {
         for _ in 0..<Self.maximumOccurrencesPerSchedule {
             try Task.checkCancellation()
-            guard let detail = try fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today) else {
+            guard let detail = try ScheduleSQL.fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today, in: database) else {
                 return .nextSchedule
             }
             let action = ScheduleOccurrencePlanner.action(
@@ -150,7 +374,8 @@ extension BudgetDatabase {
                         detail,
                         budgetID: budgetID,
                         today: today,
-                        now: now
+                        now: now,
+                        in: database
                     ))
                 } catch let refusal as SchedulePostingRefusal {
                     refusals.append(ScheduleAutoPostRefusal(
@@ -179,7 +404,8 @@ extension BudgetDatabase {
                     budgetID: budgetID,
                     today: today,
                     now: now,
-                    scheduleMutated: &scheduleMutated
+                    scheduleMutated: &scheduleMutated,
+                    in: database
                 )
                 if moved == .stopRun || moved == .dateUnchanged {
                     return moved == .stopRun ? .stopRun : .nextSchedule
@@ -190,7 +416,8 @@ extension BudgetDatabase {
                     budgetID: budgetID,
                     today: today,
                     now: now,
-                    scheduleMutated: &scheduleMutated
+                    scheduleMutated: &scheduleMutated,
+                    in: database
                 )
                 if moved != .dateChanged {
                     return moved == .stopRun ? .stopRun : .nextSchedule
@@ -202,14 +429,16 @@ extension BudgetDatabase {
                     today: today,
                     now: now,
                     fromToday: true,
-                    scheduleMutated: &scheduleMutated
+                    scheduleMutated: &scheduleMutated,
+                    in: database
                 )
                 return moved == .stopRun ? .stopRun : .nextSchedule
             case .completeOneTime:
                 do {
-                    let result = try completeSchedule(
-                        review: scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID),
-                        now: now
+                    let result = try ScheduleEditSQL.completeSchedule(
+                        review: ScheduleReviewSQL.scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID, in: database),
+                        now: now,
+                        in: database
                     )
                     if result.kind != .unchanged {
                         scheduleMutated = true
@@ -231,11 +460,12 @@ extension BudgetDatabase {
         case stopRun
     }
 
-    private func postScheduledOccurrence(
+    private static func postScheduledOccurrence(
         _ detail: ScheduleDetail,
         budgetID: String,
         today: String,
-        now: Date
+        now: Date,
+        in database: isolated BudgetDatabase
     ) throws -> SchedulePostingWriteReceipt {
         guard let accountID = detail.account.id,
               let amount = detail.amount.postingAmount,
@@ -256,35 +486,37 @@ extension BudgetDatabase {
             scheduleID: detail.id
         )
         return try postScheduleOccurrence(
-            review: scheduleMutationReview(budgetID: budgetID, scheduleID: detail.id),
+            review: ScheduleReviewSQL.scheduleMutationReview(budgetID: budgetID, scheduleID: detail.id, in: database),
             draft: draft,
             transactionID: UUID().uuidString,
             postedDayID: postedDayID,
             asOf: today,
             source: .automatic,
-            now: now
+            now: now,
+            in: database
         )
     }
 
     /// Moves a recurring next date to the next date after the current one, like user skip, or
     /// (`fromToday`) to the first date from today.
-    private func advanceRecurringOccurrence(
+    private static func advanceRecurringOccurrence(
         _ scheduleID: String,
         budgetID: String,
         today: String,
         now: Date,
         fromToday: Bool = false,
-        scheduleMutated: inout Bool
+        scheduleMutated: inout Bool,
+        in database: isolated BudgetDatabase
     ) throws -> RecurringAdvanceStep {
         try Task.checkCancellation()
-        guard let detail = try fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today),
+        guard let detail = try ScheduleSQL.fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today, in: database),
               let currentDayID = detail.effectiveNextDate,
               detail.dateRule.recurrence != nil else {
             return .dateUnchanged
         }
         let review: ScheduleMutationReview
         do {
-            review = try scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID)
+            review = try ScheduleReviewSQL.scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID, in: database)
         } catch is CancellationError {
             return .stopRun
         } catch {
@@ -292,8 +524,8 @@ extension BudgetDatabase {
         }
         let committed: (outcome: Bool, appliedCount: Int)
         do {
-            committed = try commitLocalPlan(now: now) { db in
-                let current = try validateScheduleMutationReview(review, db: db)
+            committed = try database.commitLocalPlan(now: now) { db in
+                let current = try ScheduleReviewSQL.validateScheduleMutationReview(review, in: database, db: db)
                 guard let recurrence = current.projection.dateRule.recurrence,
                       let effective = current.effectiveNextDate,
                       let next = current.review.uniqueNextDate,
@@ -301,7 +533,7 @@ extension BudgetDatabase {
                           ? ScheduleRuleMutation.initialNextDate(for: current.projection.dateRule, asOf: today)
                           : recurrence.nextDateAfter(effective)),
                       advanced != effective else {
-                    return LocalCommitPlan(drafts: [], action: nil, outcome: false)
+                    return BudgetDatabase.LocalCommitPlan(drafts: [], action: nil, outcome: false)
                 }
                 var builder = LocalFirstSyncMessageBuilder()
                 let messages = try localNextDateMessages(
@@ -310,7 +542,7 @@ extension BudgetDatabase {
                     baseTimestamp: next.baseTimestamp,
                     builder: &builder
                 )
-                return LocalCommitPlan(drafts: messages, action: nil, outcome: true)
+                return BudgetDatabase.LocalCommitPlan(drafts: messages, action: nil, outcome: true)
             }
         } catch is CancellationError {
             return .stopRun
@@ -321,7 +553,7 @@ extension BudgetDatabase {
             scheduleMutated = true
         }
         guard committed.outcome,
-              let updated = try fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today)?.effectiveNextDate,
+              let updated = try ScheduleSQL.fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today, in: database)?.effectiveNextDate,
               updated != currentDayID else {
             return .dateUnchanged
         }
@@ -329,7 +561,7 @@ extension BudgetDatabase {
     }
 
     /// Same local next-date messages the skip writer enqueues (`base: false`).
-    private func localNextDateMessages(
+    private static func localNextDateMessages(
         rowID: String,
         date: String,
         baseTimestamp: String?,
@@ -345,7 +577,7 @@ extension BudgetDatabase {
                 dataset: "schedules_next_date",
                 row: rowID,
                 column: "local_next_date",
-                value: scheduleDateValue(date)
+                value: ScheduleEditSQL.scheduleDateValue(date)
             ),
             try builder.makeMessage(
                 dataset: "schedules_next_date",
@@ -356,7 +588,7 @@ extension BudgetDatabase {
         ]
     }
 
-    private func schedulesInAdvancementOrder(_ details: [ScheduleDetail]) -> [ScheduleDetail] {
+    private static func schedulesInAdvancementOrder(_ details: [ScheduleDetail]) -> [ScheduleDetail] {
         details.sorted { lhs, rhs in
             switch (lhs.effectiveNextDate, rhs.effectiveNextDate) {
             case let (left?, right?) where left != right:
@@ -383,12 +615,12 @@ extension BudgetDatabase {
         ))
     }
 
-    private var scheduleAdvancementMetadataURL: URL {
-        databaseURL.deletingLastPathComponent().appending(path: "metadata.json")
+    private static func scheduleAdvancementMetadataURL(in database: isolated BudgetDatabase) -> URL {
+        database.databaseURL.deletingLastPathComponent().appending(path: "metadata.json")
     }
 
-    private func scheduleAdvancementDayMarker() -> String? {
-        let url = scheduleAdvancementMetadataURL
+    private static func scheduleAdvancementDayMarker(in database: isolated BudgetDatabase) -> String? {
+        let url = scheduleAdvancementMetadataURL(in: database)
         guard FileManager.default.fileExists(atPath: url.path),
               let data = try? Data(contentsOf: url),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -399,8 +631,8 @@ extension BudgetDatabase {
         return marker
     }
 
-    private func writeScheduleAdvancementDayMarker(_ dayID: String) throws {
-        try patchScheduleAdvancementMetadata { $0[Self.dayMarkerKey] = dayID }
+    private static func writeScheduleAdvancementDayMarker(_ dayID: String, in database: isolated BudgetDatabase) throws {
+        try patchScheduleAdvancementMetadata({ $0[Self.dayMarkerKey] = dayID }, in: database)
     }
 
     /// Clears the day marker so the next sync runs automatic posting again today,
@@ -408,14 +640,14 @@ extension BudgetDatabase {
     /// posts transactions is created or edited. Best effort and after the
     /// schedule commit: a marker that cannot be cleared only defers posting to
     /// tomorrow, which is the behavior before this change.
-    func allowScheduleAutoPostingAgainToday() {
-        guard scheduleAdvancementDayMarker() != nil else { return }
-        try? patchScheduleAdvancementMetadata { $0[Self.dayMarkerKey] = nil }
+    static func allowScheduleAutoPostingAgainToday(in database: isolated BudgetDatabase) {
+        guard scheduleAdvancementDayMarker(in: database) != nil else { return }
+        try? patchScheduleAdvancementMetadata({ $0[Self.dayMarkerKey] = nil }, in: database)
     }
 
     /// Rewrites `metadata.json` with `change` applied, keeping unknown keys.
-    private func patchScheduleAdvancementMetadata(_ change: (inout [String: Any]) -> Void) throws {
-        let url = scheduleAdvancementMetadataURL
+    private static func patchScheduleAdvancementMetadata(_ change: (inout [String: Any]) -> Void, in database: isolated BudgetDatabase) throws {
+        let url = scheduleAdvancementMetadataURL(in: database)
         var object: [String: Any]
         if FileManager.default.fileExists(atPath: url.path) {
             let data = try Data(contentsOf: url)

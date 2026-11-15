@@ -17,7 +17,7 @@ extension LocalFirstActualStore {
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let draft = try await database.draftByResolvingSchedule(draft)
+        let draft = try await ScheduleSQL.draftByResolvingSchedule(draft, in: database)
         let transactionID = callerTransactionID ?? UUID().uuidString
         var builder = LocalFirstSyncMessageBuilder()
         let payeeResolution = try await resolvePayeeIfNeeded(
@@ -149,9 +149,10 @@ extension LocalFirstActualStore {
     ) async throws -> TransactionMutationResult {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let draft = try await database.draftByResolvingSchedule(
+        let draft = try await ScheduleSQL.draftByResolvingSchedule(
             draft,
-            existingTransactionID: transactionID
+            existingTransactionID: transactionID,
+            in: database
         )
         var builder = LocalFirstSyncMessageBuilder()
         let payeeResolution = try await resolvePayeeIfNeeded(

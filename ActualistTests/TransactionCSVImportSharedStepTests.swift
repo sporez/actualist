@@ -115,10 +115,10 @@ struct TransactionCSVImportSharedStepTests {
         try await importAll(bundle, "Date,Payee,Notes,Amount\n\(Self.scheduleDay),Landlord,,-100.00\n")
 
         #expect(try scalar(bundle, "SELECT schedule FROM transactions WHERE imported_description = 'Landlord'") == "rent")
-        let detail = try await database.fetchSchedules(budgetID: "group-1", today: Self.scheduleDay).detail(id: "rent")
+        let detail = try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: Self.scheduleDay, in: database).detail(id: "rent")
         #expect(detail?.status == .paid)
 
-        let advancement = try await database.advanceSchedules(budgetID: "group-1", today: Self.scheduleDay)
+        let advancement = try await SchedulePostingSQL.advanceSchedules(budgetID: "group-1", today: Self.scheduleDay, in: database)
         #expect(advancement.receipts.isEmpty)
         #expect(try count(bundle, "SELECT COUNT(*) FROM transactions WHERE amount = -10000 AND acct = 'checking'") == 1)
     }

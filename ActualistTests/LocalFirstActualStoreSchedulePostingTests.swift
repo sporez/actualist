@@ -31,7 +31,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         #expect(posted.amount == -10_000)
         #expect(posted.cleared?.boolValue == false)
         #expect((outboxObservation.pendingCount ?? 0) > 0)
-        #expect(try await database.fetchSchedules(budgetID: "group-1", today: Self.today())
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: Self.today(), in: database)
             .detail(id: "rent")?.status == .paid)
     }
 
@@ -49,7 +49,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         }
 
         #expect(try await database.pendingLocalSyncMessageCount() == pendingBefore)
-        #expect(try await database.fetchSchedules(budgetID: "group-1", today: Self.today())
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: Self.today(), in: database)
             .detail(id: "rent")?.status == .due)
     }
 

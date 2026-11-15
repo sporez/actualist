@@ -13,11 +13,12 @@ extension LocalFirstActualStore {
     ) async throws -> ScheduleConversionReview {
         let context = try scheduleConversionSessionContext(budgetID: budgetID)
         let database = try requireDatabase(for: budgetID)
-        let review = try await database.scheduleConversionReview(
+        let review = try await ScheduleConversionSQL.scheduleConversionReview(
             context: context,
             transactionID: transactionID,
             asOfDayID: asOfDayID,
-            identity: .make()
+            identity: .make(),
+            in: database
         )
         try requireScheduleConversionSession(context, database: database)
         return review
@@ -38,7 +39,7 @@ extension LocalFirstActualStore {
 
         let committed: ScheduleConversionWriteReceipt
         do {
-            committed = try await database.convertFutureTransaction(review: review)
+            committed = try await ScheduleConversionSQL.convertFutureTransaction(review: review, in: database)
         } catch LocalFirstError.budgetNotOpened {
             throw ScheduleConversionError.reviewChanged
         } catch ScheduleMutationCommandError.identityConflict {

@@ -587,7 +587,7 @@ extension BudgetDatabase {
             db,
             sql: "SELECT \(selectedColumns) FROM rules WHERE \(predicateForLiveRows(columns: columns))"
         )
-        let completedScheduleRules = try fetchRuleScheduleIndex(db: db).completedRuleIDs
+        let completedScheduleRules = try ScheduleSQL.fetchRuleScheduleIndex(in: self, db: db).completedRuleIDs
 
         var mappedPayeeIDs = Dictionary(uniqueKeysWithValues: payeeIDs.map { ($0, $0) })
         if let mapping = try usablePayeeMappingColumns(db: db) {

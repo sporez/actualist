@@ -58,14 +58,15 @@ struct ScheduleDetailReadEquivalenceTests {
 
     @Test func singleScheduleDetailMatchesTheAllSchedulesRead() async throws {
         let database = try database(oneTimeCount: 6)
-        let all = try await database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        let all = try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: database)
         let ids = Array(all.detailsByID.keys) + ["gone", "never-existed"]
         #expect(all.detailsByID.count >= 10)
         for id in ids {
-            let single = try await database.fetchScheduleDetail(
+            let single = try await ScheduleSQL.fetchScheduleDetail(
                 budgetID: Self.budgetID,
                 scheduleID: id,
-                today: Self.today
+                today: Self.today,
+                in: database
             )
             #expect(single == all.detail(id: id), "\(id)")
         }
@@ -77,10 +78,11 @@ struct ScheduleDetailReadEquivalenceTests {
         let database = try database(oneTimeCount: 6)
         let log = StatementLog()
         try await database.startStatementTraceForTesting(log)
-        _ = try await database.fetchScheduleDetail(
+        _ = try await ScheduleSQL.fetchScheduleDetail(
             budgetID: Self.budgetID,
             scheduleID: "once-1",
-            today: Self.today
+            today: Self.today,
+            in: database
         )
         try await database.stopStatementTraceForTesting()
         let statements = log.statements
@@ -102,7 +104,7 @@ struct ScheduleDetailReadEquivalenceTests {
         let database = try database(oneTimeCount: 12)
         let log = StatementLog()
         try await database.startStatementTraceForTesting(log)
-        let result = try await database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        let result = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: database)
         try await database.stopStatementTraceForTesting()
         let fullNextDateScans = log.statements.filter {
             $0.contains("FROM schedules_next_date") && !$0.contains("schedule_id = ?")

@@ -19,7 +19,7 @@ struct BudgetDatabaseScheduleConversionTests {
         )
         let review = try await review(fixture, today: dates.today)
 
-        let receipt = try await fixture.database.convertFutureTransaction(review: review)
+        let receipt = try await ScheduleConversionSQL.convertFutureTransaction(review: review, in: fixture.database)
 
         #expect(receipt.appliedMessageCount > 0)
         #expect(receipt.sourceTransactionIDs == ["future"])
@@ -35,7 +35,7 @@ struct BudgetDatabaseScheduleConversionTests {
         #expect(actions.first?.objectValue?["op"] == .string("link-schedule"))
         #expect(try readInt("SELECT local_next_date FROM schedules_next_date WHERE id = '\(review.identity.nextDateID)'", fixture.url) == Self.packed(dates.tomorrow))
         await #expect(throws: ScheduleConversionError.reviewChanged) {
-            _ = try await fixture.database.convertFutureTransaction(review: review)
+            _ = try await ScheduleConversionSQL.convertFutureTransaction(review: review, in: fixture.database)
         }
         #expect(try readInt("SELECT COUNT(*) FROM schedules", fixture.url) == 1)
     }
@@ -56,7 +56,7 @@ struct BudgetDatabaseScheduleConversionTests {
         )
         let review = try await review(fixture, transactionID: "split-parent", today: dates.today)
 
-        let receipt = try await fixture.database.convertFutureTransaction(review: review)
+        let receipt = try await ScheduleConversionSQL.convertFutureTransaction(review: review, in: fixture.database)
 
         #expect(receipt.sourceTransactionIDs == ["split-parent", "child-first", "child-second"])
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id IN ('split-parent','child-first','child-second') AND tombstone = 1", fixture.url) == 3)
@@ -137,7 +137,7 @@ struct BudgetDatabaseScheduleConversionTests {
         // The mapping now points at no live payee, so the transaction reads as having no payee
         // (Actual's public view) and the commit sees a changed review before the mapping check.
         await #expect(throws: ScheduleConversionError.reviewChanged) {
-            _ = try await staleMap.database.convertFutureTransaction(review: staleMapReview)
+            _ = try await ScheduleConversionSQL.convertFutureTransaction(review: staleMapReview, in: staleMap.database)
         }
         #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", staleMap.url) == 0)
 
@@ -145,7 +145,7 @@ struct BudgetDatabaseScheduleConversionTests {
         let accountReview = try await review(closedAccount, today: dates.today)
         try execute(closedAccount.url, sql: "UPDATE accounts SET closed = 1 WHERE id = 'checking'")
         await #expect(throws: ScheduleConversionError.unsupportedSource("The transaction account is unavailable or closed.")) {
-            _ = try await closedAccount.database.convertFutureTransaction(review: accountReview)
+            _ = try await ScheduleConversionSQL.convertFutureTransaction(review: accountReview, in: closedAccount.database)
         }
         #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", closedAccount.url) == 0)
     }
@@ -182,7 +182,7 @@ struct BudgetDatabaseScheduleConversionTests {
         let transferClock = await linkedTransfer.database.localClock
         try execute(linkedTransfer.url, sql: "UPDATE transactions SET transferred_id = 'other-budget-row' WHERE id = 'future'")
         await #expect(throws: ScheduleConversionError.unsupportedSource("Transfer transactions cannot be converted to schedules.")) {
-            _ = try await linkedTransfer.database.convertFutureTransaction(review: transferReview)
+            _ = try await ScheduleConversionSQL.convertFutureTransaction(review: transferReview, in: linkedTransfer.database)
         }
 
         let reconciledChild = try makeFixture(
@@ -198,7 +198,7 @@ struct BudgetDatabaseScheduleConversionTests {
         let reconciledClock = await reconciledChild.database.localClock
         try execute(reconciledChild.url, sql: "UPDATE transactions SET reconciled = 1 WHERE id = 'reconciled-child'")
         await #expect(throws: ScheduleConversionError.unsupportedSource("Reconciled transaction families cannot be converted.")) {
-            _ = try await reconciledChild.database.convertFutureTransaction(review: childReview)
+            _ = try await ScheduleConversionSQL.convertFutureTransaction(review: childReview, in: reconciledChild.database)
         }
         try await expectNoConversionWrites(linkedTransfer, transactionIDs: ["future"], clock: transferClock)
         try await expectNoConversionWrites(
@@ -215,7 +215,7 @@ struct BudgetDatabaseScheduleConversionTests {
         try execute(fixture.url, sql: "INSERT INTO schedules (id, rule, tombstone) VALUES ('converted-schedule', 'other-rule', 0)")
 
         await #expect(throws: ScheduleConversionError.identityConflict) {
-            _ = try await fixture.database.convertFutureTransaction(review: review)
+            _ = try await ScheduleConversionSQL.convertFutureTransaction(review: review, in: fixture.database)
         }
 
         #expect(try readInt("SELECT COUNT(*) FROM schedules WHERE id = 'converted-schedule'", fixture.url) == 1)
@@ -230,7 +230,7 @@ struct BudgetDatabaseScheduleConversionTests {
         let changedReview = try await review(changed, today: dates.today)
         try execute(changed.url, sql: "UPDATE transactions SET amount = -999 WHERE id = 'future'")
         await #expect(throws: ScheduleConversionError.reviewChanged) {
-            _ = try await changed.database.convertFutureTransaction(review: changedReview)
+            _ = try await ScheduleConversionSQL.convertFutureTransaction(review: changedReview, in: changed.database)
         }
         #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", changed.url) == 0)
 
@@ -238,7 +238,7 @@ struct BudgetDatabaseScheduleConversionTests {
         let yesterday = Self.day(before: dates.today)
         let staleDayReview = try await review(crossedDay, today: yesterday)
         await #expect(throws: ScheduleConversionError.reviewChanged) {
-            _ = try await crossedDay.database.convertFutureTransaction(review: staleDayReview)
+            _ = try await ScheduleConversionSQL.convertFutureTransaction(review: staleDayReview, in: crossedDay.database)
         }
         #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", crossedDay.url) == 0)
     }
@@ -254,7 +254,7 @@ struct BudgetDatabaseScheduleConversionTests {
             """)
 
         await #expect(throws: LocalFirstError.self) {
-            _ = try await fixture.database.convertFutureTransaction(review: review)
+            _ = try await ScheduleConversionSQL.convertFutureTransaction(review: review, in: fixture.database)
         }
 
         #expect(try readInt("SELECT COUNT(*) FROM schedules", fixture.url) == 0)
@@ -306,7 +306,7 @@ struct BudgetDatabaseScheduleConversionTests {
         transactionID: String = "future",
         today: String
     ) async throws -> ScheduleConversionReview {
-        try await fixture.database.scheduleConversionReview(
+        try await ScheduleConversionSQL.scheduleConversionReview(
             context: ScheduleMutationSessionContext(budgetID: "budget", generation: 1),
             transactionID: transactionID,
             asOfDayID: today,
@@ -314,7 +314,8 @@ struct BudgetDatabaseScheduleConversionTests {
                 scheduleID: "converted-schedule",
                 ruleID: "converted-rule",
                 nextDateID: "converted-next"
-            )
+            ),
+            in: fixture.database
         )
     }
 

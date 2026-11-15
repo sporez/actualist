@@ -189,7 +189,7 @@ Repositories are per feature, not one facade: `Actualist/Repositories/` holds `B
 
 ### Database
 
-`BudgetDatabase` is an actor around one imported budget's GRDB `DatabaseQueue`. The actor is the single owner of the queue, clock, merkle state, and write fence; do not split it into several actors. Another `BudgetDatabase+X.swift` file does not count as an extraction (`AGENTS.md`, File Size). A new domain's logic goes in a focused stateless type whose functions take the GRDB handle inside the actor's transaction and keep their helpers `private`, with a thin entry point on the actor. Existing examples: `TransactionMergePlanner`, `TransactionDuplicatePlanner`, `ScheduleCreationMessagePlan`, `RuleCandidateIndex`, `ReportArithmetic`.
+`BudgetDatabase` is an actor around one imported budget's GRDB `DatabaseQueue`. The actor is the single owner of the queue, clock, merkle state, and write fence; do not split it into several actors. Another `BudgetDatabase+X.swift` file does not count as an extraction (`AGENTS.md`, File Size). A domain's database logic is a stateless `enum <Concept>SQL` whose functions take `in database: isolated BudgetDatabase, db: Database` (last two parameters) and keep their helpers `private static`; the isolated parameter makes Swift prove the code runs on the actor inside the caller's transaction. Entry points that open their own read or write take `in database:` only, and the store awaits them directly (`try await ScheduleSQL.fetchSchedules(budgetID:today:in: database)`), so the actor gains no forwarding member. SQL that needs no cached schema takes the GRDB `Database` alone (`TransactionRowReader`, `SQLiteSchema`), and pure logic is static functions or initializers on value types (`TransactionSplitQueryExpressions(columns:tableAlias:)`). Examples: the Schedules types below, `TransactionImportSQL`, `SyncedPreferences`, `TransactionMergePlanner`, `RuleCandidateIndex`, `ReportArithmetic`.
 
 File naming is the ownership index:
 
@@ -265,7 +265,7 @@ Adapters over the core: `commitUserActionPlan` (user gestures; adds the action-l
 
 ### Schedules
 
-Reads are `LocalFirstActualStore+Schedules` over `BudgetDatabase+ScheduleReads`, cached per budget with a request identity for stale results. Edits go through a review (`ScheduleMutationPrecondition`) and `+ScheduleMutations`; a schedule and its rule are written together (`ScheduleRuleProjection`, `ScheduleRuleMutation`). Posting a due schedule is `+SchedulePosting` behind a posting gate; background advancement is `+ScheduleAdvancement`.
+The database side is six stateless types in `LocalFirst/Database/`: `ScheduleSQL` (list and detail reads, the rule schedule index, drafts resolved from a schedule), `ScheduleReviewSQL` (the review every write revalidates), `ScheduleEditSQL` (create, update, delete, skip, complete), `ScheduleCreationMessagePlan` (the schedule, rule and next-date rows shared by authoring and conversion), `SchedulePostingSQL` (posting one occurrence, daily advancement and its auto-post refusals) and `ScheduleConversionSQL` (Schedule this future transaction). A schedule and its rule are written together (`ScheduleRuleProjection`, `ScheduleRuleMutation`). On the store, reads are `LocalFirstActualStore+Schedules`, cached per budget with a request identity for stale results; edits are `+ScheduleMutations`; manual posting is `+SchedulePosting` behind a posting gate; background advancement is `+ScheduleAdvancement`.
 
 ### Session transitions
 

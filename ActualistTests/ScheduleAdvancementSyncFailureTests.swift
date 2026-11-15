@@ -35,18 +35,19 @@ struct ScheduleAdvancementSyncFailureTests {
             ) + linkedTransactionSQL(scheduleID: "gym", dayID: "2026-09-27"),
             metadata: ["note": "retain-me"]
         )
-        #expect(try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
             .detail(id: "gym")?.status == .paid)
 
-        let result = try await fixture.database.advanceSchedules(
-            budgetID: Self.budgetID, today: Self.today, postingAllowed: false
+        let result = try await SchedulePostingSQL.advanceSchedules(
+            budgetID: Self.budgetID, today: Self.today, postingAllowed: false,
+            in: fixture.database
         )
 
         #expect(result.scheduleMutated)
         #expect(result.receipts.isEmpty)
         #expect(!result.refusalsReplaced)
         #expect(try helpers.scheduleTransactionCount("gym", fixture.url) == 1)
-        #expect(try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
             .detail(id: "gym")?.effectiveNextDate == "2026-10-04")
         #expect(marker(fixture.url) == nil)
         #expect(try helpers.metadataObject(beside: fixture.url)["note"] as? String == "retain-me")
@@ -57,14 +58,15 @@ struct ScheduleAdvancementSyncFailureTests {
             extraSQL: helpers.oneTimeScheduleSQL(scheduleID: "rent", dayID: Self.today, amount: -10_000)
         )
 
-        let failed = try await fixture.database.advanceSchedules(
-            budgetID: Self.budgetID, today: Self.today, postingAllowed: false
+        let failed = try await SchedulePostingSQL.advanceSchedules(
+            budgetID: Self.budgetID, today: Self.today, postingAllowed: false,
+            in: fixture.database
         )
         #expect(failed.receipts.isEmpty)
         #expect(try helpers.scheduleTransactionCount("rent", fixture.url) == 0)
         #expect(marker(fixture.url) == nil)
 
-        let succeeded = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        let succeeded = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
         #expect(succeeded.receipts.map(\.scheduleID) == ["rent"])
         #expect(try helpers.scheduleTransactionCount("rent", fixture.url) == 1)
         #expect(marker(fixture.url) == Self.today)
@@ -78,13 +80,14 @@ struct ScheduleAdvancementSyncFailureTests {
             )
         )
 
-        _ = try await fixture.database.advanceSchedules(
-            budgetID: Self.budgetID, today: Self.today, postingAllowed: false
+        _ = try await SchedulePostingSQL.advanceSchedules(
+            budgetID: Self.budgetID, today: Self.today, postingAllowed: false,
+            in: fixture.database
         )
 
         #expect(try helpers.scheduleTransactionCount("rent", fixture.url) == 0)
         let detail = try #require(
-            try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today).detail(id: "rent")
+            try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database).detail(id: "rent")
         )
         #expect(detail.effectiveNextDate == "2026-09-20")
         #expect(detail.status == .missed)
@@ -96,12 +99,13 @@ struct ScheduleAdvancementSyncFailureTests {
                 + linkedTransactionSQL(scheduleID: "once", dayID: "2026-09-20")
         )
 
-        let result = try await fixture.database.advanceSchedules(
-            budgetID: Self.budgetID, today: Self.today, postingAllowed: false
+        let result = try await SchedulePostingSQL.advanceSchedules(
+            budgetID: Self.budgetID, today: Self.today, postingAllowed: false,
+            in: fixture.database
         )
 
         #expect(result.scheduleMutated)
-        #expect(try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
             .detail(id: "once")?.completed == true)
         #expect(marker(fixture.url) == nil)
     }
@@ -115,12 +119,13 @@ struct ScheduleAdvancementSyncFailureTests {
             metadata: ["lastScheduleRun": Self.today]
         )
 
-        let result = try await fixture.database.advanceSchedules(
-            budgetID: Self.budgetID, today: Self.today, postingAllowed: false
+        let result = try await SchedulePostingSQL.advanceSchedules(
+            budgetID: Self.budgetID, today: Self.today, postingAllowed: false,
+            in: fixture.database
         )
 
         #expect(result.skippedForToday)
-        #expect(try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
             .detail(id: "gym")?.effectiveNextDate == "2026-09-27")
     }
 }
@@ -202,7 +207,7 @@ struct ScheduleAdvancementSyncFailureStoreTests {
         let (bundle, _) = try await syncFailureStore()
         let store = bundle.store
         let database = try #require(store.database)
-        let before = try await database.fetchSchedules(budgetID: "group-1", today: TestLocalDay.today())
+        let before = try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: TestLocalDay.today(), in: database)
 
         await store.advanceSchedulesAfterSync(
             budgetID: "group-1", database: database,
@@ -216,7 +221,7 @@ struct ScheduleAdvancementSyncFailureStoreTests {
             )
         }.value
 
-        let after = try await database.fetchSchedules(budgetID: "group-1", today: TestLocalDay.today())
+        let after = try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: TestLocalDay.today(), in: database)
         #expect(after.detail(id: "gym")?.effectiveNextDate == before.detail(id: "gym")?.effectiveNextDate)
     }
 }

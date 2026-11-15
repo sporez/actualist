@@ -411,7 +411,6 @@
         "ScheduleOracleStatefulReplayTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+Schedule*.swift",
         "Actualist/LocalFirst/Database/Schedule*.swift",
         "Actualist/Shared/ScheduleOccurrencePlanner.swift",
         "Actualist/Shared/ActualScheduleRecurrence.swift",

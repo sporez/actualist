@@ -20,7 +20,7 @@ struct ScheduleAdvancementTests {
         ]
         let fixture = try makeDatabase(metadata: metadata)
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         let object = try metadataObject(beside: fixture.url)
         #expect(object["cloudFileId"] as? String == "file-1")
@@ -45,11 +45,11 @@ struct ScheduleAdvancementTests {
         )
         let before = try Data(contentsOf: metadataURL(beside: fixture.url))
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         #expect(try Data(contentsOf: metadataURL(beside: fixture.url)) == before)
         #expect(try scheduleTransactionCount("rent", fixture.url) == 0)
-        #expect(try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
             .detail(id: "rent")?.status == .due)
     }
 
@@ -59,8 +59,8 @@ struct ScheduleAdvancementTests {
             metadata: ["cloudFileId": "file-1", "note": "retain-me"]
         )
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
         #expect(try readInt(
@@ -79,7 +79,7 @@ struct ScheduleAdvancementTests {
         #expect(object["lastScheduleRun"] as? String == Self.today)
         #expect(object["note"] as? String == "retain-me")
         #expect(object["cloudFileId"] as? String == "file-1")
-        #expect(try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
             .detail(id: "rent")?.status == .paid)
     }
 
@@ -97,7 +97,7 @@ struct ScheduleAdvancementTests {
             metadata: ["note": "retain-me"]
         )
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         #expect(expectedNext == "2027-01-15")
         #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
@@ -106,7 +106,7 @@ struct ScheduleAdvancementTests {
             fixture.url
         ) == Self.packed(Self.missedDay))
         let detail = try #require(
-            try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today).detail(id: "rent")
+            try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database).detail(id: "rent")
         )
         #expect(detail.effectiveNextDate == expectedNext)
         #expect(detail.status == .scheduled)
@@ -125,7 +125,7 @@ struct ScheduleAdvancementTests {
                 nextDayID: upcoming, amount: -10_000
             )
         )
-        let review = try await fixture.database.scheduleMutationReview(budgetID: Self.budgetID, scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: Self.budgetID, scheduleID: "rent", in: fixture.database)
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .autoupdatingCurrent
         let draft = TransactionDraft(
@@ -134,22 +134,23 @@ struct ScheduleAdvancementTests {
             amountMinorUnits: -10_000, payeeID: nil, payeeName: "", categoryID: nil, notes: nil,
             cleared: false, isTransfer: false, scheduleID: "rent"
         )
-        #expect(try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
             .detail(id: "rent")?.status == .upcoming)
 
-        _ = try await fixture.database.postScheduleOccurrence(
-            review: review, draft: draft, transactionID: "early", postedDayID: upcoming, asOf: Self.today
+        _ = try await SchedulePostingSQL.postScheduleOccurrence(
+            review: review, draft: draft, transactionID: "early", postedDayID: upcoming, asOf: Self.today,
+            in: fixture.database
         )
         #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
         #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
         let advanced = try #require(
-            try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today).detail(id: "rent")
+            try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database).detail(id: "rent")
         )
         #expect(advanced.effectiveNextDate == following)
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: upcoming)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: upcoming, in: fixture.database)
         #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
     }
 
@@ -169,15 +170,15 @@ struct ScheduleAdvancementTests {
             )
         )
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: "2026-10-12")
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: "2026-10-12", in: fixture.database)
         #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
         #expect(try readInt("SELECT date FROM transactions WHERE schedule = 'rent'", fixture.url) == Self.packed(friday))
         let advanced = try #require(
-            try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: "2026-10-12").detail(id: "rent")
+            try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: "2026-10-12", in: fixture.database).detail(id: "rent")
         )
         #expect(advanced.effectiveNextDate == "2026-11-10")
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: "2026-11-10")
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: "2026-11-10", in: fixture.database)
         #expect(try scheduleTransactionCount("rent", fixture.url) == 2)
     }
 
@@ -189,12 +190,12 @@ struct ScheduleAdvancementTests {
             metadata: ["note": "retain-me"]
         )
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         #expect(try scheduleTransactionCount("rent", fixture.url) == 0)
         #expect(try metadataObject(beside: fixture.url)["lastScheduleRun"] as? String == Self.today)
         #expect(try metadataObject(beside: fixture.url)["note"] as? String == "retain-me")
-        #expect(try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
             .detail(id: "rent")?.account.availability == .closed)
     }
 
@@ -217,7 +218,7 @@ struct ScheduleAdvancementTests {
             metadata: ["note": "retain-me", "vendorExtension": ["keep": true]]
         )
 
-        let result = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        let result = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         #expect(try scheduleTransactionCount("rent", fixture.url) == 0)
         #expect(try scheduleTransactionCount("utilities", fixture.url) == 1)
@@ -266,7 +267,7 @@ struct ScheduleAdvancementTests {
             metadata: ["note": "retain-me"]
         )
 
-        let result = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        let result = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         #expect(try scheduleTransactionCount("rent", fixture.url) == 0)
         #expect(try scheduleTransactionCount("utilities", fixture.url) == 1)
@@ -286,7 +287,7 @@ struct ScheduleAdvancementTests {
             metadata: ["note": "retain-me"]
         )
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         #expect(try scheduleTransactionCount("rent", fixture.url) == 0)
         #expect(try scheduleTransactionCount("utilities", fixture.url) == 0)
@@ -307,7 +308,7 @@ struct ScheduleAdvancementTests {
             metadata: ["note": "retain-me"]
         )
 
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         #expect(try scheduleTransactionCount("rent", fixture.url) == 1)
         let queue = try DatabaseQueue(path: fixture.url.path)

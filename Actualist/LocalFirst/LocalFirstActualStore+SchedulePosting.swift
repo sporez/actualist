@@ -79,7 +79,7 @@ extension LocalFirstActualStore {
     ) async throws -> SchedulePostingReview {
         let session = try scheduleMutationSessionContext(budgetID: budgetID)
         let database = try requireDatabase(for: budgetID)
-        let mutation = try await database.scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID)
+        let mutation = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID, in: database)
         try requireSchedulePostingSession(session, database: database)
         return SchedulePostingReview(session: session, mutation: mutation)
     }
@@ -117,9 +117,10 @@ extension LocalFirstActualStore {
         )
         try requireSchedulePostingSession(session, database: database)
 
-        let currentReview = try await database.scheduleMutationReview(
+        let currentReview = try await ScheduleReviewSQL.scheduleMutationReview(
             budgetID: session.budgetID,
-            scheduleID: review.mutation.scheduleID
+            scheduleID: review.mutation.scheduleID,
+            in: database
         )
         try requireSchedulePostingSession(session, database: database)
         guard currentReview == review.mutation else {
@@ -127,7 +128,7 @@ extension LocalFirstActualStore {
         }
 
         let today = ActualDateOnly.today()
-        let loaded = try await database.fetchSchedules(budgetID: session.budgetID, today: today)
+        let loaded = try await ScheduleSQL.fetchSchedules(budgetID: session.budgetID, today: today, in: database)
         try requireSchedulePostingSession(session, database: database)
         guard let detail = loaded.detail(id: review.mutation.scheduleID),
               detail.capabilities.canPost,
@@ -171,12 +172,13 @@ extension LocalFirstActualStore {
         onPhaseChange(.submitting)
         let writeReceipt: SchedulePostingWriteReceipt
         do {
-            writeReceipt = try await database.postScheduleOccurrence(
+            writeReceipt = try await SchedulePostingSQL.postScheduleOccurrence(
                 review: currentReview,
                 draft: baseDraft,
                 transactionID: transactionID,
                 postedDayID: postedDayID,
-                asOf: today
+                asOf: today,
+                in: database
             )
         } catch ScheduleMutationCommandError.reviewChanged {
             throw SchedulePostingError.reviewChanged

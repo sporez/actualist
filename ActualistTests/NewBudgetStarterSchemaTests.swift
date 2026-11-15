@@ -115,7 +115,7 @@ struct NewBudgetStarterSchemaTests {
             try db.execute(sql: "INSERT INTO accounts (id, name) VALUES ('checking', 'Checking')")
         }
 
-        let created = try await database.createSchedule(
+        let created = try await ScheduleEditSQL.createSchedule(
             ScheduleCreateCommand(
                 budgetID: "budget",
                 identity: ScheduleCreateIdentity(scheduleID: "sched", ruleID: "sched-rule", nextDateID: "sched-next"),
@@ -126,7 +126,8 @@ struct NewBudgetStarterSchemaTests {
                 ),
                 postsTransaction: false, customUpcomingLength: nil, asOfDayID: "2026-09-27"
             ),
-            now: Date(timeIntervalSince1970: 1_790_000_000)
+            now: Date(timeIntervalSince1970: 1_790_000_000),
+            in: database
         )
         #expect(created.kind == .created)
 

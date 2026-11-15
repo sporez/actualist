@@ -104,28 +104,29 @@ enum ScheduleStatefulReplay {
             let markerURL = await database.databaseURL.deletingLastPathComponent().appending(path: "metadata.json")
             try? FileManager.default.removeItem(at: markerURL)
             // `syncSuccess: false` is Actual's `advanceSchedulesService(false)`: advance paid occurrences, post nothing.
-            let result = try await database.advanceSchedules(
-                budgetID: budgetID, today: today, postingAllowed: args["syncSuccess"] as? Bool ?? true, now: now
+            let result = try await SchedulePostingSQL.advanceSchedules(
+                budgetID: budgetID, today: today, postingAllowed: args["syncSuccess"] as? Bool ?? true, now: now,
+                in: database
             )
             refusals = result.refusals.map { "\($0.scheduleID) \($0.occurrenceDayID) \($0.refusal)" }
         case "markScheduleRun":
             // An oracle input: the sync listener's end-of-run marker, not a production operation.
             try await writeScheduleRunMarker(today, database: database)
         case "skip":
-            let review = try await database.scheduleMutationReview(budgetID: budgetID, scheduleID: required(scheduleID))
-            _ = try await database.skipNextDate(review: review, now: now)
+            let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: budgetID, scheduleID: required(scheduleID), in: database)
+            _ = try await ScheduleEditSQL.skipNextDate(review: review, now: now, in: database)
         case "setNextDate":
             // Only the two replayable combinations reach here; see `stepOracleOnlyReason` in cases.mjs.
-            let review = try await database.scheduleMutationReview(budgetID: budgetID, scheduleID: required(scheduleID))
+            let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: budgetID, scheduleID: required(scheduleID), in: database)
             if args["reset"] as? Bool == true {
                 var fields = ScheduleEditFields()
                 fields.resetNextDate = true
-                _ = try await database.updateSchedule(review: review, fields: fields, asOfDayID: today, now: now)
+                _ = try await ScheduleEditSQL.updateSchedule(review: review, fields: fields, asOfDayID: today, now: now, in: database)
             } else {
-                _ = try await database.skipNextDate(review: review, now: now)
+                _ = try await ScheduleEditSQL.skipNextDate(review: review, now: now, in: database)
             }
         case "update":
-            let review = try await database.scheduleMutationReview(budgetID: budgetID, scheduleID: required(scheduleID))
+            let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: budgetID, scheduleID: required(scheduleID), in: database)
             let definition = try setupSchedule(setup, key: required(scheduleKey))
             var fields = ScheduleEditFields()
             if let date = args["date"] {
@@ -136,7 +137,7 @@ enum ScheduleStatefulReplay {
                 fields.amount = .set(definition["amountOp"] as? String == "isapprox" ? .approximate(amount) : .exact(amount))
             }
             fields.resetNextDate = args["resetNextDate"] as? Bool ?? false
-            _ = try await database.updateSchedule(review: review, fields: fields, asOfDayID: today, now: now)
+            _ = try await ScheduleEditSQL.updateSchedule(review: review, fields: fields, asOfDayID: today, now: now, in: database)
         case "post":
             try await post(database, scheduleID: required(scheduleID), today: today, postsToday: args["todayDate"] as? Bool ?? false, now: now)
         default:
@@ -153,8 +154,8 @@ enum ScheduleStatefulReplay {
         postsToday: Bool,
         now: Date
     ) async throws {
-        let review = try await database.scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID)
-        guard let detail = try await database.fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today),
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID, in: database)
+        guard let detail = try await ScheduleSQL.fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today, in: database),
               let accountID = detail.account.id,
               let amount = detail.amount.postingAmount,
               let scheduled = detail.effectiveNextDate else {
@@ -181,13 +182,14 @@ enum ScheduleStatefulReplay {
             isTransfer: false,
             scheduleID: detail.id
         )
-        _ = try await database.postScheduleOccurrence(
+        _ = try await SchedulePostingSQL.postScheduleOccurrence(
             review: review,
             draft: draft,
             transactionID: UUID().uuidString,
             postedDayID: postedDayID,
             asOf: today,
-            now: now
+            now: now,
+            in: database
         )
     }
 
@@ -234,7 +236,7 @@ enum ScheduleStatefulReplay {
                 asOfDayID: createdOn
             )
             do {
-                _ = try await database.createSchedule(command, now: try ScheduleOracleFixture.noon(createdOn))
+                _ = try await ScheduleEditSQL.createSchedule(command, now: try ScheduleOracleFixture.noon(createdOn), in: database)
             } catch let error as ScheduleMutationCommandError {
                 failures.append("\(key) threw \(error)")
             }
@@ -378,7 +380,7 @@ enum ScheduleStatefulReplay {
         var fields: [String: OracleValue] = [:]
         fields["schedules"] = raw.schedules
         fields["nextDates"] = raw.nextDates
-        let loaded = try await database.fetchSchedules(budgetID: budgetID, today: today)
+        let loaded = try await ScheduleSQL.fetchSchedules(budgetID: budgetID, today: today, in: database)
         var effective: [String: OracleValue] = [:]
         for detail in loaded.detailsByID.values {
             effective[detail.id] = .object([

@@ -120,7 +120,7 @@ enum ScheduleRecurrenceReplay {
 // MARK: Status
 
 /// Replays `getStatus` and `getUpcomingDays` through `ScheduleStatus.resolve` and `ScheduleUpcomingLength.days`.
-/// These are exactly the calls `BudgetDatabase.fetchSchedules(budgetID:today:)` makes for each schedule (with the
+/// These are exactly the calls `ScheduleSQL.fetchSchedules(budgetID:today:in:)` makes for each schedule (with the
 /// stored `upcomingLength`, or "7" when no preference is stored), so the pure call is the read path's own logic.
 enum ScheduleStatusReplay {
     static func replay(_ entry: [String: Any]) throws -> [ReplayMismatch] {
@@ -158,7 +158,7 @@ enum ScheduleStatusReplay {
 // MARK: Conversion
 
 /// Replays the web app's `createSingleTimeScheduleFromTransaction` through `ScheduleTransactionConversionPlanner`,
-/// the whole schedule definition `BudgetDatabase.convertFutureTransaction` stores. The oracle's `send` calls are the
+/// the whole schedule definition `ScheduleConversionSQL.convertFutureTransaction` stores. The oracle's `send` calls are the
 /// expected values: `schedule/create` carries the conditions, name and `posts_transaction`; `rule-update` carries
 /// the server's `link-schedule` entries followed by the copied fields (no `rule-update` when nothing is copied). The
 /// link is compared by `op` and `value`; its `field` and `type` are added by the server's `createSchedule`, which

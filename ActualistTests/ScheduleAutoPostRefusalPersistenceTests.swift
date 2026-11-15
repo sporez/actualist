@@ -28,49 +28,50 @@ struct ScheduleAutoPostRefusalPersistenceTests {
     @Test func aFinishedRunStoresRefusalsAndAReopenedDatabaseReadsThem() async throws {
         let fixture = try refusedFixture()
 
-        let result = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        let result = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         #expect(result.refusalsReplaced)
-        #expect(try await fixture.database.scheduleAutoPostRefusals() == [refusal()])
+        #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: fixture.database) == [refusal()])
         let reopened = try BudgetDatabase(databaseURL: fixture.url, localNodeID: "reopened-node")
-        #expect(try await reopened.scheduleAutoPostRefusals() == [refusal()])
+        #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: reopened) == [refusal()])
     }
 
     @Test func aNewSuccessfulRunReplacesTheStoredSet() async throws {
         let fixture = try refusedFixture()
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
         // The next day's run refuses the same missed occurrence again; the set is replaced, not appended.
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: "2026-10-01")
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: "2026-10-01", in: fixture.database)
 
-        #expect(try await fixture.database.scheduleAutoPostRefusals() == [refusal(day: "2026-09-30")])
+        #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: fixture.database) == [refusal(day: "2026-09-30")])
     }
 
     @Test func aFailedSyncRunKeepsTheStoredRefusals() async throws {
         let fixture = try refusedFixture()
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
-        _ = try await fixture.database.advanceSchedules(
-            budgetID: Self.budgetID, today: "2026-10-01", postingAllowed: false
+        _ = try await SchedulePostingSQL.advanceSchedules(
+            budgetID: Self.budgetID, today: "2026-10-01", postingAllowed: false,
+            in: fixture.database
         )
 
-        #expect(try await fixture.database.scheduleAutoPostRefusals() == [refusal()])
+        #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: fixture.database) == [refusal()])
     }
 
     @Test func removalDeletesOnlyTheExactOccurrence() async throws {
         let fixture = try refusedFixture()
-        _ = try await fixture.database.advanceSchedules(budgetID: Self.budgetID, today: Self.today)
+        _ = try await SchedulePostingSQL.advanceSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
 
-        try await fixture.database.removeScheduleAutoPostRefusals([refusal(day: "2026-09-01")])
-        #expect(try await fixture.database.scheduleAutoPostRefusals() == [refusal()])
-        try await fixture.database.removeScheduleAutoPostRefusals([refusal()])
-        #expect(try await fixture.database.scheduleAutoPostRefusals().isEmpty)
+        try await SchedulePostingSQL.removeScheduleAutoPostRefusals([refusal(day: "2026-09-01")], in: fixture.database)
+        #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: fixture.database) == [refusal()])
+        try await SchedulePostingSQL.removeScheduleAutoPostRefusals([refusal()], in: fixture.database)
+        #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: fixture.database).isEmpty)
     }
 
     @Test func aBudgetWithoutTheTableReadsNoRefusals() async throws {
         let fixture = try helpers.makeDatabase()
-        #expect(try await fixture.database.scheduleAutoPostRefusals().isEmpty)
-        try await fixture.database.removeScheduleAutoPostRefusals([refusal()])
+        #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: fixture.database).isEmpty)
+        try await SchedulePostingSQL.removeScheduleAutoPostRefusals([refusal()], in: fixture.database)
     }
 
     @Test func everyRefusalReasonRoundTripsThroughItsRawValue() {
@@ -92,7 +93,7 @@ struct ScheduleAutoPostRefusalPersistenceTests {
         let fixture = try helpers.makeDatabase(extraSQL: present ? helpers.oneTimeScheduleSQL(
             scheduleID: "rent", dayID: nextDate ?? Self.today, amount: -10_000, actionsJSON: Self.deletingActions
         ) + (completed ? "UPDATE schedules SET completed = 1 WHERE id = 'rent';" : "") : "")
-        let schedules = try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        let schedules = try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
         if present { #expect(schedules.detail(id: "rent")?.status == status) }
         return schedules
     }
@@ -125,7 +126,7 @@ struct ScheduleAutoPostRefusalPersistenceTests {
             extraSQL: helpers.oneTimeScheduleSQL(scheduleID: "rent", dayID: Self.today, amount: -10_000)
                 + "INSERT INTO transactions (id, acct, date, amount, schedule) VALUES ('t', 'checking', 20260930, -10000, 'rent');"
         )
-        let schedules = try await fixture.database.fetchSchedules(budgetID: Self.budgetID, today: Self.today)
+        let schedules = try await ScheduleSQL.fetchSchedules(budgetID: Self.budgetID, today: Self.today, in: fixture.database)
         #expect(schedules.detail(id: "rent")?.status == .paid)
         #expect(ScheduleAutoPostRefusalReconciler.retained([refusal()], in: schedules).isEmpty)
     }
@@ -184,7 +185,7 @@ struct ScheduleAutoPostRefusalStoreTests {
         _ = try await store.refreshSchedules(budgetID: "group-1", asOf: TestLocalDay.today())
 
         #expect(store.scheduleAutoPostRefusals.isEmpty)
-        #expect(try await database.scheduleAutoPostRefusals().isEmpty)
+        #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: database).isEmpty)
     }
 
     @Test func resetClearsInMemoryRefusalsWithoutLeakingThemIntoAnotherBudget() async throws {
@@ -202,6 +203,6 @@ struct ScheduleAutoPostRefusalStoreTests {
         #expect(store.scheduleAutoPostRefusals.isEmpty)
         // Another budget is another database file, which has no such table rows.
         let other = try BudgetDatabase(databaseURL: try support.makeSQLiteFixture(), localNodeID: "other")
-        #expect(try await other.scheduleAutoPostRefusals().isEmpty)
+        #expect(try await SchedulePostingSQL.scheduleAutoPostRefusals(in: other).isEmpty)
     }
 }

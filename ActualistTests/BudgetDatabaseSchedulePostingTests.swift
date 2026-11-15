@@ -10,15 +10,16 @@ struct BudgetDatabaseSchedulePostingTests {
 
     @Test func scheduledPostPersistsScheduleIdentityOutboxAndHistoryInOneCommit() async throws {
         let fixture = try makeFixture()
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
 
-        let receipt = try await fixture.database.postScheduleOccurrence(
+        let receipt = try await SchedulePostingSQL.postScheduleOccurrence(
             review: review,
             draft: draft(),
             transactionID: "posted",
             postedDayID: Self.today,
             asOf: Self.today,
-            now: Self.noon
+            now: Self.noon,
+            in: fixture.database
         )
 
         #expect(receipt.transactionID == "posted")
@@ -26,17 +27,18 @@ struct BudgetDatabaseSchedulePostingTests {
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'posted'", fixture.url) == 1)
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'posted' AND schedule = 'rent'", fixture.url) == 1)
         #expect(try readInt("SELECT COUNT(*) FROM actualist_outbox", fixture.url) == receipt.appliedMessageCount)
-        #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "budget", today: Self.today, in: fixture.database)
             .detail(id: "rent")?.status == .paid)
 
         await #expect(throws: SchedulePostingRefusal.self) {
-            try await fixture.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: review,
                 draft: draft(),
                 transactionID: "duplicate",
                 postedDayID: Self.today,
                 asOf: Self.today,
-                now: Self.noon
+                now: Self.noon,
+                in: fixture.database
             )
         }
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE schedule = 'rent'", fixture.url) == 1)
@@ -47,25 +49,27 @@ struct BudgetDatabaseSchedulePostingTests {
             INSERT INTO transactions (id, acct, date, amount, category, tombstone, schedule)
             VALUES ('peer-posted', 'checking', \(Self.packedToday), -10000, NULL, 0, 'rent');
             """)
-        let paidReview = try await paid.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let paidReview = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: paid.database)
         let before = try readInt("SELECT COUNT(*) FROM messages_crdt", paid.url)
         await #expect(throws: SchedulePostingRefusal.self) {
-            try await paid.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: paidReview, draft: draft(), transactionID: "duplicate",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: paid.database
             )
         }
         #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", paid.url) == before)
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'duplicate'", paid.url) == 0)
 
         let stale = try makeFixture()
-        let review = try await stale.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: stale.database)
         try execute(stale.url, sql: "UPDATE rules SET actions = '[{\"op\":\"link-schedule\",\"value\":\"rent\",\"remote\":true}]' WHERE id = 'rent-rule'")
         let staleBefore = try readInt("SELECT COUNT(*) FROM messages_crdt", stale.url)
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await stale.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: review, draft: draft(), transactionID: "stale",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: stale.database
             )
         }
         #expect(try readInt("SELECT COUNT(*) FROM messages_crdt", stale.url) == staleBefore)
@@ -73,7 +77,7 @@ struct BudgetDatabaseSchedulePostingTests {
 
     @Test func draftDateMismatchThrowsTypedRefusalWithoutInternalText() async throws {
         let fixture = try makeFixture()
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
         var mismatched = draft()
         mismatched = TransactionDraft(
             accountID: mismatched.accountID,
@@ -85,9 +89,10 @@ struct BudgetDatabaseSchedulePostingTests {
         let before = try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url)
 
         await #expect(throws: SchedulePostingRefusal.draftMismatch) {
-            try await fixture.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: review, draft: mismatched, transactionID: "mismatch",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: fixture.database
             )
         }
 
@@ -106,13 +111,14 @@ struct BudgetDatabaseSchedulePostingTests {
                 '[{"op":"set","field":"category","value":"gone","type":"id"}]', 'and', 0
             );
             """)
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
         let messagesBefore = try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url)
 
         await #expect(throws: SchedulePostingRefusal.referencedRowUnavailable) {
-            try await fixture.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: review, draft: draft(), transactionID: "gone-category",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: fixture.database
             )
         }
 
@@ -122,7 +128,7 @@ struct BudgetDatabaseSchedulePostingTests {
 
     @Test func transferIntoClosedAccountRefusesAsReferencedRowUnavailable() async throws {
         let fixture = try makeFixture(extraSQL: "UPDATE accounts SET closed = 1 WHERE id = 'credit';")
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
         let transfer = TransactionDraft(
             accountID: "checking", date: Self.date, amountMinorUnits: -10_000,
             payeeID: "xfer-credit", payeeName: "", categoryID: nil, notes: nil,
@@ -130,9 +136,10 @@ struct BudgetDatabaseSchedulePostingTests {
         )
 
         await #expect(throws: SchedulePostingRefusal.referencedRowUnavailable) {
-            try await fixture.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: review, draft: transfer, transactionID: "closed-transfer",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: fixture.database
             )
         }
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'closed-transfer'", fixture.url) == 0)
@@ -146,17 +153,19 @@ struct BudgetDatabaseSchedulePostingTests {
 
     @Test func concurrentSameClientPostsCommitAtMostOneOccurrence() async throws {
         let fixture = try makeFixture()
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
         let first = Task {
-            try await fixture.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: review, draft: draft(), transactionID: "first",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: fixture.database
             )
         }
         let second = Task {
-            try await fixture.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: review, draft: draft(), transactionID: "second",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: fixture.database
             )
         }
         let firstSucceeded = (try? await first.value) != nil
@@ -181,7 +190,7 @@ struct BudgetDatabaseSchedulePostingTests {
                 '[{"op":"set","field":"category","value":"groceries","type":"id"}]', 'and', 0
             );
             """)
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
         let baseDraft = draft()
         let oldPreview = try await fixture.database.previewRules(for: baseDraft)
         #expect(oldPreview.categoryID == "groceries")
@@ -191,9 +200,10 @@ struct BudgetDatabaseSchedulePostingTests {
             sql: "UPDATE rules SET actions = '[{\"op\":\"set\",\"field\":\"category\",\"value\":\"utilities\",\"type\":\"id\"}]' WHERE id = 'mutable-category-rule'"
         )
 
-        let receipt = try await fixture.database.postScheduleOccurrence(
+        let receipt = try await SchedulePostingSQL.postScheduleOccurrence(
             review: review, draft: baseDraft, transactionID: "rule-changed",
-            postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+            in: fixture.database
         )
 
         #expect(receipt.occurrenceDayID == Self.today)
@@ -203,7 +213,7 @@ struct BudgetDatabaseSchedulePostingTests {
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'rule-changed' AND category = 'utilities' AND date = \(packedShiftedDate)", fixture.url) == 1)
         // Actual's schedule status query uses a lower date bound, not an
         // occurrence-date upper bound; a rule-shifted later transaction pays it.
-        #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "budget", today: Self.today, in: fixture.database)
             .detail(id: "rent")?.status == .paid)
     }
 
@@ -212,12 +222,13 @@ struct BudgetDatabaseSchedulePostingTests {
     @Test func postTodayForUpcomingExactOccurrenceIsAcceptedAndLeavesItUnpaid() async throws {
         let occurrence = Self.dayID(afterToday: 3)
         let fixture = try makeFixture(extraSQL: Self.moveNextDateSQL(to: occurrence))
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
         let historyBefore = try readOptionalTableCount("actualist_action_log", fixture.url) ?? 0
 
-        let receipt = try await fixture.database.postScheduleOccurrence(
+        let receipt = try await SchedulePostingSQL.postScheduleOccurrence(
             review: review, draft: draft(), transactionID: "early-today",
-            postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+            in: fixture.database
         )
 
         #expect(receipt.occurrenceDayID == occurrence)
@@ -225,46 +236,49 @@ struct BudgetDatabaseSchedulePostingTests {
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'early-today' AND schedule = 'rent'", fixture.url) == 1)
         #expect(try readInt("SELECT COUNT(*) FROM actualist_outbox", fixture.url) == receipt.appliedMessageCount)
         #expect(try readOptionalTableCount("actualist_action_log", fixture.url) == historyBefore + 1)
-        #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "budget", today: Self.today, in: fixture.database)
             .detail(id: "rent")?.status == .upcoming)
     }
 
     @Test func farFutureScheduleCanPostTodayAndScheduledDateButCompletedCannot() async throws {
         let occurrence = Self.dayID(afterToday: 40)
         let fixture = try makeFixture(extraSQL: Self.moveNextDateSQL(to: occurrence))
-        let initial = try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+        let initial = try await ScheduleSQL.fetchSchedules(budgetID: "budget", today: Self.today, in: fixture.database)
         #expect(initial.detail(id: "rent")?.status == .scheduled)
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
 
         let future = TransactionDraft(
             accountID: "checking", date: Self.date(of: occurrence),
             amountMinorUnits: -10_000, payeeID: nil, payeeName: "",
             categoryID: nil, notes: nil, cleared: false, isTransfer: false, scheduleID: "rent"
         )
-        let today = try await fixture.database.postScheduleOccurrence(
+        let today = try await SchedulePostingSQL.postScheduleOccurrence(
             review: review, draft: draft(), transactionID: "far-today",
-            postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+            in: fixture.database
         )
         #expect(today.postedDayID == Self.today)
-        #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "budget", today: Self.today, in: fixture.database)
             .detail(id: "rent")?.status == .scheduled)
 
-        let onDate = try await fixture.database.postScheduleOccurrence(
+        let onDate = try await SchedulePostingSQL.postScheduleOccurrence(
             review: review, draft: future, transactionID: "far-date",
-            postedDayID: occurrence, asOf: Self.today, now: Self.noon
+            postedDayID: occurrence, asOf: Self.today, now: Self.noon,
+            in: fixture.database
         )
         #expect(onDate.postedDayID == occurrence)
-        #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "budget", today: Self.today, in: fixture.database)
             .detail(id: "rent")?.status == .paid)
 
         let completed = try makeFixture(
             extraSQL: Self.moveNextDateSQL(to: occurrence) + "UPDATE schedules SET completed = 1 WHERE id = 'rent';"
         )
-        let completedReview = try await completed.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let completedReview = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: completed.database)
         await #expect(throws: SchedulePostingRefusal.occurrenceUnavailable) {
-            try await completed.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: completedReview, draft: draft(), transactionID: "completed",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: completed.database
             )
         }
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'completed'", completed.url) == 0)
@@ -273,23 +287,25 @@ struct BudgetDatabaseSchedulePostingTests {
     @Test func approximateManualPostingAtTwoDayLookbackBoundaryIsAccepted() async throws {
         let occurrence = Self.dayID(afterToday: 2)
         let fixture = try makeFixture(extraSQL: Self.approximateDateSQL(occurrence: occurrence))
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
 
-        let receipt = try await fixture.database.postScheduleOccurrence(
+        let receipt = try await SchedulePostingSQL.postScheduleOccurrence(
             review: review, draft: draft(), transactionID: "approximate-boundary",
-            postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+            in: fixture.database
         )
 
         #expect(receipt.occurrenceDayID == occurrence)
         #expect(receipt.postedDayID == Self.today)
-        #expect(try await fixture.database.fetchSchedules(budgetID: "budget", today: Self.today)
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "budget", today: Self.today, in: fixture.database)
             .detail(id: "rent")?.status == .paid)
 
         let messagesAfterPost = try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url)
         await #expect(throws: SchedulePostingRefusal.self) {
-            try await fixture.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: review, draft: draft(), transactionID: "approximate-repeat",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: fixture.database
             )
         }
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE schedule = 'rent'", fixture.url) == 1)
@@ -300,7 +316,7 @@ struct BudgetDatabaseSchedulePostingTests {
         let splitFixture = try makeFixture(extraSQL: """
             INSERT INTO categories VALUES ('utilities', 'Utilities', 'group', 0, 0, 0, 2);
             """)
-        let splitReview = try await splitFixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let splitReview = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: splitFixture.database)
         let split = TransactionDraft(
             accountID: "checking", date: Self.date, amountMinorUnits: -10_000,
             payeeID: nil, payeeName: "", categoryID: nil, notes: "memo",
@@ -309,23 +325,25 @@ struct BudgetDatabaseSchedulePostingTests {
                      TransactionSplitDraft(id: nil, categoryID: "utilities", categoryName: nil, amountMinorUnits: -6_000)],
             scheduleID: "rent"
         )
-        _ = try await splitFixture.database.postScheduleOccurrence(
+        _ = try await SchedulePostingSQL.postScheduleOccurrence(
             review: splitReview, draft: split, transactionID: "split-parent",
-            postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+            in: splitFixture.database
         )
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'split-parent' AND schedule = 'rent'", splitFixture.url) == 1)
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE parent_id = 'split-parent' AND schedule IS NOT NULL", splitFixture.url) == 0)
 
         let transferFixture = try makeFixture()
-        let transferReview = try await transferFixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let transferReview = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: transferFixture.database)
         let transfer = TransactionDraft(
             accountID: "checking", date: Self.date, amountMinorUnits: -10_000,
             payeeID: "xfer-credit", payeeName: "Credit Card", categoryID: nil, notes: nil,
             cleared: false, isTransfer: true, scheduleID: "rent"
         )
-        _ = try await transferFixture.database.postScheduleOccurrence(
+        _ = try await SchedulePostingSQL.postScheduleOccurrence(
             review: transferReview, draft: transfer, transactionID: "transfer-source",
-            postedDayID: Self.today, asOf: Self.today, now: Self.noon
+            postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+            in: transferFixture.database
         )
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE id = 'transfer-source' AND schedule = 'rent'", transferFixture.url) == 1)
         #expect(try readInt("SELECT COUNT(*) FROM transactions WHERE transferred_id = 'transfer-source' AND schedule = 'rent'", transferFixture.url) == 1)
@@ -339,16 +357,17 @@ struct BudgetDatabaseSchedulePostingTests {
             """)
         // Another live schedule's rule is skipped for an attached transaction.
         // An unowned post-stage rule instead relinks after rent's forced rule.
-        let reassignedReview = try await reassignedTransferFixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let reassignedReview = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: reassignedTransferFixture.database)
         let transferMessagesBefore = try readInt("SELECT COUNT(*) FROM messages_crdt", reassignedTransferFixture.url)
         let transferRowsBefore = try readInt("SELECT COUNT(*) FROM transactions", reassignedTransferFixture.url)
         let transferOutboxBefore = try readOptionalTableCount("actualist_outbox", reassignedTransferFixture.url)
         let transferHistoryBefore = try readOptionalTableCount("actualist_action_log", reassignedTransferFixture.url)
         let transferClockBefore = await reassignedTransferFixture.database.localClock
         let errorMessage = try await rejectionMessage {
-            try await reassignedTransferFixture.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: reassignedReview, draft: transfer, transactionID: "reassigned-transfer",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: reassignedTransferFixture.database
             )
         }
         #expect(errorMessage.contains("changed the transaction's schedule link"))
@@ -362,7 +381,7 @@ struct BudgetDatabaseSchedulePostingTests {
 
     @Test func graphFailureRollsBackTransactionMessagesOutboxAndHistory() async throws {
         let fixture = try makeFixture()
-        let review = try await fixture.database.scheduleMutationReview(budgetID: "budget", scheduleID: "rent")
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
         try execute(fixture.url, sql: """
             CREATE TRIGGER reject_schedule_post BEFORE INSERT ON transactions
             WHEN NEW.id = 'posted'
@@ -371,9 +390,10 @@ struct BudgetDatabaseSchedulePostingTests {
         let before = try readInt("SELECT COUNT(*) FROM messages_crdt", fixture.url)
 
         await #expect(throws: LocalFirstError.self) {
-            try await fixture.database.postScheduleOccurrence(
+            try await SchedulePostingSQL.postScheduleOccurrence(
                 review: review, draft: draft(), transactionID: "posted",
-                postedDayID: Self.today, asOf: Self.today, now: Self.noon
+                postedDayID: Self.today, asOf: Self.today, now: Self.noon,
+                in: fixture.database
             )
         }
 

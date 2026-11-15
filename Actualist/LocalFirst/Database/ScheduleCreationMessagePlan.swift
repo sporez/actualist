@@ -16,25 +16,29 @@ struct ScheduleCreationMessagePlanRequest: Sendable {
 /// transaction conversion. Callers supply their own raw rule JSON semantics.
 /// Like Actual's `db.insert`, no message names the `id` column: the CRDT row id
 /// is the identity and applying the first field message creates the row.
-extension BudgetDatabase {
-    func scheduleCreationMessages(
+enum ScheduleCreationMessagePlan {
+    static func scheduleCreationMessages(
         _ request: ScheduleCreationMessagePlanRequest,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [ActualSyncDecodedMessage] {
-        let scheduleColumns = try scheduleRequiredColumns(
+        let scheduleColumns = try ScheduleReviewSQL.scheduleRequiredColumns(
             table: "schedules",
             required: ["id", "rule", "completed", "posts_transaction", "tombstone"],
+            in: database,
             db: db
         )
-        let ruleColumns = try scheduleRequiredColumns(
+        let ruleColumns = try ScheduleReviewSQL.scheduleRequiredColumns(
             table: "rules",
             required: ["id", "conditions", "actions", "tombstone"],
+            in: database,
             db: db
         )
-        _ = try scheduleRequiredColumns(
+        _ = try ScheduleReviewSQL.scheduleRequiredColumns(
             table: "schedules_next_date",
             required: ["id", "schedule_id", "local_next_date", "local_next_date_ts", "base_next_date", "base_next_date_ts", "tombstone"],
+            in: database,
             db: db
         )
         let ids = [request.identity.scheduleID, request.identity.ruleID, request.identity.nextDateID]
@@ -42,7 +46,7 @@ extension BudgetDatabase {
             throw ScheduleMutationCommandError.invalidCommand("Schedule identifiers are invalid.")
         }
         for (table, id) in zip(["schedules", "rules", "schedules_next_date"], ids)
-        where try rowExists(table: table, rowID: id, db: db) {
+        where try database.rowExists(table: table, rowID: id, db: db) {
             throw ScheduleMutationCommandError.identityConflict
         }
 
@@ -87,7 +91,7 @@ extension BudgetDatabase {
             ))
         }
         let timestamp = Int64((request.now.timeIntervalSince1970 * 1_000).rounded(.towardZero))
-        let dateValue = try request.nextDate.map { try scheduleDateValue($0) } ?? .null
+        let dateValue = try request.nextDate.map { try ScheduleEditSQL.scheduleDateValue($0) } ?? .null
         messages += [
             try builder.makeMessage(dataset: "schedules_next_date", row: request.identity.nextDateID,
                                     column: "schedule_id", value: .string(request.identity.scheduleID)),
@@ -104,7 +108,7 @@ extension BudgetDatabase {
         return messages
     }
 
-    private func scheduleRuleMessages(
+    private static func scheduleRuleMessages(
         ruleID: String,
         conditionsJSON: String,
         actionsJSON: String,

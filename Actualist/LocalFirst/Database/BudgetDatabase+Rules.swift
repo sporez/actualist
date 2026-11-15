@@ -76,7 +76,7 @@ extension BudgetDatabase {
     ) throws -> [TransactionRulePreview] {
         guard !drafts.isEmpty else { return [] }
         let rules = try fetchRules(db: db)
-        let schedules = try fetchRuleScheduleIndex(db: db)
+        let schedules = try ScheduleSQL.fetchRuleScheduleIndex(in: self, db: db)
         let metadata = try ruleEvaluationMetadata(db: db)
         let formulas = rules.compactMap { $0.executionDraft() }.flatMap(\.actions).compactMap { action -> String? in
             if case .string(let formula) = action.options?["formula"] { return formula }
@@ -206,7 +206,7 @@ extension BudgetDatabase {
                 WHERE \(predicateForLiveRows(columns: columns))
                 """
         )
-        let scheduleIndex = try fetchRuleScheduleIndex(db: db)
+        let scheduleIndex = try ScheduleSQL.fetchRuleScheduleIndex(in: self, db: db)
         let completedScheduleRuleIDs = scheduleIndex.completedRuleIDs
         let payeeTargets = try payeeMappingTargets(db: db)
         let decoder = JSONDecoder()

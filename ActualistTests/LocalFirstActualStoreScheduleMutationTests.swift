@@ -63,7 +63,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
             await expectCommandError(.reviewChanged) { _ = try await submission.value }
 
             #expect(try await database.pendingLocalSyncMessageCount() == 0)
-            #expect(try await database.fetchSchedules(budgetID: "group-1", today: "2026-09-27")
+            #expect(try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: "2026-09-27", in: database)
                 .detail(id: "rent")?.name == "Rent")
         } catch {
             submission.cancel()
@@ -104,7 +104,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
             gate.release()
             await #expect(throws: CancellationError.self) { _ = try await submission.value }
             #expect(try await database.pendingLocalSyncMessageCount() == 0)
-            #expect(try await database.fetchSchedules(budgetID: "group-1", today: "2026-09-27")
+            #expect(try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: "2026-09-27", in: database)
                 .detail(id: "rent")?.name == "Rent")
         } catch {
             submission.cancel()
@@ -166,7 +166,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
                 now: date(2026, 9, 27)
             )
         }
-        #expect(try await database.fetchSchedules(budgetID: "group-1", today: "2026-09-27")
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: "2026-09-27", in: database)
             .detail(id: "rent")?.name == "Rent")
     }
 
@@ -237,7 +237,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         #expect(failedRefresh.receipt.kind == .updated)
         #expect(failedRefresh.refreshPending)
         #expect(store.cachedSchedules(budgetID: "group-1") == nil)
-        #expect(try await database.fetchSchedules(budgetID: "group-1", today: "2026-09-27")
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: "2026-09-27", in: database)
             .detail(id: "rent")?.name == "Rent Updated")
     }
 
@@ -261,7 +261,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
 
         #expect(outcome.receipt.kind == .updated)
         #expect(outcome.refreshPending)
-        #expect(try await database.fetchSchedules(budgetID: "group-1", today: "2026-09-27")
+        #expect(try await ScheduleSQL.fetchSchedules(budgetID: "group-1", today: "2026-09-27", in: database)
             .detail(id: "rent")?.name == "Committed")
         #expect(store.cachedSchedules(budgetID: "group-1") == nil)
     }

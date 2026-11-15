@@ -26,14 +26,16 @@ struct BudgetDatabaseScheduleWriteTests {
             conditions: "{not-json",
             actions: #"[{"op":"link-schedule","value":"schedule","future":true}]"#
         )
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        let result = try await fixture.database.updateSchedule(
+        let result = try await ScheduleEditSQL.updateSchedule(
             review: review,
             fields: ScheduleEditFields(name: .set("  Updated  ")),
             asOfDayID: "2026-09-27",
-            now: date(2026, 9, 27)
+            now: date(2026, 9, 27),
+            in: fixture.database
         )
 
         #expect(result.kind == .updated)
@@ -49,14 +51,16 @@ struct BudgetDatabaseScheduleWriteTests {
         let conditions = #"[{"op":"is","field":"account","value":"checking","futureCondition":7},{"op":"is","field":"amount","value":-100,"futureAmount":true},{"op":"is","field":"date","value":"2026-10-01","futureDate":[true,2]}]"#
         let actions = #"[{"op":"link-schedule","value":"schedule","futureLink":"keep"},{"op":"set","field":"amount","value":-100,"custom":"keep"},{"op":"set","field":"amount","value":-5,"options":{"formula":"=1+1"},"other":true}]"#
         let fixture = try makeFixture(conditions: conditions, actions: actions)
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        _ = try await fixture.database.updateSchedule(
+        _ = try await ScheduleEditSQL.updateSchedule(
             review: review,
             fields: ScheduleEditFields(amount: .set(.exact(-250))),
             asOfDayID: "2026-09-27",
-            now: date(2026, 9, 27)
+            now: date(2026, 9, 27),
+            in: fixture.database
         )
 
         let updatedConditions = try #require(try readString("SELECT conditions FROM rules WHERE id = 'rule'", fixture.url))
@@ -92,14 +96,16 @@ struct BudgetDatabaseScheduleWriteTests {
                     """
                 let actions = #"[{"op":"link-schedule","value":"schedule"},{"op":"set","field":"amount","value":-100,"custom":true}]"#
                 let fixture = try makeFixture(conditions: conditions, actions: actions)
-                let review = try await fixture.database.scheduleMutationReview(
-                    budgetID: "budget", scheduleID: "schedule"
+                let review = try await ScheduleReviewSQL.scheduleMutationReview(
+                    budgetID: "budget", scheduleID: "schedule",
+                    in: fixture.database
                 )
-                _ = try await fixture.database.updateSchedule(
+                _ = try await ScheduleEditSQL.updateSchedule(
                     review: review,
                     fields: ScheduleEditFields(amount: .set(draft)),
                     asOfDayID: "2026-09-27",
-                    now: date(2026, 9, 27)
+                    now: date(2026, 9, 27),
+                    in: fixture.database
                 )
                 let conditionJSON = try #require(try readString("SELECT conditions FROM rules WHERE id = 'rule'", fixture.url))
                 let condition = try #require(JSONDecoder().decode([RuleCondition].self, from: Data(conditionJSON.utf8))
@@ -193,10 +199,11 @@ struct BudgetDatabaseScheduleWriteTests {
         let conditions = #"[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":{"start":"2026-10-02","frequency":"weekly","skipWeekend":true,"weekendSolveMode":"before"}}]"#
         let actions = #"[{"op":"link-schedule","value":"schedule"},{"op":"future-action","value":{"keep":true}}]"#
         let fixture = try makeFixture(conditions: conditions, actions: actions, nextDate: "2026-10-02")
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        let result = try await fixture.database.skipNextDate(review: review, now: date(2026, 9, 27))
+        let result = try await ScheduleEditSQL.skipNextDate(review: review, now: date(2026, 9, 27), in: fixture.database)
 
         #expect(result.kind == .skipped)
         #expect(try readString("SELECT local_next_date FROM schedules_next_date WHERE id = 'next'", fixture.url) == "20261009")
@@ -211,10 +218,11 @@ struct BudgetDatabaseScheduleWriteTests {
         // current next date, so nothing is written.
         let conditions = #"[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":{"start":"2026-09-25","frequency":"weekly","endMode":"on_date","endDate":"2026-10-02"}}]"#
         let fixture = try makeFixture(conditions: conditions, nextDate: "2026-10-02")
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        let result = try await fixture.database.skipNextDate(review: review, now: date(2026, 10, 3))
+        let result = try await ScheduleEditSQL.skipNextDate(review: review, now: date(2026, 10, 3), in: fixture.database)
 
         #expect(result.kind == .unchanged)
         #expect(result.appliedMessageCount == 0)
@@ -224,26 +232,30 @@ struct BudgetDatabaseScheduleWriteTests {
     @Test func dateResetChangesBaseOnlyWhenCalculatedDateDiffers() async throws {
         let conditions = #"[{"op":"is","field":"account","value":"checking"},{"op":"is","field":"amount","value":-100},{"op":"is","field":"date","value":{"start":"2026-09-27","frequency":"weekly"}}]"#
         let fixture = try makeFixture(conditions: conditions, nextDate: "2026-09-27")
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        let sameDate = try await fixture.database.updateSchedule(
+        let sameDate = try await ScheduleEditSQL.updateSchedule(
             review: review,
             fields: ScheduleEditFields(resetNextDate: true),
             asOfDayID: "2026-09-27",
-            now: date(2026, 10, 1)
+            now: date(2026, 10, 1),
+            in: fixture.database
         )
         #expect(sameDate.kind == .unchanged)
         #expect(try readString("SELECT base_next_date_ts FROM schedules_next_date WHERE id = 'next'", fixture.url) == "100")
 
-        let freshReview = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let freshReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        let changedDate = try await fixture.database.updateSchedule(
+        let changedDate = try await ScheduleEditSQL.updateSchedule(
             review: freshReview,
             fields: ScheduleEditFields(resetNextDate: true),
             asOfDayID: "2026-09-28",
-            now: date(2026, 10, 1)
+            now: date(2026, 10, 1),
+            in: fixture.database
         )
         #expect(changedDate.kind == .updated)
         #expect(try readString("SELECT base_next_date FROM schedules_next_date WHERE id = 'next'", fixture.url) == "20261004")
@@ -252,15 +264,17 @@ struct BudgetDatabaseScheduleWriteTests {
 
     @Test func completeIsOneTimeOnlyAndRepeatedReviewedCompleteIsNoOp() async throws {
         let fixture = try makeFixture(conditions: oneTimeConditions)
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        let completed = try await fixture.database.completeSchedule(review: review)
+        let completed = try await ScheduleEditSQL.completeSchedule(review: review, in: fixture.database)
         #expect(completed.kind == .completed)
-        let after = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let after = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        let noOp = try await fixture.database.completeSchedule(review: after)
+        let noOp = try await ScheduleEditSQL.completeSchedule(review: after, in: fixture.database)
         #expect(noOp.kind == .unchanged)
         #expect(noOp.appliedMessageCount == 0)
         #expect(try readString("SELECT completed FROM schedules WHERE id = 'schedule'", fixture.url) == "1")
@@ -269,13 +283,14 @@ struct BudgetDatabaseScheduleWriteTests {
     @Test func unchangedReviewedValuesDoNotAdvanceClockRevisionMessagesOutboxOrHistory() async throws {
         let fixture = try makeFixture()
         try installOutboxSentinel(fixture.url)
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
         let clockBefore = await fixture.database.localClock?.lastTimestamp
         let snapshotBefore = try databaseSnapshot(fixture.url)
         let revisionCallbackCountBefore = fixture.mutationRevisionCalls.value
-        let result = try await fixture.database.updateSchedule(
+        let result = try await ScheduleEditSQL.updateSchedule(
             review: review,
             fields: ScheduleEditFields(
                 name: .set("  Rent  "),
@@ -287,7 +302,8 @@ struct BudgetDatabaseScheduleWriteTests {
                 customUpcomingLength: .set(nil)
             ),
             asOfDayID: "2026-09-27",
-            now: date(2026, 9, 27)
+            now: date(2026, 9, 27),
+            in: fixture.database
         )
 
         #expect(result.kind == .unchanged)
@@ -307,8 +323,9 @@ struct BudgetDatabaseScheduleWriteTests {
     func atomicWriteFailureRollsBackEntitiesMessagesOutboxClockRevisionAndHistory(table: String) async throws {
         let fixture = try makeFixture()
         try installOutboxSentinel(fixture.url)
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
         let event = ["messages_crdt", "actualist_outbox"].contains(table) ? "INSERT" : "UPDATE"
         try execute(fixture.url, sql: """
@@ -319,7 +336,7 @@ struct BudgetDatabaseScheduleWriteTests {
         let before = try databaseSnapshot(fixture.url)
         let clockBefore = await fixture.database.localClock?.lastTimestamp
         await #expect(throws: LocalFirstError.self) {
-            try await fixture.database.updateSchedule(
+            try await ScheduleEditSQL.updateSchedule(
                 review: review,
                 fields: ScheduleEditFields(
                     name: .set("Changed"),
@@ -327,7 +344,8 @@ struct BudgetDatabaseScheduleWriteTests {
                     dateRule: .set(.oneTime(dayID: "2026-10-15", operation: "is"))
                 ),
                 asOfDayID: "2026-10-02",
-                now: date(2026, 9, 27)
+                now: date(2026, 9, 27),
+                in: fixture.database
             )
         }
 
@@ -340,33 +358,38 @@ struct BudgetDatabaseScheduleWriteTests {
 
     @Test func metadataAndCompletionWorkWithoutNextDateSchemaButDateWritesRefuseIt() async throws {
         let metadata = try makeFixture(includeNextDate: false)
-        let review = try await metadata.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: metadata.database
         )
-        let renamed = try await metadata.database.updateSchedule(
+        let renamed = try await ScheduleEditSQL.updateSchedule(
             review: review,
             fields: ScheduleEditFields(name: .set("Utilities")),
             asOfDayID: "2026-09-27",
-            now: date(2026, 9, 27)
+            now: date(2026, 9, 27),
+            in: metadata.database
         )
         #expect(renamed.kind == .updated)
 
-        let current = try await metadata.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let current = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: metadata.database
         )
-        let completed = try await metadata.database.completeSchedule(review: current)
+        let completed = try await ScheduleEditSQL.completeSchedule(review: current, in: metadata.database)
         #expect(completed.kind == .completed)
 
         let dateWrite = try makeFixture(includeNextDate: false)
-        let dateReview = try await dateWrite.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let dateReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: dateWrite.database
         )
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await dateWrite.database.updateSchedule(
+            try await ScheduleEditSQL.updateSchedule(
                 review: dateReview,
                 fields: ScheduleEditFields(resetNextDate: true),
                 asOfDayID: "2026-09-28",
-                now: date(2026, 9, 27)
+                now: date(2026, 9, 27),
+                in: dateWrite.database
             )
         }
     }
@@ -379,69 +402,77 @@ struct BudgetDatabaseScheduleWriteTests {
                  base_next_date, base_next_date_ts, tombstone)
             VALUES ('duplicate-next', 'schedule', 20261002, 100, 20261002, 100, 0)
             """)
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        let renamed = try await fixture.database.updateSchedule(
+        let renamed = try await ScheduleEditSQL.updateSchedule(
             review: review,
             fields: ScheduleEditFields(name: .set("Utilities")),
             asOfDayID: "2026-09-27",
-            now: date(2026, 9, 27)
+            now: date(2026, 9, 27),
+            in: fixture.database
         )
         #expect(renamed.kind == .updated)
 
-        let current = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let current = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        #expect(try await fixture.database.completeSchedule(review: current).kind == .completed)
+        #expect(try await ScheduleEditSQL.completeSchedule(review: current, in: fixture.database).kind == .completed)
     }
 
     @Test func staleScheduleNextDateBaseTimestampAndAccountReviewsAreRejected() async throws {
         let scheduleChange = try makeFixture()
-        let scheduleReview = try await scheduleChange.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let scheduleReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: scheduleChange.database
         )
         try execute(scheduleChange.url, sql: "UPDATE schedules SET posts_transaction = 1 WHERE id = 'schedule'")
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await scheduleChange.database.completeSchedule(review: scheduleReview)
+            try await ScheduleEditSQL.completeSchedule(review: scheduleReview, in: scheduleChange.database)
         }
 
         let nextDateChange = try makeFixture()
-        let nextDateReview = try await nextDateChange.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let nextDateReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: nextDateChange.database
         )
         try execute(nextDateChange.url, sql: "UPDATE schedules_next_date SET local_next_date_ts = 101 WHERE id = 'next'")
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await nextDateChange.database.completeSchedule(review: nextDateReview)
+            try await ScheduleEditSQL.completeSchedule(review: nextDateReview, in: nextDateChange.database)
         }
 
         let baseChange = try makeFixture()
-        let baseReview = try await baseChange.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let baseReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: baseChange.database
         )
         try execute(baseChange.url, sql: "UPDATE schedules_next_date SET base_next_date_ts = 200 WHERE id = 'next'")
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await baseChange.database.completeSchedule(review: baseReview)
+            try await ScheduleEditSQL.completeSchedule(review: baseReview, in: baseChange.database)
         }
 
         let accountChange = try makeFixture()
-        let accountReview = try await accountChange.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let accountReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: accountChange.database
         )
         try execute(accountChange.url, sql: "UPDATE accounts SET name = 'Renamed' WHERE id = 'checking'")
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await accountChange.database.completeSchedule(review: accountReview)
+            try await ScheduleEditSQL.completeSchedule(review: accountReview, in: accountChange.database)
         }
     }
 
     @Test func cancellationAndInvalidatedSessionRejectBeforeAnyMutation() async throws {
         let canceled = try makeFixture()
-        let canceledReview = try await canceled.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let canceledReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: canceled.database
         )
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            return try await canceled.database.completeSchedule(review: canceledReview)
+            return try await ScheduleEditSQL.completeSchedule(review: canceledReview, in: canceled.database)
         }
         await #expect(throws: CancellationError.self) {
             try await task.value
@@ -449,12 +480,13 @@ struct BudgetDatabaseScheduleWriteTests {
         #expect(try databaseSnapshot(canceled.url).messageCount == 0)
 
         let invalidated = try makeFixture()
-        let invalidatedReview = try await invalidated.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let invalidatedReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: invalidated.database
         )
         invalidated.database.invalidateSessionWrites()
         await #expect(throws: LocalFirstError.self) {
-            try await invalidated.database.completeSchedule(review: invalidatedReview)
+            try await ScheduleEditSQL.completeSchedule(review: invalidatedReview, in: invalidated.database)
         }
         #expect(try databaseSnapshot(invalidated.url).messageCount == 0)
     }
@@ -489,7 +521,7 @@ struct BudgetDatabaseScheduleWriteTests {
         ]
         for command in invalidCommands {
             await #expect(throws: ScheduleMutationCommandError.self) {
-                try await fixture.database.createSchedule(command)
+                try await ScheduleEditSQL.createSchedule(command, in: fixture.database)
             }
         }
         #expect(try readInt("SELECT COUNT(*) FROM schedules", fixture.url) == 1)
@@ -501,58 +533,64 @@ struct BudgetDatabaseScheduleWriteTests {
             conditions: "{bad",
             actions: #"[{"op":"link-schedule","value":"schedule"}]"#
         )
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
-        let deleted = try await fixture.database.deleteSchedule(review: review)
+        let deleted = try await ScheduleEditSQL.deleteSchedule(review: review, in: fixture.database)
         #expect(deleted.kind == .deleted)
         #expect(try readString("SELECT tombstone FROM schedules WHERE id = 'schedule'", fixture.url) == "1")
         #expect(try readString("SELECT tombstone FROM rules WHERE id = 'rule'", fixture.url) == "1")
         #expect(try readString("SELECT tombstone FROM schedules_next_date WHERE id = 'next'", fixture.url) == "0")
 
         let bad = try makeFixture(actions: #"[{"op":"link-schedule","value":"schedule"},{"op":"link-schedule","value":"schedule"}]"#)
-        let badReview = try await bad.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let badReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: bad.database
         )
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await bad.database.deleteSchedule(review: badReview)
+            try await ScheduleEditSQL.deleteSchedule(review: badReview, in: bad.database)
         }
 
         let malformed = try makeFixture(actions: "{malformed")
-        let malformedReview = try await malformed.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let malformedReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: malformed.database
         )
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await malformed.database.deleteSchedule(review: malformedReview)
+            try await ScheduleEditSQL.deleteSchedule(review: malformedReview, in: malformed.database)
         }
     }
 
     @Test func staleRuleReviewAndSharedRuleOwnerAreRejected() async throws {
         let fixture = try makeFixture()
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
         try updateRuleActions(fixture.url, #"[{"op":"link-schedule","value":"schedule","remote":true}]"#)
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await fixture.database.completeSchedule(review: review)
+            try await ScheduleEditSQL.completeSchedule(review: review, in: fixture.database)
         }
 
         let staleConditions = try makeFixture()
-        let conditionReview = try await staleConditions.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let conditionReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: staleConditions.database
         )
         try execute(staleConditions.url, sql: "UPDATE rules SET conditions = '[{\"op\":\"is\",\"field\":\"amount\",\"value\":-200}]' WHERE id = 'rule'")
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await staleConditions.database.completeSchedule(review: conditionReview)
+            try await ScheduleEditSQL.completeSchedule(review: conditionReview, in: staleConditions.database)
         }
 
         let shared = try makeFixture()
         try insertSharedSchedule(shared.url)
-        let sharedReview = try await shared.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let sharedReview = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: shared.database
         )
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await shared.database.deleteSchedule(review: sharedReview)
+            try await ScheduleEditSQL.deleteSchedule(review: sharedReview, in: shared.database)
         }
     }
 
@@ -564,12 +602,13 @@ struct BudgetDatabaseScheduleWriteTests {
                  base_next_date, base_next_date_ts, tombstone)
             VALUES ('retired-next', 'schedule', 20261002, 90, 20261002, 90, 1)
             """)
-        let review = try await fixture.database.scheduleMutationReview(
-            budgetID: "budget", scheduleID: "schedule"
+        let review = try await ScheduleReviewSQL.scheduleMutationReview(
+            budgetID: "budget", scheduleID: "schedule",
+            in: fixture.database
         )
         try execute(fixture.url, sql: "UPDATE schedules_next_date SET base_next_date = 20261003 WHERE id = 'retired-next'")
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await fixture.database.completeSchedule(review: review)
+            try await ScheduleEditSQL.completeSchedule(review: review, in: fixture.database)
         }
     }
 
@@ -590,7 +629,7 @@ struct BudgetDatabaseScheduleWriteTests {
             asOfDayID: "2026-09-27"
         )
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await fixture.database.createSchedule(command)
+            try await ScheduleEditSQL.createSchedule(command, in: fixture.database)
         }
         #expect(try readInt("SELECT COUNT(*) FROM schedules", fixture.url) == 1)
 
@@ -603,7 +642,7 @@ struct BudgetDatabaseScheduleWriteTests {
             customUpcomingLength: nil,
             asOfDayID: "2026-09-27"
         )
-        let created = try await fixture.database.createSchedule(unique, now: date(2026, 9, 27))
+        let created = try await ScheduleEditSQL.createSchedule(unique, now: date(2026, 9, 27), in: fixture.database)
         #expect(created.kind == .created)
         #expect(try readString("SELECT name FROM schedules WHERE id = 'new'", fixture.url) == "Utilities")
         #expect(try readString("SELECT local_next_date FROM schedules_next_date WHERE id = 'new-date'", fixture.url) == "20261001")
@@ -619,7 +658,7 @@ struct BudgetDatabaseScheduleWriteTests {
             asOfDayID: "2026-09-27"
         )
         await #expect(throws: ScheduleMutationCommandError.self) {
-            try await fixture.database.createSchedule(collision)
+            try await ScheduleEditSQL.createSchedule(collision, in: fixture.database)
         }
         #expect(try readInt("SELECT COUNT(*) FROM schedules", fixture.url) == 2)
     }

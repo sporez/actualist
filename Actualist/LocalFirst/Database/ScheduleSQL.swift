@@ -1,66 +1,71 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func fetchSchedules(budgetID: String, today: String) throws -> LoadedSchedules {
-        try queue.read { db in
-            try fetchSchedules(budgetID: budgetID, today: today, db: db)
+enum ScheduleSQL {
+    static func fetchSchedules(budgetID: String, today: String, in database: isolated BudgetDatabase) throws -> LoadedSchedules {
+        try database.queue.read { db in
+            try fetchSchedules(budgetID: budgetID, today: today, in: database, db: db)
         }
     }
 
-    func fetchSchedules(
+    static func fetchSchedules(
         budgetID: String,
         today: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> LoadedSchedules {
-        try loadSchedules(budgetID: budgetID, today: today, onlyScheduleID: nil, db: db)
+        try loadSchedules(budgetID: budgetID, today: today, onlyScheduleID: nil, in: database, db: db)
     }
 
     /// One schedule's detail, read without scanning every schedule, rule and
     /// next-date row. Identical to `fetchSchedules(...).detail(id:)`.
-    func fetchScheduleDetail(
-        budgetID: String,
-        scheduleID: String,
-        today: String
-    ) throws -> ScheduleDetail? {
-        try queue.read { db in
-            try fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today, db: db)
-        }
-    }
-
-    func fetchScheduleDetail(
+    static func fetchScheduleDetail(
         budgetID: String,
         scheduleID: String,
         today: String,
+        in database: isolated BudgetDatabase
+    ) throws -> ScheduleDetail? {
+        try database.queue.read { db in
+            try fetchScheduleDetail(budgetID: budgetID, scheduleID: scheduleID, today: today, in: database, db: db)
+        }
+    }
+
+    static func fetchScheduleDetail(
+        budgetID: String,
+        scheduleID: String,
+        today: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> ScheduleDetail? {
         try loadSchedules(
             budgetID: budgetID,
             today: today,
             onlyScheduleID: scheduleID,
+            in: database,
             db: db
         ).detail(id: scheduleID)
     }
 
-    private func loadSchedules(
+    private static func loadSchedules(
         budgetID: String,
         today: String,
         onlyScheduleID: String?,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> LoadedSchedules {
-        guard try tableExists("schedules", db: db) else {
+        guard try database.tableExists("schedules", db: db) else {
             return .empty(budgetID: budgetID)
         }
-        let scheduleColumns = try columnSet(for: "schedules", db: db)
+        let scheduleColumns = try database.columnSet(for: "schedules", db: db)
         guard scheduleColumns.contains("id") else {
             return .empty(budgetID: budgetID)
         }
 
-        let defaultUpcomingLength = try scheduleUpcomingLength(db: db)
-        let nextDates = try scheduleNextDateRows(scheduleID: onlyScheduleID, db: db)
+        let defaultUpcomingLength = try scheduleUpcomingLength(in: database, db: db)
+        let nextDates = try scheduleNextDateRows(scheduleID: onlyScheduleID, in: database, db: db)
         let nextDateColumns: Set<String>
-        if try tableExists("schedules_next_date", db: db) {
-            nextDateColumns = try columnSet(for: "schedules_next_date", db: db)
+        if try database.tableExists("schedules_next_date", db: db) {
+            nextDateColumns = try database.columnSet(for: "schedules_next_date", db: db)
         } else {
             nextDateColumns = []
         }
@@ -76,8 +81,8 @@ extension BudgetDatabase {
             .allSatisfy(scheduleColumns.contains)
         let supportsScheduleDeletion = ["id", "rule", "tombstone"].allSatisfy(scheduleColumns.contains)
         let ruleColumns: Set<String>
-        if try tableExists("rules", db: db) {
-            ruleColumns = try columnSet(for: "rules", db: db)
+        if try database.tableExists("rules", db: db) {
+            ruleColumns = try database.columnSet(for: "rules", db: db)
         } else {
             ruleColumns = []
         }
@@ -88,16 +93,16 @@ extension BudgetDatabase {
         let supportsAuthoring = supportsScheduleRuleEdit
             && supportsNextDateWrites
             && ["id", "conditions", "actions", "tombstone"].allSatisfy(ruleColumns.contains)
-        let accountFacts = try scheduleAccountFacts(db: db)
-        let payeeFacts = try schedulePayeeFacts(db: db)
-        let payeeTargets = try schedulePayeeTargets(db: db)
+        let accountFacts = try scheduleAccountFacts(in: database, db: db)
+        let payeeFacts = try schedulePayeeFacts(in: database, db: db)
+        let payeeTargets = try schedulePayeeTargets(in: database, db: db)
 
-        let name = column("name", fallback: "NULL", columns: scheduleColumns)
-        let rule = column("rule", fallback: "NULL", columns: scheduleColumns)
-        let completed = column("completed", fallback: "0", columns: scheduleColumns)
-        let posts = column("posts_transaction", fallback: "0", columns: scheduleColumns)
-        let customUpcoming = column("custom_upcoming_length", fallback: "NULL", columns: scheduleColumns)
-        let sortOrder = column("sort_order", fallback: "NULL", columns: scheduleColumns)
+        let name = database.column("name", fallback: "NULL", columns: scheduleColumns)
+        let rule = database.column("rule", fallback: "NULL", columns: scheduleColumns)
+        let completed = database.column("completed", fallback: "0", columns: scheduleColumns)
+        let posts = database.column("posts_transaction", fallback: "0", columns: scheduleColumns)
+        let customUpcoming = database.column("custom_upcoming_length", fallback: "NULL", columns: scheduleColumns)
+        let sortOrder = database.column("sort_order", fallback: "NULL", columns: scheduleColumns)
         let rows = try Row.fetchAll(
             db,
             sql: """
@@ -106,13 +111,14 @@ extension BudgetDatabase {
                        \(customUpcoming) AS custom_upcoming_length,
                        \(sortOrder) AS sort_order
                 FROM schedules
-                WHERE \(predicateForLiveRows(columns: scheduleColumns))
+                WHERE \(database.predicateForLiveRows(columns: scheduleColumns))
                 \(onlyScheduleID == nil ? "" : "AND id = ?")
                 """,
             arguments: StatementArguments(onlyScheduleID.map { [$0] } ?? [])
         )
         let rules = try scheduleRuleRows(
             ruleIDs: onlyScheduleID == nil ? nil : rows.compactMap { $0["rule"] as String? },
+            in: database,
             db: db
         )
 
@@ -139,6 +145,7 @@ extension BudgetDatabase {
         }
         let transactionDates = try scheduleTransactionDates(
             lowerBoundsByScheduleID: transactionLowerBounds,
+            in: database,
             db: db
         )
 
@@ -191,6 +198,7 @@ extension BudgetDatabase {
                 hasUniqueRuleOwner = try !scheduleRuleHasAnotherLiveOwner(
                     ruleID: ruleID,
                     scheduleID: id,
+                    in: database,
                     db: db
                 )
             } else {
@@ -295,25 +303,26 @@ extension BudgetDatabase {
     }
 
     /// `ruleIDs == nil` reads every live rule; otherwise only those rules.
-    private func scheduleRuleRows(
+    private static func scheduleRuleRows(
         ruleIDs: [String]?,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [String: ScheduleRuleRow] {
-        guard try tableExists("rules", db: db) else { return [:] }
-        let columns = try columnSet(for: "rules", db: db)
+        guard try database.tableExists("rules", db: db) else { return [:] }
+        let columns = try database.columnSet(for: "rules", db: db)
         guard columns.contains("id") else { return [:] }
         if let ruleIDs, ruleIDs.isEmpty { return [:] }
         let idFilter = ruleIDs.map { ids in
             let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
             return "AND id IN (\(placeholders))"
         } ?? ""
-        let conditions = column("conditions", fallback: "NULL", columns: columns)
-        let actions = column("actions", fallback: "NULL", columns: columns)
+        let conditions = database.column("conditions", fallback: "NULL", columns: columns)
+        let actions = database.column("actions", fallback: "NULL", columns: columns)
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT id, \(conditions) AS conditions, \(actions) AS actions
-                FROM rules WHERE \(predicateForLiveRows(columns: columns)) \(idFilter)
+                FROM rules WHERE \(database.predicateForLiveRows(columns: columns)) \(idFilter)
                 """,
             arguments: StatementArguments(ruleIDs ?? [])
         )
@@ -323,35 +332,37 @@ extension BudgetDatabase {
         })
     }
 
-    func scheduleRuleHasAnotherLiveOwner(
+    static func scheduleRuleHasAnotherLiveOwner(
         ruleID: String,
         scheduleID: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> Bool {
-        let columns = try requiredColumns(table: "schedules", required: ["id", "rule"], db: db)
+        let columns = try database.requiredColumns(table: "schedules", required: ["id", "rule"], db: db)
         return try Row.fetchOne(
             db,
             sql: """
                 SELECT id FROM schedules
-                WHERE rule = ? AND id != ? AND \(predicateForLiveRows(columns: columns))
+                WHERE rule = ? AND id != ? AND \(database.predicateForLiveRows(columns: columns))
                 LIMIT 1
                 """,
             arguments: [ruleID, scheduleID]
         ) != nil
     }
 
-    private func scheduleNextDateRows(
+    private static func scheduleNextDateRows(
         scheduleID: String?,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [String: [ScheduleNextDateRow]] {
-        guard try tableExists("schedules_next_date", db: db) else { return [:] }
-        let columns = try columnSet(for: "schedules_next_date", db: db)
+        guard try database.tableExists("schedules_next_date", db: db) else { return [:] }
+        let columns = try database.columnSet(for: "schedules_next_date", db: db)
         guard columns.contains("schedule_id") else { return [:] }
-        let id = column("id", fallback: "NULL", columns: columns)
-        let localDate = column("local_next_date", fallback: "NULL", columns: columns)
-        let localTimestamp = column("local_next_date_ts", fallback: "NULL", columns: columns)
-        let baseDate = column("base_next_date", fallback: "NULL", columns: columns)
-        let baseTimestamp = column("base_next_date_ts", fallback: "NULL", columns: columns)
+        let id = database.column("id", fallback: "NULL", columns: columns)
+        let localDate = database.column("local_next_date", fallback: "NULL", columns: columns)
+        let localTimestamp = database.column("local_next_date_ts", fallback: "NULL", columns: columns)
+        let baseDate = database.column("base_next_date", fallback: "NULL", columns: columns)
+        let baseTimestamp = database.column("base_next_date_ts", fallback: "NULL", columns: columns)
         let rows = try Row.fetchAll(
             db,
             sql: """
@@ -361,7 +372,7 @@ extension BudgetDatabase {
                        \(baseDate) AS base_next_date,
                        \(baseTimestamp) AS base_next_date_ts
                 FROM schedules_next_date
-                WHERE \(predicateForLiveRows(columns: columns))
+                WHERE \(database.predicateForLiveRows(columns: columns))
                 \(scheduleID == nil ? "" : "AND schedule_id = ?")
                 """,
             arguments: StatementArguments(scheduleID.map { [$0] } ?? [])
@@ -382,17 +393,17 @@ extension BudgetDatabase {
         return result
     }
 
-    private func scheduleAccountFacts(db: Database) throws -> [String: ScheduleAccountFact] {
-        guard try tableExists("accounts", db: db) else { return [:] }
-        let columns = try columnSet(for: "accounts", db: db)
+    private static func scheduleAccountFacts(in database: isolated BudgetDatabase, db: Database) throws -> [String: ScheduleAccountFact] {
+        guard try database.tableExists("accounts", db: db) else { return [:] }
+        let columns = try database.columnSet(for: "accounts", db: db)
         guard columns.contains("id") else { return [:] }
-        let name = column("name", fallback: "id", columns: columns)
-        let closed = column("closed", fallback: "0", columns: columns)
+        let name = database.column("name", fallback: "id", columns: columns)
+        let closed = database.column("closed", fallback: "0", columns: columns)
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT id, \(name) AS name, \(closed) AS closed
-                FROM accounts WHERE \(predicateForLiveRows(columns: columns))
+                FROM accounts WHERE \(database.predicateForLiveRows(columns: columns))
                 """
         )
         return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
@@ -401,14 +412,14 @@ extension BudgetDatabase {
         })
     }
 
-    private func schedulePayeeFacts(db: Database) throws -> [String: String] {
-        guard try tableExists("payees", db: db) else { return [:] }
-        let columns = try columnSet(for: "payees", db: db)
+    private static func schedulePayeeFacts(in database: isolated BudgetDatabase, db: Database) throws -> [String: String] {
+        guard try database.tableExists("payees", db: db) else { return [:] }
+        let columns = try database.columnSet(for: "payees", db: db)
         guard columns.contains("id") else { return [:] }
-        let name = column("name", fallback: "id", columns: columns)
+        let name = database.column("name", fallback: "id", columns: columns)
         let rows = try Row.fetchAll(
             db,
-            sql: "SELECT id, \(name) AS name FROM payees WHERE \(predicateForLiveRows(columns: columns))"
+            sql: "SELECT id, \(name) AS name FROM payees WHERE \(database.predicateForLiveRows(columns: columns))"
         )
         return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
             guard let id = row["id"] as String? else { return nil }
@@ -416,9 +427,9 @@ extension BudgetDatabase {
         })
     }
 
-    private func schedulePayeeTargets(db: Database) throws -> [String: String] {
-        guard try tableExists("payee_mapping", db: db) else { return [:] }
-        let columns = try columnSet(for: "payee_mapping", db: db)
+    private static func schedulePayeeTargets(in database: isolated BudgetDatabase, db: Database) throws -> [String: String] {
+        guard try database.tableExists("payee_mapping", db: db) else { return [:] }
+        let columns = try database.columnSet(for: "payee_mapping", db: db)
         guard columns.contains("id") else { return [:] }
         let target: String
         if columns.contains("targetId") { target = "targetId" }
@@ -431,13 +442,14 @@ extension BudgetDatabase {
         })
     }
 
-    private func scheduleTransactionDates(
+    private static func scheduleTransactionDates(
         lowerBoundsByScheduleID: [String: String],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [String: [String]] {
         guard !lowerBoundsByScheduleID.isEmpty else { return [:] }
-        guard try tableExists("transactions", db: db) else { return [:] }
-        let columns = try columnSet(for: "transactions", db: db)
+        guard try database.tableExists("transactions", db: db) else { return [:] }
+        let columns = try database.columnSet(for: "transactions", db: db)
         guard columns.contains("schedule"), columns.contains("date") else { return [:] }
         let split = TransactionSplitQueryExpressions(columns: columns)
         let parentAlias = "schedule_parent"
@@ -447,14 +459,14 @@ extension BudgetDatabase {
         for start in stride(from: 0, to: bounds.count, by: chunkSize) {
             let chunk = bounds[start..<min(start + chunkSize, bounds.count)]
             let filters = chunk.map { _ in
-                "(\(split.qualifiedSchedule) = ? AND \(normalizedDateExpression(split.qualifiedDate)) >= ?)"
+                "(\(split.qualifiedSchedule) = ? AND \(database.normalizedDateExpression(split.qualifiedDate)) >= ?)"
             }.joined(separator: " OR ")
             let arguments = StatementArguments(chunk.flatMap { [$0.key, $0.value] })
             let rows = try Row.fetchAll(
                 db,
                 sql: """
                     SELECT \(split.qualifiedSchedule) AS schedule,
-                           \(normalizedDateExpression(split.qualifiedDate)) AS date
+                           \(database.normalizedDateExpression(split.qualifiedDate)) AS date
                     FROM transactions t
                     \(split.parentJoin(parentAlias: parentAlias))
                     WHERE \(split.qualifiedSchedule) IS NOT NULL
@@ -472,11 +484,11 @@ extension BudgetDatabase {
         return result
     }
 
-    private func scheduleUpcomingLength(db: Database) throws -> String {
-        try SyncedPreferences.value(.upcomingScheduledTransactionLength, in: self, db: db) ?? "7"
+    private static func scheduleUpcomingLength(in database: isolated BudgetDatabase, db: Database) throws -> String {
+        try SyncedPreferences.value(.upcomingScheduledTransactionLength, in: database, db: db) ?? "7"
     }
 
-    private func scheduleAccountReference(
+    private static func scheduleAccountReference(
         id: String?,
         facts: [String: ScheduleAccountFact]
     ) -> ScheduleAccountReference {
@@ -490,7 +502,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func schedulePayeeReference(
+    private static func schedulePayeeReference(
         mappingID: String?,
         targets: [String: String],
         facts: [String: String]
@@ -508,7 +520,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func scheduleHasMatchingTransaction(
+    private static func scheduleHasMatchingTransaction(
         dates: [String],
         occurrenceDate: String,
         matchingMode: ScheduleOccurrenceMatchingMode,
@@ -526,7 +538,7 @@ extension BudgetDatabase {
 
     /// Shared by schedule status reads and schedule-post write validation so
     /// both use Actual's same exact-date / approximate lookback contract.
-    func scheduleTransactionLowerBound(
+    private static func scheduleTransactionLowerBound(
         occurrenceDate: String,
         matchingMode: ScheduleOccurrenceMatchingMode,
         postsTransaction: Bool
@@ -545,7 +557,7 @@ extension BudgetDatabase {
         return ActualScheduleRecurrence.dayID(from: earlier)
     }
 
-    private func canonicalScheduleDayID(_ value: DatabaseValueConvertible?) -> String? {
+    private static func canonicalScheduleDayID(_ value: DatabaseValueConvertible?) -> String? {
         guard let raw = SQLiteValueCoercion.lenientString(value) else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let dayID: String
@@ -557,12 +569,73 @@ extension BudgetDatabase {
         return ActualScheduleRecurrence.date(from: dayID) == nil ? nil : dayID
     }
 
-    func optionalScheduleDouble(_ value: DatabaseValueConvertible?) -> Double? {
+    static func optionalScheduleDouble(_ value: DatabaseValueConvertible?) -> Double? {
         if let value = value as? Double { return value }
         if let value = value as? Float { return Double(value) }
         if let value = value as? Int { return Double(value) }
         if let value = value as? Int64 { return Double(value) }
         if let value = value as? String { return Double(value) }
         return nil
+    }
+
+    static func fetchRuleScheduleIndex(in database: isolated BudgetDatabase, db: Database) throws -> RuleScheduleIndex {
+        guard try database.tableExists("schedules", db: db) else { return .empty }
+        let columns = try database.columnSet(for: "schedules", db: db)
+        guard columns.contains("rule") else { return .empty }
+
+        let idSelection = columns.contains("id") ? "id" : "NULL"
+        let completedSelection = columns.contains("completed") ? "completed" : "0"
+        let tombstoneSelection = columns.contains("tombstone") ? "tombstone" : "0"
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT \(idSelection) AS id, rule,
+                       \(completedSelection) AS completed,
+                       \(tombstoneSelection) AS tombstone
+                FROM schedules
+                WHERE rule IS NOT NULL
+                """
+        )
+
+        var ruleIDByScheduleID: [String: String] = [:]
+        var inactiveRuleIDs = Set<String>()
+        for row in rows {
+            guard let ruleID = row["rule"] as String?, !ruleID.isEmpty else { continue }
+            if SQLiteValueCoercion.lenientBool(row["tombstone"]) || SQLiteValueCoercion.lenientBool(row["completed"]) {
+                inactiveRuleIDs.insert(ruleID)
+                continue
+            }
+            if let scheduleID = row["id"] as String?, !scheduleID.isEmpty {
+                ruleIDByScheduleID[scheduleID] = ruleID
+            }
+        }
+        inactiveRuleIDs.subtract(Set(ruleIDByScheduleID.values))
+        return RuleScheduleIndex(
+            ruleIDByScheduleID: ruleIDByScheduleID,
+            completedRuleIDs: inactiveRuleIDs
+        )
+    }
+
+    static func draftByResolvingSchedule(
+        _ draft: TransactionDraft,
+        existingTransactionID: String? = nil,
+        in database: isolated BudgetDatabase
+    ) throws -> TransactionDraft {
+        var resolved = draft
+        if resolved.scheduleID == nil, let existingTransactionID {
+            resolved.scheduleID = try database.fetchTransaction(id: existingTransactionID)?.schedule
+        }
+        let preview = try database.previewRules(for: resolved)
+        if preview.deletesTransaction {
+            throw LocalFirstError.refusedChange("A matching rule would delete this transaction.")
+        }
+        if let scheduleID = preview.scheduleID {
+            resolved.scheduleID = scheduleID
+        }
+        if !preview.splits.isEmpty {
+            resolved.splits = preview.splits
+            resolved.isParent = true
+        }
+        return resolved
     }
 }

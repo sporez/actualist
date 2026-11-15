@@ -14,7 +14,7 @@ extension LocalFirstActualStore {
     ) async throws -> ReviewedScheduleMutation {
         let context = try scheduleMutationSessionContext(budgetID: budgetID)
         let database = try requireDatabase(for: budgetID)
-        let revision = try await database.scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID)
+        let revision = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: budgetID, scheduleID: scheduleID, in: database)
         try requireScheduleMutationSession(context, database: database)
         return ReviewedScheduleMutation(context: context, revision: revision)
     }
@@ -36,7 +36,7 @@ extension LocalFirstActualStore {
         try requireScheduleMutationSession(context, database: database)
         let receipt: ScheduleMutationResult
         do {
-            receipt = try await database.createSchedule(command)
+            receipt = try await ScheduleEditSQL.createSchedule(command, in: database)
         } catch LocalFirstError.budgetNotOpened {
             throw ScheduleMutationCommandError.reviewChanged
         }
@@ -53,18 +53,19 @@ extension LocalFirstActualStore {
         now: Date
     ) async throws -> ScheduleMutationOutcome {
         try await commitScheduleMutation(review: review) { database in
-            try await database.updateSchedule(
+            try await ScheduleEditSQL.updateSchedule(
                 review: review.revision,
                 fields: fields,
                 asOfDayID: asOfDayID,
-                now: now
+                now: now,
+                in: database
             )
         }
     }
 
     func deleteSchedule(review: ReviewedScheduleMutation) async throws -> ScheduleMutationOutcome {
         try await commitScheduleMutation(review: review) { database in
-            try await database.deleteSchedule(review: review.revision)
+            try await ScheduleEditSQL.deleteSchedule(review: review.revision, in: database)
         }
     }
 
@@ -73,13 +74,13 @@ extension LocalFirstActualStore {
         now: Date
     ) async throws -> ScheduleMutationOutcome {
         try await commitScheduleMutation(review: review) { database in
-            try await database.skipNextDate(review: review.revision, now: now)
+            try await ScheduleEditSQL.skipNextDate(review: review.revision, now: now, in: database)
         }
     }
 
     func completeSchedule(review: ReviewedScheduleMutation) async throws -> ScheduleMutationOutcome {
         try await commitScheduleMutation(review: review) { database in
-            try await database.completeSchedule(review: review.revision)
+            try await ScheduleEditSQL.completeSchedule(review: review.revision, in: database)
         }
     }
 

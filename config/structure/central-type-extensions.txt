@@ -54,12 +54,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+ReviewPayeeNames.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ReviewWatermark.swift
 Actualist/LocalFirst/Database/BudgetDatabase+RuleBalanceOf.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Rules.swift
-Actualist/LocalFirst/Database/BudgetDatabase+ScheduleAdvancement.swift
-Actualist/LocalFirst/Database/BudgetDatabase+ScheduleConversion.swift
-Actualist/LocalFirst/Database/BudgetDatabase+SchedulePosting.swift
-Actualist/LocalFirst/Database/BudgetDatabase+ScheduleReads.swift
-Actualist/LocalFirst/Database/BudgetDatabase+ScheduleWrites.swift
-Actualist/LocalFirst/Database/BudgetDatabase+Schedules.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Schema.swift
 Actualist/LocalFirst/Database/BudgetDatabase+SchemaValidation.swift
 Actualist/LocalFirst/Database/BudgetDatabase+SplitDraftIDValidation.swift

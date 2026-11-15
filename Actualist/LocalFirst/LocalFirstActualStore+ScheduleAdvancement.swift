@@ -19,8 +19,9 @@ extension LocalFirstActualStore {
         let today = ActualDateOnly.today()
         let result: ScheduleAdvancementResult
         do {
-            result = try await database.advanceSchedules(
-                budgetID: budgetID, today: today, postingAllowed: syncSucceeded
+            result = try await SchedulePostingSQL.advanceSchedules(
+                budgetID: budgetID, today: today, postingAllowed: syncSucceeded,
+                in: database
             )
         } catch {
             await refreshInterruptedScheduleAdvancement(

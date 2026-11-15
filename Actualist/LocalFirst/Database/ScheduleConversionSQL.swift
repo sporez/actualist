@@ -16,20 +16,21 @@ private struct ScheduleConversionRow {
     let isTransferPayee: Bool
 }
 
-extension BudgetDatabase {
-    func scheduleConversionReview(
+enum ScheduleConversionSQL {
+    static func scheduleConversionReview(
         context: ScheduleMutationSessionContext,
         transactionID: String,
         asOfDayID: String,
-        identity: ScheduleCreateIdentity
+        identity: ScheduleCreateIdentity,
+        in database: isolated BudgetDatabase
     ) throws -> ScheduleConversionReview {
         guard !transactionID.isEmpty,
               ActualScheduleRecurrence.date(from: asOfDayID) != nil else {
             throw ScheduleConversionError.unsupportedSource("The selected transaction or review date is invalid.")
         }
-        return try queue.read { db in
-            let facts = try scheduleConversionFacts(transactionID: transactionID, db: db)
-            try validateScheduleConversionSource(facts, asOfDayID: asOfDayID, db: db)
+        return try database.queue.read { db in
+            let facts = try scheduleConversionFacts(transactionID: transactionID, in: database, db: db)
+            try validateScheduleConversionSource(facts, asOfDayID: asOfDayID, in: database, db: db)
             return ScheduleConversionReview(
                 context: context,
                 sourceTransactionID: transactionID,
@@ -47,9 +48,10 @@ extension BudgetDatabase {
         }
     }
 
-    func convertFutureTransaction(
+    static func convertFutureTransaction(
         review: ScheduleConversionReview,
-        now: Date = Date()
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
     ) throws -> ScheduleConversionWriteReceipt {
         guard !review.sourceTransactionID.isEmpty,
               !review.family.isEmpty,
@@ -59,7 +61,7 @@ extension BudgetDatabase {
         try Task.checkCancellation()
         let committed: (outcome: ScheduleConversionWriteReceipt, appliedCount: Int)
         do {
-            committed = try commitLocalPlan(now: now) { db in
+            committed = try database.commitLocalPlan(now: now) { db in
                 let currentDay = ActualDateOnly.today()
                 guard review.asOfDayID == currentDay else {
                     throw ScheduleConversionError.reviewChanged
@@ -68,12 +70,13 @@ extension BudgetDatabase {
                 do {
                     currentFacts = try scheduleConversionFacts(
                         transactionID: review.sourceTransactionID,
+                        in: database,
                         db: db
                     )
                 } catch ScheduleConversionError.unsupportedSource(_) {
                     throw ScheduleConversionError.reviewChanged
                 }
-                try validateScheduleConversionSource(currentFacts, asOfDayID: currentDay, db: db)
+                try validateScheduleConversionSource(currentFacts, asOfDayID: currentDay, in: database, db: db)
                 let currentReviewFacts = currentFacts.map {
                     ScheduleConversionTransactionFact(
                         transaction: $0.transaction,
@@ -100,7 +103,7 @@ extension BudgetDatabase {
                 )
                 let conditionsJSON = try scheduleConversionJSON(plan.conditions)
                 let actionsJSON = try scheduleConversionJSON(plan.actions)
-                var messages = try scheduleCreationMessages(
+                var messages = try ScheduleCreationMessagePlan.scheduleCreationMessages(
                     ScheduleCreationMessagePlanRequest(
                         identity: review.identity,
                         name: plan.name,
@@ -111,10 +114,11 @@ extension BudgetDatabase {
                         nextDate: source.date,
                         now: now
                     ),
-                    db: db,
-                    builder: &builder
+                    builder: &builder,
+                    in: database,
+                    db: db
                 )
-                let transactionColumns = try TransactionRowColumns.resolve(in: self, db: db)
+                let transactionColumns = try TransactionRowColumns.resolve(in: database, db: db)
                 guard transactionColumns.hasTombstone else {
                     throw ScheduleConversionError.unsupportedSource("This budget cannot safely remove the original transaction.")
                 }
@@ -124,7 +128,7 @@ extension BudgetDatabase {
                     }
                     messages.append(try builder.tombstone(dataset: "transactions", row: transactionID))
                 }
-                return LocalCommitPlan(
+                return BudgetDatabase.LocalCommitPlan(
                     drafts: messages,
                     action: nil,
                     outcome: ScheduleConversionWriteReceipt(
@@ -153,24 +157,25 @@ extension BudgetDatabase {
         )
     }
 
-    private func scheduleConversionFacts(
+    private static func scheduleConversionFacts(
         transactionID: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [ScheduleConversionRow] {
-        let columns = try requiredColumns(table: "transactions", required: ["id", "date", "amount"], db: db)
+        let columns = try database.requiredColumns(table: "transactions", required: ["id", "date", "amount"], db: db)
         let split = TransactionSplitQueryExpressions(columns: columns)
-        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let normalizedDate = database.normalizedDateExpression(split.qualifiedDate)
         let joins = try TransactionReadJoins.resolve(
             split: split,
             transactionColumns: columns,
             includeNames: true,
-            in: self,
+            in: database,
             db: db
         )
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate)),
+                SELECT \(database.transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate)),
                        \(split.qualifiedPayee) AS conversion_raw_payee_id,
                        \(joins.transferIDExpression) AS conversion_transfer_id,
                        (\(joins.isTransferExpression)) AS conversion_is_transfer_payee
@@ -185,7 +190,7 @@ extension BudgetDatabase {
         )
         let converted = rows.map { row in
             ScheduleConversionRow(
-                transaction: mapTransactionRow(row),
+                transaction: database.mapTransactionRow(row),
                 rawPayeeID: (row["conversion_raw_payee_id"] as String?).flatMap { $0.isEmpty ? nil : $0 },
                 transferID: (row["conversion_transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 },
                 isTransferPayee: SQLiteValueCoercion.lenientBool(row["conversion_is_transfer_payee"])
@@ -211,9 +216,10 @@ extension BudgetDatabase {
         return [parent] + children
     }
 
-    private func validateScheduleConversionSource(
+    private static func validateScheduleConversionSource(
         _ facts: [ScheduleConversionRow],
         asOfDayID: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
         guard let root = facts.first?.transaction,
@@ -249,14 +255,14 @@ extension BudgetDatabase {
             }
             throw ScheduleConversionError.unsupportedSource("The split family has inconsistent account or date values.")
         }
-        try validateConversionAccount(root.account, db: db)
+        try validateConversionAccount(root.account, in: database, db: db)
         if let payeeID = root.payee, !payeeID.isEmpty {
-            try validateCanonicalConversionPayee(payeeID, rawPayeeID: facts.first?.rawPayeeID, db: db)
+            try validateCanonicalConversionPayee(payeeID, rawPayeeID: facts.first?.rawPayeeID, in: database, db: db)
         }
     }
 
-    private func validateConversionAccount(_ accountID: String, db: Database) throws {
-        _ = try requiredColumns(table: "accounts", required: ["id", "closed", "tombstone"], db: db)
+    private static func validateConversionAccount(_ accountID: String, in database: isolated BudgetDatabase, db: Database) throws {
+        _ = try database.requiredColumns(table: "accounts", required: ["id", "closed", "tombstone"], db: db)
         guard let row = try Row.fetchOne(
             db,
             sql: "SELECT closed, tombstone FROM accounts WHERE id = ? LIMIT 1",
@@ -266,23 +272,24 @@ extension BudgetDatabase {
         }
     }
 
-    private func validateCanonicalConversionPayee(
+    private static func validateCanonicalConversionPayee(
         _ payeeID: String,
         rawPayeeID: String?,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
-        let mappings = try requiredColumns(table: "payee_mapping", required: ["id"], db: db)
+        let mappings = try database.requiredColumns(table: "payee_mapping", required: ["id"], db: db)
         guard let targetColumn = ["targetId", "target_id"].first(where: mappings.contains) else {
             throw ScheduleConversionError.unsupportedSource("The transaction payee mapping is unavailable.")
         }
-        let payees = try requiredColumns(table: "payees", required: ["id"], db: db)
+        let payees = try database.requiredColumns(table: "payees", required: ["id"], db: db)
         if let rawPayeeID, rawPayeeID != payeeID {
             guard try Row.fetchOne(
                 db,
                 sql: """
                     SELECT id FROM payee_mapping
-                    WHERE id = ? AND \(quotedIdentifier(targetColumn)) = ?
-                      AND \(predicateForLiveRows(columns: mappings))
+                    WHERE id = ? AND \(database.quotedIdentifier(targetColumn)) = ?
+                      AND \(database.predicateForLiveRows(columns: mappings))
                     LIMIT 1
                     """,
                 arguments: [rawPayeeID, payeeID]
@@ -295,10 +302,10 @@ extension BudgetDatabase {
             sql: """
                 SELECT mapping.id
                 FROM payee_mapping mapping
-                JOIN payees payee ON payee.id = mapping.\(quotedIdentifier(targetColumn))
-                WHERE mapping.id = ? AND mapping.\(quotedIdentifier(targetColumn)) = ?
-                  AND \(predicateForLiveRows(columns: mappings, tableAlias: "mapping"))
-                  AND \(predicateForLiveRows(columns: payees, tableAlias: "payee"))
+                JOIN payees payee ON payee.id = mapping.\(database.quotedIdentifier(targetColumn))
+                WHERE mapping.id = ? AND mapping.\(database.quotedIdentifier(targetColumn)) = ?
+                  AND \(database.predicateForLiveRows(columns: mappings, tableAlias: "mapping"))
+                  AND \(database.predicateForLiveRows(columns: payees, tableAlias: "payee"))
                 LIMIT 1
                 """,
             arguments: [payeeID, payeeID]
@@ -307,7 +314,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func scheduleConversionJSON(_ values: [RuleJSONValue]) throws -> String {
+    private static func scheduleConversionJSON(_ values: [RuleJSONValue]) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return String(decoding: try encoder.encode(values), as: UTF8.self)

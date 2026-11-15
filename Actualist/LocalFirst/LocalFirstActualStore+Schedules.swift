@@ -47,10 +47,10 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let ticket = scheduleRequestIdentity.begin(budgetID: budgetID)
-        let loaded = try await database.fetchSchedules(budgetID: budgetID, today: today)
+        let loaded = try await ScheduleSQL.fetchSchedules(budgetID: budgetID, today: today, in: database)
         // Refusals persist with the budget so a same-day relaunch, which skips
         // the once-a-day run, still shows them.
-        let storedRefusals = (try? await database.scheduleAutoPostRefusals()) ?? []
+        let storedRefusals = (try? await SchedulePostingSQL.scheduleAutoPostRefusals(in: database)) ?? []
         #if DEBUG
         await testSeams?.scheduleReadHook?(budgetID, today)
         #endif
@@ -69,7 +69,7 @@ extension LocalFirstActualStore {
         scheduleAutoPostRefusals = retained
         let ended = storedRefusals.filter { !retained.contains($0) }
         if !ended.isEmpty {
-            try? await database.removeScheduleAutoPostRefusals(ended)
+            try? await SchedulePostingSQL.removeScheduleAutoPostRefusals(ended, in: database)
         }
         return loaded
     }
