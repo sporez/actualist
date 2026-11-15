@@ -107,7 +107,7 @@ enum ScheduleReviewSQL {
             completed: SQLiteValueCoercion.lenientBool(row["completed"]),
             postsTransaction: SQLiteValueCoercion.lenientBool(row["posts_transaction"]),
             customUpcomingLength: row["custom_upcoming_length"] as String?,
-            sortOrder: ScheduleSQL.optionalScheduleDouble(row["sort_order"]),
+            sortOrder: SQLiteValueCoercion.lenientOptionalDouble(row["sort_order"]),
             tombstone: SQLiteValueCoercion.lenientBool(row["tombstone"]),
             active: SQLiteValueCoercion.lenientBool(row["active"])
         )

@@ -245,7 +245,7 @@ enum ScheduleSQL {
                     postsTransaction: postsTransaction,
                     customUpcomingLength: row["custom_upcoming_length"],
                     sortOrder: scheduleColumns.contains("sort_order")
-                        ? optionalScheduleDouble(row["sort_order"])
+                        ? SQLiteValueCoercion.lenientOptionalDouble(row["sort_order"])
                         : nil,
                     rawConditionsJSON: projection.rawConditionsJSON,
                     rawActionsJSON: projection.rawActionsJSON,
@@ -546,36 +546,19 @@ enum ScheduleSQL {
         if matchingMode == .exact || postsTransaction {
             return occurrenceDate
         }
-        guard let occurrence = ActualScheduleRecurrence.date(from: occurrenceDate),
-              let earlier = Calendar.actualScheduleGregorian.date(
-                byAdding: .day,
-                value: -2,
-                to: occurrence
-              ) else {
-            return occurrenceDate
-        }
-        return ActualScheduleRecurrence.dayID(from: earlier)
+        return ActualDateOnly.shiftedDayID(occurrenceDate, byDays: -2) ?? occurrenceDate
     }
 
     private static func canonicalScheduleDayID(_ value: DatabaseValueConvertible?) -> String? {
         guard let raw = SQLiteValueCoercion.lenientString(value) else { return nil }
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let dayID: String
-        if trimmed.count == 8, trimmed.allSatisfy(\.isNumber) {
-            dayID = "\(trimmed.prefix(4))-\(trimmed.dropFirst(4).prefix(2))-\(trimmed.suffix(2))"
+        if trimmed.count == 8, trimmed.allSatisfy(\.isNumber), let packed = Int(trimmed) {
+            dayID = PackedDate.paddedISO(packed)
         } else {
             dayID = trimmed
         }
         return ActualScheduleRecurrence.date(from: dayID) == nil ? nil : dayID
-    }
-
-    static func optionalScheduleDouble(_ value: DatabaseValueConvertible?) -> Double? {
-        if let value = value as? Double { return value }
-        if let value = value as? Float { return Double(value) }
-        if let value = value as? Int { return Double(value) }
-        if let value = value as? Int64 { return Double(value) }
-        if let value = value as? String { return Double(value) }
-        return nil
     }
 
     static func fetchRuleScheduleIndex(in database: isolated BudgetDatabase, db: Database) throws -> RuleScheduleIndex {

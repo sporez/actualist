@@ -470,7 +470,7 @@ enum SchedulePostingSQL {
         guard let accountID = detail.account.id,
               let amount = detail.amount.postingAmount,
               let postedDayID = detail.effectiveNextDate,
-              let transactionDate = Self.postingDate(postedDayID) else {
+              let transactionDate = ActualDateOnly.noonDate(fromDayID: postedDayID) else {
             throw SchedulePostingRefusal.unsupportedOccurrence
         }
         let draft = TransactionDraft(
@@ -601,18 +601,6 @@ enum SchedulePostingSQL {
                 return lhs.id < rhs.id
             }
         }
-    }
-
-    /// Hour-12 local date, matching manual schedule posting. Not UTC midnight.
-    private static func postingDate(_ dayID: String) -> Date? {
-        guard ActualScheduleRecurrence.date(from: dayID) != nil else { return nil }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        let parts = dayID.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
-        return calendar.date(from: DateComponents(
-            year: parts[0], month: parts[1], day: parts[2], hour: 12
-        ))
     }
 
     private static func scheduleAdvancementMetadataURL(in database: isolated BudgetDatabase) -> URL {

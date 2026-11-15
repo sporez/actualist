@@ -38,6 +38,15 @@ enum ActualDateOnly {
         return ActualScheduleRecurrence.dayID(from: shifted, calendar: calendar)
     }
 
+    /// Noon in `timeZone` on `dayID`, nil unless `dayID` is a real calendar
+    /// day (`yyyy-MM-dd`). Schedule posting dates a posted transaction this
+    /// way, as Actual's `parseDate` builds a day; midnight does not exist on a
+    /// DST change day in some zones.
+    static func noonDate(fromDayID dayID: String, timeZone: TimeZone = .autoupdatingCurrent) -> Date? {
+        guard ActualScheduleRecurrence.date(from: dayID) != nil else { return nil }
+        return lenientDate(fromDayID: dayID, calendar: calendar(timeZone: timeZone), hour: 12)
+    }
+
     /// Lenient variant of `date(from:timeZone:)`: any digit count, and a day or
     /// month out of range rolls forward ("2026-02-31" is 2026-03-03). Reports,
     /// the schedule editor and the transaction filter rely on that, so it

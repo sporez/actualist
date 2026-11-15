@@ -52,4 +52,50 @@ struct ActualDayArithmeticParityTests {
         #expect(BudgetDatabase.recentPayeeCutoff(now: Self.lateUTC, timeZone: Self.east) == "2025-12-22")
         #expect(BudgetDatabase.recentPayeeCutoff(now: Self.earlyUTC, timeZone: Self.west) == "2025-12-20")
     }
+
+    /// Verbatim copy of the two deleted schedule posting date builders
+    /// (`LocalFirstActualStore.schedulePostingDate` and
+    /// `BudgetDatabase.postingDate`), which `noonDate(fromDayID:timeZone:)`
+    /// replaced. The zone was always the device zone.
+    private static func legacyPostingDate(_ dayID: String, timeZone: TimeZone) -> Date? {
+        guard ActualScheduleRecurrence.date(from: dayID) != nil else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let parts = dayID.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return calendar.date(from: DateComponents(
+            year: parts[0], month: parts[1], day: parts[2], hour: 12
+        ))
+    }
+
+    @Test func noonDateMatchesTheDeletedPostingDateBuilders() {
+        let days = [
+            "2026-03-15", "2024-02-29", "2026-01-01", "2026-12-31", "0001-01-01", "9999-12-31",
+            "2026-11-01", "2026-03-08", "2026-10-04", "2026-09-06",
+            "2026-02-31", "2025-02-29", "2026-3-5", "2026-03-05T00:00", "20260315", "", "junk",
+        ]
+        let zones = [
+            Self.east, Self.west, TimeZone.gmt,
+            TimeZone(identifier: "America/New_York")!, TimeZone(identifier: "America/Santiago")!,
+            TimeZone(identifier: "America/Asuncion")!, TimeZone(identifier: "Australia/Lord_Howe")!,
+        ]
+        for zone in zones {
+            for day in days {
+                #expect(
+                    ActualDateOnly.noonDate(fromDayID: day, timeZone: zone) == Self.legacyPostingDate(day, timeZone: zone),
+                    "\(day) \(zone.identifier)"
+                )
+            }
+        }
+    }
+
+    @Test func noonDateIsNoonOnThatDayInTheZone() throws {
+        let zone = TimeZone(identifier: "America/Santiago")!
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        let date = try #require(ActualDateOnly.noonDate(fromDayID: "2026-09-06", timeZone: zone))
+        let parts = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        #expect(parts == DateComponents(year: 2026, month: 9, day: 6, hour: 12, minute: 0))
+        #expect(ActualDateOnly.noonDate(fromDayID: "2026-02-31", timeZone: zone) == nil)
+    }
 }

@@ -43,6 +43,12 @@ enum SQLiteValueCoercion {
     /// A number, or text that parses whole as a `Double` (not trimmed). Zero
     /// for anything else.
     static func lenientDouble(_ value: DatabaseValueConvertible?) -> Double {
+        lenientOptionalDouble(value) ?? 0
+    }
+
+    /// `lenientDouble`, but nil instead of zero for anything that is not a
+    /// number or numeric text.
+    static func lenientOptionalDouble(_ value: DatabaseValueConvertible?) -> Double? {
         if let value = value as? Double {
             return value
         }
@@ -55,10 +61,10 @@ enum SQLiteValueCoercion {
         if let value = value as? Int64 {
             return Double(value)
         }
-        if let value = value as? String, let parsed = Double(value) {
-            return parsed
+        if let value = value as? String {
+            return Double(value)
         }
-        return 0
+        return nil
     }
 
     /// A whole number: an integer, a REAL with no fraction, or text that is an

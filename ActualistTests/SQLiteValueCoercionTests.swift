@@ -87,6 +87,27 @@ struct SQLiteValueCoercionTests {
         }
     }
 
+    /// Verbatim copy of the deleted `BudgetDatabase.optionalScheduleDouble`,
+    /// which `lenientOptionalDouble` replaced.
+    private static func legacyOptionalScheduleDouble(_ value: DatabaseValueConvertible?) -> Double? {
+        if let value = value as? Double { return value }
+        if let value = value as? Float { return Double(value) }
+        if let value = value as? Int { return Double(value) }
+        if let value = value as? Int64 { return Double(value) }
+        if let value = value as? String { return Double(value) }
+        return nil
+    }
+
+    @Test func lenientOptionalDoubleIsLenientDoubleWithNilForNonNumbers() {
+        let zeros: Set<String> = ["int64 0", "double 0.0", "'0'"]
+        for (label, value) in Self.values() {
+            let expected = Self.double[label] ?? (zeros.contains(label) ? 0 : nil)
+            #expect(SQLiteValueCoercion.lenientOptionalDouble(value) == expected, "\(label)")
+            #expect(SQLiteValueCoercion.lenientOptionalDouble(value) == Self.legacyOptionalScheduleDouble(value), "\(label)")
+        }
+        #expect(SQLiteValueCoercion.lenientOptionalDouble(Float(2.5)) == 2.5)
+    }
+
     // MARK: Whole numbers
 
     @Test func exactIntegersAcceptWholeNumbersOnly() {

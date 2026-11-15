@@ -149,7 +149,7 @@ extension LocalFirstActualStore {
             guard selectedDayID == today else { throw SchedulePostingError.reviewChanged }
             postedDayID = selectedDayID
         }
-        guard let transactionDate = Self.schedulePostingDate(postedDayID) else {
+        guard let transactionDate = ActualDateOnly.noonDate(fromDayID: postedDayID) else {
             throw SchedulePostingError.unsupportedSchedule
         }
 
@@ -238,17 +238,6 @@ extension LocalFirstActualStore {
             appliedMessageCount: receipt.appliedMessageCount,
             refreshPending: refreshPending
         )
-    }
-
-    private static func schedulePostingDate(_ dayID: String) -> Date? {
-        guard ActualScheduleRecurrence.date(from: dayID) != nil else { return nil }
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = .autoupdatingCurrent
-        let parts = dayID.split(separator: "-").compactMap { Int($0) }
-        guard parts.count == 3 else { return nil }
-        return calendar.date(from: DateComponents(
-            year: parts[0], month: parts[1], day: parts[2], hour: 12
-        ))
     }
 }
 
