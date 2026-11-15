@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 
 /// Actual 26.8.1 `SplitTransactionError`: parent amount minus child total.
 struct SplitTransactionError: Equatable, Sendable, Codable, Hashable {
@@ -21,6 +22,28 @@ struct SplitTransactionError: Equatable, Sendable, Codable, Hashable {
     static func isPresent(_ stored: String?) -> Bool {
         guard let stored else { return false }
         return !stored.isEmpty && stored != "null"
+    }
+
+    static func parse(_ value: DatabaseValueConvertible?) -> SplitTransactionError? {
+        let raw: String?
+        if let value = value as? String {
+            raw = value
+        } else {
+            raw = SQLiteValueCoercion.lenientString(value)
+        }
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != "null", let data = trimmed.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(SplitTransactionError.self, from: data)
+    }
+
+    static func syncValue(_ error: SplitTransactionError?) -> LocalFirstSyncValue {
+        guard let error else { return .null }
+        return .string(
+            "{\"type\":\"\(error.type)\",\"version\":\(error.version),\"difference\":\(error.difference)}"
+        )
     }
 }
 

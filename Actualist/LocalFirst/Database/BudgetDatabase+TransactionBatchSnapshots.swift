@@ -105,7 +105,7 @@ extension BudgetDatabase {
             }
             if let error = snapshot.splitError,
                SplitTransactionError.isPresent(error),
-               parseSplitTransactionError(error) == nil {
+               SplitTransactionError.parse(error) == nil {
                 invalidReason = "The split error data cannot be interpreted safely."
             }
         }
@@ -172,7 +172,7 @@ extension BudgetDatabase {
         ids: [String],
         db: Database
     ) throws -> [TransactionBatchTransactionSnapshot] {
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         var output: [TransactionBatchTransactionSnapshot] = []
         for id in Set(ids).sorted() {
             guard let snapshot = try transactionBatchSnapshot(id: id, columns: columns, db: db) else {
@@ -198,7 +198,7 @@ extension BudgetDatabase {
         _ snapshots: [TransactionBatchTransactionSnapshot],
         db: Database
     ) throws -> Bool {
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         let byID = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.id, $0) })
         let rootIDs = Set(snapshots.compactMap { snapshot -> String? in
             if snapshot.isParent == true { return snapshot.id }

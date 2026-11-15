@@ -112,7 +112,7 @@ extension BudgetDatabase {
             throw LocalFirstError.refusedChange("Select two different transactions to merge.")
         }
 
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         let firstGraph = try transactionMergeGraph(
             containing: orderedTransactionIDs[0],
             columns: columns,
@@ -275,7 +275,7 @@ extension BudgetDatabase {
               plan.beforeSnapshots.count == plan.afterSnapshots.count else {
             throw LocalFirstError.invalidLocalWrite("the transaction merge plan has incomplete snapshots")
         }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         var messages: [ActualSyncDecodedMessage] = []
         for (before, after) in zip(plan.beforeSnapshots, plan.afterSnapshots) {
             guard before.columns == after.columns,

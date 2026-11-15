@@ -161,103 +161,6 @@ extension BudgetDatabase {
         Date().timeIntervalSince1970 * 1_000
     }
 
-    func resolveTransactionRowColumns(db: Database) throws -> TransactionRowColumns {
-        let columns = try requiredColumns(
-            table: "transactions",
-            required: ["date", "amount", "category"],
-            db: db
-        )
-        return TransactionRowColumns(
-            all: columns,
-            account: try firstExistingColumn(TransactionRowColumns.accountAliases, in: columns, table: "transactions"),
-            payee: try firstExistingColumn(TransactionRowColumns.payeeAliases, in: columns, table: "transactions"),
-            isParent: TransactionRowColumns.isParent(in: columns),
-            isChild: TransactionRowColumns.isChild(in: columns),
-            transferID: TransactionRowColumns.transferID(in: columns),
-            sortOrder: columns.contains("sort_order") ? "sort_order" : nil
-        )
-    }
-
-    func transactionRowMessages(
-        rowID: String,
-        accountID: String,
-        dateValue: Int,
-        amountMinorUnits: Int,
-        payeeID: String?,
-        categoryID: String?,
-        notes: String?,
-        cleared: Bool,
-        reconciled: Bool? = nil,
-        isParent: Bool,
-        parentID: String?,
-        isChild: Bool,
-        transferID: String?,
-        sortOrder: Double?,
-        error: SplitTransactionError? = nil,
-        startingBalance: Bool? = nil,
-        columns: TransactionRowColumns,
-        builder: inout LocalFirstSyncMessageBuilder,
-        scheduleID: String? = nil,
-        cells: TransactionRowCells = .inserted()
-    ) throws -> [ActualSyncDecodedMessage] {
-        let snapshot = cells.isSnapshot
-        var fields: [(String, LocalFirstSyncValue)] = [
-            (columns.account, .string(accountID)),
-            ("date", .int(Int64(dateValue))),
-            ("amount", .int(Int64(amountMinorUnits)))
-        ]
-        if snapshot || payeeID != nil {
-            fields.append((columns.payee, payeeID.map(LocalFirstSyncValue.string) ?? .null))
-        }
-        if snapshot || categoryID != nil || cells.clearsCategory {
-            fields.append(("category", categoryID.map(LocalFirstSyncValue.string) ?? .null))
-        }
-        if columns.hasNotes, snapshot || notes != nil {
-            fields.append(("notes", notes.map(LocalFirstSyncValue.string) ?? .null))
-        }
-        if columns.hasCleared {
-            fields.append(("cleared", .bool(cleared)))
-        }
-        if columns.hasReconciled, let reconciled = snapshot ? reconciled : false {
-            fields.append(("reconciled", .bool(reconciled)))
-        }
-        if snapshot, let isParentColumn = columns.isParent {
-            fields.append((isParentColumn, .bool(isParent)))
-        }
-        if snapshot, columns.hasParentID {
-            fields.append(("parent_id", parentID.map(LocalFirstSyncValue.string) ?? .null))
-        }
-        if snapshot, let isChildColumn = columns.isChild {
-            fields.append((isChildColumn, .bool(isChild)))
-        }
-        if let transferID, let transferColumn = columns.transferID {
-            fields.append((transferColumn, .string(transferID)))
-        }
-        if let sortOrder, let sortOrderColumn = columns.sortOrder {
-            fields.append((sortOrderColumn, .double(sortOrder)))
-        }
-        if snapshot, columns.hasTombstone {
-            fields.append(("tombstone", .bool(false)))
-        }
-        if let scheduleID, columns.hasSchedule {
-            fields.append(("schedule", .string(scheduleID)))
-        }
-        if snapshot, columns.hasError {
-            fields.append(("error", splitErrorValue(error)))
-        }
-        if let startingBalance, columns.hasStartingBalance {
-            fields.append(("starting_balance_flag", .bool(startingBalance)))
-        }
-
-        var messages: [ActualSyncDecodedMessage] = []
-        for (column, value) in fields {
-            messages.append(
-                try builder.makeMessage(dataset: "transactions", row: rowID, column: column, value: value)
-            )
-        }
-        return messages
-    }
-
     func createTransferTransactionMessages(
         draft: TransactionDraft,
         sourceTransactionID: String,
@@ -290,7 +193,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing amount")
         }
 
-            let columns = try resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: self, db: db)
             guard columns.transferID != nil else {
                 throw LocalFirstError.schemaUnavailable("missing column transactions.transferred_id")
             }
@@ -315,7 +218,7 @@ extension BudgetDatabase {
                 db: db
             )
 
-            let sourceMessages = try transactionRowMessages(
+            let sourceMessages = try columns.rowMessages(
                 rowID: sourceTransactionID,
                 accountID: draft.accountID,
                 dateValue: dateValue,
@@ -329,12 +232,11 @@ extension BudgetDatabase {
                 isChild: false,
                 transferID: pairedTransactionID,
                 sortOrder: sortOrder,
-                columns: columns,
                 builder: &builder,
                 scheduleID: schedulePostingMetadata?.scheduleID ?? draft.scheduleID,
                 cells: .inserted(clearsCategory: sameSide)
             )
-            let pairedMessages = try transactionRowMessages(
+            let pairedMessages = try columns.rowMessages(
                 rowID: pairedTransactionID,
                 accountID: destinationAccountID,
                 dateValue: dateValue,
@@ -348,7 +250,6 @@ extension BudgetDatabase {
                 isChild: false,
                 transferID: sourceTransactionID,
                 sortOrder: sortOrder,
-                columns: columns,
                 builder: &builder,
                 scheduleID: schedulePostingMetadata?.scheduleID
             )
@@ -478,27 +379,5 @@ extension BudgetDatabase {
             throw LocalFirstError.referencedRowUnavailable("missing transfer payee for account")
         }
         return payeeID
-    }
-}
-
-/// Which cells `transactionRowMessages` writes for a row.
-enum TransactionRowCells {
-    /// Actual's insert: only the cells it sets, so an absent payee, category or notes and the
-    /// structural defaults (tombstone, isParent, parent_id, isChild, error) stay unwritten.
-    /// `clearsCategory` writes a null category, as Actual does on the source leg of a transfer
-    /// between accounts on the same side of the budget.
-    case inserted(clearsCategory: Bool = false)
-    /// Every stored column, for a row rewritten from a snapshot or a split plan: an unset value
-    /// must overwrite what the row held before, and a restored row must be live again.
-    case snapshot
-
-    var isSnapshot: Bool {
-        if case .snapshot = self { return true }
-        return false
-    }
-
-    var clearsCategory: Bool {
-        if case .inserted(let clears) = self { return clears }
-        return false
     }
 }

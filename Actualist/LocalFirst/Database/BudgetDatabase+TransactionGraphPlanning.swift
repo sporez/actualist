@@ -27,7 +27,7 @@ extension BudgetDatabase {
         guard !draft.accountID.isEmpty else {
             throw LocalFirstError.referencedRowUnavailable("missing account")
         }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         guard columns.hasSchedule else {
             throw LocalFirstError.schemaUnavailable("transactions.schedule is unavailable")
         }
@@ -130,7 +130,7 @@ extension BudgetDatabase {
         guard !draft.splits.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("split requires at least one child")
         }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         if try tableExists("accounts", db: db),
            try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
             throw LocalFirstError.referencedRowUnavailable("missing account")

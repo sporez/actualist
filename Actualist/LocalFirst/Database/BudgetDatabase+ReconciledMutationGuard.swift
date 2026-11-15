@@ -7,7 +7,7 @@ extension BudgetDatabase {
         db: Database
     ) throws {
         guard let precondition else { return }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         try validateReconciledMutationAuthorization(
             transactionID: precondition.transactionID,
             authorization: precondition.authorization,
@@ -24,7 +24,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
         return try queue.read { db in
-            let columns = try resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: self, db: db)
             return try reconciledMutationReview(
                 transactionID: requestedID,
                 columns: columns,
@@ -107,7 +107,7 @@ extension BudgetDatabase {
         columns: TransactionRowColumns,
         db: Database
     ) throws -> [ReconciledMutationRow] {
-        let split = transactionSplitQueryExpressions(columns: columns.all)
+        let split = TransactionSplitQueryExpressions(columns: columns.all)
         let target = try Row.fetchOne(
             db,
             sql: """

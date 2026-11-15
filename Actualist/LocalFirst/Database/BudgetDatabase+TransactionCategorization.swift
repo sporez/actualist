@@ -41,7 +41,7 @@ extension BudgetDatabase {
         try validateReconciledMutationAuthorization(
             transactionID: trimmedTransactionID,
             authorization: reconciliationAuthorization,
-            columns: try resolveTransactionRowColumns(db: db),
+            columns: try TransactionRowColumns.resolve(in: self, db: db),
             db: db
         )
         if try tableExists("categories", db: db),
@@ -72,7 +72,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
 
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         guard columns.hasTombstone else {
             throw LocalFirstError.invalidLocalWrite("missing column transactions.tombstone")
         }

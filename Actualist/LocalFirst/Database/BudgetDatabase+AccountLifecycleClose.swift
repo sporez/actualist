@@ -142,7 +142,7 @@ extension BudgetDatabase {
               ids.source != ids.destination else {
             throw AccountLifecycleCommandError.invalidPreparedMutation
         }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         guard columns.transferID != nil,
               columns.isParent != nil,
               columns.isChild != nil,
@@ -166,7 +166,7 @@ extension BudgetDatabase {
         // of the budget; crossing sides leaves an unassigned category unwritten.
         let destinationOffBudget = try accountLifecycleAccounts(db: db)
             .first { $0.id == transfer.destinationAccountID }?.offBudget ?? sourceOffBudget
-        let source = try transactionRowMessages(
+        let source = try columns.rowMessages(
             rowID: ids.source,
             accountID: sourceAccountID,
             dateValue: localDay.transactionDate,
@@ -181,11 +181,10 @@ extension BudgetDatabase {
             isChild: false,
             transferID: ids.destination,
             sortOrder: sortOrder,
-            columns: columns,
             builder: &builder,
             cells: .inserted(clearsCategory: sourceOffBudget == destinationOffBudget)
         )
-        let destination = try transactionRowMessages(
+        let destination = try columns.rowMessages(
             rowID: ids.destination,
             accountID: transfer.destinationAccountID,
             dateValue: localDay.transactionDate,
@@ -200,7 +199,6 @@ extension BudgetDatabase {
             isChild: false,
             transferID: ids.source,
             sortOrder: sortOrder,
-            columns: columns,
             builder: &builder
         )
         return source + destination

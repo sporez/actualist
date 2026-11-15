@@ -190,7 +190,7 @@ extension LocalFirstActualStore {
             let existing = try database.fetchTransaction(id: transactionID, db: db)
             let existingState = try database.existingTransactionState(
                 id: transactionID,
-                columns: try database.resolveTransactionRowColumns(db: db),
+                columns: try TransactionRowColumns.resolve(in: database, db: db),
                 db: db
             )
             let update = try database.updateTransactionMessages(
@@ -414,7 +414,7 @@ extension LocalFirstActualStore {
             )
             let existingState = try database.existingTransactionState(
                 id: transactionID,
-                columns: try database.resolveTransactionRowColumns(db: db),
+                columns: try TransactionRowColumns.resolve(in: database, db: db),
                 db: db
             )
             let graph: BudgetTransactionGraph

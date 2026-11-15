@@ -93,7 +93,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("invalid transaction duplicate selection")
         }
 
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         guard columns.hasTombstone,
               columns.hasParentID,
               columns.isParent != nil,

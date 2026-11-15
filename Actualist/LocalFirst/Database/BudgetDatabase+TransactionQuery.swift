@@ -183,13 +183,14 @@ private extension BudgetDatabase {
         query: TransactionFeedQuery
     ) throws -> CompiledTransactionQuery {
         let columns = try columnSet(for: "transactions", db: db)
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-        var joins = try transactionReadJoins(
-            db: db,
+        var joins = try TransactionReadJoins.resolve(
             split: split,
             transactionColumns: columns,
-            includeNames: true
+            includeNames: true,
+            in: self,
+            db: db
         )
         var conditions = [split.liveEffectivePredicate()]
         var arguments: [DatabaseValueConvertible] = []

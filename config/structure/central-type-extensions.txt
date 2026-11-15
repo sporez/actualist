@@ -89,7 +89,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+TransactionIDPrecondition.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionMerge.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionQuery.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionReads.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TransactionSplitQuery.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionSplitRepair.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionSplitWrites.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionUpdates.swift

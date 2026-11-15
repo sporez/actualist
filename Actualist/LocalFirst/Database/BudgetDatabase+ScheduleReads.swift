@@ -439,7 +439,7 @@ extension BudgetDatabase {
         guard try tableExists("transactions", db: db) else { return [:] }
         let columns = try columnSet(for: "transactions", db: db)
         guard columns.contains("schedule"), columns.contains("date") else { return [:] }
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let parentAlias = "schedule_parent"
         var result: [String: [String]] = [:]
         let bounds = lowerBoundsByScheduleID.sorted { $0.key < $1.key }

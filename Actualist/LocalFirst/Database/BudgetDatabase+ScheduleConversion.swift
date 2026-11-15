@@ -114,7 +114,7 @@ extension BudgetDatabase {
                     db: db,
                     builder: &builder
                 )
-                let transactionColumns = try resolveTransactionRowColumns(db: db)
+                let transactionColumns = try TransactionRowColumns.resolve(in: self, db: db)
                 guard transactionColumns.hasTombstone else {
                     throw ScheduleConversionError.unsupportedSource("This budget cannot safely remove the original transaction.")
                 }
@@ -158,13 +158,14 @@ extension BudgetDatabase {
         db: Database
     ) throws -> [ScheduleConversionRow] {
         let columns = try requiredColumns(table: "transactions", required: ["id", "date", "amount"], db: db)
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
-        let joins = try transactionReadJoins(
-            db: db,
+        let joins = try TransactionReadJoins.resolve(
             split: split,
             transactionColumns: columns,
-            includeNames: true
+            includeNames: true,
+            in: self,
+            db: db
         )
         let rows = try Row.fetchAll(
             db,

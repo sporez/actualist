@@ -57,7 +57,7 @@ extension BudgetDatabase {
 
         let transactionColumns = try columnSet(for: "transactions", db: db)
         let accountColumns = try columnSet(for: "accounts", db: db)
-        let split = transactionSplitQueryExpressions(columns: transactionColumns)
+        let split = TransactionSplitQueryExpressions(columns: transactionColumns)
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
 
         let rows = try Row.fetchAll(
@@ -102,7 +102,7 @@ extension BudgetDatabase {
             return []
         }
         let accountColumns = try columnSet(for: "accounts", db: db)
-        let split = transactionSplitQueryExpressions(columns: transactionColumns)
+        let split = TransactionSplitQueryExpressions(columns: transactionColumns)
         let sortedAccountIDs = accountIDs?.sorted() ?? []
         let accountFilter = accountIDs == nil
             ? ""
@@ -153,7 +153,7 @@ extension BudgetDatabase {
 
         let transactionColumns = try columnSet(for: "transactions", db: db)
         let accountColumns = try columnSet(for: "accounts", db: db)
-        let split = transactionSplitQueryExpressions(columns: transactionColumns)
+        let split = TransactionSplitQueryExpressions(columns: transactionColumns)
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
         let isInflowExpression = "CASE WHEN \(split.qualifiedAmount) > 0 THEN 1 ELSE 0 END"
         let transferPredicate: String

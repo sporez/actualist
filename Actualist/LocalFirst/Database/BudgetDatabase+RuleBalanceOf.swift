@@ -64,7 +64,7 @@ extension BudgetDatabase {
             return BalanceOfLedger(ordersBySortOrder: false, rows: [])
         }
         let columns = try columnSet(for: "transactions", db: db)
-        let expressions = transactionSplitQueryExpressions(columns: columns)
+        let expressions = TransactionSplitQueryExpressions(columns: columns)
         let rows = try Row.fetchAll(
             db,
             sql: """

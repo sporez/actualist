@@ -90,7 +90,7 @@ extension BudgetDatabase {
               selections.allSatisfy({ !$0.transactionID.isEmpty && !$0.familyRootID.isEmpty }) else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction selection")
         }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         let isDelete = intent == .delete
         if isDelete && !columns.hasTombstone {
             throw LocalFirstError.invalidLocalWrite("transactions.tombstone is unavailable")

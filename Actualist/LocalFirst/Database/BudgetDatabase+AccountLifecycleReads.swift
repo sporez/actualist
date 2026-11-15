@@ -221,7 +221,7 @@ private extension BudgetDatabase {
             throw AccountLifecycleCommandError.missingTransactionSchema
         }
 
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let balanceRow = try Row.fetchOne(
             db,
             sql: """
@@ -277,7 +277,7 @@ private extension BudgetDatabase {
         transferColumn: String,
         db: Database
     ) throws -> [AccountLifecycleTransactionFact] {
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let notes = column("notes", fallback: "NULL", columns: columns)
         return try Row.fetchAll(
             db,

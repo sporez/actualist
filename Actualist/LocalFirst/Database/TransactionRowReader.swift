@@ -18,7 +18,7 @@ enum TransactionRowReader {
     }
 
     /// `parent_id` with the empty string as nil; nil when there is no such column.
-    static func parentID(in row: Row, columns: BudgetDatabase.TransactionRowColumns) -> String? {
+    static func parentID(in row: Row, columns: TransactionRowColumns) -> String? {
         columns.hasParentID ? SQLiteValueCoercion.nonEmptyString(row, "parent_id") : nil
     }
 
@@ -26,7 +26,7 @@ enum TransactionRowReader {
     /// NULL. An explicit zero wins over a `parentID`.
     static func effectiveIsChild(
         row: Row,
-        columns: BudgetDatabase.TransactionRowColumns,
+        columns: TransactionRowColumns,
         parentID: String?
     ) -> Bool {
         guard let isChildColumn = columns.isChild else {

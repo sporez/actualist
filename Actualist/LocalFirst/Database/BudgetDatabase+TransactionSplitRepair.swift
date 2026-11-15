@@ -6,7 +6,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> (result: SplitTransactionRepairResult, write: TransactionWriteResult) {
         try queue.read { db in
-            let columns = try resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: self, db: db)
             var repair = SplitTransactionRepairResult()
             var oldByID: [String: SplitTransactionRecord] = [:]
             var newByID: [String: SplitTransactionRecord] = [:]

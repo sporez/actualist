@@ -101,7 +101,7 @@ extension BudgetDatabase {
 
         let transactionColumns = try columnSet(for: "transactions", db: db)
         let accountColumns = try columnSet(for: "accounts", db: db)
-        let split = transactionSplitQueryExpressions(columns: transactionColumns)
+        let split = TransactionSplitQueryExpressions(columns: transactionColumns)
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
         let sortedAccountIDs = accountIDs.sorted()
         let placeholders = Array(repeating: "?", count: sortedAccountIDs.count).joined(separator: ", ")

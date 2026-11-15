@@ -26,7 +26,7 @@ struct TransactionRowLoaderCharacterizationTests {
 
     private func loadAll(_ database: BudgetDatabase, ids: [String]) async throws -> [String: Loaded] {
         try await read(database) { (database: isolated BudgetDatabase, db: Database) in
-            let columns = try database.resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
             var output: [String: Loaded] = [:]
             for id in ids {
                 output[id] = Loaded(
@@ -104,7 +104,7 @@ struct TransactionRowLoaderCharacterizationTests {
             databaseURL: support.makeSQLiteFixture(extraSQL: insertSQL(probes, amount: false, sort: false))
         )
         let splits = try await read(database) { (database: isolated BudgetDatabase, db: Database) in
-            let columns = try database.resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
             return try probes.indices.map {
                 try database.loadTransactionRecord(id: "p\($0)", columns: columns, db: db)
             }
@@ -243,7 +243,7 @@ struct TransactionRowLoaderCharacterizationTests {
             databaseURL: support.makeSQLiteFixture(extraSQL: insertSQL(probes, amount: true, sort: true))
         )
         let loaded = try await read(database) { (database: isolated BudgetDatabase, db: Database) in
-            let columns = try database.resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
             return try cases.indices.map { index in
                 (
                     batch: try database.transactionBatchSnapshot(id: "p\(index)", columns: columns, db: db),
@@ -306,7 +306,7 @@ struct TransactionRowLoaderCharacterizationTests {
             \(inserts)
             """))
         let loaded = try await read(database) { (database: isolated BudgetDatabase, db: Database) in
-            let columns = try database.resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
             return try cases.indices.map { index in
                 (
                     split: try database.loadTransactionRecord(id: "p\(index)", columns: columns, db: db),

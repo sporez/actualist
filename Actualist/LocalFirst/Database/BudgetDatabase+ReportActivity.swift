@@ -34,12 +34,13 @@ extension BudgetDatabase {
         }
         let transactionColumns = try columnSet(for: "transactions", db: db)
         let accountColumns = try columnSet(for: "accounts", db: db)
-        let split = transactionSplitQueryExpressions(columns: transactionColumns)
-        let joins = try transactionReadJoins(
-            db: db,
+        let split = TransactionSplitQueryExpressions(columns: transactionColumns)
+        let joins = try TransactionReadJoins.resolve(
             split: split,
             transactionColumns: transactionColumns,
-            includeNames: false
+            includeNames: false,
+            in: self,
+            db: db
         )
         let normalizedDate = normalizedDateExpression(split.qualifiedDate)
         let offBudget = column("offbudget", fallback: "0", columns: accountColumns)

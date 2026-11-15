@@ -3,13 +3,6 @@ import GRDB
 
 extension BudgetDatabase {
 
-    func splitErrorValue(_ error: SplitTransactionError?) -> LocalFirstSyncValue {
-        guard let error else { return .null }
-        return .string(
-            "{\"type\":\"\(error.type)\",\"version\":\(error.version),\"difference\":\(error.difference)}"
-        )
-    }
-
     func createSplitTransactionMessages(
         draft: TransactionDraft,
         parentTransactionID: String,
@@ -392,7 +385,7 @@ extension BudgetDatabase {
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
-        try transactionRowMessages(
+        try columns.rowMessages(
             rowID: row.id,
             accountID: row.account ?? "",
             dateValue: PackedDate.packed(fromISO: row.date),
@@ -409,7 +402,6 @@ extension BudgetDatabase {
             sortOrder: row.sortOrder,
             error: row.isParent ? row.error : nil,
             startingBalance: row.startingBalance,
-            columns: columns,
             builder: &builder,
             cells: .snapshot
         )
@@ -462,7 +454,7 @@ extension BudgetDatabase {
             fields.append((sortColumn, .double(sortOrder)))
         }
         if columns.hasError, old.error != new.error {
-            fields.append(("error", splitErrorValue(new.isParent ? new.error : nil)))
+            fields.append(("error", SplitTransactionError.syncValue(new.isParent ? new.error : nil)))
         }
         if columns.hasStartingBalance, old.startingBalance != new.startingBalance {
             fields.append(("starting_balance_flag", .bool(new.startingBalance ?? false)))
@@ -503,7 +495,7 @@ extension BudgetDatabase {
         }
         affectedAccounts.insert(destination)
         affectedTransactions.insert(pairedID)
-        let paired = try transactionRowMessages(
+        let paired = try columns.rowMessages(
             rowID: pairedID,
             accountID: destination,
             dateValue: PackedDate.packed(fromISO: row.date),
@@ -517,7 +509,6 @@ extension BudgetDatabase {
             isChild: false,
             transferID: row.id,
             sortOrder: nil,
-            columns: columns,
             builder: &builder,
             cells: .snapshot
         )
@@ -734,7 +725,7 @@ extension BudgetDatabase {
             isChild: isChild,
             parentID: isChild ? parentID : nil,
             transferID: columns.transferID.flatMap { SQLiteValueCoercion.nonEmptyString(row, $0) },
-            error: columns.hasError ? parseSplitTransactionError(row["error"]) : nil,
+            error: columns.hasError ? SplitTransactionError.parse(row["error"]) : nil,
             deleted: columns.hasTombstone ? SQLiteValueCoercion.lenientBool(row["tombstone"]) : false
         )
     }

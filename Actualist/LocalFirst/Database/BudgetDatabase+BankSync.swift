@@ -193,7 +193,7 @@ extension BudgetDatabase {
         try queue.read { db in
             guard try tableExists("transactions", db: db) else { return nil }
             let columns = try columnSet(for: "transactions", db: db)
-            let split = transactionSplitQueryExpressions(columns: columns)
+            let split = TransactionSplitQueryExpressions(columns: columns)
             let oldest: Int? = try Int.fetchOne(
                 db,
                 sql: """
@@ -267,7 +267,7 @@ extension BudgetDatabase {
     ) throws -> [BankSyncReconciliation.Existing] {
         guard try tableExists("transactions", db: db) else { return [] }
         let columns = try columnSet(for: "transactions", db: db)
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let financialIDColumn = TransactionRowColumns.importedID(in: columns)
         let importedPayeeColumn = TransactionRowColumns.importedPayee(in: columns)
         let transferIDColumn = TransactionRowColumns.transferID(in: columns)
@@ -382,7 +382,7 @@ extension BudgetDatabase {
             guard reimportDeleted != "true",
                   try tableExists("transactions", db: db) else { return [] }
             let columns = try columnSet(for: "transactions", db: db)
-            let split = transactionSplitQueryExpressions(columns: columns)
+            let split = TransactionSplitQueryExpressions(columns: columns)
             guard split.tombstone != nil,
                   let financialID = TransactionRowColumns.importedID(in: columns) else {
                 return []
@@ -655,7 +655,7 @@ extension BudgetDatabase {
         try queue.read { db in
             guard !existing.isTransfer, !existing.isParent, let payeeID = update.payeeID, payeeID != existing.payeeID,
                   try transferAccountID(ifPayee: payeeID, db: db) != nil else { return ([], nil, nil) }
-            let columns = try resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: self, db: db)
             guard var old = try loadTransactionRecord(id: update.existingID, columns: columns, db: db) else {
                 return ([], nil, nil)
             }

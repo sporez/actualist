@@ -246,7 +246,7 @@ extension BudgetDatabase {
             live[id] = snapshot
             if let snapshot, snapshot.isParent,
                try tableExists("transactions", db: db) {
-                let columns = try resolveTransactionRowColumns(db: db)
+                let columns = try TransactionRowColumns.resolve(in: self, db: db)
                 if columns.hasParentID {
                     let children = try String.fetchAll(
                         db,
@@ -304,7 +304,7 @@ extension BudgetDatabase {
 
     func transactionUndoSnapshot(id: String, db: Database) throws -> TransactionUndoSnapshot? {
         guard try tableExists("transactions", db: db) else { return nil }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         guard let row = try TransactionRowReader.row(id: id, db: db) else {
             return nil
         }
@@ -366,7 +366,7 @@ extension BudgetDatabase {
         case .unTombstoneTransactions(let transactionIDs, let transferLinks):
             // Actual's delete clears the deleted leg's link, and its undo writes the link back
             // with the revive. A link the row still holds (deleted before the clear) is no write.
-            let columns = try resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: self, db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for id in transactionIDs {
                 messages.append(try builder.revive(dataset: "transactions", row: id))
@@ -380,10 +380,10 @@ extension BudgetDatabase {
             }
             return messages
         case .restoreSnapshots(let snapshots, let createdPayeeID, let learning):
-            let columns = try resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: self, db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for snapshot in snapshots {
-                let restored = try transactionRowMessages(
+                let restored = try columns.rowMessages(
                     rowID: snapshot.id,
                     accountID: snapshot.accountID,
                     dateValue: snapshot.dateValue,
@@ -397,7 +397,6 @@ extension BudgetDatabase {
                     isChild: snapshot.isChild,
                     transferID: snapshot.transferID,
                     sortOrder: nil,
-                    columns: columns,
                     builder: &builder,
                     cells: .snapshot
                 )
@@ -416,7 +415,7 @@ extension BudgetDatabase {
             }
             return messages
         case .restoreBatchTransactions(let snapshots, let learning):
-            let columns = try resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: self, db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for snapshot in snapshots {
                 let restored = try transactionBatchRestoreMessages(
@@ -578,7 +577,7 @@ extension BudgetDatabase {
         db: Database
     ) throws -> Bool {
         guard try tableExists("transactions", db: db) else { return true }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         let ignored = transactionIDs.filter { !$0.isEmpty }
         let ignoreSQL: String
         let arguments: [any DatabaseValueConvertible]

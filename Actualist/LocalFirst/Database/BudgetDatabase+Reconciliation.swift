@@ -68,7 +68,7 @@ extension BudgetDatabase {
                 )
             }
 
-            let split = transactionSplitQueryExpressions(columns: transactionColumns)
+            let split = TransactionSplitQueryExpressions(columns: transactionColumns)
             let workingBalance = try reconciliationBalance(
                 db: db,
                 accountID: requestedAccountID,
@@ -337,7 +337,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
         try queue.read { db in
-            let columns = try resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: self, db: db)
             if try tableExists("accounts", db: db),
                try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing account")
@@ -352,7 +352,7 @@ extension BudgetDatabase {
                try !liveRowExists(table: "payees", rowID: payeeID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing payee")
             }
-            let messages = try transactionRowMessages(
+            let messages = try columns.rowMessages(
                 rowID: transactionID,
                 accountID: draft.accountID,
                 dateValue: Self.actualDateValue(draft.date),
@@ -367,7 +367,6 @@ extension BudgetDatabase {
                 isChild: false,
                 transferID: nil,
                 sortOrder: draft.sortOrder,
-                columns: columns,
                 builder: &builder,
                 scheduleID: draft.scheduleID,
                 cells: .snapshot
@@ -393,7 +392,7 @@ extension BudgetDatabase {
     ) throws -> [ReconciliationRow] {
         try queue.read { db in
             let columns = try columnSet(for: "transactions", db: db)
-            let split = transactionSplitQueryExpressions(columns: columns)
+            let split = TransactionSplitQueryExpressions(columns: columns)
             var conditions = [
                 split.liveEffectivePredicate(),
                 "\(split.qualifiedAccount) = ?",
@@ -424,7 +423,7 @@ extension BudgetDatabase {
         guard !requestedID.isEmpty else { return [] }
         return try queue.read { db in
             let columns = try columnSet(for: "transactions", db: db)
-            let split = transactionSplitQueryExpressions(columns: columns)
+            let split = TransactionSplitQueryExpressions(columns: columns)
             let target = try Row.fetchOne(
                 db,
                 sql: """

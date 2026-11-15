@@ -1,5 +1,4 @@
 import Foundation
-import GRDB
 
 enum TransactionSplitQueryMode: String, Equatable, Sendable {
     case all
@@ -131,11 +130,10 @@ struct TransactionSplitQueryExpressions: Equatable, Sendable {
     }
 }
 
-extension BudgetDatabase {
-    func transactionSplitQueryExpressions(
-        columns: Set<String>,
-        tableAlias: String = "t"
-    ) -> TransactionSplitQueryExpressions {
+extension TransactionSplitQueryExpressions {
+    /// The expressions for `columns`, the physical `transactions` columns,
+    /// with the table under `tableAlias`.
+    init(columns: Set<String>, tableAlias: String = "t") {
         func physical(_ names: [String], fallback: String) -> String {
             names.first(where: columns.contains) ?? fallback
         }
@@ -168,7 +166,7 @@ extension BudgetDatabase {
         } else {
             isParent = "0"
         }
-        return TransactionSplitQueryExpressions(
+        self.init(
             tableAlias: tableAlias,
             account: physical(TransactionRowColumns.accountAliases, fallback: "NULL"),
             date: physical(["date"], fallback: "NULL"),
@@ -192,20 +190,5 @@ extension BudgetDatabase {
             hasSortOrderColumn: columns.contains("sort_order"),
             hasStartingBalanceColumn: columns.contains("starting_balance_flag")
         )
-    }
-
-    func parseSplitTransactionError(_ value: DatabaseValueConvertible?) -> SplitTransactionError? {
-        let raw: String?
-        if let value = value as? String {
-            raw = value
-        } else {
-            raw = SQLiteValueCoercion.lenientString(value)
-        }
-        guard let raw else { return nil }
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != "null", let data = trimmed.data(using: .utf8) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(SplitTransactionError.self, from: data)
     }
 }

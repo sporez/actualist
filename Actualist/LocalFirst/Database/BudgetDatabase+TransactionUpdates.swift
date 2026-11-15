@@ -39,7 +39,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing account")
         }
 
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
@@ -290,7 +290,7 @@ extension BudgetDatabase {
             } else {
                 let pairedID = UUID().uuidString
                 affectedTransactions.insert(pairedID)
-                messages += try transactionRowMessages(
+                messages += try columns.rowMessages(
                     rowID: pairedID,
                     accountID: destination,
                     dateValue: dateValue,
@@ -304,7 +304,6 @@ extension BudgetDatabase {
                     isChild: false,
                     transferID: mainID,
                     sortOrder: nil,
-                    columns: columns,
                     builder: &builder,
                     cells: .snapshot
                 )

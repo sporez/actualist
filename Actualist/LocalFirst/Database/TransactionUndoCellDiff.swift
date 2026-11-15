@@ -10,7 +10,7 @@ import GRDB
 enum TransactionUndoCellDiff {
     /// The 0/1 columns an undo snapshot reads with NULL as false (the undo snapshot loaders
     /// read them through `SQLiteValueCoercion.int ?? 0`), so a stored NULL is not a change.
-    static func flagColumns(_ columns: BudgetDatabase.TransactionRowColumns) -> Set<String> {
+    static func flagColumns(_ columns: TransactionRowColumns) -> Set<String> {
         Set(["cleared", "reconciled", "tombstone", "starting_balance_flag"] + [columns.isParent, columns.isChild].compactMap { $0 })
     }
 

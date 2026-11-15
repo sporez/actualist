@@ -129,7 +129,7 @@ enum TransactionImportSQL {
         if update.cleared != existing.cleared, SQLiteValueCoercion.lenientBool(live["cleared"]) != existing.cleared { throw changed }
         // The cleared cascade only reaches children that are still live.
         if !update.childIDs.isEmpty {
-            let split = database.transactionSplitQueryExpressions(columns: columns, tableAlias: "transactions")
+            let split = TransactionSplitQueryExpressions(columns: columns, tableAlias: "transactions")
             let liveChildren = try Set(String.fetchAll(
                 db,
                 sql: """

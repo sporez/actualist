@@ -338,7 +338,8 @@
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionQuery.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionFilters.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionSplitQuery.swift"
+        "Actualist/LocalFirst/Database/TransactionSplitQueryExpressions.swift",
+        "Actualist/LocalFirst/Database/TransactionReadJoins.swift"
       ],
       "notes": "56 cases (condition 37, family 5, saved filter 8, split modes 5, display 1) from real Actual filter handlers and queries; also generates Splits/grouped-query-cases.json. TransactionQueryOracleReplayTests replays 43; 13 are oracle-only (filter operators Actualist doesn't offer, a feature gap decided 2026-10-11)."
     },
@@ -362,7 +363,8 @@
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionDiffUpdate.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionBatch*.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCategorization.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionGraphPlanning.swift"
+        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionGraphPlanning.swift",
+        "Actualist/LocalFirst/Database/TransactionRowColumns.swift"
       ],
       "notes": "Covers creation only: manual single and transfer creates, an imported (CSV / Bank Sync) new row, and the Starting Balance row, replayed through the shared simple-row and transfer writers and compared as exact CRDT cell multisets. Update, delete, batch update and categorization are not covered. Schedule posts are covered by the schedules domain."
     },

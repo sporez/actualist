@@ -117,7 +117,7 @@ extension BudgetDatabase {
         }
 
         let columns = try columnSet(for: "transactions", db: db)
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let accountFilter = accountID == nil ? "" : "AND \(split.qualifiedAccount) = ?"
         let sql = """
             SELECT \(split.qualifiedAccount) AS account_id, SUM(\(split.qualifiedAmount)) AS balance
@@ -142,7 +142,7 @@ extension BudgetDatabase {
         }
 
         let columns = try columnSet(for: "transactions", db: db)
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let budgetMonth = normalizedMonthExpression(split.qualifiedDate)
         let row = try Row.fetchOne(
             db,
@@ -166,7 +166,7 @@ extension BudgetDatabase {
         }
 
         let columns = try columnSet(for: "transactions", db: db)
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let budgetMonth = normalizedMonthExpression(split.qualifiedDate)
         let row = try Row.fetchOne(
             db,
@@ -405,7 +405,7 @@ extension BudgetDatabase {
             return [:]
         }
         let columns = try columnSet(for: "transactions", db: db)
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let transferColumn = try categoryMappingTransferColumn(db: db)
         let categoryMappingJoin = transferColumn == nil
             ? ""
@@ -443,7 +443,7 @@ extension BudgetDatabase {
             return [:]
         }
         let columns = try columnSet(for: "transactions", db: db)
-        let split = transactionSplitQueryExpressions(columns: columns)
+        let split = TransactionSplitQueryExpressions(columns: columns)
         let transferColumn = try categoryMappingTransferColumn(db: db)
         let categoryMappingJoin = transferColumn == nil
             ? ""

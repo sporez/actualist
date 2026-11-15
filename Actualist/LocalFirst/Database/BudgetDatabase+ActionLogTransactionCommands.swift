@@ -20,7 +20,7 @@ extension BudgetDatabase {
               Set(cloneIDs).isDisjoint(with: Set(sourceSnapshots.map(\.id))) else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction duplicate descriptor")
         }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         for id in cloneIDs {
             guard try transactionBatchSnapshot(id: id, columns: columns, db: db) == nil else {
                 throw LocalFirstError.invalidLocalWrite("a transaction duplicate ID already exists")
@@ -135,7 +135,7 @@ extension BudgetDatabase {
                 try builder.tombstone(dataset: "transactions", row: id)
             }
         case .restoreMergedTransactions(let snapshots):
-            let columns = try resolveTransactionRowColumns(db: db)
+            let columns = try TransactionRowColumns.resolve(in: self, db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for snapshot in snapshots {
                 messages += try transactionBatchRestoreMessages(
@@ -224,7 +224,7 @@ extension BudgetDatabase {
               Set(selectedSourceIDs).count == selectedSourceIDs.count else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction duplicate source IDs")
         }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         try requireTransactionCommandGraphSchema(columns)
         var snapshotsByID: [String: TransactionBatchTransactionSnapshot] = [:]
         for sourceID in selectedSourceIDs {
@@ -271,7 +271,7 @@ extension BudgetDatabase {
               Set(inputs).isSubset(of: Set(affectedIDs)) else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction merge descriptor")
         }
-        let columns = try resolveTransactionRowColumns(db: db)
+        let columns = try TransactionRowColumns.resolve(in: self, db: db)
         try requireTransactionCommandGraphSchema(columns)
         var snapshotsByID: [String: TransactionBatchTransactionSnapshot] = [:]
         var graphIDs = Set<String>()
