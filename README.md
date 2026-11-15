@@ -2,12 +2,13 @@
 
 **A native, local-first iPhone and iPad client for [Actual Budget](https://actualbudget.org/).**
 
-![Status: Beta](https://img.shields.io/badge/status-beta-E4A258)
+[![Download on the App Store](https://img.shields.io/badge/App%20Store-download-0D96F6)](https://apps.apple.com/app/actualist/id6785973723)
 ![Platform: iOS 26+](https://img.shields.io/badge/iOS-26%2B-624183)
 ![UI: SwiftUI](https://img.shields.io/badge/UI-SwiftUI-1F6B64)
 ![License: GPL v3](https://img.shields.io/badge/license-GPLv3%20with%20App%20Store%20Exception-2F6FEB)
 
-**Beta:** [Join TestFlight](https://testflight.apple.com/join/HDG6PcGX) ·
+**Download:** [App Store](https://apps.apple.com/app/actualist/id6785973723) ·
+[TestFlight beta](https://testflight.apple.com/join/HDG6PcGX) ·
 [actualist.app](https://actualist.app) ·
 [Source](https://github.com/sporez/actualist)
 
@@ -17,11 +18,10 @@ quick, repeated budget review on iPhone and iPad, with native SwiftUI navigation
 and iOS Liquid Glass controls.
 
 > [!CAUTION]
-> **Actualist is beta software and can modify real financial data.** Before using
-> it, export and verify
-> [a backup of every budget you plan to test](https://actualbudget.org/docs/backup-restore/backup/).
-> Do not rely on Actualist as the only copy of your data, and only test with a
-> budget you are prepared to restore.
+> **Actualist changes your real financial data.** Before using it, export and
+> verify
+> [a backup of every budget you use with it](https://actualbudget.org/docs/backup-restore/backup/).
+> Do not rely on Actualist as the only copy of your data.
 
 ## App Preview
 
@@ -112,8 +112,8 @@ reopen a dismissed amount keyboard.
 - Your Actual server password, or OpenID if the server is configured for it.
 - For an encrypted budget, the separate budget encryption password.
 
-Public TestFlight builds correspond to `testflight/v<version>-b<build>` source
-tags. Features described here reflect the current source.
+App Store and TestFlight builds correspond to `testflight/v<version>-b<build>`
+source tags. Features described here reflect the current source.
 
 ## Connecting to Your Server
 
@@ -133,8 +133,8 @@ Header-only login is not supported; use password or OpenID.
 
 ## Data Safety
 
-Keep Actual exports and compare important totals with the official client while
-using the beta. Read recovery confirmations before reimporting or erasing data.
+Keep Actual exports and compare important totals with the official client when
+you start using Actualist. Read recovery confirmations before reimporting or erasing data.
 
 Local budgets and pending changes are excluded from device backups. **Unsynced
 changes are lost if the app or local data is removed, or the device is lost.**
