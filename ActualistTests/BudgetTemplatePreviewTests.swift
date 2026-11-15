@@ -152,17 +152,19 @@ struct BudgetTemplatePreviewTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         let before = try zeroBudgetAmount("groceries", at: fixtureURL)
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .category("groceries"),
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == before)
 
         var builder = LocalFirstSyncMessageBuilder()
-        let applied = try await database.budgetTemplateApply(
+        let applied = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(preview.categories.map(\.proposed) == applied.assignments.map(\.amount))
         #expect(preview.categories.first?.name == "Groceries")
@@ -189,10 +191,11 @@ struct BudgetTemplatePreviewTests {
             .monthlyFixed(amount: 400, now: now)
         ])
         let before = try zeroBudgetAmount("groceries", at: fixtureURL)
-        let dryRun = try await database.dryRunCategoryTemplate(
+        let dryRun = try await TemplatePreviewSQL.dryRunCategoryTemplate(
             categoryID: "groceries",
             goalDefJSON: json,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         #expect(dryRun.budgeted == 40_000)
         #expect(dryRun.perTemplate == [40_000])
@@ -204,10 +207,11 @@ struct BudgetTemplatePreviewTests {
         let fixtureURL = try fixtures.makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         let json = try BudgetTemplateDefinition.encode([.monthlyFixed(amount: 50)])
-        let dryRun = try await database.dryRunCategoryTemplate(
+        let dryRun = try await TemplatePreviewSQL.dryRunCategoryTemplate(
             categoryID: "missing",
             goalDefJSON: json,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         #expect(dryRun.budgeted == 0)
         #expect(dryRun.perTemplate == [0])
@@ -224,29 +228,33 @@ struct BudgetTemplatePreviewTests {
             WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let fillPreview = try await database.previewBudgetTemplate(
-            command: .fillEmpty,
-            month: "2026-07"
-        )
-        var fillBuilder = LocalFirstSyncMessageBuilder()
-        let fillApplied = try await database.budgetTemplateApply(
+        let fillPreview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .fillEmpty,
             month: "2026-07",
-            builder: &fillBuilder
+            in: database
+        )
+        var fillBuilder = LocalFirstSyncMessageBuilder()
+        let fillApplied = try await TemplateApplySQL.budgetTemplateApply(
+            command: .fillEmpty,
+            month: "2026-07",
+            builder: &fillBuilder,
+            in: database
         )
         #expect(fillPreview.categories.isEmpty)
         #expect(fillApplied.assignments.isEmpty)
 
         for command in [BudgetTemplateCommand.overwrite, .category("groceries")] {
-            let preview = try await database.previewBudgetTemplate(
-                command: command,
-                month: "2026-07"
-            )
-            var builder = LocalFirstSyncMessageBuilder()
-            let applied = try await database.budgetTemplateApply(
+            let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
                 command: command,
                 month: "2026-07",
-                builder: &builder
+                in: database
+            )
+            var builder = LocalFirstSyncMessageBuilder()
+            let applied = try await TemplateApplySQL.budgetTemplateApply(
+                command: command,
+                month: "2026-07",
+                builder: &builder,
+                in: database
             )
             #expect(preview.categories.map(\.proposed) == applied.assignments.map(\.amount))
         }
@@ -266,7 +274,7 @@ struct BudgetTemplatePreviewTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let pair = try await database.previewBudgetTemplatePair(month: "2026-07")
+        let pair = try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", in: database)
         guard case .ready(let fill) = pair.fillEmpty else {
             Issue.record("Expected Fill Empty preview to be ready")
             return
@@ -310,9 +318,10 @@ struct BudgetTemplatePreviewTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let groceries = try #require(preview.categories.first { $0.categoryID == "groceries" })
         #expect(preview.evaluatedDemand == 500)
@@ -330,10 +339,11 @@ struct BudgetTemplatePreviewTests {
         #expect(groceries.metric.after == 300)
 
         var builder = LocalFirstSyncMessageBuilder()
-        let applied = try await database.budgetTemplateApply(
+        let applied = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(applied.messages)
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 300)
@@ -358,9 +368,10 @@ struct BudgetTemplatePreviewTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let groceries = try #require(preview.categories.first { $0.categoryID == "groceries" })
         #expect(preview.evaluatedDemand == 200)
@@ -404,9 +415,10 @@ struct BudgetTemplatePreviewTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let groceries = try #require(preview.categories.first { $0.categoryID == "groceries" })
         let dining = try #require(preview.categories.first { $0.categoryID == "dining" })
@@ -438,9 +450,10 @@ struct BudgetTemplatePreviewTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let groceries = try #require(preview.categories.first { $0.categoryID == "groceries" })
         #expect(preview.fundingRequired == 0)
@@ -456,10 +469,11 @@ struct BudgetTemplatePreviewTests {
         #expect(groceries.metric.after == -11_845)
 
         var builder = LocalFirstSyncMessageBuilder()
-        let applied = try await database.budgetTemplateApply(
+        let applied = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(applied.messages)
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == -500)
@@ -480,7 +494,7 @@ struct BudgetTemplatePreviewTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let pair = try await database.previewBudgetTemplatePair(month: "2026-07")
+        let pair = try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", in: database)
         guard case .ready(let fill) = pair.fillEmpty else {
             Issue.record("Expected Fill Empty preview to be ready")
             return
@@ -526,9 +540,10 @@ struct BudgetTemplatePreviewTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         #expect(preview.evaluatedDemand == 500)
         #expect(preview.fundingRequired == 0)
@@ -560,8 +575,9 @@ struct BudgetTemplatePreviewTests {
             WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let preview = try await database.previewBudgetTemplate(
-            command: .overwrite, month: "2026-07"
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
+            command: .overwrite, month: "2026-07",
+            in: database
         )
         #expect(preview.isTrackingBudget)
         #expect(preview.fundingRequired == 0)
@@ -570,8 +586,9 @@ struct BudgetTemplatePreviewTests {
         #expect(preview.stillNeeded == 0)
 
         var builder = LocalFirstSyncMessageBuilder()
-        let apply = try await database.budgetTemplateApply(
-            command: .overwrite, month: "2026-07", builder: &builder
+        let apply = try await TemplateApplySQL.budgetTemplateApply(
+            command: .overwrite, month: "2026-07", builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(apply.messages)
         let month = try await database.fetchBudgetMonth(month: "2026-07")

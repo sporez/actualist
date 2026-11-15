@@ -38,12 +38,12 @@ struct BudgetTemplateExclusionPreviewTests {
 
     @Test func skippedTileIsRepricedOutAndApplyMatchesPreview() async throws {
         let (database, url) = try makeDatabase()
-        let baseline = try ready(try await database.previewBudgetTemplatePair(month: "2026-07").overwrite)
+        let baseline = try ready(try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", in: database).overwrite)
         #expect(baseline.baselineTileIDs == ["groceries", "dining", "rent"])
         #expect(baseline.skipped.isEmpty)
         #expect(baseline.excludedCategoryIDs.isEmpty)
 
-        let pair = try await database.previewBudgetTemplatePair(month: "2026-07", excluding: ["dining"])
+        let pair = try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", excluding: ["dining"], in: database)
         let selected = try ready(pair.overwrite)
         #expect(selected.excludedCategoryIDs == ["dining"])
         #expect(selected.baselineTileIDs == baseline.baselineTileIDs)
@@ -54,10 +54,11 @@ struct BudgetTemplateExclusionPreviewTests {
         #expect(selected.reviewRevision == baseline.reviewRevision)
 
         var builder = LocalFirstSyncMessageBuilder()
-        let applied = try await database.budgetTemplateApply(
+        let applied = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite.excluding(selected.excludedCategoryIDs),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(Set(applied.assignments.map(\.categoryID)) == ["groceries", "rent"])
         #expect(!applied.messages.contains { $0.row.contains("dining") })
@@ -73,7 +74,7 @@ struct BudgetTemplateExclusionPreviewTests {
 
     @Test func skipCountsOnlyForTilesTheModeShows() async throws {
         let (database, _) = try makeDatabase()
-        let pair = try await database.previewBudgetTemplatePair(month: "2026-07", excluding: ["groceries"])
+        let pair = try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", excluding: ["groceries"], in: database)
         // Fill Empty never shows budgeted Groceries, so the carried skip is ignored there.
         let fill = try ready(pair.fillEmpty)
         #expect(fill.excludedCategoryIDs.isEmpty)
@@ -84,7 +85,7 @@ struct BudgetTemplateExclusionPreviewTests {
         #expect(overwrite.excludedCategoryIDs == ["groceries"])
         // Its 500.00 stays spent: nothing is released.
         #expect(overwrite.released == 0)
-        let baseline = try ready(try await database.previewBudgetTemplatePair(month: "2026-07").overwrite)
+        let baseline = try ready(try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", in: database).overwrite)
         #expect(baseline.released == 48_000)
         #expect(overwrite.availableBefore == baseline.availableBefore)
     }
@@ -92,15 +93,16 @@ struct BudgetTemplateExclusionPreviewTests {
     @Test func excludingEveryTileWritesNothingInsteadOfTheWholeMonth() async throws {
         let (database, url) = try makeDatabase()
         let all: Set<String> = ["groceries", "dining", "rent"]
-        let selected = try ready(try await database.previewBudgetTemplatePair(month: "2026-07", excluding: all).overwrite)
+        let selected = try ready(try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", excluding: all, in: database).overwrite)
         #expect(selected.categories.isEmpty)
         #expect(selected.skipped.count == 3)
 
         var builder = LocalFirstSyncMessageBuilder()
-        let applied = try await database.budgetTemplateApply(
+        let applied = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite.excluding(all),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(applied.assignments.isEmpty)
         #expect(applied.messages.isEmpty)
@@ -117,7 +119,7 @@ struct BudgetTemplateExclusionPreviewTests {
         let (database, _) = try makeDatabase(extraSQL: """
             UPDATE categories SET goal_def = '[\(entry)]' WHERE id = 'rent';
             """)
-        let pair = try await database.previewBudgetTemplatePair(month: "2026-07")
+        let pair = try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", in: database)
         let sentence = try #require(LocalFirstError.templateTargetMonthPassed.errorDescription)
         for outcome in [pair.fillEmpty, pair.overwrite] {
             let preview = try ready(outcome)
@@ -135,10 +137,10 @@ struct BudgetTemplateExclusionPreviewTests {
         let sentence = try #require(LocalFirstError.templateTargetMonthPassed.errorDescription)
         var builder = LocalFirstSyncMessageBuilder()
         await #expect(throws: LocalFirstError.refusedChange("Rent: \(sentence)")) {
-            _ = try await database.budgetTemplateApply(command: .overwrite, month: "2026-07", builder: &builder)
+            _ = try await TemplateApplySQL.budgetTemplateApply(command: .overwrite, month: "2026-07", builder: &builder, in: database)
         }
         await #expect(throws: LocalFirstError.templateTargetMonthPassed) {
-            _ = try await database.budgetTemplateApply(command: .category("rent"), month: "2026-07", builder: &builder)
+            _ = try await TemplateApplySQL.budgetTemplateApply(command: .category("rent"), month: "2026-07", builder: &builder, in: database)
         }
     }
 
@@ -146,7 +148,7 @@ struct BudgetTemplateExclusionPreviewTests {
         let (database, url) = try makeDatabase(extraSQL: """
             UPDATE categories SET goal_def = 'not-json' WHERE id = 'rent';
             """)
-        let pair = try await database.previewBudgetTemplatePair(month: "2026-07")
+        let pair = try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", in: database)
         for outcome in [pair.fillEmpty, pair.overwrite] {
             let preview = try ready(outcome)
             #expect(preview.blocked == [.init(categoryID: "rent", name: "Rent", reason: .unsupported)])
@@ -156,14 +158,15 @@ struct BudgetTemplateExclusionPreviewTests {
 
         await #expect(throws: LocalFirstError.self) {
             var unscoped = LocalFirstSyncMessageBuilder()
-            _ = try await database.budgetTemplateApply(command: .overwrite, month: "2026-07", builder: &unscoped)
+            _ = try await TemplateApplySQL.budgetTemplateApply(command: .overwrite, month: "2026-07", builder: &unscoped, in: database)
         }
         var builder = LocalFirstSyncMessageBuilder()
         let overwrite = try ready(pair.overwrite)
-        let applied = try await database.budgetTemplateApply(
+        let applied = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite.excluding(overwrite.excludedCategoryIDs),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(Set(applied.assignments.map(\.categoryID)) == ["groceries", "dining"])
         _ = try await database.commitLocalSyncMessagesAndEnqueue(applied.messages)
@@ -176,12 +179,12 @@ struct BudgetTemplateExclusionPreviewTests {
             CREATE TABLE notes (id TEXT PRIMARY KEY, note TEXT);
             INSERT INTO notes VALUES ('dining', '#template 45');
             """)
-        let preview = try ready(try await database.previewBudgetTemplatePair(month: "2026-07").fillEmpty)
+        let preview = try ready(try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", in: database).fillEmpty)
         #expect(preview.blocked.map(\.categoryID) == ["dining"])
         #expect(preview.blocked.first?.reason == .staleNote)
         #expect(preview.categories.map(\.categoryID) == ["rent"])
         // A skip on top of a blocked category keeps both out of the run.
-        let both = try ready(try await database.previewBudgetTemplatePair(month: "2026-07", excluding: ["rent"]).fillEmpty)
+        let both = try ready(try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", excluding: ["rent"], in: database).fillEmpty)
         #expect(both.excludedCategoryIDs == ["dining", "rent"])
         #expect(both.categories.isEmpty)
     }

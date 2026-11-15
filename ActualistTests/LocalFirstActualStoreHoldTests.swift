@@ -155,8 +155,9 @@ extension LocalFirstActualStoreTests {
         )
 
         var templateBuilder = LocalFirstSyncMessageBuilder()
-        let template = try await database.budgetTemplateApply(
-            command: .category("groceries"), month: "2026-07", builder: &templateBuilder
+        let template = try await TemplateApplySQL.budgetTemplateApply(
+            command: .category("groceries"), month: "2026-07", builder: &templateBuilder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(template.messages)
         let before = try await database.pendingLocalSyncMessageCount()

@@ -133,11 +133,12 @@ extension LocalFirstActualStoreTests {
         )
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category(testCase.categoryID),
             month: "2026-07",
             currentMonth: "2026-08",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
 
         #expect(!messages.isEmpty)
@@ -169,11 +170,12 @@ extension LocalFirstActualStoreTests {
             at: fixtureURL
         )
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category(testCase.categoryID),
             month: "2026-07",
             currentMonth: "2026-08",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         #expect(!messages.contains { $0.dataset == "reflect_budgets" })
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
@@ -193,11 +195,12 @@ extension LocalFirstActualStoreTests {
         let fixtureURL = try makeJPYEnvelopeFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
             currentMonth: "2026-08",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         #expect(!messages.contains { $0.dataset == "reflect_budgets" })
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)

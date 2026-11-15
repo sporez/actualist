@@ -255,7 +255,7 @@ Confirmed against Actual v26.10.0 on 2026-10-11, and with the excluding cases on
 
 The OP-24 entry in `config/parity/known-divergences.json` lists the 132 cases.
 The OP-25 entry lists the stale case. Both are open with a review date of
-2026-10-25. `BudgetDatabase+TemplateNoteSync.swift` describes both behaviors as
+2026-10-25. `TemplateCategorySQL.swift` describes both behaviors as
 intentional, so the product decides whether either is a divergence to fix.
 
 ## Not covered

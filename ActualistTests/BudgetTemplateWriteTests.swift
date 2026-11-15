@@ -30,17 +30,18 @@ struct BudgetTemplateWriteTests {
             .remainder()
         ])
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryTemplateMessages(
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
             categoryID: "groceries",
             goalDefJSON: json,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(Set(messages.map(\.dataset)) == ["categories"])
         #expect(Set(messages.map(\.row)) == ["groceries"])
         #expect(Set(messages.map(\.column)) == ["goal_def", "template_settings"])
         #expect(
             messages.first { $0.column == "template_settings" }?.serializedValue
-                == "S:\(BudgetDatabase.uiTemplateSettingsJSON)"
+                == "S:\(TemplateAuthoringSQL.uiTemplateSettingsJSON)"
         )
         #expect(messages.contains { $0.column == "goal_def" && $0.serializedValue.hasPrefix("S:") })
         #expect(!messages.contains { $0.dataset == "zero_budgets" })
@@ -48,7 +49,7 @@ struct BudgetTemplateWriteTests {
         #expect(try await database.commitLocalSyncMessagesAndEnqueue(messages) == 2)
         let stored = try categoryTemplateState("groceries", at: fixtureURL)
         #expect(stored.goalDef == json)
-        #expect(stored.settings == BudgetDatabase.uiTemplateSettingsJSON)
+        #expect(stored.settings == TemplateAuthoringSQL.uiTemplateSettingsJSON)
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
         #expect(try await database.pendingLocalSyncMessageCount() == 2)
 
@@ -71,10 +72,11 @@ struct BudgetTemplateWriteTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryTemplateMessages(
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
             categoryID: "groceries",
             goalDefJSON: nil,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(messages.map(\.column) == ["goal_def"])
         #expect(messages.first?.serializedValue == "0:")
@@ -99,10 +101,11 @@ struct BudgetTemplateWriteTests {
         await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.missingColumns.testerFacingReason
         )) {
-            _ = try await database.setCategoryTemplateMessages(
+            _ = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
                 categoryID: "groceries",
                 goalDefJSON: #"[{"directive":"template","type":"simple","monthly":400,"priority":1}]"#,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
@@ -117,10 +120,11 @@ struct BudgetTemplateWriteTests {
         await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.missingColumns.testerFacingReason
         )) {
-            _ = try await database.setCategoryTemplateMessages(
+            _ = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
                 categoryID: "groceries",
                 goalDefJSON: nil,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
     }
@@ -141,10 +145,11 @@ struct BudgetTemplateWriteTests {
         await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.staleNotes.testerFacingReason
         )) {
-            _ = try await database.setCategoryTemplateMessages(
+            _ = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
                 categoryID: "groceries",
                 goalDefJSON: nil,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
         #expect(try categoryTemplateState("groceries", at: fixtureURL).goalDef?.contains("500") == true)
@@ -166,10 +171,11 @@ struct BudgetTemplateWriteTests {
         await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.noteManaged.testerFacingReason
         )) {
-            _ = try await database.setCategoryTemplateMessages(
+            _ = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
                 categoryID: "groceries",
                 goalDefJSON: nil,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
         #expect(try categoryTemplateState("groceries", at: fixtureURL).goalDef?.contains("500") == true)
@@ -187,10 +193,11 @@ struct BudgetTemplateWriteTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         let incoming = #"[{"directive":"template","type":"simple","monthly":400,"priority":1}]"#
-        let messages = try await database.setCategoryTemplateMessages(
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
             categoryID: "groceries",
             goalDefJSON: incoming,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(messages.count == 1)
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
@@ -206,10 +213,11 @@ struct BudgetTemplateWriteTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         let incoming = #"[{"directive":"template","type":"percentage","percent":10,"previous":false,"category":"all income","priority":0}]"#
-        let messages = try await database.setCategoryTemplateMessages(
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
             categoryID: "groceries",
             goalDefJSON: incoming,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(messages.count == 1)
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
@@ -266,10 +274,11 @@ struct BudgetTemplateWriteTests {
         await #expect(throws: LocalFirstError.refusedChange(
             BudgetTemplateCategoryLock.Reason.unsupportedType.testerFacingReason
         )) {
-            _ = try await database.setCategoryTemplateMessages(
+            _ = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
                 categoryID: "groceries",
                 goalDefJSON: #"[{"directive":"template","type":"simple","monthly":400,"priority":1,"futureField":true}]"#,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
@@ -291,17 +300,19 @@ struct BudgetTemplateWriteTests {
             )
         ])
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryTemplateMessages(
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
             categoryID: "groceries",
             goalDefJSON: json,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let after = try await database.fetchBudgetMonth(month: "2026-07")
         #expect(after.toBudget == before.toBudget)
-        let snapshot = try await database.categoryTemplateEditorSnapshot(
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
-            now: Self.templateWriteNow
+            now: Self.templateWriteNow,
+            in: database
         )
         #expect(snapshot.drafts.first?.description == "Keep this note\nexactly")
     }

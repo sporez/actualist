@@ -96,12 +96,13 @@ enum TemplateApplyOracleReplay {
         do {
             let applied = try await database.commitUserActionPlan(source: .ui, expectedMode: mode) { database, db in
                 var builder = LocalFirstSyncMessageBuilder()
-                let result = try database.budgetTemplateApply(
+                let result = try TemplateApplySQL.budgetTemplateApply(
                     command: command,
                     month: month,
                     currentMonth: currentMonth,
-                    db: db,
-                    builder: &builder
+                    builder: &builder,
+                    in: database,
+                    db: db
                 )
                 return UserActionPlan(
                     drafts: result.messages,

@@ -76,8 +76,9 @@ struct BudgetRowIdentityMessageTests {
             UPDATE categories SET goal_def = '[{"type":"simple","monthly":400,"limit":null,"priority":0,"directive":"template"}]' WHERE id = 'groceries';
             """)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await db.budgetTemplateApply(
-            command: .category("groceries"), month: "2026-08", builder: &builder
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
+            command: .category("groceries"), month: "2026-08", builder: &builder,
+            in: db
         ).messages
         #expect(lines(messages) == [
             "zero_budgets|202608-groceries|month|N:202608",

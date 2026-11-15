@@ -78,10 +78,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category(testCase.categoryID),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
 
         #expect(!messages.isEmpty)

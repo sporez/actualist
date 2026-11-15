@@ -17,31 +17,32 @@ struct BudgetTemplateEmptyCategoryTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         let before = try await database.fetchBudgetMonth(month: "2026-07")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(categoryID: "groceries")
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(categoryID: "groceries", in: database)
         #expect(snapshot.drafts.isEmpty)
         #expect(!snapshot.hasDefinition)
         #expect(snapshot.lock == .editable)
         #expect(BudgetTemplateDoorKind.kind(hasDefinition: snapshot.hasDefinition, lock: snapshot.lock) == .add)
         #expect(!before.categoryGroups.flatMap(\.categories).contains { $0.hasTemplateDefinition })
 
-        let browser = try await database.categoryTemplateBrowserSnapshot()
+        let browser = try await TemplateAuthoringSQL.categoryTemplateBrowserSnapshot(in: database)
         let category = try #require(browser.categories.first { $0.id == "groceries" })
         #expect(category.lock == .editable)
         #expect(!category.hasDefinition)
 
         let json = #"[{"directive":"template","type":"simple","monthly":10,"priority":1}]"#
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryTemplateMessages(
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
             categoryID: "groceries",
             goalDefJSON: json,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(Set(messages.map(\.dataset)) == ["categories"])
         #expect(Set(messages.map(\.column)) == ["goal_def", "template_settings"])
         #expect(try await database.commitLocalSyncMessagesAndEnqueue(messages) == 2)
         #expect(try await database.pendingLocalSyncMessageCount() == 2)
 
-        let saved = try await database.categoryTemplateEditorSnapshot(categoryID: "groceries")
+        let saved = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(categoryID: "groceries", in: database)
         #expect(saved.lock == .editable)
         #expect(saved.hasDefinition)
         #expect(saved.drafts.count == 1)
@@ -59,6 +60,6 @@ struct BudgetTemplateEmptyCategoryTests {
         }
         #expect(stored.note == note)
         #expect(stored.goal == json)
-        #expect(stored.settings == BudgetDatabase.uiTemplateSettingsJSON)
+        #expect(stored.settings == TemplateAuthoringSQL.uiTemplateSettingsJSON)
     }
 }

@@ -46,7 +46,7 @@
         "Actualist/Features/Templates/BudgetTemplateDraft.swift",
         "Actualist/Features/Templates/BudgetTemplateEditorCodec.swift",
         "Actualist/Features/Templates/BudgetTemplateAuthoringValidation.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateEditor.swift",
+        "Actualist/LocalFirst/Database/TemplateAuthoringSQL.swift",
         "Actualist/LocalFirst/Database/BudgetTemplateNoteParser.swift",
         "Actualist/LocalFirst/BudgetTemplateModels.swift"
       ]
@@ -68,11 +68,10 @@
       "paths": [
         "Actualist/LocalFirst/Database/BudgetTemplateEngine*.swift",
         "Actualist/LocalFirst/Database/BudgetTemplateCalendar.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateApply.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TemplatePreview.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateInputs.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateCategoryReads.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateNoteSync.swift",
+        "Actualist/LocalFirst/Database/TemplateApplySQL.swift",
+        "Actualist/LocalFirst/Database/TemplatePreviewSQL.swift",
+        "Actualist/LocalFirst/Database/TemplateInputSQL.swift",
+        "Actualist/LocalFirst/Database/TemplateCategorySQL.swift",
         "Actualist/LocalFirst/BudgetTemplatePreview.swift"
       ],
       "notes": "TemplateApplyOracleReplayTests replays all 135 cases: test A from the fixture input as-is, test B with stored definitions seeded from the oracle to isolate engine math. BudgetTemplateEngineParityTests is hand-written, not oracle evidence."
@@ -93,7 +92,7 @@
       ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetTemplateNoteParser.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TemplateNoteSync.swift"
+        "Actualist/LocalFirst/Database/TemplateCategorySQL.swift"
       ],
       "notes": "Actual's storeNoteTemplates decides each case. A note must match the definition Actual stores for it, and a changed note must read as stale."
     },

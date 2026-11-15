@@ -128,7 +128,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 - UI and workflow state: `Actualist/Features/Templates/` (`BudgetTemplatesBrowser*`, `BudgetTemplateEditor*`, apply-preview, confirmation, draft, input, and validation types).
 - Store seam: `Actualist/LocalFirst/LocalFirstActualStore+Templates.swift` and `BudgetTemplatePreview.swift`.
-- Database/engine: `Actualist/LocalFirst/Database/BudgetTemplate*`, `BudgetDatabase+Template*`, and `BudgetTemplateEngine*`.
+- Database/engine: `Actualist/LocalFirst/Database/BudgetTemplate*`, `BudgetTemplateEngine*`, and the stateless SQL types `TemplateInputSQL` (engine inputs and spending history), `TemplateCategorySQL` (template categories, their order and note-managed templates), `TemplatePreviewSQL` (preview, dry run and the review revision a commit revalidates), `TemplateApplySQL` and `TemplateAuthoringSQL` (editor and browser snapshots and template writes).
 - Template calendar/schedules: `BudgetTemplateCalendar.swift`, schedule recurrence, and engine schedule files.
 
 ### Rules and payees

@@ -70,7 +70,7 @@ extension BudgetDatabase {
             }
         }
         guard current.table == .tracking else { return }
-        let incomeByID = try templateCategoryIsIncomeByID(db: db)
+        let incomeByID = try TemplateCategorySQL.templateCategoryIsIncomeByID(in: self, db: db)
         for draft in budgetDrafts where draft.column == "carryover" {
             // Row creation writes carryover=false, including new income assignments.
             let value = try ActualSyncSQLiteValue(serialized: draft.serializedValue)

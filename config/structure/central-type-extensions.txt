@@ -58,16 +58,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+Schema.swift
 Actualist/LocalFirst/Database/BudgetDatabase+SchemaValidation.swift
 Actualist/LocalFirst/Database/BudgetDatabase+SplitDraftIDValidation.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Sync.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplateApply.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplateBrowser.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplateCategoryReads.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplateEditor.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplateHistory.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplateInputs.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplateNoteSync.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplatePreview.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplateReviewGuard.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TemplateWrites.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionBatch.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionBatchClear.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionBatchDelete.swift

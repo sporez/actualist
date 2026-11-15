@@ -115,10 +115,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("priority-food"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let month = try await database.fetchBudgetMonth(month: "2026-07")
@@ -143,10 +144,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let julyMessages = try await database.budgetTemplateApply(
+        let julyMessages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("buffer"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(julyMessages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -156,10 +158,11 @@ extension LocalFirstActualStoreTests {
         #expect(julyBuffer.budgeted == 2_000)
         #expect(julyBuffer.balance == 7_000)
 
-        let augustMessages = try await database.budgetTemplateApply(
+        let augustMessages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("buffer"),
             month: "2026-08",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(augustMessages)
         let august = try await database.fetchBudgetMonth(month: "2026-08")
@@ -195,24 +198,27 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let refillMessages = try await database.budgetTemplateApply(
+        let refillMessages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("refill"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(refillMessages)
 
-        let releaseMessages = try await database.budgetTemplateApply(
+        let releaseMessages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("release"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(releaseMessages)
 
-        let holdMessages = try await database.budgetTemplateApply(
+        let holdMessages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("hold"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(holdMessages)
 
@@ -235,10 +241,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("allowance"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -260,10 +267,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
 
@@ -306,10 +314,11 @@ extension LocalFirstActualStoreTests {
             var builder = LocalFirstSyncMessageBuilder()
 
             do {
-                _ = try await database.budgetTemplateApply(
+                _ = try await TemplateApplySQL.budgetTemplateApply(
                     command: .category("groceries"),
                     month: "2026-07",
-                    builder: &builder
+                    builder: &builder,
+                    in: database
                 ).messages
                 Issue.record("Expected \(label) to be rejected")
             } catch LocalFirstError.unsupportedTemplate {
@@ -338,10 +347,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("weekly"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -364,10 +374,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("daily"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -394,10 +405,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("leftover"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -438,10 +450,11 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -469,10 +482,11 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: command,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -497,10 +511,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("buffer"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -525,10 +540,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let julyMessages = try await database.budgetTemplateApply(
+        let julyMessages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("insurance"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(julyMessages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -538,10 +554,11 @@ extension LocalFirstActualStoreTests {
         #expect(julyInsurance.budgeted == 3_000)
         #expect(julyInsurance.balance == 6_000)
 
-        let augustMessages = try await database.budgetTemplateApply(
+        let augustMessages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("insurance"),
             month: "2026-08",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(augustMessages)
         let august = try await database.fetchBudgetMonth(month: "2026-08")
@@ -564,10 +581,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("renewal"),
             month: "2026-08",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let august = try await database.fetchBudgetMonth(month: "2026-08")
@@ -590,10 +608,11 @@ extension LocalFirstActualStoreTests {
         var builder = LocalFirstSyncMessageBuilder()
 
         do {
-            _ = try await database.budgetTemplateApply(
+            _ = try await TemplateApplySQL.budgetTemplateApply(
                 command: .category("groceries"),
                 month: "2026-07",
-                builder: &builder
+                builder: &builder,
+                in: database
             ).messages
             Issue.record("Expected the malformed periodic template to be refused")
         } catch LocalFirstError.unsupportedTemplate(let reason) {
@@ -621,10 +640,11 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("salary"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -647,10 +667,11 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
 
         #expect(messages.isEmpty)
@@ -674,10 +695,11 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         let july = try await database.fetchBudgetMonth(month: "2026-07")
@@ -709,10 +731,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let wholeBudget = try await database.budgetTemplateApply(
+        let wholeBudget = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(wholeBudget)
 
@@ -720,18 +743,20 @@ extension LocalFirstActualStoreTests {
         #expect(try zeroBudgetAmount("orphan", at: fixtureURL) == nil)
         #expect(try zeroBudgetAmount("hidden-cat", at: fixtureURL) == nil)
 
-        let orphanMessages = try await database.budgetTemplateApply(
+        let orphanMessages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("orphan"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(orphanMessages)
         #expect(try zeroBudgetAmount("orphan", at: fixtureURL) == 2_500)
 
-        let hiddenMessages = try await database.budgetTemplateApply(
+        let hiddenMessages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("hidden-cat"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(hiddenMessages)
         #expect(try zeroBudgetAmount("hidden-cat", at: fixtureURL) == 4_000)

@@ -1,14 +1,32 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func templateEngineInputs(
+/// One template plan's shared read of budget and spending history. The
+/// budget/spending tables are read once and the month recurrence runs once
+/// forward, instead of once per category, per month and per Apply mode.
+/// Not `Sendable`: create it inside one database read and drop it with it.
+final class TemplateHistory {
+    fileprivate var inputs: BudgetCategoryValueInputs?
+    fileprivate var firstBudgetMonthByCategory: [String: String]?
+    fileprivate var keptRange: ClosedRange<Int>?
+    fileprivate var snapshots: [Int: [String: BudgetCategoryValue]] = [:]
+    /// Reads of the budget and spending tables; the work-count seam for tests.
+    private(set) var inputLoadCount = 0
+
+    fileprivate func recordInputLoad() {
+        inputLoadCount += 1
+    }
+}
+
+enum TemplateInputSQL {
+    static func templateEngineInputs(
         categoryTemplates: [String: [BudgetTemplateEntry]],
         monthValue: Int,
         categoryIsIncome: [String: Bool],
         previouslyBudgetedByCategory: [String: Int] = [:],
         isTrackingBudget: Bool = false,
         history: TemplateHistory,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> (
         categories: [String: BudgetTemplateEngine.Category],
@@ -16,7 +34,7 @@ extension BudgetDatabase {
     ) {
         let spentByMonth: [String: [String: Int]]
         if needsSpendingHistory(categoryTemplates) {
-            spentByMonth = try templateHistoryInputs(history, db: db).spentByMonth
+            spentByMonth = try templateHistoryInputs(history, in: database, db: db).spentByMonth
         } else {
             spentByMonth = [:]
         }
@@ -24,11 +42,12 @@ extension BudgetDatabase {
             categoryTemplates: categoryTemplates,
             monthValue: monthValue,
             history: history,
+            in: database,
             db: db
         )
 
-        var monthSources = try templateIncomeCatalog(db: db)
-        let activeSchedules = try templateActiveSchedules(db: db)
+        var monthSources = try templateIncomeCatalog(in: database, db: db)
+        let activeSchedules = try templateActiveSchedules(in: database, db: db)
         monthSources.activeScheduleIDs = activeSchedules.ids
         monthSources.activeScheduleNames = activeSchedules.names
         if categoryTemplates.values.contains(where: { entries in
@@ -54,6 +73,7 @@ extension BudgetDatabase {
                         isTrackingBudget: isTrackingBudget,
                         spentByMonth: spentByMonth,
                         history: history,
+                        in: database,
                         db: db
                     )
                 )
@@ -62,14 +82,14 @@ extension BudgetDatabase {
         return (categories, monthSources)
     }
 
-    func templateIncomeCatalog(db: Database) throws -> BudgetTemplateEngine.MonthSources {
-        guard try tableExists("categories", db: db) else {
+    static func templateIncomeCatalog(in database: isolated BudgetDatabase, db: Database) throws -> BudgetTemplateEngine.MonthSources {
+        guard try database.tableExists("categories", db: db) else {
             return BudgetTemplateEngine.MonthSources()
         }
-        let columns = try columnSet(for: "categories", db: db)
-        let isIncome = column("is_income", fallback: "0", columns: columns)
-        let name = column("name", fallback: "id", columns: columns)
-        let hidden = column("hidden", fallback: "0", columns: columns)
+        let columns = try database.columnSet(for: "categories", db: db)
+        let isIncome = database.column("is_income", fallback: "0", columns: columns)
+        let name = database.column("name", fallback: "id", columns: columns)
+        let hidden = database.column("hidden", fallback: "0", columns: columns)
         var order = [String]()
         if columns.contains("sort_order") {
             order.append("sort_order")
@@ -80,7 +100,7 @@ extension BudgetDatabase {
             sql: """
                 SELECT id, \(name) AS name, \(hidden) AS hidden
                 FROM categories
-                WHERE \(predicateForLiveRows(columns: columns))
+                WHERE \(database.predicateForLiveRows(columns: columns))
                   AND (\(isIncome) = 1)
                 ORDER BY \(order.joined(separator: ", "))
                 """
@@ -118,11 +138,11 @@ extension BudgetDatabase {
         )
     }
 
-    func templateActiveSchedules(db: Database) throws -> (ids: Set<String>, names: Set<String>) {
-        guard try tableExists("schedules", db: db) else {
+    static func templateActiveSchedules(in database: isolated BudgetDatabase, db: Database) throws -> (ids: Set<String>, names: Set<String>) {
+        guard try database.tableExists("schedules", db: db) else {
             return ([], [])
         }
-        let columns = try columnSet(for: "schedules", db: db)
+        let columns = try database.columnSet(for: "schedules", db: db)
         guard columns.contains("name") else {
             return ([], [])
         }
@@ -133,7 +153,7 @@ extension BudgetDatabase {
                 SELECT \(idSelection) AS id, name
                 FROM schedules
                 WHERE name IS NOT NULL
-                  AND \(predicateForLiveRows(columns: columns))
+                  AND \(database.predicateForLiveRows(columns: columns))
                 """
         )
         var ids: Set<String> = []
@@ -151,7 +171,7 @@ extension BudgetDatabase {
         return (ids, names)
     }
 
-    private func templateEngineCategory(
+    private static func templateEngineCategory(
         categoryID: String,
         entries: [BudgetTemplateEntry],
         monthValue: Int,
@@ -160,6 +180,7 @@ extension BudgetDatabase {
         isTrackingBudget: Bool,
         spentByMonth: [String: [String: Int]],
         history: TemplateHistory,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> BudgetTemplateEngine.Category {
         let lookBacks = Set(
@@ -173,13 +194,13 @@ extension BudgetDatabase {
                 monthValue,
                 by: -lookBack
             )
-            copiedBudgetedByLookBack[lookBack] = try templateHistoryInputs(history, db: db)
+            copiedBudgetedByLookBack[lookBack] = try templateHistoryInputs(history, in: database, db: db)
                 .budgetedByMonth[YearMonth.id(packed: sourceMonthValue)]?[categoryID]?.budgeted ?? 0
         }
 
         let fromLastMonth: Int
-        if Self.needsPreviousBalance(entries) {
-            fromLastMonth = try templateFromLastMonth(
+        if needsPreviousBalance(entries) {
+            fromLastMonth = try database.templateFromLastMonth(
                 categoryID: categoryID,
                 monthValue: monthValue,
                 isIncome: isIncome,
@@ -197,6 +218,7 @@ extension BudgetDatabase {
             monthValue: monthValue,
             spentByMonth: spentByMonth,
             history: history,
+            in: database,
             db: db
         )
         return BudgetTemplateEngine.Category(
@@ -214,6 +236,7 @@ extension BudgetDatabase {
                 entries: entries,
                 spentByMonth: spentByMonth,
                 history: history,
+                in: database,
                 db: db
             ),
             budgetedByMonth: spendMonths.budgetedByMonth,
@@ -223,13 +246,14 @@ extension BudgetDatabase {
                 entries: entries,
                 monthValue: monthValue,
                 isIncome: isIncome,
+                in: database,
                 db: db
             ),
             previouslyBudgeted: previouslyBudgeted
         )
     }
 
-    private func templatePercentageMonthSources(
+    private static func templatePercentageMonthSources(
         catalog: BudgetTemplateEngine.MonthSources,
         monthValue: Int,
         spentByMonth: [String: [String: Int]]
@@ -263,7 +287,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func averageActivityByMonth(
+    private static func averageActivityByMonth(
         categoryID: String,
         entries: [BudgetTemplateEntry],
         spentByMonth: [String: [String: Int]]
@@ -282,11 +306,12 @@ extension BudgetDatabase {
         return activityByMonth
     }
 
-    private func averageFirstRelevantMonth(
+    private static func averageFirstRelevantMonth(
         categoryID: String,
         entries: [BudgetTemplateEntry],
         spentByMonth: [String: [String: Int]],
         history: TemplateHistory,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> Int? {
         guard entries.contains(where: { $0.type == "average" }) else {
@@ -302,7 +327,7 @@ extension BudgetDatabase {
             }
         }
 
-        if let budgetMonth = try templateHistoryFirstBudgetMonth(history, categoryID: categoryID, db: db) {
+        if let budgetMonth = try templateHistoryFirstBudgetMonth(history,categoryID: categoryID, in: database, db: db) {
             consider(budgetMonth)
         }
         for (monthID, byCategory) in spentByMonth {
@@ -315,7 +340,7 @@ extension BudgetDatabase {
         return earliest
     }
 
-    static func needsPreviousBalance(_ entries: [BudgetTemplateEntry]) -> Bool {
+    private static func needsPreviousBalance(_ entries: [BudgetTemplateEntry]) -> Bool {
         entries.contains { entry in
             entry.type == "by"
                 || entry.type == "refill"
@@ -327,13 +352,14 @@ extension BudgetDatabase {
 
     /// Runs the month recurrence once, through the month before `monthValue`,
     /// keeping every month a Spend template or the carry-in lookup will ask for.
-    private func primeLeftoverHistory(
+    private static func primeLeftoverHistory(
         categoryTemplates: [String: [BudgetTemplateEntry]],
         monthValue: Int,
         history: TemplateHistory,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
-        guard categoryTemplates.values.contains(where: Self.needsPreviousBalance) else {
+        guard categoryTemplates.values.contains(where: needsPreviousBalance) else {
             return
         }
         let previousMonthValue = try BudgetTemplateCalendar.shiftedMonth(monthValue, by: -1)
@@ -347,11 +373,12 @@ extension BudgetDatabase {
             history,
             at: previousMonthValue,
             keepFrom: min(earliestSpendMonth ?? previousMonthValue, previousMonthValue),
+            in: database,
             db: db
         )
     }
 
-    private func needsSpendingHistory(
+    private static func needsSpendingHistory(
         _ categoryTemplates: [String: [BudgetTemplateEntry]]
     ) -> Bool {
         categoryTemplates.values.contains { entries in
@@ -361,12 +388,13 @@ extension BudgetDatabase {
         }
     }
 
-    private func spendHistory(
+    private static func spendHistory(
         categoryID: String,
         entries: [BudgetTemplateEntry],
         monthValue: Int,
         spentByMonth: [String: [String: Int]],
         history: TemplateHistory,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> (
         budgetedByMonth: [Int: Int],
@@ -390,7 +418,7 @@ extension BudgetDatabase {
         var leftoverByMonth: [Int: Int] = [:]
         var spentByMonthValue: [Int: Int] = [:]
         let earliest = fromMonths.min() ?? monthValue
-        let budgetedHistory = try templateHistoryInputs(history, db: db).budgetedByMonth
+        let budgetedHistory = try templateHistoryInputs(history, in: database, db: db).budgetedByMonth
         var cursor = earliest
         while cursor < monthValue {
             let month = YearMonth.id(packed: cursor)
@@ -400,6 +428,7 @@ extension BudgetDatabase {
                 history,
                 at: cursor,
                 keepFrom: earliest,
+                in: database,
                 db: db
             )[categoryID]?.balance ?? 0
             cursor = try BudgetTemplateCalendar.shiftedMonth(cursor, by: 1)
@@ -407,10 +436,11 @@ extension BudgetDatabase {
         return (budgetedByMonth, leftoverByMonth, spentByMonthValue)
     }
 
-    private func resolvedSchedules(
+    private static func resolvedSchedules(
         entries: [BudgetTemplateEntry],
         monthValue: Int,
         isIncome: Bool,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [String: BudgetTemplateEngine.ResolvedSchedule] {
         var resolved: [String: BudgetTemplateEngine.ResolvedSchedule] = [:]
@@ -422,23 +452,25 @@ extension BudgetDatabase {
                 entry: entry,
                 monthValue: monthValue,
                 isIncome: isIncome,
+                in: database,
                 db: db
             )
         }
         return resolved
     }
 
-    private func resolveSchedule(
+    private static func resolveSchedule(
         entry: BudgetTemplateEntry,
         monthValue: Int,
         isIncome: Bool,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> BudgetTemplateEngine.ResolvedSchedule {
         let missing = entry.missingScheduleError
-        guard try tableExists("schedules", db: db), try tableExists("rules", db: db) else {
+        guard try database.tableExists("schedules", db: db), try database.tableExists("rules", db: db) else {
             throw missing
         }
-        let scheduleColumns = try columnSet(for: "schedules", db: db)
+        let scheduleColumns = try database.columnSet(for: "schedules", db: db)
         guard scheduleColumns.contains("name") else {
             throw missing
         }
@@ -465,7 +497,7 @@ extension BudgetDatabase {
                        \(completedColumn) AS completed
                 FROM schedules
                 WHERE \(identityPredicate)
-                  AND \(predicateForLiveRows(columns: scheduleColumns))
+                  AND \(database.predicateForLiveRows(columns: scheduleColumns))
                 LIMIT 1
                 """,
             arguments: [identityArgument]
@@ -478,7 +510,7 @@ extension BudgetDatabase {
             throw LocalFirstError.unsupportedTemplate("schedule")
         }
 
-        let ruleColumns = try columnSet(for: "rules", db: db)
+        let ruleColumns = try database.columnSet(for: "rules", db: db)
         guard ruleColumns.contains("conditions"), ruleColumns.contains("actions") else {
             throw LocalFirstError.unsupportedTemplate("schedule")
         }
@@ -488,7 +520,7 @@ extension BudgetDatabase {
                 SELECT conditions, actions
                 FROM rules
                 WHERE id = ?
-                  AND \(predicateForLiveRows(columns: ruleColumns))
+                  AND \(database.predicateForLiveRows(columns: ruleColumns))
                 LIMIT 1
                 """,
             arguments: [ruleID]
@@ -524,7 +556,7 @@ extension BudgetDatabase {
             case "percent":
                 scheduleAmount = (1 + adjustment / 100) * scheduleAmount
             case "fixed":
-                let delta = Double(try BudgetTemplateEngine(currency: try budgetCurrency(db: db))
+                let delta = Double(try BudgetTemplateEngine(currency: try database.budgetCurrency(db: db))
                     .amountToMinorUnits(adjustment))
                 scheduleAmount += (scheduleAmount < 0 ? -1 : 1) * delta
             default:
@@ -592,7 +624,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func scheduleActionIsUnsupported(_ action: RuleAction) -> Bool {
+    private static func scheduleActionIsUnsupported(_ action: RuleAction) -> Bool {
         if action.options?["formula"] != nil {
             return true
         }
@@ -605,7 +637,7 @@ extension BudgetDatabase {
         return false
     }
 
-    private func scheduleRuleAmount(_ condition: RuleCondition) throws -> Double {
+    private static func scheduleRuleAmount(_ condition: RuleCondition) throws -> Double {
         if condition.operation == "isbetween" {
             guard case .object(let range) = condition.value,
                   let num1 = range["num1"]?.numberValue,
@@ -620,7 +652,7 @@ extension BudgetDatabase {
         return amount
     }
 
-    private func scheduleRecurrence(
+    private static func scheduleRecurrence(
         _ condition: RuleCondition
     ) throws -> ActualScheduleRecurrence? {
         switch condition.value {
@@ -643,6 +675,73 @@ extension BudgetDatabase {
         default:
             throw LocalFirstError.unsupportedTemplate("schedule")
         }
+    }
+
+    private static func templateHistoryInputs(
+        _ history: TemplateHistory,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> BudgetCategoryValueInputs {
+        if let inputs = history.inputs {
+            return inputs
+        }
+        let inputs = try database.categoryValueInputs(db: db)
+        history.inputs = inputs
+        history.recordInputLoad()
+        return inputs
+    }
+
+    /// Values for `month` (Actual's `leftover` family). The first request runs
+    /// the recurrence forward through `month`, keeping snapshots from
+    /// `keepFrom`; later requests inside that range are lookups.
+    static func templateHistoryCategoryValues(
+        _ history: TemplateHistory,
+        at month: Int,
+        keepFrom: Int,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> [String: BudgetCategoryValue] {
+        let inputs = try templateHistoryInputs(history, in: database, db: db)
+        if let range = history.keptRange, range.contains(month) {
+            if let kept = history.snapshots[month] {
+                return kept
+            }
+            // Precedes the first month with real data: a one-month recurrence.
+            return try database.categoryValueTimeline(inputs: inputs, through: month, keepFrom: month)
+                .snapshots[month] ?? [:]
+        }
+        let upper = max(month, history.keptRange?.upperBound ?? month)
+        let lower = min(keepFrom, month, history.keptRange?.lowerBound ?? month)
+        let timeline = try database.categoryValueTimeline(inputs: inputs, through: upper, keepFrom: lower)
+        history.snapshots = timeline.snapshots
+        history.keptRange = lower...upper
+        if let kept = timeline.snapshots[month] {
+            return kept
+        }
+        // `month` precedes the first month with real data.
+        return try database.categoryValueTimeline(inputs: inputs, through: month, keepFrom: month)
+            .snapshots[month] ?? [:]
+    }
+
+    /// Earliest stored budget month for a category (`MIN(month)` over its rows).
+    private static func templateHistoryFirstBudgetMonth(
+        _ history: TemplateHistory,
+        categoryID: String,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> Int? {
+        if history.firstBudgetMonthByCategory == nil {
+            var earliest: [String: String] = [:]
+            for (month, byCategory) in try templateHistoryInputs(history, in: database, db: db).budgetedByMonth {
+                for categoryID in byCategory.keys {
+                    if let current = earliest[categoryID], current <= month { continue }
+                    earliest[categoryID] = month
+                }
+            }
+            history.firstBudgetMonthByCategory = earliest
+        }
+        return history.firstBudgetMonthByCategory?[categoryID]
+            .flatMap { try? BudgetTemplateCalendar.parseMonth($0) }
     }
 }
 

@@ -15,7 +15,7 @@ struct BudgetTemplateBrowserSnapshotTests {
             databaseURL: try makeBrowserFixture(),
             localNodeID: "node1"
         )
-        let snapshot = try await database.categoryTemplateBrowserSnapshot(now: now)
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateBrowserSnapshot(now: now, in: database)
         let byID = Dictionary(uniqueKeysWithValues: snapshot.categories.map { ($0.id, $0) })
 
         #expect(snapshot.month == "2026-09")
@@ -44,7 +44,7 @@ struct BudgetTemplateBrowserSnapshotTests {
     @Test func missingColumnsLockEveryCategory() async throws {
         let fixtureURL = try fixtures.makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateBrowserSnapshot(now: now)
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateBrowserSnapshot(now: now, in: database)
         #expect(snapshot.categories.map(\.id) == ["groceries"])
         #expect(snapshot.categories.first?.hasDefinition == false)
         #expect(snapshot.categories.first?.lock == .readOnly(.missingColumns))
@@ -68,7 +68,7 @@ struct BudgetTemplateBrowserSnapshotTests {
             INSERT INTO notes VALUES ('groceries', '#template 500');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateBrowserSnapshot(now: now)
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateBrowserSnapshot(now: now, in: database)
         let groceries = try #require(snapshot.categories.first { $0.id == "groceries" })
         let percent = try #require(snapshot.categories.first { $0.id == "percent" })
         #expect(groceries.hasDefinition)

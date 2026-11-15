@@ -15,10 +15,11 @@ extension LocalFirstActualStore {
             goalDefJSON = try BudgetTemplateDefinition.encode(drafts)
         }
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryTemplateMessages(
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(
             categoryID: categoryID,
             goalDefJSON: goalDefJSON,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         if !messages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
@@ -40,10 +41,11 @@ extension LocalFirstActualStore {
         } else {
             goalDefJSON = try BudgetTemplateDefinition.encode(drafts)
         }
-        return try await database.dryRunCategoryTemplate(
+        return try await TemplatePreviewSQL.dryRunCategoryTemplate(
             categoryID: categoryID,
             goalDefJSON: goalDefJSON,
-            month: month
+            month: month,
+            in: database
         )
     }
 
@@ -52,7 +54,7 @@ extension LocalFirstActualStore {
         budgetID: String
     ) async throws -> BudgetTemplateEditorSnapshot {
         let database = try requireDatabase(for: budgetID)
-        return try await database.categoryTemplateEditorSnapshot(categoryID: categoryID)
+        return try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(categoryID: categoryID, in: database)
     }
 
     func categoryTemplateBrowserSnapshot(
@@ -68,7 +70,7 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let revision = cachePublicationRevision
-        var snapshot = try await database.categoryTemplateBrowserSnapshot()
+        var snapshot = try await TemplateAuthoringSQL.categoryTemplateBrowserSnapshot(in: database)
         #if DEBUG
         await testSeams?.readPublicationHook?(.templateBrowser)
         #endif
@@ -88,9 +90,10 @@ extension LocalFirstActualStore {
         month: String
     ) async throws -> BudgetTemplateApplyPreview {
         let database = try requireDatabase(for: budgetID)
-        return try await database.previewBudgetTemplate(
+        return try await TemplatePreviewSQL.previewBudgetTemplate(
             command: command,
-            month: month
+            month: month,
+            in: database
         )
     }
 
@@ -100,7 +103,7 @@ extension LocalFirstActualStore {
         excluding: Set<String>
     ) async throws -> BudgetTemplateApplyPreviewPair {
         let database = try requireDatabase(for: budgetID)
-        return try await database.previewBudgetTemplatePair(month: month, excluding: excluding)
+        return try await TemplatePreviewSQL.previewBudgetTemplatePair(month: month, excluding: excluding, in: database)
     }
 
     func applyReviewedBudgetTemplateAndRefresh(

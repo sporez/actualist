@@ -17,7 +17,7 @@ extension BudgetDatabase {
 
         return try queue.read { db in
             let table = try budgetTable(db: db)
-            let isIncome = try templateCategoryIsIncomeByID(db: db)[trimmedCategoryID] ?? false
+            let isIncome = try TemplateCategorySQL.templateCategoryIsIncomeByID(in: self, db: db)[trimmedCategoryID] ?? false
             guard BudgetActionEligibility.allows(.directAssignment(isIncome: isIncome), in: table) else {
                 throw BudgetModeWriteError.unsupportedAction
             }
@@ -66,7 +66,7 @@ extension BudgetDatabase {
 
         return try queue.read { db in
             let table = try budgetTable(db: db)
-            let isIncome = try templateCategoryIsIncomeByID(db: db)[trimmedCategoryID] ?? false
+            let isIncome = try TemplateCategorySQL.templateCategoryIsIncomeByID(in: self, db: db)[trimmedCategoryID] ?? false
             guard BudgetActionEligibility.allows(.carryover(isIncome: isIncome), in: table) else {
                 throw BudgetModeWriteError.unsupportedAction
             }
@@ -111,10 +111,11 @@ extension BudgetDatabase {
                 required: ["month", "category", "carryover"],
                 db: db
             )
-            let categoryIDs = try templateCategoryIDsInBudgetOrder(
-                db: db,
+            let categoryIDs = try TemplateCategorySQL.templateCategoryIDsInBudgetOrder(
                 includeIncome: false,
-                includeHidden: true
+                includeHidden: true,
+                in: self,
+                db: db
             )
             return try categoryCarryoverMessages(
                 categoryIDs: categoryIDs,

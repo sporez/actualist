@@ -18,12 +18,16 @@ struct BudgetTemplatePreparedPlan: Sendable {
     var blocked: [(categoryID: String, reason: BudgetTemplateApplyPreview.BlockedCategory.Reason)] = []
 }
 
-extension BudgetDatabase {
-    func dryRunCategoryTemplate(
+/// Template review identity and its protected write precondition live here so
+/// the general sync writer only has to invoke one focused validator.
+
+enum TemplatePreviewSQL {
+    static func dryRunCategoryTemplate(
         categoryID: String,
         goalDefJSON: String?,
         month: String,
-        currentMonth: String? = nil
+        currentMonth: String? = nil,
+        in database: isolated BudgetDatabase
     ) throws -> BudgetTemplateCategoryDryRun {
         let trimmed = categoryID.trimmingCharacters(in: .whitespacesAndNewlines)
         let templateCount: Int
@@ -50,8 +54,8 @@ extension BudgetDatabase {
             return zeros
         }
 
-        return try queue.read { db in
-            let liveIDs = try templateCategoryIDsInCategoryOrder(db: db)
+        return try database.queue.read { db in
+            let liveIDs = try TemplateCategorySQL.templateCategoryIDsInCategoryOrder(in: database, db: db)
             guard liveIDs.contains(trimmed) else {
                 return zeros
             }
@@ -62,6 +66,7 @@ extension BudgetDatabase {
                 skipAvailableClamp: true,
                 goalDefOverrides: [trimmed: json],
                 skipStaleCheck: true,
+                in: database,
                 db: db
             )
             let write = prepared.compute.writes.first { $0.categoryID == trimmed }
@@ -80,18 +85,20 @@ extension BudgetDatabase {
         }
     }
 
-    func previewBudgetTemplate(
+    static func previewBudgetTemplate(
         command: BudgetTemplateCommand,
         month: String,
         currentMonth: String? = nil,
-        now: Date = Date()
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
     ) throws -> BudgetTemplateApplyPreview {
-        try queue.read { db in
+        try database.queue.read { db in
             try makeBudgetTemplateApplyPreview(
                 command: command,
                 month: month,
                 currentMonth: currentMonth,
                 now: now,
+                in: database,
                 db: db
             )
         }
@@ -100,13 +107,14 @@ extension BudgetDatabase {
     /// Calculates both month-wide Apply modes while holding one SQLite read
     /// snapshot. Each scenario catches its own template validation failure.
     /// `excluding` holds the categories the review skipped.
-    func previewBudgetTemplatePair(
+    static func previewBudgetTemplatePair(
         month: String,
         excluding requested: Set<String> = [],
         currentMonth: String? = nil,
-        now: Date = Date()
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
     ) throws -> BudgetTemplateApplyPreviewPair {
-        try queue.read { db in
+        try database.queue.read { db in
             // Both modes read the same snapshot, so they share one history.
             let history = TemplateHistory()
             let fillEmpty = previewBudgetTemplateReviewOutcome(
@@ -116,6 +124,7 @@ extension BudgetDatabase {
                 currentMonth: currentMonth,
                 now: now,
                 history: history,
+                in: database,
                 db: db
             )
             let overwrite = previewBudgetTemplateReviewOutcome(
@@ -125,6 +134,7 @@ extension BudgetDatabase {
                 currentMonth: currentMonth,
                 now: now,
                 history: history,
+                in: database,
                 db: db
             )
             return BudgetTemplateApplyPreviewPair(fillEmpty: fillEmpty, overwrite: overwrite)
@@ -135,13 +145,14 @@ extension BudgetDatabase {
     /// counts only for a tile this mode shows, so a skip kept from the other
     /// mode can't quietly change this mode's result. A category whose template
     /// can't be applied is left out instead of failing the review.
-    private func previewBudgetTemplateReviewOutcome(
+    private static func previewBudgetTemplateReviewOutcome(
         command: BudgetTemplateCommand,
         excluding requested: Set<String>,
         month: String,
         currentMonth: String?,
         now: Date,
         history: TemplateHistory,
+        in database: isolated BudgetDatabase,
         db: Database
     ) -> BudgetTemplatePreviewOutcome {
         do {
@@ -152,6 +163,7 @@ extension BudgetDatabase {
                 now: now,
                 history: history,
                 collectBlocked: true,
+                in: database,
                 db: db
             )
             let tileIDs = baseline.categories.map(\.categoryID)
@@ -169,6 +181,7 @@ extension BudgetDatabase {
                 history: history,
                 collectBlocked: true,
                 listed: Set(tileIDs).subtracting(skippedIDs),
+                in: database,
                 db: db
             )
             selected.blocked = baseline.blocked
@@ -181,7 +194,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func makeBudgetTemplateApplyPreview(
+    private static func makeBudgetTemplateApplyPreview(
         command: BudgetTemplateCommand,
         month: String,
         currentMonth: String?,
@@ -189,6 +202,7 @@ extension BudgetDatabase {
         history: TemplateHistory = TemplateHistory(),
         collectBlocked: Bool = false,
         listed: Set<String> = [],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> BudgetTemplateApplyPreview {
         let prepared = try budgetTemplatePlan(
@@ -200,15 +214,16 @@ extension BudgetDatabase {
             skipStaleCheck: false,
             history: history,
             collectBlocked: collectBlocked,
+            in: database,
             db: db
         )
-        let names = try templateCategoryNames(db: db)
-        let currentValues = try categoryValues(through: month, db: db, history: history)
-        let reviewRevision = try budgetTemplateReviewRevision(month: month, db: db)
-        let currency = try budgetCurrency(db: db)
+        let names = try TemplateCategorySQL.templateCategoryNames(in: database, db: db)
+        let currentValues = try database.categoryValues(through: month, db: db, history: history)
+        let reviewRevision = try budgetTemplateReviewRevision(month: month, in: database, db: db)
+        let currency = try database.budgetCurrency(db: db)
         let includedTrackingCategoryIDs: Set<String>
         if prepared.isTracking {
-            let groups = try fetchCategoryGroups(categoryValues: currentValues, db: db)
+            let groups = try database.fetchCategoryGroups(categoryValues: currentValues, db: db)
             let firstIncomeGroupID = groups.first(where: \.isIncome)?.id
             includedTrackingCategoryIDs = Set(groups
                 .filter { $0.isIncome ? $0.id == firstIncomeGroupID : $0.hidden != true }
@@ -373,7 +388,7 @@ extension BudgetDatabase {
         )
     }
 
-    func budgetTemplatePlan(
+    static func budgetTemplatePlan(
         command: BudgetTemplateCommand,
         month: String,
         currentMonth: String?,
@@ -382,26 +397,27 @@ extension BudgetDatabase {
         skipStaleCheck: Bool,
         history: TemplateHistory = TemplateHistory(),
         collectBlocked: Bool = false,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> BudgetTemplatePreparedPlan {
-        let monthValue = try Self.actualMonthValue(month)
-        let currentMonthValue = try Self.actualMonthValue(
+        let monthValue = try BudgetDatabase.actualMonthValue(month)
+        let currentMonthValue = try BudgetDatabase.actualMonthValue(
             currentMonth ?? BudgetTemplateCalendar.currentMonthID()
         )
-        let templateEngine = BudgetTemplateEngine(currency: try budgetCurrency(db: db))
-        let table = try budgetTable(db: db)
-        let columns = try requiredColumns(
+        let templateEngine = BudgetTemplateEngine(currency: try database.budgetCurrency(db: db))
+        let table = try database.budgetTable(db: db)
+        let columns = try database.requiredColumns(
             table: table.rawValue,
             required: ["month", "category", "amount"],
             db: db
         )
         let canWriteGoals = columns.contains("goal")
-        var goalDefsRaw = try readCategoryGoalDefsRaw(db: db)
+        var goalDefsRaw = try TemplateCategorySQL.readCategoryGoalDefsRaw(in: database, db: db)
         for (categoryID, json) in goalDefOverrides {
             goalDefsRaw[categoryID] = json
         }
-        let categoryNames = try templateCategoryNames(db: db)
-        let categoryIsIncome = try templateCategoryIsIncomeByID(db: db)
+        let categoryNames = try TemplateCategorySQL.templateCategoryNames(in: database, db: db)
+        let categoryIsIncome = try TemplateCategorySQL.templateCategoryIsIncomeByID(in: database, db: db)
         let isTracking = table == .tracking
         let targeted = Set(
             command.categoryIDs
@@ -410,10 +426,11 @@ extension BudgetDatabase {
         )
         var scope: [String]
         if targeted.isEmpty, command.excludedCategoryIDs.isEmpty {
-            scope = try templateCategoryIDsInBudgetOrder(
-                db: db,
+            scope = try TemplateCategorySQL.templateCategoryIDsInBudgetOrder(
                 includeIncome: isTracking,
-                includeHidden: false
+                includeHidden: false,
+                in: database,
+                db: db
             )
         } else if targeted.isEmpty {
             // A month run without some categories is Actual's
@@ -421,15 +438,16 @@ extension BudgetDatabase {
             // categories by `sort_order, id` across groups, not in budget
             // order, and the order decides priority clamps and the last
             // Remainder cent.
-            let monthScope = Set(try templateCategoryIDsInBudgetOrder(
-                db: db,
+            let monthScope = Set(try TemplateCategorySQL.templateCategoryIDsInBudgetOrder(
                 includeIncome: isTracking,
-                includeHidden: false
+                includeHidden: false,
+                in: database,
+                db: db
             ))
-            scope = try templateCategoryIDsInCategoryOrder(db: db)
+            scope = try TemplateCategorySQL.templateCategoryIDsInCategoryOrder(in: database, db: db)
                 .filter { monthScope.contains($0) }
         } else {
-            scope = try templateCategoryIDsInCategoryOrder(db: db)
+            scope = try TemplateCategorySQL.templateCategoryIDsInCategoryOrder(in: database, db: db)
                 .filter { targeted.contains($0) }
         }
         // Excluded categories leave the scope entirely: no stale or template
@@ -440,8 +458,9 @@ extension BudgetDatabase {
 
         if !skipStaleCheck {
             let staleSource = goalDefsRaw.filter { scope.contains($0.key) && goalDefOverrides[$0.key] == nil }
-            let stale = try staleNoteManagedTemplateCategories(
+            let stale = try TemplateCategorySQL.staleNoteManagedTemplateCategories(
                 goalDefsRaw: staleSource,
+                in: database,
                 db: db
             )
             if collectBlocked, !stale.isEmpty {
@@ -459,20 +478,20 @@ extension BudgetDatabase {
         }
 
         let force = command.mode == .overwrite || !targeted.isEmpty
-        let currentBudgets = try categoryBudgets(month: YearMonth.id(packed: monthValue), db: db)
+        let currentBudgets = try database.categoryBudgets(month: YearMonth.id(packed: monthValue), db: db)
         let existingGoals = canWriteGoals
-            ? try categoryGoals(month: YearMonth.id(packed: monthValue), db: db)
+            ? try TemplateApplySQL.categoryGoals(month: YearMonth.id(packed: monthValue), in: database, db: db)
             : [:]
 
         var unsupported: [String] = []
         var categoryTemplates: [String: [BudgetTemplateEntry]] = [:]
         var orphanGoalCategoryIDs: [String] = []
         let initialAvailableBudget = try isTracking
-            ? trackingTotalSaved(month: YearMonth.id(packed: monthValue), db: db, history: history)
-            : envelopeToBudget(month: YearMonth.id(packed: monthValue), db: db, history: history)
+            ? database.trackingTotalSaved(month: YearMonth.id(packed: monthValue), db: db, history: history)
+            : database.envelopeToBudget(month: YearMonth.id(packed: monthValue), db: db, history: history)
         var availableBudget = initialAvailableBudget
-        var incomeCatalog = try templateIncomeCatalog(db: db)
-        let activeSchedules = try templateActiveSchedules(db: db)
+        var incomeCatalog = try TemplateInputSQL.templateIncomeCatalog(in: database, db: db)
+        let activeSchedules = try TemplateInputSQL.templateActiveSchedules(in: database, db: db)
         incomeCatalog.activeScheduleIDs = activeSchedules.ids
         incomeCatalog.activeScheduleNames = activeSchedules.names
         for categoryID in scope {
@@ -541,13 +560,14 @@ extension BudgetDatabase {
             )
         }
 
-        let (categories, monthSources) = try templateEngineInputs(
+        let (categories, monthSources) = try TemplateInputSQL.templateEngineInputs(
             categoryTemplates: categoryTemplates,
             monthValue: monthValue,
             categoryIsIncome: categoryIsIncome,
             previouslyBudgetedByCategory: currentBudgets.mapValues(\.budgeted),
             isTrackingBudget: isTracking,
             history: history,
+            in: database,
             db: db
         )
         let compute = try templateEngine.computePlan(
@@ -578,5 +598,27 @@ extension BudgetDatabase {
             initialAvailableBudget: initialAvailableBudget,
             blocked: blocked
         )
+    }
+
+    private static func budgetTemplateReviewRevision(month: String, in database: isolated BudgetDatabase, db: Database) throws -> BudgetTemplateReviewRevision {
+        let modeIdentity = try database.budgetModeIdentity(db: db)
+        let watermark = try database.crdtMessageWatermark(db: db)
+        return BudgetTemplateReviewRevision(
+            month: month,
+            modeIdentity: modeIdentity,
+            messageCount: watermark.messageCount,
+            maxMessageTimestamp: watermark.maxMessageTimestamp
+        )
+    }
+
+    static func validateBudgetTemplateReviewRevision(
+        _ expected: BudgetTemplateReviewRevision?,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws {
+        guard let expected else { return }
+        guard try budgetTemplateReviewRevision(month: expected.month, in: database, db: db) == expected else {
+            throw LocalFirstError.budgetTemplateReviewStale
+        }
     }
 }

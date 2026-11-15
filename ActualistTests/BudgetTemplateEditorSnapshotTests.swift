@@ -30,9 +30,10 @@ struct BudgetTemplateEditorSnapshotTests {
             INSERT INTO schedules VALUES ('ghost', 'Ghost', 'ghost-rule', 0, 1);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
-            now: now
+            now: now,
+            in: database
         )
         #expect(snapshot.categoryID == "groceries")
         #expect(snapshot.categoryName == "Groceries")
@@ -52,9 +53,10 @@ struct BudgetTemplateEditorSnapshotTests {
             WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
-            now: now
+            now: now,
+            in: database
         )
         #expect(snapshot.lock == .editable)
         #expect(snapshot.drafts == [
@@ -81,9 +83,10 @@ struct BudgetTemplateEditorSnapshotTests {
             WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
-            now: now
+            now: now,
+            in: database
         )
         #expect(snapshot.lock == .editable)
         #expect(snapshot.drafts == [
@@ -95,9 +98,10 @@ struct BudgetTemplateEditorSnapshotTests {
     @Test func snapshotLocksWhenColumnsAreMissing() async throws {
         let fixtureURL = try fixtures.makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
-            now: now
+            now: now,
+            in: database
         )
         #expect(snapshot.lock == .readOnly(.missingColumns))
         #expect(snapshot.drafts.isEmpty)
@@ -115,9 +119,10 @@ struct BudgetTemplateEditorSnapshotTests {
                 VALUES ('bonus', 'Bonus', 'income-group', 1, 0, 0, 0, NULL, NULL);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
-            now: now
+            now: now,
+            in: database
         )
         #expect(snapshot.incomeCategories == [
             BudgetTemplateIncomeOption(id: "bonus", name: "Bonus"),
@@ -136,9 +141,10 @@ struct BudgetTemplateEditorSnapshotTests {
                 VALUES ('bonus', 'Bonus', 'income-group', 1, 0, 0, 1, NULL, NULL);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
-            now: now
+            now: now,
+            in: database
         )
         #expect(snapshot.incomeCategories == [
             BudgetTemplateIncomeOption(id: "salary", name: "Salary", isAvailable: false),
@@ -158,9 +164,10 @@ struct BudgetTemplateEditorSnapshotTests {
             INSERT INTO notes VALUES ('groceries', '#template 500');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
-            now: now
+            now: now,
+            in: database
         )
         #expect(snapshot.lock == .readOnly(.noteManaged))
         #expect(snapshot.hasDefinition)
@@ -177,9 +184,10 @@ struct BudgetTemplateEditorSnapshotTests {
             WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
-            now: now
+            now: now,
+            in: database
         )
         #expect(snapshot.lock == .editable)
         #expect(snapshot.drafts == [.percentage(
@@ -198,7 +206,7 @@ struct BudgetTemplateEditorSnapshotTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         await #expect(throws: LocalFirstError.invalidLocalWrite("missing category")) {
-            _ = try await database.categoryTemplateEditorSnapshot(categoryID: "missing")
+            _ = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(categoryID: "missing", in: database)
         }
     }
 }

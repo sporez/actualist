@@ -89,8 +89,8 @@ extension BudgetDatabase {
                 required: ["month", "category", "carryover"],
                 db: db
             )
-            let categoryIDs = try templateCategoryIDsInBudgetOrder(
-                db: db, includeIncome: false, includeHidden: true
+            let categoryIDs = try TemplateCategorySQL.templateCategoryIDsInBudgetOrder(
+                includeIncome: false, includeHidden: true, in: self, db: db
             )
             let latestStored = try fetchAvailableMonths(db: db).last.map(YearMonth.packedUnchecked) ?? 0
             let effectiveThrough = max(throughValue, latestStored)

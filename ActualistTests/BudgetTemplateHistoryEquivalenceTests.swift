@@ -49,19 +49,21 @@ struct BudgetTemplateHistoryEquivalenceTests {
     @Test(arguments: [false, true])
     func previewPairMatchesCapturedPreviousImplementation(tracking: Bool) async throws {
         let database = try database(tracking: tracking)
-        let pair = try await database.previewBudgetTemplatePair(
+        let pair = try await TemplatePreviewSQL.previewBudgetTemplatePair(
             month: Self.month,
             currentMonth: Self.month,
-            now: Self.now
+            now: Self.now,
+            in: database
         )
         let digest = Self.describe(pair)
         #expect(digest == Self.golden[tracking], "DIGEST[\(tracking)]=\n\(digest)")
         // The pair shares one history; a lone preview builds its own.
-        let fill = try await database.previewBudgetTemplate(
+        let fill = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .fillEmpty,
             month: Self.month,
             currentMonth: Self.month,
-            now: Self.now
+            now: Self.now,
+            in: database
         )
         #expect(Self.describe(.ready(fill)) == Self.describe(pair.fillEmpty))
     }
@@ -86,18 +88,20 @@ struct BudgetTemplateHistoryEquivalenceTests {
     @Test func previewPairReadsHistoryOnce() async throws {
         let database = try database(tracking: false)
         let single = try await scanCounts(database) {
-            _ = try await database.previewBudgetTemplate(
+            _ = try await TemplatePreviewSQL.previewBudgetTemplate(
                 command: .fillEmpty,
                 month: Self.month,
                 currentMonth: Self.month,
-                now: Self.now
+                now: Self.now,
+                in: database
             )
         }
         let pair = try await scanCounts(database) {
-            _ = try await database.previewBudgetTemplatePair(
+            _ = try await TemplatePreviewSQL.previewBudgetTemplatePair(
                 month: Self.month,
                 currentMonth: Self.month,
-                now: Self.now
+                now: Self.now,
+                in: database
             )
         }
         // One of a lone preview's scans is the history read, the other belongs

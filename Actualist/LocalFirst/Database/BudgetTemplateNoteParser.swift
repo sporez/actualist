@@ -1,5 +1,5 @@
 // Pure note-directive parser for the note-managed template staleness guard.
-// See BudgetDatabase+TemplateNoteSync.swift for the guard and DB reads.
+// See TemplateCategorySQL.swift for the guard and DB reads.
 // Follows Actual's goal-template.pegjs and template-notes.ts line for line;
 // scripts/template-note-parity pins the result against Actual's own parser.
 import Foundation

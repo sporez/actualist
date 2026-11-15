@@ -38,10 +38,11 @@ struct BudgetModeAndCleanupGuardTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateApply(
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .category("groceries"),
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
 

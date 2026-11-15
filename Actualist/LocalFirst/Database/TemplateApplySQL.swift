@@ -11,40 +11,44 @@ struct BudgetTemplateApplyResult: Sendable {
     var assignments: [BudgetTemplateAssignment]
 }
 
-extension BudgetDatabase {
-    func budgetTemplateApply(
+enum TemplateApplySQL {
+    static func budgetTemplateApply(
         command: BudgetTemplateCommand,
         month: String,
         currentMonth: String? = nil,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> BudgetTemplateApplyResult {
-        try queue.read { db in
+        try database.queue.read { db in
             try budgetTemplateApply(
                 command: command,
                 month: month,
                 currentMonth: currentMonth,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
         }
     }
 
     /// Plans from the live budget read through `db`, so an apply built in its own
     /// write transaction starts from the amounts and notes as they are at commit.
-    func budgetTemplateApply(
+    static func budgetTemplateApply(
         command: BudgetTemplateCommand,
         month: String,
         currentMonth: String? = nil,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> BudgetTemplateApplyResult {
-        let prepared = try budgetTemplatePlan(
+        let prepared = try TemplatePreviewSQL.budgetTemplatePlan(
             command: command,
             month: month,
             currentMonth: currentMonth,
             skipAvailableClamp: false,
             goalDefOverrides: [:],
             skipStaleCheck: false,
+            in: database,
             db: db
         )
         let writes = prepared.compute.writes
@@ -52,11 +56,11 @@ extension BudgetDatabase {
         let columns = prepared.columns
         let canWriteGoals = prepared.canWriteGoals
         let orphanGoalCategoryIDs = prepared.orphanGoalCategoryIDs
-        let monthValue = try Self.actualMonthValue(month)
+        let monthValue = try BudgetDatabase.actualMonthValue(month)
 
         var messages: [ActualSyncDecodedMessage] = []
         for write in writes.sorted(by: { $0.categoryID < $1.categoryID }) {
-            messages += try assignCategoryBudgetMessages(
+            messages += try database.assignCategoryBudgetMessages(
                 categoryID: write.categoryID,
                 budgeted: write.amount,
                 monthValue: monthValue,
@@ -73,8 +77,9 @@ extension BudgetDatabase {
                     monthValue: monthValue,
                     table: table,
                     columns: columns,
-                    db: db,
-                    builder: &builder
+                    builder: &builder,
+                    in: database,
+                    db: db
                 )
             }
         }
@@ -87,12 +92,13 @@ extension BudgetDatabase {
                     monthValue: monthValue,
                     table: table,
                     columns: columns,
-                    db: db,
-                    builder: &builder
+                    builder: &builder,
+                    in: database,
+                    db: db
                 )
             }
         }
-        messages += try tombstoneOrphanCleanupGroupMessages(db: db, builder: &builder)
+        messages += try tombstoneOrphanCleanupGroupMessages(builder: &builder, in: database, db: db)
         return BudgetTemplateApplyResult(
             messages: messages,
             assignments: writes.compactMap { write in
@@ -107,20 +113,20 @@ extension BudgetDatabase {
         )
     }
 
-    func categoryGoals(month: String, db: Database) throws -> [String: Int] {
-        guard let source = try categoryBudgetSource(db: db) else {
+    static func categoryGoals(month: String, in database: isolated BudgetDatabase, db: Database) throws -> [String: Int] {
+        guard let source = try database.categoryBudgetSource(db: db) else {
             return [:]
         }
         guard source.columns.contains("goal") else {
             return [:]
         }
-        let category = column("category", fallback: "NULL", columns: source.columns)
-        let budgetMonth = normalizedMonthExpression("month")
+        let category = database.column("category", fallback: "NULL", columns: source.columns)
+        let budgetMonth = database.normalizedMonthExpression("month")
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT \(category) AS category_id, goal
-                FROM \(quotedIdentifier(source.table.rawValue))
+                FROM \(database.quotedIdentifier(source.table.rawValue))
                 WHERE \(budgetMonth) = ? AND goal IS NOT NULL
                 """,
             arguments: [month]
@@ -133,29 +139,30 @@ extension BudgetDatabase {
         })
     }
 
-    func assignCategoryGoalMessages(
+    private static func assignCategoryGoalMessages(
         categoryID: String,
         goal: Int?,
         longGoal: Int?,
         monthValue: Int,
         table: BudgetTable,
         columns: Set<String>,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [ActualSyncDecodedMessage] {
         guard columns.contains("goal") else {
             return []
         }
-        let existingRowID = try budgetRowID(
+        let existingRowID = try database.budgetRowID(
             table: table,
             monthValue: monthValue,
             categoryID: categoryID,
             columns: columns,
             db: db
         )
-        let rowID = existingRowID ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
+        let rowID = existingRowID ?? BudgetDatabase.budgetRowID(monthValue: monthValue, categoryID: categoryID)
         let dataset = table.rawValue
-        var messages = try budgetRowIdentityMessages(
+        var messages = try database.budgetRowIdentityMessages(
             table: table, rowID: rowID, monthValue: monthValue,
             categoryID: categoryID, builder: &builder
         )
@@ -190,16 +197,17 @@ extension BudgetDatabase {
         return messages
     }
 
-    func tombstoneOrphanCleanupGroupMessages(
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
+    private static func tombstoneOrphanCleanupGroupMessages(
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [ActualSyncDecodedMessage] {
-        guard try tableExists("cleanup_groups", db: db),
-              try tableExists("categories", db: db) else {
+        guard try database.tableExists("cleanup_groups", db: db),
+              try database.tableExists("categories", db: db) else {
             return []
         }
-        let groupColumns = try columnSet(for: "cleanup_groups", db: db)
-        let categoryColumns = try columnSet(for: "categories", db: db)
+        let groupColumns = try database.columnSet(for: "cleanup_groups", db: db)
+        let categoryColumns = try database.columnSet(for: "categories", db: db)
         guard groupColumns.contains("tombstone"),
               categoryColumns.contains("cleanup_def") else {
             return []
@@ -207,7 +215,7 @@ extension BudgetDatabase {
 
         // An unreadable definition may reference any group, so fail closed: keep
         // every group rather than tombstone one that is still in use.
-        let livePredicate = predicateForLiveRows(columns: categoryColumns, tableAlias: "c")
+        let livePredicate = database.predicateForLiveRows(columns: categoryColumns, tableAlias: "c")
         let invalidDefinitions = try Int.fetchOne(
             db,
             sql: """
@@ -236,7 +244,7 @@ extension BudgetDatabase {
             sql: """
                 SELECT id
                 FROM cleanup_groups
-                WHERE \(predicateForLiveRows(columns: groupColumns))
+                WHERE \(database.predicateForLiveRows(columns: groupColumns))
                 """
         )
         return try liveGroups.compactMap { row -> ActualSyncDecodedMessage? in

@@ -403,11 +403,12 @@ extension LocalFirstActualStore {
             expectedTemplateReviewRevision: reviewRevision
         ) { database, db in
             var builder = LocalFirstSyncMessageBuilder()
-            let result = try database.budgetTemplateApply(
+            let result = try TemplateApplySQL.budgetTemplateApply(
                 command: command,
                 month: month,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
             // A goal-only or orphan-cleanup write moved no money; History
             // records money-flow gestures only.

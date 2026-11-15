@@ -24,7 +24,7 @@ extension BudgetDatabase {
         let table = try budgetTable(db: db)
         return BudgetCategoryValueInputs(
             table: table,
-            incomeByCategory: table == .tracking ? try templateCategoryIsIncomeByID(db: db) : [:],
+            incomeByCategory: table == .tracking ? try TemplateCategorySQL.templateCategoryIsIncomeByID(in: self, db: db) : [:],
             budgetedByMonth: try categoryBudgetsByMonth(db: db),
             spentByMonth: try categorySpendingByMonth(db: db)
         )

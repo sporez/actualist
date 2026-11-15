@@ -44,8 +44,9 @@ struct BudgetTemplateEndedScheduleTests {
         var builder = LocalFirstSyncMessageBuilder()
 
         do {
-            _ = try await database.budgetTemplateApply(
-                command: .category("groceries"), month: "2026-07", builder: &builder
+            _ = try await TemplateApplySQL.budgetTemplateApply(
+                command: .category("groceries"), month: "2026-07", builder: &builder,
+                in: database
             )
             Issue.record("Expected a schedule that ends before it starts to fail the plan")
         } catch LocalFirstError.unsupportedTemplate(let reason) {
@@ -59,8 +60,9 @@ struct BudgetTemplateEndedScheduleTests {
         let url = try makeFixtureURL(dateDefinition: dateDefinition)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetTemplateApply(
-            command: .category("groceries"), month: "2026-07", builder: &builder
+        let messages = try await TemplateApplySQL.budgetTemplateApply(
+            command: .category("groceries"), month: "2026-07", builder: &builder,
+            in: database
         ).messages
         if !messages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)

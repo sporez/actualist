@@ -310,7 +310,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("invalid budget month")
         }
         let target = YearMonth.packedUnchecked(month)
-        return try templateHistoryCategoryValues(history, at: target, keepFrom: target, db: db)
+        return try TemplateInputSQL.templateHistoryCategoryValues(history, at: target, keepFrom: target, in: self, db: db)
     }
 
     /// `previous` is the month before `month` (empty when `month` is the first

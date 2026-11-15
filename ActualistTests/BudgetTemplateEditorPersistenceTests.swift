@@ -16,20 +16,20 @@ struct BudgetTemplateEditorPersistenceTests {
             try db.execute(sql: "UPDATE categories SET goal_def = ? WHERE id = 'groceries'", arguments: [zeroCap])
         }
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "template-acceptance")
-        let before = try await database.dryRunCategoryTemplate(categoryID: "groceries", goalDefJSON: zeroCap, month: "2026-07", currentMonth: "2026-07")
-        let snapshot = try await database.categoryTemplateEditorSnapshot(categoryID: "groceries", now: now)
+        let before = try await TemplatePreviewSQL.dryRunCategoryTemplate(categoryID: "groceries", goalDefJSON: zeroCap, month: "2026-07", currentMonth: "2026-07", in: database)
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(categoryID: "groceries", now: now, in: database)
         #expect(snapshot.drafts.count == 2)
         #expect(snapshot.drafts.first?.description == "Cap note")
         let json = try BudgetTemplateDefinition.encode(snapshot.drafts)
-        let after = try await database.dryRunCategoryTemplate(categoryID: "groceries", goalDefJSON: json, month: "2026-07", currentMonth: "2026-07")
+        let after = try await TemplatePreviewSQL.dryRunCategoryTemplate(categoryID: "groceries", goalDefJSON: json, month: "2026-07", currentMonth: "2026-07", in: database)
         #expect(before.budgeted == after.budgeted)
         #expect(after.budgeted == 10_000)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryTemplateMessages(categoryID: "groceries", goalDefJSON: json, builder: &builder)
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(categoryID: "groceries", goalDefJSON: json, builder: &builder, in: database)
         #expect(messages.map(\.column) == ["goal_def"])
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         #expect(try await database.pendingLocalSyncMessageCount() == 1)
-        let reopened = try await database.categoryTemplateEditorSnapshot(categoryID: "groceries", now: now)
+        let reopened = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(categoryID: "groceries", now: now, in: database)
         #expect(reopened.drafts == snapshot.drafts)
         #expect(try budgetAmount(url: url) == 50_000)
         let preserved = try await queue.read { db in try String.fetchOne(db, sql: "SELECT note FROM notes WHERE id = 'groceries'") }
@@ -41,9 +41,9 @@ struct BudgetTemplateEditorPersistenceTests {
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "template-acceptance")
         let drafts: [BudgetTemplateDraft] = [.balanceLimit(amount: 500), .refill(description: "Fill the gap")]
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryTemplateMessages(categoryID: "groceries", goalDefJSON: BudgetTemplateDefinition.encode(drafts), builder: &builder)
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(categoryID: "groceries", goalDefJSON: BudgetTemplateDefinition.encode(drafts), builder: &builder, in: database)
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        #expect(try await database.categoryTemplateEditorSnapshot(categoryID: "groceries", now: now).drafts == drafts)
+        #expect(try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(categoryID: "groceries", now: now, in: database).drafts == drafts)
         #expect(try budgetAmount(url: url) == 50_000)
     }
 
@@ -54,15 +54,15 @@ struct BudgetTemplateEditorPersistenceTests {
         try await DatabaseQueue(path: url.path).write { db in
             try db.execute(sql: "UPDATE categories SET goal_def = ? WHERE id = 'groceries'", arguments: [malformed])
         }
-        let snapshot = try await database.categoryTemplateEditorSnapshot(categoryID: "groceries", now: now)
+        let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(categoryID: "groceries", now: now, in: database)
         #expect(snapshot.lock == .editable)
         var builder = LocalFirstSyncMessageBuilder()
         await #expect(throws: (any Error).self) {
-            _ = try await database.setCategoryTemplateMessages(categoryID: "groceries", goalDefJSON: malformed, builder: &builder)
+            _ = try await TemplateAuthoringSQL.setCategoryTemplateMessages(categoryID: "groceries", goalDefJSON: malformed, builder: &builder, in: database)
         }
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
         let corrected = try BudgetTemplateDefinition.encode([.monthlyFixed(amount: 100, now: now)])
-        let messages = try await database.setCategoryTemplateMessages(categoryID: "groceries", goalDefJSON: corrected, builder: &builder)
+        let messages = try await TemplateAuthoringSQL.setCategoryTemplateMessages(categoryID: "groceries", goalDefJSON: corrected, builder: &builder, in: database)
         #expect(messages.count == 1)
     }
 
@@ -93,11 +93,11 @@ struct BudgetTemplateEditorPersistenceTests {
             try db.execute(sql: "UPDATE categories SET goal_def = ? WHERE id = 'groceries'", arguments: [json])
         }
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "template-acceptance")
-        let preview = try await database.previewBudgetTemplate(command: command, month: "2026-07", currentMonth: "2026-07", now: now)
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(command: command, month: "2026-07", currentMonth: "2026-07", now: now, in: database)
         #expect(preview.isTrackingBudget == tracking)
         #expect(preview.currency.decimalPlaces == (code == "JPY" ? 0 : 2))
         var builder = LocalFirstSyncMessageBuilder()
-        let applied = try await database.budgetTemplateApply(command: command, month: "2026-07", currentMonth: "2026-07", builder: &builder)
+        let applied = try await TemplateApplySQL.budgetTemplateApply(command: command, month: "2026-07", currentMonth: "2026-07", builder: &builder, in: database)
         #expect(preview.categories.map(\.proposed) == applied.assignments.map(\.amount))
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
         _ = try await database.commitLocalSyncMessagesAndEnqueue(applied.messages)

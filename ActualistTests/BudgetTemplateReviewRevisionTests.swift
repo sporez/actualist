@@ -18,11 +18,12 @@ struct BudgetTemplateReviewRevisionTests {
             )
         ])
 
-        let single = try await database.previewBudgetTemplate(
+        let single = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
-        let pair = try await database.previewBudgetTemplatePair(month: "2026-07")
+        let pair = try await TemplatePreviewSQL.previewBudgetTemplatePair(month: "2026-07", in: database)
         guard case .ready(let fillEmpty) = pair.fillEmpty,
               case .ready(let overwrite) = pair.overwrite else {
             Issue.record("Expected both paired template previews to be ready")
@@ -42,9 +43,10 @@ struct BudgetTemplateReviewRevisionTests {
     @Test func staleReviewedAssignmentDoesNotChangeBudgetHistoryOrOutbox() async throws {
         let url = try templateFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "review-tests")
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let revision = try #require(preview.reviewRevision)
 
@@ -60,10 +62,11 @@ struct BudgetTemplateReviewRevisionTests {
         )
         let before = try await sqliteState(at: url)
         var builder = LocalFirstSyncMessageBuilder()
-        let apply = try await database.budgetTemplateApply(
+        let apply = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(!apply.assignments.isEmpty)
 
@@ -96,9 +99,10 @@ struct BudgetTemplateReviewRevisionTests {
                 row: "first-remote-row"
             )
         ])
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .fillEmpty,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let revision = try #require(preview.reviewRevision)
 
@@ -133,16 +137,18 @@ struct BudgetTemplateReviewRevisionTests {
             WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "review-tests")
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let revision = try #require(preview.reviewRevision)
         var builder = LocalFirstSyncMessageBuilder()
-        let apply = try await database.budgetTemplateApply(
+        let apply = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(apply.assignments.isEmpty)
         #expect(!apply.messages.isEmpty)
@@ -168,19 +174,21 @@ struct BudgetTemplateReviewRevisionTests {
     @Test func unchangedReviewedRevisionPersistsProjectedAssignment() async throws {
         let url = try templateFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "review-tests")
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let revision = try #require(preview.reviewRevision)
         let projected = try #require(
             preview.categories.first { $0.categoryID == "groceries" }?.proposed
         )
         var builder = LocalFirstSyncMessageBuilder()
-        let apply = try await database.budgetTemplateApply(
+        let apply = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(try await database.commitUserAction(
             apply.messages,
@@ -211,18 +219,20 @@ struct BudgetTemplateReviewRevisionTests {
                 serializedValue: "S:Groceries"
             )
         ])
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .overwrite,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let revision = try #require(preview.reviewRevision)
         try await database.deletePendingLocalSyncMessages(try await database.pendingLocalSyncMessages())
 
         var builder = LocalFirstSyncMessageBuilder()
-        let apply = try await database.budgetTemplateApply(
+        let apply = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(
             try await database.commitUserAction(
@@ -268,9 +278,10 @@ struct BudgetTemplateReviewRevisionTests {
     @Test func replacingImportedStorageIdentityInvalidatesReviewedRevision() async throws {
         let url = try templateFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "review-tests")
-        let preview = try await database.previewBudgetTemplate(
+        let preview = try await TemplatePreviewSQL.previewBudgetTemplate(
             command: .fillEmpty,
-            month: "2026-07"
+            month: "2026-07",
+            in: database
         )
         let revision = try #require(preview.reviewRevision)
         let queue = try DatabaseQueue(path: url.path)
