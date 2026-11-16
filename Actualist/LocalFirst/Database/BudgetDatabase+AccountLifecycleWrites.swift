@@ -236,7 +236,7 @@ extension BudgetDatabase {
         if try tableExists("payee_mapping", db: db) {
             let mappingColumns = try requiredColumns(table: "payee_mapping", required: [], db: db)
             let targetColumn = try firstExistingColumn(
-                ["targetId", "target_id"],
+                PayeeMappingColumns.targetAliases,
                 in: mappingColumns,
                 table: "payee_mapping"
             )

@@ -70,7 +70,7 @@ enum RuleSQL {
         )
         let scheduleIndex = try ScheduleSQL.fetchRuleScheduleIndex(in: database, db: db)
         let completedScheduleRuleIDs = scheduleIndex.completedRuleIDs
-        let payeeTargets = try payeeMappingTargets(in: database, db: db)
+        let payeeTargets = try PayeeSQL.payeeMappingTargets(in: database, db: db)
         let decoder = JSONDecoder()
 
         return rows.compactMap { row in
@@ -194,7 +194,7 @@ enum RuleSQL {
                 sql: "SELECT id, date, \(database.quotedIdentifier(payeeColumn)) AS payee_id FROM transactions WHERE id IN (\(placeholders))",
                 arguments: StatementArguments(Array(changedTransactionIDs))
             )
-            let mappingTargets = try payeeMappingTargets(in: database, db: db)
+            let mappingTargets = try PayeeSQL.payeeMappingTargets(in: database, db: db)
             let changedPayeeIDs = Set(changedRows.compactMap { row -> String? in
                 guard let rawPayeeID = row["payee_id"] as String? else { return nil }
                 return mappingTargets[rawPayeeID] ?? rawPayeeID
@@ -210,13 +210,9 @@ enum RuleSQL {
             let rawPayee = "t.\(database.quotedIdentifier(payeeColumn))"
             var resolvedPayee = rawPayee
             var mappingJoin = ""
-            if try database.tableExists("payee_mapping", db: db) {
-                let mappingColumns = try database.columnSet(for: "payee_mapping", db: db)
-                let target = mappingColumns.contains("targetId") ? "targetId" : mappingColumns.contains("target_id") ? "target_id" : nil
-                if mappingColumns.contains("id"), let target {
-                    mappingJoin = "LEFT JOIN payee_mapping pm ON pm.id = \(rawPayee)"
-                    resolvedPayee = "COALESCE(pm.\(database.quotedIdentifier(target)), \(rawPayee))"
-                }
+            if let mapping = try PayeeSQL.usablePayeeMappingColumns(in: database, db: db) {
+                mappingJoin = "LEFT JOIN payee_mapping pm ON pm.id = \(rawPayee)"
+                resolvedPayee = "COALESCE(pm.\(database.quotedIdentifier(mapping.target)), \(rawPayee))"
             }
             var accountJoin = ""
             var openAccountPredicate = ""
@@ -383,19 +379,6 @@ enum RuleSQL {
             return normalizedDateString(Int(int))
         }
         return nil
-    }
-
-    static func payeeMappingTargets(in database: isolated BudgetDatabase, db: Database) throws -> [String: String] {
-        guard try database.tableExists("payee_mapping", db: db) else { return [:] }
-        let columns = try database.columnSet(for: "payee_mapping", db: db)
-        guard columns.contains("id") else { return [:] }
-        let target = columns.contains("targetId") ? "targetId" : columns.contains("target_id") ? "target_id" : nil
-        guard let target else { return [:] }
-        let rows = try Row.fetchAll(db, sql: "SELECT id, \(database.quotedIdentifier(target)) AS target_id FROM payee_mapping")
-        return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
-            guard let id = row["id"] as String?, let targetID = row["target_id"] as String? else { return nil }
-            return (id, targetID)
-        })
     }
 
     private static func conditionByResolvingPayeeMappings(

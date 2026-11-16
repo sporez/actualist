@@ -95,7 +95,7 @@ enum ScheduleSQL {
             && ["id", "conditions", "actions", "tombstone"].allSatisfy(ruleColumns.contains)
         let accountFacts = try scheduleAccountFacts(in: database, db: db)
         let payeeFacts = try schedulePayeeFacts(in: database, db: db)
-        let payeeTargets = try schedulePayeeTargets(in: database, db: db)
+        let payeeTargets = try PayeeSQL.payeeMappingTargets(in: database, db: db)
 
         let name = database.column("name", fallback: "NULL", columns: scheduleColumns)
         let rule = database.column("rule", fallback: "NULL", columns: scheduleColumns)
@@ -424,21 +424,6 @@ enum ScheduleSQL {
         return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
             guard let id = row["id"] as String? else { return nil }
             return (id, row["name"] ?? id)
-        })
-    }
-
-    private static func schedulePayeeTargets(in database: isolated BudgetDatabase, db: Database) throws -> [String: String] {
-        guard try database.tableExists("payee_mapping", db: db) else { return [:] }
-        let columns = try database.columnSet(for: "payee_mapping", db: db)
-        guard columns.contains("id") else { return [:] }
-        let target: String
-        if columns.contains("targetId") { target = "targetId" }
-        else if columns.contains("target_id") { target = "target_id" }
-        else { return [:] }
-        let rows = try Row.fetchAll(db, sql: "SELECT id, \(target) AS target_id FROM payee_mapping")
-        return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
-            guard let id = row["id"] as String?, let target = row["target_id"] as String? else { return nil }
-            return (id, target)
         })
     }
 

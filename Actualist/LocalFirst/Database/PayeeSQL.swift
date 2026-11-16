@@ -85,13 +85,9 @@ enum PayeeSQL {
         let rawPayee = "t.\(database.quotedIdentifier(payeeColumn))"
         var resolvedPayee = rawPayee
         var mappingJoin = ""
-        if try database.tableExists("payee_mapping", db: db) {
-            let mappingColumns = try database.columnSet(for: "payee_mapping", db: db)
-            let target = mappingColumns.contains("targetId") ? "targetId" : mappingColumns.contains("target_id") ? "target_id" : nil
-            if mappingColumns.contains("id"), let target {
-                mappingJoin = "LEFT JOIN payee_mapping pm ON pm.id = \(rawPayee)"
-                resolvedPayee = "COALESCE(pm.\(database.quotedIdentifier(target)), \(rawPayee))"
-            }
+        if let mapping = try usablePayeeMappingColumns(in: database, db: db) {
+            mappingJoin = "LEFT JOIN payee_mapping pm ON pm.id = \(rawPayee)"
+            resolvedPayee = "COALESCE(pm.\(database.quotedIdentifier(mapping.target)), \(rawPayee))"
         }
         let liveTransactions = database.predicateForLiveRows(columns: transactionColumns, tableAlias: "t")
         let rows = try Row.fetchAll(
@@ -199,7 +195,7 @@ enum PayeeSQL {
         if try database.tableExists("accounts", db: db) {
             hasAccounts = try database.columnSet(for: "accounts", db: db).isSuperset(of: ["id", "name"])
         }
-        let targets = try RuleSQL.payeeMappingTargets(in: database, db: db)
+        let targets = try payeeMappingTargets(in: database, db: db)
         let transferSelect = transferColumn.map { ", \(database.quotedIdentifier($0)) AS transfer" } ?? ""
 
         var names: [String: String] = [:]
@@ -221,5 +217,42 @@ enum PayeeSQL {
             }
         }
         return names
+    }
+
+    /// The `payee_mapping` id and target columns, or nil when the budget has no
+    /// usable mapping table.
+    static func usablePayeeMappingColumns(
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> (id: String, target: String)? {
+        guard try database.tableExists("payee_mapping", db: db) else { return nil }
+        let columns = try database.columnSet(for: "payee_mapping", db: db)
+        guard columns.contains("id"), let target = PayeeMappingColumns.target(in: columns) else { return nil }
+        return ("id", target)
+    }
+
+    /// Every mapping row that has both ids, in table order.
+    static func payeeMappingRows(
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> [(id: String, target: String)] {
+        guard let mapping = try usablePayeeMappingColumns(in: database, db: db) else { return [] }
+        let rows = try Row.fetchAll(
+            db,
+            sql: """
+                SELECT \(database.quotedIdentifier(mapping.id)) AS id,
+                       \(database.quotedIdentifier(mapping.target)) AS target_id
+                FROM payee_mapping
+                """
+        )
+        return rows.compactMap { row in
+            guard let id = row["id"] as String?, let target = row["target_id"] as String? else { return nil }
+            return (id, target)
+        }
+    }
+
+    /// Merged payee id → the payee it resolves to.
+    static func payeeMappingTargets(in database: isolated BudgetDatabase, db: Database) throws -> [String: String] {
+        Dictionary(uniqueKeysWithValues: try payeeMappingRows(in: database, db: db).map { ($0.id, $0.target) })
     }
 }

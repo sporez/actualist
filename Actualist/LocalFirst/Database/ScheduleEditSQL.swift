@@ -444,7 +444,7 @@ enum ScheduleEditSQL {
         let targetColumn: String
         do {
             targetColumn = try database.firstExistingColumn(
-                ["targetId", "target_id"],
+                PayeeMappingColumns.targetAliases,
                 in: mappingColumns,
                 table: "payee_mapping"
             )

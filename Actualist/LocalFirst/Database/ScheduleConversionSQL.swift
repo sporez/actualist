@@ -279,7 +279,7 @@ enum ScheduleConversionSQL {
         db: Database
     ) throws {
         let mappings = try database.requiredColumns(table: "payee_mapping", required: ["id"], db: db)
-        guard let targetColumn = ["targetId", "target_id"].first(where: mappings.contains) else {
+        guard let targetColumn = PayeeMappingColumns.target(in: mappings) else {
             throw ScheduleConversionError.unsupportedSource("The transaction payee mapping is unavailable.")
         }
         let payees = try database.requiredColumns(table: "payees", required: ["id"], db: db)

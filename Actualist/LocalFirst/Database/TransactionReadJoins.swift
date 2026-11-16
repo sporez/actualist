@@ -39,7 +39,7 @@ extension TransactionReadJoins {
         let payeeMappingTarget: String?
         if hasTransactionPayee, try database.tableExists("payee_mapping", db: db) {
             let mappingColumns = try database.columnSet(for: "payee_mapping", db: db)
-            payeeMappingTarget = ["targetId", "target_id"].first(where: mappingColumns.contains)
+            payeeMappingTarget = PayeeMappingColumns.target(in: mappingColumns)
         } else {
             payeeMappingTarget = nil
         }

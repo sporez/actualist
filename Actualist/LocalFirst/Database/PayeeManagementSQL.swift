@@ -34,7 +34,7 @@ enum PayeeManagementSQL {
                     value: .string(trimmedName)
                 )
             ]
-            if let mapping = try usablePayeeMappingColumns(in: database, db: db) {
+            if let mapping = try PayeeSQL.usablePayeeMappingColumns(in: database, db: db) {
                 messages.append(
                     try builder.makeMessage(
                         dataset: "payee_mapping",
@@ -93,7 +93,7 @@ enum PayeeManagementSQL {
         for sourceID in sourcePayeeIDs {
             _ = try requiredRegularPayee(sourceID, in: database, db: db)
         }
-        guard let mapping = try usablePayeeMappingColumns(in: database, db: db) else {
+        guard let mapping = try PayeeSQL.usablePayeeMappingColumns(in: database, db: db) else {
             throw LocalFirstError.refusedChange("This budget does not support merging payees.")
         }
 
@@ -262,7 +262,7 @@ enum PayeeManagementSQL {
         in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [ActualSyncDecodedMessage] {
-        guard let mapping = try usablePayeeMappingColumns(in: database, db: db) else {
+        guard let mapping = try PayeeSQL.usablePayeeMappingColumns(in: database, db: db) else {
             throw LocalFirstError.refusedChange("This budget does not support merging payees.")
         }
         let placeholders = Array(repeating: "?", count: sourcePayeeIDs.count).joined(separator: ",")
@@ -348,7 +348,7 @@ enum PayeeManagementSQL {
             payees: payees,
             supportsCreate: true,
             supportsRename: true,
-            supportsMerge: (try usablePayeeMappingColumns(in: database, db: db)) != nil && canTombstone,
+            supportsMerge: (try PayeeSQL.usablePayeeMappingColumns(in: database, db: db)) != nil && canTombstone,
             supportsDelete: canTombstone,
             hasUnreadableRuleReferences: ruleReferences.hasUnreadableRules,
             supportsFavorite: favoriteColumn != nil,
@@ -416,21 +416,8 @@ enum PayeeManagementSQL {
         }
         guard !values.isEmpty else { return [] }
         var targets = Dictionary(uniqueKeysWithValues: payeeIDs.map { ($0, $0) })
-        if let mapping = try usablePayeeMappingColumns(in: database, db: db) {
-            let mappingRows = try Row.fetchAll(
-                db,
-                sql: """
-                    SELECT \(database.quotedIdentifier(mapping.id)) AS id,
-                           \(database.quotedIdentifier(mapping.target)) AS target_id
-                    FROM payee_mapping
-                    """
-            )
-            for row in mappingRows {
-                if let id = row["id"] as String?, payeeIDs.contains(id),
-                   let target = row["target_id"] as String? {
-                    targets[id] = target
-                }
-            }
+        for mapping in try PayeeSQL.payeeMappingRows(in: database, db: db) where payeeIDs.contains(mapping.id) {
+            targets[mapping.id] = mapping.target
         }
         return Set(payeeIDs.filter { values.contains(targets[$0] ?? $0) })
     }
@@ -495,23 +482,6 @@ enum PayeeManagementSQL {
         return (row["name"] ?? "", transferAccountID)
     }
 
-    private static func usablePayeeMappingColumns(in database: isolated BudgetDatabase, db: Database) throws -> (id: String, target: String)? {
-        guard try database.tableExists("payee_mapping", db: db) else {
-            return nil
-        }
-        let columns = try database.columnSet(for: "payee_mapping", db: db)
-        guard columns.contains("id") else {
-            return nil
-        }
-        if columns.contains("targetId") {
-            return ("id", "targetId")
-        }
-        if columns.contains("target_id") {
-            return ("id", "target_id")
-        }
-        return nil
-    }
-
     private static func fetchPayeeAccountNames(in database: isolated BudgetDatabase, db: Database) throws -> [String: String] {
         guard try database.tableExists("accounts", db: db) else {
             return [:]
@@ -544,7 +514,7 @@ enum PayeeManagementSQL {
             ? "(t.tombstone = 0 OR t.tombstone IS NULL)"
             : "1"
 
-        if let mapping = try usablePayeeMappingColumns(in: database, db: db) {
+        if let mapping = try PayeeSQL.usablePayeeMappingColumns(in: database, db: db) {
             let rows = try Row.fetchAll(
                 db,
                 sql: """
@@ -602,23 +572,8 @@ enum PayeeManagementSQL {
         let completedScheduleRules = try ScheduleSQL.fetchRuleScheduleIndex(in: database, db: db).completedRuleIDs
 
         var mappedPayeeIDs = Dictionary(uniqueKeysWithValues: payeeIDs.map { ($0, $0) })
-        if let mapping = try usablePayeeMappingColumns(in: database, db: db) {
-            let mappingRows = try Row.fetchAll(
-                db,
-                sql: """
-                    SELECT \(database.quotedIdentifier(mapping.id)) AS id,
-                           \(database.quotedIdentifier(mapping.target)) AS target_id
-                    FROM payee_mapping
-                    """
-            )
-            for mappingRow in mappingRows {
-                guard let id = mappingRow["id"] as String?,
-                      let target = mappingRow["target_id"] as String?,
-                      payeeIDs.contains(target) else {
-                    continue
-                }
-                mappedPayeeIDs[id] = target
-            }
+        for mapping in try PayeeSQL.payeeMappingRows(in: database, db: db) where payeeIDs.contains(mapping.target) {
+            mappedPayeeIDs[mapping.id] = mapping.target
         }
 
         var counts: [String: Int] = [:]

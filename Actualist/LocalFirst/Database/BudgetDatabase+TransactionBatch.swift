@@ -586,23 +586,9 @@ extension BudgetDatabase {
                 }
             }
         }
-        if try tableExists("payee_mapping", db: db) {
-            let columns = try columnSet(for: "payee_mapping", db: db)
-            let target = columns.contains("targetId")
-                ? "targetId"
-                : columns.contains("target_id") ? "target_id" : nil
-            if columns.contains("id"), let target {
-                let rows = try Row.fetchAll(
-                    db,
-                    sql: "SELECT id, \(quotedIdentifier(target)) AS target_id FROM payee_mapping"
-                )
-                for row in rows {
-                    guard let aliasID = row["id"] as String?,
-                          let targetID = row["target_id"] as String?,
-                          let targetName = nonemptyBatchName(payeeNames[targetID]) else { continue }
-                    payeeNames[aliasID] = targetName
-                }
-            }
+        for mapping in try PayeeSQL.payeeMappingRows(in: self, db: db) {
+            guard let targetName = nonemptyBatchName(payeeNames[mapping.target]) else { continue }
+            payeeNames[mapping.id] = targetName
         }
         let accountIDs = Set(renderedChanges.flatMap { [$0.before.accountID, $0.after.accountID].compactMap { $0 } })
         let payeeIDs = Set(renderedChanges.flatMap { [$0.before.payeeID, $0.after.payeeID].compactMap { $0 } })

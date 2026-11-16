@@ -205,3 +205,12 @@ enum AccountColumns {
         SQLiteSchema.first(of: transferPayeeAliases, in: columns)
     }
 }
+
+/// The `payee_mapping` column that names the payee a merged payee resolves to.
+enum PayeeMappingColumns {
+    static let targetAliases = ["targetId", "target_id"]
+
+    static func target(in columns: Set<String>) -> String? {
+        SQLiteSchema.first(of: targetAliases, in: columns)
+    }
+}
