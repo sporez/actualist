@@ -182,10 +182,10 @@ extension ShortcutsBudgetSession {
         let prepared = try await prepare()
         let loaded = try await loadedMonth(preferred: month)
         let range = Self.reportRange(for: loaded.selectedMonth)
-        if let cached = prepared.store.cachedReportsDashboard(budgetID: prepared.budgetID, range: range) {
+        if let cached = prepared.store.reports.cachedReportsDashboard(budgetID: prepared.budgetID, range: range) {
             return cached
         }
-        return try await prepared.store.refreshReportsDashboard(
+        return try await prepared.store.reports.refreshReportsDashboard(
             budgetID: prepared.budgetID,
             range: range
         )

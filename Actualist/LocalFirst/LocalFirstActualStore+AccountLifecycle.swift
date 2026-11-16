@@ -91,7 +91,7 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
                 }
                 try await reloadSelectedBudgetCache(budgetID: budgetID)
                 try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-                invalidateReports(budgetID: budgetID)
+                reports.invalidateReports(budgetID: budgetID)
                 try await reloadAccountCaches(database: database, budgetID: budgetID)
                 try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
                 try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)

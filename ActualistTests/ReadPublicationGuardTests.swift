@@ -49,11 +49,11 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle()
         let range = ReportDateRange.dashboard(through: Date())
         let result = try await parkedRead(.reportsDashboard, on: bundle.store, read: {
-            try await bundle.store.refreshReportsDashboard(budgetID: "group-1", range: range)
+            try await bundle.store.reports.refreshReportsDashboard(budgetID: "group-1", range: range)
         }, whileParked: { try await reopenSameBudget(bundle) })
 
         #expect(throws: CancellationError.self) { try result.get() }
-        #expect(bundle.store.cachedReportsDashboard(budgetID: "group-1", range: range) == nil)
+        #expect(bundle.store.reports.cachedReportsDashboard(budgetID: "group-1", range: range) == nil)
     }
 
     @Test func availableMonthsReadFromAClosedSessionIsNotPublished() async throws {

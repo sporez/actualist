@@ -655,7 +655,7 @@ extension LocalFirstActualStore {
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         try await reloadSelectedBudgetCache(budgetID: budgetID)
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-        invalidateReports(budgetID: budgetID)
+        reports.invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         let payees = try await database.fetchPayeeManagementSnapshot()

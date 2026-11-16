@@ -174,12 +174,12 @@ struct ReportsTests {
         store.openedBudgetID = "budget"
         store.database = database
 
-        #expect(store.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
-        let loaded = try await store.refreshReportsDashboard(budgetID: "budget", range: reportRange)
-        #expect(store.cachedReportsDashboard(budgetID: "budget", range: reportRange) == loaded)
+        #expect(store.reports.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
+        let loaded = try await store.reports.refreshReportsDashboard(budgetID: "budget", range: reportRange)
+        #expect(store.reports.cachedReportsDashboard(budgetID: "budget", range: reportRange) == loaded)
 
-        store.invalidateReports(budgetID: "budget")
-        #expect(store.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
+        store.reports.invalidateReports(budgetID: "budget")
+        #expect(store.reports.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
     }
 
     @Test func mutationAndRemoteReloadPathsInvalidateReportCache() async throws {
@@ -188,17 +188,17 @@ struct ReportsTests {
         store.openedBudgetID = "budget"
         store.database = database
 
-        _ = try await store.refreshReportsDashboard(budgetID: "budget", range: reportRange)
+        _ = try await store.reports.refreshReportsDashboard(budgetID: "budget", range: reportRange)
         try await store.reloadAfterBudgetMutation(database: database, budgetID: "budget")
-        #expect(store.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
+        #expect(store.reports.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
 
-        _ = try await store.refreshReportsDashboard(budgetID: "budget", range: reportRange)
+        _ = try await store.reports.refreshReportsDashboard(budgetID: "budget", range: reportRange)
         try await store.reloadAfterRemoteSync(database: database, budgetID: "budget")
-        #expect(store.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
+        #expect(store.reports.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
 
-        _ = try await store.refreshReportsDashboard(budgetID: "budget", range: reportRange)
+        _ = try await store.reports.refreshReportsDashboard(budgetID: "budget", range: reportRange)
         try await store.reloadAfterAccountMutation(database: database, budgetID: "budget")
-        #expect(store.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
+        #expect(store.reports.cachedReportsDashboard(budgetID: "budget", range: reportRange) == nil)
     }
 
     @Test(arguments: CancellationTestCase.allCases)

@@ -532,7 +532,7 @@
         "Actualist/LocalFirst/Database/ReportExplorerSQL.swift",
         "Actualist/LocalFirst/Database/ReportTransferAlignment.swift",
         "Actualist/LocalFirst/Database/ReportArithmetic.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+Reports.swift",
+        "Actualist/LocalFirst/ReportWorkflows.swift",
         "Actualist/Features/Reports/ReportsModels.swift",
         "Actualist/Features/Reports/ReportExplorerModels.swift"
       ],

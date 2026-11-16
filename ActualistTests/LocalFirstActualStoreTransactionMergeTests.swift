@@ -16,10 +16,10 @@ struct LocalFirstActualStoreTransactionMergeTests {
         try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         try await store.refreshTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery())
         try await store.refreshTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery())
-        _ = try await store.refreshReportsDashboard(budgetID: "group-1", range: range)
+        _ = try await store.reports.refreshReportsDashboard(budgetID: "group-1", range: range)
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) != nil)
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()) != nil)
-        #expect(store.cachedReportsDashboard(budgetID: "group-1", range: range) != nil)
+        #expect(store.reports.cachedReportsDashboard(budgetID: "group-1", range: range) != nil)
 
         let review = try await store.reviewTransactionMerge(
             context: context(for: store),
@@ -40,7 +40,7 @@ struct LocalFirstActualStoreTransactionMergeTests {
         #expect(credit.transactions.contains { $0.id == "peer-a" })
         #expect(!credit.transactions.contains { $0.id == "peer-b" })
         #expect(!spending.transactions.contains { $0.id == "root-b" || $0.id == "peer-b" })
-        #expect(store.cachedReportsDashboard(budgetID: "group-1", range: range) == nil)
+        #expect(store.reports.cachedReportsDashboard(budgetID: "group-1", range: range) == nil)
         #expect(try await database.recentBudgetActions().count == 1)
     }
 

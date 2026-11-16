@@ -207,7 +207,7 @@ extension LocalFirstActualStore {
     ) async throws {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
         try await publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
-        invalidateReports(budgetID: budgetID)
+        reports.invalidateReports(budgetID: budgetID)
 
         try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
         await refreshActionLogDiagnosticSnapshot(database: database)
@@ -451,7 +451,7 @@ extension LocalFirstActualStore {
         accountIDs: [String]
     ) async throws {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
-        invalidateReports(budgetID: budgetID)
+        reports.invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         try await refreshLoadedTransactionFeedCaches(
             database: database,
@@ -466,7 +466,7 @@ extension LocalFirstActualStore {
         budgetID: String
     ) async throws {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
-        invalidateReports(budgetID: budgetID)
+        reports.invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
         await refreshActionLogDiagnosticSnapshot(database: database)
@@ -477,7 +477,7 @@ extension LocalFirstActualStore {
         budgetID: String
     ) async throws {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
-        invalidateReports(budgetID: budgetID)
+        reports.invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         await refreshActionLogDiagnosticSnapshot(database: database)
     }

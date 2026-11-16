@@ -4,7 +4,7 @@ extension AppState {
     var accountRepository: any AccountRepositoryProtocol { localFirstStore }
     var payeeRepository: any PayeeRepositoryProtocol { localFirstStore }
     var ruleRepository: any RuleRepositoryProtocol { localFirstStore }
-    var reportsRepository: any ReportsRepositoryProtocol { localFirstStore }
+    var reportsRepository: any ReportsRepositoryProtocol { localFirstStore.reports }
 
     func recordLocalDataMutation() {
         localDataRevision &+= 1

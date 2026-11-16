@@ -41,7 +41,7 @@ extension LocalFirstActualStoreTests {
         #expect(source.month.month == "2026-08")
         #expect(source.attention != nil)
         #expect(store.cachedBudgetMonth(budgetID: "group-1") == loaded)
-        #expect(store.cachedReportsDashboard(budgetID: "group-1", range: .dashboard(through: now)) == nil)
+        #expect(store.reports.cachedReportsDashboard(budgetID: "group-1", range: .dashboard(through: now)) == nil)
         #expect(store.cachedTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery()) == nil)
     }
 

@@ -11,8 +11,7 @@ final class LocalFirstActualStore:
     PayeeRepositoryProtocol,
     RuleRepositoryProtocol,
     TransactionRepositoryProtocol,
-    SavedTransactionFilterRepositoryProtocol,
-    ReportsRepositoryProtocol
+    SavedTransactionFilterRepositoryProtocol
 {
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
@@ -83,6 +82,7 @@ final class LocalFirstActualStore:
     var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
     var uncategorizedTransactionsByKey: [String: LoadedUncategorizedTransactions] = [:]
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
+    @ObservationIgnored private(set) lazy var reports = ReportWorkflows(store: self)
     var currencyByBudget: [String: BudgetCurrency] = [:]
     /// Bank-sync download token per local account. Replaced before every
     /// download; apply refuses a plan whose generation is no longer current,

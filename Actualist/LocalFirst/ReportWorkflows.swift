@@ -1,10 +1,23 @@
 import Foundation
 
-extension LocalFirstActualStore {
+/// Reports on the store: the dashboard cache read and refresh, explorer
+/// snapshots and transaction drilldowns, and their session checks. The
+/// store owns it; the dashboard cache (`reportsByKey`) and the shared
+/// publication revision stay on the store, which publishes them.
+@MainActor
+final class ReportWorkflows {
+    // The store creates this lazily and keeps it for its whole life, so the
+    // store outlives every holder of it.
+    private unowned let store: LocalFirstActualStore
+
+    init(store: LocalFirstActualStore) {
+        self.store = store
+    }
+
     func reportExplorerSessionIdentity(budgetID: String) -> ReportExplorerSessionIdentity {
         ReportExplorerSessionIdentity(
             budgetID: budgetID,
-            generation: budgetSessionGeneration
+            generation: store.budgetSessionGeneration
         )
     }
 
@@ -12,23 +25,23 @@ extension LocalFirstActualStore {
         budgetID: String,
         range: ReportDateRange
     ) -> ReportsDashboardSnapshot? {
-        reportsByKey[reportsKey(budgetID: budgetID, range: range)]
+        store.reportsByKey[reportsKey(budgetID: budgetID, range: range)]
     }
 
     func refreshReportsDashboard(
         budgetID: String,
         range: ReportDateRange
     ) async throws -> ReportsDashboardSnapshot {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
-        let revision = cachePublicationRevision
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
+        let revision = store.cachePublicationRevision
         let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: range, in: database)
         #if DEBUG
-        await testSeams?.readPublicationHook?(.reportsDashboard)
+        await store.testSeams?.readPublicationHook?(.reportsDashboard)
         #endif
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-        if revision == cachePublicationRevision {
-            reportsByKey[reportsKey(budgetID: budgetID, range: range)] = snapshot
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        if revision == store.cachePublicationRevision {
+            store.reportsByKey[reportsKey(budgetID: budgetID, range: range)] = snapshot
         }
         return snapshot
     }
@@ -37,8 +50,8 @@ extension LocalFirstActualStore {
         budgetID: String,
         query: ReportExplorerQuery
     ) async throws -> ReportExplorerSnapshot {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
         let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: query, in: database)
         guard reportExplorerSessionIsCurrent(
             database: database,
@@ -54,10 +67,10 @@ extension LocalFirstActualStore {
         budgetID: String,
         request: TransactionDrilldownRequest
     ) async throws -> ReportTransactionDrilldownSnapshot {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
         let result = try await database.fetchTransactionDrilldown(request)
-        let maps = try await nameMaps(database)
+        let maps = try await store.nameMaps(database)
         guard reportExplorerSessionIsCurrent(
             database: database,
             budgetID: budgetID,
@@ -96,21 +109,23 @@ extension LocalFirstActualStore {
         budgetID: String,
         generation: Int
     ) -> Bool {
-        self.database === database
-            && openedBudgetID == budgetID
-            && budgetSessionGeneration == generation
+        store.database === database
+            && store.openedBudgetID == budgetID
+            && store.budgetSessionGeneration == generation
     }
 
     func invalidateReports(budgetID: String? = nil) {
-        cachePublicationRevision &+= 1
+        store.cachePublicationRevision &+= 1
         guard let budgetID else {
-            reportsByKey = [:]
+            store.reportsByKey = [:]
             return
         }
-        reportsByKey = reportsByKey.filter { !$0.key.hasPrefix("\(budgetID)|") }
+        store.reportsByKey = store.reportsByKey.filter { !$0.key.hasPrefix("\(budgetID)|") }
     }
 
     private func reportsKey(budgetID: String, range: ReportDateRange) -> String {
         "\(budgetID)|\(range.cacheKey)"
     }
 }
+
+extension ReportWorkflows: ReportsRepositoryProtocol { }

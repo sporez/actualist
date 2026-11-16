@@ -503,9 +503,9 @@ struct ReportExplorerTests {
             interval: .month
         )
 
-        let snapshot = try await store.reportExplorerSnapshot(budgetID: "budget", query: query)
+        let snapshot = try await store.reports.reportExplorerSnapshot(budgetID: "budget", query: query)
         let request = try #require(snapshot.drilldown.request)
-        let drilldown = try await store.reportTransactionDrilldown(
+        let drilldown = try await store.reports.reportTransactionDrilldown(
             budgetID: "budget",
             request: request
         )
@@ -531,14 +531,14 @@ struct ReportExplorerTests {
             store.database = firstDatabase
             store.budgetSessionGeneration = 7
 
-            #expect(store.reportExplorerSessionIsCurrent(
+            #expect(store.reports.reportExplorerSessionIsCurrent(
                 database: firstDatabase,
                 budgetID: "budget",
                 generation: 7
             ))
 
             store.database = secondDatabase
-            #expect(!store.reportExplorerSessionIsCurrent(
+            #expect(!store.reports.reportExplorerSessionIsCurrent(
                 database: firstDatabase,
                 budgetID: "budget",
                 generation: 7
@@ -546,7 +546,7 @@ struct ReportExplorerTests {
 
             store.database = firstDatabase
             store.budgetSessionGeneration = 8
-            #expect(!store.reportExplorerSessionIsCurrent(
+            #expect(!store.reports.reportExplorerSessionIsCurrent(
                 database: firstDatabase,
                 budgetID: "budget",
                 generation: 7
