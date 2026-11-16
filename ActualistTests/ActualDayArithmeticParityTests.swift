@@ -35,15 +35,15 @@ struct ActualDayArithmeticParityTests {
     }
 
     @Test func categoryLearningWindowIs180DaysEitherSideOfTheLocalDay() {
-        let utc = BudgetDatabase.categoryLearningWindow(oldestDate: "2026-03-15", now: Self.lateUTC, timeZone: .gmt)
+        let utc = RuleSQL.categoryLearningWindow(oldestDate: "2026-03-15", now: Self.lateUTC, timeZone: .gmt)
         #expect(utc.lower == "2025-09-16")
         #expect(utc.upper == "2026-09-11")
-        let east = BudgetDatabase.categoryLearningWindow(oldestDate: "2026-03-15", now: Self.lateUTC, timeZone: Self.east)
+        let east = RuleSQL.categoryLearningWindow(oldestDate: "2026-03-15", now: Self.lateUTC, timeZone: Self.east)
         #expect(east.upper == "2026-09-12")
-        let west = BudgetDatabase.categoryLearningWindow(oldestDate: "2026-03-15", now: Self.earlyUTC, timeZone: Self.west)
+        let west = RuleSQL.categoryLearningWindow(oldestDate: "2026-03-15", now: Self.earlyUTC, timeZone: Self.west)
         #expect(west.upper == "2026-09-10")
         // An unreadable oldest day counts as 1970-01-01.
-        let epoch = BudgetDatabase.categoryLearningWindow(oldestDate: "garbage", now: Self.lateUTC, timeZone: .gmt)
+        let epoch = RuleSQL.categoryLearningWindow(oldestDate: "garbage", now: Self.lateUTC, timeZone: .gmt)
         #expect(epoch.lower == "1969-07-05")
     }
 

@@ -65,7 +65,7 @@ struct TransactionEditCategoryLearningTests {
         of bundle: LocalFirstActualStoreTests.OpenedWritableStoreBundle
     ) async throws -> (rules: [ManagedRule], ruleMessages: [ActualSyncDecodedMessage]) {
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let rules = try await database.fetchRules().filter { $0.payeeIDs.contains("coffee") }
+        let rules = try await RuleSQL.fetchRules(in: database).filter { $0.payeeIDs.contains("coffee") }
         let messages = try support.storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
         return (rules, messages.filter { $0.dataset == "rules" })
     }

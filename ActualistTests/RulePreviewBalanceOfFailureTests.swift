@@ -31,7 +31,7 @@ struct RulePreviewBalanceOfFailureTests {
             cleared: false, isTransfer: false
         )
 
-        _ = try await database.previewRules(for: [draft], dateTimeZone: ActualDateOnly.utc)
+        _ = try await RulePreviewSQL.previewRules(for: [draft], dateTimeZone: ActualDateOnly.utc, in: database)
 
         // The database caches table and column shapes after the first read, so
         // dropping the table now makes only the balance query fail.
@@ -41,7 +41,7 @@ struct RulePreviewBalanceOfFailureTests {
         }
 
         await #expect(throws: (any Error).self) {
-            _ = try await database.previewRules(for: [draft], dateTimeZone: ActualDateOnly.utc)
+            _ = try await RulePreviewSQL.previewRules(for: [draft], dateTimeZone: ActualDateOnly.utc, in: database)
         }
     }
 }

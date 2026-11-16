@@ -7,7 +7,7 @@ import Testing
 extension BudgetDatabase {
     /// The batched balances with the number of transaction reads it issued.
     func balanceOfCountingReads(
-        formulas: [String], cutoffs: [BalanceOfCutoff]
+        formulas: [String], cutoffs: [RuleBalanceOfSQL.BalanceOfCutoff]
     ) throws -> (balances: [[String: Int]], reads: Int) {
         try queue.read { db in
             let reads = Mutex(0)
@@ -16,8 +16,8 @@ extension BudgetDatabase {
                     reads.withLock { $0 += 1 }
                 }
             }
-            let balances = try prefetchBalanceOf(
-                formulas: formulas, cutoffs: cutoffs, db: db, dateTimeZone: ActualDateOnly.utc)
+            let balances = try RuleBalanceOfSQL.prefetchBalanceOf(
+                formulas: formulas, cutoffs: cutoffs, dateTimeZone: ActualDateOnly.utc, in: self, db: db)
             return (balances, reads.withLock { $0 })
         }
     }
@@ -67,7 +67,7 @@ struct BalanceOfBatchEquivalenceTests {
         let database = try BudgetDatabase(databaseURL: fixtures.makeSQLiteFixture(extraSQL: sql))
         let formulas = ["=BALANCE_OF(\"Checking\")+BALANCE_OF(\"sav\")+BALANCE_OF(\"Missing\")"]
         let draftSortOrders: [Double?] = [nil, 1, 2, 2.5, 3, 10, -1]
-        var cutoffs: [BudgetDatabase.BalanceOfCutoff] = []
+        var cutoffs: [RuleBalanceOfSQL.BalanceOfCutoff] = []
         for offset in -1...11 {
             let day = try #require(ActualDateOnly.date(
                 from: ActualDateOnly.dayID(from: Date(timeIntervalSince1970: 1_782_432_000 + Double(offset) * 86_400),
@@ -77,7 +77,7 @@ struct BalanceOfBatchEquivalenceTests {
 
         let result = try await database.balanceOfCountingReads(formulas: formulas, cutoffs: cutoffs)
 
-        func expected(_ account: String, _ cutoff: BudgetDatabase.BalanceOfCutoff) -> Int {
+        func expected(_ account: String, _ cutoff: RuleBalanceOfSQL.BalanceOfCutoff) -> Int {
             let day = Int(ActualDateOnly.dayID(from: cutoff.date, timeZone: ActualDateOnly.utc)
                 .replacingOccurrences(of: "-", with: ""))!
             return model.filter { row in

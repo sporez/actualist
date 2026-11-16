@@ -75,7 +75,7 @@ extension LocalFirstActualStoreTests {
             );
             """)
         let database = try #require(store.database)
-        let imported = try #require(try await database.fetchRules().first { $0.id == "split-rule" })
+        let imported = try #require(try await RuleSQL.fetchRules(in: database).first { $0.id == "split-rule" })
 
         #expect(!imported.isEditable)
         #expect(imported.rawActionsJSON.contains("set-split-amount"))

@@ -137,7 +137,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Protocol/display seam: `Actualist/Repositories/RuleRepository.swift`, `RulePresentation.swift`, and `PayeeRepository.swift`.
 - Store seam: `LocalFirstActualStore+Rules.swift`.
 - Payee persistence: `BudgetDatabase+Payees.swift`, `+PayeeCreationPrecondition.swift`, and `+ReviewPayeeNames.swift`. `PayeeRepositoryProtocol` is conformed in `LocalFirstActualStore.swift` itself.
-- Evaluation/persistence: `Actualist/LocalFirst/Database/BudgetDatabase+Rules.swift`, `+RuleBalanceOf.swift`, `RuleCandidateIndex.swift`, `RuleScheduleIndex.swift`, `RuleRecurrenceDateMatcher.swift`, `RuleConditionEvaluator.swift`, `RuleFormulaEvaluator.swift`, `RuleSplitActionExecutor.swift`, `RuleRanking.swift`, and schedule helpers.
+- Evaluation/persistence: the stateless `RuleSQL` (rule rows: editor options, reads, writes, payee-mapping resolution and category learning), `RulePreviewSQL` (rule previews for drafts, matching transactions and the evaluation metadata) and `RuleBalanceOfSQL` (the BALANCE_OF prefetch) in `Actualist/LocalFirst/Database/`, plus `RuleCandidateIndex.swift`, `RuleScheduleIndex.swift`, `RuleRecurrenceDateMatcher.swift`, `RuleConditionEvaluator.swift`, `RuleFormulaEvaluator.swift`, `RuleSplitActionExecutor.swift`, `RuleRanking.swift`, and schedule helpers.
 - Shared post-rule projection: `Actualist/Shared/TransactionRulePreviewProjection.swift`.
 
 ### Settings and onboarding
@@ -202,7 +202,7 @@ File naming is the ownership index:
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
 - `+Payees`, `+Preferences`, `+Currency`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
 - `+AccountLifecycle*`, `+AccountGroup*`, `+BankSync`, `+BankSyncLastRun`, `+Reconciliation`, `+Notes` — account-side families.
-- `+Rules`, rule evaluator files, and schedule helpers — Actual rule semantics.
+- `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
 - `+ActionLog*` — durable action history and undo inputs.
 - `+Schedules`, `+ScheduleReads`, `+ScheduleWrites`, `+SchedulePosting`, `+ScheduleAdvancement`, `+ScheduleConversion` and `ScheduleRuleProjection.swift` — schedules and their linked rules.

@@ -3,7 +3,7 @@ import GRDB
 @testable import Actualist
 
 /// Replays Rules oracle cases through the production preview that Bank Sync and manual entry use:
-/// `BudgetDatabase.previewRules(for:dateTimeZone:)`. Each case seeds the fixture's upstream rows
+/// `RulePreviewSQL.previewRules(for:dateTimeZone:in:)`. Each case seeds the fixture's upstream rows
 /// into the starter schema, then every run builds a `TransactionDraft` from the input transaction and
 /// compares the overlaid preview with the oracle's `runRules` output. The compared and excluded fields
 /// are documented in `scripts/rule-parity/README.md` ("Swift replay").
@@ -66,7 +66,7 @@ enum RuleOracleReplay {
                 continue
             }
             let draft = try makeDraft(transaction, payees: payees)
-            let previews = try await database.previewRules(for: [draft], dateTimeZone: timeZone)
+            let previews = try await RulePreviewSQL.previewRules(for: [draft], dateTimeZone: timeZone, in: database)
             guard let preview = previews.first else {
                 throw OracleReplayError.malformedFixture("no preview for \(label)")
             }

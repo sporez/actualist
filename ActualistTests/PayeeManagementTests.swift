@@ -464,7 +464,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try #require(store.database)
 
-        let rule = try #require(try await database.fetchRules().first { $0.id == "pwa-one-of" })
+        let rule = try #require(try await RuleSQL.fetchRules(in: database).first { $0.id == "pwa-one-of" })
 
         #expect(rule.isEditable)
         #expect(rule.draft?.conditions.first?.field == "description")
@@ -503,7 +503,7 @@ extension LocalFirstActualStoreTests {
             );
             """)
         let database = try #require(store.database)
-        let rules = try await database.fetchRules()
+        let rules = try await RuleSQL.fetchRules(in: database)
         let mappedRule = try #require(rules.first { $0.id == "mapped-payee" })
         #expect(mappedRule.draft?.conditions.first?.value == .string("coffee"))
 
@@ -623,7 +623,7 @@ extension LocalFirstActualStoreTests {
             );
             """)
         let database = try #require(store.database)
-        let rule = try #require(try await database.fetchRules().first)
+        let rule = try #require(try await RuleSQL.fetchRules(in: database).first)
 
         #expect(!rule.isEditable)
         #expect(rule.rawConditionsJSON.contains("customName"))
@@ -674,7 +674,7 @@ extension LocalFirstActualStoreTests {
             didUpdate: {}
         )
 
-        let rules = try await database.fetchRules()
+        let rules = try await RuleSQL.fetchRules(in: database)
         let learned = try #require(rules.first { $0.payeeIDs.contains(payeeID) })
         #expect(learned.draft?.actions.first?.value == .string("groceries"))
 

@@ -290,7 +290,7 @@ extension BudgetDatabase {
         db: Database
     ) throws -> [String: String?] {
         guard !learning.isEmpty else { return [:] }
-        let rules = try fetchRules(db: db)
+        let rules = try RuleSQL.fetchRules(in: self, db: db)
         let byID = Dictionary(uniqueKeysWithValues: rules.map { ($0.id, $0.rawActionsJSON) })
         var live: [String: String?] = [:]
         for ruleID in learning.createdRuleIDs {

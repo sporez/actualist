@@ -192,7 +192,7 @@ struct BudgetDatabaseSchedulePostingTests {
             """)
         let review = try await ScheduleReviewSQL.scheduleMutationReview(budgetID: "budget", scheduleID: "rent", in: fixture.database)
         let baseDraft = draft()
-        let oldPreview = try await fixture.database.previewRules(for: baseDraft)
+        let oldPreview = try await RulePreviewSQL.previewRules(for: baseDraft, in: fixture.database)
         #expect(oldPreview.categoryID == "groceries")
         #expect(oldPreview.date.map(Self.dayID) == shiftedDate)
         try execute(

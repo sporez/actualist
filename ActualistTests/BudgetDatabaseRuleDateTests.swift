@@ -40,7 +40,7 @@ struct BudgetDatabaseRuleDateTests {
                 payeeID: nil, payeeName: "", categoryID: nil, notes: nil,
                 cleared: false, isTransfer: false
             )
-            let preview = try await database.previewRules(for: draft, dateTimeZone: timeZone)
+            let preview = try await RulePreviewSQL.previewRules(for: draft, dateTimeZone: timeZone, in: database)
             let previewDate = try #require(preview.date)
             #expect(ActualDateOnly.dayID(from: previewDate, timeZone: timeZone) == "2027-01-01")
 
@@ -55,14 +55,15 @@ struct BudgetDatabaseRuleDateTests {
                 cleared: false,
                 isTransfer: false
             )
-            let sameDayPreview = try await database.previewRules(for: sameDayDraft, dateTimeZone: timeZone)
+            let sameDayPreview = try await RulePreviewSQL.previewRules(for: sameDayDraft, dateTimeZone: timeZone, in: database)
             #expect(sameDayPreview.date == nil)
 
             let condition = RuleCondition(field: "date", operation: "is", value: .string("2026-07-03"))
-            let matches = try await database.fetchMatchingTransactions(
+            let matches = try await RulePreviewSQL.fetchMatchingTransactions(
                 for: RuleDraft(stage: .normal, conditionsJoin: .and, conditions: [condition], actions: []),
                 limit: 10,
-                dateTimeZone: timeZone
+                dateTimeZone: timeZone,
+                in: database
             )
             #expect(matches.totalCount == 1)
             #expect(matches.transactions.first?.id == "txn")
@@ -74,7 +75,7 @@ struct BudgetDatabaseRuleDateTests {
             payeeID: nil, payeeName: "", categoryID: nil, notes: nil,
             cleared: false, isTransfer: false
         )
-        let bankPreview = try await database.previewRules(for: bankDraft, dateTimeZone: ActualDateOnly.utc)
+        let bankPreview = try await RulePreviewSQL.previewRules(for: bankDraft, dateTimeZone: ActualDateOnly.utc, in: database)
         let candidate = BankSyncReconciliation.Candidate(
             financialID: "bank-rule-date",
             dayID: "20260703",
@@ -128,7 +129,7 @@ struct BudgetDatabaseRuleDateTests {
                 amountMinorUnits: -100, payeeID: nil, payeeName: "", categoryID: nil, notes: nil,
                 cleared: false, isTransfer: false
             )
-            let preview = try await database.previewRules(for: draft, dateTimeZone: timeZone)
+            let preview = try await RulePreviewSQL.previewRules(for: draft, dateTimeZone: timeZone, in: database)
             // The prefetched balance is -7,000 minor units. The formula reads it
             // as the amount -70.00 and the split amount converts it back
             // (Actual v26.11.0), so the split carries the balance unchanged.

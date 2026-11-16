@@ -126,7 +126,7 @@ extension BudgetDatabase {
             isTransfer: false,
             sortOrder: now.timeIntervalSince1970 * 1_000
         )
-        let preview = try previewRules(for: draft)
+        let preview = try RulePreviewSQL.previewRules(for: draft, in: self)
         if preview.deletesTransaction {
             return AccountReconciliationDatabaseWrite(
                 changed: ChangedResources(accounts: [], months: [], transactions: []),

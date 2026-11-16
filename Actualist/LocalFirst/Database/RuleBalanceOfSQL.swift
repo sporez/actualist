@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
+enum RuleBalanceOfSQL {
     /// One draft's BALANCE_OF cutoff: its logical day and sort order.
     struct BalanceOfCutoff {
         var date: Date
@@ -17,23 +17,24 @@ extension BudgetDatabase {
     /// column). Each resolved account is read once; every cutoff is then
     /// resolved in memory. Day strings compare bytewise like SQLite's BINARY
     /// collation, and an Int64 overflow throws as SQLite's SUM does.
-    func prefetchBalanceOf(
+    static func prefetchBalanceOf(
         formulas: [String],
         cutoffs: [BalanceOfCutoff],
-        db: Database,
-        dateTimeZone: TimeZone
+        dateTimeZone: TimeZone,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [[String: Int]] {
         let literals = Set(formulas.flatMap(RuleFormulaEvaluator.extractBalanceOfLiterals))
-        guard !literals.isEmpty, !cutoffs.isEmpty, try tableExists("accounts", db: db) else {
+        guard !literals.isEmpty, !cutoffs.isEmpty, try database.tableExists("accounts", db: db) else {
             return cutoffs.map { _ in [:] }
         }
-        let columns = try columnSet(for: "accounts", db: db)
+        let columns = try database.columnSet(for: "accounts", db: db)
         guard columns.contains("id") else { return cutoffs.map { _ in [:] } }
-        let name = column("name", fallback: "id", columns: columns)
+        let name = database.column("name", fallback: "id", columns: columns)
         let order = columns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
         let accounts = try Row.fetchAll(
             db,
-            sql: "SELECT id, \(name) AS name FROM accounts WHERE \(predicateForLiveRows(columns: columns)) ORDER BY \(order)"
+            sql: "SELECT id, \(name) AS name FROM accounts WHERE \(database.predicateForLiveRows(columns: columns)) ORDER BY \(order)"
         ).compactMap { row -> (id: String, name: String)? in
             guard let id = row["id"] as String? else { return nil }
             return (id, row["name"] as String? ?? "")
@@ -45,7 +46,7 @@ extension BudgetDatabase {
                 ? literal : accounts.first(where: { $0.name == literal })?.id
         }
         let ledgers = try Dictionary(uniqueKeysWithValues: Set(resolved.values).map {
-            ($0, try balanceOfLedger(accountID: $0, db: db))
+            ($0, try balanceOfLedger(accountID: $0, in: database, db: db))
         })
         return try cutoffs.map { cutoff in
             let day = ActualDateOnly.dayID(from: cutoff.date, timeZone: dateTimeZone)
@@ -59,16 +60,16 @@ extension BudgetDatabase {
     }
 
     /// An account's live inline rows ordered by normalized day with prefix sums.
-    private func balanceOfLedger(accountID: String, db: Database) throws -> BalanceOfLedger {
-        guard try tableExists("transactions", db: db) else {
+    private static func balanceOfLedger(accountID: String, in database: isolated BudgetDatabase, db: Database) throws -> BalanceOfLedger {
+        guard try database.tableExists("transactions", db: db) else {
             return BalanceOfLedger(ordersBySortOrder: false, rows: [])
         }
-        let columns = try columnSet(for: "transactions", db: db)
+        let columns = try database.columnSet(for: "transactions", db: db)
         let expressions = TransactionSplitQueryExpressions(columns: columns)
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(normalizedDateExpression(expressions.qualifiedDate)) AS day,
+                SELECT \(database.normalizedDateExpression(expressions.qualifiedDate)) AS day,
                        \(expressions.qualifiedSortOrder) AS sort_order,
                        \(expressions.qualifiedAmount) AS amount
                 FROM transactions t
@@ -89,8 +90,8 @@ extension BudgetDatabase {
             return BalanceOfLedger.Row(day: day, sortOrder: sortOrder, amount: row["amount"] as Int64? ?? 0)
         })
     }
-
 }
+
 
 /// Live rows of one account sorted by day, with running totals so a cutoff is
 /// a binary search plus a scan of the cutoff day.

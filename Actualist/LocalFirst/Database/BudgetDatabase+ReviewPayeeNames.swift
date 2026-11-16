@@ -19,7 +19,7 @@ extension BudgetDatabase {
         if try tableExists("accounts", db: db) {
             hasAccounts = try columnSet(for: "accounts", db: db).isSuperset(of: ["id", "name"])
         }
-        let targets = try payeeMappingTargets(db: db)
+        let targets = try RuleSQL.payeeMappingTargets(in: self, db: db)
         let transferSelect = transferColumn.map { ", \(quotedIdentifier($0)) AS transfer" } ?? ""
 
         var names: [String: String] = [:]

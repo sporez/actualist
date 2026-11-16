@@ -36,9 +36,10 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             lookup: lookup,
             options: options
         )
-        let previews = try await database.previewRules(
+        let previews = try await RulePreviewSQL.previewRules(
             for: candidates.map { ImportReconcileProjection.previewDraft(for: $0, accountID: request.accountID) },
-            dateTimeZone: ImportReconcileProjection.ruleDateTimeZone
+            dateTimeZone: ImportReconcileProjection.ruleDateTimeZone,
+            in: database
         )
         guard previews.count == candidates.count else {
             throw LocalFirstError.invalidLocalWrite("missing import rule preview")

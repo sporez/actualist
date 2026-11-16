@@ -11,7 +11,7 @@ extension LocalFirstActualStore {
     }
 
     func ruleEditorOptions(budgetID: String) async throws -> RuleEditorOptions {
-        try await requireDatabase(for: budgetID).fetchRuleEditorOptions()
+        try await RuleSQL.fetchRuleEditorOptions(in: requireDatabase(for: budgetID))
     }
 
     func matchingTransactions(
@@ -19,16 +19,17 @@ extension LocalFirstActualStore {
         draft: RuleDraft,
         limit: Int
     ) async throws -> RuleTransactionMatchPreview {
-        try await requireDatabase(for: budgetID).fetchMatchingTransactions(for: draft, limit: limit)
+        try await RulePreviewSQL.fetchMatchingTransactions(for: draft, limit: limit, in: requireDatabase(for: budgetID))
     }
 
     func createRuleAndRefresh(budgetID: String, draft: RuleDraft) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.createRuleMessages(
+        let messages = try await RuleSQL.createRuleMessages(
             ruleID: UUID().uuidString,
             draft: draft,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitUserAction(
             messages,
@@ -43,10 +44,11 @@ extension LocalFirstActualStore {
     func updateRuleAndRefresh(budgetID: String, ruleID: String, draft: RuleDraft) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.updateRuleMessages(
+        let messages = try await RuleSQL.updateRuleMessages(
             ruleID: ruleID,
             draft: draft,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitUserAction(
             messages,
@@ -61,7 +63,7 @@ extension LocalFirstActualStore {
     func deleteRuleAndRefresh(budgetID: String, ruleID: String) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.deleteRuleMessages(ruleID: ruleID, builder: &builder)
+        let messages = try await RuleSQL.deleteRuleMessages(ruleID: ruleID, builder: &builder, in: database)
         _ = try await database.commitUserAction(
             messages,
             descriptor: .rule(RuleActionDescriptor(operation: .delete)),
@@ -92,7 +94,7 @@ extension LocalFirstActualStore {
         nextRulesCacheRevision &+= 1
         let revision = nextRulesCacheRevision
         rulesCacheRevisionByBudget[budgetID] = revision
-        let loaded = try await database.fetchRules()
+        let loaded = try await RuleSQL.fetchRules(in: database)
         #if DEBUG
         try await testSeams?.rulesReadHook?(budgetID)
         #endif

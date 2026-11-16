@@ -157,7 +157,7 @@ extension BudgetDatabase {
             arguments: [accountID]
         ))
         guard !transferIDs.isEmpty else { return [] }
-        let merged = try payeeMappingTargets(db: db).filter { transferIDs.contains($0.value) }.keys
+        let merged = try RuleSQL.payeeMappingTargets(in: self, db: db).filter { transferIDs.contains($0.value) }.keys
         return transferIDs.union(merged)
     }
 

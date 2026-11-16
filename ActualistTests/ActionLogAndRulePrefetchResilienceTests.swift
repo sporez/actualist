@@ -88,7 +88,7 @@ struct ActionLogAndRulePrefetchResilienceTests {
         )
 
         await #expect(throws: (any Error).self) {
-            _ = try await database.previewRules(for: [draft], dateTimeZone: ActualDateOnly.utc)
+            _ = try await RulePreviewSQL.previewRules(for: [draft], dateTimeZone: ActualDateOnly.utc, in: database)
         }
     }
 }

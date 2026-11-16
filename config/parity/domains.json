@@ -382,8 +382,9 @@
         "RuleOracleReplayTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+Rules.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+RuleBalanceOf.swift",
+        "Actualist/LocalFirst/Database/RuleSQL.swift",
+        "Actualist/LocalFirst/Database/RulePreviewSQL.swift",
+        "Actualist/LocalFirst/Database/RuleBalanceOfSQL.swift",
         "Actualist/LocalFirst/Database/RuleConditionEvaluator.swift",
         "Actualist/LocalFirst/Database/RuleFormulaEvaluator.swift",
         "Actualist/LocalFirst/Database/RuleRanking.swift",

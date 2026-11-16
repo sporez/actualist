@@ -608,7 +608,7 @@ enum ScheduleSQL {
         if resolved.scheduleID == nil, let existingTransactionID {
             resolved.scheduleID = try database.fetchTransaction(id: existingTransactionID)?.schedule
         }
-        let preview = try database.previewRules(for: resolved)
+        let preview = try RulePreviewSQL.previewRules(for: resolved, in: database)
         if preview.deletesTransaction {
             throw LocalFirstError.refusedChange("A matching rule would delete this transaction.")
         }

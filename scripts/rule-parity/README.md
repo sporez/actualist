@@ -196,7 +196,7 @@ Fixed ids that survive a seed change. Rules and Inputs are counts.
 
 `ActualistTests/RuleOracleReplayTests.swift` and `RuleOracleReplaySupport.swift`
 replay every non-oracle-only case through the production
-`BudgetDatabase.previewRules(for:dateTimeZone:)` (the path Bank Sync and manual
+`RulePreviewSQL.previewRules(for:dateTimeZone:in:)` (the path Bank Sync and manual
 entry use), with the time zone fixed to `America/New_York`.
 
 - **Seeding.** Each case inserts the fixture's `input` tables (`accounts`,

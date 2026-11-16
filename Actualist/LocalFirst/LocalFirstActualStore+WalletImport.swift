@@ -59,9 +59,10 @@ extension LocalFirstActualStore {
         }
         // Wallet days are local calendar days, so rules read them in the
         // device's zone, as Wallet import always has.
-        let previews = try await database.previewRules(
+        let previews = try await RulePreviewSQL.previewRules(
             for: candidates.map { ImportReconcileProjection.previewDraft(for: $0, accountID: accountID) },
-            dateTimeZone: .autoupdatingCurrent
+            dateTimeZone: .autoupdatingCurrent,
+            in: database
         )
         guard previews.count == candidates.count else {
             throw LocalFirstError.invalidLocalWrite("missing import rule preview")

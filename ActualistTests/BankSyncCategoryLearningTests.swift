@@ -77,7 +77,7 @@ struct BankSyncCategoryLearningTests {
 
     private func learnedCoffeeRules(in bundle: LocalFirstActualStoreTests.OpenedWritableStoreBundle) async throws -> [ManagedRule] {
         let database = try bundle.store.requireDatabase(for: "group-1")
-        return try await database.fetchRules().filter { $0.payeeIDs.contains("coffee") }
+        return try await RuleSQL.fetchRules(in: database).filter { $0.payeeIDs.contains("coffee") }
     }
 
     @Test func bankSyncRuleCategorizedInsertDoesNotLearn() async throws {

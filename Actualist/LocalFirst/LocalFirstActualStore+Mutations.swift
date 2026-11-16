@@ -427,7 +427,7 @@ extension LocalFirstActualStore {
 
     func previewRules(for draft: TransactionDraft, budgetID: String) async throws -> TransactionRulePreview {
         let database = try requireDatabase(for: budgetID)
-        return try await database.previewRules(for: draft)
+        return try await RulePreviewSQL.previewRules(for: draft, in: database)
     }
 
     func repairSplitTransactionsAndRefresh(budgetID: String) async throws -> SplitTransactionRepairResult {

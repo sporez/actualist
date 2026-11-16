@@ -114,10 +114,11 @@ extension BudgetDatabase {
         }
         if !commit.learningTransactionIDs.isEmpty {
             var learningBuilder = LocalFirstSyncMessageBuilder()
-            let rulesBefore = try fetchRules(db: db)
-            let learning = try categoryLearningRuleMessages(
+            let rulesBefore = try RuleSQL.fetchRules(in: self, db: db)
+            let learning = try RuleSQL.categoryLearningRuleMessages(
                 changedTransactionIDs: commit.learningTransactionIDs,
                 builder: &learningBuilder,
+                in: self,
                 db: db
             )
             if !learning.isEmpty {

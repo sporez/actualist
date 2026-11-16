@@ -48,14 +48,14 @@ extension BudgetDatabase {
                 date: draft.date,
                 amountMinorUnits: -draft.amountMinorUnits,
                 payeeID: destinationPayeeID,
-                payeeName: try rulePayeeName(for: destinationPayeeID, db: db) ?? "",
+                payeeName: try RulePreviewSQL.rulePayeeName(for: destinationPayeeID, in: self, db: db) ?? "",
                 categoryID: nil,
                 notes: draft.counterpartNotes,
                 cleared: false,
                 isTransfer: true,
                 scheduleID: draft.scheduleID
             )
-            let pairedPreview = try previewRules(for: destinationDraft, db: db)
+            let pairedPreview = try RulePreviewSQL.previewRules(for: destinationDraft, in: self, db: db)
             let transferMetadata = SchedulePostingTransferMetadata(
                 notes: pairedPreview.notes,
                 cleared: pairedPreview.cleared ?? false,

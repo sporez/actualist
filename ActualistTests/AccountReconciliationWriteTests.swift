@@ -60,7 +60,7 @@ struct AccountReconciliationWriteTests {
             isTransfer: false
         )
 
-        let preview = try await bundle.database.previewRules(for: draft)
+        let preview = try await RulePreviewSQL.previewRules(for: draft, in: bundle.database)
         let projected = TransactionRulePreviewProjection.applying(preview, to: draft)
         let restored = projected.notes == nil && preview.notes == nil
             ? projected.withNotes(draft.notes)

@@ -80,7 +80,7 @@ enum BankSyncOracleReplay {
         }
 
         let drafts = candidates.map { ImportReconcileProjection.previewDraft(for: $0, accountID: accountID) }
-        let previews = try await database.previewRules(for: drafts, dateTimeZone: ImportReconcileProjection.ruleDateTimeZone)
+        let previews = try await RulePreviewSQL.previewRules(for: drafts, dateTimeZone: ImportReconcileProjection.ruleDateTimeZone, in: database)
         let projection = ImportReconcileProjection.project(
             candidates: candidates,
             previews: previews,
