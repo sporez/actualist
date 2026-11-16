@@ -46,10 +46,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+PortableExport.swift
 Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ReconciledMutationGuard.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Reconciliation.swift
-Actualist/LocalFirst/Database/BudgetDatabase+ReportActivity.swift
-Actualist/LocalFirst/Database/BudgetDatabase+ReportExplorer.swift
-Actualist/LocalFirst/Database/BudgetDatabase+ReportExplorerQuery.swift
-Actualist/LocalFirst/Database/BudgetDatabase+Reports.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ReviewPayeeNames.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ReviewWatermark.swift
 Actualist/LocalFirst/Database/BudgetDatabase+RuleBalanceOf.swift

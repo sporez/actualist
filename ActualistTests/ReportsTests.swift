@@ -28,7 +28,7 @@ struct ReportsTests {
 
     @Test func localReportsRespectActualTransactionSemantics() async throws {
         let database = try BudgetDatabase(databaseURL: makeReportsFixture())
-        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: reportRange, in: database)
 
         #expect(snapshot.netWorth.balance == 1_545_799)
         #expect(snapshot.netWorth.change == 1_425_799)
@@ -78,20 +78,20 @@ struct ReportsTests {
 
     @Test func cashFlowAndCalendarDetailsStartFromTheirCardsNumbers() async throws {
         let database = try BudgetDatabase(databaseURL: makeReportsFixture())
-        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: reportRange, in: database)
 
-        let cashFlow = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let cashFlow = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .cashFlow,
             startDay: "2026-07-01",
             endDay: reportRange.endDay,
             interval: ReportCardKind.cashFlow.explorerDefaultInterval,
             filters: ReportCardKind.cashFlow.explorerDefaultFilters(calendarTransfers: snapshot.calendarTransfers)
-        ))
+        ), in: database)
         #expect(cashFlow.totals.income == snapshot.cashFlow.income)
         #expect(cashFlow.totals.expenses == snapshot.cashFlow.expenses)
 
         let calendarMonth = try #require(snapshot.transactionCalendar.last)
-        let calendar = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let calendar = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .cashFlow,
             startDay: "2026-07-01",
             endDay: "2026-07-31",
@@ -99,7 +99,7 @@ struct ReportsTests {
             filters: ReportCardKind.transactionCalendar.explorerDefaultFilters(
                 calendarTransfers: snapshot.calendarTransfers
             )
-        ))
+        ), in: database)
         #expect(calendar.totals.income == calendarMonth.income)
         #expect(calendar.totals.expenses == calendarMonth.expenses)
     }
@@ -109,9 +109,9 @@ struct ReportsTests {
         let filters = ReportCardKind.cashFlow.explorerDefaultFilters(calendarTransfers: .all)
 
         // The fixture has a row dated 2026-07-20, after the 16th.
-        let monthly = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let monthly = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .cashFlow, startDay: "2026-07-01", endDay: "2026-07-16", interval: .month, filters: filters
-        ))
+        ), in: database)
         #expect(monthly.totals.income == 603_499)
         #expect(monthly.totals.expenses == 17_700)
         #expect(monthly.points.last?.period.endDay == "2026-07-31")
@@ -119,22 +119,22 @@ struct ReportsTests {
         let lastDay = try #require(TransactionQueryDay(rawValue: "2026-07-31"))
         #expect(request.query.conditions.contains(.date(TransactionQueryDateCondition(operation: .isOnOrBefore, day: lastDay))))
 
-        let daily = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let daily = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .cashFlow, startDay: "2026-07-01", endDay: "2026-07-16", interval: .day, filters: filters
-        ))
+        ), in: database)
         #expect(daily.totals.income == 503_500)
         #expect(daily.totals.expenses == 13_700)
     }
 
     @Test func calendarCardFiltersUseTheTransferLinkAndCashFlowUsesThePayee() async throws {
         let database = try BudgetDatabase(databaseURL: makeReportsFixture())
-        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: reportRange, in: database)
         #expect(snapshot.calendarTransfers == .nonTransfers)
 
         func conditions(_ filters: ReportExplorerFilters) async throws -> [TransactionQueryCondition] {
-            let explorer = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            let explorer = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
                 metric: .cashFlow, startDay: "2026-07-01", endDay: "2026-07-16", interval: .day, filters: filters
-            ))
+            ), in: database)
             return try #require(explorer.drilldown.request).query.conditions
         }
         let calendar = try await conditions(ReportCardKind.transactionCalendar.explorerDefaultFilters(
@@ -156,14 +156,14 @@ struct ReportsTests {
             INSERT INTO transactions VALUES ('side-spend', 'checking', 20260710, -2500, 'side', NULL, 0, NULL, 0, NULL);
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: reportRange, in: database)
 
         // Actual reads is_income from the category itself, not its group.
         #expect(snapshot.budgetOverview.actualExpenses == 22_700)
         #expect(snapshot.budgetOverview.budgetPoints.last?.value == 67_000)
-        let explorer = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let explorer = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spending, startDay: "2026-07-01", endDay: "2026-07-16", interval: .day
-        ))
+        ), in: database)
         #expect(explorer.totals.expenses == 22_700)
         #expect(explorer.filterCatalog.categories.first { $0.id == "side" }?.isIncome == false)
     }
@@ -358,7 +358,7 @@ struct ReportsTests {
             }
         }
 
-        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: reportRange, in: database)
 
         #expect(snapshot.netWorth.points.count == 7)
         let queryCount = transactionQueries.withLock { $0 }
@@ -382,7 +382,7 @@ struct ReportsTests {
         let database = try BudgetDatabase(databaseURL: url)
 
         await #expect(throws: LocalFirstError.numericValueOutOfRange) {
-            _ = try await database.fetchReportsDashboard(range: reportRange)
+            _ = try await ReportDashboardSQL.fetchReportsDashboard(range: reportRange, in: database)
         }
     }
 
@@ -400,7 +400,7 @@ struct ReportsTests {
             endDay: "2026-07-31"
         )
 
-        let snapshot = try await database.fetchReportsDashboard(range: range)
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: range, in: database)
 
         #expect(snapshot.monthComparison.points.count == 28)
         #expect(snapshot.monthComparison.points.last?.current == 24_200)
@@ -423,11 +423,11 @@ struct ReportsTests {
             INSERT INTO zero_budgets VALUES (202607, 'null-tombstone', 300, 0);
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        let snapshot = try await database.fetchReportsDashboard(range: ReportDateRange(
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: ReportDateRange(
             anchorMonth: "2026-07",
             startDay: "2026-02-01",
             endDay: "2026-07-31"
-        ))
+        ), in: database)
 
         // groceries 50,000 + hidden-expense 10,000 (envelope keeps hidden) + live NULL-tombstone 300.
         #expect(snapshot.budgetOverview.budgetedExpenses == 60_300)
@@ -443,11 +443,11 @@ struct ReportsTests {
             INSERT INTO reflect_budgets VALUES (202607, 'salary', 99900, 0);
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        let snapshot = try await database.fetchReportsDashboard(range: ReportDateRange(
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: ReportDateRange(
             anchorMonth: "2026-07",
             startDay: "2026-02-01",
             endDay: "2026-07-31"
-        ))
+        ), in: database)
 
         // Actual's getSpendingBudgetFilters: every non-income category, hidden or not.
         #expect(snapshot.budgetOverview.budgetedExpenses == 60_000)
@@ -467,7 +467,7 @@ struct ReportsTests {
         let rows = preference.map { "INSERT INTO preferences VALUES ('firstDayOfWeekIdx', '\($0)');" } ?? ""
         let url = try makeReportsFixture(extraSQL: "CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT); \(rows)")
         let database = try BudgetDatabase(databaseURL: url)
-        let snapshot = try await database.fetchReportsDashboard(range: reportRange)
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: reportRange, in: database)
 
         #expect(snapshot.transactionCalendar.map(\.leadingBlankCount) == leadingBlanks)
         let index = ReportCalendar.firstWeekdayIndex(preference: preference)

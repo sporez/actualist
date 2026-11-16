@@ -150,7 +150,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 ### Reports, history, notes, and shortcuts
 
-- Reports: `Actualist/Features/Reports/` (`ReportsView`, the `ReportExplorer*` explorer, and transaction drilldown), `ReportsRepository.swift`, `LocalFirstActualStore+Reports.swift`, `BudgetDatabase+Report*.swift`, and `ReportArithmetic.swift`.
+- Reports: `Actualist/Features/Reports/` (`ReportsView`, the `ReportExplorer*` explorer, and transaction drilldown), `ReportsRepository.swift`, `LocalFirstActualStore+Reports.swift`, and in `LocalFirst/Database/` the stateless `ReportInputSQL` (the rows both reports read: activity days, budgeted expenses, transfer legs and the filter catalog), `ReportDashboardSQL` (the dashboard cards and the widget's net worth) and `ReportExplorerSQL` (explorer snapshots and the transaction request its filters build), with `ReportArithmetic.swift` and `ReportTransferAlignment.swift`.
 - History/undo: `Actualist/Features/History/`, `LocalFirstActualStore+ActionLog.swift`, `LocalFirst/ActionLog/`, and `BudgetDatabase+ActionLog*.swift`.
 - Entity notes: `Actualist/Features/Notes/`, `EntityNotesRepository.swift`, `LocalFirstActualStore+Notes.swift`, and `BudgetDatabase+Notes.swift`.
 - App Intents/Shortcuts: `Actualist/Features/Shortcuts/Intents/` for OS-facing intents, `Commands/` for parsed command values, `Entities/` for AppEntity models, and `ShortcutsBudgetSession*` for local budget access.
@@ -193,7 +193,7 @@ Repositories are per feature, not one facade: `Actualist/Repositories/` holds `B
 
 File naming is the ownership index:
 
-- `+BasicReads`, `+BudgetReads`, `+TransactionReads`, `+Reports` — query families.
+- `+BasicReads`, `+BudgetReads`, `+TransactionReads` — query families. Reports are the `Report*SQL` types (see Reports, history, notes, and shortcuts).
 - `+Sync`, `+Merkle` — remote CRDT application and the merkle trie (see Sync and merkle below).
 - `+LocalCommit`, `+UserActionPlan` — the write core (see Write trace).
 - `+BudgetWrites`, `+EnvelopeHolds`, `+EnvelopeCarryIn`, `+HoldWrites`, `+TransactionCreation`, `+TransactionDiffUpdate`, `+TransactionGraphPlanning`, `+TransactionUpdates`, `+TransactionSplitWrites` — budget and transaction mutation families.

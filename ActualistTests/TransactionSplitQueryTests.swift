@@ -247,9 +247,8 @@ struct TransactionSplitQueryTests {
         let balances = try await database.accountBalances()
         #expect(balances["checking"] == -9_000)
 
-        let snapshot = try await database.fetchReportsDashboard(
-            range: ReportDateRange(anchorMonth: "2026-08", startDay: "2026-08-01", endDay: "2026-08-31")
-        )
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(
+            range: ReportDateRange(anchorMonth: "2026-08", startDay: "2026-08-01", endDay: "2026-08-31"), in: database)
         #expect(snapshot.netWorth.balance == -9_000)
     }
 

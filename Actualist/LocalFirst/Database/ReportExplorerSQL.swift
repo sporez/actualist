@@ -29,21 +29,29 @@ private struct ReportExplorerSpendingPrefix: Sendable {
     }
 }
 
-extension BudgetDatabase {
-    func fetchReportExplorer(query: ReportExplorerQuery) throws -> ReportExplorerSnapshot {
+struct ReportExplorerActivityRead: Sendable {
+    let currentRequest: TransactionDrilldownRequest
+    let current: TransactionDrilldownResult
+    let history: TransactionDrilldownResult?
+    let catalog: ReportExplorerFilterCatalog
+}
+
+enum ReportExplorerSQL {
+    static func fetchReportExplorer(query: ReportExplorerQuery, in database: isolated BudgetDatabase) throws -> ReportExplorerSnapshot {
         if let validationError = query.validationError {
             throw validationError
         }
 
         switch query.metric {
         case .netWorth:
-            let result = try queue.read { db in
-                let catalog = try reportExplorerFilterCatalog(db: db)
+            let result = try database.queue.read { db in
+                let catalog = try ReportInputSQL.reportExplorerFilterCatalog(in: database, db: db)
                 let accountIDs = reportExplorerAccountIDs(query: query, catalog: catalog)
                 return (
                     try reportExplorerBalanceChanges(
                         through: query.endDay,
                         accountIDs: accountIDs,
+                        in: database,
                         db: db
                     ),
                     catalog
@@ -51,13 +59,13 @@ extension BudgetDatabase {
             }
             return try buildNetWorthExplorer(query: query, rows: result.0, catalog: result.1)
         case .cashFlow, .spending, .budgetOverview, .spendingAverage:
-            let result = try queue.read { db in
-                let activity = try reportExplorerActivityRead(query: query, db: db)
-                let currentRows = reportActivityDays(
+            let result = try database.queue.read { db in
+                let activity = try reportExplorerActivityRead(query: query, in: database, db: db)
+                let currentRows = ReportInputSQL.reportActivityDays(
                     from: activity.current.contributingTransactions,
                     catalog: activity.catalog
                 )
-                let historyRows = reportActivityDays(
+                let historyRows = ReportInputSQL.reportActivityDays(
                     from: activity.history?.contributingTransactions ?? [],
                     catalog: activity.catalog
                 )
@@ -68,9 +76,10 @@ extension BudgetDatabase {
                         from: String(query.startDay.prefix(7)),
                         through: String(query.endDay.prefix(7))
                     ).map { month in
-                        (month, try reportBudgetedExpenses(
+                        (month, try ReportInputSQL.reportBudgetedExpenses(
                             month: month,
                             categoryIDs: categoryIDs,
+                            in: database,
                             db: db
                         ))
                     })
@@ -88,21 +97,22 @@ extension BudgetDatabase {
         }
     }
 
-    private func reportExplorerBalanceChanges(
+    private static func reportExplorerBalanceChanges(
         through endDay: String,
         accountIDs: Set<String>,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [RawNetWorthDay] {
-        guard try tableExists("transactions", db: db),
-              try tableExists("accounts", db: db),
+        guard try database.tableExists("transactions", db: db),
+              try database.tableExists("accounts", db: db),
               !accountIDs.isEmpty else {
             return []
         }
 
-        let transactionColumns = try columnSet(for: "transactions", db: db)
-        let accountColumns = try columnSet(for: "accounts", db: db)
+        let transactionColumns = try database.columnSet(for: "transactions", db: db)
+        let accountColumns = try database.columnSet(for: "accounts", db: db)
         let split = TransactionSplitQueryExpressions(columns: transactionColumns)
-        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let normalizedDate = database.normalizedDateExpression(split.qualifiedDate)
         let sortedAccountIDs = accountIDs.sorted()
         let placeholders = Array(repeating: "?", count: sortedAccountIDs.count).joined(separator: ", ")
         var arguments: [DatabaseValueConvertible] = [endDay]
@@ -116,7 +126,7 @@ extension BudgetDatabase {
                 JOIN accounts a ON a.id = \(split.qualifiedAccount)
                 \(split.parentJoin())
                 WHERE \(split.liveInlinePredicate())
-                  AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
+                  AND \(database.predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
                   AND \(normalizedDate) <= ?
                   AND \(split.qualifiedAccount) IN (\(placeholders))
                 GROUP BY \(normalizedDate)
@@ -130,12 +140,12 @@ extension BudgetDatabase {
         }
         return try ReportTransferAlignment.align(
             days,
-            legs: try reportTransferLegs(accountIDs: accountIDs, db: db),
+            legs: try ReportInputSQL.reportTransferLegs(accountIDs: accountIDs, in: database, db: db),
             through: endDay
         )
     }
 
-    private func buildNetWorthExplorer(
+    private static func buildNetWorthExplorer(
         query: ReportExplorerQuery,
         rows: [RawNetWorthDay],
         catalog: ReportExplorerFilterCatalog
@@ -178,7 +188,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func buildActivityExplorer(
+    private static func buildActivityExplorer(
         query: ReportExplorerQuery,
         rows: [RawReportActivityDay],
         budgetedByMonth: [String: Int],
@@ -276,7 +286,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func buildSpendingAverageExplorer(
+    private static func buildSpendingAverageExplorer(
         query: ReportExplorerQuery,
         rows: [RawReportActivityDay],
         read: ReportExplorerActivityRead
@@ -348,7 +358,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func reportExplorerDrilldownAvailability(
+    private static func reportExplorerDrilldownAvailability(
         _ read: ReportExplorerActivityRead
     ) -> ReportDrilldownAvailability {
         read.current.contributingTransactions.isEmpty
@@ -358,7 +368,7 @@ extension BudgetDatabase {
 
     /// Actual's cumulative spending graphs use one bucket per calendar day
     /// through day 27, then fold day 28 through month-end into the final bucket.
-    private func reportExplorerCumulativePeriods(
+    private static func reportExplorerCumulativePeriods(
         query: ReportExplorerQuery
     ) -> [ReportExplorerPeriod] {
         guard query.interval == .day else { return query.periods }
@@ -394,7 +404,7 @@ extension BudgetDatabase {
         return periods
     }
 
-    private func reportExplorerBudgetedAmount(
+    private static func reportExplorerBudgetedAmount(
         for period: ReportExplorerPeriod,
         budgetedByMonth: [String: Int]
     ) throws -> Int {
@@ -427,5 +437,143 @@ extension BudgetDatabase {
             )
         }
         return amount
+    }
+
+    private static func reportExplorerActivityRead(
+        query: ReportExplorerQuery,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> ReportExplorerActivityRead {
+        let catalog = try ReportInputSQL.reportExplorerFilterCatalog(in: database, db: db)
+        let currentRequest = try reportExplorerTransactionRequest(
+            query: query,
+            startDay: query.startDay,
+            endDay: query.activityEndDay,
+            catalog: catalog
+        )
+        let current = try database.transactionDrilldown(currentRequest, db: db)
+        let history: TransactionDrilldownResult?
+        if let comparison = query.spendingAverageComparison,
+           let first = comparison.history.first,
+           let last = comparison.history.last {
+            let request = try reportExplorerTransactionRequest(
+                query: query,
+                startDay: first.startDay,
+                endDay: last.endDay,
+                catalog: catalog
+            )
+            history = try database.transactionDrilldown(request, db: db)
+        } else {
+            history = nil
+        }
+        return ReportExplorerActivityRead(
+            currentRequest: currentRequest,
+            current: current,
+            history: history,
+            catalog: catalog
+        )
+    }
+
+    static func reportExplorerTransactionRequest(
+        query: ReportExplorerQuery,
+        startDay: String,
+        endDay: String,
+        catalog: ReportExplorerFilterCatalog
+    ) throws -> TransactionDrilldownRequest {
+        guard let start = TransactionQueryDay(rawValue: startDay),
+              let end = TransactionQueryDay(rawValue: endDay) else {
+            throw ReportExplorerError.invalidRange
+        }
+        var conditions: [TransactionQueryCondition] = [
+            .date(TransactionQueryDateCondition(operation: .isOnOrAfter, day: start)),
+            .date(TransactionQueryDateCondition(operation: .isOnOrBefore, day: end)),
+            .account(.oneOf(reportExplorerAccountIDs(query: query, catalog: catalog).map { Optional($0) })),
+        ]
+        if let category = reportExplorerCategoryCondition(query: query, catalog: catalog) {
+            conditions.append(.category(category))
+        }
+        if query.metric == .cashFlow {
+            switch query.filters.transfers {
+            case .all: break
+            case .transfers:
+                conditions.append(query.filters.transferRule == .link ? .transfer(true) : .transferPayee(true))
+            case .nonTransfers:
+                conditions.append(query.filters.transferRule == .link ? .transfer(false) : .transferPayee(false))
+            }
+        }
+        return TransactionDrilldownRequest(
+            scope: .spending,
+            query: TransactionFeedQuery(conditions: conditions)
+        )
+    }
+
+    private static func reportExplorerAccountIDs(
+        query: ReportExplorerQuery,
+        catalog: ReportExplorerFilterCatalog
+    ) -> Set<String> {
+        let eligible = Set(catalog.accounts.lazy.filter {
+            query.filters.includesOffBudget || !$0.isOffBudget
+        }.map(\.id))
+        switch query.filters.accounts {
+        case .all:
+            return eligible
+        case .only(let selected):
+            return selected.intersection(eligible)
+        }
+    }
+
+    private static func reportExplorerCategoryIDs(
+        query: ReportExplorerQuery,
+        catalog: ReportExplorerFilterCatalog
+    ) -> Set<String> {
+        reportExplorerSelectedCategoryIDs(query: query, catalog: catalog, includesIncome: false)
+    }
+
+    /// One category-selection rule for both the budgeted-amount ids and the
+    /// transaction condition: hidden categories follow the filter, income
+    /// categories only count when `includesIncome`, and an explicit selection
+    /// is intersected with what is eligible.
+    private static func reportExplorerSelectedCategoryIDs(
+        query: ReportExplorerQuery,
+        catalog: ReportExplorerFilterCatalog,
+        includesIncome: Bool
+    ) -> Set<String> {
+        let eligible = Set(catalog.categories.lazy.filter {
+            (includesIncome || !$0.isIncome) && (query.filters.includesHiddenCategories || !$0.isHidden)
+        }.map(\.id))
+        switch query.filters.categories {
+        case .all:
+            return eligible
+        case .only(let selected):
+            return selected.intersection(eligible)
+        }
+    }
+
+    private static func reportExplorerCategoryCondition(
+        query: ReportExplorerQuery,
+        catalog: ReportExplorerFilterCatalog
+    ) -> TransactionQueryIDCondition? {
+        let selectedIDs = reportExplorerSelectedCategoryIDs(
+            query: query,
+            catalog: catalog,
+            includesIncome: query.metric == .cashFlow
+        )
+
+        if case .all = query.filters.categories,
+           query.filters.includesHiddenCategories,
+           query.filters.includesUncategorized {
+            let excludedIncome = catalog.categories.filter(\.isIncome).map { Optional($0.id) }
+            return query.metric == .cashFlow || excludedIncome.isEmpty
+                ? nil
+                : .notOneOf(excludedIncome)
+        }
+        var values = selectedIDs.map { Optional($0) }
+        if query.filters.includesUncategorized {
+            values.append(nil)
+        }
+        if values == [nil] {
+            return .equals(nil)
+        }
+        return .oneOf(values)
     }
 }

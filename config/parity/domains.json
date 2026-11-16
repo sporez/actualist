@@ -527,7 +527,10 @@
         "ReportOracleReplayTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+Report*.swift",
+        "Actualist/LocalFirst/Database/ReportInputSQL.swift",
+        "Actualist/LocalFirst/Database/ReportDashboardSQL.swift",
+        "Actualist/LocalFirst/Database/ReportExplorerSQL.swift",
+        "Actualist/LocalFirst/Database/ReportTransferAlignment.swift",
         "Actualist/LocalFirst/Database/ReportArithmetic.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+Reports.swift",
         "Actualist/Features/Reports/ReportsModels.swift",

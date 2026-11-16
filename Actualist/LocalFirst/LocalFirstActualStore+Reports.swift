@@ -22,7 +22,7 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let revision = cachePublicationRevision
-        let snapshot = try await database.fetchReportsDashboard(range: range)
+        let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(range: range, in: database)
         #if DEBUG
         await testSeams?.readPublicationHook?(.reportsDashboard)
         #endif
@@ -39,7 +39,7 @@ extension LocalFirstActualStore {
     ) async throws -> ReportExplorerSnapshot {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let snapshot = try await database.fetchReportExplorer(query: query)
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: query, in: database)
         guard reportExplorerSessionIsCurrent(
             database: database,
             budgetID: budgetID,

@@ -11,13 +11,13 @@ struct ReportSpendingEquivalenceTests {
     @Test func dashboardAndExplorerAgreeOnSpendingForTheSameFixture() async throws {
         let database = try BudgetDatabase(databaseURL: ReportExplorerTests().makeFixture())
         let range = ReportDateRange(anchorMonth: "2026-01", startDay: "2025-08-01", endDay: "2026-01-23")
-        let dashboard = try await database.fetchReportsDashboard(range: range)
-        let explorer = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let dashboard = try await ReportDashboardSQL.fetchReportsDashboard(range: range, in: database)
+        let explorer = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spending,
             startDay: "2026-01-01",
             endDay: "2026-01-23",
             interval: .day
-        ))
+        ), in: database)
 
         #expect(explorer.points.count == 23)
         let explorerCumulative = explorer.points.map(\.expenses).reduce(into: [Int]()) { result, value in
@@ -33,22 +33,22 @@ struct ReportSpendingEquivalenceTests {
     @Test func dashboardAndDefaultExplorerAgreeOnNetWorthIncludingOffBudgetAccounts() async throws {
         let database = try BudgetDatabase(databaseURL: ReportExplorerTests().makeFixture())
         let range = ReportDateRange(anchorMonth: "2026-01", startDay: "2025-08-01", endDay: "2026-01-23")
-        let dashboard = try await database.fetchReportsDashboard(range: range)
-        let explorer = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let dashboard = try await ReportDashboardSQL.fetchReportsDashboard(range: range, in: database)
+        let explorer = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .netWorth,
             startDay: "2025-08-01",
             endDay: "2026-01-31",
             interval: .month
-        ))
+        ), in: database)
         var onBudgetFilters = explorer.query.filters
         onBudgetFilters.includesOffBudget = false
-        let onBudgetOnly = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let onBudgetOnly = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .netWorth,
             startDay: "2025-08-01",
             endDay: "2026-01-31",
             interval: .month,
             filters: onBudgetFilters
-        ))
+        ), in: database)
 
         #expect(explorer.totals.endingBalance == dashboard.netWorth.balance)
         #expect(onBudgetOnly.totals.endingBalance != dashboard.netWorth.balance)
@@ -59,28 +59,28 @@ struct ReportSpendingEquivalenceTests {
     @Test func calendarDetailCountsTheSameOffBudgetAndTransferRowsAsItsCard() async throws {
         let database = try BudgetDatabase(databaseURL: ReportExplorerTests().makeFixture())
         let range = ReportDateRange(anchorMonth: "2026-01", startDay: "2025-08-01", endDay: "2026-01-23")
-        let dashboard = try await database.fetchReportsDashboard(range: range)
+        let dashboard = try await ReportDashboardSQL.fetchReportsDashboard(range: range, in: database)
         let calendarMonth = try #require(dashboard.transactionCalendar.last)
         let defaults = ReportCardKind.transactionCalendar.explorerDefaultFilters(
             calendarTransfers: dashboard.calendarTransfers
         )
-        let explorer = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let explorer = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .cashFlow,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
             interval: .month,
             filters: defaults
-        ))
+        ), in: database)
         var cashFlowRules = defaults
         cashFlowRules.includesOffBudget = false
         cashFlowRules.transfers = .nonTransfers
-        let cashFlow = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let cashFlow = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .cashFlow,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
             interval: .month,
             filters: cashFlowRules
-        ))
+        ), in: database)
 
         #expect(dashboard.calendarTransfers == .all)
         #expect(explorer.totals.income == calendarMonth.income)

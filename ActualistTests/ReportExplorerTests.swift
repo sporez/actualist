@@ -81,7 +81,7 @@ struct ReportExplorerTests {
             interval: .day
         )
 
-        let snapshot = try await database.fetchReportExplorer(query: query)
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: query, in: database)
 
         #expect(snapshot.points.count == 1)
         #expect(snapshot.points[0].income == 52_500)
@@ -91,12 +91,12 @@ struct ReportExplorerTests {
         #expect(snapshot.totals.expenses == 13_000)
         #expect(snapshot.totals.net == 39_500)
 
-        let transferOnly = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let transferOnly = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .cashFlow,
             startDay: "2026-01-21",
             endDay: "2026-01-23",
             interval: .day
-        ))
+        ), in: database)
         #expect(transferOnly.points.allSatisfy { $0.income == 0 && $0.expenses == 0 })
         #expect(!transferOnly.hasData)
     }
@@ -110,7 +110,7 @@ struct ReportExplorerTests {
             interval: .day
         )
 
-        let snapshot = try await database.fetchReportExplorer(query: query)
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: query, in: database)
 
         #expect(snapshot.points.map(\.expenses) == [11_000, 2_000, 0, -2_000])
         #expect(snapshot.totals.income == 0)
@@ -132,30 +132,30 @@ struct ReportExplorerTests {
             interval: .day
         )
 
-        let snapshot = try await database.fetchReportExplorer(query: monthToDate)
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: monthToDate, in: database)
 
         #expect(snapshot.points.map(\.expenses) == [0, 2_000, 2_000])
         #expect(snapshot.points.map(\.budgeted) == [1_000, 2_000, 3_000])
         #expect(snapshot.totals.expenses == 2_000)
         #expect(snapshot.totals.budgeted == 3_000)
 
-        let partialRange = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let partialRange = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .budgetOverview,
             startDay: "2026-01-02",
             endDay: "2026-01-03",
             interval: .day
-        ))
+        ), in: database)
         #expect(partialRange.points.map(\.expenses) == [2_000, 2_000])
         #expect(partialRange.points.map(\.budgeted) == [1_000, 2_000])
         #expect(partialRange.totals.expenses == 2_000)
         #expect(partialRange.totals.budgeted == 2_000)
 
-        let fullMonth = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let fullMonth = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .budgetOverview,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
             interval: .day
-        ))
+        ), in: database)
         #expect(fullMonth.points.count == 28)
         #expect(fullMonth.points.last?.period == ReportExplorerPeriod(
             startDay: "2026-01-28",
@@ -175,34 +175,34 @@ struct ReportExplorerTests {
             INSERT INTO transactions VALUES ('dec-end', 'checking', 20251231, -3000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
             """))
 
-        let monthToDate = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let monthToDate = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spendingAverage,
             startDay: "2026-01-01",
             endDay: "2026-01-15",
             interval: .day
-        ))
+        ), in: database)
         #expect(monthToDate.points.last?.expenses == 0)
         #expect(monthToDate.points.last?.comparison == 30_000)
         #expect(monthToDate.totals.averageSpending == 30_000)
 
-        let throughDay30 = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let throughDay30 = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spendingAverage,
             startDay: "2026-01-01",
             endDay: "2026-01-30",
             interval: .day
-        ))
+        ), in: database)
         #expect(throughDay30.points.last?.period == ReportExplorerPeriod(
             startDay: "2026-01-28",
             endDay: "2026-01-30"
         ))
         #expect(throughDay30.points.last?.comparison == 33_000)
 
-        let throughDay31 = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let throughDay31 = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spendingAverage,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
             interval: .day
-        ))
+        ), in: database)
         #expect(throughDay31.points.last?.expenses == 11_000)
         #expect(throughDay31.points.last?.comparison == 33_000)
     }
@@ -214,12 +214,12 @@ struct ReportExplorerTests {
                 'groceries', NULL, 0, NULL, 0, 0, NULL
             );
             """))
-        let snapshot = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spendingAverage,
             startDay: "2026-01-01",
             endDay: "2026-01-15",
             interval: .day
-        ))
+        ), in: database)
 
         #expect(snapshot.points.last?.expenses == 5_000)
         #expect(snapshot.points.last?.comparison == 0)
@@ -242,7 +242,7 @@ struct ReportExplorerTests {
 
         let database = try BudgetDatabase(databaseURL: makeFixture())
         await #expect(throws: ReportExplorerError.spendingAverageRequiresSingleMonth) {
-            _ = try await database.fetchReportExplorer(query: query)
+            _ = try await ReportExplorerSQL.fetchReportExplorer(query: query, in: database)
         }
     }
 
@@ -276,7 +276,7 @@ struct ReportExplorerTests {
             filters: onBudgetOnly
         )
 
-        let snapshot = try await database.fetchReportExplorer(query: query)
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: query, in: database)
 
         #expect(snapshot.points.map(\.endingBalance) == [139_500, 139_500])
         #expect(snapshot.totals.openingBalance == 100_000)
@@ -300,13 +300,13 @@ struct ReportExplorerTests {
             includesHiddenCategories: false,
             includesUncategorized: false
         )
-        let snapshot = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spending,
             startDay: "2026-01-20",
             endDay: "2026-01-23",
             interval: .day,
             filters: filters
-        ))
+        ), in: database)
         let request = try #require(snapshot.drilldown.request)
         let result = try await database.fetchTransactionDrilldown(request)
         let signedContributorTotal = try ReportArithmetic.sum(
@@ -324,7 +324,7 @@ struct ReportExplorerTests {
         #expect(snapshot.filterCatalog.accounts.contains { $0.id == "closed" && $0.isClosed })
         #expect(snapshot.filterCatalog.categories.contains { $0.id == "hidden-food" && $0.isHidden })
 
-        let hiddenExcluded = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let hiddenExcluded = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spending,
             startDay: "2026-01-20",
             endDay: "2026-01-20",
@@ -336,8 +336,8 @@ struct ReportExplorerTests {
                 includesHiddenCategories: false,
                 includesUncategorized: false
             )
-        ))
-        let hiddenIncluded = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        ), in: database)
+        let hiddenIncluded = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spending,
             startDay: "2026-01-20",
             endDay: "2026-01-20",
@@ -349,14 +349,14 @@ struct ReportExplorerTests {
                 includesHiddenCategories: true,
                 includesUncategorized: false
             )
-        ))
+        ), in: database)
         #expect(hiddenExcluded.totals.expenses == 0)
         #expect(hiddenIncluded.totals.expenses == 700)
     }
 
     @Test func emptyExplicitSelectionsMatchNothingAndOffBudgetRequiresOptIn() async throws {
         let database = try BudgetDatabase(databaseURL: makeFixture())
-        let empty = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let empty = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spending,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
@@ -368,12 +368,12 @@ struct ReportExplorerTests {
                 includesHiddenCategories: true,
                 includesUncategorized: true
             )
-        ))
+        ), in: database)
         #expect(empty.totals.expenses == 0)
         #expect(empty.drilldown == .unavailable(.noContributingTransactions))
         #expect(empty.activityQuerySignature != nil)
 
-        let optedIn = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let optedIn = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spending,
             startDay: "2026-01-23",
             endDay: "2026-01-23",
@@ -385,13 +385,13 @@ struct ReportExplorerTests {
                 includesHiddenCategories: true,
                 includesUncategorized: true
             )
-        ))
+        ), in: database)
         #expect(optedIn.totals.expenses == 999)
     }
 
     @Test func closedAccountsRemainSelectableWhileDeletedReferencesMatchNothing() async throws {
         let database = try BudgetDatabase(databaseURL: makeFixture())
-        let closed = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let closed = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .cashFlow,
             startDay: "2026-01-20",
             endDay: "2026-01-20",
@@ -403,8 +403,8 @@ struct ReportExplorerTests {
                 includesHiddenCategories: true,
                 includesUncategorized: true
             )
-        ))
-        let deletedReference = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        ), in: database)
+        let deletedReference = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spending,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
@@ -416,7 +416,7 @@ struct ReportExplorerTests {
                 includesHiddenCategories: true,
                 includesUncategorized: true
             )
-        ))
+        ), in: database)
 
         #expect(closed.totals.income == 500)
         #expect(deletedReference.totals.expenses == 0)
@@ -424,7 +424,7 @@ struct ReportExplorerTests {
 
     @Test func budgetOverviewAccountSubsetFiltersSpendingButNotCategoryScopedBudget() async throws {
         let database = try BudgetDatabase(databaseURL: makeFixture())
-        let snapshot = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .budgetOverview,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
@@ -436,7 +436,7 @@ struct ReportExplorerTests {
                 includesHiddenCategories: true,
                 includesUncategorized: true
             )
-        ))
+        ), in: database)
 
         #expect(snapshot.totals.expenses == -2_000)
         #expect(snapshot.totals.budgeted == 31_000)
@@ -449,12 +449,12 @@ struct ReportExplorerTests {
             INSERT INTO zero_budgets VALUES (202601, 'old-category', 5000);
             INSERT INTO zero_budgets VALUES (202601, 'salary', 90000);
             """))
-        let snapshot = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .budgetOverview,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
             interval: .month
-        ))
+        ), in: database)
 
         #expect(snapshot.totals.budgeted == 31_000)
     }
@@ -466,7 +466,7 @@ struct ReportExplorerTests {
             INSERT INTO transactions VALUES ('nov', 'checking', 20251110, -6000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
             INSERT INTO transactions VALUES ('dec', 'checking', 20251210, -9000, 'groceries', NULL, 0, NULL, 0, 0, NULL);
             """))
-        let snapshot = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let snapshot = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .spendingAverage,
             startDay: "2026-01-01",
             endDay: "2026-01-15",
@@ -478,7 +478,7 @@ struct ReportExplorerTests {
                 includesHiddenCategories: true,
                 includesUncategorized: false
             )
-        ))
+        ), in: database)
         let current = try #require(snapshot.drilldown.request)
         let historySignature = try #require(snapshot.historyQuerySignature)
 
@@ -564,7 +564,7 @@ struct ReportExplorerTests {
         )
 
         await #expect(throws: ReportExplorerError.invalidRange) {
-            _ = try await database.fetchReportExplorer(query: query)
+            _ = try await ReportExplorerSQL.fetchReportExplorer(query: query, in: database)
         }
     }
 

@@ -21,7 +21,7 @@ extension LocalFirstActualStore {
         let accounts = try? await database.fetchAccountDisplays()
         let maps = try? await nameMaps(database)
         let recent = try? await database.fetchTransactionPage(limit: 16, splits: .grouped).transactions
-        let netWorth = try? await database.fetchNetWorthReport(range: .dashboard(through: now))
+        let netWorth = try? await ReportDashboardSQL.fetchNetWorthReport(range: .dashboard(through: now), in: database)
         let attention: WidgetAttentionSnapshot?
         if let maps,
            let uncategorized = try? await database.fetchUncategorizedTransactions() {

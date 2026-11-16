@@ -34,7 +34,7 @@ extension LocalFirstActualStoreTests {
         let source = try await store.fetchWidgetSource(budgetID: "group-1", now: now)
         let accounts = try await database.fetchAccountDisplays()
         let transactions = try await database.fetchTransactionPage(limit: 16, splits: .grouped).transactions
-        let reports = try await database.fetchReportsDashboard(range: .dashboard(through: now))
+        let reports = try await ReportDashboardSQL.fetchReportsDashboard(range: .dashboard(through: now), in: database)
         #expect(source.accounts == accounts)
         #expect(source.recentTransactions == transactions)
         #expect(source.netWorth == reports.netWorth)

@@ -12,20 +12,20 @@ extension ReportExplorerTests {
             """))
 
         for selection in [ReportFilterSelection.only([]), .only(["deleted-category"])] {
-            let excluded = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            let excluded = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
                 metric: .spending,
                 startDay: "2026-01-20",
                 endDay: "2026-01-23",
                 interval: .day,
                 filters: categoryFilters(selection: selection, includesUncategorized: false)
-            ))
-            let included = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+            ), in: database)
+            let included = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
                 metric: .spending,
                 startDay: "2026-01-20",
                 endDay: "2026-01-23",
                 interval: .day,
                 filters: categoryFilters(selection: selection, includesUncategorized: true)
-            ))
+            ), in: database)
 
             #expect(excluded.totals.expenses == 0)
             #expect(included.totals.expenses == 321)
@@ -43,24 +43,24 @@ extension ReportExplorerTests {
             INSERT INTO transactions VALUES ('history-wrong-category', 'checking', 20251010, -3000, 'salary', NULL, 0, NULL, 0, 0, NULL);
             """))
 
-        let cashFlow = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let cashFlow = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .cashFlow,
             startDay: "2026-01-20",
             endDay: "2026-01-20",
             interval: .day
-        ))
+        ), in: database)
         let cashResult = try await drilldown(cashFlow, database: database)
         let cashContributorTotal = try ReportArithmetic.sum(
             cashResult.contributingTransactions.compactMap(\.amount)
         )
         #expect(cashFlow.totals.net == cashContributorTotal)
 
-        let budgetOverview = try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        let budgetOverview = try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .budgetOverview,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
             interval: .month
-        ))
+        ), in: database)
         let budgetResult = try await drilldown(budgetOverview, database: database)
         let budgetContributorTotal = try ReportArithmetic.sum(
             budgetResult.contributingTransactions.compactMap(\.amount)
@@ -80,7 +80,7 @@ extension ReportExplorerTests {
                 includesUncategorized: false
             )
         )
-        let average = try await database.fetchReportExplorer(query: averageQuery)
+        let average = try await ReportExplorerSQL.fetchReportExplorer(query: averageQuery, in: database)
         let currentResult = try await drilldown(average, database: database)
         let currentContributorTotal = try ReportArithmetic.sum(
             currentResult.contributingTransactions.compactMap(\.amount)
@@ -88,7 +88,7 @@ extension ReportExplorerTests {
         #expect(average.totals.expenses == 0 - currentContributorTotal)
 
         let comparison = try #require(averageQuery.spendingAverageComparison)
-        let historyRequest = try await database.reportExplorerTransactionRequest(
+        let historyRequest = try ReportExplorerSQL.reportExplorerTransactionRequest(
             query: averageQuery,
             startDay: try #require(comparison.history.first).startDay,
             endDay: try #require(comparison.history.last).endDay,
@@ -168,7 +168,7 @@ extension ReportExplorerTests {
         accounts: ReportFilterSelection,
         includesOffBudget: Bool
     ) async throws -> ReportExplorerSnapshot {
-        try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: .netWorth,
             startDay: "2026-01-01",
             endDay: "2026-01-31",
@@ -180,6 +180,6 @@ extension ReportExplorerTests {
                 includesHiddenCategories: true,
                 includesUncategorized: true
             )
-        ))
+        ), in: database)
     }
 }

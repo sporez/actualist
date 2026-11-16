@@ -127,11 +127,11 @@ struct ReportTransferAlignmentTests {
         }
         let database = try BudgetDatabase(databaseURL: url)
         let all = try await read(database) { (database: isolated BudgetDatabase, db: Database) in
-            try database.reportTransferLegs(accountIDs: nil, db: db)
+            try ReportInputSQL.reportTransferLegs(accountIDs: nil, in: database, db: db)
         }
         #expect(all.map(\.id).sorted() == ["in", "out"])
         let checking = try await read(database) { (database: isolated BudgetDatabase, db: Database) in
-            try database.reportTransferLegs(accountIDs: ["checking"], db: db)
+            try ReportInputSQL.reportTransferLegs(accountIDs: ["checking"], in: database, db: db)
         }
         #expect(checking.map(\.id) == ["out"])
         #expect(checking.first == ReportTransferLeg(

@@ -3,7 +3,8 @@ import GRDB
 @testable import Actualist
 
 /// Replays the Reports oracle contract through the production report reads: the dashboard
-/// (`fetchReportsDashboard`, `fetchNetWorthReport`) and the explorer (`fetchReportExplorer`), on a
+/// (`ReportDashboardSQL.fetchReportsDashboard`, `fetchNetWorthReport`) and the explorer
+/// (`ReportExplorerSQL.fetchReportExplorer`), on a
 /// starter-schema budget seeded from the fixture's world dump. The compared and excluded parts are
 /// documented in `scripts/report-parity/README.md`.
 ///
@@ -249,13 +250,13 @@ enum ReportOracleReplay {
         interval: ReportInterval,
         filters: ReportExplorerFilters
     ) async throws -> ReportExplorerSnapshot {
-        try await database.fetchReportExplorer(query: ReportExplorerQuery(
+        try await ReportExplorerSQL.fetchReportExplorer(query: ReportExplorerQuery(
             metric: metric,
             startDay: startDay,
             endDay: endDay,
             interval: interval,
             filters: filters
-        ))
+        ), in: database)
     }
 
     private static func periodKey(_ point: ReportExplorerPoint, interval: ReportInterval) -> String {
@@ -304,7 +305,7 @@ enum ReportOracleReplay {
                 startDay: monthStart(startMonth),
                 endDay: monthEnd(endMonth)
             )
-            let report = try await database.fetchNetWorthReport(range: range)
+            let report = try await ReportDashboardSQL.fetchNetWorthReport(range: range, in: database)
             fields["dashboard"] = .object([
                 "points": list(report.points.map { point in
                     .object(["period": .string(String(point.dayID.prefix(7))), "y": number(point.value)])
@@ -359,7 +360,7 @@ enum ReportOracleReplay {
                 startDay: monthStart(ReportCalendar.shiftedMonth(endMonth, by: -5)),
                 endDay: endDay
             )
-            let dashboard = try await database.fetchReportsDashboard(range: range)
+            let dashboard = try await ReportDashboardSQL.fetchReportsDashboard(range: range, in: database)
             fields["dashboard"] = .object([
                 "income": number(dashboard.cashFlow.income),
                 "expenses": negated(dashboard.cashFlow.expenses),
@@ -435,7 +436,7 @@ enum ReportOracleReplay {
         ]
         if (input["conditions"] as? [Any])?.isEmpty ?? true {
             let range = dashboardRange(compare: compare, endDay: toDate, today: today)
-            let dashboard = try await database.fetchReportsDashboard(range: range)
+            let dashboard = try await ReportDashboardSQL.fetchReportsDashboard(range: range, in: database)
             let comparison = dashboard.monthComparison.points
             let overview = dashboard.budgetOverview
             let average = dashboard.threeMonthAverage.points
@@ -474,7 +475,7 @@ enum ReportOracleReplay {
             startDay: monthStart(ReportCalendar.shiftedMonth(endMonth, by: -5)),
             endDay: monthEnd(endMonth)
         )
-        let dashboard = try await database.fetchReportsDashboard(range: range)
+        let dashboard = try await ReportDashboardSQL.fetchReportsDashboard(range: range, in: database)
         // The calendar card's filters, as the card opens its detail (transfer rule: the link).
         let filters = ReportCardKind.transactionCalendar.explorerDefaultFilters(
             calendarTransfers: dashboard.calendarTransfers

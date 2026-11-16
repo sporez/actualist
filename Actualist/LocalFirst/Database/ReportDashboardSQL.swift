@@ -7,36 +7,37 @@ private struct RawCalendarActivityDay: Sendable {
     let amount: Int
 }
 
-extension BudgetDatabase {
-    func fetchNetWorthReport(range: ReportDateRange) throws -> NetWorthReport {
+enum ReportDashboardSQL {
+    static func fetchNetWorthReport(range: ReportDateRange, in database: isolated BudgetDatabase) throws -> NetWorthReport {
         let end = ReportCalendar.dayID(month: range.anchorMonth, day: max(ReportCalendar.days(in: range.anchorMonth), 1))
-        let rows = try queue.read { db in try reportNetWorthDays(through: end, db: db) }
+        let rows = try database.queue.read { db in try reportNetWorthDays(through: end, in: database, db: db) }
         return try buildNetWorth(range: range, rows: rows)
     }
 
-    func fetchReportsDashboard(range: ReportDateRange) throws -> ReportsDashboardSnapshot {
+    static func fetchReportsDashboard(range: ReportDateRange, in database: isolated BudgetDatabase) throws -> ReportsDashboardSnapshot {
         let anchorMonthEnd = ReportCalendar.dayID(
             month: range.anchorMonth,
             day: max(ReportCalendar.days(in: range.anchorMonth), 1)
         )
         let calendarStartMonth = ReportCalendar.shiftedMonth(range.anchorMonth, by: -2)
         let calendarStartDay = ReportCalendar.dayID(month: calendarStartMonth, day: 1)
-        let raw = try queue.read { db in
-            let calendarTransferFilter = try reportCalendarTransferFilter(db: db)
+        let raw = try database.queue.read { db in
+            let calendarTransferFilter = try reportCalendarTransferFilter(in: database, db: db)
             return (
                 calendarTransfers: calendarTransferFilter,
                 firstWeekday: ReportCalendar.firstWeekdayIndex(
-                    preference: try SyncedPreferences.value(.firstDayOfWeekIdx, in: self, db: db)
+                    preference: try SyncedPreferences.value(.firstDayOfWeekIdx, in: database, db: db)
                 ),
-                netWorth: try reportNetWorthDays(through: anchorMonthEnd, db: db),
-                activity: try reportActivityDays(from: range.startDay, through: anchorMonthEnd, db: db),
+                netWorth: try reportNetWorthDays(through: anchorMonthEnd, in: database, db: db),
+                activity: try ReportInputSQL.reportActivityDays(from: range.startDay, through: anchorMonthEnd, in: database, db: db),
                 calendarActivity: try reportCalendarActivityDays(
                     from: calendarStartDay,
                     through: anchorMonthEnd,
                     transferFilter: calendarTransferFilter,
+                    in: database,
                     db: db
                 ),
-                budgetedExpenses: try reportBudgetedExpenses(month: range.anchorMonth, db: db)
+                budgetedExpenses: try ReportInputSQL.reportBudgetedExpenses(month: range.anchorMonth, in: database, db: db)
             )
         }
         return try buildReportsDashboard(
@@ -50,15 +51,15 @@ extension BudgetDatabase {
         )
     }
 
-    private func reportNetWorthDays(through endDay: String, db: Database) throws -> [RawNetWorthDay] {
-        guard try tableExists("transactions", db: db), try tableExists("accounts", db: db) else {
+    private static func reportNetWorthDays(through endDay: String, in database: isolated BudgetDatabase, db: Database) throws -> [RawNetWorthDay] {
+        guard try database.tableExists("transactions", db: db), try database.tableExists("accounts", db: db) else {
             return []
         }
 
-        let transactionColumns = try columnSet(for: "transactions", db: db)
-        let accountColumns = try columnSet(for: "accounts", db: db)
+        let transactionColumns = try database.columnSet(for: "transactions", db: db)
+        let accountColumns = try database.columnSet(for: "accounts", db: db)
         let split = TransactionSplitQueryExpressions(columns: transactionColumns)
-        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let normalizedDate = database.normalizedDateExpression(split.qualifiedDate)
 
         let rows = try Row.fetchAll(
             db,
@@ -68,7 +69,7 @@ extension BudgetDatabase {
                 JOIN accounts a ON a.id = \(split.qualifiedAccount)
                 \(split.parentJoin())
                 WHERE \(split.liveInlinePredicate())
-                  AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
+                  AND \(database.predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
                   AND \(normalizedDate) <= ?
                 GROUP BY \(normalizedDate)
                 ORDER BY \(normalizedDate)
@@ -85,76 +86,26 @@ extension BudgetDatabase {
         }
         return try ReportTransferAlignment.align(
             days,
-            legs: try reportTransferLegs(accountIDs: nil, db: db),
+            legs: try ReportInputSQL.reportTransferLegs(accountIDs: nil, in: database, db: db),
             through: endDay
         )
     }
 
-    /// Every live transfer-linked row in a live account, optionally limited to
-    /// `accountIDs`, in one read. No date bound: a leg after the report's end still
-    /// tells the alignment to drop its mate's amount.
-    func reportTransferLegs(accountIDs: Set<String>?, db: Database) throws -> [ReportTransferLeg] {
-        guard try tableExists("transactions", db: db), try tableExists("accounts", db: db) else {
-            return []
-        }
-        let transactionColumns = try columnSet(for: "transactions", db: db)
-        guard let transferColumn = TransactionRowColumns.transferID(in: transactionColumns) else {
-            return []
-        }
-        let accountColumns = try columnSet(for: "accounts", db: db)
-        let split = TransactionSplitQueryExpressions(columns: transactionColumns)
-        let sortedAccountIDs = accountIDs?.sorted() ?? []
-        let accountFilter = accountIDs == nil
-            ? ""
-            : "AND \(split.qualifiedAccount) IN (\(Array(repeating: "?", count: sortedAccountIDs.count).joined(separator: ", ")))"
-        if accountIDs != nil, sortedAccountIDs.isEmpty { return [] }
-        let rows = try Row.fetchAll(
-            db,
-            sql: """
-                SELECT t.id AS id,
-                       t.\(transferColumn) AS transfer_id,
-                       \(split.qualifiedAccount) AS account,
-                       \(split.qualifiedAmount) AS amount,
-                       \(normalizedDateExpression(split.qualifiedDate)) AS day
-                FROM transactions t
-                JOIN accounts a ON a.id = \(split.qualifiedAccount)
-                \(split.parentJoin())
-                WHERE \(split.liveInlinePredicate())
-                  AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
-                  AND t.\(transferColumn) IS NOT NULL
-                  \(accountFilter)
-                """,
-            arguments: StatementArguments(sortedAccountIDs)
-        )
-        return rows.compactMap { row in
-            guard let id = SQLiteValueCoercion.lenientString(row["id"]),
-                  let transferID = SQLiteValueCoercion.lenientString(row["transfer_id"]),
-                  let account = SQLiteValueCoercion.lenientString(row["account"]),
-                  let day = SQLiteValueCoercion.lenientString(row["day"]) else { return nil }
-            return ReportTransferLeg(
-                id: id,
-                transferID: transferID,
-                accountID: account,
-                amount: row["amount"] ?? 0,
-                dayID: day
-            )
-        }
-    }
-
-    private func reportCalendarActivityDays(
+    private static func reportCalendarActivityDays(
         from startDay: String,
         through endDay: String,
         transferFilter: ReportTransferFilter,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [RawCalendarActivityDay] {
-        guard try tableExists("transactions", db: db), try tableExists("accounts", db: db) else {
+        guard try database.tableExists("transactions", db: db), try database.tableExists("accounts", db: db) else {
             return []
         }
 
-        let transactionColumns = try columnSet(for: "transactions", db: db)
-        let accountColumns = try columnSet(for: "accounts", db: db)
+        let transactionColumns = try database.columnSet(for: "transactions", db: db)
+        let accountColumns = try database.columnSet(for: "accounts", db: db)
         let split = TransactionSplitQueryExpressions(columns: transactionColumns)
-        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let normalizedDate = database.normalizedDateExpression(split.qualifiedDate)
         let isInflowExpression = "CASE WHEN \(split.qualifiedAmount) > 0 THEN 1 ELSE 0 END"
         let transferPredicate: String
         if let transferredID = TransactionRowColumns.transferID(in: transactionColumns) {
@@ -180,7 +131,7 @@ extension BudgetDatabase {
                 JOIN accounts a ON a.id = \(split.qualifiedAccount)
                 \(split.parentJoin())
                 WHERE \(split.liveInlinePredicate())
-                  AND \(predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
+                  AND \(database.predicateForLiveRows(columns: accountColumns, tableAlias: "a"))
                   AND \(normalizedDate) BETWEEN ? AND ?
                   AND (\(transferPredicate))
                 GROUP BY \(normalizedDate), \(isInflowExpression)
@@ -199,9 +150,9 @@ extension BudgetDatabase {
         }
     }
 
-    private func reportCalendarTransferFilter(db: Database) throws -> ReportTransferFilter {
-        guard try tableExists("dashboard", db: db) else { return .all }
-        let columns = try columnSet(for: "dashboard", db: db)
+    private static func reportCalendarTransferFilter(in database: isolated BudgetDatabase, db: Database) throws -> ReportTransferFilter {
+        guard try database.tableExists("dashboard", db: db) else { return .all }
+        let columns = try database.columnSet(for: "dashboard", db: db)
         guard columns.contains("type"), columns.contains("meta") else { return .all }
         let ordering = ["y", "x"].filter(columns.contains).joined(separator: ", ")
         let orderClause = ordering.isEmpty ? "" : "ORDER BY \(ordering)"
@@ -210,7 +161,7 @@ extension BudgetDatabase {
             sql: """
                 SELECT meta
                 FROM dashboard
-                WHERE \(predicateForLiveRows(columns: columns))
+                WHERE \(database.predicateForLiveRows(columns: columns))
                   AND type = 'calendar-card'
                 \(orderClause)
                 LIMIT 1
@@ -234,7 +185,7 @@ extension BudgetDatabase {
         return .all
     }
 
-    private func buildReportsDashboard(
+    private static func buildReportsDashboard(
         range: ReportDateRange,
         netWorthDays: [RawNetWorthDay],
         activityDays: [RawReportActivityDay],
@@ -287,7 +238,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func buildNetWorth(range: ReportDateRange, rows: [RawNetWorthDay]) throws -> NetWorthReport {
+    private static func buildNetWorth(range: ReportDateRange, rows: [RawNetWorthDay]) throws -> NetWorthReport {
         let rangeStartMonth = String(range.startDay.prefix(7))
         let pointStartMonth = rows.contains(where: { $0.dayID < range.startDay })
             ? ReportCalendar.shiftedMonth(rangeStartMonth, by: -1)
@@ -316,7 +267,7 @@ extension BudgetDatabase {
 
     /// The anchor month is counted whole, as Actual's monthly cash flow does
     /// (`cashFlowByDate` compares `$month <= end`); the activity read already stops at its end.
-    private func buildCashFlow(
+    private static func buildCashFlow(
         range: ReportDateRange,
         activityByDay: [String: ReportDailyActivity]
     ) throws -> CashFlowSummary {
@@ -335,7 +286,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func buildMonthComparison(
+    private static func buildMonthComparison(
         range: ReportDateRange,
         activityByDay: [String: ReportDailyActivity]
     ) throws -> MonthComparisonReport {
@@ -387,7 +338,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func buildBudgetOverview(
+    private static func buildBudgetOverview(
         range: ReportDateRange,
         activityByDay: [String: ReportDailyActivity],
         budgetedExpenses: Int
@@ -428,7 +379,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func buildThreeMonthAverage(
+    private static func buildThreeMonthAverage(
         range: ReportDateRange,
         activityByDay: [String: ReportDailyActivity]
     ) throws -> ThreeMonthAverageReport {
@@ -484,7 +435,7 @@ extension BudgetDatabase {
     }
 
     // Actual folds day 28 through month-end into the last of 28 buckets.
-    private func spending(
+    private static func spending(
         in month: String,
         dayBucket: Int,
         activityByDay: [String: ReportDailyActivity]
@@ -500,7 +451,7 @@ extension BudgetDatabase {
         return result
     }
 
-    private func buildTransactionCalendar(
+    private static func buildTransactionCalendar(
         range: ReportDateRange,
         activityDays: [RawCalendarActivityDay],
         firstWeekday: Int
