@@ -7,12 +7,13 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle()
         let database = try #require(bundle.store.database)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.makeBankSyncCompletionMessages(
+        let messages = try await BankSyncRunSQL.makeBankSyncCompletionMessages(
             accountID: "checking",
             lastSyncEpochMilliseconds: nil,
             status: .failed,
             balanceDisposition: .preserve,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(

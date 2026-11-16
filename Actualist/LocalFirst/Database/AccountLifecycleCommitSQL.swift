@@ -50,9 +50,10 @@ enum AccountLifecycleCommitSQL {
             var builder = LocalFirstSyncMessageBuilder()
             var drafts: [ActualSyncDecodedMessage] = []
             if fresh.bankLink != nil {
-                drafts += try database.makeBankSyncUnlinkMessages(
+                drafts += try BankSyncLinkSQL.makeBankSyncUnlinkMessages(
                     accountID: fresh.account.id,
                     builder: &builder,
+                    in: database,
                     db: db
                 )
             }

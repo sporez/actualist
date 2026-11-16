@@ -402,10 +402,11 @@ extension LocalFirstActualStoreTests {
             childIDs: []
         )
 
-        let messages = try await database.makeBankSyncMatchUpdateMessages(
+        let messages = try await BankSyncMatchSQL.makeBankSyncMatchUpdateMessages(
             update: update,
             existing: existing,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
 
         #expect(!messages.contains { $0.column == "category" })
@@ -631,11 +632,12 @@ extension LocalFirstActualStoreTests {
             childIDs: []
         )
 
-        let messages = try await database.makeBankSyncMatchUpdateMessages(
+        let messages = try await BankSyncMatchSQL.makeBankSyncMatchUpdateMessages(
             update: update,
             existing: existing,
             accountIsOffBudget: true,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
 
         #expect(!messages.contains { $0.column == "category" })

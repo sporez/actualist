@@ -230,10 +230,11 @@ extension LocalFirstActualStore {
     ) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.makeBankSyncLinkMessages(
+        let messages = try await BankSyncLinkSQL.makeBankSyncLinkMessages(
             accountID: localAccountID,
             remote: remote,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         bankSyncGenerationByAccount[localAccountID] = nil
@@ -244,7 +245,7 @@ extension LocalFirstActualStore {
     /// transactions. Other provider metadata is outside this mutation path.
     func unlinkBankAccount(_ localAccountID: String, budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
-        guard let linked = try await database.bankSyncLinkedAccounts()
+        guard let linked = try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
             .first(where: { $0.id == localAccountID }) else {
             throw BankSyncStoreError.notLinked
         }
@@ -252,9 +253,10 @@ extension LocalFirstActualStore {
             throw BankSyncStoreError.notSimpleFINLinked
         }
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.makeBankSyncUnlinkMessages(
+        let messages = try await BankSyncLinkSQL.makeBankSyncUnlinkMessages(
             accountID: localAccountID,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
         bankSyncGenerationByAccount[localAccountID] = nil
@@ -288,27 +290,29 @@ extension LocalFirstActualStore {
         var openingBalanceID: String?
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
 
-        let accountIsOffBudget = try await database.bankSyncLinkedAccounts()
+        let accountIsOffBudget = try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
             .first { $0.id == plan.link.accountID }?.offbudget ?? false
         if let openingBalance = plan.openingBalance {
             let id = UUID().uuidString
             openingBalanceID = id
-            messages.append(contentsOf: try await database.makeBankSyncOpeningBalanceMessages(
+            messages.append(contentsOf: try await BankSyncRunSQL.makeBankSyncOpeningBalanceMessages(
                 transactionID: id,
                 accountID: plan.link.accountID,
                 openingBalance: openingBalance,
                 onBudget: !accountIsOffBudget,
                 sortOrder: sortOrderBase,
-                builder: &builder
+                builder: &builder,
+                in: database
             ))
         }
 
         // Only matched updates read existing rows, and only those rows.
         let existingByID = plan.updates.isEmpty ? [:] : Dictionary(
-            uniqueKeysWithValues: try await database.bankSyncExistingRows(
+            uniqueKeysWithValues: try await BankSyncMatchSQL.bankSyncExistingRows(
                 accountID: plan.link.accountID,
                 window: 0...99_999_999,
-                ids: Array(Set(plan.updates.map(\.existingID)))
+                ids: Array(Set(plan.updates.map(\.existingID))),
+                in: database
             ).map { ($0.id, $0) }
         )
         let matched = try plan.updates.map { update -> (
@@ -344,12 +348,13 @@ extension LocalFirstActualStore {
         let stampEpoch: Int64? = plan.durableStatus == .ok
             ? Int64(Date().timeIntervalSince1970 * 1_000)
             : nil
-        messages.append(contentsOf: try await database.makeBankSyncCompletionMessages(
+        messages.append(contentsOf: try await BankSyncRunSQL.makeBankSyncCompletionMessages(
             accountID: plan.link.accountID,
             lastSyncEpochMilliseconds: stampEpoch,
             status: plan.durableStatus,
             balanceDisposition: plan.balanceDisposition,
-            builder: &builder
+            builder: &builder,
+            in: database
         ))
 
         try Task.checkCancellation()
@@ -368,7 +373,7 @@ extension LocalFirstActualStore {
             )
         }
         do {
-            _ = try await database.commitBankSyncMessages(
+            _ = try await BankSyncRunSQL.commitBankSyncMessages(
                 messages,
                 expectedLink: plan.link,
                 pendingNewTransactions: pendingCommit,
@@ -379,7 +384,8 @@ extension LocalFirstActualStore {
                 expectedMatchedRows: BudgetDatabase.MatchedRowsUnchanged(
                     accountID: plan.link.accountID,
                     reviewed: plan.reviewedRows
-                )
+                ),
+                in: database
             )
         } catch LocalFirstError.importedTransactionConflict {
             // Another writer imported one of these rows after the plan was
@@ -439,7 +445,7 @@ extension LocalFirstActualStore {
         let openAccountIDs = try await AccountSQL.fetchAccounts(in: database)
             .filter { !$0.closed }
             .map(\.id)
-        let linked = try await database.bankSyncLinkedAccounts()
+        let linked = try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
             .filter {
                 BankSyncLinkEligibility.isSimpleFIN(syncSource: $0.syncSource)
                     && openAccountIDs.contains($0.id)
@@ -515,22 +521,22 @@ extension LocalFirstActualStore {
         in database: BudgetDatabase
     ) async {
         guard let summary else { return }
-        try? await database.saveBankSyncLastRun(BankSyncLastRun(
+        try? await BankSyncRunSQL.saveBankSyncLastRun(BankSyncLastRun(
             finishedAt: Date(),
             trigger: .background,
             summary: summary,
             failure: failure
-        ))
+        ), in: database)
     }
 
     // MARK: - Last run
 
     func bankSyncLastRun(budgetID: String) async throws -> BankSyncLastRun? {
-        try await requireDatabase(for: budgetID).bankSyncLastRun()
+        try await BankSyncRunSQL.bankSyncLastRun(in: requireDatabase(for: budgetID))
     }
 
     func recordBankSyncLastRun(_ run: BankSyncLastRun, budgetID: String) async throws {
-        try await requireDatabase(for: budgetID).saveBankSyncLastRun(run)
+        try await BankSyncRunSQL.saveBankSyncLastRun(run, in: requireDatabase(for: budgetID))
     }
 
     /// Foreground/test convenience remains silent; only the background
@@ -555,7 +561,7 @@ extension LocalFirstActualStore {
     func bankSyncAccountRows(budgetID: String) async throws -> [BankSyncAccountStatusRow] {
         let database = try requireDatabase(for: budgetID)
         let accounts = try await AccountSQL.fetchAccounts(in: database).filter { !$0.closed }
-        let linked = try await database.bankSyncLinkedAccounts()
+        let linked = try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
         let linkedByID = Dictionary(uniqueKeysWithValues: linked.map { ($0.id, $0) })
         return accounts.map { account in
             let link = linkedByID[account.id]

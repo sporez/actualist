@@ -26,10 +26,10 @@ struct BankSyncDiagnosticSnapshot: Equatable, Sendable {
     let lastRun: BankSyncLastRun?
 
     static func load(from database: BudgetDatabase) async -> BankSyncDiagnosticSnapshot? {
-        guard let linked = try? await database.bankSyncLinkedAccounts() else {
+        guard let linked = try? await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database) else {
             return nil
         }
-        let lastRun = try? await database.bankSyncLastRun()
+        let lastRun = try? await BankSyncRunSQL.bankSyncLastRun(in: database)
         return BankSyncDiagnosticSnapshot(
             accounts: linked.map { account in
                 Account(

@@ -21,8 +21,7 @@ extension LocalFirstActualStore {
             bankSyncGenerationByAccount[id] = generation
             return (id, generation)
         })
-        let linkedByID = Dictionary(uniqueKeysWithValues: try await database
-            .bankSyncLinkedAccounts()
+        let linkedByID = Dictionary(uniqueKeysWithValues: try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
             .map { ($0.id, $0) })
         let linked = try accountIDs.map { accountID in
             guard let account = linkedByID[accountID] else {
@@ -70,8 +69,9 @@ extension LocalFirstActualStore {
         accountHadLiveTransactions.reserveCapacity(linked.count)
         for account in linked {
             try Task.checkCancellation()
-            let oldest = try await database.bankSyncOldestLiveTransactionDayID(
-                accountID: account.id
+            let oldest = try await BankSyncLinkSQL.bankSyncOldestLiveTransactionDayID(
+                accountID: account.id,
+                in: database
             )
             startDates.append(BankSyncAmounts.lookbackStartDate(
                 oldestLiveTransactionDayID: oldest
@@ -123,8 +123,9 @@ extension LocalFirstActualStore {
                     accountID: account.id,
                     currency: currency,
                     payeeIDsByName: payeeIDsByName,
-                    preferences: try await database.bankSyncImportPreferences(
-                        accountID: account.id
+                    preferences: try await BankSyncLinkSQL.bankSyncImportPreferences(
+                        accountID: account.id,
+                        in: database
                     )
                 ))
             }
@@ -205,16 +206,17 @@ extension LocalFirstActualStore {
             guard self.database === database, bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
             var builder = LocalFirstSyncMessageBuilder()
             do {
-                let messages = try await database.makeBankSyncCompletionMessages(
+                let messages = try await BankSyncRunSQL.makeBankSyncCompletionMessages(
                     accountID: link.accountID,
                     lastSyncEpochMilliseconds: nil,
                     status: status,
                     balanceDisposition: .preserve,
-                    builder: &builder
+                    builder: &builder,
+                    in: database
                 )
                 guard self.database === database, bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
                 bankSyncGenerationByAccount[link.accountID] = nil
-                _ = try await database.commitBankSyncMessages(messages, expectedLink: link)
+                _ = try await BankSyncRunSQL.commitBankSyncMessages(messages, expectedLink: link, in: database)
                 try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
             } catch {
                 // Stale links and rolled-back status writes have no durable effects.
@@ -240,7 +242,7 @@ extension LocalFirstActualStore {
         accountID: String,
         currency: BudgetCurrency,
         payeeIDsByName: [String: String],
-        preferences: BudgetDatabase.BankSyncImportPreferences
+        preferences: BankSyncLinkSQL.BankSyncImportPreferences
     ) throws -> PreparedDownload {
         var prepared = PreparedDownload(download: download)
         let mappings: BankSyncFieldMapping.Mappings
@@ -348,7 +350,7 @@ extension LocalFirstActualStore {
     }
 
     private func makeBankSyncPlan(
-        account: BudgetDatabase.BankSyncLinkedAccount,
+        account: BankSyncLinkSQL.BankSyncLinkedAccount,
         link: BankSyncLinkIdentity,
         generation: UUID,
         prepared: PreparedDownload,

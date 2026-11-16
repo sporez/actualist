@@ -56,22 +56,23 @@ extension LocalFirstActualStore {
         projected: [BankSyncReconciliation.Candidate],
         options: ImportReconcileOptions
     ) async throws -> ImportReconcileOutcome {
-        let existing = try await database.bankSyncExistingRows(
+        let existing = try await BankSyncMatchSQL.bankSyncExistingRows(
             accountID: accountID,
             window: Self.monthWidenedWindow(candidateDayIDs: candidateDayIDs),
-            orImportedIDs: importedIDs
+            orImportedIDs: importedIDs,
+            in: database
         )
         let suppressed: Set<String>
         switch options.reimportDeleted {
         case true?: suppressed = []
-        case false?: suppressed = try await database.bankSyncSuppressedFinancialIDs(
-            accountID: accountID, ignoringPreference: true
+        case false?: suppressed = try await BankSyncLinkSQL.bankSyncSuppressedFinancialIDs(
+            accountID: accountID, ignoringPreference: true, in: database
         )
-        case nil: suppressed = try await database.bankSyncSuppressedFinancialIDs(accountID: accountID)
+        case nil: suppressed = try await BankSyncLinkSQL.bankSyncSuppressedFinancialIDs(accountID: accountID, in: database)
         }
         var options = options
         if options.updateDates == nil {
-            options.updateDates = try await database.bankSyncUpdatesDates(accountID: accountID)
+            options.updateDates = try await BankSyncLinkSQL.bankSyncUpdatesDates(accountID: accountID, in: database)
         }
         let plan = await BankSyncReconciliation.planOffMain(
             candidates: projected,
@@ -115,17 +116,19 @@ extension LocalFirstActualStore {
                 update.payeeID = payee.payeeID
                 writes.messages.append(contentsOf: payee.messages)
             }
-            writes.messages.append(contentsOf: try await database.makeBankSyncMatchUpdateMessages(
+            writes.messages.append(contentsOf: try await BankSyncMatchSQL.makeBankSyncMatchUpdateMessages(
                 update: update,
                 existing: existing,
                 accountIsOffBudget: accountIsOffBudget,
                 clearsMissingImportIdentity: !options.isBankSyncAccount,
-                builder: &builder
+                builder: &builder,
+                in: database
             ))
-            let transfer = try await database.makeBankSyncTransferConversionMessages(
+            let transfer = try await BankSyncMatchSQL.makeBankSyncTransferConversionMessages(
                 update: update,
                 existing: existing,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             writes.messages.append(contentsOf: transfer.messages)
             if let destination = transfer.destinationAccountID, let pairedID = transfer.pairedTransactionID {

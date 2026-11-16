@@ -312,20 +312,21 @@ enum BankSyncOracleReplay {
         var messages = writes.messages
         if let currentBalance {
             // Bank Sync's first-sync step: the account's first sync writes a Starting Balance row.
-            let hadLiveTransactions = try await database.bankSyncOldestLiveTransactionDayID(accountID: accountID, todayDayID: "20261015") != nil
+            let hadLiveTransactions = try await BankSyncLinkSQL.bankSyncOldestLiveTransactionDayID(accountID: accountID, todayDayID: "20261015", in: database) != nil
             if let opening = BankSyncReconciliation.openingBalance(
                 currentBalanceMinorUnits: currentBalance,
                 inserts: outcome.plan.inserts,
                 earliestDayID: earliestDayID,
                 accountHadLiveTransactions: hadLiveTransactions
             ) {
-                messages = try await database.makeBankSyncOpeningBalanceMessages(
+                messages = try await BankSyncRunSQL.makeBankSyncOpeningBalanceMessages(
                     transactionID: UUID().uuidString,
                     accountID: accountID,
                     openingBalance: opening,
                     onBudget: !accountIsOffBudget,
                     sortOrder: sortBase + 1,
-                    builder: &builder
+                    builder: &builder,
+                    in: database
                 ) + messages
             }
         }

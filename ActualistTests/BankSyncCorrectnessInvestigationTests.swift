@@ -210,12 +210,13 @@ struct BankSyncCorrectnessInvestigationTests {
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         let database = try #require(bundle.store.database)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.makeBankSyncCompletionMessages(
+        let messages = try await BankSyncRunSQL.makeBankSyncCompletionMessages(
             accountID: "savings",
             lastSyncEpochMilliseconds: nil,
             status: .failed,
             balanceDisposition: .preserve,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         if mutation == "storage" {
             try await queue(bundle).write { db in
@@ -230,11 +231,11 @@ struct BankSyncCorrectnessInvestigationTests {
         }
         let before = try snapshot(bundle)
         if mutation == "unchanged" {
-            _ = try await database.commitBankSyncMessages(messages, expectedLink: plan.link)
+            _ = try await BankSyncRunSQL.commitBankSyncMessages(messages, expectedLink: plan.link, in: database)
             #expect(try snapshot(bundle).status == "failed")
         } else {
             await #expect(throws: LocalFirstError.self) {
-                try await database.commitBankSyncMessages(messages, expectedLink: plan.link)
+                try await BankSyncRunSQL.commitBankSyncMessages(messages, expectedLink: plan.link, in: database)
             }
             #expect(try snapshot(bundle) == before)
         }

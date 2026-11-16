@@ -373,7 +373,7 @@ extension AccountLifecycleReplayBudget {
 
     func unlinkBankAccount(_ accountID: String) async throws {
         var builder = LocalFirstSyncMessageBuilder()
-        let drafts = try await database.makeBankSyncUnlinkMessages(accountID: accountID, builder: &builder)
+        let drafts = try await BankSyncLinkSQL.makeBankSyncUnlinkMessages(accountID: accountID, builder: &builder, in: database)
         _ = try await database.commitLocalSyncMessagesAndEnqueue(drafts, now: AccountLifecycleScenarios.now)
     }
 

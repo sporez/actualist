@@ -74,9 +74,10 @@ extension LocalFirstActualStoreTests {
         let database = try #require(bundle.store.database)
         await #expect(throws: LocalFirstError.self) {
             var builder = LocalFirstSyncMessageBuilder()
-            _ = try await database.makeBankSyncUnlinkMessages(
+            _ = try await BankSyncLinkSQL.makeBankSyncUnlinkMessages(
                 accountID: "savings",
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
     }

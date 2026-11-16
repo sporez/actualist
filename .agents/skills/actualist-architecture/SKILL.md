@@ -115,7 +115,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Apply/orchestration: `LocalFirstActualStore+BankSync.swift`.
 - Provider clients: `Actualist/LocalFirst/Network/ActualServerSimpleFINClient.swift` and `SimpleFINBridgeClient.swift`.
 - Pure reconciliation/mapping: `Actualist/Shared/BankSyncReconciler.swift`, `BankSyncFieldMapping.swift`, `BankSyncSupport.swift`, and `WalletTransactionMapping.swift`.
-- Atomic persistence: `Actualist/LocalFirst/Database/BudgetDatabase+BankSync.swift`.
+- Atomic persistence: the stateless `BankSyncLinkSQL` (link schema, banks, link and unlink, linked-account settings), `BankSyncMatchSQL` (match-window rows and matched-row updates, shared with CSV import) and `BankSyncRunSQL` (the commit entry, completion and opening-balance messages, and the device-local last run) in `Actualist/LocalFirst/Database/`.
 - Wallet import UI: `Actualist/Features/Settings/WalletImportView.swift`, `WalletImportViewModel.swift`, and `WalletImportSettingsSection.swift`. Apply path: `LocalFirstActualStore+WalletImport.swift` plus shared wallet mapping.
 
 ### Schedules
@@ -201,7 +201,7 @@ File naming is the ownership index:
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
 - `+Preferences`, `BudgetCurrencySQL`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
-- `Account*SQL`, `+AccountGroupCompatibility`, `+BankSync`, `+BankSyncLastRun`, `Reconcil*SQL`, `+Notes` — account-side families.
+- `Account*SQL`, `+AccountGroupCompatibility`, `BankSync*SQL`, `Reconcil*SQL`, `+Notes` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
 - `+ActionLog*` — durable action history and undo inputs.

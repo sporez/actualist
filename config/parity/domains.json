@@ -444,7 +444,9 @@
         "Actualist/Shared/ImportPayeeNameNormalization.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+BankSyncPlanning.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+ImportReconcile.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+BankSync.swift",
+        "Actualist/LocalFirst/Database/BankSyncLinkSQL.swift",
+        "Actualist/LocalFirst/Database/BankSyncMatchSQL.swift",
+        "Actualist/LocalFirst/Database/BankSyncRunSQL.swift",
         "Actualist/Shared/TransactionCSVImportCandidates.swift"
       ],
       "notes": "484 cases (380 seeded, 104 named) through Actual's reconcileTransactions. BankSyncOracleReplayTests replays 465 through the shared import path (previewRules, ImportReconcileProjection, reconcileProjectedImport, importReconcileWrites). 19 are oracle-only. Provider mapping (prepareDownload) and the CSV parser are not covered."

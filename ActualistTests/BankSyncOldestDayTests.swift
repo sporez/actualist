@@ -16,14 +16,14 @@ struct BankSyncOldestDayTests {
             """)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
 
-        #expect(try await database.bankSyncOldestLiveTransactionDayID(accountID: "checking") == "20260215")
-        #expect(try await database.bankSyncOldestLiveTransactionDayID(accountID: "nobody") == nil)
+        #expect(try await BankSyncLinkSQL.bankSyncOldestLiveTransactionDayID(accountID: "checking", in: database) == "20260215")
+        #expect(try await BankSyncLinkSQL.bankSyncOldestLiveTransactionDayID(accountID: "nobody", in: database) == nil)
     }
 
     @Test func oldestLiveDayStillWorksWithTheAcctColumn() async throws {
         let url = try fixtures.makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
 
-        #expect(try await database.bankSyncOldestLiveTransactionDayID(accountID: "checking") == "20260703")
+        #expect(try await BankSyncLinkSQL.bankSyncOldestLiveTransactionDayID(accountID: "checking", in: database) == "20260703")
     }
 }

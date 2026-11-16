@@ -105,16 +105,16 @@ struct ImportReconcileStepTests {
               ('t-other-account', 'savings', 20250103, -1000, 0, NULL, 0, 0, 'bank-far');
             """)
         let window = 20260301...20260331
-        let plain = try await database.bankSyncExistingRows(accountID: "checking", window: window)
+        let plain = try await BankSyncMatchSQL.bankSyncExistingRows(accountID: "checking", window: window, in: database)
         #expect(plain.map(\.id) == ["t-near"])
 
-        let widened = try await database.bankSyncExistingRows(
-            accountID: "checking", window: window, orImportedIDs: ["bank-far", "no-such-id"]
+        let widened = try await BankSyncMatchSQL.bankSyncExistingRows(
+            accountID: "checking", window: window, orImportedIDs: ["bank-far", "no-such-id"], in: database
         )
         #expect(Set(widened.map(\.id)) == ["t-near", "t-far-id"])
 
-        let inside = try await database.bankSyncExistingRows(
-            accountID: "checking", window: window, orImportedIDs: ["near-id"]
+        let inside = try await BankSyncMatchSQL.bankSyncExistingRows(
+            accountID: "checking", window: window, orImportedIDs: ["near-id"], in: database
         )
         #expect(inside.map(\.id) == ["t-near"])
     }
@@ -126,9 +126,9 @@ struct ImportReconcileStepTests {
               ('t-live', 'checking', 20260311, -1000, 0, NULL, 0, 0, 'live-id');
             """)
         // Upstream's default is to re-import deleted rows.
-        #expect(try await database.bankSyncSuppressedFinancialIDs(accountID: "checking") == [])
-        #expect(try await database.bankSyncSuppressedFinancialIDs(
-            accountID: "checking", ignoringPreference: true
+        #expect(try await BankSyncLinkSQL.bankSyncSuppressedFinancialIDs(accountID: "checking", in: database) == [])
+        #expect(try await BankSyncLinkSQL.bankSyncSuppressedFinancialIDs(
+            accountID: "checking", ignoringPreference: true, in: database
         ) == ["gone-id"])
     }
 
@@ -169,7 +169,7 @@ struct ImportReconcileStepTests {
         func ordered(_ rows: [BankSyncReconciliation.Existing]) -> [BankSyncReconciliation.Existing] {
             rows.sorted { ($0.dayID, $0.id) < ($1.dayID, $1.id) }
         }
-        let all = ordered(try await database.bankSyncExistingRows(accountID: "checking", window: 0...99_999_999))
+        let all = ordered(try await BankSyncMatchSQL.bankSyncExistingRows(accountID: "checking", window: 0...99_999_999, in: database))
         #expect(all.count == 400)
 
         var totalScoped = 0
@@ -183,10 +183,11 @@ struct ImportReconcileStepTests {
                     payeeID: nil, payeeName: nil, notes: nil, categoryID: nil, cleared: false, importedPayee: nil
                 )
             }
-            let scoped = ordered(try await database.bankSyncExistingRows(
+            let scoped = ordered(try await BankSyncMatchSQL.bankSyncExistingRows(
                 accountID: "checking",
                 window: LocalFirstActualStore.monthWidenedWindow(candidateDayIDs: candidates.map(\.dayID)),
-                orImportedIDs: Set(candidates.compactMap(\.financialID))
+                orImportedIDs: Set(candidates.compactMap(\.financialID)),
+                in: database
             ))
             let options = ImportReconcileOptions.csv
             let expected = BankSyncReconciliation.plan(candidates: candidates, existing: all, options: options)

@@ -71,12 +71,13 @@ extension BudgetDatabase {
         var current: [String: BankSyncReconciliation.Existing] = [:]
         for start in stride(from: 0, to: ids.count, by: 500) {
             let chunk = Array(ids[start..<min(start + 500, ids.count)])
-            for row in try bankSyncExistingRows(
-                in: db,
+            for row in try BankSyncMatchSQL.bankSyncExistingRows(
                 accountID: expected.accountID,
                 window: 0...99_999_999,
                 idChunk: chunk,
-                importedIDChunk: []
+                importedIDChunk: [],
+                in: self,
+                db: db
             ) {
                 current[row.id] = row
             }

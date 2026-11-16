@@ -161,15 +161,17 @@ struct BankSyncSupportTests {
     @Test func sameBankIDSameNameReusesBankRow() async throws {
         let (database, _, cleanup) = try makeLegacyBudgetDatabase()
         defer { cleanup() }
-        let first = try await database.findOrCreateBank(
+        let first = try await BankSyncLinkSQL.findOrCreateBank(
             bankID: "firstbank.example",
             name: "First Bank",
-            makeID: { "banks_1" }
+            makeID: { "banks_1" },
+            in: database
         )
-        let second = try await database.findOrCreateBank(
+        let second = try await BankSyncLinkSQL.findOrCreateBank(
             bankID: "firstbank.example",
             name: "First Bank",
-            makeID: { "banks_2" }
+            makeID: { "banks_2" },
+            in: database
         )
         #expect(first.id == "banks_1")
         #expect(second.id == "banks_1")
@@ -178,15 +180,17 @@ struct BankSyncSupportTests {
     @Test func sameBankIDDifferentNameCreatesDistinctBankRow() async throws {
         let (database, _, cleanup) = try makeLegacyBudgetDatabase()
         defer { cleanup() }
-        let first = try await database.findOrCreateBank(
+        let first = try await BankSyncLinkSQL.findOrCreateBank(
             bankID: "firstbank.example",
             name: "First Bank",
-            makeID: { "banks_1" }
+            makeID: { "banks_1" },
+            in: database
         )
-        let second = try await database.findOrCreateBank(
+        let second = try await BankSyncLinkSQL.findOrCreateBank(
             bankID: "firstbank.example",
             name: "First Bank UK",
-            makeID: { "banks_2" }
+            makeID: { "banks_2" },
+            in: database
         )
         #expect(first.id != second.id)
         #expect(second.id == "banks_2")
@@ -195,15 +199,17 @@ struct BankSyncSupportTests {
     @Test func sameBankIDNilNamePairsWithNilNameRow() async throws {
         let (database, _, cleanup) = try makeLegacyBudgetDatabase()
         defer { cleanup() }
-        let first = try await database.findOrCreateBank(
+        let first = try await BankSyncLinkSQL.findOrCreateBank(
             bankID: "org_9",
             name: nil,
-            makeID: { "banks_1" }
+            makeID: { "banks_1" },
+            in: database
         )
-        let second = try await database.findOrCreateBank(
+        let second = try await BankSyncLinkSQL.findOrCreateBank(
             bankID: "org_9",
             name: nil,
-            makeID: { "banks_2" }
+            makeID: { "banks_2" },
+            in: database
         )
         #expect(first.id == second.id)
     }

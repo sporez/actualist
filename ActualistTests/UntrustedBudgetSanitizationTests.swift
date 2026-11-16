@@ -222,8 +222,9 @@ struct UntrustedBudgetSanitizationTests {
     @Test func exportOfAFullyExercisedDatabaseCarriesNoActualistObjects() async throws {
         let source = try makeHostileDatabaseURL()
         let database = try BudgetDatabase(databaseURL: source)
-        try await database.saveBankSyncLastRun(
-            BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: "done")
+        try await BankSyncRunSQL.saveBankSyncLastRun(
+            BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: "done"),
+            in: database
         )
         #expect(!(try actualistObjectNames(of: source)).isEmpty)
         let snapshotURL = source.deletingLastPathComponent().appending(path: "snapshot.sqlite")
@@ -236,8 +237,9 @@ struct UntrustedBudgetSanitizationTests {
     @Test func serverDownloadSanitisationStripsEveryActualistObject() async throws {
         let source = try makeHostileDatabaseURL()
         let database = try BudgetDatabase(databaseURL: source)
-        try await database.saveBankSyncLastRun(
-            BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: "done")
+        try await BankSyncRunSQL.saveBankSyncLastRun(
+            BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: "done"),
+            in: database
         )
 
         try BudgetDatabase.sanitizeUntrustedDatabase(at: source)

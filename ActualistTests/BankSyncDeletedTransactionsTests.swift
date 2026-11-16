@@ -248,7 +248,7 @@ struct BankSyncDeletedTransactionsTests {
                 """)
         }
         let database = try BudgetDatabase(databaseURL: bundle.fileManager.databaseURL(fileID: "file-1"))
-        #expect(try await database.bankSyncSuppressedFinancialIDs(accountID: "savings") == ["bank-transaction"])
+        #expect(try await BankSyncLinkSQL.bankSyncSuppressedFinancialIDs(accountID: "savings", in: database) == ["bank-transaction"])
     }
 
     @Test(arguments: ["transactions", "financial_id", "tombstone"])
@@ -267,7 +267,7 @@ struct BankSyncDeletedTransactionsTests {
             }
         }
         let database = try BudgetDatabase(databaseURL: url)
-        #expect(try await database.bankSyncSuppressedFinancialIDs(accountID: "savings").isEmpty)
+        #expect(try await BankSyncLinkSQL.bankSyncSuppressedFinancialIDs(accountID: "savings", in: database).isEmpty)
     }
 
     @Test func splitRuleOpeningBalanceCountsParentOnce() async throws {

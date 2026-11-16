@@ -153,7 +153,7 @@ extension BudgetDatabase {
         action: ActionLogCommit?,
         db: Database
     ) throws {
-        try validateBankSyncLink(review.bankLink, db: db)
+        try BankSyncLinkSQL.validateBankSyncLink(review.bankLink, in: self, db: db)
         try TemplatePreviewSQL.validateBudgetTemplateReviewRevision(review.templateRevision, in: self, db: db)
         try BudgetHoldSQL.validateBudgetHoldReview(review.hold, in: self, db: db)
         try validateBudgetWrite(

@@ -69,7 +69,7 @@ actor BudgetDatabase {
         let compatibility = LaunchSignpost.begin(LaunchStage.budgetDatabaseCompatibility)
         defer { LaunchSignpost.end(LaunchStage.budgetDatabaseCompatibility, compatibility) }
         try Self.prepareBankSyncStatusCompatibility(in: queue)
-        try Self.prepareBankSyncSchemaCompatibility(in: queue)
+        try BankSyncLinkSQL.prepareBankSyncSchemaCompatibility(in: queue)
         try Self.preparePendingNewTransactionSchema(in: queue)
         try Self.prepareAccountGroupCompatibility(in: queue)
         try Self.prepareCompatibilityMigrationIDs(in: queue)

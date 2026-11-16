@@ -40,12 +40,12 @@ struct BankSyncApplyReadTests {
             }
         }
         let window = 0...99_999_999
-        let all = try await database.bankSyncExistingRows(accountID: "savings", window: window)
+        let all = try await BankSyncMatchSQL.bankSyncExistingRows(accountID: "savings", window: window, in: database)
         #expect(all.count > 900)
         let wanted = (0..<1_300).filter { $0 % 4 != 1 }.map { "row-\($0)" } + ["missing-1", "row-0"]
         let log = StatementLog()
         try await database.startStatementTraceForTesting(log)
-        let byID = try await database.bankSyncExistingRows(accountID: "savings", window: window, ids: wanted)
+        let byID = try await BankSyncMatchSQL.bankSyncExistingRows(accountID: "savings", window: window, ids: wanted, in: database)
         try await database.stopStatementTraceForTesting()
         let expected = all.filter { Set(wanted).contains($0.id) }
         #expect(Set(byID.map(\.id)) == Set(expected.map(\.id)))
@@ -55,7 +55,7 @@ struct BankSyncApplyReadTests {
         #expect(!byID.contains { $0.id == "row-0" })
         // Work count: 975+ ids read in chunks of 500, never the whole account.
         #expect(log.count(containing: Self.existingRowsMarker) == 2)
-        #expect(try await database.bankSyncExistingRows(accountID: "savings", window: window, ids: []).isEmpty)
+        #expect(try await BankSyncMatchSQL.bankSyncExistingRows(accountID: "savings", window: window, ids: [], in: database).isEmpty)
     }
 
     @Test func applyReadsNoExistingRowsWithoutUpdatesAndOneFilteredReadWithUpdates() async throws {

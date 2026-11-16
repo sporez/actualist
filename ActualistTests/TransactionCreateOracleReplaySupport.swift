@@ -246,7 +246,7 @@ enum TransactionCreateOracleReplay {
     ) async throws -> [ActualSyncDecodedMessage] {
         let dollars = OracleJSON.double(input["balance"]) ?? 0
         let day = try OracleJSON.string(input, "date").replacingOccurrences(of: "-", with: "")
-        let messages = try await database.makeBankSyncOpeningBalanceMessages(
+        let messages = try await BankSyncRunSQL.makeBankSyncOpeningBalanceMessages(
             transactionID: transactionID,
             accountID: "acct-new",
             openingBalance: BankSyncReconciliation.OpeningBalance(
@@ -255,7 +255,8 @@ enum TransactionCreateOracleReplay {
             ),
             onBudget: !((input["offBudget"] as? Bool) ?? false),
             sortOrder: 1_000,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         if let payeeRow = messages.first(where: { $0.dataset == "payees" })?.row {
             aliases[payeeRow] = "payee-new"
