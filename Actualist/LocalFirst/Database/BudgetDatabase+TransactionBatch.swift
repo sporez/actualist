@@ -387,9 +387,10 @@ extension BudgetDatabase {
         columns: TransactionRowColumns,
         db: Database
     ) throws -> (target: Set<String>, paired: Set<String>) {
-        guard let review = try reconciledMutationReview(
+        guard let review = try ReconciledMutationReviewSQL.reconciledMutationReview(
             transactionID: transactionID,
             columns: columns,
+            in: self,
             db: db
         ) else { return ([], []) }
         return (

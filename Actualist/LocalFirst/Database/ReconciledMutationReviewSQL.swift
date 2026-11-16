@@ -1,42 +1,47 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func validateReconciledMutationPrecondition(
+enum ReconciledMutationReviewSQL {
+    static func validateReconciledMutationPrecondition(
         _ precondition: ReconciledTransactionMutationPrecondition?,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
         guard let precondition else { return }
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         try validateReconciledMutationAuthorization(
             transactionID: precondition.transactionID,
             authorization: precondition.authorization,
             columns: columns,
+            in: database,
             db: db
         )
     }
 
-    func reconciledMutationReview(
-        transactionID: String
+    static func reconciledMutationReview(
+        transactionID: String,
+        in database: isolated BudgetDatabase
     ) throws -> ReconciledTransactionMutationReview? {
         let requestedID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !requestedID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
-        return try queue.read { db in
-            let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        return try database.queue.read { db in
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
             return try reconciledMutationReview(
                 transactionID: requestedID,
                 columns: columns,
+                in: database,
                 db: db
             )
         }
     }
 
-    func validateReconciledMutationAuthorization(
+    static func validateReconciledMutationAuthorization(
         transactionID: String,
         authorization: ReconciledTransactionMutationAuthorization?,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
         if let authorization, authorization.transactionID != transactionID {
@@ -47,6 +52,7 @@ extension BudgetDatabase {
         guard let review = try reconciledMutationReview(
             transactionID: transactionID,
             columns: columns,
+            in: database,
             db: db
         ) else {
             return
@@ -62,14 +68,16 @@ extension BudgetDatabase {
         let transferID: String?
     }
 
-    func reconciledMutationReview(
+    static func reconciledMutationReview(
         transactionID: String,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> ReconciledTransactionMutationReview? {
         let targetFamily = try reconciledMutationFamily(
             containing: transactionID,
             columns: columns,
+            in: database,
             db: db
         )
         guard !targetFamily.isEmpty else {
@@ -84,6 +92,7 @@ extension BudgetDatabase {
             let pairedFamily = try reconciledMutationFamily(
                 containing: pairedID,
                 columns: columns,
+                in: database,
                 db: db
             )
             pairedReconciled.formUnion(
@@ -102,9 +111,10 @@ extension BudgetDatabase {
         )
     }
 
-    private func reconciledMutationFamily(
+    private static func reconciledMutationFamily(
         containing transactionID: String,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [ReconciledMutationRow] {
         let split = TransactionSplitQueryExpressions(columns: columns.all)

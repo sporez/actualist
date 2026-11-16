@@ -74,11 +74,12 @@ struct AccountReconciliationWriteTests {
         let bundle = try makeDatabase()
         let now = try support.makeDate(year: 2026, month: 9, day: 14)
 
-        let write = try await bundle.database.createReconciliationAdjustment(
+        let write = try await ReconciliationSQL.createReconciliationAdjustment(
             accountID: "checking",
             targetBalance: 2_500,
             now: now,
-            transactionID: "adjustment"
+            transactionID: "adjustment",
+            in: bundle.database
         )
 
         let row: Row? = try bundle.queue.readSync { db in
@@ -125,11 +126,12 @@ struct AccountReconciliationWriteTests {
             );
             """)
 
-        _ = try await bundle.database.createReconciliationAdjustment(
+        _ = try await ReconciliationSQL.createReconciliationAdjustment(
             accountID: "checking",
             targetBalance: 2_500,
             now: try support.makeDate(year: 2026, month: 9, day: 14),
-            transactionID: "cleared-notes"
+            transactionID: "cleared-notes",
+            in: bundle.database
         )
 
         let fetched = try await bundle.database.fetchTransactions(accountID: "checking")
@@ -153,11 +155,12 @@ struct AccountReconciliationWriteTests {
             """)
         let beforeMessageCount = try await messageCount(bundle.queue)
 
-        let write = try await bundle.database.createReconciliationAdjustment(
+        let write = try await ReconciliationSQL.createReconciliationAdjustment(
             accountID: "checking",
             targetBalance: 2_500,
             now: Date(timeIntervalSince1970: 1_789_344_000),
-            transactionID: "deleted-adjustment"
+            transactionID: "deleted-adjustment",
+            in: bundle.database
         )
 
         let afterMessageCount = try await messageCount(bundle.queue)
@@ -197,11 +200,12 @@ struct AccountReconciliationWriteTests {
             );
             """)
 
-        let write = try await bundle.database.createReconciliationAdjustment(
+        let write = try await ReconciliationSQL.createReconciliationAdjustment(
             accountID: "checking",
             targetBalance: 3_000,
             now: try support.makeDate(year: 2026, month: 9, day: 14),
-            transactionID: "split-adjustment"
+            transactionID: "split-adjustment",
+            in: bundle.database
         )
 
         let rows: [Row] = try bundle.queue.readSync { db in
@@ -247,11 +251,12 @@ struct AccountReconciliationWriteTests {
             );
             """)
 
-        let write = try await bundle.database.createReconciliationAdjustment(
+        let write = try await ReconciliationSQL.createReconciliationAdjustment(
             accountID: "checking",
             targetBalance: 3_000,
             now: try support.makeDate(year: 2026, month: 9, day: 14),
-            transactionID: "transfer-adjustment"
+            transactionID: "transfer-adjustment",
+            in: bundle.database
         )
 
         let rows: [Row] = try bundle.queue.readSync { db in
@@ -284,12 +289,13 @@ struct AccountReconciliationWriteTests {
         let bundle = try makeDatabase()
         try await insertSplitFamily(in: bundle.queue, reconciled: false)
         let now = Date(timeIntervalSince1970: 1_789_344_000.123)
-        let snapshot = try await bundle.database.accountReconciliationSnapshot(accountID: "checking")
+        let snapshot = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: "checking", in: bundle.database)
 
-        let write = try await bundle.database.finishReconciliation(
+        let write = try await ReconciliationSQL.finishReconciliation(
             accountID: "checking",
             targetBalance: snapshot.clearedBalance,
-            now: now
+            now: now,
+            in: bundle.database
         )
 
         let reconciled: [Row] = try bundle.queue.readSync { db in
@@ -319,18 +325,20 @@ struct AccountReconciliationWriteTests {
         let beforeMessageCount = try await messageCount(bundle.queue)
 
         await #expect(throws: AccountReconciliationCommandError.balanceChanged) {
-            try await bundle.database.finishReconciliation(
+            try await ReconciliationSQL.finishReconciliation(
                 accountID: "checking",
                 targetBalance: 0,
-                now: Date(timeIntervalSince1970: 1_789_344_000)
+                now: Date(timeIntervalSince1970: 1_789_344_000),
+                in: bundle.database
             )
         }
         let afterFailedFinishMessageCount = try await messageCount(bundle.queue)
         #expect(afterFailedFinishMessageCount == beforeMessageCount)
 
-        _ = try await bundle.database.exitReconciliation(
+        _ = try await ReconciliationSQL.exitReconciliation(
             accountID: "checking",
-            now: Date(timeIntervalSince1970: 1_789_344_001.456)
+            now: Date(timeIntervalSince1970: 1_789_344_001.456),
+            in: bundle.database
         )
         let values: (String?, Int?) = try await bundle.queue.read { db in
             (
@@ -358,10 +366,11 @@ struct AccountReconciliationWriteTests {
             )
         }
 
-        let write = try await bundle.database.unlockReconciledTransaction(
+        let write = try await ReconciliationSQL.unlockReconciledTransaction(
             accountID: "checking",
             transactionID: "split-a",
-            now: Date(timeIntervalSince1970: 1_789_344_000)
+            now: Date(timeIntervalSince1970: 1_789_344_000),
+            in: bundle.database
         )
 
         let rows: [Row] = try bundle.queue.readSync { db in
@@ -387,13 +396,14 @@ struct AccountReconciliationWriteTests {
             try db.execute(sql: "UPDATE transactions SET cleared = 1 WHERE id = 'txn'")
             try db.execute(sql: "DROP TABLE messages_crdt")
         }
-        let snapshot = try await bundle.database.accountReconciliationSnapshot(accountID: "checking")
+        let snapshot = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: "checking", in: bundle.database)
 
         await #expect(throws: LocalFirstError.self) {
-            try await bundle.database.finishReconciliation(
+            try await ReconciliationSQL.finishReconciliation(
                 accountID: "checking",
                 targetBalance: snapshot.clearedBalance,
-                now: Date(timeIntervalSince1970: 1_789_344_000)
+                now: Date(timeIntervalSince1970: 1_789_344_000),
+                in: bundle.database
             )
         }
 

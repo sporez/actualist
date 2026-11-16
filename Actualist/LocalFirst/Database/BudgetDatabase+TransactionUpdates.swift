@@ -43,10 +43,11 @@ extension BudgetDatabase {
         guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
-        try validateReconciledMutationAuthorization(
+        try ReconciledMutationReviewSQL.validateReconciledMutationAuthorization(
             transactionID: trimmedTransactionID,
             authorization: reconciliationAuthorization,
             columns: columns,
+            in: self,
             db: db
         )
         if try tableExists("accounts", db: db),

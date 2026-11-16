@@ -65,7 +65,7 @@ Two evidence levels exist, and the fixture labels which is which:
 
 `ruleEngineOutput.notes` is `null`, so the rule clears notes. The oracle keeps
 that `null`. It does not restore the default note. Swift restores the default
-note (`BudgetDatabase+Reconciliation.swift`). This is registered as OP-17.
+note (`ReconciliationSQL.swift`). This is registered as OP-17.
 
 ## Real-row unlock cases
 
@@ -105,7 +105,7 @@ So in Actual, unlocking a child of a reconciled parent is a no-op: the grouped
 query returns the family, but `makeChild` copies the parent's `reconciled`, so
 the update carries no change. Unlocking the parent unlocks the family. Swift
 unlocks each reconciled family row and writes `reconciled = false` to all three
-(`BudgetDatabase+Reconciliation.swift`). This is registered as OP-19 and is
+(`ReconciliationSQL.swift`). This is registered as OP-19 and is
 intended (user decision 2026-10-11): unlocking any part of a split unlocks the
 family.
 

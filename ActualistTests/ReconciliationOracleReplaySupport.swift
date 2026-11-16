@@ -46,7 +46,7 @@ enum ReconciliationOracleReplay {
                 rows: try OracleJSON.objects(input["scriptedRows"], "scriptedRows"),
                 makeFixture: makeFixture
             )
-            let snapshot = try await session.database.accountReconciliationSnapshot(accountID: account)
+            let snapshot = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: account, in: session.database)
             return .object(["balance": .number(Double(snapshot.clearedBalance))])
 
         case "finish":
@@ -75,11 +75,12 @@ enum ReconciliationOracleReplay {
                 rows: try OracleJSON.objects(input["rows"], "rows"),
                 makeFixture: makeFixture
             )
-            let snapshot = try await session.database.accountReconciliationSnapshot(accountID: accountID)
-            _ = try await session.database.finishReconciliation(
+            let snapshot = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: accountID, in: session.database)
+            _ = try await ReconciliationSQL.finishReconciliation(
                 accountID: accountID,
                 targetBalance: snapshot.clearedBalance,
-                now: now
+                now: now,
+                in: session.database
             )
             return try await rowCells(session)
 
@@ -90,10 +91,11 @@ enum ReconciliationOracleReplay {
                 rows: try OracleJSON.objects(input["rows"], "rows"),
                 makeFixture: makeFixture
             )
-            _ = try await session.database.unlockReconciledTransaction(
+            _ = try await ReconciliationSQL.unlockReconciledTransaction(
                 accountID: accountID,
                 transactionID: transactionID,
-                now: now
+                now: now,
+                in: session.database
             )
             var fields: [String: OracleValue] = ["messages": try await rowCells(session)]
             if readback != nil {
@@ -200,12 +202,13 @@ enum ReconciliationOracleReplay {
     // MARK: - Writes
 
     private static func adjust(_ session: Session, diff: Int) async throws -> AccountReconciliationDatabaseWrite {
-        let snapshot = try await session.database.accountReconciliationSnapshot(accountID: accountID)
-        return try await session.database.createReconciliationAdjustment(
+        let snapshot = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: accountID, in: session.database)
+        return try await ReconciliationSQL.createReconciliationAdjustment(
             accountID: accountID,
             targetBalance: snapshot.clearedBalance + diff,
             now: now,
-            transactionID: "adjustment"
+            transactionID: "adjustment",
+            in: session.database
         )
     }
 
@@ -224,10 +227,11 @@ enum ReconciliationOracleReplay {
         )
         var threw = false
         do {
-            _ = try await session.database.finishReconciliation(
+            _ = try await ReconciliationSQL.finishReconciliation(
                 accountID: accountID,
                 targetBalance: OracleJSON.int(values["reconcileAmount"]) ?? 0,
-                now: now
+                now: now,
+                in: session.database
             )
         } catch {
             threw = true

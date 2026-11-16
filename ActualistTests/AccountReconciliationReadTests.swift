@@ -33,7 +33,7 @@ struct AccountReconciliationReadTests {
                 VALUES ('dead', 'checking', 20260706, 9000, 'groceries', 1, NULL, 0, 1, 0);
             """))
 
-        let snapshot = try await database.accountReconciliationSnapshot(accountID: "checking")
+        let snapshot = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: "checking", in: database)
 
         #expect(snapshot.capability == .available)
         #expect(snapshot.accountName == "Checking")
@@ -51,7 +51,7 @@ struct AccountReconciliationReadTests {
             ALTER TABLE transactions ADD COLUMN reconciled INTEGER DEFAULT 0;
             """))
 
-        let snapshot = try await database.accountReconciliationSnapshot(accountID: "checking")
+        let snapshot = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: "checking", in: database)
 
         #expect(snapshot.capability == .available)
         #expect(snapshot.lastSyncedBalance == nil)
@@ -64,7 +64,7 @@ struct AccountReconciliationReadTests {
             ALTER TABLE transactions ADD COLUMN reconciled INTEGER DEFAULT 0;
             """))
 
-        let snapshot = try await database.accountReconciliationSnapshot(accountID: "checking")
+        let snapshot = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: "checking", in: database)
 
         #expect(snapshot.capability == .unavailable(.missingLastReconciledColumn))
         #expect(snapshot.accountName == "Checking")
@@ -75,8 +75,8 @@ struct AccountReconciliationReadTests {
             ALTER TABLE accounts ADD COLUMN last_reconciled TEXT;
             """))
 
-        let missingColumns = try await database.accountReconciliationSnapshot(accountID: "checking")
-        let missingAccount = try await database.accountReconciliationSnapshot(accountID: "missing")
+        let missingColumns = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: "checking", in: database)
+        let missingAccount = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: "missing", in: database)
 
         #expect(missingColumns.capability == .unavailable(.missingTransactionSchema))
         #expect(missingAccount.capability == .unavailable(.accountNotFound))

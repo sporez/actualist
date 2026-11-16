@@ -159,7 +159,7 @@ extension BudgetDatabase {
         try validateBudgetWrite(
             drafts, expectedMode: review.mode, descriptor: action?.descriptor, db: db
         )
-        try validateReconciledMutationPrecondition(review.reconciledMutation, db: db)
+        try ReconciledMutationReviewSQL.validateReconciledMutationPrecondition(review.reconciledMutation, in: self, db: db)
         try validateImportedIDsAbsent(review.absentImportedIDs, db: db)
         try validateMatchedRowsUnchanged(review.matchedRows, db: db)
     }

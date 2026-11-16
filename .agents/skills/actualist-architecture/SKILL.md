@@ -105,7 +105,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Add/group editing: `AddAccountSheet.swift`, `AddAccountViewModel.swift`, `AccountGroupEditorSheet.swift`, `LocalFirstActualStore+AccountGroups.swift`, and `AccountGroupSQL` (group reads and writes; `BudgetDatabase+AccountGroupCompatibility.swift` is the open-time compatibility pass). Account reads and new-account messages are `AccountSQL`.
 - Create/rename/close/reopen/delete: `AccountLifecycleCoordinator.swift` and `AccountLifecycle*` presentation siblings; `Repositories/AccountLifecycleRepository.swift`; `AccountLifecycleWorkflows` (`LocalFirst/AccountLifecycleWorkflows.swift`, the store's `accountLifecycle`); `AccountLifecycleReviewSQL` (the review a lifecycle action shows and revalidates, with its schedule facts) and `AccountLifecycleCommitSQL` (the close, delete, rename and reopen commits).
 - Reconciliation workflow: `AccountReconciliationCoordinator.swift`, `AccountReconciliationModels.swift`, `AccountReconciliationPresentation.swift`, and `AccountReconciliationViews.swift`.
-- Backend: `LocalFirstActualStore+Reconciliation.swift`; `BudgetDatabase+Reconciliation.swift` and `+ReconciledMutationGuard.swift`.
+- Backend: `LocalFirstActualStore+Reconciliation.swift`; `ReconciliationSQL` (the reconciliation snapshot, adjustment, finish, exit and unlock) and `ReconciledMutationReviewSQL` (the reconciled-row review a transaction write revalidates) in `LocalFirst/Database/`.
 - Protocol seam: `Actualist/Repositories/AccountRepository.swift`.
 
 ### Bank Sync and Wallet import
@@ -201,7 +201,7 @@ File naming is the ownership index:
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
 - `+Preferences`, `+Currency`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
-- `Account*SQL`, `+AccountGroupCompatibility`, `+BankSync`, `+BankSyncLastRun`, `+Reconciliation`, `+Notes` — account-side families.
+- `Account*SQL`, `+AccountGroupCompatibility`, `+BankSync`, `+BankSyncLastRun`, `Reconcil*SQL`, `+Notes` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
 - `+ActionLog*` — durable action history and undo inputs.
@@ -209,7 +209,7 @@ File naming is the ownership index:
 - `+PortableExport`, `+PortableSyncReset`, `+NewBudgetSeed` — portable ZIP content and the CRDT reset applied to an imported file.
 - `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `+TransactionFilters`, `+TransactionCSV*`, `+TransactionQuery` — list actions, structured queries and CSV export.
 - `TransactionImportSQL.swift` — file-import checks inside the commit (stateless; takes `isolated BudgetDatabase` and the GRDB handle), plus the thin `commitTransactionCSVImport` entry point.
-- `+*ReviewGuard`, `+ReconciledMutationGuard`, `+ImportedIDPrecondition`, `+TransactionIDPrecondition`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
+- `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `+ImportedIDPrecondition`, `+TransactionIDPrecondition`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
 - `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.
 
 Keep SQL and storage-version tolerance here. Keep feature screen state out.

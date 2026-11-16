@@ -1,19 +1,19 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func accountReconciliationSnapshot(accountID: String) throws -> AccountReconciliationSnapshot {
+enum ReconciliationSQL {
+    static func accountReconciliationSnapshot(accountID: String, in database: isolated BudgetDatabase) throws -> AccountReconciliationSnapshot {
         let requestedAccountID = accountID.trimmingCharacters(in: .whitespacesAndNewlines)
-        return try queue.read { db in
+        return try database.queue.read { db in
             guard !requestedAccountID.isEmpty,
-                  try tableExists("accounts", db: db) else {
+                  try database.tableExists("accounts", db: db) else {
                 return unavailableReconciliationSnapshot(
                     accountID: requestedAccountID,
                     reason: .missingAccountSchema
                 )
             }
 
-            let accountColumns = try columnSet(for: "accounts", db: db)
+            let accountColumns = try database.columnSet(for: "accounts", db: db)
             guard accountColumns.isSuperset(of: ["id", "name"]) else {
                 return unavailableReconciliationSnapshot(
                     accountID: requestedAccountID,
@@ -25,10 +25,10 @@ extension BudgetDatabase {
                 db,
                 sql: """
                     SELECT name,
-                           \(column("balance_current", fallback: "NULL", columns: accountColumns)) AS balance_current,
-                           \(column("last_reconciled", fallback: "NULL", columns: accountColumns)) AS last_reconciled
+                           \(database.column("balance_current", fallback: "NULL", columns: accountColumns)) AS balance_current,
+                           \(database.column("last_reconciled", fallback: "NULL", columns: accountColumns)) AS last_reconciled
                     FROM accounts
-                    WHERE id = ? AND \(predicateForLiveRows(columns: accountColumns))
+                    WHERE id = ? AND \(database.predicateForLiveRows(columns: accountColumns))
                     LIMIT 1
                     """,
                 arguments: [requestedAccountID]
@@ -48,7 +48,7 @@ extension BudgetDatabase {
                     reason: .missingLastReconciledColumn
                 )
             }
-            guard try tableExists("transactions", db: db) else {
+            guard try database.tableExists("transactions", db: db) else {
                 return unavailableReconciliationSnapshot(
                     accountID: requestedAccountID,
                     accountName: accountName,
@@ -56,7 +56,7 @@ extension BudgetDatabase {
                 )
             }
 
-            let transactionColumns = try columnSet(for: "transactions", db: db)
+            let transactionColumns = try database.columnSet(for: "transactions", db: db)
             guard transactionColumns.contains("amount"),
                   transactionColumns.contains("cleared"),
                   transactionColumns.contains("reconciled"),
@@ -70,18 +70,18 @@ extension BudgetDatabase {
 
             let split = TransactionSplitQueryExpressions(columns: transactionColumns)
             let workingBalance = try reconciliationBalance(
-                db: db,
                 accountID: requestedAccountID,
                 split: split,
                 splitMode: .inline,
-                clearedOnly: false
+                clearedOnly: false,
+                db: db
             )
             let clearedBalance = try reconciliationBalance(
-                db: db,
                 accountID: requestedAccountID,
                 split: split,
                 splitMode: .none,
-                clearedOnly: true
+                clearedOnly: true,
+                db: db
             )
 
             return AccountReconciliationSnapshot(
@@ -96,13 +96,14 @@ extension BudgetDatabase {
         }
     }
 
-    func createReconciliationAdjustment(
+    static func createReconciliationAdjustment(
         accountID: String,
         targetBalance: Int,
         now: Date,
-        transactionID: String = UUID().uuidString
+        transactionID: String = UUID().uuidString,
+        in database: isolated BudgetDatabase
     ) throws -> AccountReconciliationDatabaseWrite {
-        let snapshot = try requireReconciliationSnapshot(accountID: accountID)
+        let snapshot = try requireReconciliationSnapshot(accountID: accountID, in: database)
         let calculation = AccountReconciliationCalculation(
             targetBalance: targetBalance,
             clearedBalance: snapshot.clearedBalance
@@ -126,7 +127,7 @@ extension BudgetDatabase {
             isTransfer: false,
             sortOrder: now.timeIntervalSince1970 * 1_000
         )
-        let preview = try RulePreviewSQL.previewRules(for: draft, in: self)
+        let preview = try RulePreviewSQL.previewRules(for: draft, in: database)
         if preview.deletesTransaction {
             return AccountReconciliationDatabaseWrite(
                 changed: ChangedResources(accounts: [], months: [], transactions: []),
@@ -142,10 +143,10 @@ extension BudgetDatabase {
         }
 
         var builder = LocalFirstSyncMessageBuilder()
-        let write: TransactionWriteResult
+        let write: BudgetDatabase.TransactionWriteResult
         let graph: BudgetTransactionGraph
         if draft.isSplit {
-            write = try createSplitFamilyWrite(
+            write = try database.createSplitFamilyWrite(
                 draft: draft,
                 parentTransactionID: transactionID,
                 payeeID: draft.payeeID,
@@ -153,14 +154,14 @@ extension BudgetDatabase {
             )
             graph = .split(childIDs: write.affectedTransactionIDs.filter { $0 != transactionID })
         } else if let payeeID = draft.payeeID,
-                  try reconciliationTransferDestination(payeeID: payeeID) != nil {
-            let transfer = try createTransferTransactionMessages(
+                  try reconciliationTransferDestination(payeeID: payeeID, in: database) != nil {
+            let transfer = try database.createTransferTransactionMessages(
                 draft: draft,
                 sourceTransactionID: transactionID,
                 payeeID: payeeID,
                 builder: &builder
             )
-            write = TransactionWriteResult(
+            write = BudgetDatabase.TransactionWriteResult(
                 messages: transfer.messages,
                 affectedAccountIDs: [draft.accountID, transfer.destinationAccountID],
                 affectedTransactionIDs: [transactionID, transfer.pairedTransactionID]
@@ -170,7 +171,8 @@ extension BudgetDatabase {
             write = try reconciliationSimpleTransactionWrite(
                 draft: draft,
                 transactionID: transactionID,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             graph = .simple
         }
@@ -179,7 +181,7 @@ extension BudgetDatabase {
         let learningIDs: Set<String> = !draft.isSplit && draft.categoryID != nil
             ? [transactionID]
             : []
-        _ = try commitUserAction(
+        _ = try database.commitUserAction(
             write.messages,
             descriptor: .createTransaction(CreateTransactionDescriptor(
                 month: draft.month.rawValue,
@@ -205,12 +207,13 @@ extension BudgetDatabase {
         )
     }
 
-    func finishReconciliation(
+    static func finishReconciliation(
         accountID: String,
         targetBalance: Int,
-        now: Date
+        now: Date,
+        in database: isolated BudgetDatabase
     ) throws -> AccountReconciliationDatabaseWrite {
-        let snapshot = try requireReconciliationSnapshot(accountID: accountID)
+        let snapshot = try requireReconciliationSnapshot(accountID: accountID, in: database)
         let calculation = AccountReconciliationCalculation(
             targetBalance: targetBalance,
             clearedBalance: snapshot.clearedBalance
@@ -225,7 +228,8 @@ extension BudgetDatabase {
         let rows = try reconciliationRows(
             accountID: snapshot.accountID,
             reconciled: false,
-            clearedOnly: true
+            clearedOnly: true,
+            in: database
         )
         var builder = LocalFirstSyncMessageBuilder()
         var messages = try rows.map {
@@ -241,7 +245,7 @@ extension BudgetDatabase {
             now: now,
             builder: &builder
         ))
-        _ = try commitLocalSyncMessagesAndEnqueue(messages, now: now)
+        _ = try database.commitLocalSyncMessagesAndEnqueue(messages, now: now)
         return AccountReconciliationDatabaseWrite(
             changed: ChangedResources(
                 accounts: [snapshot.accountID],
@@ -252,18 +256,19 @@ extension BudgetDatabase {
         )
     }
 
-    func exitReconciliation(
+    static func exitReconciliation(
         accountID: String,
-        now: Date
+        now: Date,
+        in database: isolated BudgetDatabase
     ) throws -> AccountReconciliationDatabaseWrite {
-        let snapshot = try requireReconciliationSnapshot(accountID: accountID)
+        let snapshot = try requireReconciliationSnapshot(accountID: accountID, in: database)
         var builder = LocalFirstSyncMessageBuilder()
         let message = try lastReconciledMessage(
             accountID: snapshot.accountID,
             now: now,
             builder: &builder
         )
-        _ = try commitLocalSyncMessagesAndEnqueue([message], now: now)
+        _ = try database.commitLocalSyncMessagesAndEnqueue([message], now: now)
         return AccountReconciliationDatabaseWrite(
             changed: ChangedResources(
                 accounts: [snapshot.accountID],
@@ -274,15 +279,17 @@ extension BudgetDatabase {
         )
     }
 
-    func unlockReconciledTransaction(
+    static func unlockReconciledTransaction(
         accountID: String,
         transactionID: String,
-        now: Date
+        now: Date,
+        in database: isolated BudgetDatabase
     ) throws -> AccountReconciliationDatabaseWrite {
-        let snapshot = try requireReconciliationSnapshot(accountID: accountID)
+        let snapshot = try requireReconciliationSnapshot(accountID: accountID, in: database)
         let rows = try reconciliationFamilyRows(
             accountID: snapshot.accountID,
-            transactionID: transactionID
+            transactionID: transactionID,
+            in: database
         )
         guard !rows.isEmpty else {
             throw AccountReconciliationCommandError.transactionNotFound
@@ -304,7 +311,7 @@ extension BudgetDatabase {
                 value: .bool(false)
             )
         }
-        _ = try commitLocalSyncMessagesAndEnqueue(messages, now: now)
+        _ = try database.commitLocalSyncMessagesAndEnqueue(messages, now: now)
         return AccountReconciliationDatabaseWrite(
             changed: ChangedResources(
                 accounts: [snapshot.accountID],
@@ -321,41 +328,43 @@ extension BudgetDatabase {
         let reconciled: Bool
     }
 
-    private func requireReconciliationSnapshot(
-        accountID: String
+    private static func requireReconciliationSnapshot(
+        accountID: String,
+        in database: isolated BudgetDatabase
     ) throws -> AccountReconciliationSnapshot {
-        let snapshot = try accountReconciliationSnapshot(accountID: accountID)
+        let snapshot = try accountReconciliationSnapshot(accountID: accountID, in: database)
         if case .unavailable(let reason) = snapshot.capability {
             throw AccountReconciliationCommandError.unavailable(reason)
         }
         return snapshot
     }
 
-    private func reconciliationSimpleTransactionWrite(
+    private static func reconciliationSimpleTransactionWrite(
         draft: TransactionDraft,
         transactionID: String,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
-        try queue.read { db in
-            let columns = try TransactionRowColumns.resolve(in: self, db: db)
-            if try tableExists("accounts", db: db),
-               try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
+    ) throws -> BudgetDatabase.TransactionWriteResult {
+        try database.queue.read { db in
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
+            if try database.tableExists("accounts", db: db),
+               try !database.liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing account")
             }
             if let categoryID = draft.categoryID,
-               try tableExists("categories", db: db),
-               try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
+               try database.tableExists("categories", db: db),
+               try !database.liveRowExists(table: "categories", rowID: categoryID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
             if let payeeID = draft.payeeID,
-               try tableExists("payees", db: db),
-               try !liveRowExists(table: "payees", rowID: payeeID, db: db) {
+               try database.tableExists("payees", db: db),
+               try !database.liveRowExists(table: "payees", rowID: payeeID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing payee")
             }
             let messages = try columns.rowMessages(
                 rowID: transactionID,
                 accountID: draft.accountID,
-                dateValue: Self.actualDateValue(draft.date),
+                dateValue: BudgetDatabase.actualDateValue(draft.date),
                 amountMinorUnits: draft.amountMinorUnits,
                 payeeID: draft.payeeID,
                 categoryID: draft.categoryID,
@@ -371,7 +380,7 @@ extension BudgetDatabase {
                 scheduleID: draft.scheduleID,
                 cells: .snapshot
             )
-            return TransactionWriteResult(
+            return BudgetDatabase.TransactionWriteResult(
                 messages: messages,
                 affectedAccountIDs: [draft.accountID],
                 affectedTransactionIDs: [transactionID]
@@ -379,19 +388,20 @@ extension BudgetDatabase {
         }
     }
 
-    private func reconciliationTransferDestination(payeeID: String) throws -> String? {
-        try queue.read { db in
-            try transferAccountID(ifPayee: payeeID, db: db)
+    private static func reconciliationTransferDestination(payeeID: String, in database: isolated BudgetDatabase) throws -> String? {
+        try database.queue.read { db in
+            try database.transferAccountID(ifPayee: payeeID, db: db)
         }
     }
 
-    private func reconciliationRows(
+    private static func reconciliationRows(
         accountID: String,
         reconciled: Bool,
-        clearedOnly: Bool
+        clearedOnly: Bool,
+        in database: isolated BudgetDatabase
     ) throws -> [ReconciliationRow] {
-        try queue.read { db in
-            let columns = try columnSet(for: "transactions", db: db)
+        try database.queue.read { db in
+            let columns = try database.columnSet(for: "transactions", db: db)
             let split = TransactionSplitQueryExpressions(columns: columns)
             var conditions = [
                 split.liveEffectivePredicate(),
@@ -415,14 +425,15 @@ extension BudgetDatabase {
         }
     }
 
-    private func reconciliationFamilyRows(
+    private static func reconciliationFamilyRows(
         accountID: String,
-        transactionID: String
+        transactionID: String,
+        in database: isolated BudgetDatabase
     ) throws -> [ReconciliationRow] {
         let requestedID = transactionID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !requestedID.isEmpty else { return [] }
-        return try queue.read { db in
-            let columns = try columnSet(for: "transactions", db: db)
+        return try database.queue.read { db in
+            let columns = try database.columnSet(for: "transactions", db: db)
             let split = TransactionSplitQueryExpressions(columns: columns)
             let target = try Row.fetchOne(
                 db,
@@ -455,7 +466,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func reconciliationRow(_ row: Row) -> ReconciliationRow? {
+    private static func reconciliationRow(_ row: Row) -> ReconciliationRow? {
         guard let id = row["id"] as String?,
               let packedDate = SQLiteValueCoercion.exactInt(row["date"]) else {
             return nil
@@ -467,7 +478,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func lastReconciledMessage(
+    private static func lastReconciledMessage(
         accountID: String,
         now: Date,
         builder: inout LocalFirstSyncMessageBuilder
@@ -481,12 +492,12 @@ extension BudgetDatabase {
         )
     }
 
-    private func reconciliationBalance(
-        db: Database,
+    private static func reconciliationBalance(
         accountID: String,
         split: TransactionSplitQueryExpressions,
         splitMode: TransactionSplitQueryMode,
-        clearedOnly: Bool
+        clearedOnly: Bool,
+        db: Database
     ) throws -> Int {
         var conditions = [
             split.liveEffectivePredicate(),
@@ -509,7 +520,7 @@ extension BudgetDatabase {
         return SQLiteValueCoercion.exactInt(row?["balance"]) ?? 0
     }
 
-    private func unavailableReconciliationSnapshot(
+    private static func unavailableReconciliationSnapshot(
         accountID: String,
         accountName: String = "",
         reason: AccountReconciliationUnavailableReason

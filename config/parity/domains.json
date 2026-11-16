@@ -178,8 +178,8 @@
         "ActualCoreReconciliationOracleFixtureTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+Reconciliation.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+ReconciledMutationGuard.swift",
+        "Actualist/LocalFirst/Database/ReconciliationSQL.swift",
+        "Actualist/LocalFirst/Database/ReconciledMutationReviewSQL.swift",
         "Actualist/Models/ReconciledTransactionMutation.swift"
       ],
       "notes": "ReconciliationOracleReplayTests replays 7 of 9 cases through production; adjustment-rule-projection and done-nonzero-difference are oracle-only (see the manifest)."

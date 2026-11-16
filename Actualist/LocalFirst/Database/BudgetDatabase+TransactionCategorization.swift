@@ -38,10 +38,11 @@ extension BudgetDatabase {
         )
         // Same fail-closed guard as edit and delete, evaluated on the rows of
         // this write transaction (the row, its split family, its transfer pair).
-        try validateReconciledMutationAuthorization(
+        try ReconciledMutationReviewSQL.validateReconciledMutationAuthorization(
             transactionID: trimmedTransactionID,
             authorization: reconciliationAuthorization,
             columns: try TransactionRowColumns.resolve(in: self, db: db),
+            in: self,
             db: db
         )
         if try tableExists("categories", db: db),
@@ -79,10 +80,11 @@ extension BudgetDatabase {
         guard try rowExists(table: "transactions", rowID: trimmedTransactionID, db: db) else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
-        try validateReconciledMutationAuthorization(
+        try ReconciledMutationReviewSQL.validateReconciledMutationAuthorization(
             transactionID: trimmedTransactionID,
             authorization: reconciliationAuthorization,
             columns: columns,
+            in: self,
             db: db
         )
 

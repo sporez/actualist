@@ -5,16 +5,20 @@ extension LocalFirstActualStore {
         budgetID: String,
         transactionID: String
     ) async throws -> ReconciledTransactionMutationReview? {
-        try await requireDatabase(for: budgetID)
-            .reconciledMutationReview(transactionID: transactionID)
+        try await ReconciledMutationReviewSQL.reconciledMutationReview(
+            transactionID: transactionID,
+            in: requireDatabase(for: budgetID)
+        )
     }
 
     func accountReconciliationSnapshot(
         budgetID: String,
         accountID: String
     ) async throws -> AccountReconciliationSnapshot {
-        try await requireDatabase(for: budgetID)
-            .accountReconciliationSnapshot(accountID: accountID)
+        try await ReconciliationSQL.accountReconciliationSnapshot(
+            accountID: accountID,
+            in: requireDatabase(for: budgetID)
+        )
     }
 
     func createReconciliationAdjustmentAndRefresh(
@@ -23,10 +27,11 @@ extension LocalFirstActualStore {
         targetBalance: Int
     ) async throws -> AccountReconciliationMutationResult {
         let database = try requireDatabase(for: budgetID)
-        let write = try await database.createReconciliationAdjustment(
+        let write = try await ReconciliationSQL.createReconciliationAdjustment(
             accountID: accountID,
             targetBalance: targetBalance,
-            now: Date()
+            now: Date(),
+            in: database
         )
         return try await finishReconciliationWrite(
             write,
@@ -42,10 +47,11 @@ extension LocalFirstActualStore {
         targetBalance: Int
     ) async throws -> AccountReconciliationMutationResult {
         let database = try requireDatabase(for: budgetID)
-        let write = try await database.finishReconciliation(
+        let write = try await ReconciliationSQL.finishReconciliation(
             accountID: accountID,
             targetBalance: targetBalance,
-            now: Date()
+            now: Date(),
+            in: database
         )
         return try await finishReconciliationWrite(
             write,
@@ -60,9 +66,10 @@ extension LocalFirstActualStore {
         accountID: String
     ) async throws -> AccountReconciliationMutationResult {
         let database = try requireDatabase(for: budgetID)
-        let write = try await database.exitReconciliation(
+        let write = try await ReconciliationSQL.exitReconciliation(
             accountID: accountID,
-            now: Date()
+            now: Date(),
+            in: database
         )
         return try await finishReconciliationWrite(
             write,
@@ -78,10 +85,11 @@ extension LocalFirstActualStore {
         transactionID: String
     ) async throws -> AccountReconciliationMutationResult {
         let database = try requireDatabase(for: budgetID)
-        let write = try await database.unlockReconciledTransaction(
+        let write = try await ReconciliationSQL.unlockReconciledTransaction(
             accountID: accountID,
             transactionID: transactionID,
-            now: Date()
+            now: Date(),
+            in: database
         )
         return try await finishReconciliationWrite(
             write,
@@ -104,7 +112,7 @@ extension LocalFirstActualStore {
                 accountIDs: write.changed.accounts
             )
         }
-        let snapshot = try await database.accountReconciliationSnapshot(accountID: accountID)
+        let snapshot = try await ReconciliationSQL.accountReconciliationSnapshot(accountID: accountID, in: database)
         return AccountReconciliationMutationResult(snapshot: snapshot, changed: write.changed)
     }
 }

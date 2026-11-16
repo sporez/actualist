@@ -13,8 +13,9 @@ struct ReconciledTransactionMutationTests {
             try Self.insertSplitTransferGraph(db: db, pairReconciled: true)
         }
 
-        let loadedReview = try await bundle.database.reconciledMutationReview(
-            transactionID: "split-a"
+        let loadedReview = try await ReconciledMutationReviewSQL.reconciledMutationReview(
+            transactionID: "split-a",
+            in: bundle.database
         )
         let review = try #require(loadedReview)
 
@@ -30,8 +31,9 @@ struct ReconciledTransactionMutationTests {
         try await bundle.queue.write { db in
             try db.execute(sql: "UPDATE transactions SET reconciled = 1, cleared = 1 WHERE id = 'txn'")
         }
-        let loadedReview = try await bundle.database.reconciledMutationReview(
-            transactionID: "txn"
+        let loadedReview = try await ReconciledMutationReviewSQL.reconciledMutationReview(
+            transactionID: "txn",
+            in: bundle.database
         )
         let review = try #require(loadedReview)
         var draft = TransactionDraft(
@@ -85,8 +87,9 @@ struct ReconciledTransactionMutationTests {
         try await bundle.queue.write { db in
             try Self.insertSplitTransferGraph(db: db, pairReconciled: false)
         }
-        let loadedReview = try await bundle.database.reconciledMutationReview(
-            transactionID: "split-a"
+        let loadedReview = try await ReconciledMutationReviewSQL.reconciledMutationReview(
+            transactionID: "split-a",
+            in: bundle.database
         )
         let firstReview = try #require(loadedReview)
         #expect(firstReview.pairedReconciledTransactionIDs.isEmpty)
@@ -116,8 +119,9 @@ struct ReconciledTransactionMutationTests {
         try await bundle.queue.write { db in
             try Self.insertSplitTransferGraph(db: db, pairReconciled: false)
         }
-        let loadedReview = try await bundle.database.reconciledMutationReview(
-            transactionID: "split-a"
+        let loadedReview = try await ReconciledMutationReviewSQL.reconciledMutationReview(
+            transactionID: "split-a",
+            in: bundle.database
         )
         let firstReview = try #require(loadedReview)
         var builder = LocalFirstSyncMessageBuilder()
