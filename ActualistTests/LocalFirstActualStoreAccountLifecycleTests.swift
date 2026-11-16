@@ -14,7 +14,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let initialAccount = try #require(store.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account)
         let feed = AccountTransactionsViewModel(scope: .account(initialAccount))
 
-        let result = try await store.renameAccountAndRefresh(
+        let result = try await store.accountLifecycle.renameAccountAndRefresh(
             budgetID: "group-1", command: renameCommand
         )
 
@@ -41,7 +41,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let bundle = try await support.makeOpenedWritableStoreBundle(
             additionalFixtureSQL: "UPDATE accounts SET closed = 1 WHERE id = 'checking';"
         )
-        let result = try await bundle.store.reopenAccountAndRefresh(
+        let result = try await bundle.store.accountLifecycle.reopenAccountAndRefresh(
             budgetID: "group-1",
             command: AccountReopenCommand(accountID: "checking", expectedClosed: true)
         )
@@ -65,9 +65,9 @@ struct LocalFirstActualStoreAccountLifecycleTests {
             accountID: "checking",
             requestedAction: .close(destinationAccountID: nil, categoryID: nil)
         )
-        let review = try await bundle.store.accountLifecycleReview(request: request)
+        let review = try await bundle.store.accountLifecycle.accountLifecycleReview(request: request)
 
-        let result = try await bundle.store.commitAccountLifecycleAndRefresh(reviewed: review)
+        let result = try await bundle.store.accountLifecycle.commitAccountLifecycleAndRefresh(reviewed: review)
 
         guard case .applied(let outcome) = result else {
             Issue.record("Expected a durable close")
@@ -88,10 +88,10 @@ struct LocalFirstActualStoreAccountLifecycleTests {
             accountID: "checking",
             requestedAction: .close(destinationAccountID: nil, categoryID: nil)
         )
-        let review = try await store.accountLifecycleReview(request: request)
+        let review = try await store.accountLifecycle.accountLifecycleReview(request: request)
         hook.action = { throw LocalFirstTestSyncError.failed }
 
-        let result = try await store.commitAccountLifecycleAndRefresh(reviewed: review)
+        let result = try await store.accountLifecycle.commitAccountLifecycleAndRefresh(reviewed: review)
 
         guard case .applied(let outcome) = result else {
             Issue.record("Refresh failure must retain the committed close")
@@ -108,7 +108,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let (store, hook) = try await makeStoreWithFeedHook()
         hook.action = { throw LocalFirstTestSyncError.failed }
 
-        let result = try await store.renameAccountAndRefresh(
+        let result = try await store.accountLifecycle.renameAccountAndRefresh(
             budgetID: "group-1", command: renameCommand
         )
         guard case .applied(let outcome) = result else {
@@ -123,7 +123,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         #expect(try await database.recentBudgetActions().count == 1)
 
         hook.action = nil
-        let retry = try await store.renameAccountAndRefresh(
+        let retry = try await store.accountLifecycle.renameAccountAndRefresh(
             budgetID: "group-1", command: renameCommand
         )
         guard case .noChange(let refreshed) = retry else {
@@ -145,7 +145,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
             store?.openedBudgetID = "replacement-budget"
         }
 
-        let result = try await store.renameAccountAndRefresh(
+        let result = try await store.accountLifecycle.renameAccountAndRefresh(
             budgetID: "group-1", command: renameCommand
         )
         guard case .applied(let outcome) = result else {
@@ -166,7 +166,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let bundle = try await support.makeOpenedWritableStoreBundle()
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            return try await bundle.store.renameAccountAndRefresh(
+            return try await bundle.store.accountLifecycle.renameAccountAndRefresh(
                 budgetID: "group-1", command: renameCommand
             )
         }
@@ -181,7 +181,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let (store, hook) = try await makeStoreWithFeedHook()
         hook.action = { [weak hook] in hook?.submission?.cancel() }
         let submission = Task {
-            try await store.renameAccountAndRefresh(budgetID: "group-1", command: renameCommand)
+            try await store.accountLifecycle.renameAccountAndRefresh(budgetID: "group-1", command: renameCommand)
         }
         hook.submission = submission
         let result = try await submission.value

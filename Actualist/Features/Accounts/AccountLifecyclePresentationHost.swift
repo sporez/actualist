@@ -47,7 +47,7 @@ struct AccountLifecycleMenu: View {
                                 categoryID: nil
                             )
                         ),
-                        repository: appState.localFirstStore
+                        repository: appState.localFirstStore.accountLifecycle
                     )
                 } label: {
                     Label("Close Account", systemImage: "xmark.circle")
@@ -95,20 +95,20 @@ struct AccountLifecyclePresentationHost: ViewModifier {
         case .rename:
             AccountRenameSheet(coordinator: coordinator) {
                 coordinator.submitRename(
-                    repository: appState.localFirstStore,
+                    repository: appState.localFirstStore.accountLifecycle,
                     onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
                 )
             } onRetry: {
-                coordinator.retry(repository: appState.localFirstStore)
+                coordinator.retry(repository: appState.localFirstStore.accountLifecycle)
             }
         case .reopen:
             AccountReopenSheet(coordinator: coordinator) {
                 coordinator.confirmReopen(
-                    repository: appState.localFirstStore,
+                    repository: appState.localFirstStore.accountLifecycle,
                     onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
                 )
             } onRetry: {
-                coordinator.retry(repository: appState.localFirstStore)
+                coordinator.retry(repository: appState.localFirstStore.accountLifecycle)
             }
         case .review:
             reviewSheet
@@ -132,18 +132,18 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                 onDestinationChange: {
                     coordinator.selectCloseDestination(
                         $0,
-                        repository: appState.localFirstStore
+                        repository: appState.localFirstStore.accountLifecycle
                     )
                 },
                 onCategoryChange: {
                     coordinator.selectCloseCategory(
                         $0,
-                        repository: appState.localFirstStore
+                        repository: appState.localFirstStore.accountLifecycle
                     )
                 },
                 onConfirm: {
                     coordinator.confirmReview(
-                        repository: appState.localFirstStore,
+                        repository: appState.localFirstStore.accountLifecycle,
                         onCommitted: AccountLifecycleRouting.completionHandler(using: appState)
                     )
                 },
@@ -170,7 +170,7 @@ struct AccountLifecyclePresentationHost: ViewModifier {
                     }
                     .buttonStyle(.glass)
                     Button {
-                        coordinator.retry(repository: appState.localFirstStore)
+                        coordinator.retry(repository: appState.localFirstStore.accountLifecycle)
                     } label: {
                         Text("Review Again")
                             .font(.subheadline.weight(.semibold))

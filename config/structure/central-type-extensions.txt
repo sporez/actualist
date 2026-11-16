@@ -63,7 +63,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+UntrustedSanitization.swift
 Actualist/LocalFirst/Database/BudgetDatabase+UserActionPlan.swift
 Actualist/LocalFirst/DemoMode/LocalFirstActualStore+Demo.swift
 Actualist/LocalFirst/LocalFirstActualStore+AccountGroups.swift
-Actualist/LocalFirst/LocalFirstActualStore+AccountLifecycle.swift
 Actualist/LocalFirst/LocalFirstActualStore+ActionLog.swift
 Actualist/LocalFirst/LocalFirstActualStore+AssignMove.swift
 Actualist/LocalFirst/LocalFirstActualStore+BankSync.swift
