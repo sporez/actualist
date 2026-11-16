@@ -218,12 +218,12 @@ enum TemplatePreviewSQL {
             db: db
         )
         let names = try TemplateCategorySQL.templateCategoryNames(in: database, db: db)
-        let currentValues = try database.categoryValues(through: month, db: db, history: history)
+        let currentValues = try BudgetCategoryValueSQL.categoryValues(through: month, history: history, in: database, db: db)
         let reviewRevision = try budgetTemplateReviewRevision(month: month, in: database, db: db)
-        let currency = try database.budgetCurrency(db: db)
+        let currency = try BudgetCurrencySQL.budgetCurrency(in: database, db: db)
         let includedTrackingCategoryIDs: Set<String>
         if prepared.isTracking {
-            let groups = try database.fetchCategoryGroups(categoryValues: currentValues, db: db)
+            let groups = try BudgetMonthSQL.fetchCategoryGroups(categoryValues: currentValues, in: database, db: db)
             let firstIncomeGroupID = groups.first(where: \.isIncome)?.id
             includedTrackingCategoryIDs = Set(groups
                 .filter { $0.isIncome ? $0.id == firstIncomeGroupID : $0.hidden != true }
@@ -404,7 +404,7 @@ enum TemplatePreviewSQL {
         let currentMonthValue = try BudgetDatabase.actualMonthValue(
             currentMonth ?? BudgetTemplateCalendar.currentMonthID()
         )
-        let templateEngine = BudgetTemplateEngine(currency: try database.budgetCurrency(db: db))
+        let templateEngine = BudgetTemplateEngine(currency: try BudgetCurrencySQL.budgetCurrency(in: database, db: db))
         let table = try database.budgetTable(db: db)
         let columns = try database.requiredColumns(
             table: table.rawValue,
@@ -478,7 +478,7 @@ enum TemplatePreviewSQL {
         }
 
         let force = command.mode == .overwrite || !targeted.isEmpty
-        let currentBudgets = try database.categoryBudgets(month: YearMonth.id(packed: monthValue), db: db)
+        let currentBudgets = try BudgetCategoryValueSQL.categoryBudgets(month: YearMonth.id(packed: monthValue), in: database, db: db)
         let existingGoals = canWriteGoals
             ? try TemplateApplySQL.categoryGoals(month: YearMonth.id(packed: monthValue), in: database, db: db)
             : [:]
@@ -487,8 +487,8 @@ enum TemplatePreviewSQL {
         var categoryTemplates: [String: [BudgetTemplateEntry]] = [:]
         var orphanGoalCategoryIDs: [String] = []
         let initialAvailableBudget = try isTracking
-            ? database.trackingTotalSaved(month: YearMonth.id(packed: monthValue), db: db, history: history)
-            : database.envelopeToBudget(month: YearMonth.id(packed: monthValue), db: db, history: history)
+            ? BudgetMonthSQL.trackingTotalSaved(month: YearMonth.id(packed: monthValue), history: history, in: database, db: db)
+            : BudgetMonthSQL.envelopeToBudget(month: YearMonth.id(packed: monthValue), history: history, in: database, db: db)
         var availableBudget = initialAvailableBudget
         var incomeCatalog = try TemplateInputSQL.templateIncomeCatalog(in: database, db: db)
         let activeSchedules = try TemplateInputSQL.templateActiveSchedules(in: database, db: db)

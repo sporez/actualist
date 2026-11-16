@@ -15,7 +15,7 @@ extension LocalFirstActualStore {
     func fetchWidgetSource(budgetID: String, now: Date = Date()) async throws -> WidgetBudgetSource {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetReadGeneration
-        let financial = try await database.fetchBudgetSnapshot(month: WidgetMonthID.current(now: now))
+        let financial = try await BudgetMonthSQL.fetchBudgetSnapshot(month: WidgetMonthID.current(now: now), in: database)
         let month = financial.month
         let currency = financial.currency
         let accounts = try? await AccountSQL.fetchAccountDisplays(in: database)

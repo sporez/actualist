@@ -113,11 +113,12 @@ extension LocalFirstActualStoreTests {
         let database = try store.requireDatabase(for: "group-1")
 
         var firstBuilder = LocalFirstSyncMessageBuilder()
-        let first = try await database.assignCategoryBudgetMessages(
+        let first = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
             categoryID: "groceries",
             budgeted: 60_000,
             month: "2026-07",
-            builder: &firstBuilder
+            builder: &firstBuilder,
+            in: database
         )
         try await database.commitUserAction(
             first,
@@ -129,11 +130,12 @@ extension LocalFirstActualStoreTests {
         #expect(try await database.recentBudgetActions().count == 1)
 
         var secondBuilder = LocalFirstSyncMessageBuilder()
-        let second = try await database.assignCategoryBudgetMessages(
+        let second = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
             categoryID: "groceries",
             budgeted: 70_000,
             month: "2026-07",
-            builder: &secondBuilder
+            builder: &secondBuilder,
+            in: database
         )
         await #expect(throws: (any Error).self) {
             try await database.commitUserAction(
@@ -162,11 +164,12 @@ extension LocalFirstActualStoreTests {
         for index in 1...30 {
             let month = index.isMultiple(of: 2) ? "2026-07" : "2026-08"
             var builder = LocalFirstSyncMessageBuilder()
-            let messages = try await database.assignCategoryBudgetMessages(
+            let messages = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
                 categoryID: "groceries",
                 budgeted: 10_000 + index,
                 month: month,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             try await database.commitUserAction(
                 messages,
@@ -397,11 +400,12 @@ extension LocalFirstActualStoreTests {
         // cell no longer matches the recorded after-state.
         let database = try store.requireDatabase(for: "group-1")
         var builder = LocalFirstSyncMessageBuilder()
-        let untracked = try await database.assignCategoryBudgetMessages(
+        let untracked = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
             categoryID: "groceries",
             budgeted: 65_000,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(untracked)
 
@@ -745,11 +749,12 @@ extension LocalFirstActualStoreTests {
         let database = try store.requireDatabase(for: "group-1")
         for index in 1...25 {
             var builder = LocalFirstSyncMessageBuilder()
-            let messages = try await database.assignCategoryBudgetMessages(
+            let messages = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
                 categoryID: "groceries",
                 budgeted: 10_000 + index,
                 month: "2026-07",
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             try await database.commitUserAction(
                 messages,

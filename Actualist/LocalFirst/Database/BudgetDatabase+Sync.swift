@@ -493,7 +493,7 @@ extension BudgetDatabase {
         db: Database
     ) throws {
         let columns = try columnSet(for: "zero_budgets", db: db)
-        let key = try zeroBudgetKey(from: message.row)
+        let key = try BudgetRowSQL.zeroBudgetKey(from: message.row)
         let column = quotedIdentifier(message.column)
         if rowExists {
             switch value {

@@ -28,11 +28,12 @@ struct CategoryCarryoverRowReadTests {
         // Data runs through 2026-08; the earlier horizon extends to it.
         for (carryover, through) in [(true, "2026-12"), (false, "2026-02")] {
             var actualBuilder = LocalFirstSyncMessageBuilder()
-            let actual = try await database.allExpenseCategoryCarryoverMessages(
+            let actual = try await BudgetAssignmentSQL.allExpenseCategoryCarryoverMessages(
                 carryover: carryover,
                 startMonth: startMonth,
                 throughMonth: through,
-                builder: &actualBuilder
+                builder: &actualBuilder,
+                in: database
             )
             var expectedBuilder = LocalFirstSyncMessageBuilder()
             let expected = try await database.perPairCarryoverMessagesForTesting(
@@ -49,8 +50,8 @@ struct CategoryCarryoverRowReadTests {
         }
         if tracking {
             var builder = LocalFirstSyncMessageBuilder()
-            let messages = try await database.allExpenseCategoryCarryoverMessages(
-                carryover: true, startMonth: startMonth, throughMonth: "2026-12", builder: &builder
+            let messages = try await BudgetAssignmentSQL.allExpenseCategoryCarryoverMessages(
+                carryover: true, startMonth: startMonth, throughMonth: "2026-12", builder: &builder, in: database
             )
             #expect(messages.contains { $0.row == "custom-row-id" && $0.column == "carryover" })
             #expect(!messages.contains { $0.row == "202301-dining" })
@@ -62,8 +63,8 @@ struct CategoryCarryoverRowReadTests {
         let log = StatementLog()
         try await database.startStatementTraceForTesting(log)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.allExpenseCategoryCarryoverMessages(
-            carryover: true, startMonth: "2024-09", throughMonth: "2026-12", builder: &builder
+        let messages = try await BudgetAssignmentSQL.allExpenseCategoryCarryoverMessages(
+            carryover: true, startMonth: "2024-09", throughMonth: "2026-12", builder: &builder, in: database
         )
         try await database.stopStatementTraceForTesting()
         let rowReads = log.count(containing: "FROM \"zero_budgets\"")
@@ -92,17 +93,19 @@ extension BudgetDatabase {
             let categoryIDs = try TemplateCategorySQL.templateCategoryIDsInBudgetOrder(
                 includeIncome: false, includeHidden: true, in: self, db: db
             )
-            let latestStored = try fetchAvailableMonths(db: db).last.map(YearMonth.packedUnchecked) ?? 0
+            let latestStored = try BudgetMonthSQL.fetchAvailableMonths(in: self, db: db).last.map(YearMonth.packedUnchecked) ?? 0
             let effectiveThrough = max(throughValue, latestStored)
             var messages: [ActualSyncDecodedMessage] = []
             for categoryID in categoryIDs {
                 var monthValue = startValue
                 while monthValue <= effectiveThrough {
-                    let existingRowID = try budgetRowID(
+                    let existingRowID = try BudgetRowSQL.budgetRowID(
                         table: table, monthValue: monthValue, categoryID: categoryID,
-                        columns: columns, db: db
+                        columns: columns,
+                        in: self,
+                        db: db
                     )
-                    let rowID = existingRowID ?? Self.budgetRowID(monthValue: monthValue, categoryID: categoryID)
+                    let rowID = existingRowID ?? BudgetRowSQL.budgetRowID(monthValue: monthValue, categoryID: categoryID)
                     if existingRowID == nil {
                         messages.append(try builder.makeMessage(
                             dataset: table.rawValue, row: rowID, column: "month", value: .string(String(monthValue))

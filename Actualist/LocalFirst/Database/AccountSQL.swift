@@ -58,7 +58,7 @@ enum AccountSQL {
 
     static func fetchAccountDisplays(in database: isolated BudgetDatabase) throws -> [AccountDisplay] {
         let accounts = try fetchAccounts(in: database)
-        let balances = try database.accountBalances()
+        let balances = try accountBalances(in: database)
         let userNoteIDs = try database.fetchUserNoteIDs(
             for: Set(accounts.map { "account-\($0.id)" })
         )
@@ -216,5 +216,42 @@ enum AccountSQL {
             )
         }
         return messages
+    }
+
+    static func accountBalances(in database: isolated BudgetDatabase) throws -> [String: Int] {
+        try database.queue.read { db in try accountBalances(accountID: nil, in: database, db: db) }
+    }
+
+    /// The live inline balance of one account (future-dated rows included), or
+    /// nil when the transactions table is missing.
+    static func accountBalance(accountID: String, in database: isolated BudgetDatabase, db: Database) throws -> Int? {
+        guard try database.tableExists("transactions", db: db) else { return nil }
+        return try accountBalances(accountID: accountID, in: database, db: db)[accountID] ?? 0
+    }
+
+    /// Per-account balance of live inline rows; `accountID` limits it to one account.
+    private static func accountBalances(accountID: String?, in database: isolated BudgetDatabase, db: Database) throws -> [String: Int] {
+        guard try database.tableExists("transactions", db: db) else {
+            return [:]
+        }
+
+        let columns = try database.columnSet(for: "transactions", db: db)
+        let split = TransactionSplitQueryExpressions(columns: columns)
+        let accountFilter = accountID == nil ? "" : "AND \(split.qualifiedAccount) = ?"
+        let sql = """
+            SELECT \(split.qualifiedAccount) AS account_id, SUM(\(split.qualifiedAmount)) AS balance
+            FROM transactions t
+            \(split.parentJoin())
+            WHERE \(split.liveInlinePredicate())
+              \(accountFilter)
+            GROUP BY \(split.qualifiedAccount)
+            """
+        let rows = try Row.fetchAll(db, sql: sql, arguments: accountID.map { [$0] } ?? [])
+        return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
+            guard let accountID = row["account_id"] as String? else {
+                return nil
+            }
+            return (accountID, row["balance"] ?? 0)
+        })
     }
 }

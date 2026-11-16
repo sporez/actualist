@@ -178,7 +178,7 @@ struct TransactionSplitQueryTests {
 
         let all = try await database.fetchTransactionPage(accountID: "checking", splits: .all)
         let inline = try await database.fetchTransactionPage(accountID: "checking", splits: .inline)
-        let balances = try await database.accountBalances()
+        let balances = try await AccountSQL.accountBalances(in: database)
         #expect(all.transactions.map(\.id) == ["simple"])
         #expect(inline.transactions.map(\.id) == ["simple"])
         #expect(balances["checking"] == -1_000)
@@ -244,7 +244,7 @@ struct TransactionSplitQueryTests {
             ('mismatch-child', 0, 1, 'checking', 'groceries', -4000, 'coffee', NULL, 20260816, 4, 0, 'mismatch-parent');
             """)
 
-        let balances = try await database.accountBalances()
+        let balances = try await AccountSQL.accountBalances(in: database)
         #expect(balances["checking"] == -9_000)
 
         let snapshot = try await ReportDashboardSQL.fetchReportsDashboard(
@@ -286,7 +286,7 @@ struct TransactionSplitQueryTests {
 
         let grouped = try await database.fetchTransactions(accountID: "checking")
         #expect(grouped.first?.subtransactions.map(\.id) == ["alive"])
-        let balances = try await database.accountBalances()
+        let balances = try await AccountSQL.accountBalances(in: database)
         #expect(balances["checking"] == -2_000)
     }
 

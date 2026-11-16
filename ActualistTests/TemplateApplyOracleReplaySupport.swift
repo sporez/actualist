@@ -272,7 +272,7 @@ enum TemplateApplyOracleReplay {
     /// table, which the category read model does not carry.
     private static func snapshot(_ database: BudgetDatabase, month: String) async throws -> OracleValue {
         let monthValue = try BudgetDatabase.actualMonthValue(month)
-        let budgetMonth = try await database.fetchBudgetMonth(month: month)
+        let budgetMonth = try await BudgetMonthSQL.fetchBudgetMonth(month: month, in: database)
         let table = budgetMonth.trackingSummary == nil ? BudgetTable.envelope : .tracking
         let balance = budgetMonth.trackingSummary?.plannedSavings ?? budgetMonth.toBudget
         let queue = await database.queue

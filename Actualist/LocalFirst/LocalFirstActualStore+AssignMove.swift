@@ -19,11 +19,12 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         let mode = try await database.requireBudgetMode(expectedMode)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.assignCategoryBudgetMessages(
+        let messages = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
             categoryID: categoryID,
             budgeted: budgeted,
             month: month,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
 
         _ = try await database.commitUserAction(
@@ -59,13 +60,14 @@ extension LocalFirstActualStore {
             expectedMode: mode
         ) { database, db in
             var builder = LocalFirstSyncMessageBuilder()
-            let resolved = try database.resolvedMoveMoneyCommands(commands, month: month, db: db)
+            let resolved = try BudgetAssignmentSQL.resolvedMoveMoneyCommands(commands, month: month, in: database, db: db)
             return UserActionPlan(
-                drafts: try database.moveMoneyMessages(
+                drafts: try BudgetAssignmentSQL.moveMoneyMessages(
                     commands: resolved,
                     month: month,
-                    db: db,
-                    builder: &builder
+                    builder: &builder,
+                    in: database,
+                    db: db
                 ),
                 // A move limited to nothing records no History row; a transfer-available still writes its row.
                 descriptor: resolved.allSatisfy { $0.amount == 0 } ? nil : .move(

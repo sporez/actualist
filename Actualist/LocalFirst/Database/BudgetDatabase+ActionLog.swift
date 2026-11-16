@@ -163,7 +163,7 @@ extension BudgetDatabase {
         switch descriptor {
         case .assign(let month, let categoryID, let budgeted):
             let trimmedCategoryID = categoryID.trimmingCharacters(in: .whitespacesAndNewlines)
-            let before = try categoryBudgets(month: month, db: db)[trimmedCategoryID]?.budgeted ?? 0
+            let before = try BudgetCategoryValueSQL.categoryBudgets(month: month, in: self, db: db)[trimmedCategoryID]?.budgeted ?? 0
             let assign = AssignBudgetAction(
                 month: month,
                 categoryID: trimmedCategoryID,
@@ -178,7 +178,7 @@ extension BudgetDatabase {
                 affectedCategoryIDs: [trimmedCategoryID]
             )
         case .move(let month, let legs):
-            let budgets = try categoryBudgets(month: month, db: db)
+            let budgets = try BudgetCategoryValueSQL.categoryBudgets(month: month, in: self, db: db)
             var affectedIDs = Set<String>()
             var previousBudgeted: [String: Int] = [:]
             for categoryID in legs.flatMap({ [$0.fromCategoryID, $0.toCategoryID] }).compactMap({ $0 }) {
@@ -200,7 +200,7 @@ extension BudgetDatabase {
                 affectedCategoryIDs: affectedIDs.sorted()
             )
         case .template(let month, let mode, let assignments):
-            let budgets = try categoryBudgets(month: month, db: db)
+            let budgets = try BudgetCategoryValueSQL.categoryBudgets(month: month, in: self, db: db)
             var entries: [BudgetTemplateAssignmentFact] = []
             var affectedIDs: [String] = []
             for assignment in assignments.sorted(by: { $0.categoryID < $1.categoryID }) {
@@ -408,7 +408,7 @@ extension BudgetDatabase {
         record: BudgetActionRecord,
         db: Database
     ) throws -> [String: Int?] {
-        let budgets = try categoryBudgets(month: record.inverse.month, db: db)
+        let budgets = try BudgetCategoryValueSQL.categoryBudgets(month: record.inverse.month, in: self, db: db)
         let categoryColumns: Set<String>
         let categoriesPresent = try tableExists("categories", db: db)
         if categoriesPresent {
@@ -647,14 +647,15 @@ extension BudgetDatabase {
             var drafts: [ActualSyncDecodedMessage] = []
             for categoryID in targets.keys.sorted() {
                 guard let amount = targets[categoryID] else { continue }
-                drafts += try assignCategoryBudgetMessages(
+                drafts += try BudgetRowSQL.assignCategoryBudgetMessages(
                     categoryID: categoryID,
                     budgeted: amount,
                     monthValue: monthValue,
                     table: table,
                     columns: columns,
-                    db: db,
-                    builder: &builder
+                    builder: &builder,
+                    in: self,
+                    db: db
                 )
             }
             return drafts

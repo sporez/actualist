@@ -77,7 +77,7 @@ struct TrackingBudgetDatabaseContractTests {
                     arguments: [testCase.activity])
             }
             let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
-            let month = try await database.fetchBudgetMonth(month: "2026-08")
+            let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
             let category = try #require(month.categoryGroups.first?.categories.first)
             #expect(category.balance == testCase.balance)
         }
@@ -86,10 +86,10 @@ struct TrackingBudgetDatabaseContractTests {
     @Test func trackingReadContractExposesEnvelopeCarryAndMissingFutureMonth() async throws {
         let url = try makeTrackingContractFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
-        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let august = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
         let category = try #require(august.categoryGroups.first?.categories.first)
         #expect(category.balance == 0)
-        let months = try await database.fetchAvailableMonths()
+        let months = try await BudgetMonthSQL.fetchAvailableMonths(in: database)
         #expect(months.contains("2029-12"))
     }
 
@@ -146,8 +146,8 @@ struct TrackingBudgetDatabaseContractTests {
         let url = try makeTrackingContractFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.categoryCarryoverMessages(categoryID: "groceries",
-            carryover: true, startMonth: "2026-07", throughMonth: "2029-12", builder: &builder)
+        let messages = try await BudgetAssignmentSQL.categoryCarryoverMessages(categoryID: "groceries",
+            carryover: true, startMonth: "2026-07", throughMonth: "2029-12", builder: &builder, in: database)
         #expect(messages.allSatisfy { $0.dataset == "reflect_budgets" })
         #expect(messages.contains { $0.row == "202912-groceries" && $0.column == "carryover" })
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
@@ -159,9 +159,9 @@ struct TrackingBudgetDatabaseContractTests {
         let url = try makeTrackingContractFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.categoryCarryoverMessages(
+        let messages = try await BudgetAssignmentSQL.categoryCarryoverMessages(
             categoryID: "groceries", carryover: true,
-            startMonth: "2026-07", throughMonth: "2026-08", builder: &builder
+            startMonth: "2026-07", throughMonth: "2026-08", builder: &builder, in: database
         )
         #expect(messages.contains {
             $0.dataset == "reflect_budgets" && $0.row == "202912-groceries" && $0.column == "carryover"

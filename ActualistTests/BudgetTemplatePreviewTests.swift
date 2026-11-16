@@ -591,7 +591,7 @@ struct BudgetTemplatePreviewTests {
             in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(apply.messages)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.trackingSummary?.plannedSavings == preview.availableAfter)
     }
 

@@ -66,7 +66,7 @@ extension BudgetDatabase {
         if table == "zero_budgets",
            try tableExists("zero_budgets", db: db),
            try !columnSet(for: "zero_budgets", db: db).contains("id") {
-            let key = try zeroBudgetKey(from: rowID)
+            let key = try BudgetRowSQL.zeroBudgetKey(from: rowID)
             return try Row.fetchOne(
                 db,
                 sql: "SELECT category FROM zero_budgets WHERE \(normalizedMonthExpression("month")) = ? AND category = ? LIMIT 1",

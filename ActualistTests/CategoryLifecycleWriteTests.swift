@@ -23,7 +23,7 @@ struct CategoryLifecycleWriteTests {
         #expect(messages.contains { $0.dataset == "category_mapping" && $0.row == "fuel" && $0.column == "transferId" && $0.serializedValue == "S:fuel" })
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let group = try #require(month.categoryGroups.first { $0.id == "group" })
         #expect(group.categories.map(\.id) == ["fuel", "groceries"])
     }
@@ -237,7 +237,7 @@ struct CategoryLifecycleWriteTests {
                 """),
             localNodeID: "node1"
         )
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.categoryGroups.map(\.id) == ["group", "bills", "income"])
     }
 
@@ -323,7 +323,7 @@ struct CategoryLifecycleWriteTests {
         #expect(messages.first?.serializedValue == "N:1")
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
 
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.categoryGroups.flatMap(\.categories).contains { $0.id == "clean" } == false)
     }
 
@@ -342,7 +342,7 @@ struct CategoryLifecycleWriteTests {
             UPDATE transactions SET category = 'alias' WHERE id = 'txn';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let before = try await database.fetchBudgetMonth(month: "2026-07")
+        let before = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         var builder = LocalFirstSyncMessageBuilder()
 
         let messages = try await CategoryDeletionSQL.deleteCategoryMessages(
@@ -368,7 +368,7 @@ struct CategoryLifecycleWriteTests {
         #expect(stored.2 == "destination")
         #expect(stored.3 == "destination")
 
-        let after = try await database.fetchBudgetMonth(month: "2026-07")
+        let after = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let destination = try #require(after.categoryGroups.flatMap(\.categories).first { $0.id == "destination" })
         #expect(destination.budgeted == 12000)
         #expect(destination.spent == -12345)
@@ -497,7 +497,7 @@ struct CategoryLifecycleWriteTests {
         #expect(messages.contains { $0.dataset == "category_groups" && $0.row == "victim" && $0.column == "tombstone" })
         #expect(messages.contains { $0.dataset == "zero_budgets" && $0.row == "202607-destination" && $0.serializedValue == "N:8000" })
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.categoryGroups.contains { $0.id == "victim" } == false)
         #expect(month.categoryGroups.flatMap(\.categories).contains { $0.id == "one" } == false)
     }
@@ -508,7 +508,7 @@ struct CategoryLifecycleWriteTests {
             INSERT INTO category_mapping VALUES ('destination', 'destination');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let before = try await database.fetchBudgetMonth(month: "2026-07")
+        let before = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let messages = [
             ActualSyncDecodedMessage(timestamp: "2026-07-30T12:00:00.000Z-0000-remote", dataset: "zero_budgets", row: "202607-destination", column: "month", serializedValue: "N:202607"),
             ActualSyncDecodedMessage(timestamp: "2026-07-30T12:00:00.001Z-0000-remote", dataset: "zero_budgets", row: "202607-destination", column: "category", serializedValue: "S:destination"),
@@ -518,7 +518,7 @@ struct CategoryLifecycleWriteTests {
         ]
         #expect(try await database.applyRemoteSyncMessages(messages) == messages.count)
 
-        let after = try await database.fetchBudgetMonth(month: "2026-07")
+        let after = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let destination = try #require(after.categoryGroups.flatMap(\.categories).first { $0.id == "destination" })
         #expect(destination.budgeted == 50000)
         #expect(destination.spent == -12345)

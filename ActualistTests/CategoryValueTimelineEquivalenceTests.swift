@@ -71,7 +71,7 @@ extension BudgetDatabase {
 
     func timelineComparisonsForTesting(targets: [String]) throws -> [TimelineComparison] {
         try queue.read { db in
-            let inputs = try categoryValueInputs(db: db)
+            let inputs = try BudgetCategoryValueSQL.categoryValueInputs(in: self, db: db)
             return try targets.map { target in
                 func digest(
                     _ current: [String: BudgetCategoryValue],
@@ -79,10 +79,10 @@ extension BudgetDatabase {
                 ) -> String {
                     BudgetHistoryFixture.digest(current) + " | " + BudgetHistoryFixture.digest(previous)
                 }
-                let production = try categoryValuesWithPrevious(through: target, db: db)
+                let production = try BudgetCategoryValueSQL.categoryValuesWithPrevious(through: target, in: self, db: db)
                 let naive = try naiveCategoryValuesForTesting(inputs: inputs, through: target)
                 let month = YearMonth.packedUnchecked(target)
-                let timeline = try categoryValueTimeline(inputs: inputs, through: month, keepFrom: month)
+                let timeline = try BudgetCategoryValueSQL.categoryValueTimeline(inputs: inputs, through: month, keepFrom: month)
                 return TimelineComparison(
                     target: target,
                     production: digest(production.current, production.previous),
@@ -95,8 +95,8 @@ extension BudgetDatabase {
 
     func snapshotMismatchesForTesting(through target: String, keepFrom: Int) throws -> [String] {
         try queue.read { db in
-            let inputs = try categoryValueInputs(db: db)
-            let timeline = try categoryValueTimeline(
+            let inputs = try BudgetCategoryValueSQL.categoryValueInputs(in: self, db: db)
+            let timeline = try BudgetCategoryValueSQL.categoryValueTimeline(
                 inputs: inputs,
                 through: YearMonth.packedUnchecked(target),
                 keepFrom: keepFrom
@@ -114,11 +114,11 @@ extension BudgetDatabase {
 
     func timelineMonthCountsForTesting(target: String) throws -> (naive: Int, timeline: Int) {
         try queue.read { db in
-            let inputs = try categoryValueInputs(db: db)
+            let inputs = try BudgetCategoryValueSQL.categoryValueInputs(in: self, db: db)
             let month = YearMonth.packedUnchecked(target)
             return (
                 try naiveCategoryValuesForTesting(inputs: inputs, through: target).monthsComputed,
-                try categoryValueTimeline(inputs: inputs, through: month, keepFrom: month).monthsComputed
+                try BudgetCategoryValueSQL.categoryValueTimeline(inputs: inputs, through: month, keepFrom: month).monthsComputed
             )
         }
     }

@@ -30,14 +30,14 @@ struct BudgetCoverLimitTests {
             INSERT INTO transactions VALUES ('salary-jul', 'checking', 20260701, 200000, 'salary', 0, NULL, 0);
             """)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "cover-limit")
-        let toBudget = try await database.fetchBudgetMonth(month: "2026-07").toBudget
+        let toBudget = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database).toBudget
         #expect(toBudget > 0)
         let mode = try await database.requireBudgetMode(nil)
 
         let cover = BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "groceries", amount: toBudget + 5_000, kind: .cover)
         let move = BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "groceries", amount: toBudget + 5_000)
         let resolved = try await database.commitUserActionPlan(source: .ui, expectedMode: mode) { budget, db in
-            let resolved = try budget.resolvedMoveMoneyCommands([cover, move, cover], month: "2026-07", db: db)
+            let resolved = try BudgetAssignmentSQL.resolvedMoveMoneyCommands([cover, move, cover], month: "2026-07", in: budget, db: db)
             return UserActionPlan(drafts: [], descriptor: nil, outcome: resolved)
         }.outcome
 
@@ -68,15 +68,15 @@ struct BudgetCoverLimitTests {
             INSERT INTO transactions VALUES ('salary-jul', 'checking', 20260701, 200000, 'salary', 0, NULL, 0);
             """)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "transfer-available")
-        let toBudget = try await database.fetchBudgetMonth(month: "2026-07").toBudget
+        let toBudget = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database).toBudget
         #expect(toBudget > 0)
         let mode = try await database.requireBudgetMode(nil)
 
         let transfer = BudgetMoveMoneyCommand.move(fromCategoryID: nil, toCategoryID: "groceries", amount: toBudget + 5_000)
         let plan = try await database.commitUserActionPlan(source: .ui, expectedMode: mode) { budget, db in
             var builder = LocalFirstSyncMessageBuilder()
-            let resolved = try budget.resolvedMoveMoneyCommands([transfer, transfer], month: "2026-07", db: db)
-            let drafts = try budget.moveMoneyMessages(commands: resolved, month: "2026-07", db: db, builder: &builder)
+            let resolved = try BudgetAssignmentSQL.resolvedMoveMoneyCommands([transfer, transfer], month: "2026-07", in: budget, db: db)
+            let drafts = try BudgetAssignmentSQL.moveMoneyMessages(commands: resolved, month: "2026-07", builder: &builder, in: budget, db: db)
             return UserActionPlan(drafts: drafts, descriptor: nil, outcome: resolved)
         }.outcome
 
@@ -86,7 +86,7 @@ struct BudgetCoverLimitTests {
         let zero = try await database.commitUserActionPlan(source: .ui, expectedMode: mode) { budget, db in
             var builder = LocalFirstSyncMessageBuilder()
             let none = BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "groceries", amount: 0, kind: .transferAvailable)
-            let drafts = try budget.moveMoneyMessages(commands: [none], month: "2026-07", db: db, builder: &builder)
+            let drafts = try BudgetAssignmentSQL.moveMoneyMessages(commands: [none], month: "2026-07", builder: &builder, in: budget, db: db)
             return UserActionPlan(drafts: drafts, descriptor: nil, outcome: drafts)
         }.outcome
         #expect(zero.contains { $0.column == "amount" })

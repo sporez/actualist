@@ -16,7 +16,7 @@ struct BudgetTemplateEmptyCategoryTests {
             INSERT INTO notes VALUES ('groceries', '\(note)');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let before = try await database.fetchBudgetMonth(month: "2026-07")
+        let before = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(categoryID: "groceries", in: database)
         #expect(snapshot.drafts.isEmpty)
         #expect(!snapshot.hasDefinition)
@@ -46,7 +46,7 @@ struct BudgetTemplateEmptyCategoryTests {
         #expect(saved.lock == .editable)
         #expect(saved.hasDefinition)
         #expect(saved.drafts.count == 1)
-        let after = try await database.fetchBudgetMonth(month: "2026-07")
+        let after = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(after.toBudget == before.toBudget)
         #expect(after.totalBudgeted == before.totalBudgeted)
 

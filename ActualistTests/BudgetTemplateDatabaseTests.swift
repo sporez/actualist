@@ -739,7 +739,7 @@ extension LocalFirstActualStoreTests {
             ))
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let before = try await database.fetchBudgetMonth(month: "2026-07")
+        let before = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
@@ -848,7 +848,7 @@ extension LocalFirstActualStoreTests {
     ) async throws -> (toBudgetBefore: Int, amount: Int?, toBudgetAfter: Int) {
         let fixtureURL = try makeSQLiteFixture(extraSQL: extraSQL)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let before = try await database.fetchBudgetMonth(month: "2026-07")
+        let before = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await TemplateApplySQL.budgetTemplateApply(
             command: .overwrite,
@@ -857,7 +857,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let after = try await database.fetchBudgetMonth(month: "2026-07")
+        let after = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         return (
             before.toBudget,
             try zeroBudgetAmount(categoryID, at: fixtureURL),

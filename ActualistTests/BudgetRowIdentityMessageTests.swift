@@ -24,16 +24,16 @@ struct BudgetRowIdentityMessageTests {
 
     @Test func assignToExistingRowWithoutIdColumnDerivesTheRowIDAndWritesOnlyTheAmount() async throws {
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database().assignCategoryBudgetMessages(
-            categoryID: "groceries", budgeted: 12_345, month: "2026-07", builder: &builder
+        let messages = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
+            categoryID: "groceries", budgeted: 12_345, month: "2026-07", builder: &builder, in: database()
         )
         #expect(lines(messages) == ["zero_budgets|202607-groceries|amount|N:12345"])
     }
 
     @Test func assignToNewRowAddsIdentityThenAmountWithoutCarryover() async throws {
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database().assignCategoryBudgetMessages(
-            categoryID: "groceries", budgeted: 12_345, month: "2026-08", builder: &builder
+        let messages = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
+            categoryID: "groceries", budgeted: 12_345, month: "2026-08", builder: &builder, in: database()
         )
         #expect(lines(messages) == [
             "zero_budgets|202608-groceries|month|N:202608",
@@ -48,17 +48,17 @@ struct BudgetRowIdentityMessageTests {
             UPDATE zero_budgets SET id = 'peer-groceries-jul';
             """)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await db.assignCategoryBudgetMessages(
-            categoryID: "groceries", budgeted: 700, month: "2026-07", builder: &builder
+        let messages = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
+            categoryID: "groceries", budgeted: 700, month: "2026-07", builder: &builder, in: db
         )
         #expect(lines(messages) == ["zero_budgets|peer-groceries-jul|amount|N:700"])
     }
 
     @Test func carryoverWritesIdentityOnlyForMonthsWithoutARow() async throws {
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database().categoryCarryoverMessages(
+        let messages = try await BudgetAssignmentSQL.categoryCarryoverMessages(
             categoryID: "groceries", carryover: true,
-            startMonth: "2026-07", throughMonth: "2026-08", builder: &builder
+            startMonth: "2026-07", throughMonth: "2026-08", builder: &builder, in: database()
         )
         #expect(lines(messages) == [
             "zero_budgets|202607-groceries|carryover|N:1",
@@ -102,10 +102,10 @@ struct BudgetRowIdentityMessageTests {
 
     @Test func holdOnANewIncomeRowWritesBufferIdentityThenCarryover() async throws {
         let db = try database(Self.holdFixtureSQL)
-        let review = try await db.budgetHoldReview(month: "2026-07")
+        let review = try await BudgetHoldSQL.budgetHoldReview(month: "2026-07", in: db)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await db.budgetHoldMessages(
-            command: .hold(amount: 40_000), review: review, builder: &builder
+        let messages = try await BudgetHoldSQL.budgetHoldMessages(
+            command: .hold(amount: 40_000), review: review, builder: &builder, in: db
         )
         #expect(lines(messages) == [
             "zero_budget_months|2026-07|buffered|N:40000",
@@ -117,10 +117,10 @@ struct BudgetRowIdentityMessageTests {
 
     @Test func holdOnAnExistingIncomeRowWritesOnlyBufferAndCarryover() async throws {
         let db = try database(Self.holdFixtureSQL + "INSERT INTO zero_budgets VALUES (202607, 'salary', 0, 0);")
-        let review = try await db.budgetHoldReview(month: "2026-07")
+        let review = try await BudgetHoldSQL.budgetHoldReview(month: "2026-07", in: db)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await db.budgetHoldMessages(
-            command: .hold(amount: 40_000), review: review, builder: &builder
+        let messages = try await BudgetHoldSQL.budgetHoldMessages(
+            command: .hold(amount: 40_000), review: review, builder: &builder, in: db
         )
         #expect(lines(messages) == [
             "zero_budget_months|2026-07|buffered|N:40000",

@@ -12,8 +12,8 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
         let accounts = try await AccountSQL.fetchAccountDisplays(in: database)
-        let months = try await database.fetchAvailableMonths()
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let months = try await BudgetMonthSQL.fetchAvailableMonths(in: database)
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
 
         #expect(accounts.map(\.account.id) == ["checking"])
         #expect(accounts.first?.balance == -12_345)
@@ -99,7 +99,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        #expect(try await database.fetchAvailableMonths() == ["2026-07", "2026-08", "2026-09"])
+        #expect(try await BudgetMonthSQL.fetchAvailableMonths(in: database) == ["2026-07", "2026-08", "2026-09"])
     }
 
     @Test func budgetTemplateMessagesAppliesPriorityPeriodicWhenAvailable() async throws {
@@ -122,7 +122,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let food = try #require(month.categoryGroups.flatMap(\.categories).first { $0.id == "priority-food" })
 
         #expect(food.budgeted == 500)
@@ -151,7 +151,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(julyMessages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let julyBuffer = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "buffer" }
         )
@@ -165,7 +165,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(augustMessages)
-        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let august = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
         let augustBuffer = try #require(
             august.categoryGroups.flatMap(\.categories).first { $0.id == "buffer" }
         )
@@ -222,7 +222,7 @@ extension LocalFirstActualStoreTests {
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(holdMessages)
 
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let categories = july.categoryGroups.flatMap(\.categories)
         #expect(categories.first { $0.id == "refill" }?.budgeted == 2_000)
         #expect(categories.first { $0.id == "release" }?.budgeted == -2_000)
@@ -248,7 +248,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let allowance = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "allowance" }
         )
@@ -275,7 +275,7 @@ extension LocalFirstActualStoreTests {
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
 
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let groceries = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
         )
@@ -326,7 +326,7 @@ extension LocalFirstActualStoreTests {
                 Issue.record("Unexpected error for \(label): \(error)")
             }
 
-            let july = try await database.fetchBudgetMonth(month: "2026-07")
+            let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
             let groceries = try #require(
                 july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
             )
@@ -354,7 +354,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let weekly = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "weekly" }
         )
@@ -381,7 +381,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let daily = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "daily" }
         )
@@ -412,7 +412,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let leftover = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "leftover" }
         )
@@ -457,7 +457,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let categories = Dictionary(
             uniqueKeysWithValues: july.categoryGroups.flatMap(\.categories).map { ($0.id, $0.budgeted) }
         )
@@ -489,7 +489,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         return try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "later" }?.budgeted
         )
@@ -518,7 +518,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let buffer = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "buffer" }
         )
@@ -547,7 +547,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(julyMessages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let julyInsurance = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "insurance" }
         )
@@ -561,7 +561,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(augustMessages)
-        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let august = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
         let augustInsurance = try #require(
             august.categoryGroups.flatMap(\.categories).first { $0.id == "insurance" }
         )
@@ -588,7 +588,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let august = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
         let renewal = try #require(
             august.categoryGroups.flatMap(\.categories).first { $0.id == "renewal" }
         )
@@ -621,7 +621,7 @@ extension LocalFirstActualStoreTests {
             #expect(reason.localizedCaseInsensitiveContains("string"))
         }
 
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let groceries = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
         )
@@ -647,7 +647,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let salary = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "salary" }
         )
@@ -676,7 +676,7 @@ extension LocalFirstActualStoreTests {
 
         #expect(messages.isEmpty)
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let groceries = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
         )
@@ -702,7 +702,7 @@ extension LocalFirstActualStoreTests {
             in: database
         ).messages
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let groceries = try #require(
             july.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
         )
@@ -773,7 +773,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
 
         // Income 200000 - total budgeted 100000.
         #expect(month.toBudget == 100_000)
@@ -789,7 +789,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
 
         #expect(month.toBudget == 150_000)
     }
@@ -805,7 +805,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO transactions VALUES ('split-child-2', 'checking', 20260804, -10000, 'groceries', 0, 'split-parent', 0);
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let month = try await database.fetchBudgetMonth(month: "2026-08")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
         let groceries = month.categoryGroups.first?.categories.first
 
         #expect(groceries?.budgeted == 50_000)
@@ -824,8 +824,8 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
-        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
+        let august = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
 
         // Balance 87655 - leftover 37655 - hold 25000. The hold returns in August.
         #expect(july.toBudget == 25_000)
@@ -845,8 +845,8 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
-        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
+        let august = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
 
         // July's income into the carryover-flagged income category is held for next month.
         #expect(july.toBudget == -50_000)
@@ -868,7 +868,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
 
         // The explicit 20000 hold wins; the inferred 40000 does not stack.
         #expect(month.toBudget == -30_000)
@@ -882,7 +882,7 @@ extension LocalFirstActualStoreTests {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
 
         #expect(month.toBudget == -50_000)
         #expect(month.forNextMonth == 0)
@@ -910,8 +910,8 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
-        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
+        let august = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
         let julyExpenseAssigned = july.categoryGroups
             .filter { !$0.isIncome }
             .reduce(0) { $0 + $1.budgeted }

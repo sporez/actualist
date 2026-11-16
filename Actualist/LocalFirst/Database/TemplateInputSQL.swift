@@ -200,12 +200,13 @@ enum TemplateInputSQL {
 
         let fromLastMonth: Int
         if needsPreviousBalance(entries) {
-            fromLastMonth = try database.templateFromLastMonth(
+            fromLastMonth = try BudgetCategoryValueSQL.templateFromLastMonth(
                 categoryID: categoryID,
                 monthValue: monthValue,
                 isIncome: isIncome,
                 isTrackingBudget: isTrackingBudget,
                 history: history,
+                in: database,
                 db: db
             )
         } else {
@@ -556,7 +557,7 @@ enum TemplateInputSQL {
             case "percent":
                 scheduleAmount = (1 + adjustment / 100) * scheduleAmount
             case "fixed":
-                let delta = Double(try BudgetTemplateEngine(currency: try database.budgetCurrency(db: db))
+                let delta = Double(try BudgetTemplateEngine(currency: try BudgetCurrencySQL.budgetCurrency(in: database, db: db))
                     .amountToMinorUnits(adjustment))
                 scheduleAmount += (scheduleAmount < 0 ? -1 : 1) * delta
             default:
@@ -685,7 +686,7 @@ enum TemplateInputSQL {
         if let inputs = history.inputs {
             return inputs
         }
-        let inputs = try database.categoryValueInputs(db: db)
+        let inputs = try BudgetCategoryValueSQL.categoryValueInputs(in: database, db: db)
         history.inputs = inputs
         history.recordInputLoad()
         return inputs
@@ -707,19 +708,19 @@ enum TemplateInputSQL {
                 return kept
             }
             // Precedes the first month with real data: a one-month recurrence.
-            return try database.categoryValueTimeline(inputs: inputs, through: month, keepFrom: month)
+            return try BudgetCategoryValueSQL.categoryValueTimeline(inputs: inputs, through: month, keepFrom: month)
                 .snapshots[month] ?? [:]
         }
         let upper = max(month, history.keptRange?.upperBound ?? month)
         let lower = min(keepFrom, month, history.keptRange?.lowerBound ?? month)
-        let timeline = try database.categoryValueTimeline(inputs: inputs, through: upper, keepFrom: lower)
+        let timeline = try BudgetCategoryValueSQL.categoryValueTimeline(inputs: inputs, through: upper, keepFrom: lower)
         history.snapshots = timeline.snapshots
         history.keptRange = lower...upper
         if let kept = timeline.snapshots[month] {
             return kept
         }
         // `month` precedes the first month with real data.
-        return try database.categoryValueTimeline(inputs: inputs, through: month, keepFrom: month)
+        return try BudgetCategoryValueSQL.categoryValueTimeline(inputs: inputs, through: month, keepFrom: month)
             .snapshots[month] ?? [:]
     }
 

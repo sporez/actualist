@@ -36,7 +36,7 @@ struct TrackingBudgetReadTests {
               ('hidden-expense', 'checking', 20260702, -6000, 'hidden-expense', 0);
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.totalBudgeted == 500)
         #expect(month.totalSpent == -300)
         #expect(month.totalIncome == 1200)
@@ -58,16 +58,16 @@ struct TrackingBudgetReadTests {
             INSERT INTO reflect_budgets VALUES ('202610-groceries', 202610, 'groceries', 100, 0);
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        #expect(try await database.fetchBudgetMonth(month: "2026-08").totalBalance == 500)
-        #expect(try await database.fetchBudgetMonth(month: "2026-09").totalBalance == 200)
-        #expect(try await database.fetchBudgetMonth(month: "2026-10").totalBalance == 300)
+        #expect(try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database).totalBalance == 500)
+        #expect(try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-09", in: database).totalBalance == 200)
+        #expect(try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-10", in: database).totalBalance == 300)
         let change = ActualSyncDecodedMessage(timestamp: "2026-09-01T00:00:00.000Z-0000-0000000000000001",
             dataset: "reflect_budgets", row: "202609-groceries", column: "amount", serializedValue: "N:-600")
         _ = try await database.applyRemoteSyncMessages([change])
-        #expect(try await database.fetchBudgetMonth(month: "2026-10").totalBalance == -500)
+        #expect(try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-10", in: database).totalBalance == -500)
         #expect(try await database.trackingContractTemplateCarry(month: 202610) == -600)
         let reopened = try BudgetDatabase(databaseURL: url)
-        #expect(try await reopened.fetchBudgetMonth(month: "2026-10").totalBalance == -500)
+        #expect(try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-10", in: reopened).totalBalance == -500)
     }
 
     @Test func envelopeTotalsAndMissingMetadataRemainEnvelope() async throws {
@@ -78,12 +78,12 @@ struct TrackingBudgetReadTests {
             UPDATE category_groups SET hidden = 1;
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        let month = try await database.fetchBudgetMonth(month: "2026-08")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
         #expect(month.totalBalance == 600)
         #expect(month.totalBudgeted == 100)
         #expect(month.toBudget == -600)
         #expect(month.trackingSummary == nil)
-        #expect(try await database.fetchAvailableMonths() == ["2026-07", "2026-08"])
+        #expect(try await BudgetMonthSQL.fetchAvailableMonths(in: database) == ["2026-07", "2026-08"])
     }
 
     @Test func currentFlagAffectsFollowingMonthAcrossYearBoundary() async throws {
@@ -93,8 +93,8 @@ struct TrackingBudgetReadTests {
             INSERT INTO reflect_budgets VALUES ('202701-groceries', 202701, 'groceries', 100, 0);
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        #expect(try await database.fetchBudgetMonth(month: "2027-01").totalBalance == -400)
-        #expect(try await database.fetchBudgetMonth(month: "2027-02").totalBalance == 0)
+        #expect(try await BudgetMonthSQL.fetchBudgetMonth(month: "2027-01", in: database).totalBalance == -400)
+        #expect(try await BudgetMonthSQL.fetchBudgetMonth(month: "2027-02", in: database).totalBalance == 0)
     }
 
     @Test func splitMappingRefundAndOffBudgetActivityUseSharedInlineQuery() async throws {
@@ -111,7 +111,7 @@ struct TrackingBudgetReadTests {
               ('uncategorized', 'checking', 20260702, -7000, NULL, 0, NULL, 0);
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.totalSpent == -350)
         #expect(month.totalBalance == 150)
         #expect(month.trackingSummary?.actualSavings == -350)
@@ -125,9 +125,9 @@ struct TrackingBudgetReadTests {
             INSERT INTO transactions (id, date, tombstone) VALUES ('live', 20240229, 0), ('dead', 20400101, 1);
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        #expect(try await database.fetchAvailableMonths() == ["2024-02", "2026-07", "2026-08", "2029-12"])
+        #expect(try await BudgetMonthSQL.fetchAvailableMonths(in: database) == ["2024-02", "2026-07", "2026-08", "2029-12"])
         let reopened = try BudgetDatabase(databaseURL: url)
-        #expect(try await reopened.fetchAvailableMonths() == ["2024-02", "2026-07", "2026-08", "2029-12"])
+        #expect(try await BudgetMonthSQL.fetchAvailableMonths(in: reopened) == ["2024-02", "2026-07", "2026-08", "2029-12"])
     }
 
     @Test func trackingAmountsRemainIntegerUnitsForEveryCurrency() async throws {
@@ -138,8 +138,8 @@ struct TrackingBudgetReadTests {
                 try db.execute(sql: "INSERT INTO preferences VALUES ('defaultCurrencyCode', ?)", arguments: [code])
             }
             let database = try BudgetDatabase(databaseURL: url)
-            let month = try await database.fetchBudgetMonth(month: "2026-07")
-            let currency = try await database.fetchBudgetCurrency()
+            let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
+            let currency = try await BudgetCurrencySQL.fetchBudgetCurrency(in: database)
             #expect(month.totalBudgeted == 500)
             #expect(month.trackingSummary?.plannedSavings == -500)
             #expect(currency.displayUnits(fromMinorUnits: 500) == (code == "JPY" ? 500 : 5))
@@ -153,12 +153,12 @@ struct TrackingBudgetReadTests {
             UPDATE preferences SET value = 'future-mode' WHERE id = 'budgetType';
             """)
         let database = try BudgetDatabase(databaseURL: url)
-        #expect(try await database.fetchAvailableMonths().isEmpty)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        #expect(try await BudgetMonthSQL.fetchAvailableMonths(in: database).isEmpty)
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.trackingSummary == nil)
         #expect(month.totalBalance == 0)
         await #expect(throws: (any Error).self) {
-            try await database.fetchBudgetMonth(month: "2026-13")
+            try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-13", in: database)
         }
     }
 
@@ -167,7 +167,7 @@ struct TrackingBudgetReadTests {
         let database = try BudgetDatabase(databaseURL: url)
         let now = try #require(Calendar(identifier: .gregorian).date(from:
             DateComponents(year: 2026, month: 9, day: 8, hour: 12)))
-        let snapshot = try await database.fetchBudgetSnapshot(month: "2026-08", now: now)
+        let snapshot = try await BudgetMonthSQL.fetchBudgetSnapshot(month: "2026-08", now: now, in: database)
         #expect(snapshot.month.trackingSummary != nil)
         #expect(snapshot.currency.code == "JPY")
         #expect(snapshot.availableMonths == ["2026-07", "2026-08", "2026-09", "2029-12"])
@@ -177,7 +177,7 @@ struct TrackingBudgetReadTests {
         let url = try fixture("DROP TABLE preferences; CREATE TABLE preferences (id TEXT PRIMARY KEY);")
         let database = try BudgetDatabase(databaseURL: url)
         await #expect(throws: LocalFirstError.invalidDownloadedBudget) {
-            try await database.fetchBudgetSnapshot(month: "2026-07")
+            try await BudgetMonthSQL.fetchBudgetSnapshot(month: "2026-07", in: database)
         }
     }
 
@@ -215,13 +215,13 @@ struct TrackingBudgetReadTests {
 
 extension BudgetDatabase {
     func trackingContractPlannedSavings(month: String) throws -> Int {
-        try queue.read { db in try trackingTotalSaved(month: month, db: db) }
+        try queue.read { db in try BudgetMonthSQL.trackingTotalSaved(month: month, in: self, db: db) }
     }
 
     func trackingContractTemplateCarry(month: Int) throws -> Int {
         try queue.read { db in
-            try templateFromLastMonth(categoryID: "groceries", monthValue: month,
-                isIncome: false, isTrackingBudget: true, db: db)
+            try BudgetCategoryValueSQL.templateFromLastMonth(categoryID: "groceries", monthValue: month,
+                isIncome: false, isTrackingBudget: true, in: self, db: db)
         }
     }
 }

@@ -88,14 +88,15 @@ enum HoldOracleReplay {
         var builder = LocalFirstSyncMessageBuilder()
         for (index, action) in actions.enumerated() {
             let prefix = "action\(index)."
-            let review = try await database.budgetHoldReview(month: action.month)
+            let review = try await BudgetHoldSQL.budgetHoldReview(month: action.month, in: database)
             var drafts: [ActualSyncDecodedMessage] = []
             var committed = true
             do {
-                drafts = try await database.budgetHoldMessages(
+                drafts = try await BudgetHoldSQL.budgetHoldMessages(
                     command: action.command,
                     review: review,
-                    builder: &builder
+                    builder: &builder,
+                    in: database
                 )
             } catch is LocalFirstError {
                 // A refusal writes nothing; the oracle's false outcome is the expectation.
@@ -200,8 +201,8 @@ enum HoldOracleReplay {
     ) async throws -> [String: OracleValue] {
         var values: [String: OracleValue] = [:]
         for month in months {
-            let budget = try await database.fetchBudgetMonth(month: month)
-            let review = try await database.budgetHoldReview(month: month)
+            let budget = try await BudgetMonthSQL.fetchBudgetMonth(month: month, in: database)
+            let review = try await BudgetHoldSQL.budgetHoldReview(month: month, in: database)
             let fields: [(String, Int)] = [
                 ("toBudget", budget.toBudget),
                 ("fromLastMonth", budget.fromLastMonth),

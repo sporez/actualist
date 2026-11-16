@@ -7,7 +7,7 @@ struct BudgetCurrencyPreferenceTests {
     @Test func missingPreferencesTableUsesCurrencyNeutralDisplay() async throws {
         let fixtureURL = try LocalFirstActualStoreTests().makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let currency = try await database.fetchBudgetCurrency()
+        let currency = try await BudgetCurrencySQL.fetchBudgetCurrency(in: database)
         #expect(currency == .none)
     }
 
@@ -18,7 +18,7 @@ struct BudgetCurrencyPreferenceTests {
             INSERT INTO preferences VALUES ('hideFraction', 'true');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let currency = try await database.fetchBudgetCurrency()
+        let currency = try await BudgetCurrencySQL.fetchBudgetCurrency(in: database)
         #expect(currency.code == "JPY")
         #expect(currency.decimalPlaces == 0)
         #expect(currency.hideFraction)
@@ -34,7 +34,7 @@ struct BudgetCurrencyPreferenceTests {
             INSERT INTO preferences VALUES ('numberFormat', '\(stored)');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        #expect(try await database.fetchBudgetCurrency().numberFormat == expected)
+        #expect(try await BudgetCurrencySQL.fetchBudgetCurrency(in: database).numberFormat == expected)
     }
 
     @Test func absentNumberFormatPreferenceReadsAsCommaDot() async throws {
@@ -43,7 +43,7 @@ struct BudgetCurrencyPreferenceTests {
             INSERT INTO preferences VALUES ('hideFraction', 'false');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        #expect(try await database.fetchBudgetCurrency().numberFormat == .commaDot)
+        #expect(try await BudgetCurrencySQL.fetchBudgetCurrency(in: database).numberFormat == .commaDot)
     }
 
     @Test func launchSnapshotKeepsTheNumberFormatAndReadsOlderSnapshots() throws {
@@ -61,7 +61,7 @@ struct BudgetCurrencyPreferenceTests {
             INSERT INTO preferences VALUES ('defaultCurrencyCode', '');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        #expect(try await database.fetchBudgetCurrency() == .none)
+        #expect(try await BudgetCurrencySQL.fetchBudgetCurrency(in: database) == .none)
     }
 
     @Test func templateEngineScalesYenGoalAmountsWithoutTimesOneHundred() throws {

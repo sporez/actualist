@@ -596,7 +596,7 @@ extension BudgetDatabase {
         var categoryIDs = Set(renderedChanges.flatMap { [$0.before.categoryID, $0.after.categoryID].compactMap { $0 } })
         if let targetCategoryID { categoryIDs.insert(targetCategoryID) }
         return TransactionBatchReviewMetadata(
-            currency: try budgetCurrency(db: db),
+            currency: try BudgetCurrencySQL.budgetCurrency(in: self, db: db),
             accountNames: accountNames.filter { accountIDs.contains($0.key) },
             payeeNames: payeeNames.filter { payeeIDs.contains($0.key) },
             categoryNames: try names(in: "categories").filter { categoryIDs.contains($0.key) }

@@ -16,6 +16,6 @@ struct BudgetDatabaseAvailableMonthsTests {
             """)
         let database = try BudgetDatabase(databaseURL: url)
 
-        #expect(try await database.fetchAvailableMonths() == ["2026-07", "2026-11"])
+        #expect(try await BudgetMonthSQL.fetchAvailableMonths(in: database) == ["2026-07", "2026-11"])
     }
 }

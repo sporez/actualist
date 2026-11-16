@@ -53,7 +53,7 @@ struct BudgetTemplateWriteTests {
         #expect(try zeroBudgetAmount("groceries", at: fixtureURL) == 50_000)
         #expect(try await database.pendingLocalSyncMessageCount() == 2)
 
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(
             month.categoryGroups.first { $0.id == "group" }?
                 .categories.first { $0.id == "groceries" }?
@@ -85,7 +85,7 @@ struct BudgetTemplateWriteTests {
         let stored = try categoryTemplateState("groceries", at: fixtureURL)
         #expect(stored.goalDef == nil)
         #expect(stored.settings == #"{"source":"ui"}"#)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(
             month.categoryGroups.first { $0.id == "group" }?
                 .categories.first { $0.id == "groceries" }?
@@ -291,7 +291,7 @@ struct BudgetTemplateWriteTests {
             UPDATE categories SET template_settings = '{"source":"ui"}' WHERE id = 'groceries';
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let before = try await database.fetchBudgetMonth(month: "2026-07")
+        let before = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let json = try BudgetTemplateDefinition.encode([
             .monthlyFixed(
                 amount: 400,
@@ -307,7 +307,7 @@ struct BudgetTemplateWriteTests {
             in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        let after = try await database.fetchBudgetMonth(month: "2026-07")
+        let after = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(after.toBudget == before.toBudget)
         let snapshot = try await TemplateAuthoringSQL.categoryTemplateEditorSnapshot(
             categoryID: "groceries",

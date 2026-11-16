@@ -80,7 +80,7 @@ struct BudgetTemplateActionAvailabilityTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let categories = Dictionary(
             uniqueKeysWithValues: month.categoryGroups.flatMap(\.categories).map { ($0.id, $0) }
         )

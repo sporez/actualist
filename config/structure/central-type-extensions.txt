@@ -12,17 +12,7 @@ Actualist/LocalFirst/Database/BudgetDatabase+ActionLogTransactionCommands.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ActionLogTransactions.swift
 Actualist/LocalFirst/Database/BudgetDatabase+BankSync.swift
 Actualist/LocalFirst/Database/BudgetDatabase+BankSyncLastRun.swift
-Actualist/LocalFirst/Database/BudgetDatabase+BasicReads.swift
-Actualist/LocalFirst/Database/BudgetDatabase+BudgetReads.swift
-Actualist/LocalFirst/Database/BudgetDatabase+BudgetRowIDs.swift
-Actualist/LocalFirst/Database/BudgetDatabase+BudgetWrites.swift
-Actualist/LocalFirst/Database/BudgetDatabase+CategoryValueTimeline.swift
 Actualist/LocalFirst/Database/BudgetDatabase+CompatibilityMigrationIDs.swift
-Actualist/LocalFirst/Database/BudgetDatabase+Currency.swift
-Actualist/LocalFirst/Database/BudgetDatabase+EnvelopeCarryIn.swift
-Actualist/LocalFirst/Database/BudgetDatabase+EnvelopeHolds.swift
-Actualist/LocalFirst/Database/BudgetDatabase+HoldReviewGuard.swift
-Actualist/LocalFirst/Database/BudgetDatabase+HoldWrites.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ImportedIDPrecondition.swift
 Actualist/LocalFirst/Database/BudgetDatabase+LocalCommit.swift
 Actualist/LocalFirst/Database/BudgetDatabase+LocalMigrations.swift

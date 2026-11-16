@@ -61,7 +61,7 @@ enum TemplateAuthoringSQL {
             )
             let drafts = BudgetTemplateDefinition.drafts(fromJSON: goalDefJSON, now: now) ?? []
             let authoringContext = try templateEditorAuthoringContext(now: now, in: database, db: db)
-            let hasDefinition = database.hasStoredTemplateDefinition(goalDefJSON)
+            let hasDefinition = BudgetMonthSQL.hasStoredTemplateDefinition(goalDefJSON)
             return BudgetTemplateEditorSnapshot(
                 categoryID: trimmed,
                 categoryName: name,
@@ -69,7 +69,7 @@ enum TemplateAuthoringSQL {
                 lock: lock,
                 schedules: authoringContext.schedules,
                 incomeCategories: authoringContext.incomeCategories,
-                currency: try database.budgetCurrency(db: db),
+                currency: try BudgetCurrencySQL.budgetCurrency(in: database, db: db),
                 hasDefinition: hasDefinition
             )
         }
@@ -144,7 +144,7 @@ enum TemplateAuthoringSQL {
         in database: isolated BudgetDatabase
     ) throws -> BudgetTemplateBrowserSnapshot {
         try database.queue.read { db in
-            let currency = try database.budgetCurrency(db: db)
+            let currency = try BudgetCurrencySQL.budgetCurrency(in: database, db: db)
             let month = YearMonth(date: now).rawValue
             guard try database.tableExists("categories", db: db),
                   try database.tableExists("category_groups", db: db) else {
@@ -290,7 +290,7 @@ enum TemplateAuthoringSQL {
                                 categoryHidden: raw.hidden,
                                 groupHidden: group.hidden
                             ),
-                            hasDefinition: database.hasStoredTemplateDefinition(raw.goalDefJSON),
+                            hasDefinition: BudgetMonthSQL.hasStoredTemplateDefinition(raw.goalDefJSON),
                             drafts: BudgetTemplateDefinition.drafts(
                                 fromJSON: raw.goalDefJSON,
                                 now: now

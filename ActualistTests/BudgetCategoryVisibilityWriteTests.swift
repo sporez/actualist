@@ -46,7 +46,7 @@ extension LocalFirstActualStoreTests {
         #expect(hideGroup.map(\.row) == ["hidden-grp"])
         #expect(try await database.commitLocalSyncMessagesAndEnqueue(hideGroup) == 1)
 
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let secret = try #require(month.categoryGroups.first { $0.id == "hidden-grp" }?.categories.first)
         #expect(month.categoryGroups.first { $0.id == "hidden-grp" }?.hidden == true)
         #expect(secret.hidden == false)
@@ -129,7 +129,7 @@ extension LocalFirstActualStoreTests {
             )
         ])
         #expect(appliedCount == 1)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.categoryGroups.first { $0.id == "group" }?.hidden == true)
         #expect(month.categoryGroups.first { $0.id == "group" }?.categories.first?.hidden == false)
     }

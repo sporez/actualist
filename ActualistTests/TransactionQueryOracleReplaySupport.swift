@@ -273,7 +273,7 @@ enum TransactionQueryOracleReplay {
             ]),
         ]
         if let expected = entry["balances"] as? [String: Any] {
-            let balances = try await session.database.accountBalances()
+            let balances = try await AccountSQL.accountBalances(in: session.database)
             fields["balances"] = .object(Dictionary(uniqueKeysWithValues: expected.keys.map {
                 ($0, OracleValue.number(Double(balances[$0] ?? 0)))
             }))

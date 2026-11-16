@@ -155,7 +155,7 @@ extension BudgetDatabase {
     ) throws {
         try validateBankSyncLink(review.bankLink, db: db)
         try TemplatePreviewSQL.validateBudgetTemplateReviewRevision(review.templateRevision, in: self, db: db)
-        try validateBudgetHoldReview(review.hold, db: db)
+        try BudgetHoldSQL.validateBudgetHoldReview(review.hold, in: self, db: db)
         try validateBudgetWrite(
             drafts, expectedMode: review.mode, descriptor: action?.descriptor, db: db
         )

@@ -34,12 +34,12 @@ struct EnvelopeMonthCarryInTests {
         try BudgetDatabase(databaseURL: fixtures.makeSQLiteFixture(extraSQL: Self.diningSQL + "\n" + Self.sql))
     }
 
-    private func carryIn(_ database: BudgetDatabase, month: String) async throws -> BudgetDatabase.EnvelopeCarryIn {
+    private func carryIn(_ database: BudgetDatabase, month: String) async throws -> BudgetMonthSQL.EnvelopeCarryIn {
         try await database.envelopeCarryInForTesting(month: month)
     }
 
     @Test func firstMonthHasNoCarryIn() async throws {
-        let july = try await database().fetchBudgetMonth(month: "2026-07")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database())
         #expect(july.fromLastMonth == 0)
         #expect(july.forNextMonth == 25_000)
         #expect(july.incomeAvailable == 100_000)
@@ -48,8 +48,8 @@ struct EnvelopeMonthCarryInTests {
 
     @Test func nextMonthReturnsPreviousToBudgetPlusHoldAndSubtractsOverspending() async throws {
         let database = try database()
-        let july = try await database.fetchBudgetMonth(month: "2026-07")
-        let august = try await database.fetchBudgetMonth(month: "2026-08")
+        let july = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
+        let august = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-08", in: database)
 
         // from-last-month = previous to-budget + previous hold: the hold returns.
         #expect(august.fromLastMonth == july.toBudget + july.forNextMonth)
@@ -63,7 +63,7 @@ struct EnvelopeMonthCarryInTests {
     @Test func toBudgetIdentityHoldsForEveryMonth() async throws {
         let database = try database()
         for month in ["2026-07", "2026-08", "2026-09"] {
-            let loaded = try await database.fetchBudgetMonth(month: month)
+            let loaded = try await BudgetMonthSQL.fetchBudgetMonth(month: month, in: database)
             let carry = try await carryIn(database, month: month)
             #expect(carry.fromLastMonth == loaded.fromLastMonth, "\(month)")
             // to-budget = available-funds + last-month-overspent - total-budgeted - buffered
@@ -92,12 +92,12 @@ struct EnvelopeMonthCarryInTests {
 }
 
 extension BudgetDatabase {
-    func envelopeCarryInForTesting(month: String) throws -> EnvelopeCarryIn {
+    func envelopeCarryInForTesting(month: String) throws -> BudgetMonthSQL.EnvelopeCarryIn {
         try queue.read { db in
-            let values = try categoryValuesWithPrevious(through: month, db: db)
-            let groups = try fetchCategoryGroups(categoryValues: values.current, db: db)
-            return try envelopeCarryIn(
-                month: month, groups: groups, previousValues: values.previous, db: db
+            let values = try BudgetCategoryValueSQL.categoryValuesWithPrevious(through: month, in: self, db: db)
+            let groups = try BudgetMonthSQL.fetchCategoryGroups(categoryValues: values.current, in: self, db: db)
+            return try BudgetMonthSQL.envelopeCarryIn(
+                month: month, groups: groups, previousValues: values.previous, in: self, db: db
             )
         }
     }

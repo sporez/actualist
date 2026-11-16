@@ -177,7 +177,7 @@ enum BudgetMonthOracleReplay {
         guard case let .incomeCarryoverReset(month) = kind else {
             return nil
         }
-        let review = try await database.budgetHoldReview(month: month)
+        let review = try await BudgetHoldSQL.budgetHoldReview(month: month, in: database)
         return review.manualHeldAmount == 0
             ? nil
             : "standalone reset-income-carryover with a stored manual hold has no production seam"
@@ -224,11 +224,12 @@ enum BudgetMonthOracleReplay {
         case let .assign(month, categoryID, budgeted):
             // LocalFirstActualStore+AssignMove.assignAndRefresh
             var builder = LocalFirstSyncMessageBuilder()
-            let drafts = try await database.assignCategoryBudgetMessages(
+            let drafts = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
                 categoryID: categoryID,
                 budgeted: budgeted,
                 month: month,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             _ = try await database.commitUserAction(
                 drafts,
@@ -244,7 +245,7 @@ enum BudgetMonthOracleReplay {
         case let .cover(month, to, from):
             // OverspentCoverSelectionWorkflow.coverCommands. The overspend is read before the write, which is
             // equivalent here because the replay is sequential and no sync lands between the read and the commit.
-            let balance = try await database.fetchBudgetMonth(month: month)
+            let balance = try await BudgetMonthSQL.fetchBudgetMonth(month: month, in: database)
                 .categoryGroups.flatMap(\.categories).first { $0.id == to }?.balance ?? 0
             let commands = balance < 0
                 ? [BudgetMoveMoneyCommand(fromCategoryID: from, toCategoryID: to, amount: -balance, kind: .cover)]
@@ -254,12 +255,13 @@ enum BudgetMonthOracleReplay {
             // LocalFirstActualStore+Mutations.setCategoryCarryoverAndRefresh. The through-month is the case's last
             // created sheet month, a stand-in for Actual's `createdMonths` rather than an expectation.
             var builder = LocalFirstSyncMessageBuilder()
-            let drafts = try await database.categoryCarryoverMessages(
+            let drafts = try await BudgetAssignmentSQL.categoryCarryoverMessages(
                 categoryID: categoryID,
                 carryover: carryover,
                 startMonth: startMonth,
                 throughMonth: max(startMonth, createdThrough),
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             _ = try await database.commitUserAction(
                 drafts,
@@ -282,7 +284,7 @@ enum BudgetMonthOracleReplay {
             // writes the stored hold. This step calls the reset writer itself and commits it as a user action.
             let applied = try await database.commitUserActionPlan(source: .ui, expectedMode: mode) { budget, db in
                 var builder = LocalFirstSyncMessageBuilder()
-                let drafts = try budget.resetIncomeCarryoverMessages(month: month, db: db, builder: &builder)
+                let drafts = try BudgetHoldSQL.resetIncomeCarryoverMessages(month: month, builder: &builder, in: budget, db: db)
                 return UserActionPlan(drafts: drafts, descriptor: nil, outcome: drafts)
             }
             return applied.outcome
@@ -298,8 +300,8 @@ enum BudgetMonthOracleReplay {
     ) async throws -> [ActualSyncDecodedMessage] {
         let applied = try await database.commitUserActionPlan(source: .ui, expectedMode: mode) { budget, db in
             var builder = LocalFirstSyncMessageBuilder()
-            let resolved = try budget.resolvedMoveMoneyCommands(commands, month: month, db: db)
-            let drafts = try budget.moveMoneyMessages(commands: resolved, month: month, db: db, builder: &builder)
+            let resolved = try BudgetAssignmentSQL.resolvedMoveMoneyCommands(commands, month: month, in: budget, db: db)
+            let drafts = try BudgetAssignmentSQL.moveMoneyMessages(commands: resolved, month: month, builder: &builder, in: budget, db: db)
             let descriptor: BudgetActionDescriptor? = resolved.isEmpty ? nil : .move(
                 month: month,
                 legs: resolved.map {
@@ -316,9 +318,9 @@ enum BudgetMonthOracleReplay {
         month: String,
         _ database: BudgetDatabase
     ) async throws -> [ActualSyncDecodedMessage] {
-        let review = try await database.budgetHoldReview(month: month)
+        let review = try await BudgetHoldSQL.budgetHoldReview(month: month, in: database)
         var builder = LocalFirstSyncMessageBuilder()
-        let drafts = try await database.budgetHoldMessages(command: command, review: review, builder: &builder)
+        let drafts = try await BudgetHoldSQL.budgetHoldMessages(command: command, review: review, builder: &builder, in: database)
         _ = try await database.commitLocalSyncMessagesAndEnqueue(
             drafts,
             expectedMode: review.modeIdentity,
@@ -536,9 +538,9 @@ enum BudgetMonthOracleReplay {
     ) async throws -> StateCheck {
         let monthID = try OracleJSON.string(state, "month")
         let expected = try expectedValues(state, prefix: prefix)
-        let month = try await database.fetchBudgetSnapshot(month: monthID, now: fixtureNow).month
-        let previous = try await database.fetchBudgetSnapshot(
-            month: BudgetMonthConsistency.previousMonth(monthID), now: fixtureNow
+        let month = try await BudgetMonthSQL.fetchBudgetSnapshot(month: monthID, now: fixtureNow, in: database).month
+        let previous = try await BudgetMonthSQL.fetchBudgetSnapshot(
+            month: BudgetMonthConsistency.previousMonth(monthID), now: fixtureNow, in: database
         ).month
         let actual = actualValues(month, prefix: prefix).filter { expected[$0.key] != nil }
         let consistency = BudgetMonthConsistency.problems(month: month, previous: previous).map {

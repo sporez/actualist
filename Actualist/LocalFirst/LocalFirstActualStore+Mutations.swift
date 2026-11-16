@@ -266,12 +266,13 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let mode = try await database.requireBudgetMode(expectedMode)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.categoryCarryoverMessages(
+        let messages = try await BudgetAssignmentSQL.categoryCarryoverMessages(
             categoryID: categoryID,
             carryover: carryover,
             startMonth: startMonth,
             throughMonth: Self.categoryCarryoverHorizonMonth(startMonth: startMonth),
-            builder: &builder
+            builder: &builder,
+            in: database
         )
 
         _ = try await database.commitUserAction(
@@ -297,11 +298,12 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let mode = try await database.requireBudgetMode(expectedMode)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.allExpenseCategoryCarryoverMessages(
+        let messages = try await BudgetAssignmentSQL.allExpenseCategoryCarryoverMessages(
             carryover: carryover,
             startMonth: startMonth,
             throughMonth: Self.categoryCarryoverHorizonMonth(startMonth: startMonth),
-            builder: &builder
+            builder: &builder,
+            in: database
         )
 
         if !messages.isEmpty {

@@ -124,7 +124,7 @@ extension LocalFirstActualStoreTests {
     ) async throws {
         let fixtureURL = try makeEnvelopeApplySingleFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        let monthBefore = try await database.fetchBudgetMonth(month: "2026-07")
+        let monthBefore = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(monthBefore.toBudget == 996_800)
         let baseline = try budgetTemplateApplySingleRows(
             table: "zero_budgets",
@@ -163,7 +163,7 @@ extension LocalFirstActualStoreTests {
     ) async throws {
         let fixtureURL = try makeJPYEnvelopeFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
-        #expect(try await database.fetchBudgetMonth(month: "2026-07").toBudget == 9_968)
+        #expect(try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database).toBudget == 9_968)
         let baseline = try budgetTemplateApplySingleRows(
             table: "zero_budgets",
             month: 202607,

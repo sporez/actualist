@@ -82,9 +82,9 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Month navigation and layout: `BudgetMonthSwipeModifier.swift`, `BudgetAssignmentViewport.swift`, `BudgetAssignmentScrollPresentation.swift`, and viewport/layout helpers.
 - Assignment and move-money workflows: `BudgetMoveMoneyWorkflow.swift` and `BudgetMoveMoneyView.swift`; persistence enters through `BudgetRepositoryProtocol` and `LocalFirstActualStore+AssignMove.swift`.
 - Category create/rename/reorder/delete/visibility: `BudgetCategory*Workflow.swift` and the category sheets. Store writes are `LocalFirstActualStore+CategoryLifecycle.swift`; SQLite is `CategorySQL` and `CategoryDeletionSQL` in `LocalFirst/Database/`.
-- Hold for next month: `BudgetHoldViewModel.swift` and `BudgetHoldSheet.swift` own the shared compact/wide review workflow. `BudgetDatabase+EnvelopeHolds.swift` owns the stored hold calculation; the focused hold store/database writers own persistence.
+- Hold for next month: `BudgetHoldViewModel.swift` and `BudgetHoldSheet.swift` own the shared compact/wide review workflow. `BudgetHoldSQL` owns the stored hold calculation, the hold review and its writes; the focused hold store/database writers own persistence.
 - Uncategorized flow: `UncategorizedTransactionsView.swift` and its view model/coordinator siblings.
-- Backend reads/writes: `LocalFirstActualStore+Reads.swift`, `+AssignMove.swift`, `+Mutations.swift`, `+ActionLog.swift`; `BudgetDatabase+BudgetReads.swift`, `+BudgetWrites.swift`, and `+ActionLog*.swift`.
+- Backend reads/writes: `LocalFirstActualStore+Reads.swift`, `+AssignMove.swift`, `+Mutations.swift`, `+ActionLog.swift`; `BudgetMonthSQL` (month and snapshot reads, envelope availability, carry-in, available months), `BudgetCategoryValueSQL` (category values, budgets and spending over time), `BudgetAssignmentSQL` (assign, move money, carryover), `BudgetRowSQL` (budget row ids and the shared row write), `BudgetCurrencySQL`, and `+ActionLog*.swift`.
 
 ### Transactions and spending
 
@@ -193,14 +193,14 @@ Repositories are per feature, not one facade: `Actualist/Repositories/` holds `B
 
 File naming is the ownership index:
 
-- `+BasicReads` (available months), `+BudgetReads`, `+TransactionReads` — query families. Reports are the `Report*SQL` types (see Reports, history, notes, and shortcuts).
+- `Budget*SQL`, `+TransactionReads` — query families. Reports are the `Report*SQL` types (see Reports, history, notes, and shortcuts).
 - `+Sync`, `+Merkle` — remote CRDT application and the merkle trie (see Sync and merkle below).
 - `+LocalCommit`, `+UserActionPlan` — the write core (see Write trace).
-- `+BudgetWrites`, `+EnvelopeHolds`, `+EnvelopeCarryIn`, `+HoldWrites`, `+TransactionCreation`, `+TransactionDiffUpdate`, `+TransactionGraphPlanning`, `+TransactionUpdates`, `+TransactionSplitWrites` — budget and transaction mutation families.
+- `+TransactionCreation`, `+TransactionDiffUpdate`, `+TransactionGraphPlanning`, `+TransactionUpdates`, `+TransactionSplitWrites` — budget and transaction mutation families.
 - `CategorySQL` (category reads, create, rename, reorder and hide) and `CategoryDeletionSQL` (delete with the budget and mapping transfer) — category structure and hidden-category persistence; `EntityName` holds the name check those writes share.
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
-- `+Preferences`, `+Currency`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
+- `+Preferences`, `BudgetCurrencySQL`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
 - `Account*SQL`, `+AccountGroupCompatibility`, `+BankSync`, `+BankSyncLastRun`, `Reconcil*SQL`, `+Notes` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.

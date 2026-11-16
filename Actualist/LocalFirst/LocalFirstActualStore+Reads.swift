@@ -42,7 +42,7 @@ extension LocalFirstActualStore {
             try Task.checkCancellation()
             let generation = budgetReadGeneration
             let launchRevision = try? await launchSnapshotFiles?.loadRevision()
-            let snapshot = try await database.fetchBudgetSnapshot(month: monthID, now: now)
+            let snapshot = try await BudgetMonthSQL.fetchBudgetSnapshot(month: monthID, now: now, in: database)
             let month = snapshot.month
             let isTracking = month.trackingSummary != nil
             let alerts = try await LaunchSignpost.measure(LaunchStage.budgetAlertCalculation) {
@@ -210,7 +210,7 @@ extension LocalFirstActualStore {
 
     func editorOptions(budgetID: String, month: String) async throws -> TransactionEditorOptions {
         let database = try requireDatabase(for: budgetID)
-        let monthGraph = try await database.fetchBudgetMonth(month: month)
+        let monthGraph = try await BudgetMonthSQL.fetchBudgetMonth(month: month, in: database)
         return TransactionEditorOptions(
             accounts: try await AccountSQL.fetchAccounts(in: database).filter { !$0.closed },
             categories: editorVisibleCategories(from: monthGraph),
@@ -378,7 +378,7 @@ extension LocalFirstActualStore {
         month: String,
         budgetID: String
     ) async throws -> [TransactionEditorCategoryGroup] {
-        let budgetMonth = try await database.fetchBudgetMonth(month: month)
+        let budgetMonth = try await BudgetMonthSQL.fetchBudgetMonth(month: month, in: database)
         return budgetMonth.editorCategoryGroups(currency: budgetCurrency(budgetID: budgetID))
     }
 
@@ -436,7 +436,7 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         let revision = cachePublicationRevision
         let months = try await LaunchSignpost.measure(LaunchStage.budgetAvailableMonths) {
-            try await database.fetchAvailableMonths()
+            try await BudgetMonthSQL.fetchAvailableMonths(in: database)
         }
         #if DEBUG
         await testSeams?.readPublicationHook?(.availableMonths)

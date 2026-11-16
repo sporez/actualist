@@ -64,7 +64,7 @@ extension BudgetDatabase {
             }
             return AccountTransactionQueryPage(
                 page: page,
-                balance: try accountBalance(accountID: accountID, db: db),
+                balance: try AccountSQL.accountBalance(accountID: accountID, in: self, db: db),
                 runningBalanceSetting: setting
             )
         }

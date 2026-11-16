@@ -239,7 +239,7 @@ enum CategoryDeletionSQL {
         for monthValue in months.sorted() {
             let sourceAmount = sourceAmounts[monthValue, default: 0]
             guard sourceAmount != 0 else { continue }
-            messages += try database.assignCategoryBudgetMessages(
+            messages += try BudgetRowSQL.assignCategoryBudgetMessages(
                 categoryID: destinationCategoryID,
                 budgeted: try BudgetFinancialCalculation.sum(
                     [destinationAmounts[monthValue, default: 0], sourceAmount],
@@ -248,8 +248,9 @@ enum CategoryDeletionSQL {
                 monthValue: monthValue,
                 table: table,
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
         }
         return messages

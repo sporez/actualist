@@ -73,12 +73,13 @@ extension LocalFirstActualStoreTests {
         var builder = LocalFirstSyncMessageBuilder()
 
         await #expect(throws: LocalFirstError.self) {
-            _ = try await database.categoryCarryoverMessages(
+            _ = try await BudgetAssignmentSQL.categoryCarryoverMessages(
                 categoryID: "utilities",
                 carryover: true,
                 startMonth: "2026-07",
                 throughMonth: "9999-12",
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
     }

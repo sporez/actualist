@@ -139,15 +139,15 @@ struct TrackingBudgetWriteSafetyTests {
         let leg = BudgetMoveLeg(fromCategoryID: "groceries", toCategoryID: "dining", amount: 100)
 
         await #expect(throws: BudgetModeWriteError.unsupportedAction) {
-            try await database.moveMoneyMessages(commands: [BudgetMoveMoneyCommand(
+            try await BudgetAssignmentSQL.moveMoneyMessages(commands: [BudgetMoveMoneyCommand(
                 fromCategoryID: leg.fromCategoryID, toCategoryID: leg.toCategoryID, amount: leg.amount
-            )], month: "2026-07", builder: &builder)
+            )], month: "2026-07", builder: &builder, in: database)
         }
         for carryover in [true, false] {
             await #expect(throws: BudgetModeWriteError.unsupportedAction) {
-                try await database.categoryCarryoverMessages(
+                try await BudgetAssignmentSQL.categoryCarryoverMessages(
                     categoryID: "groceries", carryover: carryover,
-                    startMonth: "2026-07", throughMonth: "2026-08", builder: &builder
+                    startMonth: "2026-07", throughMonth: "2026-08", builder: &builder, in: database
                 )
             }
         }

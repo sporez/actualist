@@ -60,14 +60,15 @@ enum TemplateApplySQL {
 
         var messages: [ActualSyncDecodedMessage] = []
         for write in writes.sorted(by: { $0.categoryID < $1.categoryID }) {
-            messages += try database.assignCategoryBudgetMessages(
+            messages += try BudgetRowSQL.assignCategoryBudgetMessages(
                 categoryID: write.categoryID,
                 budgeted: write.amount,
                 monthValue: monthValue,
                 table: table,
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
             if canWriteGoals {
                 messages += try assignCategoryGoalMessages(
@@ -114,7 +115,7 @@ enum TemplateApplySQL {
     }
 
     static func categoryGoals(month: String, in database: isolated BudgetDatabase, db: Database) throws -> [String: Int] {
-        guard let source = try database.categoryBudgetSource(db: db) else {
+        guard let source = try BudgetCategoryValueSQL.categoryBudgetSource(in: database, db: db) else {
             return [:]
         }
         guard source.columns.contains("goal") else {
@@ -153,16 +154,17 @@ enum TemplateApplySQL {
         guard columns.contains("goal") else {
             return []
         }
-        let existingRowID = try database.budgetRowID(
+        let existingRowID = try BudgetRowSQL.budgetRowID(
             table: table,
             monthValue: monthValue,
             categoryID: categoryID,
             columns: columns,
+            in: database,
             db: db
         )
-        let rowID = existingRowID ?? BudgetDatabase.budgetRowID(monthValue: monthValue, categoryID: categoryID)
+        let rowID = existingRowID ?? BudgetRowSQL.budgetRowID(monthValue: monthValue, categoryID: categoryID)
         let dataset = table.rawValue
-        var messages = try database.budgetRowIdentityMessages(
+        var messages = try BudgetRowSQL.budgetRowIdentityMessages(
             table: table, rowID: rowID, monthValue: monthValue,
             categoryID: categoryID, builder: &builder
         )

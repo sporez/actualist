@@ -34,7 +34,7 @@ struct BudgetMonthNoteScopeTests {
             }
         }
 
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let reads = statements.withLock { $0 }
 
         // The flags equal what a lookup against the whole notes table gives.

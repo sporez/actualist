@@ -462,7 +462,7 @@ extension LocalFirstActualStore {
         if let cached = currencyByBudget[budgetID] {
             return cached
         }
-        return try await database.fetchBudgetCurrency()
+        return try await BudgetCurrencySQL.fetchBudgetCurrency(in: database)
     }
 
     /// Calendar-based read window around downloaded days. The reconciler owns

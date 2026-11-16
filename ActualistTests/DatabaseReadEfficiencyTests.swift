@@ -27,7 +27,7 @@ struct DatabaseReadEfficiencyTests {
                 }
             }
         }
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.categoryGroups.count == groupCount + 1)
         #expect(month.categoryGroups.first?.categories.first?.id == "groceries")
         #expect(month.totalBudgeted == 50_000 + 123 * groupCount)

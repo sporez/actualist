@@ -111,10 +111,11 @@
         "BudgetMonthOracleReplayTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+BudgetReads.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+BudgetWrites.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+EnvelopeCarryIn.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+CategoryValueTimeline.swift",
+        "Actualist/LocalFirst/Database/BudgetMonthSQL.swift",
+        "Actualist/LocalFirst/Database/BudgetCategoryValueSQL.swift",
+        "Actualist/LocalFirst/Database/BudgetAssignmentSQL.swift",
+        "Actualist/LocalFirst/Database/BudgetRowSQL.swift",
+        "Actualist/LocalFirst/Database/BudgetCurrencySQL.swift",
         "Actualist/LocalFirst/Database/BudgetFinancialCalculation.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+AssignMove.swift"
       ],
@@ -136,7 +137,8 @@
       ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetFinancialCalculation.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+BudgetReads.swift",
+        "Actualist/LocalFirst/Database/BudgetMonthSQL.swift",
+        "Actualist/LocalFirst/Database/BudgetCategoryValueSQL.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+ModeIdentity.swift",
         "Actualist/Models/TrackingBudgetSummary.swift"
       ]
@@ -156,9 +158,7 @@
         "HoldOracleReplayTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+EnvelopeHolds.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+HoldWrites.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+HoldReviewGuard.swift"
+        "Actualist/LocalFirst/Database/BudgetHoldSQL.swift"
       ],
       "notes": "Replays 14 of 16 cases through production; 2 are oracle-only because neither app reaches them from its UI (see the manifest)."
     },

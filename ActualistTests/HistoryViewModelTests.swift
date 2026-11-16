@@ -117,11 +117,12 @@ extension LocalFirstActualStoreTests {
         // A peer-style write that History never grouped.
         let database = try bundle.store.requireDatabase(for: "group-1")
         var builder = LocalFirstSyncMessageBuilder()
-        let untracked = try await database.assignCategoryBudgetMessages(
+        let untracked = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
             categoryID: "groceries",
             budgeted: 65_000,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(untracked)
 
@@ -157,11 +158,12 @@ extension LocalFirstActualStoreTests {
         // The cell moves after the review opened; the commit re-checks.
         let database = try bundle.store.requireDatabase(for: "group-1")
         var builder = LocalFirstSyncMessageBuilder()
-        let racing = try await database.assignCategoryBudgetMessages(
+        let racing = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
             categoryID: "groceries",
             budgeted: 66_000,
             month: "2026-07",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(racing)
 

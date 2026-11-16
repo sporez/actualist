@@ -88,7 +88,7 @@ DEMO_BUDGET_NAME = "Demo Budget"
 
 # --- Schema DDL -------------------------------------------------------------
 # Mirrors the table/column layout the app reads and writes (see
-# BudgetDatabase+Reads.swift / +TransactionWrites.swift / +BudgetWrites.swift,
+# BudgetMonthSQL.swift / the transaction write files / BudgetAssignmentSQL.swift,
 # the schedule write plan in ScheduleCreationMessagePlan.swift, and the GRDB
 # test fixtures in the *Schedule*Tests suites). The schedule write path
 # requires schedules.posts_transaction and a schedules_next_date table;

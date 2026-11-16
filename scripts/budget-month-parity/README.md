@@ -82,7 +82,7 @@ and similar. The fixture is 5.6 MB. Generation takes about 4 seconds, including 
 Upstream v26.11.0 has no bulk "roll over all overspending" handler. The UI sends
 one `budget/set-carryover` per category (`envelope/BalanceMenu.tsx`,
 `desktop-client/src/budget/mutations.ts`). Actualist's
-`allExpenseCategoryCarryoverMessages` (`BudgetDatabase+BudgetWrites.swift`) is
+`allExpenseCategoryCarryoverMessages` (`BudgetAssignmentSQL.swift`) is
 therefore checked against the sum of per-category toggles. The named case
 `rollover-all-expense-equals-per-category-toggles` records those toggles. The
 Swift replay must confirm that the bulk action writes the same per-category
@@ -115,7 +115,7 @@ Tracking adds `spent-with-carryover-<id>`, `total-saved`, `real-saved`, and
 Upstream fields with no Actualist counterpart in the current model:
 `leftover-pos-<id>` (an internal envelope cell), `buffered` and `buffered-auto`
 as separate values (Actualist's automatic income hold is described in
-`BudgetDatabase+EnvelopeHolds.swift`), and `spent-with-carryover-<id>`.
+`BudgetHoldSQL.swift`), and `spent-with-carryover-<id>`.
 
 ## Oracle-only actions
 
@@ -140,8 +140,8 @@ go through `BudgetDatabase.fetchBudgetSnapshot`. Tests are in
 cases and oracle-only cases together cover all 86 manifest cases.
 
 Write seams: `budget-amount` through `assignCategoryBudgetMessages`; move through
-`moveMoneyMessages`; hold through `BudgetDatabase+HoldWrites`; reset-hold and
-income-carryover reset through the same file; set-carryover through
+`moveMoneyMessages`; hold through `BudgetHoldSQL`; reset-hold and
+income-carryover reset through the same type; set-carryover through
 `LocalFirstActualStore+Mutations`.
 
 - Cover without an amount: the replay reads the `to` category's negative balance
@@ -204,7 +204,7 @@ These checks are strict and are never wrapped in `withKnownIssue`. Against the
 pinned oracle, every identity holds on every envelope state (checked by a
 local script that is not committed). On the production replay, every identity holds
 in every case. The exposed `lastMonthOverspent` is the one defect found, and it is
-compared as OP-35 rather than as an identity: `BudgetDatabase+BudgetReads.swift:53`
+compared as OP-35 rather than as an identity: `BudgetMonthSQL.fetchBudgetMonth(month:in:db:)`
 sets it to 0, while `envelopeCarryIn` computes the value and the snapshot discards it.
 Its `to-budget` identity still holds.
 

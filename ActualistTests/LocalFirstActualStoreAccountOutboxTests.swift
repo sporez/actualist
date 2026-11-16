@@ -228,7 +228,7 @@ extension LocalFirstActualStoreTests {
         #expect(pendingAfter.allSatisfy { $0.attemptCount == 1 })
         #expect(pendingAfter.allSatisfy { $0.lastError == ActualServerErrorCategory.unknown.description })
         #expect(bundle.store.syncStatus(budgetID: "group-1")?.lastError == ActualServerErrorCategory.unknown.description)
-        let month = try await database.fetchBudgetMonth(month: "2026-07")
+        let month = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         #expect(month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }?.budgeted == 62_500)
 
         let queue = try DatabaseQueue(path: (await database.databaseURL).path)
@@ -275,7 +275,7 @@ extension LocalFirstActualStoreTests {
         #expect(await fallback.messageCounts().isEmpty)
         let month = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let groceries = month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
-        let storedMonth = try await database.fetchBudgetMonth(month: "2026-07")
+        let storedMonth = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database)
         let storedGroceries = storedMonth.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
         #expect(groceries?.budgeted == 62_500)
         #expect(storedGroceries?.budgeted == 62_500)

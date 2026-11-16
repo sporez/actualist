@@ -4,7 +4,7 @@ extension LocalFirstActualStore {
     func budgetHoldReview(budgetID: String, month: String) async throws -> BudgetHoldReview {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let review = try await database.budgetHoldReview(month: month)
+        let review = try await BudgetHoldSQL.budgetHoldReview(month: month, in: database)
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         return review
     }
@@ -23,10 +23,11 @@ extension LocalFirstActualStore {
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
 
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.budgetHoldMessages(
+        let messages = try await BudgetHoldSQL.budgetHoldMessages(
             command: command,
             review: review,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         _ = try await database.commitLocalSyncMessagesAndEnqueue(
