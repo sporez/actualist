@@ -25,7 +25,7 @@ struct BankSyncPostCommitTests {
             )], errorType: nil, errorCode: nil)
         )
         let bundle = try await support.makeBankSyncStore(transport: transport)
-        try await bundle.store.linkBankAccount("savings", to: support.remoteAccount(), budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: support.remoteAccount(), budgetID: "group-1")
         // A selected month makes post-write reload read the budget identity.
         _ = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let model = BankSyncViewModel(store: bundle.store, budgetID: "group-1", currency: .usd)

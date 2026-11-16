@@ -164,10 +164,10 @@ final class BankSyncViewModel {
         // Do not start in `.loading` when a cached provider can enable Sync
         // All immediately.
         do {
-            let rows = try await store.bankSyncAccountRows(budgetID: budgetID)
+            let rows = try await store.bankSync.bankSyncAccountRows(budgetID: budgetID)
             // The last-run record is display-only; an unreadable one must not
             // block Sync All.
-            let persistedRun = try? await store.bankSyncLastRun(budgetID: budgetID)
+            let persistedRun = try? await store.bankSync.bankSyncLastRun(budgetID: budgetID)
             guard sessionIsCurrent, generation == loadGeneration else { return }
             try Task.checkCancellation()
             accountLines = rows.map { $0.toLine(lastRunFailure: persistedRun?.failure) }
@@ -185,7 +185,7 @@ final class BankSyncViewModel {
             // answer is unreadable (the provider resolution falls back to
             // the device key in exactly that case).
             do {
-                hasDeviceKey = try store.hasBankSyncDeviceKey()
+                hasDeviceKey = try store.bankSync.hasBankSyncDeviceKey()
             } catch {
                 hasDeviceKey = false
                 throw error
@@ -195,7 +195,7 @@ final class BankSyncViewModel {
                 phase = .loading
             }
             do {
-                let support = try await store.bankSyncSupport(budgetID: budgetID)
+                let support = try await store.bankSync.bankSyncSupport(budgetID: budgetID)
                 guard sessionIsCurrent, generation == loadGeneration else { return }
                 try Task.checkCancellation()
                 serverSupport = support
@@ -207,7 +207,7 @@ final class BankSyncViewModel {
                     serverSupport = nil
                     applyCachedRemoteAccounts()
                     phase = .ready
-                } else if store.cachedBankSyncSupport() != nil {
+                } else if store.bankSync.cachedBankSyncSupport() != nil {
                     phase = .ready
                 } else {
                     phase = error.userFacingMessage.map(Phase.failed) ?? .ready
@@ -251,7 +251,7 @@ final class BankSyncViewModel {
             return true
         }
         do {
-            let accounts = try await store.bankSyncRemoteAccounts(budgetID: budgetID)
+            let accounts = try await store.bankSync.bankSyncRemoteAccounts(budgetID: budgetID)
             guard isCurrent() else { return }
             try Task.checkCancellation()
             remoteAccounts = accounts
@@ -268,7 +268,7 @@ final class BankSyncViewModel {
     }
 
     private func applyCachedSession() {
-        if let cached = store.cachedBankSyncSupport() {
+        if let cached = store.bankSync.cachedBankSyncSupport() {
             serverSupport = cached
             phase = .ready
         }
@@ -277,7 +277,7 @@ final class BankSyncViewModel {
 
     @discardableResult
     private func applyCachedRemoteAccounts() -> Bool {
-        if let remotes = store.cachedBankSyncRemoteAccounts() {
+        if let remotes = store.bankSync.cachedBankSyncRemoteAccounts() {
             remoteAccounts = remotes
             remoteAccountsStatus = .ready
             return true
@@ -299,7 +299,7 @@ final class BankSyncViewModel {
         var tally = BankSyncRunTally()
         var applyingAccountName: String?
         do {
-            let plans = try await store.downloadBankSyncPlans(
+            let plans = try await store.bankSyncPlans.downloadBankSyncPlans(
                 accountIDs: syncableAccountIDs,
                 budgetID: budgetID
             )
@@ -328,7 +328,7 @@ final class BankSyncViewModel {
                 let result: BankSyncReview.ApplyResult
                 var refreshFailure: BankSyncCommittedRefreshError?
                 do {
-                    result = try await store.applyBankSyncPlan(plan, budgetID: budgetID)
+                    result = try await store.bankSync.applyBankSyncPlan(plan, budgetID: budgetID)
                 } catch let error as BankSyncCommittedRefreshError {
                     result = error.result
                     refreshFailure = error
@@ -360,7 +360,7 @@ final class BankSyncViewModel {
         let outcome = phase
         phase = .applying
         do {
-            let rows = try await store.bankSyncAccountRows(budgetID: budgetID)
+            let rows = try await store.bankSync.bankSyncAccountRows(budgetID: budgetID)
             guard sessionIsCurrent else { return }
             accountLines = rows.map { $0.toLine(lastRunFailure: lastRun?.failure) }
         } catch {
@@ -377,7 +377,7 @@ final class BankSyncViewModel {
         guard let summary, sessionIsCurrent else { return }
         let run = BankSyncLastRun(finishedAt: Date(), trigger: .manual, summary: summary, failure: failure)
         lastRun = run
-        try? await store.recordBankSyncLastRun(run, budgetID: budgetID)
+        try? await store.bankSync.recordBankSyncLastRun(run, budgetID: budgetID)
     }
 
     // MARK: - Device token (Phase 5)
@@ -391,7 +391,7 @@ final class BankSyncViewModel {
         isClaiming = true
         defer { isClaiming = false }
         do {
-            try await store.claimBankSyncDeviceToken(draftSetupToken)
+            try await store.bankSync.claimBankSyncDeviceToken(draftSetupToken)
             draftSetupToken = ""
             await load()
         } catch {
@@ -403,8 +403,8 @@ final class BankSyncViewModel {
     func forgetDeviceKey() async {
         guard !isSyncing, sessionIsCurrent else { return }
         do {
-            try store.forgetBankSyncDeviceKey()
-            hasDeviceKey = try store.hasBankSyncDeviceKey()
+            try store.bankSync.forgetBankSyncDeviceKey()
+            hasDeviceKey = try store.bankSync.hasBankSyncDeviceKey()
             await load()
         } catch {
             phase = error.userFacingMessage.map(Phase.failed) ?? .ready
@@ -460,7 +460,7 @@ final class BankSyncViewModel {
         isLinkWriteInFlight = true
         defer { isLinkWriteInFlight = false }
         do {
-            try await store.linkBankAccount(accountID, to: remote, budgetID: budgetID)
+            try await store.bankSync.linkBankAccount(accountID, to: remote, budgetID: budgetID)
             selectedAccountID = nil
             await load()
         } catch {
@@ -474,7 +474,7 @@ final class BankSyncViewModel {
         }
         guard line.isSyncable else {
             phase = .failed(
-                LocalFirstActualStore.BankSyncStoreError.notSimpleFINLinked.localizedDescription
+                BankSyncWorkflows.BankSyncStoreError.notSimpleFINLinked.localizedDescription
             )
             return
         }
@@ -482,7 +482,7 @@ final class BankSyncViewModel {
         isLinkWriteInFlight = true
         defer { isLinkWriteInFlight = false }
         do {
-            try await store.unlinkBankAccount(accountID, budgetID: budgetID)
+            try await store.bankSync.unlinkBankAccount(accountID, budgetID: budgetID)
             selectedAccountID = nil
             await load()
         } catch {
@@ -495,7 +495,7 @@ final class BankSyncViewModel {
     }
 }
 
-private extension LocalFirstActualStore.BankSyncAccountStatusRow {
+private extension BankSyncWorkflows.BankSyncAccountStatusRow {
     func toLine(lastRunFailure: BankSyncWholeRequestFailure?) -> BankSyncViewModel.AccountLine {
         BankSyncViewModel.AccountLine(
             id: id,

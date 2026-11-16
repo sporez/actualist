@@ -55,11 +55,11 @@ struct ImportedIDExactnessTests {
             VALUES ('stored', 'savings', 20260302, -5000, NULL, 0, NULL, NULL, 0, 0);
             """)
         try exec(bundle, "UPDATE transactions SET financial_id = 'a1' WHERE id = 'stored'")
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
 
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.inserts.compactMap(\.financialID) == ["A1"])
-        let result = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        let result = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
 
         #expect(result.insertedCount == 1)
         #expect(try ids(bundle, column: "financial_id") == ["A1", "a1"])

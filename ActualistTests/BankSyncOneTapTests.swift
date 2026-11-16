@@ -408,7 +408,7 @@ extension LocalFirstActualStoreTests {
         bundle.store.openedServerURLString = "https://sync.example"
         try bundle.keychain.saveActualSyncToken("one-tap-sync-token")
         for link in links {
-            try await bundle.store.linkBankAccount(
+            try await bundle.store.bankSync.linkBankAccount(
                 link.localAccountID,
                 to: link.remote,
                 budgetID: "group-1"

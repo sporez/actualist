@@ -71,7 +71,7 @@ struct BankSyncCategoryLearningTests {
         )
         bundle.store.openedServerURLString = "https://sync.example"
         try bundle.keychain.saveActualSyncToken("test-sync-token")
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
         return bundle
     }
 
@@ -88,7 +88,7 @@ struct BankSyncCategoryLearningTests {
         )
         #expect(plan.inserts.first?.categoryID == "groceries")
         #expect(plan.problems.isEmpty)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         #expect(try await learnedCoffeeRules(in: bundle).isEmpty)
         let messages = try support.storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
         #expect(!messages.contains { $0.dataset == "rules" })
@@ -101,13 +101,13 @@ struct BankSyncCategoryLearningTests {
             budgetID: "group-1"
         )
         #expect(plan.inserts.first?.categoryID == nil)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         #expect(try await learnedCoffeeRules(in: bundle).isEmpty)
     }
 
     @Test func backgroundBankSyncDoesNotWriteLearnedRules() async throws {
         let bundle = try await linkedLearningStore(additionalFixtureSQL: learningSQL(importRule: true))
-        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         #expect(try await learnedCoffeeRules(in: bundle).isEmpty)
         let messages = try support.storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
         #expect(!messages.contains { $0.dataset == "rules" })

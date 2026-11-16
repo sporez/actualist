@@ -574,7 +574,7 @@ extension LocalFirstActualStore {
         budgetID: String,
         deviceFallback: Bool = true
     ) async throws -> BankSyncReview.AccountPlan {
-        guard let plan = try await downloadBankSyncPlans(
+        guard let plan = try await bankSyncPlans.downloadBankSyncPlans(
             accountIDs: [accountID],
             budgetID: budgetID,
             deviceFallback: deviceFallback

@@ -120,7 +120,7 @@ struct CustomHTTPHeaderTransportTests {
         _ = try await store.withSyncFailover(serverURLString: "https://primary.example") { transport in
             try await transport.sync(data: Data(), token: "actual-token")
         }
-        _ = try await store.bankSyncSupport(budgetID: "group-1")
+        _ = try await store.bankSync.bankSyncSupport(budgetID: "group-1")
         #expect(HeaderTransportURLProtocol.requests.count == 3)
         #expect(HeaderTransportURLProtocol.requests.suffix(2).allSatisfy {
             $0.value(forHTTPHeaderField: "X-Fallback") == "fallback-secret"

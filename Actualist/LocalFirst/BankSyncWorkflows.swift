@@ -1,11 +1,19 @@
 import Foundation
 
-/// SimpleFIN bank-sync orchestration (plan Phase 3): download → normalize →
-/// rule projection → validated plan → CRDT writes.
-/// The UI only renders the resulting display values and calls the
-/// intents here; all payload math, state, and write orchestration live in
-/// this file and `BudgetDatabase+BankSync.swift`.
-extension LocalFirstActualStore {
+/// Bank Sync on the store: provider and capability, the device key, link and
+/// unlink, applying a reviewed plan, the background run and its last-run
+/// record, and the settings rows. The store owns it; the per-account
+/// generations and the session cache stay on the store.
+@MainActor
+final class BankSyncWorkflows {
+    // The store creates this lazily and keeps it for its whole life, so the
+    // store outlives every holder of it.
+    private unowned let store: LocalFirstActualStore
+
+    init(store: LocalFirstActualStore) {
+        self.store = store
+    }
+
     enum BankSyncStoreError: LocalizedError, Equatable {
         case staleGeneration
         case unresolvedProblems
@@ -35,25 +43,25 @@ extension LocalFirstActualStore {
     // MARK: - Server capability
 
     func cachedBankSyncSupport() -> SimpleFINServerSupport? {
-        guard let serverURL = openedServerURLString, let fileID = openedCloudFileID else {
+        guard let serverURL = store.openedServerURLString, let fileID = store.openedCloudFileID else {
             return nil
         }
-        return bankSyncSessionCache.simpleFINSupport(for: serverURL, fileID: fileID)
+        return store.bankSyncSessionCache.simpleFINSupport(for: serverURL, fileID: fileID)
     }
 
     func cachedBankSyncRemoteAccounts() -> [SimpleFINRemoteAccount]? {
-        guard let serverURL = openedServerURLString, let fileID = openedCloudFileID else {
+        guard let serverURL = store.openedServerURLString, let fileID = store.openedCloudFileID else {
             return nil
         }
-        return bankSyncSessionCache.simpleFINRemoteAccounts(for: serverURL, fileID: fileID)
+        return store.bankSyncSessionCache.simpleFINRemoteAccounts(for: serverURL, fileID: fileID)
     }
 
     func bankSyncSupport(budgetID: String) async throws -> SimpleFINServerSupport {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
         let context = try bankSyncContext(budgetID: budgetID)
         let support = try await context.transport.simpleFINStatus(fileID: context.fileID, token: context.token)
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         rememberBankSyncSupport(support)
         return support
     }
@@ -119,12 +127,12 @@ extension LocalFirstActualStore {
         budgetID: String,
         deviceFallback: Bool = true
     ) async throws -> BankSyncProvider {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
         do {
             let context = try bankSyncContext(budgetID: budgetID)
             let support = try await context.transport.simpleFINStatus(fileID: context.fileID, token: context.token)
-            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             rememberBankSyncSupport(support)
             return try resolvedBankSyncProvider(
                 support: support,
@@ -132,7 +140,7 @@ extension LocalFirstActualStore {
                 deviceFallback: deviceFallback
             )
         } catch let error as ActualAPIError {
-            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+            try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             if deviceFallback, !error.isCancellation, case .transport = error,
                let device = try bankSyncDeviceClientIfPresent() {
                 return .device(device)
@@ -164,7 +172,7 @@ extension LocalFirstActualStore {
     /// not budget-scoped, survives budget switches, cleared only by erase
     /// (sign-out) or an explicit disconnect on the Bank Sync screen.
     func hasBankSyncDeviceKey() throws -> Bool {
-        try keychain.readSimpleFINAccessURL() != nil
+        try store.keychain.readSimpleFINAccessURL() != nil
     }
 
     /// Claims a pasted setup token once and stores the access key in the
@@ -175,18 +183,18 @@ extension LocalFirstActualStore {
         let scheme = "https://"
         let hostAndPath = base.lowercased().hasPrefix(scheme) ? base.dropFirst(scheme.count) : base[...]
         let accessURL = "https://\(claimed.username):\(claimed.password)@\(hostAndPath)"
-        try keychain.saveSimpleFINAccessURL(accessURL)
-        bankSyncSessionCache.clearSimpleFINRemoteAccounts()
+        try store.keychain.saveSimpleFINAccessURL(accessURL)
+        store.bankSyncSessionCache.clearSimpleFINRemoteAccounts()
     }
 
     /// Disconnect forgets the device key only. Links and transactions stay.
     func forgetBankSyncDeviceKey() throws {
-        try keychain.removeSimpleFINAccessURL()
-        bankSyncSessionCache.clearSimpleFINRemoteAccounts()
+        try store.keychain.removeSimpleFINAccessURL()
+        store.bankSyncSessionCache.clearSimpleFINRemoteAccounts()
     }
 
     private func bankSyncDeviceClientIfPresent() throws -> SimpleFINBridgeClient? {
-        guard let stored = try keychain.readSimpleFINAccessURL() else { return nil }
+        guard let stored = try store.keychain.readSimpleFINAccessURL() else { return nil }
         let credentials = try SimpleFINBridgeCredentials.accessCredentials(fromClaimBody: stored)
         let baseURL = try SimpleFINBridgeCredentials.baseURL(fromClaimBody: stored)
         return SimpleFINBridgeClient(
@@ -199,8 +207,8 @@ extension LocalFirstActualStore {
     /// Remote SimpleFIN-side accounts through the resolved provider
     /// (server first, device-claimed bridge fallback).
     func bankSyncRemoteAccounts(budgetID: String) async throws -> [SimpleFINRemoteAccount] {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
         let context = try bankSyncContext(budgetID: budgetID)
         let provider: BankSyncProvider
         if let cached = cachedBankSyncSupport() {
@@ -213,7 +221,7 @@ extension LocalFirstActualStore {
             provider = try await bankSyncProvider(budgetID: budgetID)
         }
         let accounts = try await provider.remoteAccounts()
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         rememberBankSyncRemoteAccounts(accounts)
         return accounts
     }
@@ -228,7 +236,7 @@ extension LocalFirstActualStore {
         to remote: SimpleFINRemoteAccount,
         budgetID: String
     ) async throws {
-        let database = try requireDatabase(for: budgetID)
+        let database = try store.requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await BankSyncLinkSQL.makeBankSyncLinkMessages(
             accountID: localAccountID,
@@ -237,14 +245,14 @@ extension LocalFirstActualStore {
             in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        bankSyncGenerationByAccount[localAccountID] = nil
-        try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
+        store.bankSyncGenerationByAccount[localAccountID] = nil
+        try await store.finishCommittedAccountWrite(database: database, budgetID: budgetID)
     }
 
     /// loot-core `unlinkAccount`: clear a SimpleFIN link's columns and leave
     /// transactions. Other provider metadata is outside this mutation path.
     func unlinkBankAccount(_ localAccountID: String, budgetID: String) async throws {
-        let database = try requireDatabase(for: budgetID)
+        let database = try store.requireDatabase(for: budgetID)
         guard let linked = try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
             .first(where: { $0.id == localAccountID }) else {
             throw BankSyncStoreError.notLinked
@@ -259,8 +267,8 @@ extension LocalFirstActualStore {
             in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-        bankSyncGenerationByAccount[localAccountID] = nil
-        try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
+        store.bankSyncGenerationByAccount[localAccountID] = nil
+        try await store.finishCommittedAccountWrite(database: database, budgetID: budgetID)
     }
 
     // MARK: - Apply
@@ -275,9 +283,9 @@ extension LocalFirstActualStore {
         budgetID: String,
         backgroundNotificationID: String? = nil
     ) async throws -> BankSyncReview.ApplyResult {
-        let database = try requireDatabase(for: budgetID)
-        let sessionGeneration = budgetSessionGeneration
-        guard bankSyncGenerationByAccount[plan.link.accountID] == plan.generation else {
+        let database = try store.requireDatabase(for: budgetID)
+        let sessionGeneration = store.budgetSessionGeneration
+        guard store.bankSyncGenerationByAccount[plan.link.accountID] == plan.generation else {
             throw BankSyncStoreError.staleGeneration
         }
         guard plan.problems.isEmpty else {
@@ -324,7 +332,7 @@ extension LocalFirstActualStore {
             }
             return (update: update, existing: existing)
         }
-        let writes = try await importReconcileWrites(
+        let writes = try await store.importReconcileWrites(
             database: database,
             accountID: plan.link.accountID,
             accountIsOffBudget: accountIsOffBudget,
@@ -358,13 +366,13 @@ extension LocalFirstActualStore {
         ))
 
         try Task.checkCancellation()
-        guard self.database === database,
-              bankSyncGenerationByAccount[plan.link.accountID] == plan.generation else {
+        guard store.database === database,
+              store.bankSyncGenerationByAccount[plan.link.accountID] == plan.generation else {
             throw BankSyncStoreError.staleGeneration
         }
         // Consume before awaiting the commit so overlapping runs cannot
         // both apply the same prepared inserts. A failed apply requires a new download.
-        bankSyncGenerationByAccount[plan.link.accountID] = nil
+        store.bankSyncGenerationByAccount[plan.link.accountID] = nil
         let pendingCommit = backgroundNotificationID.map {
             BudgetDatabase.PendingNewTransactionCommit(
                 transactionIDsByAccount: insertedIDsByAccount,
@@ -403,10 +411,10 @@ extension LocalFirstActualStore {
         var reloadError: Error?
         let refreshPending: Bool
         do {
-            refreshPending = try await finishCommittedWrite(database: database, budgetID: budgetID) {
+            refreshPending = try await store.finishCommittedWrite(database: database, budgetID: budgetID) {
                 do {
-                    try requireSyncSession(database: database, budgetID: budgetID, generation: sessionGeneration)
-                    try await reloadAfterTransactionMutation(
+                    try store.requireSyncSession(database: database, budgetID: budgetID, generation: sessionGeneration)
+                    try await store.reloadAfterTransactionMutation(
                         database: database,
                         budgetID: budgetID,
                         accountIDs: Array(affectedAccountIDs)
@@ -438,7 +446,7 @@ extension LocalFirstActualStore {
         request: BankSyncBackgroundApplyRequest
     ) async throws -> BankSyncBackgroundApplyResult {
         let budgetID = request.budgetID
-        let database = try requireDatabase(for: budgetID)
+        let database = try store.requireDatabase(for: budgetID)
         // Server SimpleFIN only; the Phase 5 device key is never read here.
         // The batched planner's provider resolution enforces configured server
         // support once for the entire run.
@@ -463,7 +471,7 @@ extension LocalFirstActualStore {
         var tally = BankSyncRunTally()
         var insertedTransactionIDsByAccount: [String: [String]] = [:]
         do {
-            let plans = try await downloadBankSyncPlans(
+            let plans = try await store.bankSyncPlans.downloadBankSyncPlans(
                 accountIDs: linked.map(\.id),
                 budgetID: budgetID,
                 deviceFallback: false
@@ -532,11 +540,11 @@ extension LocalFirstActualStore {
     // MARK: - Last run
 
     func bankSyncLastRun(budgetID: String) async throws -> BankSyncLastRun? {
-        try await BankSyncRunSQL.bankSyncLastRun(in: requireDatabase(for: budgetID))
+        try await BankSyncRunSQL.bankSyncLastRun(in: store.requireDatabase(for: budgetID))
     }
 
     func recordBankSyncLastRun(_ run: BankSyncLastRun, budgetID: String) async throws {
-        try await BankSyncRunSQL.saveBankSyncLastRun(run, in: requireDatabase(for: budgetID))
+        try await BankSyncRunSQL.saveBankSyncLastRun(run, in: store.requireDatabase(for: budgetID))
     }
 
     /// Foreground/test convenience remains silent; only the background
@@ -559,7 +567,7 @@ extension LocalFirstActualStore {
     }
 
     func bankSyncAccountRows(budgetID: String) async throws -> [BankSyncAccountStatusRow] {
-        let database = try requireDatabase(for: budgetID)
+        let database = try store.requireDatabase(for: budgetID)
         let accounts = try await AccountSQL.fetchAccounts(in: database).filter { !$0.closed }
         let linked = try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
         let linkedByID = Dictionary(uniqueKeysWithValues: linked.map { ($0.id, $0) })
@@ -580,50 +588,48 @@ extension LocalFirstActualStore {
     // MARK: - Context
 
     private func bankSyncContext(budgetID: String) throws -> SimpleFINServerContext {
-        _ = try requireDatabase(for: budgetID)
-        guard let urlString = openedServerURLString,
+        _ = try store.requireDatabase(for: budgetID)
+        guard let urlString = store.openedServerURLString,
               let url = URL(string: urlString) else {
             throw LocalFirstError.missingServerURL
         }
-        guard let fileID = openedCloudFileID else {
+        guard let fileID = store.openedCloudFileID else {
             throw LocalFirstError.missingBudgetFileID
         }
-        let token = try keychain.readActualSyncToken()
+        let token = try store.keychain.readActualSyncToken()
         guard let token else {
             throw LocalFirstError.missingSyncToken
         }
-        let endpoints = failoverEndpoints(for: urlString)
+        let endpoints = store.failoverEndpoints(for: urlString)
         if let primary = endpoints.primary, let fallback = endpoints.fallback,
-           shouldSkipPrimary(primary: primary, fallback: fallback) {
+           store.shouldSkipPrimary(primary: primary, fallback: fallback) {
             return SimpleFINServerContext(
-                transport: try simpleFINTransport(for: fallback, role: .fallback),
+                transport: try store.simpleFINTransport(for: fallback, role: .fallback),
                 fileID: fileID,
                 token: token
             )
         }
         return SimpleFINServerContext(
-            transport: try simpleFINTransport(for: url, role: .primary),
+            transport: try store.simpleFINTransport(for: url, role: .primary),
             fileID: fileID,
             token: token
         )
     }
 
     private func rememberBankSyncSupport(_ support: SimpleFINServerSupport) {
-        guard let serverURL = openedServerURLString, let fileID = openedCloudFileID else {
+        guard let serverURL = store.openedServerURLString, let fileID = store.openedCloudFileID else {
             return
         }
-        bankSyncSessionCache.rememberSimpleFINSupport(support, for: serverURL, fileID: fileID)
+        store.bankSyncSessionCache.rememberSimpleFINSupport(support, for: serverURL, fileID: fileID)
     }
 
     private func rememberBankSyncRemoteAccounts(_ accounts: [SimpleFINRemoteAccount]) {
-        guard let serverURL = openedServerURLString, let fileID = openedCloudFileID else {
+        guard let serverURL = store.openedServerURLString, let fileID = store.openedCloudFileID else {
             return
         }
-        bankSyncSessionCache.rememberSimpleFINRemoteAccounts(accounts, for: serverURL, fileID: fileID)
+        store.bankSyncSessionCache.rememberSimpleFINRemoteAccounts(accounts, for: serverURL, fileID: fileID)
     }
-
 }
 
-/// The store is the production conformer of the background workflow's
-/// bank-sync step seam.
-extension LocalFirstActualStore: BackgroundBankSyncApplying {}
+/// The production conformer of the background workflow's bank-sync step seam.
+extension BankSyncWorkflows: BackgroundBankSyncApplying {}

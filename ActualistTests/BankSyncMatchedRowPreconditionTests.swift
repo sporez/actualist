@@ -31,7 +31,7 @@ extension LocalFirstActualStoreTests {
                 """
         )
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
         let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.updates.first?.existingID == "hand-1")
@@ -48,8 +48,8 @@ extension LocalFirstActualStoreTests {
             )
         ])
 
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.staleGeneration) {
-            try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.staleGeneration) {
+            try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
         #expect(!(try storedCRDTMessages(at: databaseURL)).contains {
             $0.dataset == "transactions" && $0.row == "hand-1" && $0.column == "financial_id"

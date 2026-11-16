@@ -62,14 +62,14 @@ struct BankSyncApplyReadTests {
         let withoutUpdates = try await fixtures.makeBankSyncStore(transport: transport(transactions: [
             fixtures.remoteTransaction(id: "d1", amount: "-10.00", dayID: "20260701", payeeName: "Coffee Shop")
         ]))
-        try await withoutUpdates.store.linkBankAccount("savings", to: fixtures.remoteAccount(), budgetID: "group-1")
+        try await withoutUpdates.store.bankSync.linkBankAccount("savings", to: fixtures.remoteAccount(), budgetID: "group-1")
         let plan = try await withoutUpdates.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.updates.isEmpty)
         #expect(!plan.inserts.isEmpty)
         let database = try #require(withoutUpdates.store.database)
         let log = StatementLog()
         try await database.startStatementTraceForTesting(log)
-        _ = try await withoutUpdates.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await withoutUpdates.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         try await database.stopStatementTraceForTesting()
         #expect(log.count(containing: Self.existingRowsMarker) == 0)
 
@@ -82,13 +82,13 @@ struct BankSyncApplyReadTests {
                 VALUES ('hand-1', 'savings', 20260701, -1000, NULL, 0, 'coffee', NULL, 0, 0);
                 """
         )
-        try await withUpdate.store.linkBankAccount("savings", to: fixtures.remoteAccount(), budgetID: "group-1")
+        try await withUpdate.store.bankSync.linkBankAccount("savings", to: fixtures.remoteAccount(), budgetID: "group-1")
         let updatePlan = try await withUpdate.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(updatePlan.updates.count == 1)
         let updateDatabase = try #require(withUpdate.store.database)
         let updateLog = StatementLog()
         try await updateDatabase.startStatementTraceForTesting(updateLog)
-        _ = try await withUpdate.store.applyBankSyncPlan(updatePlan, budgetID: "group-1")
+        _ = try await withUpdate.store.bankSync.applyBankSyncPlan(updatePlan, budgetID: "group-1")
         try await updateDatabase.stopStatementTraceForTesting()
         // One filtered read to build the writes, plus the in-transaction
         // precondition re-reading the same matched rows (concurrency 5.2c).

@@ -82,6 +82,8 @@ final class LocalFirstActualStore:
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
     @ObservationIgnored private(set) lazy var reports = ReportWorkflows(store: self)
     @ObservationIgnored private(set) lazy var accountLifecycle = AccountLifecycleWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var bankSync = BankSyncWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var bankSyncPlans = BankSyncPlanWorkflows(store: self)
     var currencyByBudget: [String: BudgetCurrency] = [:]
     /// Bank-sync download token per local account. Replaced before every
     /// download; apply refuses a plan whose generation is no longer current,

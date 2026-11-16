@@ -60,14 +60,14 @@ extension LocalFirstActualStoreTests {
             )
         )
         let bundle = try await makeBankSyncStore(transport: transport)
-        try await bundle.store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.inserts.compactMap(\.financialID) == ["d1"])
         let url = try bundle.fileManager.databaseURL(fileID: #require(bundle.budget.budgetID))
         try insertRemoteImportedRow(at: url, id: "remote-row", account: "savings", financialID: "d1")
 
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.staleGeneration) {
-            try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.staleGeneration) {
+            try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
 
         #expect(try importedRowCount(at: url, financialID: "d1") == 1)

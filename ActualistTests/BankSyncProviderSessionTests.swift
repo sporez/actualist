@@ -49,9 +49,9 @@ struct BankSyncProviderSessionTests {
         try bundle.keychain.saveActualSyncToken("synthetic-token")
         let task = Task {
             switch operation {
-            case "support": _ = try await bundle.store.bankSyncSupport(budgetID: "group-1")
-            case "provider": _ = try await bundle.store.bankSyncProvider(budgetID: "group-1")
-            default: _ = try await bundle.store.bankSyncRemoteAccounts(budgetID: "group-1")
+            case "support": _ = try await bundle.store.bankSync.bankSyncSupport(budgetID: "group-1")
+            case "provider": _ = try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
+            default: _ = try await bundle.store.bankSync.bankSyncRemoteAccounts(budgetID: "group-1")
             }
         }
         // Release both waits if entry fails, even if framework cancellation alone
@@ -68,7 +68,7 @@ struct BankSyncProviderSessionTests {
         bundle.store.openedServerURLString = "https://replacement.example"
         release.trip()
         await #expect(throws: CancellationError.self) { try await task.value }
-        #expect(bundle.store.cachedBankSyncSupport() == nil)
-        #expect(bundle.store.cachedBankSyncRemoteAccounts() == nil)
+        #expect(bundle.store.bankSync.cachedBankSyncSupport() == nil)
+        #expect(bundle.store.bankSync.cachedBankSyncRemoteAccounts() == nil)
     }
 }

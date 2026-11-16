@@ -133,13 +133,13 @@ struct ImportReconcileStepTests {
     }
 
     @Test func theReadWindowWidensByTheFuzzyWindow() {
-        #expect(LocalFirstActualStore.monthWidenedWindow(candidateDayIDs: ["20260310", "20260320"]) == 20260303...20260327)
+        #expect(BankSyncPlanWorkflows.monthWidenedWindow(candidateDayIDs: ["20260310", "20260320"]) == 20260303...20260327)
         // Across a month, a year and a leap day.
-        #expect(LocalFirstActualStore.monthWidenedWindow(candidateDayIDs: ["20260303"]) == 20260224...20260310)
-        #expect(LocalFirstActualStore.monthWidenedWindow(candidateDayIDs: ["20240305"]) == 20240227...20240312)
-        #expect(LocalFirstActualStore.monthWidenedWindow(candidateDayIDs: ["20260102"]) == 20251226...20260109)
+        #expect(BankSyncPlanWorkflows.monthWidenedWindow(candidateDayIDs: ["20260303"]) == 20260224...20260310)
+        #expect(BankSyncPlanWorkflows.monthWidenedWindow(candidateDayIDs: ["20240305"]) == 20240227...20240312)
+        #expect(BankSyncPlanWorkflows.monthWidenedWindow(candidateDayIDs: ["20260102"]) == 20251226...20260109)
         // Nothing to bound the read by: read everything.
-        #expect(LocalFirstActualStore.monthWidenedWindow(candidateDayIDs: []) == 0...99_999_999)
+        #expect(BankSyncPlanWorkflows.monthWidenedWindow(candidateDayIDs: []) == 0...99_999_999)
     }
 
     private static func compactDay(_ offset: Int) -> String {
@@ -185,7 +185,7 @@ struct ImportReconcileStepTests {
             }
             let scoped = ordered(try await BankSyncMatchSQL.bankSyncExistingRows(
                 accountID: "checking",
-                window: LocalFirstActualStore.monthWidenedWindow(candidateDayIDs: candidates.map(\.dayID)),
+                window: BankSyncPlanWorkflows.monthWidenedWindow(candidateDayIDs: candidates.map(\.dayID)),
                 orImportedIDs: Set(candidates.compactMap(\.financialID)),
                 in: database
             ))

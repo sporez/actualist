@@ -2,7 +2,7 @@ import Foundation
 
 /// Seam for the Phase 6 background bank-sync step so workflow tests can
 /// fake the SimpleFIN apply without a budget database. The production
-/// conformer is `LocalFirstActualStore`.
+/// conformer is `BankSyncWorkflows`, the store's `bankSync`.
 @MainActor
 protocol BackgroundBankSyncApplying {
     func backgroundBankSyncApply(request: BankSyncBackgroundApplyRequest) async throws -> BankSyncBackgroundApplyResult
@@ -569,7 +569,7 @@ final class BackgroundTransactionWorkflow {
         store: LocalFirstActualStore
     ) async -> (messageSuffix: String, outcome: BackgroundRefreshDiagnosticDetails.BankOutcome, accountCount: Int?,
                 insertedCount: Int?, durationMilliseconds: Int) {
-        let applier = bankSyncApplier ?? store
+        let applier = bankSyncApplier ?? store.bankSync
         let startedAt = Date()
         do {
             let result = try await withDeadline(

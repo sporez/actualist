@@ -51,8 +51,6 @@ Actualist/LocalFirst/DemoMode/LocalFirstActualStore+Demo.swift
 Actualist/LocalFirst/LocalFirstActualStore+AccountGroups.swift
 Actualist/LocalFirst/LocalFirstActualStore+ActionLog.swift
 Actualist/LocalFirst/LocalFirstActualStore+AssignMove.swift
-Actualist/LocalFirst/LocalFirstActualStore+BankSync.swift
-Actualist/LocalFirst/LocalFirstActualStore+BankSyncPlanning.swift
 Actualist/LocalFirst/LocalFirstActualStore+BudgetCache.swift
 Actualist/LocalFirst/LocalFirstActualStore+BudgetLaunchSnapshot.swift
 Actualist/LocalFirst/LocalFirstActualStore+CategoryLifecycle.swift

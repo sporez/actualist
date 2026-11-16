@@ -113,7 +113,7 @@ struct BankSyncCorrectnessInvestigationTests {
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(try snapshot(bundle) == before)
         #expect(plan.inserts.isEmpty && plan.updates.isEmpty)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let after = try snapshot(bundle)
         #expect(after.lastSync != before.lastSync)
         #expect(after.status == "ok")
@@ -128,7 +128,7 @@ struct BankSyncCorrectnessInvestigationTests {
             let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
             #expect(plan.durableStatus == .attentionRequired)
             #expect(plan.inserts.isEmpty)
-            _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+            _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
             let after = try snapshot(bundle)
             #expect(after.lastSync == "1600000000000")
             #expect(after.status == "attention-required")
@@ -152,11 +152,11 @@ struct BankSyncCorrectnessInvestigationTests {
         let task = Task { try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1") }
         await provider.waitUntilRequested()
         if mutation == "unlink" {
-            try await bundle.store.unlinkBankAccount("savings", budgetID: "group-1")
+            try await bundle.store.bankSync.unlinkBankAccount("savings", budgetID: "group-1")
         } else if mutation == "relink" {
             let remote = SimpleFINRemoteAccount(accountID: "new-link", name: "Synthetic", balance: nil,
                 currency: "USD", institution: nil, orgName: nil, orgDomain: "bank.example", orgID: nil)
-            try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+            try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
         } else if mutation != "unchanged" {
             let database = try #require(bundle.store.database)
             let column = mutation == "remote-link" ? "account_id" : (mutation == "closed" ? "closed" : "tombstone")
@@ -169,7 +169,7 @@ struct BankSyncCorrectnessInvestigationTests {
         await provider.release()
         do {
             let plan = try await task.value
-            _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+            _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         } catch {
             if mutation == "unchanged" { throw error }
         }
@@ -247,16 +247,16 @@ struct BankSyncCorrectnessInvestigationTests {
         let older = Task { try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1") }
         await provider.waitUntilRequested()
         let newer = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
-        _ = try await bundle.store.applyBankSyncPlan(newer, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(newer, budgetID: "group-1")
         let before = try snapshot(bundle)
         await provider.release()
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.staleGeneration) { try await older.value }
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.staleGeneration) { try await older.value }
         #expect(try snapshot(bundle) == before)
     }
 
     @Test func duplicateAccountRequestsProduceOnePlan() async throws {
         let bundle = try await fixture(Provider(response: response()))
-        let plans = try await bundle.store.downloadBankSyncPlans(accountIDs: ["savings", "savings"], budgetID: "group-1")
+        let plans = try await bundle.store.bankSyncPlans.downloadBankSyncPlans(accountIDs: ["savings", "savings"], budgetID: "group-1")
         #expect(plans.count == 1)
     }
 
@@ -286,9 +286,9 @@ struct BankSyncCorrectnessInvestigationTests {
     @Test func missingDeviceKeyRefusesUnsupportedServerWithoutSharedWrites() async throws {
         let provider = Provider(response: .init(downloads: [:], errorType: nil, errorCode: nil), configured: .unsupported)
         let bundle = try await fixture(provider)
-        #expect(try !bundle.store.hasBankSyncDeviceKey())
+        #expect(try !bundle.store.bankSync.hasBankSyncDeviceKey())
         let before = try snapshot(bundle)
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.notConfigured) {
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.notConfigured) {
             try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         }
         #expect(try snapshot(bundle) == before)
@@ -305,7 +305,7 @@ struct BankSyncCorrectnessInvestigationTests {
         }
         let before = try snapshot(bundle)
         await #expect(throws: LocalFirstError.self) {
-            try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+            try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
         #expect(try snapshot(bundle) == before)
     }
@@ -313,10 +313,10 @@ struct BankSyncCorrectnessInvestigationTests {
     @Test func completedPlanCannotBeAppliedTwice() async throws {
         let bundle = try await fixture(Provider(response: response(rows: true)))
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let before = try snapshot(bundle)
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.staleGeneration) {
-            try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.staleGeneration) {
+            try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
         #expect(try snapshot(bundle) == before)
     }
@@ -324,10 +324,10 @@ struct BankSyncCorrectnessInvestigationTests {
     @Test func completedReviewThenUnlinkIsAlreadyRejected() async throws {
         let bundle = try await fixture(Provider(response: response(rows: true)))
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
-        try await bundle.store.unlinkBankAccount("savings", budgetID: "group-1")
+        try await bundle.store.bankSync.unlinkBankAccount("savings", budgetID: "group-1")
         let before = try snapshot(bundle)
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.staleGeneration) {
-            try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.staleGeneration) {
+            try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
         #expect(try snapshot(bundle) == before)
     }

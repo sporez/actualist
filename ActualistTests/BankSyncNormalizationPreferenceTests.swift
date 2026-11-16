@@ -62,7 +62,7 @@ struct BankSyncNormalizationPreferenceTests {
             transport: transport,
             additionalFixtureSQL: additionalFixtureSQL
         )
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
         return bundle
     }
 
@@ -98,8 +98,8 @@ struct BankSyncNormalizationPreferenceTests {
         #expect(Set(plan.inserts.compactMap(\.financialID)) == ["booked-1", "pending-1"])
         #expect(plan.problems.isEmpty)
         #expect(plan.openingBalance?.amountMinorUnits == 11_500)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
-        let background = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
+        let background = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         #expect(background.insertedTransactionIDsByAccount["savings"]?.isEmpty != false)
     }
 
@@ -115,11 +115,11 @@ struct BankSyncNormalizationPreferenceTests {
         #expect(plan.inserts.map(\.financialID) == ["booked-1"])
         #expect(plan.problems.isEmpty)
         #expect(plan.openingBalance?.amountMinorUnits == 11_000)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let ids = try await storedFinancialIDs(in: bundle, accountID: "savings")
         #expect(ids.contains("booked-1"))
         #expect(!ids.contains("pending-1"))
-        let background = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        let background = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         #expect(background.insertedTransactionIDsByAccount["savings"]?.isEmpty != false)
     }
 
@@ -159,7 +159,7 @@ struct BankSyncNormalizationPreferenceTests {
             budgetID: "group-1"
         )
         #expect(plan.inserts.first?.notes == "coffee ##latte")
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let row = try await storedImportedNotes(in: bundle, financialID: "note-1")
         #expect(row == "coffee ##latte")
     }
@@ -181,9 +181,9 @@ struct BankSyncNormalizationPreferenceTests {
             budgetID: "group-1"
         )
         #expect(plan.inserts.first?.notes == nil)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         #expect(try await storedImportedNotes(in: bundle, financialID: "note-1") == nil)
-        let background = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        let background = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         #expect(background.insertedTransactionIDsByAccount["savings"]?.isEmpty != false)
     }
 
@@ -217,7 +217,7 @@ struct BankSyncNormalizationPreferenceTests {
             budgetID: "group-1"
         )
         #expect(plan.inserts.first?.notes == "Rule notes")
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         #expect(try await storedImportedNotes(in: bundle, financialID: "note-1") == "Rule notes")
     }
 
@@ -300,11 +300,11 @@ struct BankSyncNormalizationPreferenceTests {
         #expect(plan.problems == [.invalidCustomMapping])
         #expect(plan.inserts.isEmpty)
         #expect(plan.openingBalance == nil)
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
-            _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.unresolvedProblems) {
+            _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
-            _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.unresolvedProblems) {
+            _ = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         }
         let ids = try await storedFinancialIDs(in: bundle, accountID: "savings")
         #expect(ids.isEmpty)

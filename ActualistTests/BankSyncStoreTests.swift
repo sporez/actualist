@@ -182,17 +182,17 @@ extension LocalFirstActualStoreTests {
         )
         let bundle = try await makeBankSyncStore(transport: transport)
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
 
         let first = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
-        _ = try await store.applyBankSyncPlan(first, budgetID: "group-1")
+        _ = try await store.bankSync.applyBankSyncPlan(first, budgetID: "group-1")
 
         let second = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(second.inserts.isEmpty)
         #expect(second.updates.isEmpty)
         #expect(second.unchangedCount == 1)
         #expect(second.openingBalance == nil)
-        let result = try await store.applyBankSyncPlan(second, budgetID: "group-1")
+        let result = try await store.bankSync.applyBankSyncPlan(second, budgetID: "group-1")
         #expect(result.insertedCount == 0)
         #expect(result.updatedCount == 0)
         #expect(!result.openingBalanceInserted)
@@ -229,7 +229,7 @@ extension LocalFirstActualStoreTests {
                 """
         )
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
 
         let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
@@ -238,7 +238,7 @@ extension LocalFirstActualStoreTests {
         #expect(plan.updates.first?.existingID == "hand-1")
         #expect(plan.updates.first?.financialID == "d1")
 
-        _ = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let messages = try storedCRDTMessages(at: databaseURL)
         #expect(messages.contains {
             $0.dataset == "transactions" && $0.row == "hand-1"
@@ -290,13 +290,13 @@ extension LocalFirstActualStoreTests {
                 """
         )
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
 
         let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         let detail = try #require(plan.matchDetails.first)
         #expect(!detail.changes.contains { $0.field == .notes })
 
-        _ = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
         #expect(!messages.contains {
             $0.dataset == "transactions" && $0.row == "rule-match" && $0.column == "notes"
@@ -335,7 +335,7 @@ extension LocalFirstActualStoreTests {
                 """
         )
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
 
         let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
@@ -343,7 +343,7 @@ extension LocalFirstActualStoreTests {
         #expect(plan.updates.first?.existingID == "p1")
         #expect(Set(plan.updates.first?.childIDs ?? []) == ["c1", "c2"])
 
-        _ = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let messages = try storedCRDTMessages(at: databaseURL)
         for row in ["p1", "c1", "c2"] {
             #expect(messages.contains {
@@ -387,13 +387,13 @@ extension LocalFirstActualStoreTests {
                 """
         )
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
 
         let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.updates.first?.existingID == "p1")
         #expect(Set(plan.updates.first?.childIDs ?? []) == ["c1", "c2"])
 
-        _ = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
         for row in ["p1", "c1", "c2"] {
             #expect(messages.contains {
@@ -417,7 +417,7 @@ extension LocalFirstActualStoreTests {
             orgID: nil
         )
 
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
 
         let queue = try DatabaseQueue(path: try bundle.fileManager.databaseURL(fileID: "file-1").path)
         let bankName = try await queue.read { db in
@@ -430,13 +430,13 @@ extension LocalFirstActualStoreTests {
         let transport = StubSimpleFINTransport()
         let bundle = try await makeBankSyncStore(transport: transport)
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
 
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
         var messages = try storedCRDTMessages(at: databaseURL)
         #expect(linkedMessages(messages, row: "savings").count == 3)
 
-        try await store.unlinkBankAccount("savings", budgetID: "group-1")
+        try await store.bankSync.unlinkBankAccount("savings", budgetID: "group-1")
         messages = try storedCRDTMessages(at: databaseURL)
         let unlinkMessages = messages.filter {
             $0.dataset == "accounts" && $0.row == "savings" && $0.serializedValue == "0:"
@@ -470,7 +470,7 @@ extension LocalFirstActualStoreTests {
         )
         let bundle = try await makeBankSyncStore(transport: transport)
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
 
         _ = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
 
@@ -535,7 +535,7 @@ extension LocalFirstActualStoreTests {
         )
         let bundle = try await makeBankSyncStore(transport: transport)
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
 
         let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.problems == [
@@ -552,8 +552,8 @@ extension LocalFirstActualStoreTests {
                 message: "Missing payee"
             )
         ])
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
-            try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.unresolvedProblems) {
+            try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
 
         let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
@@ -584,14 +584,14 @@ extension LocalFirstActualStoreTests {
         )
         let bundle = try await makeBankSyncStore(transport: transport)
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
 
         let stale = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         let fresh = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(fresh.generation != stale.generation)
 
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.staleGeneration) {
-            try await store.applyBankSyncPlan(stale, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.staleGeneration) {
+            try await store.bankSync.applyBankSyncPlan(stale, budgetID: "group-1")
         }
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
         let messages = try storedCRDTMessages(at: databaseURL)
@@ -625,13 +625,13 @@ extension LocalFirstActualStoreTests {
         )
         let bundle = try await makeBankSyncStore(transport: transport)
         let store = bundle.store
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
 
         let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.durableStatus == .timedOut)
         #expect(plan.inserts.isEmpty)
 
-        _ = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
         #expect(!messages.contains {
             $0.dataset == "transactions" && $0.column == "financial_id"
@@ -649,9 +649,9 @@ extension LocalFirstActualStoreTests {
         let transport = StubSimpleFINTransport(remoteAccounts: [remoteAccount()])
         let bundle = try await makeBankSyncStore(transport: transport)
 
-        _ = try await bundle.store.bankSyncSupport(budgetID: "group-1")
-        _ = try await bundle.store.bankSyncRemoteAccounts(budgetID: "group-1")
-        _ = try await bundle.store.bankSyncProvider(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.bankSyncSupport(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.bankSyncRemoteAccounts(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
             .transactions(accountIDs: ["sfin-1"], startDates: ["2026-06-01"])
 
         #expect(await transport.requestedFileIDs == ["file-1", "file-1", "file-1", "file-1"])
@@ -666,21 +666,21 @@ extension LocalFirstActualStoreTests {
         )
         let bundle = try await makeBankSyncStore(transport: transport)
 
-        #expect(bundle.store.cachedBankSyncSupport() == nil)
-        #expect(try await bundle.store.bankSyncSupport(budgetID: "group-1") == .configured)
-        #expect(bundle.store.cachedBankSyncSupport() == .configured)
+        #expect(bundle.store.bankSync.cachedBankSyncSupport() == nil)
+        #expect(try await bundle.store.bankSync.bankSyncSupport(budgetID: "group-1") == .configured)
+        #expect(bundle.store.bankSync.cachedBankSyncSupport() == .configured)
         #expect(await transport.statusRequests == 1)
 
-        let accounts = try await bundle.store.bankSyncRemoteAccounts(budgetID: "group-1")
+        let accounts = try await bundle.store.bankSync.bankSyncRemoteAccounts(budgetID: "group-1")
         #expect(accounts.map(\.accountID) == ["sfin-1"])
         #expect(await transport.statusRequests == 1)
         #expect(await transport.accountsRequests == 1)
-        #expect(bundle.store.cachedBankSyncRemoteAccounts()?.map(\.accountID) == ["sfin-1"])
+        #expect(bundle.store.bankSync.cachedBankSyncRemoteAccounts()?.map(\.accountID) == ["sfin-1"])
 
         let serverURL = bundle.store.openedServerURLString
         bundle.store.reset()
         bundle.store.openedServerURLString = serverURL
-        #expect(bundle.store.cachedBankSyncSupport() == nil)
-        #expect(bundle.store.cachedBankSyncRemoteAccounts() == nil)
+        #expect(bundle.store.bankSync.cachedBankSyncSupport() == nil)
+        #expect(bundle.store.bankSync.cachedBankSyncRemoteAccounts() == nil)
     }
 }

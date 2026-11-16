@@ -53,7 +53,7 @@ extension LocalFirstActualStoreTests {
     @Test func backgroundApplyInsertsAndReportsIDsThenIsIdempotent() async throws {
         let transport = backgroundTransport()
         let bundle = try await makeBankSyncStore(transport: transport)
-        try await bundle.store.linkBankAccount("savings", to: SimpleFINRemoteAccount(
+        try await bundle.store.bankSync.linkBankAccount("savings", to: SimpleFINRemoteAccount(
             accountID: "sfin-1",
             name: "Checking",
             balance: "100.00",
@@ -64,7 +64,7 @@ extension LocalFirstActualStoreTests {
             orgID: "org-1"
         ), budgetID: "group-1")
 
-        let first = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        let first = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         #expect(first.accountCount == 1)
         // One download + one opening balance (100.00 − (−10.00)).
         #expect(first.insertedTransactionIDsByAccount["savings"]?.count == 2)
@@ -72,12 +72,12 @@ extension LocalFirstActualStoreTests {
         let database = try #require(bundle.store.database)
         #expect(try await database.pendingNewTransactionIDsByAccount().isEmpty)
 
-        let firstRun = try #require(try await bundle.store.bankSyncLastRun(budgetID: "group-1"))
+        let firstRun = try #require(try await bundle.store.bankSync.bankSyncLastRun(budgetID: "group-1"))
         #expect(firstRun.trigger == .background)
         #expect(firstRun.summary == "Added 1 transaction · Added 1 opening balance")
 
-        let second = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
-        #expect(try await bundle.store.bankSyncLastRun(budgetID: "group-1")?.summary == "Everything already matches.")
+        let second = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
+        #expect(try await bundle.store.bankSync.bankSyncLastRun(budgetID: "group-1")?.summary == "Everything already matches.")
         #expect(second.accountCount == 1)
         #expect(second.insertedTransactionIDsByAccount["savings"]?.isEmpty != false)
         // Once the account has local history, balance metadata is not needed
@@ -87,7 +87,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func backgroundApplyWithAlertConsentCommitsDurableMarkers() async throws {
         let bundle = try await makeBankSyncStore(transport: backgroundTransport())
-        try await bundle.store.linkBankAccount("savings", to: SimpleFINRemoteAccount(
+        try await bundle.store.bankSync.linkBankAccount("savings", to: SimpleFINRemoteAccount(
             accountID: "sfin-1",
             name: "Checking",
             balance: "100.00",
@@ -98,7 +98,7 @@ extension LocalFirstActualStoreTests {
             orgID: "org-1"
         ), budgetID: "group-1")
 
-        let result = try await bundle.store.backgroundBankSyncApply(request: .init(
+        let result = try await bundle.store.bankSync.backgroundBankSyncApply(request: .init(
             budgetID: "group-1",
             notificationID: "opaque-bank-wake"
         ))
@@ -170,11 +170,11 @@ extension LocalFirstActualStoreTests {
             )
         )
         let bundle = try await makeBankSyncStore(transport: transport)
-        try await bundle.store.linkBankAccount("savings", to: firstRemote, budgetID: "group-1")
-        try await bundle.store.linkBankAccount("credit", to: secondRemote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: firstRemote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("credit", to: secondRemote, budgetID: "group-1")
 
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
-            try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.unresolvedProblems) {
+            try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         }
 
         let messages = try storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
@@ -182,14 +182,14 @@ extension LocalFirstActualStoreTests {
             $0.dataset == "transactions" && $0.column == "financial_id"
         })
         #expect((await transport.transactionsRequests).count == 1)
-        let run = try await bundle.store.bankSyncLastRun(budgetID: "group-1")
+        let run = try await bundle.store.bankSync.bankSyncLastRun(budgetID: "group-1")
         #expect(run?.trigger == .background)
         #expect(run?.summary == BankSyncRunTally.nothingSavedSummary)
     }
 
     @Test func backgroundApplySkipsUnlinkedAccounts() async throws {
         let bundle = try await makeBankSyncStore(transport: backgroundTransport())
-        let result = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        let result = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         #expect(result.accountCount == 0)
         #expect(result.insertedTransactionIDsByAccount.isEmpty)
     }
@@ -200,10 +200,10 @@ extension LocalFirstActualStoreTests {
         )
         // A stored Phase 5 device key must NOT be promoted to background use.
         try bundle.keychain.saveSimpleFINAccessURL("https://user:secret@bridge.example/user")
-        #expect(try bundle.store.hasBankSyncDeviceKey())
+        #expect(try bundle.store.bankSync.hasBankSyncDeviceKey())
 
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.serverCannotBankSync) {
-            try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.serverCannotBankSync) {
+            try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         }
     }
 }

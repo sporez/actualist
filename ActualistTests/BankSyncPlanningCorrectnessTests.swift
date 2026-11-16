@@ -62,7 +62,7 @@ extension LocalFirstActualStoreTests {
             transport: transport,
             additionalFixtureSQL: additionalFixtureSQL
         )
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
         return (bundle, transport)
     }
 
@@ -203,7 +203,7 @@ extension LocalFirstActualStoreTests {
             additionalFixtureSQL: importedRuleFixture(rawPayee: rawPayee)
         )
 
-        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
 
         let row = try #require(try storedCorrectnessRow(
             in: bundle,
@@ -251,7 +251,7 @@ extension LocalFirstActualStoreTests {
             additionalFixtureSQL: existingPayeeRuleFixture()
         )
 
-        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
 
         let row = try #require(try storedCorrectnessRow(
             in: bundle,
@@ -281,7 +281,7 @@ extension LocalFirstActualStoreTests {
             detail.changes.contains { $0.field == .category }
         })
 
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
 
         let source = try #require(try storedTransactionRow(in: bundle, id: "xfer-src"))
         let destination = try #require(try storedTransactionRow(in: bundle, id: "xfer-dst"))
@@ -303,7 +303,7 @@ extension LocalFirstActualStoreTests {
             additionalFixtureSQL: existingPayeeRuleFixture() + existingTransferFixture()
         )
 
-        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
 
         let source = try #require(try storedTransactionRow(in: bundle, id: "xfer-src"))
         #expect(source["category"] as String? == nil)
@@ -442,7 +442,7 @@ extension LocalFirstActualStoreTests {
             detail.changes.contains { $0.field == .category }
         })
 
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
 
         let row = try #require(try storedTransactionRow(in: bundle, id: "ordinary"))
         #expect(row["category"] as String? == nil)
@@ -463,7 +463,7 @@ extension LocalFirstActualStoreTests {
                 """
         )
 
-        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
 
         let row = try #require(try storedTransactionRow(in: bundle, id: "ordinary"))
         #expect(row["category"] as String? == nil)
@@ -552,7 +552,7 @@ extension LocalFirstActualStoreTests {
             additionalFixtureSQL: transferPayeeRuleFixture()
         )
 
-        let result = try await bundle.store.backgroundBankSyncApply(request: .init(
+        let result = try await bundle.store.bankSync.backgroundBankSyncApply(request: .init(
             budgetID: "group-1",
             notificationID: "opaque-transfer"
         ))
@@ -588,7 +588,7 @@ extension LocalFirstActualStoreTests {
             detail.changes.contains { $0.field == .payee }
         })
 
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let row = try #require(try storedTransactionRow(in: bundle, id: "ordinary"))
         #expect(row["description"] as String? == "xfer-checking")
         #expect(row["financial_id"] as String? == "bank-correctness")
@@ -748,8 +748,8 @@ extension LocalFirstActualStoreTests {
         #expect(plan.inserts.isEmpty)
         #expect(plan.problems.count == 1)
         #expect(plan.problems.first?.message == "Currency mismatch (CAD bank transaction, USD budget)")
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
-            try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.unresolvedProblems) {
+            try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
     }
 
@@ -793,8 +793,8 @@ extension LocalFirstActualStoreTests {
 
         #expect(plan.inserts.isEmpty)
         #expect(plan.problems.first?.message == "Missing transaction currency")
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
-            try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.unresolvedProblems) {
+            try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
     }
 }

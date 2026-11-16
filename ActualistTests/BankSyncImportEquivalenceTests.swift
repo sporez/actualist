@@ -121,10 +121,10 @@ struct BankSyncImportEquivalenceTests {
             UPDATE transactions SET financial_id = 'bank-exact' WHERE id = 'x-exact';
             UPDATE transactions SET reconciled = 1 WHERE id = 'x-recon';
             """)
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
 
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
-        let result = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        let result = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
 
         let captured = [
             describe(plan),

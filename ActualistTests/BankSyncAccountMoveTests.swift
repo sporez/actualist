@@ -62,7 +62,7 @@ struct BankSyncAccountMoveTests {
             transport: transport,
             additionalFixtureSQL: additionalFixtureSQL
         )
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
         return bundle
     }
 
@@ -75,8 +75,8 @@ struct BankSyncAccountMoveTests {
         #expect(plan.problems == [.unsupportedAccountMove(remoteTransactionID: "move-1")])
         #expect(plan.inserts.map(\.financialID) == ["keep-1"])
         #expect(!plan.inserts.contains { $0.financialID == "move-1" })
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
-            _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.unresolvedProblems) {
+            _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
         let queue = try DatabaseQueue(path: bundle.fileManager.databaseURL(fileID: "file-1").path)
         let imported = try await queue.read { db in
@@ -96,8 +96,8 @@ struct BankSyncAccountMoveTests {
 
     @Test func backgroundBankSyncRejectsAccountMoveBeforeAnyWrite() async throws {
         let bundle = try await linkedAccountMoveStore(additionalFixtureSQL: accountMoveSQL())
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.unresolvedProblems) {
-            _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.unresolvedProblems) {
+            _ = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         }
         let queue = try DatabaseQueue(path: bundle.fileManager.databaseURL(fileID: "file-1").path)
         let imported = try await queue.read { db in
@@ -137,7 +137,7 @@ struct BankSyncAccountMoveTests {
         #expect(plan.problems.isEmpty)
         #expect(Set(plan.inserts.compactMap(\.financialID)) == ["move-1", "keep-1"])
         #expect(plan.inserts.first { $0.financialID == "move-1" }?.categoryID == "groceries")
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let queue = try DatabaseQueue(path: bundle.fileManager.databaseURL(fileID: "file-1").path)
         let imported = try await queue.read { db in
             try Int.fetchOne(

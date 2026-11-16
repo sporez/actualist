@@ -28,7 +28,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeBankSyncStore(transport: transport)
         let store = bundle.store
 
-        try await store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
 
         let plan = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.inserts.count == 2)
@@ -42,7 +42,7 @@ extension LocalFirstActualStoreTests {
         #expect(plan.openingBalance == BankSyncReconciliation.OpeningBalance(amountMinorUnits: 10_500, dayID: "20260701"))
 
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
-        let result = try await store.applyBankSyncPlan(plan, budgetID: "group-1")
+        let result = try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         #expect(result.insertedCount == 2)
         #expect(result.updatedCount == 0)
         #expect(result.openingBalanceInserted)
@@ -102,17 +102,17 @@ extension LocalFirstActualStoreTests {
             )
         )
         let bundle = try await makeBankSyncStore(transport: transport)
-        try await bundle.store.linkBankAccount("savings", to: firstRemote, budgetID: "group-1")
-        try await bundle.store.linkBankAccount("credit", to: secondRemote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: firstRemote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("credit", to: secondRemote, budgetID: "group-1")
 
-        let plans = try await bundle.store.downloadBankSyncPlans(
+        let plans = try await bundle.store.bankSyncPlans.downloadBankSyncPlans(
             accountIDs: ["savings", "credit"], budgetID: "group-1"
         )
 
         #expect(plans.map(\.link.accountID) == ["savings", "credit"])
         #expect(plans.map(\.balanceDisposition) == [.set(1_111), .set(-2_222)])
         for plan in plans {
-            _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+            _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
         #expect(await transport.statusRequests == 1)
         #expect(await transport.accountsRequests == 1)
@@ -157,7 +157,7 @@ extension LocalFirstActualStoreTests {
             accountsFailure: .decoding
         )
         let bundle = try await makeBankSyncStore(transport: transport)
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
 
         let plan = try await bundle.store.downloadBankSyncPlan(
             accountID: "savings", budgetID: "group-1"
@@ -188,7 +188,7 @@ extension LocalFirstActualStoreTests {
             accountID: "savings", budgetID: "group-1"
         )
         #expect(plan.balanceDisposition == .set(-749_511))
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
 
         let completion = try await queue.read { db in
             (
@@ -243,7 +243,7 @@ extension LocalFirstActualStoreTests {
             accountID: "savings", budgetID: "group-1"
         )
         #expect(plan.balanceDisposition == .clear)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
 
         let queue = try DatabaseQueue(path: databaseURL.path)
         let balance = try await queue.read { db in
@@ -274,7 +274,7 @@ extension LocalFirstActualStoreTests {
             accountID: "savings", budgetID: "group-1"
         )
         #expect(plan.balanceDisposition == .preserve)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
 
         let queue = try DatabaseQueue(path: databaseURL.path)
         let balance = try await queue.read { db in
@@ -306,7 +306,7 @@ extension LocalFirstActualStoreTests {
                     VALUES ('prior-savings', 'savings', 20260701, 100, NULL, 0, 'coffee', 1, 0);
                 """
         )
-        try await bundle.store.linkBankAccount(
+        try await bundle.store.bankSync.linkBankAccount(
             "savings", to: remoteAccount(), budgetID: "group-1"
         )
         return bundle

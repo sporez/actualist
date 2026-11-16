@@ -72,13 +72,13 @@ extension LocalFirstActualStoreTests {
 
     private func linkedStore(_ transport: StubSimpleFINTransport) async throws -> OpenedWritableStoreBundle {
         let bundle = try await makeBankSyncStore(transport: transport)
-        try await bundle.store.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
         return bundle
     }
 
     @Test func planningReportsOneWholeRequestFailureAndKeepsDurableStatus() async throws {
         let bundle = try await linkedStore(wholeRequestTransport(code: "SERVER_DOWN"))
-        let plans = try await bundle.store.downloadBankSyncPlans(accountIDs: ["savings"], budgetID: "group-1")
+        let plans = try await bundle.store.bankSyncPlans.downloadBankSyncPlans(accountIDs: ["savings"], budgetID: "group-1")
         let plan = try #require(plans.first)
         #expect(plan.wholeRequestFailure == .serverDown)
         // The synced vocabulary is unchanged: the same status as before.
@@ -86,7 +86,7 @@ extension LocalFirstActualStoreTests {
 
         let token = try await linkedStore(wholeRequestTransport(code: "INVALID_ACCESS_TOKEN"))
         let tokenPlan = try #require(
-            try await token.store.downloadBankSyncPlans(accountIDs: ["savings"], budgetID: "group-1").first
+            try await token.store.bankSyncPlans.downloadBankSyncPlans(accountIDs: ["savings"], budgetID: "group-1").first
         )
         #expect(tokenPlan.wholeRequestFailure == .accessRejected)
         #expect(tokenPlan.durableStatus == .reauthRequired)
@@ -105,7 +105,7 @@ extension LocalFirstActualStoreTests {
         )
         let bundle = try await linkedStore(transport)
         let plan = try #require(
-            try await bundle.store.downloadBankSyncPlans(accountIDs: ["savings"], budgetID: "group-1").first
+            try await bundle.store.bankSyncPlans.downloadBankSyncPlans(accountIDs: ["savings"], budgetID: "group-1").first
         )
         #expect(plan.wholeRequestFailure == nil)
         #expect(plan.durableStatus == .timedOut)
@@ -159,9 +159,9 @@ extension LocalFirstActualStoreTests {
 
     @Test func backgroundRunRecordsTheSameCause() async throws {
         let bundle = try await linkedStore(wholeRequestTransport(code: "SERVER_DOWN"))
-        let result = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        let result = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         #expect(result.insertedTransactionIDsByAccount.values.allSatisfy { $0.isEmpty })
-        let run = try #require(try await bundle.store.bankSyncLastRun(budgetID: "group-1"))
+        let run = try #require(try await bundle.store.bankSync.bankSyncLastRun(budgetID: "group-1"))
         #expect(run.trigger == .background)
         #expect(run.failure == .serverDown)
         #expect(run.summary == BankSyncWholeRequestFailure.serverDown.summary)
@@ -169,7 +169,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func diagnosticSnapshotHoldsStatusTimeAndCauseWithoutNamesOrIDs() async throws {
         let bundle = try await linkedStore(wholeRequestTransport(code: "SERVER_DOWN"))
-        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         let snapshot = try #require(await bundle.store.bankSyncDiagnosticSnapshot())
         #expect(snapshot.accounts.count == 1)
         #expect(snapshot.accounts.first?.status == "failed")

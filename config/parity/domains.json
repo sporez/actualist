@@ -442,7 +442,7 @@
         "Actualist/Shared/ImportReconcileProjection.swift",
         "Actualist/Shared/ImportReconcileOptions.swift",
         "Actualist/Shared/ImportPayeeNameNormalization.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+BankSyncPlanning.swift",
+        "Actualist/LocalFirst/BankSyncPlanWorkflows.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+ImportReconcile.swift",
         "Actualist/LocalFirst/Database/BankSyncLinkSQL.swift",
         "Actualist/LocalFirst/Database/BankSyncMatchSQL.swift",

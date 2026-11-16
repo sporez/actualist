@@ -39,9 +39,9 @@ extension LocalFirstActualStoreTests {
         }
 
         await #expect(
-            throws: LocalFirstActualStore.BankSyncStoreError.notSimpleFINLinked
+            throws: BankSyncWorkflows.BankSyncStoreError.notSimpleFINLinked
         ) {
-            try await bundle.store.unlinkBankAccount("savings", budgetID: "group-1")
+            try await bundle.store.bankSync.unlinkBankAccount("savings", budgetID: "group-1")
         }
 
         let storedRow: Row? = try queue.readSync { db in

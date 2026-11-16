@@ -112,7 +112,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 - Screen/review state: `Actualist/Features/BankSync/BankSyncView.swift`, `BankSyncViewModel.swift`, and review/account sheets.
 - Planning: `Actualist/LocalFirst/LocalFirstActualStore+BankSyncPlanning.swift`.
-- Apply/orchestration: `LocalFirstActualStore+BankSync.swift`.
+- Apply/orchestration: `BankSyncWorkflows` (`LocalFirst/BankSyncWorkflows.swift`, the store's `bankSync`: provider, device key, link and unlink, apply, the background run) and `BankSyncPlanWorkflows` (`bankSyncPlans`: download and plan); `BankSyncViewModel` reaches both through the store.
 - Provider clients: `Actualist/LocalFirst/Network/ActualServerSimpleFINClient.swift` and `SimpleFINBridgeClient.swift`.
 - Pure reconciliation/mapping: `Actualist/Shared/BankSyncReconciler.swift`, `BankSyncFieldMapping.swift`, `BankSyncSupport.swift`, and `WalletTransactionMapping.swift`.
 - Atomic persistence: the stateless `BankSyncLinkSQL` (link schema, banks, link and unlink, linked-account settings), `BankSyncMatchSQL` (match-window rows and matched-row updates, shared with CSV import) and `BankSyncRunSQL` (the commit entry, completion and opening-balance messages, and the device-local last run) in `Actualist/LocalFirst/Database/`.
@@ -175,7 +175,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle`, `+Holds`, `+CommitTail` — local CRDT write flows and the shared post-commit tail.
 - `+TransactionBatch`, `+TransactionDuplicate`, `+TransactionMerge`, `+TransactionFilters`, `+TransactionCSVImport`, `+TransactionCSVExport`, `+PendingNewTransactions` — transaction-list actions, saved filters, and CSV.
 - `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
-- `+BankSyncPlanning`, `+BankSync`, `+WalletImport`, `+ImportReconcile` — imported transaction flows.
+- `+WalletImport`, `+ImportReconcile` — imported transaction flows (Bank Sync is `BankSyncWorkflows` and `BankSyncPlanWorkflows`).
 - `+PortableExport`, `+PortableImport`, `+PortableRegistration`, `+NewBudget` — ZIP export and import, server registration, and New Budget.
 - `+Templates`, `+Notes`, `+Widgets`, `+ActionLog`, `+AccountGroups`, `+Reconciliation` — focused feature bridges.
 - `ServerSyncLane.swift` — the one serialized flush/pull lane per budget session (flush flag, queued waiters, scheduled flush task, status tickets). `closeOpenBudget()` invalidates it and installs a fresh lane, so a late finisher releases its own dead lane.

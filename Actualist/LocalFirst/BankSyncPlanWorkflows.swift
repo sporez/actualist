@@ -3,8 +3,17 @@ import Foundation
 /// Batched Bank Sync planning: one provider resolution, one transactions
 /// request, one account-metadata request, and one rule/metadata snapshot for
 /// every linked account in the run. Produces immutable review/apply plans and
-/// never writes transaction data.
-extension LocalFirstActualStore {
+/// never writes transaction data. The store owns it.
+@MainActor
+final class BankSyncPlanWorkflows {
+    // The store creates this lazily and keeps it for its whole life, so the
+    // store outlives every holder of it.
+    private unowned let store: LocalFirstActualStore
+
+    init(store: LocalFirstActualStore) {
+        self.store = store
+    }
+
     func downloadBankSyncPlans(
         accountIDs: [String],
         budgetID: String,
@@ -13,22 +22,22 @@ extension LocalFirstActualStore {
         guard !accountIDs.isEmpty else { return [] }
         try Task.checkCancellation()
 
-        let database = try requireDatabase(for: budgetID)
+        let database = try store.requireDatabase(for: budgetID)
         var seen = Set<String>()
         let accountIDs = accountIDs.filter { seen.insert($0).inserted }
         let generations = Dictionary(uniqueKeysWithValues: accountIDs.map { id in
             let generation = UUID()
-            bankSyncGenerationByAccount[id] = generation
+            store.bankSyncGenerationByAccount[id] = generation
             return (id, generation)
         })
         let linkedByID = Dictionary(uniqueKeysWithValues: try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
             .map { ($0.id, $0) })
         let linked = try accountIDs.map { accountID in
             guard let account = linkedByID[accountID] else {
-                throw BankSyncStoreError.notLinked
+                throw BankSyncWorkflows.BankSyncStoreError.notLinked
             }
             guard BankSyncLinkEligibility.isSimpleFIN(syncSource: account.syncSource) else {
-                throw BankSyncStoreError.notSimpleFINLinked
+                throw BankSyncWorkflows.BankSyncStoreError.notSimpleFINLinked
             }
             return account
         }
@@ -36,12 +45,12 @@ extension LocalFirstActualStore {
         let storageID = try await database.fetchBudgetModeIdentity().storageID
         let links = linked.map { BankSyncLinkIdentity(storageID: storageID, accountID: $0.id,
             remoteAccountID: $0.remoteAccountID, syncSource: $0.syncSource) }
-        guard self.database === database else {
-            throw BankSyncStoreError.staleGeneration
+        guard store.database === database else {
+            throw BankSyncWorkflows.BankSyncStoreError.staleGeneration
         }
-        let provider: BankSyncProvider
+        let provider: BankSyncWorkflows.BankSyncProvider
         do {
-            provider = try await bankSyncProvider(budgetID: budgetID, deviceFallback: deviceFallback)
+            provider = try await store.bankSync.bankSyncProvider(budgetID: budgetID, deviceFallback: deviceFallback)
         } catch {
             await recordBankSyncFailure(error, links: links, generations: generations,
                 database: database, budgetID: budgetID)
@@ -163,9 +172,9 @@ extension LocalFirstActualStore {
         plans.reserveCapacity(linked.count)
         for (index, account) in linked.enumerated() {
             try Task.checkCancellation()
-            guard let generation = generations[account.id], self.database === database,
-                  bankSyncGenerationByAccount[account.id] == generation else {
-                throw BankSyncStoreError.staleGeneration
+            guard let generation = generations[account.id], store.database === database,
+                  store.bankSyncGenerationByAccount[account.id] == generation else {
+                throw BankSyncWorkflows.BankSyncStoreError.staleGeneration
             }
             var plan = try await makeBankSyncPlan(
                 account: account,
@@ -203,7 +212,7 @@ extension LocalFirstActualStore {
         else if case SimpleFINBridgeError.accessRevoked = error { status = .reauthRequired }
         else { status = .failed }
         for link in links {
-            guard self.database === database, bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
+            guard store.database === database, store.bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
             var builder = LocalFirstSyncMessageBuilder()
             do {
                 let messages = try await BankSyncRunSQL.makeBankSyncCompletionMessages(
@@ -214,10 +223,10 @@ extension LocalFirstActualStore {
                     builder: &builder,
                     in: database
                 )
-                guard self.database === database, bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
-                bankSyncGenerationByAccount[link.accountID] = nil
+                guard store.database === database, store.bankSyncGenerationByAccount[link.accountID] == generations[link.accountID] else { continue }
+                store.bankSyncGenerationByAccount[link.accountID] = nil
                 _ = try await BankSyncRunSQL.commitBankSyncMessages(messages, expectedLink: link, in: database)
-                try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
+                try await store.finishCommittedAccountWrite(database: database, budgetID: budgetID)
             } catch {
                 // Stale links and rolled-back status writes have no durable effects.
                 // The caller still reports the original provider failure.
@@ -362,7 +371,7 @@ extension LocalFirstActualStore {
         database: BudgetDatabase
     ) async throws -> BankSyncReview.AccountPlan {
         let candidateDayIDs = prepared.candidates.map(\.dayID)
-        let outcome = try await reconcileProjectedImport(
+        let outcome = try await store.reconcileProjectedImport(
             database: database,
             accountID: account.id,
             accountIsOffBudget: account.offbudget,
@@ -461,7 +470,7 @@ extension LocalFirstActualStore {
         database: BudgetDatabase,
         budgetID: String
     ) async throws -> BudgetCurrency {
-        if let cached = currencyByBudget[budgetID] {
+        if let cached = store.currencyByBudget[budgetID] {
             return cached
         }
         return try await BudgetCurrencySQL.fetchBudgetCurrency(in: database)

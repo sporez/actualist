@@ -16,7 +16,7 @@ extension LocalFirstActualStoreTests {
             additionalFixtureSQL: additionalFixtureSQL
         )
         if linkSavings {
-            try await bundle.store.linkBankAccount("savings", to: SimpleFINRemoteAccount(
+            try await bundle.store.bankSync.linkBankAccount("savings", to: SimpleFINRemoteAccount(
                 accountID: "sfin-1",
                 name: "Checking",
                 balance: "100.00",
@@ -70,7 +70,7 @@ extension LocalFirstActualStoreTests {
         #expect(model.canSyncAll)
         try bundle.keychain.saveSimpleFINAccessURL("https://test:test@bridge.example/user")
         do {
-            _ = try await bundle.store.bankSyncProvider(budgetID: "group-1")
+            _ = try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
             Issue.record("Cancellation must not fall back to the device provider")
         } catch { #expect(error.isCancellation) }
     }

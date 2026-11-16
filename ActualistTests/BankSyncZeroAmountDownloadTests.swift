@@ -44,7 +44,7 @@ struct BankSyncZeroAmountDownloadTests {
         bundle.store.openedServerURLString = "https://sync.example"
         try bundle.keychain.saveActualSyncToken("test-sync-token")
         let queue = await (try bundle.store.requireDatabase(for: "group-1")).queue
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
         return (bundle, queue)
     }
 
@@ -53,7 +53,7 @@ struct BankSyncZeroAmountDownloadTests {
 
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.inserts.compactMap(\.financialID).sorted() == ["bank-coffee", "bank-zero"])
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
 
         let zero = try await queue.read { db in
             try Int.fetchOne(db, sql: """
@@ -75,7 +75,7 @@ struct BankSyncZeroAmountDownloadTests {
     @Test func aZeroAmountDownloadDoesNotFailBackgroundBankSync() async throws {
         let (bundle, queue) = try await fixture()
 
-        _ = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        _ = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
 
         let rows = try await queue.read { db in
             try String.fetchAll(db, sql: """

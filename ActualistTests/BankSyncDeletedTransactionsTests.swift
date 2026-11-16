@@ -44,7 +44,7 @@ struct BankSyncDeletedTransactionsTests {
         try bundle.keychain.saveActualSyncToken("test-sync-token")
         let database = try bundle.store.requireDatabase(for: "group-1")
         let queue = await database.queue
-        try await bundle.store.linkBankAccount("savings", to: remote, budgetID: "group-1")
+        try await bundle.store.bankSync.linkBankAccount("savings", to: remote, budgetID: "group-1")
         return (bundle, queue)
     }
 
@@ -67,14 +67,14 @@ struct BankSyncDeletedTransactionsTests {
         #expect(plan.inserts.count == (shouldInsert ? 1 : 0))
         #expect(plan.updates.isEmpty)
         #expect(plan.openingBalance?.amountMinorUnits == (shouldInsert ? 11_000 : 10_000))
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let after = try await queue.read { db -> String? in
             try Row.fetchOne(db, sql: "SELECT * FROM transactions WHERE id = 'deleted'")?.description
         }
         #expect(before == after)
         let messages = try support.storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
         #expect(!messages.contains { $0.dataset == "transactions" && $0.row == "deleted" })
-        let repeatSync = try await bundle.store.backgroundBankSyncApply(budgetID: "group-1")
+        let repeatSync = try await bundle.store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         #expect(repeatSync.insertedTransactionIDsByAccount["savings"]?.isEmpty != false)
         let total = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT SUM(amount) FROM transactions WHERE acct = 'savings' AND IFNULL(tombstone, 0) = 0")
@@ -96,7 +96,7 @@ struct BankSyncDeletedTransactionsTests {
         #expect(plan.inserts.isEmpty)
         #expect(plan.updates.isEmpty)
         #expect(plan.openingBalance == nil)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let messages = try support.storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
         #expect(!messages.contains { $0.dataset == "transactions" })
     }
@@ -113,7 +113,7 @@ struct BankSyncDeletedTransactionsTests {
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.inserts.isEmpty)
         #expect(plan.updates.map(\.existingID) == ["live"])
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let messages = try support.storedCRDTMessages(at: bundle.fileManager.databaseURL(fileID: "file-1"))
         #expect(messages.contains { $0.dataset == "transactions" && $0.row == "live" && $0.column == "cleared" })
         #expect(!messages.contains { $0.dataset == "transactions" && $0.row == "deleted" })
@@ -151,7 +151,7 @@ struct BankSyncDeletedTransactionsTests {
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.inserts.count == (delete ? 0 : 1))
         #expect(plan.openingBalance?.amountMinorUnits == (delete ? 10_000 : 12_500))
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let total = try await queue.read { db in
             try Int.fetchOne(db, sql: "SELECT SUM(amount) FROM transactions WHERE acct = 'savings' AND IFNULL(tombstone, 0) = 0")
         }
@@ -162,7 +162,7 @@ struct BankSyncDeletedTransactionsTests {
         let (bundle, queue) = try await fixture()
         let store = bundle.store
         let first = try await store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
-        _ = try await store.applyBankSyncPlan(first, budgetID: "group-1")
+        _ = try await store.bankSync.applyBankSyncPlan(first, budgetID: "group-1")
         let database = try store.requireDatabase(for: "group-1")
         let importedID = try #require(try await queue.read { db in
             try String.fetchOne(db, sql: "SELECT id FROM transactions WHERE financial_id = 'bank-transaction'")
@@ -178,8 +178,8 @@ struct BankSyncDeletedTransactionsTests {
         #expect(repeatPlan.inserts.isEmpty)
         #expect(repeatPlan.updates.isEmpty)
         #expect(repeatPlan.openingBalance == nil)
-        _ = try await store.applyBankSyncPlan(repeatPlan, budgetID: "group-1")
-        _ = try await store.backgroundBankSyncApply(budgetID: "group-1")
+        _ = try await store.bankSync.applyBankSyncPlan(repeatPlan, budgetID: "group-1")
+        _ = try await store.bankSync.backgroundBankSyncApply(budgetID: "group-1")
         #expect(try support.storedCRDTMessages(at: databaseURL)
             .filter { $0.dataset == "transactions" } == messagesAfterDelete)
         let rows = try await queue.read { db in
@@ -212,8 +212,8 @@ struct BankSyncDeletedTransactionsTests {
         let second = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(second.inserts.isEmpty)
         #expect(second.unchangedCount == 1)
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.staleGeneration) {
-            try await bundle.store.applyBankSyncPlan(first, budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.staleGeneration) {
+            try await bundle.store.bankSync.applyBankSyncPlan(first, budgetID: "group-1")
         }
     }
 
@@ -280,7 +280,7 @@ struct BankSyncDeletedTransactionsTests {
         let plan = try await bundle.store.downloadBankSyncPlan(accountID: "savings", budgetID: "group-1")
         #expect(plan.inserts.first?.splits.map(\.amountMinorUnits) == [-400, -600])
         #expect(plan.openingBalance?.amountMinorUnits == 11_000)
-        _ = try await bundle.store.applyBankSyncPlan(plan, budgetID: "group-1")
+        _ = try await bundle.store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         let total = try await queue.read { db in
             try Int.fetchOne(db, sql: """
                 SELECT SUM(amount) FROM transactions

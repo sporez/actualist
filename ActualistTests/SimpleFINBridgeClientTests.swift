@@ -332,7 +332,7 @@ extension LocalFirstActualStoreTests {
             transport: StubSimpleFINTransport(support: .configured)
         )
         try saveDeviceKey(bundle)
-        let provider = try await bundle.store.bankSyncProvider(budgetID: "group-1")
+        let provider = try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
         #expect(!provider.isDevice)
     }
 
@@ -341,7 +341,7 @@ extension LocalFirstActualStoreTests {
             transport: StubSimpleFINTransport(support: .notConfigured)
         )
         try saveDeviceKey(bundle)
-        let provider = try await bundle.store.bankSyncProvider(budgetID: "group-1")
+        let provider = try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
         #expect(provider.isDevice)
     }
 
@@ -349,8 +349,8 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeBankSyncStore(
             transport: StubSimpleFINTransport(support: .unsupported)
         )
-        await #expect(throws: LocalFirstActualStore.BankSyncStoreError.notConfigured) {
-            try await bundle.store.bankSyncProvider(budgetID: "group-1")
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.notConfigured) {
+            try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
         }
     }
 
@@ -359,7 +359,7 @@ extension LocalFirstActualStoreTests {
             transport: StubSimpleFINTransport(failure: ActualAPIError.transport(URLError.Code.cannotFindHost))
         )
         try saveDeviceKey(bundle)
-        let provider = try await bundle.store.bankSyncProvider(budgetID: "group-1")
+        let provider = try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
         #expect(provider.isDevice)
     }
 
@@ -368,7 +368,7 @@ extension LocalFirstActualStoreTests {
             transport: StubSimpleFINTransport(failure: ActualAPIError.transport(URLError.Code.cannotFindHost))
         )
         await #expect(throws: ActualAPIError.self) {
-            try await bundle.store.bankSyncProvider(budgetID: "group-1")
+            try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
         }
     }
 
@@ -380,16 +380,16 @@ extension LocalFirstActualStoreTests {
         try saveDeviceKey(bundle)
         backend.copyFailureAccountStatuses[bundle.keychain.simplefinAccessKeyAccount] = errSecAuthFailed
         #expect(throws: KeychainReadError.unavailable(errSecAuthFailed)) {
-            try bundle.store.hasBankSyncDeviceKey()
+            try bundle.store.bankSync.hasBankSyncDeviceKey()
         }
         await #expect(throws: KeychainReadError.unavailable(errSecAuthFailed)) {
-            try await bundle.store.bankSyncProvider(budgetID: "group-1")
+            try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
         }
-        let rows = try await bundle.store.bankSyncAccountRows(budgetID: "group-1")
+        let rows = try await bundle.store.bankSync.bankSyncAccountRows(budgetID: "group-1")
         #expect(rows.allSatisfy { $0.durableStatus == nil })
         backend.copyFailureAccountStatuses = [:]
-        #expect(try bundle.store.hasBankSyncDeviceKey())
-        #expect(try await bundle.store.bankSyncProvider(budgetID: "group-1").isDevice)
+        #expect(try bundle.store.bankSync.hasBankSyncDeviceKey())
+        #expect(try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1").isDevice)
     }
 
     @Test func transportFailureDoesNotMaskUnavailableDeviceKeyAsOffline() async throws {
@@ -400,7 +400,7 @@ extension LocalFirstActualStoreTests {
         try saveDeviceKey(bundle)
         backend.copyFailureAccountStatuses[bundle.keychain.simplefinAccessKeyAccount] = errSecInteractionNotAllowed
         await #expect(throws: KeychainReadError.unavailable(errSecInteractionNotAllowed)) {
-            try await bundle.store.bankSyncProvider(budgetID: "group-1")
+            try await bundle.store.bankSync.bankSyncProvider(budgetID: "group-1")
         }
     }
 
@@ -409,11 +409,11 @@ extension LocalFirstActualStoreTests {
             transport: StubSimpleFINTransport(support: .notConfigured)
         )
         try saveDeviceKey(bundle)
-        #expect(try bundle.store.hasBankSyncDeviceKey())
+        #expect(try bundle.store.bankSync.hasBankSyncDeviceKey())
         // Erase must wipe the device key with the rest of local data.
         #expect(try bundle.store.keychain.readSimpleFINAccessURL() != nil)
-        try bundle.store.forgetBankSyncDeviceKey()
-        #expect(try !bundle.store.hasBankSyncDeviceKey())
+        try bundle.store.bankSync.forgetBankSyncDeviceKey()
+        #expect(try !bundle.store.bankSync.hasBankSyncDeviceKey())
         #expect(try bundle.store.keychain.readSimpleFINAccessURL() == nil)
     }
 }

@@ -58,7 +58,7 @@ extension LocalFirstActualStore {
     ) async throws -> ImportReconcileOutcome {
         let existing = try await BankSyncMatchSQL.bankSyncExistingRows(
             accountID: accountID,
-            window: Self.monthWidenedWindow(candidateDayIDs: candidateDayIDs),
+            window: BankSyncPlanWorkflows.monthWidenedWindow(candidateDayIDs: candidateDayIDs),
             orImportedIDs: importedIDs,
             in: database
         )
