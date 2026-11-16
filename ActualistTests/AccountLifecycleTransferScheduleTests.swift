@@ -15,14 +15,14 @@ struct AccountLifecycleTransferScheduleTests {
             schedule("rent", payeeCondition: #""xfer-checking""#),
         ])
 
-        let close = try await database.accountLifecycleReview(request: closeRequest, localDay: testDay)
+        let close = try await AccountLifecycleReviewSQL.accountLifecycleReview(request: closeRequest, localDay: testDay, in: database)
         #expect(close.activeScheduleReferences == [AccountScheduleReference(id: "rent", name: "rent")])
 
         let emptied = try makeDatabase(
             schedules: [schedule("rent", payeeCondition: #""xfer-checking""#)],
             extraSQL: "UPDATE transactions SET tombstone = 1;"
         )
-        let delete = try await emptied.accountLifecycleReview(request: closeRequest, localDay: testDay)
+        let delete = try await AccountLifecycleReviewSQL.accountLifecycleReview(request: closeRequest, localDay: testDay, in: emptied)
         #expect(delete.resolvedAction == .deleteEmptyAccount)
         #expect(delete.activeScheduleReferences == [AccountScheduleReference(id: "rent", name: "rent")])
     }
@@ -40,7 +40,7 @@ struct AccountLifecycleTransferScheduleTests {
                 """
         )
 
-        let review = try await database.accountLifecycleReview(request: closeRequest, localDay: testDay)
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(request: closeRequest, localDay: testDay, in: database)
 
         #expect(review.activeScheduleReferences.map(\.id) == ["list", "merged"])
     }
@@ -58,7 +58,7 @@ struct AccountLifecycleTransferScheduleTests {
                 """
         )
 
-        let review = try await database.accountLifecycleReview(request: closeRequest, localDay: testDay)
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(request: closeRequest, localDay: testDay, in: database)
 
         #expect(review.activeScheduleReferences.map(\.id) == ["live"])
     }
@@ -66,13 +66,13 @@ struct AccountLifecycleTransferScheduleTests {
     @Test func digestChangesWhenAMergeRoutesAnotherPayeeToTheTransferPayee() async throws {
         let url = try makeFixtureURL(schedules: [schedule("merged", payeeCondition: #""merged-payee""#)])
         let database = try BudgetDatabase(databaseURL: url)
-        let before = try await database.accountLifecycleReview(request: closeRequest, localDay: testDay)
+        let before = try await AccountLifecycleReviewSQL.accountLifecycleReview(request: closeRequest, localDay: testDay, in: database)
         #expect(before.activeScheduleReferences.isEmpty)
 
         try await DatabaseQueue(path: url.path).write { db in
             try db.execute(sql: "INSERT INTO payee_mapping VALUES ('merged-payee', 'xfer-checking')")
         }
-        let after = try await database.accountLifecycleReview(request: closeRequest, localDay: testDay)
+        let after = try await AccountLifecycleReviewSQL.accountLifecycleReview(request: closeRequest, localDay: testDay, in: database)
 
         #expect(after.activeScheduleReferences.map(\.id) == ["merged"])
         #expect(after.identity.scheduleDigest != before.identity.scheduleDigest)

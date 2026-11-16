@@ -63,9 +63,10 @@ struct AccountLifecycleReadTests {
             requestedAction: .close(destinationAccountID: "tracking", categoryID: "groceries")
         )
 
-        let review = try await database.accountLifecycleReview(
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: request,
-            localDay: testDay
+            localDay: testDay,
+            in: database
         )
 
         #expect(review.liveBalance == -10_345)
@@ -93,7 +94,7 @@ struct AccountLifecycleReadTests {
             INSERT INTO accounts VALUES ('deleted', 'Deleted', 0, 0, 1, 3);
             """))
 
-        let snapshot = AccountEligibilitySnapshot(accounts: try await database.accountLifecycleAccounts())
+        let snapshot = AccountEligibilitySnapshot(accounts: try await AccountLifecycleReviewSQL.accountLifecycleAccounts(in: database))
 
         #expect(snapshot.eligiblePostingAccounts.map(\.id) == ["checking"])
         if case .closed(let account) = snapshot.postingEligibility(accountID: "closed") {
@@ -113,7 +114,7 @@ struct AccountLifecycleReadTests {
         )
 
         await #expect(throws: AccountLifecycleCommandError.missingTransactionSchema) {
-            try await database.accountLifecycleReview(request: request)
+            try await AccountLifecycleReviewSQL.accountLifecycleReview(request: request, in: database)
         }
     }
 
@@ -127,9 +128,10 @@ struct AccountLifecycleReadTests {
                 \(partialSchema)
                 """))
 
-            let review = try await database.accountLifecycleReview(
+            let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
                 request: closeRequest,
-                localDay: testDay
+                localDay: testDay,
+                in: database
             )
 
             #expect(review.blockers.contains(.scheduleInspectionUnavailable))
@@ -157,9 +159,10 @@ struct AccountLifecycleReadTests {
                 );
                 \(graphSQL)
                 """))
-            let review = try await database.accountLifecycleReview(
+            let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
                 request: closeRequest,
-                localDay: testDay
+                localDay: testDay,
+                in: database
             )
             #expect(review.blockers.contains(.scheduleInspectionUnavailable))
             #expect(review.resolvedAction == nil)
@@ -189,9 +192,10 @@ struct AccountLifecycleReadTests {
             INSERT INTO schedules VALUES ('account-schedule', 'Account', 'account-rule', 0, 0);
             """))
 
-        let review = try await database.accountLifecycleReview(
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest,
-            localDay: testDay
+            localDay: testDay,
+            in: database
         )
 
         #expect(review.activeScheduleReferences.map(\.id) == ["account-schedule", "acct-schedule"])
@@ -219,9 +223,10 @@ struct AccountLifecycleReadTests {
                 UPDATE accounts SET account_id = 'remote', account_sync_source = '\(source)', bank = 'bank'
                     WHERE id = 'checking';
                 """))
-            let review = try await database.accountLifecycleReview(
+            let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
                 request: closeRequest,
-                localDay: testDay
+                localDay: testDay,
+                in: database
             )
             #expect(review.blockers.contains(.unsupportedBankProvider(expectedProvider)))
             #expect(review.resolvedAction == nil)
@@ -233,7 +238,7 @@ struct AccountLifecycleReadTests {
             ALTER TABLE accounts ADD COLUMN account_sync_source TEXT;
             UPDATE accounts SET account_sync_source = 'simpleFin' WHERE id = 'checking';
             """))
-        let review = try await ambiguous.accountLifecycleReview(request: closeRequest, localDay: testDay)
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(request: closeRequest, localDay: testDay, in: ambiguous)
         #expect(review.blockers.contains(.unsupportedBankProvider(.unknown)))
     }
 
@@ -260,9 +265,10 @@ struct AccountLifecycleReadTests {
                 )
             )
 
-            let review = try await database.accountLifecycleReview(
+            let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
                 request: request,
-                localDay: testDay
+                localDay: testDay,
+                in: database
             )
 
             guard case .closeWithTransfer(let transfer) = review.resolvedAction else {

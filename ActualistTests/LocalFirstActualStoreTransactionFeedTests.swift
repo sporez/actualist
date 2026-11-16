@@ -9,7 +9,7 @@ extension LocalFirstActualStoreTests {
         let store = makeStore()
         store.openedBudgetID = "status-budget"
         store.database = database
-        store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
+        store.accountsByBudget["status-budget"] = try await AccountSQL.fetchAccountDisplays(in: database)
         let categoryQuery = TransactionFeedQuery(
             conditions: [.category(.equals("groceries"))]
         )
@@ -61,7 +61,7 @@ extension LocalFirstActualStoreTests {
         let store = makeStore()
         store.openedBudgetID = "status-budget"
         store.database = database
-        store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
+        store.accountsByBudget["status-budget"] = try await AccountSQL.fetchAccountDisplays(in: database)
 
         try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
         try await store.refreshTransactions(
@@ -123,7 +123,7 @@ extension LocalFirstActualStoreTests {
         }
         store.openedBudgetID = "status-budget"
         store.database = database
-        store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
+        store.accountsByBudget["status-budget"] = try await AccountSQL.fetchAccountDisplays(in: database)
         try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
 
         gate.holdNextRead { key, query, _, offset in
@@ -165,7 +165,7 @@ extension LocalFirstActualStoreTests {
         }
         store.openedBudgetID = "status-budget"
         store.database = database
-        store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
+        store.accountsByBudget["status-budget"] = try await AccountSQL.fetchAccountDisplays(in: database)
         try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
 
         gate.holdNextRead { key, query, _, offset in
@@ -211,7 +211,7 @@ extension LocalFirstActualStoreTests {
         }
         store.openedBudgetID = "status-budget"
         store.database = database
-        store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
+        store.accountsByBudget["status-budget"] = try await AccountSQL.fetchAccountDisplays(in: database)
         try await store.refreshTransactions(budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery())
         try await store.refreshTransactions(
             budgetID: "status-budget", scope: .account("checking"), query: TransactionFeedQuery(status: .cleared)
@@ -258,7 +258,7 @@ extension LocalFirstActualStoreTests {
         }
         store.openedBudgetID = "status-budget"
         store.database = database
-        store.accountsByBudget["status-budget"] = try await database.fetchAccountDisplays()
+        store.accountsByBudget["status-budget"] = try await AccountSQL.fetchAccountDisplays(in: database)
 
         gate.holdNextRead { key, query, _, _ in
             key == .spending(

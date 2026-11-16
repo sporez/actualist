@@ -224,7 +224,9 @@
         "AccountLifecycleOracleFixtureTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+AccountLifecycle*.swift"
+        "Actualist/LocalFirst/Database/AccountLifecycleReviewSQL.swift",
+        "Actualist/LocalFirst/Database/AccountLifecycleCommitSQL.swift",
+        "Actualist/LocalFirst/Database/AccountSQL.swift"
       ],
       "notes": "Replays 16 of 22 cases through production; forced delete and GoCardless unlink are oracle-only because Actualist has no such feature (see the manifest)."
     },
@@ -506,7 +508,8 @@
         "AccountGroupOracleReplayTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+AccountGroup*.swift",
+        "Actualist/LocalFirst/Database/AccountGroupSQL.swift",
+        "Actualist/LocalFirst/Database/BudgetDatabase+AccountGroupCompatibility.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+AccountGroups.swift",
         "Actualist/Features/Accounts/AccountListLayout.swift"
       ],

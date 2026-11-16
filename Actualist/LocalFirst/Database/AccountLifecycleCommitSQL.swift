@@ -10,31 +10,38 @@ struct AccountClosingTransferIDs: Hashable, Sendable {
     }
 }
 
-extension BudgetDatabase {
-    func commitAccountLifecycleReview(
+private enum AccountLifecycleMutationDecision: Equatable, Sendable {
+    case apply(AccountLifecycleOutcome)
+    case noChange(AccountLifecycleOutcome)
+}
+
+enum AccountLifecycleCommitSQL {
+    static func commitAccountLifecycleReview(
         _ reviewed: AccountLifecycleReview,
         actionID: String = UUID().uuidString,
         now: Date = Date(),
         localDay: @Sendable () -> AccountLifecycleDay = { .localGregorian() },
-        transferIDs: AccountClosingTransferIDs = .random()
+        transferIDs: AccountClosingTransferIDs = .random(),
+        in database: isolated BudgetDatabase
     ) throws -> AccountLifecycleCommitResult {
         try Task.checkCancellation()
-        return try commitLocalPlan(now: now) { db in
+        return try database.commitLocalPlan(now: now) { db in
             let request = AccountLifecycleReviewRequest(
                 budgetID: reviewed.identity.budgetID,
                 accountID: reviewed.identity.accountID,
                 requestedAction: reviewed.identity.action
             )
-            let fresh = try accountLifecycleReview(
+            let fresh = try AccountLifecycleReviewSQL.accountLifecycleReview(
                 request: request,
                 localDay: localDay(),
+                in: database,
                 db: db
             )
             guard fresh.identity == reviewed.identity,
                   fresh.resolvedAction == reviewed.resolvedAction,
                   fresh.blockers.isEmpty,
                   let action = fresh.resolvedAction else {
-                return LocalCommitPlan(
+                return BudgetDatabase.LocalCommitPlan(
                     drafts: [], action: nil,
                     outcome: AccountLifecycleCommitResult.reviewChanged(fresh)
                 )
@@ -43,7 +50,7 @@ extension BudgetDatabase {
             var builder = LocalFirstSyncMessageBuilder()
             var drafts: [ActualSyncDecodedMessage] = []
             if fresh.bankLink != nil {
-                drafts += try makeBankSyncUnlinkMessages(
+                drafts += try database.makeBankSyncUnlinkMessages(
                     accountID: fresh.account.id,
                     builder: &builder,
                     db: db
@@ -90,6 +97,7 @@ extension BudgetDatabase {
                     ids: transferIDs,
                     sortOrder: now.timeIntervalSince1970 * 1_000,
                     builder: &builder,
+                    in: database,
                     db: db
                 )
             }
@@ -98,7 +106,7 @@ extension BudgetDatabase {
                 operation: operation,
                 account: resultingAccount
             )
-            return LocalCommitPlan(
+            return BudgetDatabase.LocalCommitPlan(
                 drafts: drafts,
                 action: ActionLogCommit(
                     descriptor: .account(AccountActionDescriptor(
@@ -114,7 +122,7 @@ extension BudgetDatabase {
         }.outcome
     }
 
-    private func accountClosedMessage(
+    private static func accountClosedMessage(
         accountID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> ActualSyncDecodedMessage {
@@ -126,7 +134,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func accountClosingTransferMessages(
+    private static func accountClosingTransferMessages(
         sourceAccountID: String,
         sourceOffBudget: Bool,
         transfer: AccountClosingTransfer,
@@ -134,6 +142,7 @@ extension BudgetDatabase {
         ids: AccountClosingTransferIDs,
         sortOrder: Double,
         builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [ActualSyncDecodedMessage] {
         guard transfer.date == localDay.isoDate,
@@ -142,7 +151,7 @@ extension BudgetDatabase {
               ids.source != ids.destination else {
             throw AccountLifecycleCommandError.invalidPreparedMutation
         }
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         guard columns.transferID != nil,
               columns.isParent != nil,
               columns.isChild != nil,
@@ -156,15 +165,17 @@ extension BudgetDatabase {
         }
         let destinationPayeeID = try accountLifecycleTransferPayeeID(
             accountID: transfer.destinationAccountID,
+            in: database,
             db: db
         )
         let sourcePayeeID = try accountLifecycleTransferPayeeID(
             accountID: sourceAccountID,
+            in: database,
             db: db
         )
         // Actual clears the source category only for a transfer between accounts on the same side
         // of the budget; crossing sides leaves an unassigned category unwritten.
-        let destinationOffBudget = try accountLifecycleAccounts(db: db)
+        let destinationOffBudget = try AccountLifecycleReviewSQL.accountLifecycleAccounts(in: database, db: db)
             .first { $0.id == transfer.destinationAccountID }?.offBudget ?? sourceOffBudget
         let source = try columns.rowMessages(
             rowID: ids.source,
@@ -204,14 +215,15 @@ extension BudgetDatabase {
         return source + destination
     }
 
-    private func accountLifecycleTransferPayeeID(
+    private static func accountLifecycleTransferPayeeID(
         accountID: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> String {
-        guard try tableExists("payees", db: db) else {
+        guard try database.tableExists("payees", db: db) else {
             throw LocalFirstError.schemaUnavailable("missing payees table")
         }
-        let columns = try columnSet(for: "payees", db: db)
+        let columns = try database.columnSet(for: "payees", db: db)
         guard let transferColumn = AccountColumns.transferPayee(in: columns) else {
             throw LocalFirstError.invalidLocalWrite("missing transfer payee account column")
         }
@@ -219,8 +231,8 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT id FROM payees
-                WHERE \(quotedIdentifier(transferColumn)) = ?
-                  AND \(predicateForLiveRows(columns: columns))
+                WHERE \(database.quotedIdentifier(transferColumn)) = ?
+                  AND \(database.predicateForLiveRows(columns: columns))
                 ORDER BY id
                 """,
             arguments: [accountID]
@@ -229,5 +241,107 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing or duplicate transfer payee")
         }
         return id
+    }
+
+    /// Rebuild the command's exact cell from fresh facts in the atomic commit.
+    /// No preparation result, including an advisory no-op, authorizes a write.
+    static func commitAccountLifecycleMutation(
+        _ precondition: AccountLifecycleMutationPrecondition,
+        actionID: String = UUID().uuidString,
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
+    ) throws -> AccountLifecycleMutationResult {
+        try Task.checkCancellation()
+        return try database.commitLocalPlan(now: now) { db in
+            let decision = try validateAccountLifecycleMutation(precondition, in: database, db: db)
+            switch decision {
+            case .noChange(let outcome):
+                return BudgetDatabase.LocalCommitPlan(
+                    drafts: [], action: nil,
+                    outcome: AccountLifecycleMutationResult.noChange(outcome)
+                )
+            case .apply(let outcome):
+                var builder = LocalFirstSyncMessageBuilder()
+                let column: String
+                let value: LocalFirstSyncValue
+                switch outcome.operation {
+                case .rename:
+                    column = "name"
+                    value = .string(outcome.account.name)
+                case .reopen:
+                    column = "closed"
+                    value = .bool(false)
+                case .close, .delete:
+                    throw AccountLifecycleCommandError.invalidPreparedMutation
+                }
+                let draft = try builder.makeMessage(
+                    dataset: "accounts", row: outcome.account.id, column: column, value: value
+                )
+                return BudgetDatabase.LocalCommitPlan(
+                    drafts: [draft],
+                    action: ActionLogCommit(
+                        descriptor: .account(AccountActionDescriptor(
+                            name: outcome.account.name,
+                            offbudget: outcome.account.offBudget,
+                            operation: outcome.operation
+                        )),
+                        source: .ui,
+                        actionID: actionID
+                    ),
+                    outcome: AccountLifecycleMutationResult.applied(outcome)
+                )
+            }
+        }.outcome
+    }
+
+    private static func validateAccountLifecycleMutation(
+        _ precondition: AccountLifecycleMutationPrecondition,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> AccountLifecycleMutationDecision {
+        switch precondition {
+        case .rename(let rawCommand):
+            let command = try rawCommand.normalized()
+            let accounts = try AccountLifecycleReviewSQL.accountLifecycleAccounts(in: database, db: db)
+            guard let current = accounts.first(where: { $0.id == command.accountID }) else {
+                throw AccountLifecycleCommandError.accountNotFound
+            }
+            if current.name == command.newName {
+                return .noChange(AccountLifecycleOutcome(operation: .rename, account: current))
+            }
+            guard current.name == command.expectedCurrentName else {
+                throw AccountLifecycleCommandError.reviewChanged
+            }
+            return .apply(AccountLifecycleOutcome(
+                operation: .rename,
+                account: AccountLifecycleAccount(
+                    id: current.id,
+                    name: command.newName,
+                    offBudget: current.offBudget,
+                    isClosed: current.isClosed,
+                    accountGroupID: current.accountGroupID
+                )
+            ))
+
+        case .reopen(let rawCommand):
+            let command = try rawCommand.normalized()
+            let accounts = try AccountLifecycleReviewSQL.accountLifecycleAccounts(in: database, db: db)
+            guard let current = accounts.first(where: { $0.id == command.accountID }) else {
+                throw AccountLifecycleCommandError.accountNotFound
+            }
+            guard command.expectedClosed else {
+                throw AccountLifecycleCommandError.invalidPreparedMutation
+            }
+            return .apply(AccountLifecycleOutcome(
+                operation: .reopen,
+                account: AccountLifecycleAccount(
+                    id: current.id,
+                    name: current.name,
+                    offBudget: current.offBudget,
+                    isClosed: false,
+                    accountGroupID: current.accountGroupID
+                )
+            ))
+        }
     }
 }

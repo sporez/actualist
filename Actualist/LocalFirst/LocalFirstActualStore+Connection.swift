@@ -313,7 +313,7 @@ extension LocalFirstActualStore {
             // The store already owns a connection to this exact file; a second
             // write-capable connection would run compatibility writes and can
             // collide with an in-flight write.
-            _ = try await database.fetchAccountDisplays()
+            _ = try await AccountSQL.fetchAccountDisplays(in: database)
         } else {
             try BudgetDatabase.validateCachedBudgetReadOnly(at: databaseURL)
         }

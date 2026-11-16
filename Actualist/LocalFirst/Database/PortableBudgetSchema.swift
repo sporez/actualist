@@ -8,7 +8,7 @@ import GRDB
 /// A portable file with no `__migrations__` table is still accepted: synthetic
 /// seeds and older files have no watermark. An id that is not in this set is a
 /// newer or unknown schema and is rejected. The named account-groups migration
-/// (`BudgetDatabase.accountGroupsMigrationID`) is in the set.
+/// (`AccountGroupSQL.accountGroupsMigrationID`) is in the set.
 enum PortableBudgetSchema {
     static let knownMigrationIDs: Set<Int64> = [
         1_548_957_970_627,
@@ -69,7 +69,7 @@ enum PortableBudgetSchema {
         1_780_606_215_000,
         1_780_606_215_001,
         1_783_004_650_757,
-        BudgetDatabase.accountGroupsMigrationID,
+        AccountGroupSQL.accountGroupsMigrationID,
         1_788_468_782_000
     ]
 

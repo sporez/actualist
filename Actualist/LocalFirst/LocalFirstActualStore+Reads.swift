@@ -94,8 +94,8 @@ extension LocalFirstActualStore {
     ) async throws {
         let generation = budgetSessionGeneration
         let accounts: [AccountDisplay]?
-        if bestEffort { accounts = try? await database.fetchAccountDisplays() }
-        else { accounts = try await database.fetchAccountDisplays() }
+        if bestEffort { accounts = try? await AccountSQL.fetchAccountDisplays(in: database) }
+        else { accounts = try await AccountSQL.fetchAccountDisplays(in: database) }
         #if DEBUG
         #if DEBUG
         if bestEffort { await testSeams?.launchWarmupSuspension?() }
@@ -104,8 +104,8 @@ extension LocalFirstActualStore {
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         if let accounts { accountsByBudget[budgetID] = accounts }
         let groups: [ActualAccountGroup]?
-        if bestEffort { groups = try? await database.fetchAccountGroups() }
-        else { groups = try await database.fetchAccountGroups() }
+        if bestEffort { groups = try? await AccountGroupSQL.fetchAccountGroups(in: database) }
+        else { groups = try await AccountGroupSQL.fetchAccountGroups(in: database) }
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         if let groups { accountGroupsByBudget[budgetID] = groups }
     }
@@ -212,7 +212,7 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let monthGraph = try await database.fetchBudgetMonth(month: month)
         return TransactionEditorOptions(
-            accounts: try await database.fetchAccounts().filter { !$0.closed },
+            accounts: try await AccountSQL.fetchAccounts(in: database).filter { !$0.closed },
             categories: editorVisibleCategories(from: monthGraph),
             categoryGroups: monthGraph.editorCategoryGroups(currency: budgetCurrency(budgetID: budgetID)),
             payees: try await PayeeSQL.fetchPayees(in: database)
@@ -392,7 +392,7 @@ extension LocalFirstActualStore {
     )
 
     func nameMaps(_ database: BudgetDatabase) async throws -> TransactionNameMaps {
-        let accounts = try await database.fetchAccounts()
+        let accounts = try await AccountSQL.fetchAccounts(in: database)
         let categories = try await CategorySQL.fetchCategories(in: database)
         let payees = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
         let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })

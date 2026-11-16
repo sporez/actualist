@@ -240,11 +240,12 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let accountID = UUID().uuidString
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.createAccountMessages(
+        let messages = try await AccountSQL.createAccountMessages(
             accountID: accountID,
             name: name,
             offbudget: offbudget,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
 
         _ = try await database.commitUserAction(

@@ -7,8 +7,8 @@ extension LocalFirstActualStoreTests {
     @Test func oldBudgetOpenCreatesAccountGroupSchemaWithoutChangingAccounts() async throws {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let accounts = try await database.fetchAccounts()
-        let groups = try await database.fetchAccountGroups()
+        let accounts = try await AccountSQL.fetchAccounts(in: database)
+        let groups = try await AccountGroupSQL.fetchAccountGroups(in: database)
 
         #expect(try sqliteTables(at: fixtureURL).contains("account_groups"))
         #expect(try sqliteColumns("accounts", at: fixtureURL).contains("account_group_id"))
@@ -28,9 +28,9 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let accounts = Dictionary(
-            uniqueKeysWithValues: try await database.fetchAccounts().map { ($0.id, $0) }
+            uniqueKeysWithValues: try await AccountSQL.fetchAccounts(in: database).map { ($0.id, $0) }
         )
-        let groups = try await database.fetchAccountGroups()
+        let groups = try await AccountGroupSQL.fetchAccountGroups(in: database)
 
         #expect(try sqliteTables(at: fixtureURL).contains("account_groups"))
         #expect(groups.map(\.id) == ["cash"])
@@ -50,7 +50,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let checking = try #require(
-            try await database.fetchAccounts().first { $0.id == "checking" }
+            try await AccountSQL.fetchAccounts(in: database).first { $0.id == "checking" }
         )
 
         #expect(checking.accountGroupId == "credit")
@@ -82,9 +82,9 @@ extension LocalFirstActualStoreTests {
         )
 
         let appliedCount = try await database.applyRemoteSyncMessages([name, sortOrder, membership])
-        let groups = try await database.fetchAccountGroups()
+        let groups = try await AccountGroupSQL.fetchAccountGroups(in: database)
         let checking = try #require(
-            try await database.fetchAccounts().first { $0.id == "checking" }
+            try await AccountSQL.fetchAccounts(in: database).first { $0.id == "checking" }
         )
 
         #expect(appliedCount == 3)
@@ -107,9 +107,9 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let accounts = Dictionary(
-            uniqueKeysWithValues: try await database.fetchAccounts().map { ($0.id, $0) }
+            uniqueKeysWithValues: try await AccountSQL.fetchAccounts(in: database).map { ($0.id, $0) }
         )
-        let groups = try await database.fetchAccountGroups()
+        let groups = try await AccountGroupSQL.fetchAccountGroups(in: database)
 
         #expect(groups.isEmpty)
         #expect(accounts["checking"]?.accountGroupId == nil)
@@ -122,7 +122,7 @@ extension LocalFirstActualStoreTests {
                 ('2026-07-01T12:00:01.000Z-0000-remote', 'accounts', 'missing', 'account_group_id', 'S:cash');
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let accounts = try await database.fetchAccounts()
+        let accounts = try await AccountSQL.fetchAccounts(in: database)
 
         #expect(accounts.map(\.id) == ["checking"])
         #expect(accounts.contains { $0.id == "missing" } == false)
@@ -163,7 +163,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
         let migrated = try #require(
-            try await database.fetchAccounts().first { $0.id == "checking" }
+            try await AccountSQL.fetchAccounts(in: database).first { $0.id == "checking" }
         )
         #expect(migrated.accountGroupId == "cash")
 
@@ -176,7 +176,7 @@ extension LocalFirstActualStoreTests {
 
         let reopened = try BudgetDatabase(databaseURL: fixtureURL)
         let afterReopen = try #require(
-            try await reopened.fetchAccounts().first { $0.id == "checking" }
+            try await AccountSQL.fetchAccounts(in: reopened).first { $0.id == "checking" }
         )
         #expect(afterReopen.accountGroupId == nil)
     }

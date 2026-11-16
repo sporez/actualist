@@ -18,7 +18,7 @@ extension LocalFirstActualStore {
         let financial = try await database.fetchBudgetSnapshot(month: WidgetMonthID.current(now: now))
         let month = financial.month
         let currency = financial.currency
-        let accounts = try? await database.fetchAccountDisplays()
+        let accounts = try? await AccountSQL.fetchAccountDisplays(in: database)
         let maps = try? await nameMaps(database)
         let recent = try? await database.fetchTransactionPage(limit: 16, splits: .grouped).transactions
         let netWorth = try? await ReportDashboardSQL.fetchNetWorthReport(range: .dashboard(through: now), in: database)

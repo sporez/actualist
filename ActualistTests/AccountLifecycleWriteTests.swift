@@ -10,12 +10,13 @@ struct AccountLifecycleWriteTests {
         let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture(extraSQL: """
             UPDATE accounts SET closed = 1 WHERE id = 'checking';
             """), localNodeID: "lifecycle-test")
-        let result = try await database.commitAccountLifecycleMutation(
+        let result = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: " Daily Spending "
-            ))
+            )),
+            in: database
         )
 
         guard case .applied(let outcome) = result else {
@@ -34,12 +35,13 @@ struct AccountLifecycleWriteTests {
 
     @Test func unchangedRenameAndPeerCompletedRenameAreNoChangeWithoutDrafts() async throws {
         let database = try BudgetDatabase(databaseURL: support.makeSQLiteFixture())
-        let unchanged = try await database.commitAccountLifecycleMutation(
+        let unchanged = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: " Checking "
-            ))
+            )),
+            in: database
         )
         guard case .noChange(let unchangedOutcome) = unchanged else {
             Issue.record("Expected unchanged rename to be a no-op")
@@ -57,7 +59,7 @@ struct AccountLifecycleWriteTests {
             peerMessage(column: "name", value: "S:Daily Spending")
         ])
 
-        let decision = try await database.commitAccountLifecycleMutation(precondition)
+        let decision = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(precondition, in: database)
         guard case .noChange(let outcome) = decision else {
             Issue.record("Expected peer-completed rename to be a no-op")
             return
@@ -71,32 +73,35 @@ struct AccountLifecycleWriteTests {
             """), localNodeID: "lifecycle-test")
 
         // Actual's rename writes a duplicate name; only the rename sheet's draft check refuses it.
-        let exact = try await database.commitAccountLifecycleMutation(
+        let exact = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: "Savings"
-            ))
+            )),
+            in: database
         )
         guard case .applied(let exactOutcome) = exact else {
             Issue.record("Expected an applied exact-duplicate rename")
             return
         }
         #expect(exactOutcome.account.name == "Savings")
-        _ = try await database.commitAccountLifecycleMutation(
+        _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Savings",
                 newName: "Checking"
-            ))
+            )),
+            in: database
         )
 
-        let caseVariant = try await database.commitAccountLifecycleMutation(
+        let caseVariant = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: "savings"
-            ))
+            )),
+            in: database
         )
         guard case .applied = caseVariant else {
             Issue.record("Expected an applied case-variant rename")
@@ -107,11 +112,12 @@ struct AccountLifecycleWriteTests {
             peerMessage(column: "name", value: "S:Peer Name")
         ])
         await #expect(throws: AccountLifecycleCommandError.reviewChanged) {
-            try await database.commitAccountLifecycleMutation(.rename(AccountRenameCommand(
+            try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(.rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: "Local Name"
-            )))
+            )),
+            in: database)
         }
     }
 
@@ -120,7 +126,7 @@ struct AccountLifecycleWriteTests {
             UPDATE accounts SET closed = 1 WHERE id = 'checking';
             """), localNodeID: "lifecycle-test")
         let command = AccountReopenCommand(accountID: "checking", expectedClosed: true)
-        let result = try await database.commitAccountLifecycleMutation(.reopen(command))
+        let result = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(.reopen(command), in: database)
 
         guard case .applied(let outcome) = result else {
             Issue.record("Expected a committed reopen")
@@ -140,7 +146,7 @@ struct AccountLifecycleWriteTests {
         _ = try await peerDatabase.applyRemoteSyncMessages([
             peerMessage(column: "closed", value: "N:0")
         ])
-        let decision = try await peerDatabase.commitAccountLifecycleMutation(.reopen(command))
+        let decision = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(.reopen(command), in: peerDatabase)
         // Actual writes closed = 0 even when the account is already open.
         guard case .applied(let peerOutcome) = decision else {
             Issue.record("Expected a peer-completed reopen to write again")
@@ -165,7 +171,7 @@ struct AccountLifecycleWriteTests {
         ])
 
         await #expect(throws: AccountLifecycleCommandError.accountNotFound) {
-            try await database.commitAccountLifecycleMutation(precondition)
+            try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(precondition, in: database)
         }
     }
 

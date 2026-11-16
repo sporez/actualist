@@ -6,7 +6,7 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
     ) async throws -> AccountLifecycleReview {
         let database = try requireDatabase(for: request.budgetID)
         let generation = budgetSessionGeneration
-        let review = try await database.accountLifecycleReview(request: request)
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(request: request, in: database)
         try requireSyncSession(database: database, budgetID: request.budgetID, generation: generation)
         return review
     }
@@ -32,7 +32,7 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
         let budgetID = reviewed.identity.budgetID
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let result = try await database.commitAccountLifecycleReview(reviewed)
+        let result = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(reviewed, in: database)
         if case .reviewChanged = result {
             return result
         }
@@ -58,7 +58,7 @@ extension LocalFirstActualStore: AccountLifecycleRepositoryProtocol {
         try Task.checkCancellation()
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let result = try await database.commitAccountLifecycleMutation(command)
+        let result = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(command, in: database)
 
         return await finishAccountLifecycleCommit(
             result,

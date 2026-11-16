@@ -4,10 +4,11 @@ extension LocalFirstActualStore {
     func createAccountGroupAndRefresh(budgetID: String, name: String) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.createAccountGroupMessages(
+        let messages = try await AccountGroupSQL.createAccountGroupMessages(
             groupID: UUID().uuidString,
             name: name,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         try await commitAccountGroupMessages(
             messages,
@@ -23,10 +24,11 @@ extension LocalFirstActualStore {
     ) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.renameAccountGroupMessages(
+        let messages = try await AccountGroupSQL.renameAccountGroupMessages(
             groupID: groupID,
             name: name,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         try await commitAccountGroupMessages(
             messages,
@@ -38,9 +40,10 @@ extension LocalFirstActualStore {
     func deleteAccountGroupAndRefresh(budgetID: String, groupID: String) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.deleteAccountGroupMessages(
+        let messages = try await AccountGroupSQL.deleteAccountGroupMessages(
             groupID: groupID,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         try await commitAccountGroupMessages(
             messages,
@@ -56,10 +59,11 @@ extension LocalFirstActualStore {
     ) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.moveAccountToGroupMessages(
+        let messages = try await AccountGroupSQL.moveAccountToGroupMessages(
             accountID: accountID,
             groupID: groupID,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         try await commitAccountGroupMessages(
             messages,
@@ -75,10 +79,11 @@ extension LocalFirstActualStore {
     ) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.moveAccountGroupMessages(
+        let messages = try await AccountGroupSQL.moveAccountGroupMessages(
             groupID: groupID,
             beforeGroupID: beforeGroupID,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         try await commitAccountGroupMessages(
             messages,

@@ -38,9 +38,10 @@ struct AccountLifecycleFreshnessTests {
 
         for mutation in mutations {
             let fixture = try makeFixture()
-            let reviewed = try await fixture.database.accountLifecycleReview(
+            let reviewed = try await AccountLifecycleReviewSQL.accountLifecycleReview(
                 request: closeRequest,
-                localDay: localDay
+                localDay: localDay,
+                in: fixture.database
             )
             let clockBefore = await fixture.database.localClock
             let queue = try DatabaseQueue(path: fixture.url.path)
@@ -48,9 +49,10 @@ struct AccountLifecycleFreshnessTests {
                 try db.execute(sql: mutation.sql)
             }
 
-            let result = try await fixture.database.commitAccountLifecycleReview(
+            let result = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
                 reviewed,
-                localDay: { localDay }
+                localDay: { localDay },
+                in: fixture.database
             )
 
             guard case .reviewChanged(let fresh) = result else {
@@ -61,7 +63,7 @@ struct AccountLifecycleFreshnessTests {
             #expect(try await fixture.database.pendingLocalSyncMessageCount() == 0)
             #expect(try await fixture.database.recentBudgetActions().isEmpty)
             #expect(await fixture.database.localClock == clockBefore)
-            #expect(try await fixture.database.fetchAccounts().first { $0.id == "checking" }?.closed == false)
+            #expect(try await AccountSQL.fetchAccounts(in: fixture.database).first { $0.id == "checking" }?.closed == false)
         }
     }
 

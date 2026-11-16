@@ -1,13 +1,44 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
+enum AccountGroupSQL {
     static let accountGroupsMigrationID: Int64 = 1_787_013_118_115
 
-    func createAccountGroupMessages(
+    static func fetchAccountGroups(in database: isolated BudgetDatabase) throws -> [ActualAccountGroup] {
+        try database.queue.read { db in
+            guard try database.tableExists("account_groups", db: db) else {
+                return []
+            }
+
+            let columns = try database.columnSet(for: "account_groups", db: db)
+            let name = database.column("name", fallback: "''", columns: columns)
+            let sortOrder = database.column("sort_order", fallback: "0", columns: columns)
+            let order = columns.contains("sort_order") ? "sort_order, id" : "id"
+            let sql = """
+                SELECT id, \(name) AS name, \(sortOrder) AS sort_order
+                FROM account_groups
+                WHERE \(database.predicateForLiveRows(columns: columns))
+                ORDER BY \(order)
+                """
+            return try Row.fetchAll(db, sql: sql).compactMap { row in
+                let id = row["id"] as String? ?? ""
+                guard !id.isEmpty else {
+                    return nil
+                }
+                return ActualAccountGroup(
+                    id: id,
+                    name: row["name"] ?? "",
+                    sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
+                )
+            }
+        }
+    }
+
+    static func createAccountGroupMessages(
         groupID: String,
         name: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
         let trimmedID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedName = try EntityName.validatedName(name, label: "account group")
@@ -15,16 +46,16 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing account group")
         }
 
-        return try queue.read { db in
-            let columns = try requiredColumns(
+        return try database.queue.read { db in
+            let columns = try database.requiredColumns(
                 table: "account_groups",
                 required: ["name"],
                 db: db
             )
-            if try rowExists(table: "account_groups", rowID: trimmedID, db: db) {
+            if try database.rowExists(table: "account_groups", rowID: trimmedID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("account group already exists")
             }
-            try rejectDuplicateAccountGroupName(trimmedName, excluding: nil, db: db)
+            try rejectDuplicateAccountGroupName(trimmedName, excluding: nil, in: database, db: db)
 
             var messages = [
                 try builder.makeMessage(
@@ -40,7 +71,7 @@ extension BudgetDatabase {
                         dataset: "account_groups",
                         row: trimmedID,
                         column: "sort_order",
-                        value: .double(try nextAccountGroupSortOrder(db: db))
+                        value: .double(try nextAccountGroupSortOrder(in: database, db: db))
                     )
                 )
             }
@@ -48,19 +79,20 @@ extension BudgetDatabase {
         }
     }
 
-    func renameAccountGroupMessages(
+    static func renameAccountGroupMessages(
         groupID: String,
         name: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
         let groupID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedName = try EntityName.validatedName(name, label: "account group")
-        return try queue.read { db in
-            let group = try requiredLiveAccountGroup(groupID, db: db)
+        return try database.queue.read { db in
+            let group = try requiredLiveAccountGroup(groupID, in: database, db: db)
             guard group.name != trimmedName else {
                 return []
             }
-            try rejectDuplicateAccountGroupName(trimmedName, excluding: groupID, db: db)
+            try rejectDuplicateAccountGroupName(trimmedName, excluding: groupID, in: database, db: db)
             return [
                 try builder.makeMessage(
                     dataset: "account_groups",
@@ -72,20 +104,21 @@ extension BudgetDatabase {
         }
     }
 
-    func deleteAccountGroupMessages(
+    static func deleteAccountGroupMessages(
         groupID: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
         let groupID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
-        return try queue.read { db in
-            _ = try requiredLiveAccountGroup(groupID, db: db)
-            let accountColumns = try columnSet(for: "accounts", db: db)
+        return try database.queue.read { db in
+            _ = try requiredLiveAccountGroup(groupID, in: database, db: db)
+            let accountColumns = try database.columnSet(for: "accounts", db: db)
             guard accountColumns.contains("account_group_id") else {
                 throw LocalFirstError.invalidLocalWrite("missing column accounts.account_group_id")
             }
             // Without the tombstone the group would stay live while its members
             // were already ungrouped, so a missing column is a failure.
-            _ = try requiredColumns(table: "account_groups", required: ["tombstone"], db: db)
+            _ = try database.requiredColumns(table: "account_groups", required: ["tombstone"], db: db)
 
             var messages: [ActualSyncDecodedMessage] = []
             let memberIDs = try String.fetchAll(
@@ -93,7 +126,7 @@ extension BudgetDatabase {
                 sql: """
                     SELECT id FROM accounts
                     WHERE account_group_id = ?
-                      AND \(predicateForLiveRows(columns: accountColumns))
+                      AND \(database.predicateForLiveRows(columns: accountColumns))
                     ORDER BY id
                     """,
                 arguments: [groupID]
@@ -116,29 +149,30 @@ extension BudgetDatabase {
         }
     }
 
-    func moveAccountToGroupMessages(
+    static func moveAccountToGroupMessages(
         accountID: String,
         groupID: String?,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            let accountColumns = try requiredColumns(
+        try database.queue.read { db in
+            let accountColumns = try database.requiredColumns(
                 table: "accounts",
                 required: ["account_group_id"],
                 db: db
             )
-            guard try liveRowExists(table: "accounts", rowID: accountID, db: db) else {
+            guard try database.liveRowExists(table: "accounts", rowID: accountID, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing account")
             }
             if let groupID {
-                _ = try requiredLiveAccountGroup(groupID, db: db)
+                _ = try requiredLiveAccountGroup(groupID, in: database, db: db)
             }
 
             let current = try String.fetchOne(
                 db,
                 sql: """
                     SELECT account_group_id FROM accounts
-                    WHERE id = ? AND \(predicateForLiveRows(columns: accountColumns))
+                    WHERE id = ? AND \(database.predicateForLiveRows(columns: accountColumns))
                     LIMIT 1
                     """,
                 arguments: [accountID]
@@ -159,17 +193,18 @@ extension BudgetDatabase {
         }
     }
 
-    func moveAccountGroupMessages(
+    static func moveAccountGroupMessages(
         groupID: String,
         beforeGroupID: String?,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            _ = try requiredLiveAccountGroup(groupID, db: db)
+        try database.queue.read { db in
+            _ = try requiredLiveAccountGroup(groupID, in: database, db: db)
             if let beforeGroupID {
-                _ = try requiredLiveAccountGroup(beforeGroupID, db: db)
+                _ = try requiredLiveAccountGroup(beforeGroupID, in: database, db: db)
             }
-            let groups = try fetchLiveAccountGroupSortRows(db: db)
+            let groups = try fetchLiveAccountGroupSortRows(in: database, db: db)
             let result = ActualSortOrder.shove(items: groups, targetID: beforeGroupID)
             var messages: [ActualSyncDecodedMessage] = []
             for update in result.updates where update.id != groupID {
@@ -196,12 +231,13 @@ extension BudgetDatabase {
         }
     }
 
-    private func rejectDuplicateAccountGroupName(
+    private static func rejectDuplicateAccountGroupName(
         _ name: String,
         excluding groupID: String?,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
-        let columns = try columnSet(for: "account_groups", db: db)
+        let columns = try database.columnSet(for: "account_groups", db: db)
         var arguments: StatementArguments = [name]
         var exclusion = ""
         if let groupID {
@@ -212,7 +248,7 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT name FROM account_groups
-                WHERE \(predicateForLiveRows(columns: columns))
+                WHERE \(database.predicateForLiveRows(columns: columns))
                   AND name = ? COLLATE NOCASE
                   \(exclusion)
                 LIMIT 1
@@ -226,11 +262,12 @@ extension BudgetDatabase {
         }
     }
 
-    private func requiredLiveAccountGroup(
+    private static func requiredLiveAccountGroup(
         _ groupID: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> (id: String, name: String) {
-        let columns = try requiredColumns(
+        let columns = try database.requiredColumns(
             table: "account_groups",
             required: ["name"],
             db: db
@@ -239,7 +276,7 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT id, name FROM account_groups
-                WHERE id = ? AND \(predicateForLiveRows(columns: columns))
+                WHERE id = ? AND \(database.predicateForLiveRows(columns: columns))
                 LIMIT 1
                 """,
             arguments: [groupID]
@@ -249,8 +286,8 @@ extension BudgetDatabase {
         return (row["id"] ?? groupID, row["name"] ?? "")
     }
 
-    private func nextAccountGroupSortOrder(db: Database) throws -> Double {
-        let columns = try columnSet(for: "account_groups", db: db)
+    private static func nextAccountGroupSortOrder(in database: isolated BudgetDatabase, db: Database) throws -> Double {
+        let columns = try database.columnSet(for: "account_groups", db: db)
         guard columns.contains("sort_order") else {
             return ActualSortOrder.increment
         }
@@ -258,27 +295,28 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT MAX(sort_order) AS sort_order FROM account_groups
-                WHERE \(predicateForLiveRows(columns: columns))
+                WHERE \(database.predicateForLiveRows(columns: columns))
                 """
         )
         return SQLiteValueCoercion.lenientDouble(row?["sort_order"]) + ActualSortOrder.increment
     }
 
-    private func fetchLiveAccountGroupSortRows(
+    private static func fetchLiveAccountGroupSortRows(
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [ActualSortOrder.Item] {
-        let columns = try requiredColumns(
+        let columns = try database.requiredColumns(
             table: "account_groups",
             required: ["id"],
             db: db
         )
-        let sortOrder = column("sort_order", fallback: "0", columns: columns)
+        let sortOrder = database.column("sort_order", fallback: "0", columns: columns)
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT id, \(sortOrder) AS sort_order
                 FROM account_groups
-                WHERE \(predicateForLiveRows(columns: columns))
+                WHERE \(database.predicateForLiveRows(columns: columns))
                 ORDER BY sort_order, id
                 """
         )

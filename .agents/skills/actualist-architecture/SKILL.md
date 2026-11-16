@@ -102,8 +102,8 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 ### Accounts and reconciliation
 
 - Account list: `Actualist/Features/Accounts/AccountsView.swift`, `AccountsViewModel.swift`, and `AccountListLayout.swift`.
-- Add/group editing: `AddAccountSheet.swift`, `AddAccountViewModel.swift`, `AccountGroupEditorSheet.swift`, `LocalFirstActualStore+AccountGroups.swift`, and `BudgetDatabase+AccountGroup*.swift`.
-- Create/rename/close/reopen/delete: `AccountLifecycleCoordinator.swift` and `AccountLifecycle*` presentation siblings; `Repositories/AccountLifecycleRepository.swift`; `LocalFirstActualStore+AccountLifecycle.swift`; `BudgetDatabase+AccountLifecycle*.swift`.
+- Add/group editing: `AddAccountSheet.swift`, `AddAccountViewModel.swift`, `AccountGroupEditorSheet.swift`, `LocalFirstActualStore+AccountGroups.swift`, and `AccountGroupSQL` (group reads and writes; `BudgetDatabase+AccountGroupCompatibility.swift` is the open-time compatibility pass). Account reads and new-account messages are `AccountSQL`.
+- Create/rename/close/reopen/delete: `AccountLifecycleCoordinator.swift` and `AccountLifecycle*` presentation siblings; `Repositories/AccountLifecycleRepository.swift`; `LocalFirstActualStore+AccountLifecycle.swift`; `AccountLifecycleReviewSQL` (the review a lifecycle action shows and revalidates, with its schedule facts) and `AccountLifecycleCommitSQL` (the close, delete, rename and reopen commits).
 - Reconciliation workflow: `AccountReconciliationCoordinator.swift`, `AccountReconciliationModels.swift`, `AccountReconciliationPresentation.swift`, and `AccountReconciliationViews.swift`.
 - Backend: `LocalFirstActualStore+Reconciliation.swift`; `BudgetDatabase+Reconciliation.swift` and `+ReconciledMutationGuard.swift`.
 - Protocol seam: `Actualist/Repositories/AccountRepository.swift`.
@@ -193,7 +193,7 @@ Repositories are per feature, not one facade: `Actualist/Repositories/` holds `B
 
 File naming is the ownership index:
 
-- `+BasicReads`, `+BudgetReads`, `+TransactionReads` — query families. Reports are the `Report*SQL` types (see Reports, history, notes, and shortcuts).
+- `+BasicReads` (available months), `+BudgetReads`, `+TransactionReads` — query families. Reports are the `Report*SQL` types (see Reports, history, notes, and shortcuts).
 - `+Sync`, `+Merkle` — remote CRDT application and the merkle trie (see Sync and merkle below).
 - `+LocalCommit`, `+UserActionPlan` — the write core (see Write trace).
 - `+BudgetWrites`, `+EnvelopeHolds`, `+EnvelopeCarryIn`, `+HoldWrites`, `+TransactionCreation`, `+TransactionDiffUpdate`, `+TransactionGraphPlanning`, `+TransactionUpdates`, `+TransactionSplitWrites` — budget and transaction mutation families.
@@ -201,7 +201,7 @@ File naming is the ownership index:
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
 - `+Preferences`, `+Currency`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
-- `+AccountLifecycle*`, `+AccountGroup*`, `+BankSync`, `+BankSyncLastRun`, `+Reconciliation`, `+Notes` — account-side families.
+- `Account*SQL`, `+AccountGroupCompatibility`, `+BankSync`, `+BankSyncLastRun`, `+Reconciliation`, `+Notes` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
 - `+ActionLog*` — durable action history and undo inputs.

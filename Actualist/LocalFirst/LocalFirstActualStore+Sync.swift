@@ -89,7 +89,7 @@ extension LocalFirstActualStore {
         if let cachedDisplays = accountsByBudget[budgetID] {
             accountDisplays = cachedDisplays
         } else {
-            accountDisplays = try await refreshedDatabase.fetchAccountDisplays()
+            accountDisplays = try await AccountSQL.fetchAccountDisplays(in: refreshedDatabase)
         }
         try requireSyncSession(database: refreshedDatabase, budgetID: budgetID, generation: generation)
         let accounts = accountDisplays.map(\.account).filter { !$0.closed }

@@ -6,11 +6,6 @@
 # exists, so this list only shrinks as domains move out. Adding a line needs
 # the maintainer's approval.
 Actualist/LocalFirst/Database/BudgetDatabase+AccountGroupCompatibility.swift
-Actualist/LocalFirst/Database/BudgetDatabase+AccountGroupWrites.swift
-Actualist/LocalFirst/Database/BudgetDatabase+AccountLifecycleClose.swift
-Actualist/LocalFirst/Database/BudgetDatabase+AccountLifecycleReads.swift
-Actualist/LocalFirst/Database/BudgetDatabase+AccountLifecycleSchedules.swift
-Actualist/LocalFirst/Database/BudgetDatabase+AccountLifecycleWrites.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ActionLog.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ActionLogMetadata.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ActionLogTransactionCommands.swift

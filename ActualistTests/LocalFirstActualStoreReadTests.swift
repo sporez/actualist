@@ -77,7 +77,7 @@ extension LocalFirstActualStoreTests {
         let store = makeStore()
         store.openedBudgetID = "group-1"
         store.database = database
-        store.accountsByBudget["group-1"] = try await database.fetchAccountDisplays()
+        store.accountsByBudget["group-1"] = try await AccountSQL.fetchAccountDisplays(in: database)
 
         try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         let firstPage = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))

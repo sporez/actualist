@@ -83,7 +83,7 @@ extension LocalFirstActualStoreTests {
         let pending = try await database.pendingLocalSyncMessages()
         let stored = try storedCRDTMessages(at: await database.databaseURL)
         let checking = try #require(
-            try await database.fetchAccounts().first { $0.id == "checking" }
+            try await AccountSQL.fetchAccounts(in: database).first { $0.id == "checking" }
         )
 
         #expect(stored.contains(groupName))

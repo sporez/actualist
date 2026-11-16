@@ -19,14 +19,15 @@ struct AccountLifecycleAtomicCommitTests {
         let database = try makeDatabase(at: url, revisions: revisions)
         let before = try databaseState(at: url)
 
-        let result = try await database.commitAccountLifecycleMutation(
+        let result = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: " checking ",
                 expectedCurrentName: "Checking",
                 newName: " Daily Spending "
             )),
             actionID: "rename-action",
-            now: Date(timeIntervalSince1970: 1_800_000_000)
+            now: Date(timeIntervalSince1970: 1_800_000_000),
+            in: database
         )
 
         guard case .applied(let outcome) = result else {
@@ -89,10 +90,11 @@ struct AccountLifecycleAtomicCommitTests {
         let database = try makeDatabase(at: url, revisions: revisions)
         let before = try databaseState(at: url)
 
-        let result = try await database.commitAccountLifecycleMutation(
+        let result = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .reopen(AccountReopenCommand(accountID: " checking ", expectedClosed: true)),
             actionID: "reopen-action",
-            now: Date(timeIntervalSince1970: 1_800_000_100)
+            now: Date(timeIntervalSince1970: 1_800_000_100),
+            in: database
         )
 
         guard case .applied(let outcome) = result else {
@@ -148,12 +150,13 @@ struct AccountLifecycleAtomicCommitTests {
         let unchangedBefore = try databaseState(at: unchangedURL)
         let unchangedClock = await unchangedDatabase.localClock
 
-        let unchanged = try await unchangedDatabase.commitAccountLifecycleMutation(
+        let unchanged = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: " Checking "
-            ))
+            )),
+            in: unchangedDatabase
         )
 
         guard case .noChange(let unchangedOutcome) = unchanged else {
@@ -175,12 +178,13 @@ struct AccountLifecycleAtomicCommitTests {
         let peerBefore = try databaseState(at: peerURL)
         let peerClock = await peerDatabase.localClock
 
-        let peerCompleted = try await peerDatabase.commitAccountLifecycleMutation(
+        let peerCompleted = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: "Daily Spending"
-            ))
+            )),
+            in: peerDatabase
         )
 
         guard case .noChange(let peerOutcome) = peerCompleted else {
@@ -218,14 +222,15 @@ struct AccountLifecycleAtomicCommitTests {
         let url = try support.makeSQLiteFixture()
         let revisions = MutationCounter()
         let database = try makeDatabase(at: url, revisions: revisions)
-        _ = try await database.commitAccountLifecycleMutation(
+        _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: "First Name"
             )),
             actionID: "duplicate-history-id",
-            now: Date(timeIntervalSince1970: 1_800_000_200)
+            now: Date(timeIntervalSince1970: 1_800_000_200),
+            in: database
         )
         let before = try databaseState(at: url)
         let clockBefore = await database.localClock
@@ -233,14 +238,15 @@ struct AccountLifecycleAtomicCommitTests {
         await #expect(throws: LocalFirstError.invalidLocalWrite(
             "the database transaction was rolled back"
         )) {
-            try await database.commitAccountLifecycleMutation(
+            try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
                 .rename(AccountRenameCommand(
                     accountID: "checking",
                     expectedCurrentName: "First Name",
                     newName: "Second Name"
                 )),
                 actionID: "duplicate-history-id",
-                now: Date(timeIntervalSince1970: 1_800_000_300)
+                now: Date(timeIntervalSince1970: 1_800_000_300),
+                in: database
             )
         }
 
@@ -258,12 +264,13 @@ struct AccountLifecycleAtomicCommitTests {
         database.invalidateSessionWrites()
 
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            try await database.commitAccountLifecycleMutation(
+            try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
                 .rename(AccountRenameCommand(
                     accountID: "checking",
                     expectedCurrentName: "Checking",
                     newName: "Daily Spending"
-                ))
+                )),
+                in: database
             )
         }
 
@@ -344,7 +351,7 @@ struct AccountLifecycleAtomicCommitTests {
         let clockBefore = await database.localClock
 
         do {
-            _ = try await database.commitAccountLifecycleMutation(.rename(command))
+            _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(.rename(command), in: database)
             Issue.record("Expected account lifecycle rejection")
         } catch let error as AccountLifecycleCommandError {
             #expect(error == expectedError)

@@ -10,13 +10,15 @@ struct AccountLifecycleCloseWriteTests {
     @Test func emptyAccountDeleteAndZeroBalanceCloseEmitOnlyPinnedAccountCells() async throws {
         let localDay = testDay
         let empty = try makeDatabase(extraSQL: "DELETE FROM transactions WHERE id = 'txn';")
-        let emptyReview = try await empty.accountLifecycleReview(
+        let emptyReview = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest(destination: nil, category: nil),
-            localDay: localDay
+            localDay: localDay,
+            in: empty
         )
-        let emptyResult = try await empty.commitAccountLifecycleReview(
+        let emptyResult = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
             emptyReview,
-            localDay: { localDay }
+            localDay: { localDay },
+            in: empty
         )
         guard case .applied(let emptyOutcome) = emptyResult else {
             Issue.record("Expected empty account deletion")
@@ -34,13 +36,15 @@ struct AccountLifecycleCloseWriteTests {
         #expect(emptySummary.operation == .delete)
 
         let zero = try makeDatabase(extraSQL: "UPDATE transactions SET amount = 0 WHERE id = 'txn';")
-        let zeroReview = try await zero.accountLifecycleReview(
+        let zeroReview = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest(destination: nil, category: nil),
-            localDay: localDay
+            localDay: localDay,
+            in: zero
         )
-        let zeroResult = try await zero.commitAccountLifecycleReview(
+        let zeroResult = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
             zeroReview,
-            localDay: { localDay }
+            localDay: { localDay },
+            in: zero
         )
         guard case .applied(let zeroOutcome) = zeroResult else {
             Issue.record("Expected zero-balance close")
@@ -60,16 +64,18 @@ struct AccountLifecycleCloseWriteTests {
             UPDATE accounts SET offbudget = 1 WHERE id = 'destination';
             UPDATE transactions SET amount = 4250, category = NULL WHERE id = 'txn';
             """)
-        let review = try await database.accountLifecycleReview(
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest(destination: "destination", category: "groceries"),
-            localDay: localDay
+            localDay: localDay,
+            in: database
         )
 
-        let result = try await database.commitAccountLifecycleReview(
+        let result = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
             review,
             now: fixedNow,
             localDay: { localDay },
-            transferIDs: AccountClosingTransferIDs(source: "closing-source", destination: "closing-destination")
+            transferIDs: AccountClosingTransferIDs(source: "closing-source", destination: "closing-destination"),
+            in: database
         )
 
         guard case .applied(let outcome) = result else {
@@ -117,20 +123,22 @@ struct AccountLifecycleCloseWriteTests {
                     WHERE id = 'destination';
                 UPDATE transactions SET amount = -4250, category = NULL WHERE id = 'txn';
                 """)
-            let review = try await database.accountLifecycleReview(
+            let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
                 request: closeRequest(destination: "destination", category: "groceries"),
-                localDay: localDay
+                localDay: localDay,
+                in: database
             )
             let sourceID = "negative-source-\(index)"
             let destinationID = "negative-destination-\(index)"
 
-            _ = try await database.commitAccountLifecycleReview(
+            _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
                 review,
                 localDay: { localDay },
                 transferIDs: AccountClosingTransferIDs(
                     source: sourceID,
                     destination: destinationID
-                )
+                ),
+                in: database
             )
 
             let messages = try await database.pendingLocalSyncMessages().map(\.message)
@@ -158,9 +166,10 @@ struct AccountLifecycleCloseWriteTests {
                         'missing-parent', 0, 1);
             """)
 
-        let review = try await database.accountLifecycleReview(
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest(destination: "destination", category: nil),
-            localDay: testDay
+            localDay: testDay,
+            in: database
         )
 
         #expect(review.liveTransactionCount == 1)
@@ -179,18 +188,20 @@ struct AccountLifecycleCloseWriteTests {
             ALTER TABLE transactions RENAME COLUMN transferred_id TO transfer_id;
             ALTER TABLE payees RENAME COLUMN transfer_acct TO transferAccount;
             """)
-        let review = try await database.accountLifecycleReview(
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest(destination: "destination", category: nil),
-            localDay: localDay
+            localDay: localDay,
+            in: database
         )
 
-        _ = try await database.commitAccountLifecycleReview(
+        _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
             review,
             localDay: { localDay },
             transferIDs: AccountClosingTransferIDs(
                 source: "alias-source",
                 destination: "alias-destination"
-            )
+            ),
+            in: database
         )
 
         let messages = try await database.pendingLocalSyncMessages().map(\.message)
@@ -218,14 +229,16 @@ struct AccountLifecycleCloseWriteTests {
                 bank_sync_status = 'ok', last_sync = 'synthetic-last-sync'
             WHERE id = 'checking';
             """)
-        let review = try await database.accountLifecycleReview(
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest(destination: nil, category: nil),
-            localDay: localDay
+            localDay: localDay,
+            in: database
         )
 
-        _ = try await database.commitAccountLifecycleReview(
+        _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
             review,
-            localDay: { localDay }
+            localDay: { localDay },
+            in: database
         )
 
         let messages = try await database.pendingLocalSyncMessages().map(\.message)
@@ -273,17 +286,19 @@ struct AccountLifecycleCloseWriteTests {
                 UPDATE transactions SET amount = 0 WHERE id = 'txn';
                 \(schema)
                 """)
-            let review = try await database.accountLifecycleReview(
+            let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
                 request: closeRequest(destination: nil, category: nil),
-                localDay: localDay
+                localDay: localDay,
+                in: database
             )
             let clockBefore = await database.localClock
 
             #expect(review.blockers.contains(.unsupportedBankProvider(.unknown)))
             #expect(review.resolvedAction == nil)
-            guard case .reviewChanged = try await database.commitAccountLifecycleReview(
+            guard case .reviewChanged = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
                 review,
-                localDay: { localDay }
+                localDay: { localDay },
+                in: database
             ) else {
                 Issue.record("A blocked bank link must not commit")
                 continue
@@ -309,18 +324,20 @@ struct AccountLifecycleCloseWriteTests {
         try await queue.write { db in
             try db.execute(sql: "ALTER TABLE accounts RENAME COLUMN balance_limit TO legacy_balance_limit")
         }
-        let review = try await fixture.database.accountLifecycleReview(
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest(destination: nil, category: nil),
-            localDay: localDay
+            localDay: localDay,
+            in: fixture.database
         )
         let clockBefore = await fixture.database.localClock
 
         #expect(review.bankLink?.provider == .unknown)
         #expect(review.blockers.contains(.unsupportedBankProvider(.unknown)))
         #expect(review.resolvedAction == nil)
-        guard case .reviewChanged = try await fixture.database.commitAccountLifecycleReview(
+        guard case .reviewChanged = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
             review,
-            localDay: { localDay }
+            localDay: { localDay },
+            in: fixture.database
         ) else {
             Issue.record("A SimpleFIN link missing a current unlink column must not commit")
             return
@@ -328,22 +345,24 @@ struct AccountLifecycleCloseWriteTests {
         #expect(try await fixture.database.pendingLocalSyncMessageCount() == 0)
         #expect(try await fixture.database.recentBudgetActions().isEmpty)
         #expect(await fixture.database.localClock == clockBefore)
-        #expect(try await fixture.database.fetchAccounts().first { $0.id == "checking" }?.closed == false)
+        #expect(try await AccountSQL.fetchAccounts(in: fixture.database).first { $0.id == "checking" }?.closed == false)
     }
 
     @Test func localMidnightRolloverReturnsFreshReviewWithoutClockOutboxOrHistoryMutation() async throws {
         let localDay = testDay
         let database = try makeDatabase()
-        let reviewed = try await database.accountLifecycleReview(
+        let reviewed = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest(destination: "destination", category: nil),
-            localDay: localDay
+            localDay: localDay,
+            in: database
         )
         let clockBefore = await database.localClock
         let nextDay = AccountLifecycleDay(isoDate: "2026-09-28", transactionDate: 20260928)
 
-        let result = try await database.commitAccountLifecycleReview(
+        let result = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
             reviewed,
-            localDay: { nextDay }
+            localDay: { nextDay },
+            in: database
         )
 
         guard case .reviewChanged(let fresh) = result else {
@@ -364,16 +383,18 @@ struct AccountLifecycleCloseWriteTests {
             "INSERT INTO payees VALUES ('duplicate-destination', '', 'destination', 0);",
         ] {
             let database = try makeDatabase(extraSQL: payeeMutation)
-            let review = try await database.accountLifecycleReview(
+            let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
                 request: closeRequest(destination: "destination", category: nil),
-                localDay: localDay
+                localDay: localDay,
+                in: database
             )
             let clockBefore = await database.localClock
 
             await #expect(throws: LocalFirstError.self) {
-                try await database.commitAccountLifecycleReview(
+                try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
                     review,
-                    localDay: { localDay }
+                    localDay: { localDay },
+                    in: database
                 )
             }
             #expect(try await database.pendingLocalSyncMessageCount() == 0)
@@ -385,17 +406,19 @@ struct AccountLifecycleCloseWriteTests {
     @Test func historyFailureRollsBackCloseAccountCellOutboxAndClock() async throws {
         let localDay = testDay
         let database = try makeDatabase(extraSQL: "UPDATE transactions SET amount = 0 WHERE id = 'txn';")
-        _ = try await database.commitAccountLifecycleMutation(
+        _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(
                 accountID: "checking",
                 expectedCurrentName: "Checking",
                 newName: "Daily Spending"
             )),
-            actionID: "duplicate-action"
+            actionID: "duplicate-action",
+            in: database
         )
-        let review = try await database.accountLifecycleReview(
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: closeRequest(destination: nil, category: nil),
-            localDay: localDay
+            localDay: localDay,
+            in: database
         )
         let messagesBefore = try await database.pendingLocalSyncMessageCount()
         let clockBefore = await database.localClock
@@ -403,16 +426,17 @@ struct AccountLifecycleCloseWriteTests {
         await #expect(throws: LocalFirstError.invalidLocalWrite(
             "the database transaction was rolled back"
         )) {
-            try await database.commitAccountLifecycleReview(
+            try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
                 review,
                 actionID: "duplicate-action",
-                localDay: { localDay }
+                localDay: { localDay },
+                in: database
             )
         }
 
         #expect(try await database.pendingLocalSyncMessageCount() == messagesBefore)
         #expect(try await database.recentBudgetActions().count == 1)
-        #expect(try await database.fetchAccounts().first { $0.id == "checking" }?.closed == false)
+        #expect(try await AccountSQL.fetchAccounts(in: database).first { $0.id == "checking" }?.closed == false)
         #expect(await database.localClock == clockBefore)
     }
 

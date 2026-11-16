@@ -3,90 +3,6 @@ import GRDB
 
 extension BudgetDatabase {
 
-    func fetchAccounts() throws -> [ActualAccount] {
-        try queue.read { db in
-            guard try tableExists("accounts", db: db) else {
-                return []
-            }
-
-            let columns = try columnSet(for: "accounts", db: db)
-            let id = column("id", fallback: "''", columns: columns)
-            let name = column("name", fallback: id, columns: columns)
-            let offbudget = column("offbudget", fallback: "0", columns: columns)
-            let closed = column("closed", fallback: "0", columns: columns)
-            let bank = column("bank", fallback: "NULL", columns: columns)
-            let accountSyncSource = column(
-                "account_sync_source",
-                fallback: column("bank_sync_source", fallback: "NULL", columns: columns),
-                columns: columns
-            )
-            let bankSyncStatus = column("bank_sync_status", fallback: "NULL", columns: columns)
-            let accountGroupID = column("account_group_id", fallback: "NULL", columns: columns)
-            let tombstonePredicate = predicateForLiveRows(columns: columns)
-            let order = columns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
-            let sql = """
-                SELECT \(id) AS id,
-                       \(name) AS name,
-                       \(offbudget) AS offbudget,
-                       \(closed) AS closed,
-                       \(bank) AS bank,
-                       \(accountSyncSource) AS account_sync_source,
-                       \(bankSyncStatus) AS bank_sync_status,
-                       \(accountGroupID) AS account_group_id
-                FROM accounts
-                WHERE \(tombstonePredicate)
-                ORDER BY \(order)
-                """
-
-            return try Row.fetchAll(db, sql: sql).map { row in
-                let bankID = row["bank"] as String?
-                let syncSource = row["account_sync_source"] as String?
-                let groupID = (row["account_group_id"] as String?).flatMap { value in
-                    value.isEmpty ? nil : value
-                }
-                return ActualAccount(
-                    id: row["id"] ?? "",
-                    name: row["name"] ?? "",
-                    offbudget: SQLiteValueCoercion.lenientBool(row["offbudget"]),
-                    closed: SQLiteValueCoercion.lenientBool(row["closed"]),
-                    bankSyncLinked: bankID?.isEmpty == false || syncSource?.isEmpty == false,
-                    bankSyncStatus: row["bank_sync_status"],
-                    accountGroupId: groupID
-                )
-            }
-        }
-    }
-
-    func fetchAccountGroups() throws -> [ActualAccountGroup] {
-        try queue.read { db in
-            guard try tableExists("account_groups", db: db) else {
-                return []
-            }
-
-            let columns = try columnSet(for: "account_groups", db: db)
-            let name = column("name", fallback: "''", columns: columns)
-            let sortOrder = column("sort_order", fallback: "0", columns: columns)
-            let order = columns.contains("sort_order") ? "sort_order, id" : "id"
-            let sql = """
-                SELECT id, \(name) AS name, \(sortOrder) AS sort_order
-                FROM account_groups
-                WHERE \(predicateForLiveRows(columns: columns))
-                ORDER BY \(order)
-                """
-            return try Row.fetchAll(db, sql: sql).compactMap { row in
-                let id = row["id"] as String? ?? ""
-                guard !id.isEmpty else {
-                    return nil
-                }
-                return ActualAccountGroup(
-                    id: id,
-                    name: row["name"] ?? "",
-                    sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
-                )
-            }
-        }
-    }
-
     func fetchAvailableMonths() throws -> [String] {
         try queue.read { db in try fetchAvailableMonths(db: db) }
     }
@@ -124,20 +40,5 @@ extension BudgetDatabase {
             months.formUnion(rows.compactMap { YearMonth.canonicalID(SQLiteValueCoercion.lenientString($0["month"])) })
         }
         return months.sorted()
-    }
-
-    func fetchAccountDisplays() throws -> [AccountDisplay] {
-        let accounts = try fetchAccounts()
-        let balances = try accountBalances()
-        let userNoteIDs = try fetchUserNoteIDs(
-            for: Set(accounts.map { "account-\($0.id)" })
-        )
-        return accounts.map { account in
-            AccountDisplay(
-                account: account,
-                balance: balances[account.id] ?? 0,
-                hasUserNote: userNoteIDs.contains("account-\(account.id)")
-            )
-        }
     }
 }

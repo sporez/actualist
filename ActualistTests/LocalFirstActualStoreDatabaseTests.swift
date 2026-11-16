@@ -11,7 +11,7 @@ extension LocalFirstActualStoreTests {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let accounts = try await database.fetchAccountDisplays()
+        let accounts = try await AccountSQL.fetchAccountDisplays(in: database)
         let months = try await database.fetchAvailableMonths()
         let month = try await database.fetchBudgetMonth(month: "2026-07")
 
@@ -42,7 +42,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        let accounts = try await database.fetchAccounts()
+        let accounts = try await AccountSQL.fetchAccounts(in: database)
         let states = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.bankSyncState) })
 
         #expect(states["checking"] == .healthy)
@@ -71,7 +71,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        var account = try #require(try await database.fetchAccounts().first)
+        var account = try #require(try await AccountSQL.fetchAccounts(in: database).first)
         #expect(account.bankSyncStatus == "timed-out")
         #expect(account.bankSyncState == .failed)
 
@@ -86,7 +86,7 @@ extension LocalFirstActualStoreTests {
         ])
 
         #expect(appliedCount == 1)
-        account = try #require(try await database.fetchAccounts().first)
+        account = try #require(try await AccountSQL.fetchAccounts(in: database).first)
         #expect(account.bankSyncStatus == "ok")
         #expect(account.bankSyncState == .healthy)
     }

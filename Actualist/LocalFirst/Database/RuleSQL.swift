@@ -3,7 +3,7 @@ import GRDB
 
 enum RuleSQL {
     static func fetchRuleEditorOptions(in database: isolated BudgetDatabase) throws -> RuleEditorOptions {
-        let accounts = try database.fetchAccounts()
+        let accounts = try AccountSQL.fetchAccounts(in: database)
         let categories = try CategorySQL.fetchCategories(in: database)
         let payees = try PayeeSQL.fetchPayees(in: database)
         let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })

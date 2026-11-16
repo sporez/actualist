@@ -28,14 +28,16 @@ struct AccountGroupIDTrimmingTests {
         let database = try makeDatabase(groupTableSQL: standardGroups)
         var builder = LocalFirstSyncMessageBuilder()
 
-        let renamed = try await database.renameAccountGroupMessages(
-            groupID: "  cash \n", name: "Wallet", builder: &builder
+        let renamed = try await AccountGroupSQL.renameAccountGroupMessages(
+            groupID: "  cash \n", name: "Wallet", builder: &builder,
+            in: database
         )
         #expect(renamed.map(\.row) == ["cash"])
         #expect(renamed.map(\.column) == ["name"])
 
-        let deleted = try await database.deleteAccountGroupMessages(
-            groupID: " cash ", builder: &builder
+        let deleted = try await AccountGroupSQL.deleteAccountGroupMessages(
+            groupID: " cash ", builder: &builder,
+            in: database
         )
         let tombstone = try #require(deleted.first { $0.column == "tombstone" })
         #expect(tombstone.row == "cash")
@@ -51,7 +53,7 @@ struct AccountGroupIDTrimmingTests {
         await #expect(
             throws: LocalFirstError.schemaUnavailable("missing column account_groups.tombstone")
         ) {
-            _ = try await database.deleteAccountGroupMessages(groupID: "cash", builder: &builder)
+            _ = try await AccountGroupSQL.deleteAccountGroupMessages(groupID: "cash", builder: &builder, in: database)
         }
     }
 }

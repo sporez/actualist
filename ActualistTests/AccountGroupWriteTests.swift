@@ -13,27 +13,29 @@ extension LocalFirstActualStoreTests {
         // account-groups migration lacks the row even when every peer
         // supports groups. Writes rely on the backfilled schema instead.
         #expect(try sqliteTables(at: fixtureURL).contains("account_groups"))
-        let created = try await database.createAccountGroupMessages(
+        let created = try await AccountGroupSQL.createAccountGroupMessages(
             groupID: "cash",
             name: "Cash",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(try await database.commitLocalSyncMessagesAndEnqueue(created) == created.count)
-        #expect(try await database.fetchAccountGroups().map(\.id) == ["cash"])
+        #expect(try await AccountGroupSQL.fetchAccountGroups(in: database).map(\.id) == ["cash"])
     }
 
     @Test func createAccountGroupAppendsSortOrderAndRejectsDuplicates() async throws {
         let database = try makeWritableAccountGroupDatabase()
         var builder = LocalFirstSyncMessageBuilder()
 
-        let created = try await database.createAccountGroupMessages(
+        let created = try await AccountGroupSQL.createAccountGroupMessages(
             groupID: "cash",
             name: "Cash",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(try await database.commitLocalSyncMessagesAndEnqueue(created) == created.count)
 
-        let groups = try await database.fetchAccountGroups()
+        let groups = try await AccountGroupSQL.fetchAccountGroups(in: database)
         #expect(groups.map(\.id) == ["cash"])
         #expect(groups.first?.name == "Cash")
         #expect(groups.first?.sortOrder == 16_384)
@@ -41,10 +43,11 @@ extension LocalFirstActualStoreTests {
         await #expect(
             throws: LocalFirstError.refusedChange("An account group named Cash already exists.")
         ) {
-            _ = try await database.createAccountGroupMessages(
+            _ = try await AccountGroupSQL.createAccountGroupMessages(
                 groupID: "cash-2",
                 name: "cash",
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
     }
@@ -52,25 +55,28 @@ extension LocalFirstActualStoreTests {
     @Test func createAccountGroupReusesATombstonedNameWithANewID() async throws {
         let database = try makeWritableAccountGroupDatabase()
         var builder = LocalFirstSyncMessageBuilder()
-        let created = try await database.createAccountGroupMessages(
+        let created = try await AccountGroupSQL.createAccountGroupMessages(
             groupID: "cash",
             name: "Cash",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(created)
-        let deleted = try await database.deleteAccountGroupMessages(
+        let deleted = try await AccountGroupSQL.deleteAccountGroupMessages(
             groupID: "cash",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(deleted)
 
-        let recreated = try await database.createAccountGroupMessages(
+        let recreated = try await AccountGroupSQL.createAccountGroupMessages(
             groupID: "cash-new",
             name: "Cash",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(recreated)
-        let groups = try await database.fetchAccountGroups()
+        let groups = try await AccountGroupSQL.fetchAccountGroups(in: database)
         #expect(groups.map(\.id) == ["cash-new"])
     }
 
@@ -80,56 +86,62 @@ extension LocalFirstActualStoreTests {
         )
         var builder = LocalFirstSyncMessageBuilder()
         _ = try await database.commitLocalSyncMessagesAndEnqueue(
-            try await database.createAccountGroupMessages(groupID: "cash", name: "Cash", builder: &builder)
-            + (try await database.createAccountGroupMessages(groupID: "credit", name: "Credit", builder: &builder))
+            try await AccountGroupSQL.createAccountGroupMessages(groupID: "cash", name: "Cash", builder: &builder, in: database)
+            + (try await AccountGroupSQL.createAccountGroupMessages(groupID: "credit", name: "Credit", builder: &builder, in: database))
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(
-            try await database.moveAccountToGroupMessages(
+            try await AccountGroupSQL.moveAccountToGroupMessages(
                 accountID: "checking",
                 groupID: "cash",
-                builder: &builder
+                builder: &builder,
+                in: database
             )
-            + (try await database.moveAccountToGroupMessages(
+            + (try await AccountGroupSQL.moveAccountToGroupMessages(
                 accountID: "savings",
                 groupID: "cash",
-                builder: &builder
+                builder: &builder,
+                in: database
             ))
         )
 
-        let renamed = try await database.renameAccountGroupMessages(
+        let renamed = try await AccountGroupSQL.renameAccountGroupMessages(
             groupID: "cash",
             name: "Ready Cash",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(renamed.map(\.column) == ["name"])
         _ = try await database.commitLocalSyncMessagesAndEnqueue(renamed)
 
-        let moved = try await database.moveAccountToGroupMessages(
+        let moved = try await AccountGroupSQL.moveAccountToGroupMessages(
             accountID: "checking",
             groupID: "credit",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(moved.map(\.dataset) == ["accounts"])
         #expect(moved.map(\.column) == ["account_group_id"])
         _ = try await database.commitLocalSyncMessagesAndEnqueue(moved)
 
-        let ungrouped = try await database.moveAccountToGroupMessages(
+        let ungrouped = try await AccountGroupSQL.moveAccountToGroupMessages(
             accountID: "checking",
             groupID: nil,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(ungrouped.first?.serializedValue == LocalFirstSyncValue.null.serialized)
         _ = try await database.commitLocalSyncMessagesAndEnqueue(ungrouped)
 
-        let deleted = try await database.deleteAccountGroupMessages(
+        let deleted = try await AccountGroupSQL.deleteAccountGroupMessages(
             groupID: "credit",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitLocalSyncMessagesAndEnqueue(deleted)
 
-        let groups = try await database.fetchAccountGroups()
+        let groups = try await AccountGroupSQL.fetchAccountGroups(in: database)
         let accounts = Dictionary(
-            uniqueKeysWithValues: try await database.fetchAccounts().map { ($0.id, $0) }
+            uniqueKeysWithValues: try await AccountSQL.fetchAccounts(in: database).map { ($0.id, $0) }
         )
         #expect(groups.map(\.id) == ["cash"])
         #expect(groups.first?.name == "Ready Cash")
@@ -142,20 +154,21 @@ extension LocalFirstActualStoreTests {
         var builder = LocalFirstSyncMessageBuilder()
         for (id, name) in [("a", "A"), ("b", "B"), ("c", "C")] {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(
-                try await database.createAccountGroupMessages(groupID: id, name: name, builder: &builder)
+                try await AccountGroupSQL.createAccountGroupMessages(groupID: id, name: name, builder: &builder, in: database)
             )
         }
 
-        let moved = try await database.moveAccountGroupMessages(
+        let moved = try await AccountGroupSQL.moveAccountGroupMessages(
             groupID: "c",
             beforeGroupID: "a",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(moved.allSatisfy { $0.dataset == "account_groups" && $0.column == "sort_order" })
         _ = try await database.commitLocalSyncMessagesAndEnqueue(moved)
 
-        #expect(try await database.fetchAccountGroups().map(\.id) == ["c", "a", "b"])
-        #expect(try await database.fetchAccountGroups().first?.sortOrder == 8_192)
+        #expect(try await AccountGroupSQL.fetchAccountGroups(in: database).map(\.id) == ["c", "a", "b"])
+        #expect(try await AccountGroupSQL.fetchAccountGroups(in: database).first?.sortOrder == 8_192)
     }
 
     @Test func storeCreatesAccountGroupWhenMigrationIsPresent() async throws {

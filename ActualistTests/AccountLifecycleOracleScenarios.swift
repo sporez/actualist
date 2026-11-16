@@ -335,35 +335,39 @@ enum AccountLifecycleScenarios {
 
 extension AccountLifecycleReplayBudget {
     func rename(_ accountID: String, from current: String, to newName: String) async throws {
-        _ = try await database.commitAccountLifecycleMutation(
+        _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .rename(AccountRenameCommand(accountID: accountID, expectedCurrentName: current, newName: newName)),
-            now: AccountLifecycleScenarios.now
+            now: AccountLifecycleScenarios.now,
+            in: database
         )
     }
 
     func reopen(_ accountID: String) async throws {
-        _ = try await database.commitAccountLifecycleMutation(
+        _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleMutation(
             .reopen(AccountReopenCommand(accountID: accountID, expectedClosed: true)),
-            now: AccountLifecycleScenarios.now
+            now: AccountLifecycleScenarios.now,
+            in: database
         )
     }
 
     /// Reviews first, as the close sheet does. A blocked review is not committed.
     func close(_ accountID: String, destination: String?, category: String? = nil) async throws {
-        let review = try await database.accountLifecycleReview(
+        let review = try await AccountLifecycleReviewSQL.accountLifecycleReview(
             request: AccountLifecycleReviewRequest(
                 budgetID: Self.budgetID,
                 accountID: accountID,
                 requestedAction: .close(destinationAccountID: destination, categoryID: category)
             ),
-            localDay: AccountLifecycleScenarios.localDay
+            localDay: AccountLifecycleScenarios.localDay,
+            in: database
         )
         guard review.blockers.isEmpty else { return }
-        _ = try await database.commitAccountLifecycleReview(
+        _ = try await AccountLifecycleCommitSQL.commitAccountLifecycleReview(
             review,
             now: AccountLifecycleScenarios.now,
             localDay: { AccountLifecycleScenarios.localDay },
-            transferIDs: AccountLifecycleScenarios.transferIDs
+            transferIDs: AccountLifecycleScenarios.transferIDs,
+            in: database
         )
     }
 

@@ -436,7 +436,7 @@ extension LocalFirstActualStore {
         // Server SimpleFIN only; the Phase 5 device key is never read here.
         // The batched planner's provider resolution enforces configured server
         // support once for the entire run.
-        let openAccountIDs = try await database.fetchAccounts()
+        let openAccountIDs = try await AccountSQL.fetchAccounts(in: database)
             .filter { !$0.closed }
             .map(\.id)
         let linked = try await database.bankSyncLinkedAccounts()
@@ -554,7 +554,7 @@ extension LocalFirstActualStore {
 
     func bankSyncAccountRows(budgetID: String) async throws -> [BankSyncAccountStatusRow] {
         let database = try requireDatabase(for: budgetID)
-        let accounts = try await database.fetchAccounts().filter { !$0.closed }
+        let accounts = try await AccountSQL.fetchAccounts(in: database).filter { !$0.closed }
         let linked = try await database.bankSyncLinkedAccounts()
         let linkedByID = Dictionary(uniqueKeysWithValues: linked.map { ($0.id, $0) })
         return accounts.map { account in
