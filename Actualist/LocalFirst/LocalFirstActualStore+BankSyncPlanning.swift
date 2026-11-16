@@ -50,7 +50,7 @@ extension LocalFirstActualStore {
         }
 
         let currency = try await bankSyncCurrency(database: database, budgetID: budgetID)
-        let payees = try await database.fetchPayees()
+        let payees = try await PayeeSQL.fetchPayees(in: database)
         let categories = try await database.fetchCategories()
         let payeeIDsByName = payees.reduce(into: [String: String]()) { result, payee in
             guard payee.transferAccount == nil, let id = payee.id else { return }

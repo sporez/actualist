@@ -55,7 +55,7 @@ enum BankSyncOracleReplay {
         let store = LocalFirstActualStore(
             keychain: KeychainStore(service: UUID().uuidString, account: "token", backend: FakeKeychainBackend())
         )
-        let payees = try await database.fetchPayees(orderedForPicker: false)
+        let payees = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
         let categories = try await database.fetchCategories()
         let transferPayeeIDs = Set(payees.compactMap { $0.transferAccount?.isEmpty == false ? $0.id : nil })
         let accountIsOffBudget = try await database.accountIsOffBudget(accountID)

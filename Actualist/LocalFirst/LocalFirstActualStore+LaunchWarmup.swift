@@ -15,7 +15,7 @@ extension LocalFirstActualStore {
             }
             guard owns(database, budgetID: budgetID) else { return }
             await LaunchSignpost.measure(LaunchStage.payeeWarmup) {
-                let snapshot = try? await database.fetchPayeeManagementSnapshot()
+                let snapshot = try? await PayeeManagementSQL.fetchPayeeManagementSnapshot(in: database)
                 guard owns(database, budgetID: budgetID), let snapshot else { return }
                 payeesByBudget[budgetID] = snapshot
                     .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)

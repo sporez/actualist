@@ -88,12 +88,12 @@ extension LocalFirstActualStore {
             }
             // A payee another writer created with this name since resolution
             // is reused instead of creating a duplicate (5.2b).
-            let settled = try database.settlePayeeCreation(
-                resolvedPayeeID: payeeResolution.payeeID, creation: creation, db: db
+            let settled = try PayeeSQL.settlePayeeCreation(
+                resolvedPayeeID: payeeResolution.payeeID, creation: creation, in: database, db: db
             )
             let settledTransactionMessages: [ActualSyncDecodedMessage]
             if let built = payeeResolution.payeeID, let final = settled.payeeID {
-                settledTransactionMessages = BudgetDatabase.retargetingPayee(
+                settledTransactionMessages = PayeeSQL.retargetingPayee(
                     transactionMessages, from: built, to: final
                 )
             } else {
@@ -183,8 +183,8 @@ extension LocalFirstActualStore {
             )
         ) { database, db in
             var builder = payeeBuilder
-            let settled = try database.settlePayeeCreation(
-                resolvedPayeeID: payeeResolution.payeeID, creation: creation, db: db
+            let settled = try PayeeSQL.settlePayeeCreation(
+                resolvedPayeeID: payeeResolution.payeeID, creation: creation, in: database, db: db
             )
             let resolvedPayeeID = settled.payeeID
             let createdPayeeID = settled.createdPayeeID

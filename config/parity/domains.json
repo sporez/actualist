@@ -462,9 +462,8 @@
         "PayeeOracleReplayTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+Payees.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+PayeeCreationPrecondition.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+ReviewPayeeNames.swift",
+        "Actualist/LocalFirst/Database/PayeeSQL.swift",
+        "Actualist/LocalFirst/Database/PayeeManagementSQL.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+Mutations.swift",
         "Actualist/Repositories/PayeeRepository.swift"
       ],

@@ -146,8 +146,9 @@ extension BudgetDatabase {
             ?? allSnapshotsByID.values.filter { $0.reconciled == true }.map(\.id).sorted()
         let affectedResources = plan?.affectedResources
             ?? transactionMergeAffectedResources(Array(allSnapshotsByID.values))
-        let payeeNames = try reviewPayeeNames(
+        let payeeNames = try PayeeSQL.reviewPayeeNames(
             payeeIDs: allSnapshotsByID.values.map(\.payeeID),
+            in: self,
             db: db
         )
         let keptRow = plan.flatMap { plan in

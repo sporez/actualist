@@ -21,7 +21,7 @@ extension LocalFirstActualStoreTests {
         let accountDisplay = try #require(accounts.first { $0.account.id == account.id })
         let database = try #require(store.database)
         let transferPayee = try #require(
-            try await database.fetchPayees().first { $0.transferAccount == account.id }
+            try await PayeeSQL.fetchPayees(in: database).first { $0.transferAccount == account.id }
         )
 
         #expect(!account.offbudget)

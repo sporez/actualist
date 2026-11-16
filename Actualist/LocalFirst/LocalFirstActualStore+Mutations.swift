@@ -7,12 +7,13 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
         let payeeID = UUID().uuidString
-        let messages = try await database.createPayeeMessages(
+        let messages = try await PayeeManagementSQL.createPayeeMessages(
             name: name,
             payeeID: payeeID,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
-        let undo = try await database.payeeUndoMessagesForCreate(payeeID: payeeID, builder: &builder)
+        let undo = try PayeeManagementSQL.payeeUndoMessagesForCreate(payeeID: payeeID, builder: &builder)
 
         _ = try await database.commitUserAction(
             messages,
@@ -32,15 +33,16 @@ extension LocalFirstActualStore {
     ) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.renamePayeeMessages(
+        let messages = try await PayeeManagementSQL.renamePayeeMessages(
             payeeID: payeeID,
             name: name,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         guard !messages.isEmpty else {
             return
         }
-        let undo = try await database.payeeUndoMessagesForRename(payeeID: payeeID, builder: &builder)
+        let undo = try await PayeeManagementSQL.payeeUndoMessagesForRename(payeeID: payeeID, builder: &builder, in: database)
 
         _ = try await database.commitUserAction(
             messages,
@@ -66,16 +68,18 @@ extension LocalFirstActualStore {
         // review are retargeted too, instead of left pointing at a tombstone.
         let undo = try await database.commitUserActionPlan(source: .ui) { database, db in
             var builder = LocalFirstSyncMessageBuilder()
-            let messages = try database.mergePayeeMessages(
-                in: db,
+            let messages = try PayeeManagementSQL.mergePayeeMessages(
                 sourcePayeeIDs: sourcePayeeIDs,
                 targetPayeeID: targetPayeeID,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
-            let undo = try database.payeeUndoMessagesForMerge(
-                in: db,
+            let undo = try PayeeManagementSQL.payeeUndoMessagesForMerge(
                 sourcePayeeIDs: sourcePayeeIDs,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
             return UserActionPlan(
                 drafts: messages,
@@ -106,12 +110,13 @@ extension LocalFirstActualStore {
             var messages: [ActualSyncDecodedMessage] = []
             var undo: [ActualSyncDecodedMessage] = []
             for payeeID in payeeIDs.sorted() {
-                messages.append(contentsOf: try database.deletePayeeMessages(
-                    in: db,
+                messages.append(contentsOf: try PayeeManagementSQL.deletePayeeMessages(
                     payeeID: payeeID,
-                    builder: &builder
+                    builder: &builder,
+                    in: database,
+                    db: db
                 ))
-                undo.append(contentsOf: try database.payeeUndoMessagesForDelete(
+                undo.append(contentsOf: try PayeeManagementSQL.payeeUndoMessagesForDelete(
                     payeeID: payeeID,
                     builder: &builder
                 ))
@@ -134,9 +139,10 @@ extension LocalFirstActualStore {
     ) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let mutation = try await database.updatePayeeManagementMessages(
+        let mutation = try await PayeeManagementSQL.updatePayeeManagementMessages(
             updates: updates,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         guard !mutation.messages.isEmpty else { return }
         _ = try await database.commitUserAction(
@@ -153,9 +159,10 @@ extension LocalFirstActualStore {
     func setGlobalCategoryLearningAndRefresh(budgetID: String, enabled: Bool) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let mutation = try await database.setGlobalCategoryLearningMessages(
+        let mutation = try await PayeeManagementSQL.setGlobalCategoryLearningMessages(
             enabled: enabled,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         guard !mutation.messages.isEmpty else { return }
         _ = try await database.commitUserAction(

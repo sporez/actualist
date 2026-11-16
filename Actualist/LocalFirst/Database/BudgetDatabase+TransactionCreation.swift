@@ -31,7 +31,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing payee name")
         }
 
-        if let existing = try (knownPayees ?? fetchPayees()).first(where: {
+        if let existing = try (knownPayees ?? PayeeSQL.fetchPayees(in: self)).first(where: {
             $0.transferAccount == nil && $0.name.caseInsensitiveCompare(trimmedName) == .orderedSame
         }), let id = existing.id, !id.isEmpty {
             return (id, [])

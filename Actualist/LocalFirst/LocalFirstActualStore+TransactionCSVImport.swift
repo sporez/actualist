@@ -26,7 +26,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         }
         let rows = try await TransactionCSVImportPipeline.rows(from: request.data, settings: settings)
 
-        let payees = try await database.fetchPayees(orderedForPicker: false)
+        let payees = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
         let categories = try await database.importCategoryList()
         let accountIsOffBudget = try await database.accountIsOffBudget(request.accountID)
         let options = ImportReconcileOptions.csv

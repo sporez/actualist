@@ -132,8 +132,9 @@ struct NewBudgetStarterSchemaTests {
         #expect(created.kind == .created)
 
         var preferenceBuilder = LocalFirstSyncMessageBuilder()
-        let preference = try await database.setGlobalCategoryLearningMessages(
-            enabled: false, builder: &preferenceBuilder
+        let preference = try await PayeeManagementSQL.setGlobalCategoryLearningMessages(
+            enabled: false, builder: &preferenceBuilder,
+            in: database
         )
         _ = try await database.commitUserAction(
             preference.messages,

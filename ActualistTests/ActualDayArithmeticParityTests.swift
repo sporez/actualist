@@ -48,9 +48,9 @@ struct ActualDayArithmeticParityTests {
     }
 
     @Test func recentPayeeCutoffIs12WeeksBeforeTheLocalDay() {
-        #expect(BudgetDatabase.recentPayeeCutoff(now: Self.lateUTC, timeZone: .gmt) == "2025-12-21")
-        #expect(BudgetDatabase.recentPayeeCutoff(now: Self.lateUTC, timeZone: Self.east) == "2025-12-22")
-        #expect(BudgetDatabase.recentPayeeCutoff(now: Self.earlyUTC, timeZone: Self.west) == "2025-12-20")
+        #expect(PayeeSQL.recentPayeeCutoff(now: Self.lateUTC, timeZone: .gmt) == "2025-12-21")
+        #expect(PayeeSQL.recentPayeeCutoff(now: Self.lateUTC, timeZone: Self.east) == "2025-12-22")
+        #expect(PayeeSQL.recentPayeeCutoff(now: Self.earlyUTC, timeZone: Self.west) == "2025-12-20")
     }
 
     /// Verbatim copy of the two deleted schedule posting date builders

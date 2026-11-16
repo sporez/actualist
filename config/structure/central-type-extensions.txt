@@ -39,14 +39,11 @@ Actualist/LocalFirst/Database/BudgetDatabase+MessagesTimestampIndex.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ModeIdentity.swift
 Actualist/LocalFirst/Database/BudgetDatabase+NewBudgetSeed.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Notes.swift
-Actualist/LocalFirst/Database/BudgetDatabase+PayeeCreationPrecondition.swift
-Actualist/LocalFirst/Database/BudgetDatabase+Payees.swift
 Actualist/LocalFirst/Database/BudgetDatabase+PendingNewTransactions.swift
 Actualist/LocalFirst/Database/BudgetDatabase+PortableExport.swift
 Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ReconciledMutationGuard.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Reconciliation.swift
-Actualist/LocalFirst/Database/BudgetDatabase+ReviewPayeeNames.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ReviewWatermark.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Schema.swift
 Actualist/LocalFirst/Database/BudgetDatabase+SchemaValidation.swift

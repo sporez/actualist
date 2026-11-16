@@ -68,7 +68,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let snapshot = try await database.fetchPayeeManagementSnapshot()
+        let snapshot = try await PayeeManagementSQL.fetchPayeeManagementSnapshot(in: database)
         let coffee = try #require(snapshot.payees.first { $0.id == "coffee" })
 
         #expect(coffee.transactionCount == 1)

@@ -279,7 +279,7 @@ extension LocalFirstActualStore {
         if let cachedID = resolvedPayeeIDs[key] {
             return (cachedID, [])
         }
-        if knownPayees == nil { knownPayees = try await database.fetchPayees() }
+        if knownPayees == nil { knownPayees = try await PayeeSQL.fetchPayees(in: database) }
         let resolution = try await database.resolveOrCreatePayeeMessages(
             selectedPayeeID: nil,
             payeeName: name,

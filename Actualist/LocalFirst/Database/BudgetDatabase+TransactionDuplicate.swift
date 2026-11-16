@@ -147,8 +147,9 @@ extension BudgetDatabase {
 
         let groups = try transactionDuplicateReviewGroups(
             duplicatePlan,
-            payeeNames: try reviewPayeeNames(
+            payeeNames: try PayeeSQL.reviewPayeeNames(
                 payeeIDs: duplicatePlan.rowChanges.map(\.duplicate.payeeID),
+                in: self,
                 db: db
             )
         )

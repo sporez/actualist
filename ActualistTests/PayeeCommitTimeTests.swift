@@ -37,7 +37,7 @@ extension LocalFirstActualStoreTests {
         try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "late-use")
 
         let database = try #require(store.database)
-        let live = try await database.fetchPayeeManagementSnapshot().payees
+        let live = try await PayeeManagementSQL.fetchPayeeManagementSnapshot(in: database).payees
         #expect(!live.contains { $0.id == "late-use" })
     }
 

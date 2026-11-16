@@ -658,7 +658,7 @@ extension LocalFirstActualStore {
         reports.invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-        let payees = try await database.fetchPayeeManagementSnapshot()
+        let payees = try await PayeeManagementSQL.fetchPayeeManagementSnapshot(in: database)
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         payeesByBudget[budgetID] = payees
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)

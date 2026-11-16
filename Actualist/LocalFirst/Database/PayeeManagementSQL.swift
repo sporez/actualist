@@ -1,29 +1,30 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func fetchPayeeManagementSnapshot() throws -> PayeeManagementSnapshot {
-        try queue.read { db in
-            guard try tableExists("payees", db: db) else {
+enum PayeeManagementSQL {
+    static func fetchPayeeManagementSnapshot(in database: isolated BudgetDatabase) throws -> PayeeManagementSnapshot {
+        try database.queue.read { db in
+            guard try database.tableExists("payees", db: db) else {
                 return .empty
             }
-            let payeeColumns = try columnSet(for: "payees", db: db)
+            let payeeColumns = try database.columnSet(for: "payees", db: db)
             guard payeeColumns.contains("id"), payeeColumns.contains("name") else {
                 return .empty
             }
-            return try fetchPayeeManagementSnapshot(in: db)
+            return try fetchPayeeManagementSnapshot(in: database, db: db)
         }
     }
 
-    func createPayeeMessages(
+    static func createPayeeMessages(
         name: String,
         payeeID: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        let trimmedName = try Self.validatedName(name, label: "payee")
-        return try queue.read { db in
-            _ = try requiredColumns(table: "payees", required: ["name"], db: db)
-            try rejectPickerDuplicatePayeeName(name, db: db)
+        let trimmedName = try BudgetDatabase.validatedName(name, label: "payee")
+        return try database.queue.read { db in
+            _ = try database.requiredColumns(table: "payees", required: ["name"], db: db)
+            try rejectPickerDuplicatePayeeName(name, in: database, db: db)
 
             var messages = [
                 try builder.makeMessage(
@@ -33,7 +34,7 @@ extension BudgetDatabase {
                     value: .string(trimmedName)
                 )
             ]
-            if let mapping = try usablePayeeMappingColumns(db: db) {
+            if let mapping = try usablePayeeMappingColumns(in: database, db: db) {
                 messages.append(
                     try builder.makeMessage(
                         dataset: "payee_mapping",
@@ -47,18 +48,19 @@ extension BudgetDatabase {
         }
     }
 
-    func renamePayeeMessages(
+    static func renamePayeeMessages(
         payeeID: String,
         name: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        let trimmedName = try Self.validatedName(name, label: "payee")
-        return try queue.read { db in
-            let payee = try requiredRegularPayee(payeeID, db: db)
+        let trimmedName = try BudgetDatabase.validatedName(name, label: "payee")
+        return try database.queue.read { db in
+            let payee = try requiredRegularPayee(payeeID, in: database, db: db)
             guard payee.name != trimmedName else {
                 return []
             }
-            try rejectDuplicatePayeeName(trimmedName, excluding: payeeID, db: db)
+            try rejectDuplicatePayeeName(trimmedName, excluding: payeeID, in: database, db: db)
             return [
                 try builder.makeMessage(
                     dataset: "payees",
@@ -72,25 +74,26 @@ extension BudgetDatabase {
 
     /// Runs inside the caller's write transaction (`commitUserActionPlan`), so
     /// the mapping rows it retargets are the ones that exist at commit.
-    func mergePayeeMessages(
-        in db: Database,
+    static func mergePayeeMessages(
         sourcePayeeIDs: Set<String>,
         targetPayeeID: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [ActualSyncDecodedMessage] {
         guard !sourcePayeeIDs.isEmpty, !sourcePayeeIDs.contains(targetPayeeID) else {
             throw LocalFirstError.refusedChange("Choose at least one other payee to merge.")
         }
-        _ = try requiredColumns(
+        _ = try database.requiredColumns(
             table: "payees",
             required: ["name", "tombstone"],
             db: db
         )
-        _ = try requiredRegularPayee(targetPayeeID, db: db)
+        _ = try requiredRegularPayee(targetPayeeID, in: database, db: db)
         for sourceID in sourcePayeeIDs {
-            _ = try requiredRegularPayee(sourceID, db: db)
+            _ = try requiredRegularPayee(sourceID, in: database, db: db)
         }
-        guard let mapping = try usablePayeeMappingColumns(db: db) else {
+        guard let mapping = try usablePayeeMappingColumns(in: database, db: db) else {
             throw LocalFirstError.refusedChange("This budget does not support merging payees.")
         }
 
@@ -98,9 +101,9 @@ extension BudgetDatabase {
         let mappedRows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(quotedIdentifier(mapping.id)) AS id
+                SELECT \(database.quotedIdentifier(mapping.id)) AS id
                 FROM payee_mapping
-                WHERE \(quotedIdentifier(mapping.target)) IN (\(placeholders))
+                WHERE \(database.quotedIdentifier(mapping.target)) IN (\(placeholders))
                 """,
             arguments: StatementArguments(Array(sourcePayeeIDs))
         )
@@ -126,37 +129,39 @@ extension BudgetDatabase {
         return messages
     }
 
-    func deletePayeeMessages(
-        in db: Database,
+    static func deletePayeeMessages(
         payeeID: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [ActualSyncDecodedMessage] {
-        _ = try requiredColumns(
+        _ = try database.requiredColumns(
             table: "payees",
             required: ["name", "tombstone"],
             db: db
         )
-        _ = try requiredRegularPayee(payeeID, db: db)
+        _ = try requiredRegularPayee(payeeID, in: database, db: db)
 
         return [
             try builder.tombstone(dataset: "payees", row: payeeID)
         ]
     }
 
-    func updatePayeeManagementMessages(
+    static func updatePayeeManagementMessages(
         updates: [PayeeManagementUpdate],
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> (messages: [ActualSyncDecodedMessage], undo: [ActualSyncDecodedMessage]) {
-        try queue.read { db in
-            let columns = try columnSet(for: "payees", db: db)
+        try database.queue.read { db in
+            let columns = try database.columnSet(for: "payees", db: db)
             var messages: [ActualSyncDecodedMessage] = []
             var undo: [ActualSyncDecodedMessage] = []
 
             for update in updates {
-                _ = try requiredRegularPayee(update.payeeID, db: db)
+                _ = try requiredRegularPayee(update.payeeID, in: database, db: db)
                 guard let row = try Row.fetchOne(
                     db,
-                    sql: "SELECT * FROM payees WHERE id = ? AND \(predicateForLiveRows(columns: columns))",
+                    sql: "SELECT * FROM payees WHERE id = ? AND \(database.predicateForLiveRows(columns: columns))",
                     arguments: [update.payeeID]
                 ) else {
                     throw LocalFirstError.invalidLocalWrite("payee no longer exists")
@@ -196,23 +201,24 @@ extension BudgetDatabase {
         }
     }
 
-    func setGlobalCategoryLearningMessages(
+    static func setGlobalCategoryLearningMessages(
         enabled: Bool,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> (messages: [ActualSyncDecodedMessage], undo: [ActualSyncDecodedMessage]) {
-        try queue.read { db in
+        try database.queue.read { db in
             // The effective value treats anything but "false" as on, so a
             // stored non-canonical value is not rewritten.
             // An unavailable table falls through so `setMessages` throws.
-            if try SyncedPreferences.availability(in: self, db: db) != .unavailable,
-               try (SyncedPreferences.value(.learnCategories, in: self, db: db).map { $0 != "false" } ?? true) == enabled {
+            if try SyncedPreferences.availability(in: database, db: db) != .unavailable,
+               try (SyncedPreferences.value(.learnCategories, in: database, db: db).map { $0 != "false" } ?? true) == enabled {
                 return ([], [])
             }
             let result = try SyncedPreferences.setMessages(
                 .learnCategories,
                 to: enabled ? "true" : "false",
                 builder: &builder,
-                in: self,
+                in: database,
                 db: db
             )
             let oldValue = result.previousValue.map { $0 != "false" } ?? true
@@ -223,44 +229,46 @@ extension BudgetDatabase {
         }
     }
 
-    func payeeUndoMessagesForRename(
+    static func payeeUndoMessagesForRename(
         payeeID: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            let payee = try requiredRegularPayee(payeeID, db: db)
+        try database.queue.read { db in
+            let payee = try requiredRegularPayee(payeeID, in: database, db: db)
             return [try builder.makeMessage(
                 dataset: "payees", row: payeeID, column: "name", value: .string(payee.name)
             )]
         }
     }
 
-    func payeeUndoMessagesForDelete(
+    static func payeeUndoMessagesForDelete(
         payeeID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         [try builder.revive(dataset: "payees", row: payeeID)]
     }
 
-    func payeeUndoMessagesForCreate(
+    static func payeeUndoMessagesForCreate(
         payeeID: String,
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         [try builder.tombstone(dataset: "payees", row: payeeID)]
     }
 
-    func payeeUndoMessagesForMerge(
-        in db: Database,
+    static func payeeUndoMessagesForMerge(
         sourcePayeeIDs: Set<String>,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [ActualSyncDecodedMessage] {
-        guard let mapping = try usablePayeeMappingColumns(db: db) else {
+        guard let mapping = try usablePayeeMappingColumns(in: database, db: db) else {
             throw LocalFirstError.refusedChange("This budget does not support merging payees.")
         }
         let placeholders = Array(repeating: "?", count: sourcePayeeIDs.count).joined(separator: ",")
         let rows = try Row.fetchAll(
             db,
-            sql: "SELECT \(quotedIdentifier(mapping.id)) AS id, \(quotedIdentifier(mapping.target)) AS target_id FROM payee_mapping WHERE \(quotedIdentifier(mapping.target)) IN (\(placeholders)) OR \(quotedIdentifier(mapping.id)) IN (\(placeholders))",
+            sql: "SELECT \(database.quotedIdentifier(mapping.id)) AS id, \(database.quotedIdentifier(mapping.target)) AS target_id FROM payee_mapping WHERE \(database.quotedIdentifier(mapping.target)) IN (\(placeholders)) OR \(database.quotedIdentifier(mapping.id)) IN (\(placeholders))",
             arguments: StatementArguments(Array(sourcePayeeIDs) + Array(sourcePayeeIDs))
         )
         var previousTargets = Dictionary(uniqueKeysWithValues: rows.compactMap { row -> (String, String)? in
@@ -281,9 +289,9 @@ extension BudgetDatabase {
         return messages
     }
 
-    private func fetchPayeeManagementSnapshot(in db: Database) throws -> PayeeManagementSnapshot {
+    private static func fetchPayeeManagementSnapshot(in database: isolated BudgetDatabase, db: Database) throws -> PayeeManagementSnapshot {
         // This helper is used only while already inside a queue read transaction.
-        let payeeColumns = try columnSet(for: "payees", db: db)
+        let payeeColumns = try database.columnSet(for: "payees", db: db)
         let transferColumn = payeeColumns.contains("transfer_acct") ? "transfer_acct" : nil
         let favoriteColumn = payeeColumns.contains("favorite") ? "favorite" : nil
         let learnCategoriesColumn = payeeColumns.contains("learn_categories") ? "learn_categories" : nil
@@ -291,18 +299,18 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT id, name,
-                       \(transferColumn.map { quotedIdentifier($0) } ?? "NULL") AS transfer_acct,
-                       \(favoriteColumn.map { quotedIdentifier($0) } ?? "0") AS favorite,
-                       \(learnCategoriesColumn.map { quotedIdentifier($0) } ?? "1") AS learn_categories
+                       \(transferColumn.map { database.quotedIdentifier($0) } ?? "NULL") AS transfer_acct,
+                       \(favoriteColumn.map { database.quotedIdentifier($0) } ?? "0") AS favorite,
+                       \(learnCategoriesColumn.map { database.quotedIdentifier($0) } ?? "1") AS learn_categories
                 FROM payees
-                WHERE \(predicateForLiveRows(columns: payeeColumns))
+                WHERE \(database.predicateForLiveRows(columns: payeeColumns))
                 """
         )
-        let accountNames = try fetchPayeeAccountNames(db: db)
-        let usageCounts = try fetchPayeeTransactionCounts(db: db)
+        let accountNames = try fetchPayeeAccountNames(in: database, db: db)
+        let usageCounts = try fetchPayeeTransactionCounts(in: database, db: db)
         let livePayeeIDs = Set(rows.compactMap { $0["id"] as String? })
-        let ruleReferences = try fetchPayeeRuleReferences(payeeIDs: livePayeeIDs, db: db)
-        let conditionReferenced = try fetchConditionReferencedPayeeIDs(payeeIDs: livePayeeIDs, db: db)
+        let ruleReferences = try fetchPayeeRuleReferences(payeeIDs: livePayeeIDs, in: database, db: db)
+        let conditionReferenced = try fetchConditionReferencedPayeeIDs(payeeIDs: livePayeeIDs, in: database, db: db)
         let canTombstone = payeeColumns.contains("tombstone")
         let payees = rows.compactMap { row -> ManagedPayee? in
             guard let id = row["id"] as String?, !id.isEmpty else { return nil }
@@ -335,12 +343,12 @@ extension BudgetDatabase {
             }
             return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
-        let globalLearningEnabled = try fetchGlobalCategoryLearningEnabled(db: db)
+        let globalLearningEnabled = try fetchGlobalCategoryLearningEnabled(in: database, db: db)
         return PayeeManagementSnapshot(
             payees: payees,
             supportsCreate: true,
             supportsRename: true,
-            supportsMerge: (try usablePayeeMappingColumns(db: db)) != nil && canTombstone,
+            supportsMerge: (try usablePayeeMappingColumns(in: database, db: db)) != nil && canTombstone,
             supportsDelete: canTombstone,
             hasUnreadableRuleReferences: ruleReferences.hasUnreadableRules,
             supportsFavorite: favoriteColumn != nil,
@@ -349,23 +357,23 @@ extension BudgetDatabase {
         )
     }
 
-    private func fetchGlobalCategoryLearningEnabled(db: Database) throws -> Bool? {
-        guard try SyncedPreferences.availability(in: self, db: db) != .unavailable else {
+    private static func fetchGlobalCategoryLearningEnabled(in database: isolated BudgetDatabase, db: Database) throws -> Bool? {
+        guard try SyncedPreferences.availability(in: database, db: db) != .unavailable else {
             return nil
         }
-        return try SyncedPreferences.value(.learnCategories, in: self, db: db).map { $0 != "false" } ?? true
+        return try SyncedPreferences.value(.learnCategories, in: database, db: db).map { $0 != "false" } ?? true
     }
 
     /// Actual's payee picker offers "Create payee" only when no non-transfer payee's normalised
     /// name equals the normalised typed text, which is compared untrimmed.
-    private func rejectPickerDuplicatePayeeName(_ typedName: String, db: Database) throws {
-        let columns = try columnSet(for: "payees", db: db)
+    private static func rejectPickerDuplicatePayeeName(_ typedName: String, in database: isolated BudgetDatabase, db: Database) throws {
+        let columns = try database.columnSet(for: "payees", db: db)
         let regularPredicate = columns.contains("transfer_acct") ? "transfer_acct IS NULL" : "1"
         let names = try String.fetchAll(
             db,
             sql: """
                 SELECT name FROM payees
-                WHERE \(predicateForLiveRows(columns: columns)) AND \(regularPredicate)
+                WHERE \(database.predicateForLiveRows(columns: columns)) AND \(regularPredicate)
                 """
         )
         let typed = typedName.actualNormalised
@@ -380,16 +388,17 @@ extension BudgetDatabase {
     /// `description` with a string value, as Actual's orphaned-payee query reads it.
     /// Completed-schedule rules count; actions and array values do not. Unreadable rule JSON
     /// counts as referencing every payee.
-    private func fetchConditionReferencedPayeeIDs(
+    private static func fetchConditionReferencedPayeeIDs(
         payeeIDs: Set<String>,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> Set<String> {
-        guard try tableExists("rules", db: db) else { return [] }
-        let columns = try columnSet(for: "rules", db: db)
+        guard try database.tableExists("rules", db: db) else { return [] }
+        let columns = try database.columnSet(for: "rules", db: db)
         guard columns.contains("conditions") else { return [] }
         let rows = try Row.fetchAll(
             db,
-            sql: "SELECT conditions FROM rules WHERE \(predicateForLiveRows(columns: columns))"
+            sql: "SELECT conditions FROM rules WHERE \(database.predicateForLiveRows(columns: columns))"
         )
         var values = Set<String>()
         for row in rows {
@@ -407,12 +416,12 @@ extension BudgetDatabase {
         }
         guard !values.isEmpty else { return [] }
         var targets = Dictionary(uniqueKeysWithValues: payeeIDs.map { ($0, $0) })
-        if let mapping = try usablePayeeMappingColumns(db: db) {
+        if let mapping = try usablePayeeMappingColumns(in: database, db: db) {
             let mappingRows = try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT \(quotedIdentifier(mapping.id)) AS id,
-                           \(quotedIdentifier(mapping.target)) AS target_id
+                    SELECT \(database.quotedIdentifier(mapping.id)) AS id,
+                           \(database.quotedIdentifier(mapping.target)) AS target_id
                     FROM payee_mapping
                     """
             )
@@ -426,12 +435,13 @@ extension BudgetDatabase {
         return Set(payeeIDs.filter { values.contains(targets[$0] ?? $0) })
     }
 
-    private func rejectDuplicatePayeeName(
+    private static func rejectDuplicatePayeeName(
         _ name: String,
         excluding payeeID: String?,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
-        let columns = try columnSet(for: "payees", db: db)
+        let columns = try database.columnSet(for: "payees", db: db)
         var arguments: StatementArguments = [name]
         var exclusion = ""
         if let payeeID {
@@ -445,7 +455,7 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT id FROM payees
-                WHERE \(predicateForLiveRows(columns: columns))
+                WHERE \(database.predicateForLiveRows(columns: columns))
                   AND \(regularPredicate)
                   AND name = ? COLLATE NOCASE
                   \(exclusion)
@@ -460,18 +470,19 @@ extension BudgetDatabase {
         }
     }
 
-    private func requiredRegularPayee(
+    private static func requiredRegularPayee(
         _ payeeID: String,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> (name: String, transferAccountID: String?) {
-        let columns = try columnSet(for: "payees", db: db)
+        let columns = try database.columnSet(for: "payees", db: db)
         let transfer = columns.contains("transfer_acct") ? "transfer_acct" : nil
         guard let row = try Row.fetchOne(
             db,
             sql: """
-                SELECT name, \(transfer.map { quotedIdentifier($0) } ?? "NULL") AS transfer_acct
+                SELECT name, \(transfer.map { database.quotedIdentifier($0) } ?? "NULL") AS transfer_acct
                 FROM payees
-                WHERE id = ? AND \(predicateForLiveRows(columns: columns))
+                WHERE id = ? AND \(database.predicateForLiveRows(columns: columns))
                 """,
             arguments: [payeeID]
         ) else {
@@ -484,11 +495,11 @@ extension BudgetDatabase {
         return (row["name"] ?? "", transferAccountID)
     }
 
-    private func usablePayeeMappingColumns(db: Database) throws -> (id: String, target: String)? {
-        guard try tableExists("payee_mapping", db: db) else {
+    private static func usablePayeeMappingColumns(in database: isolated BudgetDatabase, db: Database) throws -> (id: String, target: String)? {
+        guard try database.tableExists("payee_mapping", db: db) else {
             return nil
         }
-        let columns = try columnSet(for: "payee_mapping", db: db)
+        let columns = try database.columnSet(for: "payee_mapping", db: db)
         guard columns.contains("id") else {
             return nil
         }
@@ -501,17 +512,17 @@ extension BudgetDatabase {
         return nil
     }
 
-    private func fetchPayeeAccountNames(db: Database) throws -> [String: String] {
-        guard try tableExists("accounts", db: db) else {
+    private static func fetchPayeeAccountNames(in database: isolated BudgetDatabase, db: Database) throws -> [String: String] {
+        guard try database.tableExists("accounts", db: db) else {
             return [:]
         }
-        let columns = try columnSet(for: "accounts", db: db)
+        let columns = try database.columnSet(for: "accounts", db: db)
         return Dictionary(
             uniqueKeysWithValues: try Row.fetchAll(
                 db,
                 sql: """
                     SELECT id, name FROM accounts
-                    WHERE \(predicateForLiveRows(columns: columns))
+                    WHERE \(database.predicateForLiveRows(columns: columns))
                     """
             ).compactMap { row in
                 guard let id = row["id"] as String? else { return nil }
@@ -520,30 +531,30 @@ extension BudgetDatabase {
         )
     }
 
-    private func fetchPayeeTransactionCounts(db: Database) throws -> [String: Int] {
-        guard try tableExists("transactions", db: db) else {
+    private static func fetchPayeeTransactionCounts(in database: isolated BudgetDatabase, db: Database) throws -> [String: Int] {
+        guard try database.tableExists("transactions", db: db) else {
             return [:]
         }
-        let transactionColumns = try columnSet(for: "transactions", db: db)
+        let transactionColumns = try database.columnSet(for: "transactions", db: db)
         guard let payeeColumn = TransactionRowColumns.payee(in: transactionColumns) else {
             return [:]
         }
-        let liveTransactions = predicateForLiveRows(columns: transactionColumns)
+        let liveTransactions = database.predicateForLiveRows(columns: transactionColumns)
         let liveAliasedTransactions = transactionColumns.contains("tombstone")
             ? "(t.tombstone = 0 OR t.tombstone IS NULL)"
             : "1"
 
-        if let mapping = try usablePayeeMappingColumns(db: db) {
+        if let mapping = try usablePayeeMappingColumns(in: database, db: db) {
             let rows = try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT COALESCE(pm.\(quotedIdentifier(mapping.target)), t.\(quotedIdentifier(payeeColumn))) AS payee_id,
+                    SELECT COALESCE(pm.\(database.quotedIdentifier(mapping.target)), t.\(database.quotedIdentifier(payeeColumn))) AS payee_id,
                            COUNT(*) AS usage_count
                     FROM transactions t
-                    LEFT JOIN payee_mapping pm ON pm.\(quotedIdentifier(mapping.id)) = t.\(quotedIdentifier(payeeColumn))
+                    LEFT JOIN payee_mapping pm ON pm.\(database.quotedIdentifier(mapping.id)) = t.\(database.quotedIdentifier(payeeColumn))
                     WHERE \(liveAliasedTransactions)
-                      AND t.\(quotedIdentifier(payeeColumn)) IS NOT NULL
-                    GROUP BY COALESCE(pm.\(quotedIdentifier(mapping.target)), t.\(quotedIdentifier(payeeColumn)))
+                      AND t.\(database.quotedIdentifier(payeeColumn)) IS NOT NULL
+                    GROUP BY COALESCE(pm.\(database.quotedIdentifier(mapping.target)), t.\(database.quotedIdentifier(payeeColumn)))
                     """
             )
             return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
@@ -555,11 +566,11 @@ extension BudgetDatabase {
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(quotedIdentifier(payeeColumn)) AS payee_id, COUNT(*) AS usage_count
+                SELECT \(database.quotedIdentifier(payeeColumn)) AS payee_id, COUNT(*) AS usage_count
                 FROM transactions
                 WHERE \(liveTransactions)
-                  AND \(quotedIdentifier(payeeColumn)) IS NOT NULL
-                GROUP BY \(quotedIdentifier(payeeColumn))
+                  AND \(database.quotedIdentifier(payeeColumn)) IS NOT NULL
+                GROUP BY \(database.quotedIdentifier(payeeColumn))
                 """
         )
         return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
@@ -568,34 +579,35 @@ extension BudgetDatabase {
         })
     }
 
-    private func fetchPayeeRuleReferences(
+    private static func fetchPayeeRuleReferences(
         payeeIDs: Set<String>,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> (counts: [String: Int], hasUnreadableRules: Bool) {
-        guard try tableExists("rules", db: db) else {
+        guard try database.tableExists("rules", db: db) else {
             return ([:], false)
         }
-        let columns = try columnSet(for: "rules", db: db)
+        let columns = try database.columnSet(for: "rules", db: db)
         let jsonColumns = ["conditions", "actions"].filter(columns.contains)
         guard !jsonColumns.isEmpty else {
             return ([:], false)
         }
         let selectedColumns = (["id"].filter(columns.contains) + jsonColumns)
-            .map(quotedIdentifier)
+            .map(database.quotedIdentifier)
             .joined(separator: ", ")
         let rows = try Row.fetchAll(
             db,
-            sql: "SELECT \(selectedColumns) FROM rules WHERE \(predicateForLiveRows(columns: columns))"
+            sql: "SELECT \(selectedColumns) FROM rules WHERE \(database.predicateForLiveRows(columns: columns))"
         )
-        let completedScheduleRules = try ScheduleSQL.fetchRuleScheduleIndex(in: self, db: db).completedRuleIDs
+        let completedScheduleRules = try ScheduleSQL.fetchRuleScheduleIndex(in: database, db: db).completedRuleIDs
 
         var mappedPayeeIDs = Dictionary(uniqueKeysWithValues: payeeIDs.map { ($0, $0) })
-        if let mapping = try usablePayeeMappingColumns(db: db) {
+        if let mapping = try usablePayeeMappingColumns(in: database, db: db) {
             let mappingRows = try Row.fetchAll(
                 db,
                 sql: """
-                    SELECT \(quotedIdentifier(mapping.id)) AS id,
-                           \(quotedIdentifier(mapping.target)) AS target_id
+                    SELECT \(database.quotedIdentifier(mapping.id)) AS id,
+                           \(database.quotedIdentifier(mapping.target)) AS target_id
                     FROM payee_mapping
                     """
             )
@@ -638,7 +650,7 @@ extension BudgetDatabase {
         return (counts, hasUnreadableRules)
     }
 
-    private func collectPayeeReferences(
+    private static func collectPayeeReferences(
         in value: Any,
         mappedPayeeIDs: [String: String],
         into result: inout Set<String>
@@ -670,7 +682,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func collectMatchingPayeeIDs(
+    private static func collectMatchingPayeeIDs(
         in value: Any?,
         mappedPayeeIDs: [String: String],
         into result: inout Set<String>

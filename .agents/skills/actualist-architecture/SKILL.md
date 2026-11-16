@@ -136,7 +136,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Settings UI: `BudgetRulesView.swift` and `PayeeRulesView.swift` for the lists, `RuleEditorView.swift` for editing, and `PayeesView.swift` for payees.
 - Protocol/display seam: `Actualist/Repositories/RuleRepository.swift`, `RulePresentation.swift`, and `PayeeRepository.swift`.
 - Store seam: `RuleWorkflows` (`LocalFirst/RuleWorkflows.swift`, the store's `rules`), which implements `RuleRepositoryProtocol` and owns the rules cache request revisions; the rules cache `rulesByBudget` stays on the store.
-- Payee persistence: `BudgetDatabase+Payees.swift`, `+PayeeCreationPrecondition.swift`, and `+ReviewPayeeNames.swift`. `PayeeRepositoryProtocol` is conformed in `LocalFirstActualStore.swift` itself.
+- Payee persistence: the stateless `PayeeSQL` (the payee reads other domains use: the picker list with its recent-payee order, review row names, and the payee a gesture settles on at commit) and `PayeeManagementSQL` (the Payees screen's snapshot and its create, rename, merge, delete and setting edits with their undo messages) in `Actualist/LocalFirst/Database/`. `PayeeRepositoryProtocol` is conformed in `LocalFirstActualStore.swift` itself.
 - Evaluation/persistence: the stateless `RuleSQL` (rule rows: editor options, reads, writes, payee-mapping resolution and category learning), `RulePreviewSQL` (rule previews for drafts, matching transactions and the evaluation metadata) and `RuleBalanceOfSQL` (the BALANCE_OF prefetch) in `Actualist/LocalFirst/Database/`, plus `RuleCandidateIndex.swift`, `RuleScheduleIndex.swift`, `RuleRecurrenceDateMatcher.swift`, `RuleConditionEvaluator.swift`, `RuleFormulaEvaluator.swift`, `RuleSplitActionExecutor.swift`, `RuleRanking.swift`, and schedule helpers.
 - Shared post-rule projection: `Actualist/Shared/TransactionRulePreviewProjection.swift`.
 
@@ -200,7 +200,7 @@ File naming is the ownership index:
 - `+CategoryLifecycle`, `+CategoryLifecycleDeletion`, `+CategoryVisibility` — category structure and hidden-category persistence.
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
-- `+Payees`, `+Preferences`, `+Currency`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
+- `+Preferences`, `+Currency`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
 - `+AccountLifecycle*`, `+AccountGroup*`, `+BankSync`, `+BankSyncLastRun`, `+Reconciliation`, `+Notes` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
@@ -209,7 +209,7 @@ File naming is the ownership index:
 - `+PortableExport`, `+PortableSyncReset`, `+NewBudgetSeed` — portable ZIP content and the CRDT reset applied to an imported file.
 - `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `+TransactionFilters`, `+TransactionCSV*`, `+TransactionQuery` — list actions, structured queries and CSV export.
 - `TransactionImportSQL.swift` — file-import checks inside the commit (stateless; takes `isolated BudgetDatabase` and the GRDB handle), plus the thin `commitTransactionCSVImport` entry point.
-- `+*ReviewGuard`, `+ReconciledMutationGuard`, `+ImportedIDPrecondition`, `+TransactionIDPrecondition`, `+PayeeCreationPrecondition`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
+- `+*ReviewGuard`, `+ReconciledMutationGuard`, `+ImportedIDPrecondition`, `+TransactionIDPrecondition`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
 - `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.
 
 Keep SQL and storage-version tolerance here. Keep feature screen state out.

@@ -42,7 +42,7 @@ extension LocalFirstActualStore {
         let accountIsOffBudget = try await database.accountIsOffBudget(accountID)
         // loot-core resolves `trans.payee` before `runRules`, so Payee-is
         // conditions and the payee match pass see existing non-transfer payees.
-        let payeeIDsByName = try await database.fetchPayees().reduce(
+        let payeeIDsByName = try await PayeeSQL.fetchPayees(in: database).reduce(
             into: [String: String]()
         ) { result, payee in
             guard payee.transferAccount == nil, let id = payee.id else { return }

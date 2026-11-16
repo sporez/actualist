@@ -125,7 +125,7 @@ extension LocalFirstActualStore {
     /// the standalone refresh.
     func publishPayeeManagementSnapshot(database: BudgetDatabase, budgetID: String) async throws {
         let generation = budgetSessionGeneration
-        let snapshot = try await database.fetchPayeeManagementSnapshot()
+        let snapshot = try await PayeeManagementSQL.fetchPayeeManagementSnapshot(in: database)
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
         #if DEBUG
         await testSeams?.payeeSnapshotReadHook?(budgetID)
@@ -215,7 +215,7 @@ extension LocalFirstActualStore {
             accounts: try await database.fetchAccounts().filter { !$0.closed },
             categories: editorVisibleCategories(from: monthGraph),
             categoryGroups: monthGraph.editorCategoryGroups(currency: budgetCurrency(budgetID: budgetID)),
-            payees: try await database.fetchPayees()
+            payees: try await PayeeSQL.fetchPayees(in: database)
         )
     }
 
@@ -394,7 +394,7 @@ extension LocalFirstActualStore {
     func nameMaps(_ database: BudgetDatabase) async throws -> TransactionNameMaps {
         let accounts = try await database.fetchAccounts()
         let categories = try await database.fetchCategories()
-        let payees = try await database.fetchPayees(orderedForPicker: false)
+        let payees = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
         let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
         let categoryNames = categories.namesByID
         // Transfer payees display the linked account name.

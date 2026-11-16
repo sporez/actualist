@@ -37,7 +37,7 @@ extension LocalFirstActualStoreTests {
         let first = try await store.createTransactionAndRefresh(try draft(amount: -100), budgetID: "group-1") {}
 
         let database = try #require(store.database)
-        let named = try await database.fetchPayees(orderedForPicker: false)
+        let named = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
             .filter { $0.name == "Brand New Payee" }
         #expect(named.count == 1)
         let transactions = try await database.fetchTransactions()

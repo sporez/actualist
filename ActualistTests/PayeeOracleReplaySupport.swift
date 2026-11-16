@@ -149,7 +149,7 @@ enum PayeeOracleReplay {
     // MARK: Reads
 
     private static func readSeed(_ database: BudgetDatabase) async throws -> OracleValue {
-        let snapshot = try await database.fetchPayeeManagementSnapshot()
+        let snapshot = try await PayeeManagementSQL.fetchPayeeManagementSnapshot(in: database)
         var counts: [String: OracleValue] = [:]
         for payee in snapshot.payees where payee.ruleReferenceCount > 0 {
             counts[payee.id] = .number(Double(payee.ruleReferenceCount))
