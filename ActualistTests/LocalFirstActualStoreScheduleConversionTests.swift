@@ -100,13 +100,13 @@ struct LocalFirstActualStoreScheduleConversionTests {
     @Test func successfulCurrentSessionRefreshesRulesAndRemovesOriginalFromPrimedFeed() async throws {
         let bundle = try await makeBundle()
         let store = bundle.store
-        try await store.refreshRules(budgetID: "group-1")
+        try await store.rules.refreshRules(budgetID: "group-1")
         try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         let initialFeed = try #require(store.cachedTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         ))
         #expect(initialFeed.transactions.contains { $0.id == "future" })
-        #expect(store.cachedRules(budgetID: "group-1") != nil)
+        #expect(store.rules.cachedRules(budgetID: "group-1") != nil)
 
         let review = try await store.schedules.scheduleConversionReview(
             budgetID: "group-1", transactionID: "future", asOfDayID: Self.today
@@ -114,7 +114,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
         let receipt = try await store.schedules.convertFutureTransaction(review: review)
 
         #expect(!receipt.refreshPending)
-        #expect(store.cachedRules(budgetID: "group-1")?.contains { $0.id == review.identity.ruleID } == true)
+        #expect(store.rules.cachedRules(budgetID: "group-1")?.contains { $0.id == review.identity.ruleID } == true)
         let refreshedFeed = try #require(store.cachedTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         ))
@@ -128,13 +128,13 @@ struct LocalFirstActualStoreScheduleConversionTests {
         })
         let databaseURL = try bundle.fileManager.databaseURL(fileID: try #require(bundle.budget.budgetID))
         let store = bundle.store
-        try await store.refreshRules(budgetID: "group-1")
+        try await store.rules.refreshRules(budgetID: "group-1")
         try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         let initialFeed = try #require(store.cachedTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         ))
         #expect(initialFeed.transactions.contains { $0.id == "future" })
-        #expect(store.cachedRules(budgetID: "group-1") != nil)
+        #expect(store.rules.cachedRules(budgetID: "group-1") != nil)
 
         hook.failNextRead = true
         let review = try await store.schedules.scheduleConversionReview(
@@ -144,7 +144,7 @@ struct LocalFirstActualStoreScheduleConversionTests {
 
         #expect(receipt.refreshPending)
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)
-        #expect(store.cachedRules(budgetID: "group-1") == nil)
+        #expect(store.rules.cachedRules(budgetID: "group-1") == nil)
         #expect(try readInt(
             "SELECT tombstone FROM transactions WHERE id='future'", databaseURL
         ) == 1)

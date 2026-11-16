@@ -97,7 +97,6 @@ Actualist/LocalFirst/LocalFirstActualStore+PortableImport.swift
 Actualist/LocalFirst/LocalFirstActualStore+PortableRegistration.swift
 Actualist/LocalFirst/LocalFirstActualStore+Reads.swift
 Actualist/LocalFirst/LocalFirstActualStore+Reconciliation.swift
-Actualist/LocalFirst/LocalFirstActualStore+Rules.swift
 Actualist/LocalFirst/LocalFirstActualStore+Sync.swift
 Actualist/LocalFirst/LocalFirstActualStore+SyncQuarantine.swift
 Actualist/LocalFirst/LocalFirstActualStore+Templates.swift

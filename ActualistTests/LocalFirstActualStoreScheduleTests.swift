@@ -263,7 +263,7 @@ extension LocalFirstActualStoreTests {
             asOf: "2026-09-27"
         )
 
-        try await bundle.store.createRuleAndRefresh(
+        try await bundle.store.rules.createRuleAndRefresh(
             budgetID: "group-1",
             draft: .categoryRule(payeeID: "coffee")
         )

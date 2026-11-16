@@ -144,10 +144,10 @@ extension LocalFirstActualStoreTests {
 
         #expect(!draft.canRoundTripAndEvaluate)
         await #expect(throws: LocalFirstError.self) {
-            try await store.createRuleAndRefresh(budgetID: "group-1", draft: draft)
+            try await store.rules.createRuleAndRefresh(budgetID: "group-1", draft: draft)
         }
         await #expect(throws: LocalFirstError.self) {
-            try await store.updateRuleAndRefresh(
+            try await store.rules.updateRuleAndRefresh(
                 budgetID: "group-1",
                 ruleID: "existing-rule",
                 draft: draft

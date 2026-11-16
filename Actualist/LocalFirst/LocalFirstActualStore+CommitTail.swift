@@ -146,7 +146,7 @@ extension LocalFirstActualStore {
                 try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
             },
             reload: { [self] in
-                try await refreshRulesAndPayeesAfterLearning(
+                try await rules.refreshRulesAndPayeesAfterLearning(
                     learningIDs: learningIDs,
                     database: database,
                     budgetID: budgetID

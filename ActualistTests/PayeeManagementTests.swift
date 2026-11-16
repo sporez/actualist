@@ -415,8 +415,8 @@ extension LocalFirstActualStoreTests {
             ]
         )
 
-        try await store.createRuleAndRefresh(budgetID: "group-1", draft: draft)
-        let rules = try #require(store.cachedRules(budgetID: "group-1"))
+        try await store.rules.createRuleAndRefresh(budgetID: "group-1", draft: draft)
+        let rules = try #require(store.rules.cachedRules(budgetID: "group-1"))
         let rule = try #require(rules.first)
         #expect(rule.draft?.stage == .normal)
         #expect(rule.draft?.conditions.first?.value == .string("coffee"))
@@ -536,7 +536,7 @@ extension LocalFirstActualStoreTests {
                 VALUES ('income-category', 'Income Category', 'income-group', 1, 0, 0, 10, NULL);
             """)
 
-        let options = try await store.ruleEditorOptions(budgetID: "group-1")
+        let options = try await store.rules.ruleEditorOptions(budgetID: "group-1")
 
         #expect(options.accounts.contains { $0.id == "closed" && $0.name == "Closed Account" })
         #expect(options.categoryGroups.contains { $0.id == "hidden-group" })
@@ -581,7 +581,7 @@ extension LocalFirstActualStoreTests {
             actions: [RuleAction(operation: "append-notes", value: .string(" matched"))]
         )
 
-        var preview = try await store.matchingTransactions(
+        var preview = try await store.rules.matchingTransactions(
             budgetID: "group-1",
             draft: draft,
             limit: 25
@@ -594,7 +594,7 @@ extension LocalFirstActualStoreTests {
         #expect(preview.transactions.first?.amountMinorUnits == -4800)
 
         draft.conditionsJoin = .or
-        preview = try await store.matchingTransactions(
+        preview = try await store.rules.matchingTransactions(
             budgetID: "group-1",
             draft: draft,
             limit: 1
@@ -636,7 +636,7 @@ extension LocalFirstActualStoreTests {
             actions: [RuleAction(operation: "set-split-amount", value: .number(100))]
         )
         await #expect(throws: LocalFirstError.self) {
-            try await store.createRuleAndRefresh(budgetID: "group-1", draft: unsupportedDraft)
+            try await store.rules.createRuleAndRefresh(budgetID: "group-1", draft: unsupportedDraft)
         }
     }
 

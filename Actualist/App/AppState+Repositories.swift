@@ -3,7 +3,7 @@ extension AppState {
     var transactionRepository: any TransactionRepositoryProtocol { localFirstStore }
     var accountRepository: any AccountRepositoryProtocol { localFirstStore }
     var payeeRepository: any PayeeRepositoryProtocol { localFirstStore }
-    var ruleRepository: any RuleRepositoryProtocol { localFirstStore }
+    var ruleRepository: any RuleRepositoryProtocol { localFirstStore.rules }
     var reportsRepository: any ReportsRepositoryProtocol { localFirstStore.reports }
 
     func recordLocalDataMutation() {

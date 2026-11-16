@@ -9,7 +9,6 @@ final class LocalFirstActualStore:
     AccountRepositoryProtocol,
     EntityNotesRepositoryProtocol,
     PayeeRepositoryProtocol,
-    RuleRepositoryProtocol,
     TransactionRepositoryProtocol,
     SavedTransactionFilterRepositoryProtocol
 {
@@ -52,11 +51,10 @@ final class LocalFirstActualStore:
     var lastPayeeUndoMessagesByBudget: [String: [ActualSyncDecodedMessage]] = [:]
     var actionLogDiagnosticSnapshot = ActionLogDiagnosticSnapshot.empty
     var rulesByBudget: [String: [ManagedRule]] = [:]
+    @ObservationIgnored private(set) lazy var rules = RuleWorkflows(store: self)
     var savedTransactionFiltersByBudget: [String: SavedTransactionFilterReadResult] = [:]
     @ObservationIgnored var savedTransactionFilterReadRevisionByBudget: [String: UInt64] = [:]
     @ObservationIgnored var nextSavedTransactionFilterReadRevision: UInt64 = 0
-    @ObservationIgnored var rulesCacheRevisionByBudget: [String: UInt64] = [:]
-    @ObservationIgnored var nextRulesCacheRevision: UInt64 = 0
     var budgetReadGeneration = 0
     @ObservationIgnored var syncStatusSequence = 0
     @ObservationIgnored var appliedPendingCountSequence = 0
@@ -267,7 +265,7 @@ final class LocalFirstActualStore:
         lastPayeeUndoMessagesByBudget = [:]
         actionLogDiagnosticSnapshot = .empty
         rulesByBudget = [:]
-        rulesCacheRevisionByBudget = [:]
+        rules.resetRequestSession()
         savedTransactionFiltersByBudget = [:]
         savedTransactionFilterReadRevisionByBudget = [:]
         #if DEBUG

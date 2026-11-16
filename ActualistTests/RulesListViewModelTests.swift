@@ -25,7 +25,7 @@ struct RulesListViewModelTests {
             conditions: [RuleCondition(field: "payee", operation: "is", value: .string("coffee"), type: "id")],
             actions: [RuleAction(operation: "set", field: "category", value: .string("groceries"), type: "id")]
         )
-        try await bundle.store.createRuleAndRefresh(budgetID: "group-1", draft: draft)
+        try await bundle.store.rules.createRuleAndRefresh(budgetID: "group-1", draft: draft)
         let model = RulesListViewModel()
         await model.load(scope: .all, using: appState)
         let original = try #require(model.rules.first)
@@ -36,7 +36,7 @@ struct RulesListViewModelTests {
         let results = [await first.value, await second.value]
 
         #expect(results.filter { $0 }.count == 1)
-        #expect(bundle.store.cachedRules(budgetID: "group-1")?.count == 2)
+        #expect(bundle.store.rules.cachedRules(budgetID: "group-1")?.count == 2)
         #expect(!model.isSubmitting)
         #expect(model.successFeedback == 1)
 

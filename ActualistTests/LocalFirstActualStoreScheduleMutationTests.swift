@@ -277,7 +277,7 @@ struct LocalFirstActualStoreScheduleMutationTests {
         }
         let obsoleteRead = Task { @MainActor in
             defer { gate.finish() }
-            try await store.refreshRules(budgetID: "group-1")
+            try await store.rules.refreshRules(budgetID: "group-1")
         }
         do {
             guard await gate.waitUntilEntered() else {
@@ -294,10 +294,10 @@ struct LocalFirstActualStoreScheduleMutationTests {
                 asOfDayID: "2026-09-27",
                 now: date(2026, 9, 27)
             )
-            let currentRules = try #require(store.cachedRules(budgetID: "group-1"))
+            let currentRules = try #require(store.rules.cachedRules(budgetID: "group-1"))
             gate.release()
             await #expect(throws: CancellationError.self) { try await obsoleteRead.value }
-            #expect(store.cachedRules(budgetID: "group-1") == currentRules)
+            #expect(store.rules.cachedRules(budgetID: "group-1") == currentRules)
         } catch {
             obsoleteRead.cancel()
             gate.release()

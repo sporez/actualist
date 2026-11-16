@@ -37,7 +37,7 @@ extension LocalFirstActualStore: TransactionBatchRepositoryProtocol {
             },
             reload: { [self] in
                 if case .categorize = review.intent {
-                    try await refreshRulesCache(database: database, budgetID: review.context.budgetID)
+                    try await rules.refreshRulesCache(database: database, budgetID: review.context.budgetID)
                 }
                 try requireSyncSession(database: database, budgetID: review.context.budgetID, generation: generation)
                 try await reloadAfterTransactionMutation(

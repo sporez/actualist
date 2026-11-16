@@ -135,7 +135,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 - Settings UI: `BudgetRulesView.swift` and `PayeeRulesView.swift` for the lists, `RuleEditorView.swift` for editing, and `PayeesView.swift` for payees.
 - Protocol/display seam: `Actualist/Repositories/RuleRepository.swift`, `RulePresentation.swift`, and `PayeeRepository.swift`.
-- Store seam: `LocalFirstActualStore+Rules.swift`.
+- Store seam: `RuleWorkflows` (`LocalFirst/RuleWorkflows.swift`, the store's `rules`), which implements `RuleRepositoryProtocol` and owns the rules cache request revisions; the rules cache `rulesByBudget` stays on the store.
 - Payee persistence: `BudgetDatabase+Payees.swift`, `+PayeeCreationPrecondition.swift`, and `+ReviewPayeeNames.swift`. `PayeeRepositoryProtocol` is conformed in `LocalFirstActualStore.swift` itself.
 - Evaluation/persistence: the stateless `RuleSQL` (rule rows: editor options, reads, writes, payee-mapping resolution and category learning), `RulePreviewSQL` (rule previews for drafts, matching transactions and the evaluation metadata) and `RuleBalanceOfSQL` (the BALANCE_OF prefetch) in `Actualist/LocalFirst/Database/`, plus `RuleCandidateIndex.swift`, `RuleScheduleIndex.swift`, `RuleRecurrenceDateMatcher.swift`, `RuleConditionEvaluator.swift`, `RuleFormulaEvaluator.swift`, `RuleSplitActionExecutor.swift`, `RuleRanking.swift`, and schedule helpers.
 - Shared post-rule projection: `Actualist/Shared/TransactionRulePreviewProjection.swift`.
@@ -177,7 +177,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
 - `+BankSyncPlanning`, `+BankSync`, `+WalletImport`, `+ImportReconcile` — imported transaction flows.
 - `+PortableExport`, `+PortableImport`, `+PortableRegistration`, `+NewBudget` — ZIP export and import, server registration, and New Budget.
-- `+Templates`, `+Rules`, `+Notes`, `+Widgets`, `+ActionLog`, `+AccountGroups`, `+Reconciliation` — focused feature bridges.
+- `+Templates`, `+Notes`, `+Widgets`, `+ActionLog`, `+AccountGroups`, `+Reconciliation` — focused feature bridges.
 - `ServerSyncLane.swift` — the one serialized flush/pull lane per budget session (flush flag, queued waiters, scheduled flush task, status tickets). `closeOpenBudget()` invalidates it and installs a fresh lane, so a late finisher releases its own dead lane.
 - `ServerEndpointHealth.swift` — endpoint health cache.
 - `StoreTestSeams.swift` — every optional test hook, in one `#if DEBUG` type behind `store.seams`. Release builds contain no hook property, type or awaited call site. Add new hooks here, never as store properties.
@@ -185,7 +185,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 When adding a store operation, add a thin entry point to the matching workflow extension; never grow the base type or create a second concrete repository. Another `LocalFirstActualStore+X.swift` file does not count as an extraction (`AGENTS.md`, File Size): a new domain's logic belongs in a focused type that keeps its helpers `private`.
 
-Repositories are per feature, not one facade: `Actualist/Repositories/` holds `BudgetRepositoryProtocol`, `TransactionRepositoryProtocol`, `AccountRepositoryProtocol` plus focused protocols for batch, duplicate, merge, CSV import, CSV export, saved filters, schedules (read, mutation, posting, conversion), account lifecycle, payees, rules, notes and reports. `LocalFirstActualStore` conforms to them, except the four schedule protocols, which its `schedules` collaborator (`ScheduleWorkflows`) implements, and `ReportsRepositoryProtocol`, which its `reports` collaborator (`ReportWorkflows`) implements; a screen passes `appState.localFirstStore.schedules` or `appState.reportsRepository` for those. A view model depends only on the protocol it uses, and tests inject a fake of that one protocol.
+Repositories are per feature, not one facade: `Actualist/Repositories/` holds `BudgetRepositoryProtocol`, `TransactionRepositoryProtocol`, `AccountRepositoryProtocol` plus focused protocols for batch, duplicate, merge, CSV import, CSV export, saved filters, schedules (read, mutation, posting, conversion), account lifecycle, payees, rules, notes and reports. `LocalFirstActualStore` conforms to them, except the four schedule protocols, which its `schedules` collaborator (`ScheduleWorkflows`) implements, `ReportsRepositoryProtocol` and `RuleRepositoryProtocol`, which its `reports` (`ReportWorkflows`) and `rules` (`RuleWorkflows`) collaborators implement; a screen passes `appState.localFirstStore.schedules`, `appState.reportsRepository` or `appState.ruleRepository` for those. A view model depends only on the protocol it uses, and tests inject a fake of that one protocol.
 
 ### Database
 

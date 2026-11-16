@@ -68,8 +68,8 @@ struct LocalFirstActualStoreCommitTailRulesTests {
         }
         let parked = await entered.wait(timeout: .seconds(20)) { release.trip() }
         #expect(parked)
-        try await store.refreshRules(budgetID: "group-1")
-        let newerRules = try #require(store.cachedRules(budgetID: "group-1"))
+        try await store.rules.refreshRules(budgetID: "group-1")
+        let newerRules = try #require(store.rules.cachedRules(budgetID: "group-1"))
         release.trip()
 
         let result = try await create.value
@@ -77,7 +77,7 @@ struct LocalFirstActualStoreCommitTailRulesTests {
         #expect(result.ok)
         #expect(!result.refreshPending)
         #expect(recorded.queuedCount == queuedBefore + 1)
-        #expect(store.cachedRules(budgetID: "group-1") == newerRules)
+        #expect(store.rules.cachedRules(budgetID: "group-1") == newerRules)
     }
 
     @Test func failedRulesReadAfterCreateReportsCommittedWithRefreshPending() async throws {

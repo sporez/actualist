@@ -219,14 +219,14 @@ final class ScheduleWorkflows {
             requireSession: { [self] in try requireScheduleMutationSession(context, database: database) },
             reload: { [self] in
                 invalidateScheduleCache(budgetID: context.budgetID)
-                store.invalidateRulesCache(budgetID: context.budgetID)
+                store.rules.invalidateRulesCache(budgetID: context.budgetID)
                 #if DEBUG
                 try await store.testSeams?.scheduleMutationBeforeRefreshHook?()
                 #endif
                 try requireScheduleMutationSession(context, database: database)
                 try await refreshSchedulesAfterWrite(budgetID: context.budgetID, asOf: ActualDateOnly.today())
                 try requireScheduleMutationSession(context, database: database)
-                try await store.refreshRulesCache(database: database, budgetID: context.budgetID)
+                try await store.rules.refreshRulesCache(database: database, budgetID: context.budgetID)
             }
         )
         return ScheduleMutationOutcome(receipt: receipt, refreshPending: tail.refreshPending)
@@ -494,7 +494,7 @@ final class ScheduleWorkflows {
             requireSession: { [self] in try requireScheduleConversionSession(context, database: database) },
             reload: { [self] in
                 invalidateScheduleCache(budgetID: context.budgetID)
-                store.invalidateRulesCache(budgetID: context.budgetID)
+                store.rules.invalidateRulesCache(budgetID: context.budgetID)
                 try await store.reloadAfterTransactionMutation(
                     database: database,
                     budgetID: context.budgetID,
@@ -510,7 +510,7 @@ final class ScheduleWorkflows {
                     asOf: ActualDateOnly.today()
                 )
                 try requireScheduleConversionSession(context, database: database)
-                try await store.refreshRulesCache(database: database, budgetID: context.budgetID)
+                try await store.rules.refreshRulesCache(database: database, budgetID: context.budgetID)
             }
         )
         let refreshPending = tail.refreshPending

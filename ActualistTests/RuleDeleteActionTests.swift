@@ -146,7 +146,7 @@ extension LocalFirstActualStoreTests {
             );
             """)
 
-        try await store.createRuleAndRefresh(
+        try await store.rules.createRuleAndRefresh(
             budgetID: "group-1",
             draft: RuleDraft(
                 stage: .normal,
@@ -155,7 +155,7 @@ extension LocalFirstActualStoreTests {
                 actions: [RuleAction(operation: "delete-transaction", value: .string(""))]
             )
         )
-        let rule = try #require(store.cachedRules(budgetID: "group-1")?.first)
+        let rule = try #require(store.rules.cachedRules(budgetID: "group-1")?.first)
         #expect(rule.isEditable)
 
         let draft = TransactionDraft(
