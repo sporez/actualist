@@ -87,35 +87,6 @@ extension BudgetDatabase {
         }
     }
 
-    func fetchCategories() throws -> [ActualCategory] {
-        try queue.read { db in
-            guard try tableExists("categories", db: db) else {
-                return []
-            }
-
-            let columns = try columnSet(for: "categories", db: db)
-            let groupID = column("cat_group", fallback: column("group_id", fallback: "NULL", columns: columns), columns: columns)
-            let hidden = column("hidden", fallback: "0", columns: columns)
-            let isIncome = column("is_income", fallback: "0", columns: columns)
-            let order = columns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
-            let sql = """
-                SELECT id, name, \(isIncome) AS is_income, \(hidden) AS hidden, \(groupID) AS group_id
-                FROM categories
-                WHERE \(predicateForLiveRows(columns: columns))
-                ORDER BY \(order)
-                """
-            return try Row.fetchAll(db, sql: sql).map { row in
-                ActualCategory(
-                    id: row["id"],
-                    name: row["name"] ?? "",
-                    isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
-                    hidden: SQLiteValueCoercion.lenientBool(row["hidden"]),
-                    groupID: row["group_id"]
-                )
-            }
-        }
-    }
-
     func fetchAvailableMonths() throws -> [String] {
         try queue.read { db in try fetchAvailableMonths(db: db) }
     }

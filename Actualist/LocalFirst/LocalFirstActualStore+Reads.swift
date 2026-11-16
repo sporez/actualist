@@ -393,7 +393,7 @@ extension LocalFirstActualStore {
 
     func nameMaps(_ database: BudgetDatabase) async throws -> TransactionNameMaps {
         let accounts = try await database.fetchAccounts()
-        let categories = try await database.fetchCategories()
+        let categories = try await CategorySQL.fetchCategories(in: database)
         let payees = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
         let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
         let categoryNames = categories.namesByID

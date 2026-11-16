@@ -21,10 +21,7 @@ Actualist/LocalFirst/Database/BudgetDatabase+BasicReads.swift
 Actualist/LocalFirst/Database/BudgetDatabase+BudgetReads.swift
 Actualist/LocalFirst/Database/BudgetDatabase+BudgetRowIDs.swift
 Actualist/LocalFirst/Database/BudgetDatabase+BudgetWrites.swift
-Actualist/LocalFirst/Database/BudgetDatabase+CategoryLifecycle.swift
-Actualist/LocalFirst/Database/BudgetDatabase+CategoryLifecycleDeletion.swift
 Actualist/LocalFirst/Database/BudgetDatabase+CategoryValueTimeline.swift
-Actualist/LocalFirst/Database/BudgetDatabase+CategoryVisibility.swift
 Actualist/LocalFirst/Database/BudgetDatabase+CompatibilityMigrationIDs.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Currency.swift
 Actualist/LocalFirst/Database/BudgetDatabase+EnvelopeCarryIn.swift

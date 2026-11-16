@@ -101,7 +101,7 @@ struct NewBudgetStarterSchemaTests {
 
     @Test func starterCategoriesReadBackThroughDatabase() async throws {
         let (database, _) = try makeSeed()
-        let categories = try await database.fetchCategories()
+        let categories = try await CategorySQL.fetchCategories(in: database)
         #expect(categories.map(\.name) == [
             "Food", "General", "Bills", "Bills (Flexible)", "Savings", "Income", "Starting Balances"
         ])

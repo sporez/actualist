@@ -40,7 +40,7 @@ extension LocalFirstActualStore {
     /// simply have no entry; the view model labels them.
     func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] {
         let database = try requireDatabase(for: budgetID)
-        let categories = try await database.fetchCategories()
+        let categories = try await CategorySQL.fetchCategories(in: database)
         return categories.namesByID
     }
 

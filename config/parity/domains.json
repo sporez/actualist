@@ -484,8 +484,8 @@
         "CategoryOracleReplayTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+CategoryLifecycle*.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+CategoryVisibility.swift",
+        "Actualist/LocalFirst/Database/CategorySQL.swift",
+        "Actualist/LocalFirst/Database/CategoryDeletionSQL.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+CategoryLifecycle.swift",
         "Actualist/Features/Budget/BudgetCategoryOutlineDraft.swift"
       ],

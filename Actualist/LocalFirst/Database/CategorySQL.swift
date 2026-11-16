@@ -1,41 +1,71 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func createCategoryMessages(
+enum CategorySQL {
+    static func fetchCategories(in database: isolated BudgetDatabase) throws -> [ActualCategory] {
+        try database.queue.read { db in
+            guard try database.tableExists("categories", db: db) else {
+                return []
+            }
+
+            let columns = try database.columnSet(for: "categories", db: db)
+            let groupID = database.column("cat_group", fallback: database.column("group_id", fallback: "NULL", columns: columns), columns: columns)
+            let hidden = database.column("hidden", fallback: "0", columns: columns)
+            let isIncome = database.column("is_income", fallback: "0", columns: columns)
+            let order = columns.contains("sort_order") ? "sort_order, lower(name)" : "lower(name)"
+            let sql = """
+                SELECT id, name, \(isIncome) AS is_income, \(hidden) AS hidden, \(groupID) AS group_id
+                FROM categories
+                WHERE \(database.predicateForLiveRows(columns: columns))
+                ORDER BY \(order)
+                """
+            return try Row.fetchAll(db, sql: sql).map { row in
+                ActualCategory(
+                    id: row["id"],
+                    name: row["name"] ?? "",
+                    isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
+                    hidden: SQLiteValueCoercion.lenientBool(row["hidden"]),
+                    groupID: row["group_id"]
+                )
+            }
+        }
+    }
+
+    static func createCategoryMessages(
         categoryID: String,
         name: String,
         groupID: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
         let id = try validatedCategoryLifecycleID(categoryID, kind: "category")
-        let name = try Self.validatedName(name, label: "category")
-        return try queue.read { db in
-            let categoryColumns = try requiredColumns(
+        let name = try EntityName.validatedName(name, label: "category")
+        return try database.queue.read { db in
+            let categoryColumns = try database.requiredColumns(
                 table: "categories",
                 required: ["id", "name", "is_income", "sort_order"],
                 db: db
             )
-            let groupColumn = try firstExistingColumn(
+            let groupColumn = try database.firstExistingColumn(
                 CategoryColumns.groupAliases, in: categoryColumns, table: "categories"
             )
-            _ = try requiredColumns(
+            _ = try database.requiredColumns(
                 table: "category_mapping", required: ["id"], db: db
             )
-            guard let transferColumn = try categoryMappingTransferColumn(db: db) else {
+            guard let transferColumn = try database.categoryMappingTransferColumn(db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing category_mapping table")
             }
-            guard !(try rowExists(table: "categories", rowID: id, db: db)) else {
+            guard !(try database.rowExists(table: "categories", rowID: id, db: db)) else {
                 throw LocalFirstError.invalidLocalWrite("category already exists")
             }
-            guard !(try rowExists(table: "category_mapping", rowID: id, db: db)) else {
+            guard !(try database.rowExists(table: "category_mapping", rowID: id, db: db)) else {
                 throw LocalFirstError.invalidLocalWrite("category mapping already exists")
             }
-            let group = try requiredCategoryGroup(groupID, db: db)
-            try requireCategoryManagementAllowed(isIncome: group.isIncome, kind: "categories", db: db)
-            try rejectDuplicateCategoryName(name, groupID: group.id, excluding: nil, db: db)
+            let group = try requiredCategoryGroup(groupID, in: database, db: db)
+            try requireCategoryManagementAllowed(isIncome: group.isIncome, kind: "categories", in: database, db: db)
+            try rejectDuplicateCategoryName(name, groupID: group.id, excluding: nil, in: database, db: db)
 
-            let items = try liveCategoryRows(groupID: group.id, db: db).map {
+            let items = try liveCategoryRows(groupID: group.id, in: database, db: db).map {
                 ActualSortOrder.Item(id: $0.id, sortOrder: $0.sortOrder)
             }
             let shove = ActualSortOrder.shove(items: items, targetID: items.first?.id)
@@ -58,24 +88,25 @@ extension BudgetDatabase {
         }
     }
 
-    func createCategoryGroupMessages(
+    static func createCategoryGroupMessages(
         groupID: String,
         name: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
         let id = try validatedCategoryLifecycleID(groupID, kind: "category group")
-        let name = try Self.validatedName(name, label: "category group")
-        return try queue.read { db in
-            let columns = try requiredColumns(
+        let name = try EntityName.validatedName(name, label: "category group")
+        return try database.queue.read { db in
+            let columns = try database.requiredColumns(
                 table: "category_groups",
                 required: ["id", "name", "is_income", "sort_order"],
                 db: db
             )
-            guard !(try rowExists(table: "category_groups", rowID: id, db: db)) else {
+            guard !(try database.rowExists(table: "category_groups", rowID: id, db: db)) else {
                 throw LocalFirstError.invalidLocalWrite("category group already exists")
             }
-            try rejectDuplicateCategoryGroupName(name, excluding: nil, db: db)
-            let items = try liveCategoryGroupRows(db: db).map {
+            try rejectDuplicateCategoryGroupName(name, excluding: nil, in: database, db: db)
+            let items = try liveCategoryGroupRows(in: database, db: db).map {
                 ActualSortOrder.Item(id: $0.id, sortOrder: $0.sortOrder)
             }
             let sortOrder = ActualSortOrder.shove(items: items, targetID: nil).sortOrder
@@ -91,50 +122,53 @@ extension BudgetDatabase {
         }
     }
 
-    func renameCategoryMessages(
+    static func renameCategoryMessages(
         categoryID: String,
         name: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        let name = try Self.validatedName(name, label: "category")
-        return try queue.read { db in
-            let category = try requiredCategory(categoryID, db: db)
-            try requireCategoryManagementAllowed(isIncome: category.isIncome, kind: "categories", db: db)
+        let name = try EntityName.validatedName(name, label: "category")
+        return try database.queue.read { db in
+            let category = try requiredCategory(categoryID, in: database, db: db)
+            try requireCategoryManagementAllowed(isIncome: category.isIncome, kind: "categories", in: database, db: db)
             guard category.name != name else { return [] }
-            try rejectDuplicateCategoryName(name, groupID: category.groupID, excluding: category.id, db: db)
+            try rejectDuplicateCategoryName(name, groupID: category.groupID, excluding: category.id, in: database, db: db)
             return [try builder.makeMessage(dataset: "categories", row: category.id, column: "name", value: .string(name))]
         }
     }
 
-    func renameCategoryGroupMessages(
+    static func renameCategoryGroupMessages(
         groupID: String,
         name: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        let name = try Self.validatedName(name, label: "category group")
-        return try queue.read { db in
-            let group = try requiredCategoryGroup(groupID, db: db)
-            try requireCategoryManagementAllowed(isIncome: group.isIncome, kind: "groups", db: db)
+        let name = try EntityName.validatedName(name, label: "category group")
+        return try database.queue.read { db in
+            let group = try requiredCategoryGroup(groupID, in: database, db: db)
+            try requireCategoryManagementAllowed(isIncome: group.isIncome, kind: "groups", in: database, db: db)
             guard group.name != name else { return [] }
-            try rejectDuplicateCategoryGroupName(name, excluding: group.id, db: db)
+            try rejectDuplicateCategoryGroupName(name, excluding: group.id, in: database, db: db)
             return [try builder.makeMessage(dataset: "category_groups", row: group.id, column: "name", value: .string(name))]
         }
     }
 
-    func applyCategoryOutlineMessages(
+    static func applyCategoryOutlineMessages(
         _ command: BudgetCategoryOutlineCommand,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            let categoryColumns = try requiredColumns(
+        try database.queue.read { db in
+            let categoryColumns = try database.requiredColumns(
                 table: "categories", required: ["id", "name", "is_income", "sort_order"], db: db
             )
-            let groupColumn = try firstExistingColumn(
+            let groupColumn = try database.firstExistingColumn(
                 CategoryColumns.groupAliases, in: categoryColumns, table: "categories"
             )
-            let allGroups = try liveCategoryGroupRows(db: db)
-            let allCategories = try liveCategoryRows(groupID: nil, db: db)
-            let isTracking = try isTrackingBudget(db: db)
+            let allGroups = try liveCategoryGroupRows(in: database, db: db)
+            let allCategories = try liveCategoryRows(groupID: nil, in: database, db: db)
+            let isTracking = try database.isTrackingBudget(db: db)
             let managedGroups = isTracking ? allGroups : allGroups.filter { !$0.isIncome }
             let managedCategories = isTracking ? allCategories : allCategories.filter { !$0.isIncome }
 
@@ -200,9 +234,7 @@ extension BudgetDatabase {
             return messages
         }
     }
-}
 
-extension BudgetDatabase {
     struct CategoryLifecycleGroup {
         let id: String
         let name: String
@@ -218,36 +250,28 @@ extension BudgetDatabase {
         let sortOrder: Double
     }
 
-    func validatedCategoryLifecycleID(_ id: String, kind: String) throws -> String {
+    static func validatedCategoryLifecycleID(_ id: String, kind: String) throws -> String {
         let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw LocalFirstError.invalidLocalWrite("missing \(kind)") }
         return trimmed
     }
 
-    /// Trimmed, non-empty display name; `label` names the thing in the error
-    /// ("category", "category group", "payee", "account group").
-    static func validatedName(_ name: String, label: String) throws -> String {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { throw LocalFirstError.invalidLocalWrite("\(label) name cannot be empty") }
-        return trimmed
-    }
-
-    func requireCategoryManagementAllowed(isIncome: Bool, kind: String, db: Database) throws {
-        let isTracking = try isTrackingBudget(db: db)
+    static func requireCategoryManagementAllowed(isIncome: Bool, kind: String, in database: isolated BudgetDatabase, db: Database) throws {
+        let isTracking = try database.isTrackingBudget(db: db)
         if isIncome && !isTracking {
             throw LocalFirstError.invalidLocalWrite("income \(kind) cannot be managed in an envelope budget")
         }
     }
 
-    func requiredCategoryGroup(_ id: String, db: Database) throws -> CategoryLifecycleGroup {
-        let columns = try requiredColumns(
+    static func requiredCategoryGroup(_ id: String, in database: isolated BudgetDatabase, db: Database) throws -> CategoryLifecycleGroup {
+        let columns = try database.requiredColumns(
             table: "category_groups", required: ["id", "name", "is_income", "sort_order"], db: db
         )
         guard let row = try Row.fetchOne(
             db,
             sql: """
                 SELECT id, name, is_income, sort_order
-                FROM category_groups WHERE id = ? AND \(predicateForLiveRows(columns: columns)) LIMIT 1
+                FROM category_groups WHERE id = ? AND \(database.predicateForLiveRows(columns: columns)) LIMIT 1
                 """,
             arguments: [id]
         ) else { throw LocalFirstError.invalidLocalWrite("category group no longer exists") }
@@ -258,16 +282,16 @@ extension BudgetDatabase {
         )
     }
 
-    func requiredCategory(_ id: String, db: Database) throws -> CategoryLifecycleCategory {
-        let columns = try requiredColumns(
+    static func requiredCategory(_ id: String, in database: isolated BudgetDatabase, db: Database) throws -> CategoryLifecycleCategory {
+        let columns = try database.requiredColumns(
             table: "categories", required: ["id", "name", "is_income", "sort_order"], db: db
         )
-        let groupColumn = try firstExistingColumn(CategoryColumns.groupAliases, in: columns, table: "categories")
+        let groupColumn = try database.firstExistingColumn(CategoryColumns.groupAliases, in: columns, table: "categories")
         guard let row = try Row.fetchOne(
             db,
             sql: """
                 SELECT id, name, \(groupColumn) AS group_id, is_income, sort_order
-                FROM categories WHERE id = ? AND \(predicateForLiveRows(columns: columns)) LIMIT 1
+                FROM categories WHERE id = ? AND \(database.predicateForLiveRows(columns: columns)) LIMIT 1
                 """,
             arguments: [id]
         ) else { throw LocalFirstError.invalidLocalWrite("category no longer exists") }
@@ -280,39 +304,18 @@ extension BudgetDatabase {
         )
     }
 
-    func liveCategoryGroupRows(db: Database) throws -> [CategoryLifecycleGroup] {
-        let columns = try requiredColumns(
-            table: "category_groups", required: ["id", "name", "is_income", "sort_order"], db: db
-        )
-        return try Row.fetchAll(
-            db,
-            sql: """
-                SELECT id, name, is_income, sort_order
-                FROM category_groups WHERE \(predicateForLiveRows(columns: columns)) ORDER BY sort_order, id
-                """
-        ).map { row in
-            guard let id = row["id"] as String?, !id.isEmpty else {
-                throw LocalFirstError.invalidLocalWrite("category group has no id")
-            }
-            return CategoryLifecycleGroup(
-                id: id, name: row["name"] ?? "", isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
-                sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
-            )
-        }
-    }
-
-    func liveCategoryRows(groupID: String?, db: Database) throws -> [CategoryLifecycleCategory] {
-        let columns = try requiredColumns(
+    static func liveCategoryRows(groupID: String?, in database: isolated BudgetDatabase, db: Database) throws -> [CategoryLifecycleCategory] {
+        let columns = try database.requiredColumns(
             table: "categories", required: ["id", "name", "is_income", "sort_order"], db: db
         )
-        let groupColumn = try firstExistingColumn(CategoryColumns.groupAliases, in: columns, table: "categories")
+        let groupColumn = try database.firstExistingColumn(CategoryColumns.groupAliases, in: columns, table: "categories")
         let filter = groupID == nil ? "" : "AND \(groupColumn) = ?"
         let arguments = groupID.map { StatementArguments([$0]) } ?? StatementArguments()
         return try Row.fetchAll(
             db,
             sql: """
                 SELECT id, name, \(groupColumn) AS group_id, is_income, sort_order
-                FROM categories WHERE \(predicateForLiveRows(columns: columns)) \(filter)
+                FROM categories WHERE \(database.predicateForLiveRows(columns: columns)) \(filter)
                 ORDER BY sort_order, id
                 """,
             arguments: arguments
@@ -328,9 +331,30 @@ extension BudgetDatabase {
         }
     }
 
-    func rejectDuplicateCategoryName(_ name: String, groupID: String, excluding id: String?, db: Database) throws {
-        let columns = try requiredColumns(table: "categories", required: ["id", "name"], db: db)
-        let groupColumn = try firstExistingColumn(CategoryColumns.groupAliases, in: columns, table: "categories")
+    private static func liveCategoryGroupRows(in database: isolated BudgetDatabase, db: Database) throws -> [CategoryLifecycleGroup] {
+        let columns = try database.requiredColumns(
+            table: "category_groups", required: ["id", "name", "is_income", "sort_order"], db: db
+        )
+        return try Row.fetchAll(
+            db,
+            sql: """
+                SELECT id, name, is_income, sort_order
+                FROM category_groups WHERE \(database.predicateForLiveRows(columns: columns)) ORDER BY sort_order, id
+                """
+        ).map { row in
+            guard let id = row["id"] as String?, !id.isEmpty else {
+                throw LocalFirstError.invalidLocalWrite("category group has no id")
+            }
+            return CategoryLifecycleGroup(
+                id: id, name: row["name"] ?? "", isIncome: SQLiteValueCoercion.lenientBool(row["is_income"]),
+                sortOrder: SQLiteValueCoercion.lenientDouble(row["sort_order"])
+            )
+        }
+    }
+
+    private static func rejectDuplicateCategoryName(_ name: String, groupID: String, excluding id: String?, in database: isolated BudgetDatabase, db: Database) throws {
+        let columns = try database.requiredColumns(table: "categories", required: ["id", "name"], db: db)
+        let groupColumn = try database.firstExistingColumn(CategoryColumns.groupAliases, in: columns, table: "categories")
         var arguments: StatementArguments = [name, groupID]
         let exclusion: String
         if let id { exclusion = "AND id <> ?"; arguments += [id] } else { exclusion = "" }
@@ -339,7 +363,7 @@ extension BudgetDatabase {
             sql: """
                 SELECT name FROM categories
                 WHERE name = ? COLLATE NOCASE AND \(groupColumn) = ?
-                  AND \(predicateForLiveRows(columns: columns)) \(exclusion) LIMIT 1
+                  AND \(database.predicateForLiveRows(columns: columns)) \(exclusion) LIMIT 1
                 """,
             arguments: arguments
         ) {
@@ -347,22 +371,137 @@ extension BudgetDatabase {
         }
     }
 
-    func rejectDuplicateCategoryGroupName(_ name: String, excluding id: String?, db: Database) throws {
-        let columns = try requiredColumns(table: "category_groups", required: ["id", "name"], db: db)
+    private static func rejectDuplicateCategoryGroupName(_ name: String, excluding id: String?, in database: isolated BudgetDatabase, db: Database) throws {
+        let columns = try database.requiredColumns(table: "category_groups", required: ["id", "name"], db: db)
         var arguments: StatementArguments = [name]
         let exclusion: String
         if let id { exclusion = "AND id <> ?"; arguments += [id] } else { exclusion = "" }
         if let row = try Row.fetchOne(
             db,
             sql: """
-                SELECT name, \(column("hidden", fallback: "0", columns: columns)) AS hidden
+                SELECT name, \(database.column("hidden", fallback: "0", columns: columns)) AS hidden
                 FROM category_groups WHERE name = ? COLLATE NOCASE
-                  AND \(predicateForLiveRows(columns: columns)) \(exclusion) LIMIT 1
+                  AND \(database.predicateForLiveRows(columns: columns)) \(exclusion) LIMIT 1
                 """,
             arguments: arguments
         ) {
             let prefix = SQLiteValueCoercion.lenientBool(row["hidden"]) ? "A hidden category group" : "A category group"
             throw LocalFirstError.refusedChange("\(prefix) with the name \(row["name"] as String? ?? name) already exists.")
+        }
+    }
+
+    static func setCategoryHiddenMessages(
+        categoryID: String,
+        hidden: Bool,
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
+    ) throws -> [ActualSyncDecodedMessage] {
+        let trimmedID = categoryID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing category")
+        }
+
+        return try database.queue.read { db in
+            let categoryColumns = try database.requiredColumns(
+                table: "categories",
+                required: ["hidden"],
+                db: db
+            )
+            let groupColumn = try database.firstExistingColumn(
+                CategoryColumns.groupAliases,
+                in: categoryColumns,
+                table: "categories"
+            )
+            guard let row = try Row.fetchOne(
+                db,
+                sql: """
+                    SELECT id, hidden, \(groupColumn) AS group_id
+                    FROM categories
+                    WHERE id = ? AND \(database.predicateForLiveRows(columns: categoryColumns))
+                    LIMIT 1
+                    """,
+                arguments: [trimmedID]
+            ) else {
+                throw LocalFirstError.invalidLocalWrite("missing category")
+            }
+
+            let groupID = row["group_id"] as String?
+            if let groupID, try database.tableExists("category_groups", db: db) {
+                let groupColumns = try database.columnSet(for: "category_groups", db: db)
+                if groupColumns.contains("hidden"),
+                   let groupRow = try Row.fetchOne(
+                    db,
+                    sql: """
+                        SELECT hidden
+                        FROM category_groups
+                        WHERE id = ? AND \(database.predicateForLiveRows(columns: groupColumns))
+                        LIMIT 1
+                        """,
+                    arguments: [groupID]
+                   ),
+                   SQLiteValueCoercion.lenientBool(groupRow["hidden"]) {
+                    throw LocalFirstError.refusedChange("This category is in a hidden group. Show the group before changing it.")
+                }
+            }
+
+            if SQLiteValueCoercion.lenientBool(row["hidden"]) == hidden {
+                return []
+            }
+            return [
+                try builder.makeMessage(
+                    dataset: "categories",
+                    row: trimmedID,
+                    column: "hidden",
+                    value: .bool(hidden)
+                )
+            ]
+        }
+    }
+
+    static func setCategoryGroupHiddenMessages(
+        groupID: String,
+        hidden: Bool,
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
+    ) throws -> [ActualSyncDecodedMessage] {
+        let trimmedID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedID.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing category group")
+        }
+
+        return try database.queue.read { db in
+            let groupColumns = try database.requiredColumns(
+                table: "category_groups",
+                required: ["hidden"],
+                db: db
+            )
+            guard let row = try Row.fetchOne(
+                db,
+                sql: """
+                    SELECT id, hidden, \(database.column("is_income", fallback: "0", columns: groupColumns)) AS is_income
+                    FROM category_groups
+                    WHERE id = ? AND \(database.predicateForLiveRows(columns: groupColumns))
+                    LIMIT 1
+                    """,
+                arguments: [trimmedID]
+            ) else {
+                throw LocalFirstError.invalidLocalWrite("missing category group")
+            }
+
+            if SQLiteValueCoercion.lenientBool(row["is_income"]) {
+                throw LocalFirstError.refusedChange("Income groups cannot be hidden.")
+            }
+            if SQLiteValueCoercion.lenientBool(row["hidden"]) == hidden {
+                return []
+            }
+            return [
+                try builder.makeMessage(
+                    dataset: "category_groups",
+                    row: trimmedID,
+                    column: "hidden",
+                    value: .bool(hidden)
+                )
+            ]
         }
     }
 }
@@ -380,8 +519,8 @@ struct CategoryOutlineMoveReplay {
     private(set) var changedCategories: [(id: String, state: CategoryState)] = []
 
     init(
-        groups: [BudgetDatabase.CategoryLifecycleGroup],
-        categories: [BudgetDatabase.CategoryLifecycleCategory],
+        groups: [CategorySQL.CategoryLifecycleGroup],
+        categories: [CategorySQL.CategoryLifecycleCategory],
         moves: [BudgetCategoryOutlineCommand.Move]
     ) throws {
         var groupOrders = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0.sortOrder) })

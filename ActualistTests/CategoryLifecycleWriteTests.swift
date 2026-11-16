@@ -11,11 +11,12 @@ struct CategoryLifecycleWriteTests {
         let database = try BudgetDatabase(databaseURL: try makeSQLiteFixture(), localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.createCategoryMessages(
+        let messages = try await CategorySQL.createCategoryMessages(
             categoryID: "fuel",
             name: "  Fuel  ",
             groupID: "group",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(messages.contains { $0.dataset == "categories" && $0.column == "name" && $0.serializedValue == "S:Fuel" })
         #expect(messages.contains { $0.dataset == "categories" && $0.column == "sort_order" && $0.serializedValue == "N:0.5" })
@@ -34,15 +35,15 @@ struct CategoryLifecycleWriteTests {
         )
         var builder = LocalFirstSyncMessageBuilder()
         await #expect(throws: LocalFirstError.refusedChange("A category with the name Groceries already exists.")) {
-            _ = try await database.createCategoryMessages(categoryID: "copy", name: "groceries", groupID: "group", builder: &builder)
+            _ = try await CategorySQL.createCategoryMessages(categoryID: "copy", name: "groceries", groupID: "group", builder: &builder, in: database)
         }
         await #expect(throws: LocalFirstError.invalidLocalWrite("income categories cannot be managed in an envelope budget")) {
-            _ = try await database.createCategoryMessages(categoryID: "salary", name: "Salary", groupID: "income", builder: &builder)
+            _ = try await CategorySQL.createCategoryMessages(categoryID: "salary", name: "Salary", groupID: "income", builder: &builder, in: database)
         }
 
         let missingMapping = try BudgetDatabase(databaseURL: try makeCategoryLifecycleFixtureWithoutMapping(), localNodeID: "node1")
         await #expect(throws: LocalFirstError.schemaUnavailable("missing category_mapping table")) {
-            _ = try await missingMapping.createCategoryMessages(categoryID: "fuel", name: "Fuel", groupID: "group", builder: &builder)
+            _ = try await CategorySQL.createCategoryMessages(categoryID: "fuel", name: "Fuel", groupID: "group", builder: &builder, in: missingMapping)
         }
     }
 
@@ -55,8 +56,9 @@ struct CategoryLifecycleWriteTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.createCategoryMessages(
-            categoryID: "fuel", name: "Fuel", groupID: "group", builder: &builder
+        let messages = try await CategorySQL.createCategoryMessages(
+            categoryID: "fuel", name: "Fuel", groupID: "group", builder: &builder,
+            in: database
         )
 
         #expect(messages.contains {
@@ -74,12 +76,14 @@ struct CategoryLifecycleWriteTests {
             localNodeID: "node1"
         )
         var builder = LocalFirstSyncMessageBuilder()
-        let created = try await database.createCategoryMessages(
-            categoryID: "salary", name: "Salary", groupID: "income", builder: &builder
+        let created = try await CategorySQL.createCategoryMessages(
+            categoryID: "salary", name: "Salary", groupID: "income", builder: &builder,
+            in: database
         )
         #expect(created.contains { $0.column == "is_income" && $0.serializedValue == "N:1" })
-        let renamed = try await database.renameCategoryGroupMessages(
-            groupID: "income", name: "Pay", builder: &builder
+        let renamed = try await CategorySQL.renameCategoryGroupMessages(
+            groupID: "income", name: "Pay", builder: &builder,
+            in: database
         )
         #expect(renamed.first?.serializedValue == "S:Pay")
     }
@@ -90,14 +94,14 @@ struct CategoryLifecycleWriteTests {
             localNodeID: "node1"
         )
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.createCategoryGroupMessages(groupID: "bills", name: " Bills ", builder: &builder)
+        let messages = try await CategorySQL.createCategoryGroupMessages(groupID: "bills", name: " Bills ", builder: &builder, in: database)
         #expect(messages.contains { $0.column == "sort_order" && $0.serializedValue == "N:16388.0" })
 
         await #expect(throws: LocalFirstError.invalidLocalWrite("category group name cannot be empty")) {
-            _ = try await database.createCategoryGroupMessages(groupID: "blank", name: "  ", builder: &builder)
+            _ = try await CategorySQL.createCategoryGroupMessages(groupID: "blank", name: "  ", builder: &builder, in: database)
         }
         await #expect(throws: LocalFirstError.refusedChange("A hidden category group with the name Archived already exists.")) {
-            _ = try await database.createCategoryGroupMessages(groupID: "again", name: "archived", builder: &builder)
+            _ = try await CategorySQL.createCategoryGroupMessages(groupID: "again", name: "archived", builder: &builder, in: database)
         }
     }
 
@@ -111,16 +115,16 @@ struct CategoryLifecycleWriteTests {
             localNodeID: "node1"
         )
         var builder = LocalFirstSyncMessageBuilder()
-        #expect(try await database.renameCategoryMessages(categoryID: "fuel", name: " Fuel ", builder: &builder).isEmpty)
-        #expect(try await database.renameCategoryGroupMessages(groupID: "bills", name: " Bills ", builder: &builder).isEmpty)
-        let category = try await database.renameCategoryMessages(categoryID: "fuel", name: " Transport ", builder: &builder)
+        #expect(try await CategorySQL.renameCategoryMessages(categoryID: "fuel", name: " Fuel ", builder: &builder, in: database).isEmpty)
+        #expect(try await CategorySQL.renameCategoryGroupMessages(groupID: "bills", name: " Bills ", builder: &builder, in: database).isEmpty)
+        let category = try await CategorySQL.renameCategoryMessages(categoryID: "fuel", name: " Transport ", builder: &builder, in: database)
         #expect(category.map(\.column) == ["name"])
         #expect(category.first?.serializedValue == "S:Transport")
         await #expect(throws: LocalFirstError.refusedChange("A category with the name Groceries already exists.")) {
-            _ = try await database.renameCategoryMessages(categoryID: "fuel", name: "groceries", builder: &builder)
+            _ = try await CategorySQL.renameCategoryMessages(categoryID: "fuel", name: "groceries", builder: &builder, in: database)
         }
         await #expect(throws: LocalFirstError.refusedChange("A category group with the name Everyday already exists.")) {
-            _ = try await database.renameCategoryGroupMessages(groupID: "bills", name: "everyday", builder: &builder)
+            _ = try await CategorySQL.renameCategoryGroupMessages(groupID: "bills", name: "everyday", builder: &builder, in: database)
         }
     }
 
@@ -143,7 +147,7 @@ struct CategoryLifecycleWriteTests {
             .init(id: "group", categoryIDs: ["groceries", "fuel"]),
             .init(id: "bills", categoryIDs: ["rent"])
         ], moves: [])
-        #expect(try await database.applyCategoryOutlineMessages(unchanged, builder: &builder).isEmpty)
+        #expect(try await CategorySQL.applyCategoryOutlineMessages(unchanged, builder: &builder, in: database).isEmpty)
         let command = BudgetCategoryOutlineCommand(groups: [
             .init(id: "bills", categoryIDs: ["fuel", "rent"]),
             .init(id: "group", categoryIDs: ["groceries"])
@@ -151,14 +155,14 @@ struct CategoryLifecycleWriteTests {
             .group(id: "bills", beforeGroupID: "group"),
             .category(id: "fuel", toGroupID: "bills", beforeCategoryID: "rent"),
         ])
-        let messages = try await database.applyCategoryOutlineMessages(command, builder: &builder)
+        let messages = try await CategorySQL.applyCategoryOutlineMessages(command, builder: &builder, in: database)
         #expect(messages.contains { $0.dataset == "category_groups" && $0.row == "bills" && $0.column == "sort_order" })
         #expect(messages.contains { $0.dataset == "categories" && $0.row == "fuel" && $0.column == "cat_group" && $0.serializedValue == "S:bills" })
         #expect(messages.contains { $0.dataset == "categories" && $0.row == "rent" && $0.column == "sort_order" && $0.serializedValue == "N:16385.0" })
 
         let stale = BudgetCategoryOutlineCommand(groups: [.init(id: "bills", categoryIDs: ["missing"])], moves: [])
         await #expect(throws: LocalFirstError.refusedChange("Your categories changed before this could be saved. Try again.")) {
-            _ = try await database.applyCategoryOutlineMessages(stale, builder: &builder)
+            _ = try await CategorySQL.applyCategoryOutlineMessages(stale, builder: &builder, in: database)
         }
         let trackingDatabase = try BudgetDatabase(
             databaseURL: try makeSQLiteFixture(extraSQL: """
@@ -178,7 +182,7 @@ struct CategoryLifecycleWriteTests {
             .init(id: "income", categoryIDs: [])
         ], moves: [])
         await #expect(throws: LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")) {
-            _ = try await trackingDatabase.applyCategoryOutlineMessages(incomeMove, builder: &builder)
+            _ = try await CategorySQL.applyCategoryOutlineMessages(incomeMove, builder: &builder, in: trackingDatabase)
         }
     }
 
@@ -203,7 +207,7 @@ struct CategoryLifecycleWriteTests {
             .category(id: "fuel", toGroupID: "bills", beforeCategoryID: "rent"),
             .category(id: "groceries", toGroupID: "bills", beforeCategoryID: "fuel"),
         ])
-        let messages = try await database.applyCategoryOutlineMessages(command, builder: &builder)
+        let messages = try await CategorySQL.applyCategoryOutlineMessages(command, builder: &builder, in: database)
         func value(_ row: String, _ column: String) -> String? {
             messages.last { $0.dataset == "categories" && $0.row == row && $0.column == column }?.serializedValue
         }
@@ -284,14 +288,14 @@ struct CategoryLifecycleWriteTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
 
-        #expect(try await database.categoryNeedsTransfer(categoryID: "groceries"))
-        #expect(try await database.categoryNeedsTransfer(categoryID: "funded"))
-        #expect(try await !database.categoryNeedsTransfer(categoryID: "clean"))
+        #expect(try await CategoryDeletionSQL.categoryNeedsTransfer(categoryID: "groceries", in: database))
+        #expect(try await CategoryDeletionSQL.categoryNeedsTransfer(categoryID: "funded", in: database))
+        #expect(try await !CategoryDeletionSQL.categoryNeedsTransfer(categoryID: "clean", in: database))
 
         let queue = try DatabaseQueue(path: fixtureURL.path)
         try await queue.write { db in try db.execute(sql: "DROP TABLE category_mapping") }
         let fallbackDatabase = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node2")
-        #expect(try await fallbackDatabase.categoryNeedsTransfer(categoryID: "mapped"))
+        #expect(try await CategoryDeletionSQL.categoryNeedsTransfer(categoryID: "mapped", in: fallbackDatabase))
     }
 
     @Test func deleteWithoutTransferWritesOnlyTombstoneAndRemovesCategoryFromReads() async throws {
@@ -304,13 +308,15 @@ struct CategoryLifecycleWriteTests {
         var builder = LocalFirstSyncMessageBuilder()
 
         await #expect(throws: LocalFirstError.refusedChange("Choose a category to move this category's transactions to before deleting it.")) {
-            _ = try await database.deleteCategoryMessages(
-                categoryID: "groceries", transferCategoryID: nil, builder: &builder
+            _ = try await CategoryDeletionSQL.deleteCategoryMessages(
+                categoryID: "groceries", transferCategoryID: nil, builder: &builder,
+                in: database
             )
         }
 
-        let messages = try await database.deleteCategoryMessages(
-            categoryID: "clean", transferCategoryID: nil, builder: &builder
+        let messages = try await CategoryDeletionSQL.deleteCategoryMessages(
+            categoryID: "clean", transferCategoryID: nil, builder: &builder,
+            in: database
         )
         #expect(messages.map(\.dataset) == ["categories"])
         #expect(messages.map(\.column) == ["tombstone"])
@@ -339,8 +345,9 @@ struct CategoryLifecycleWriteTests {
         let before = try await database.fetchBudgetMonth(month: "2026-07")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let messages = try await database.deleteCategoryMessages(
-            categoryID: "source", transferCategoryID: "destination", builder: &builder
+        let messages = try await CategoryDeletionSQL.deleteCategoryMessages(
+            categoryID: "source", transferCategoryID: "destination", builder: &builder,
+            in: database
         )
         #expect(messages.contains { $0.dataset == "zero_budgets" && $0.row == "202607-destination" && $0.column == "amount" && $0.serializedValue == "N:12000" })
         #expect(messages.contains { $0.dataset == "zero_budgets" && $0.row == "202608-destination" && $0.column == "amount" && $0.serializedValue == "N:34000" })
@@ -385,26 +392,30 @@ struct CategoryLifecycleWriteTests {
         }
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.deleteCategoryMessages(
-            categoryID: "clean", transferCategoryID: "destination", builder: &builder
+        let messages = try await CategoryDeletionSQL.deleteCategoryMessages(
+            categoryID: "clean", transferCategoryID: "destination", builder: &builder,
+            in: database
         )
         #expect(messages.contains { $0.dataset == "category_mapping" && $0.column == "transfer_id" })
         await #expect(throws: LocalFirstError.refusedChange("Income and expense categories cannot be mixed.")) {
-            _ = try await database.deleteCategoryMessages(
-                categoryID: "clean", transferCategoryID: "income", builder: &builder
+            _ = try await CategoryDeletionSQL.deleteCategoryMessages(
+                categoryID: "clean", transferCategoryID: "income", builder: &builder,
+                in: database
             )
         }
         await #expect(throws: LocalFirstError.invalidLocalWrite("category no longer exists")) {
-            _ = try await database.deleteCategoryMessages(
-                categoryID: "clean", transferCategoryID: "missing", builder: &builder
+            _ = try await CategoryDeletionSQL.deleteCategoryMessages(
+                categoryID: "clean", transferCategoryID: "missing", builder: &builder,
+                in: database
             )
         }
 
         try await queue.write { db in try db.execute(sql: "DROP TABLE category_mapping") }
         let missingMappingDatabase = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node2")
         await #expect(throws: LocalFirstError.schemaUnavailable("missing category_mapping table")) {
-            _ = try await missingMappingDatabase.deleteCategoryMessages(
-                categoryID: "clean", transferCategoryID: "destination", builder: &builder
+            _ = try await CategoryDeletionSQL.deleteCategoryMessages(
+                categoryID: "clean", transferCategoryID: "destination", builder: &builder,
+                in: missingMappingDatabase
             )
         }
 
@@ -420,8 +431,9 @@ struct CategoryLifecycleWriteTests {
             databaseURL: missingTombstoneURL, localNodeID: "node3"
         )
         await #expect(throws: LocalFirstError.schemaUnavailable("missing column categories.tombstone")) {
-            _ = try await missingTombstoneDatabase.deleteCategoryMessages(
-                categoryID: "clean", transferCategoryID: nil, builder: &builder
+            _ = try await CategoryDeletionSQL.deleteCategoryMessages(
+                categoryID: "clean", transferCategoryID: nil, builder: &builder,
+                in: missingTombstoneDatabase
             )
         }
     }
@@ -441,8 +453,9 @@ struct CategoryLifecycleWriteTests {
         var builder = LocalFirstSyncMessageBuilder()
 
         await #expect(throws: LocalFirstError.numericValueOutOfRange) {
-            _ = try await database.deleteCategoryMessages(
-                categoryID: "source", transferCategoryID: "destination", builder: &builder
+            _ = try await CategoryDeletionSQL.deleteCategoryMessages(
+                categoryID: "source", transferCategoryID: "destination", builder: &builder,
+                in: database
             )
         }
     }
@@ -463,18 +476,21 @@ struct CategoryLifecycleWriteTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let emptyMessages = try await database.deleteCategoryGroupMessages(
-            groupID: "empty", transferCategoryID: nil, builder: &builder
+        let emptyMessages = try await CategoryDeletionSQL.deleteCategoryGroupMessages(
+            groupID: "empty", transferCategoryID: nil, builder: &builder,
+            in: database
         )
         #expect(emptyMessages.map(\.dataset) == ["category_groups"])
         await #expect(throws: LocalFirstError.refusedChange("Choose a category to move this group's transactions to before deleting it.")) {
-            _ = try await database.deleteCategoryGroupMessages(
-                groupID: "victim", transferCategoryID: nil, builder: &builder
+            _ = try await CategoryDeletionSQL.deleteCategoryGroupMessages(
+                groupID: "victim", transferCategoryID: nil, builder: &builder,
+                in: database
             )
         }
 
-        let messages = try await database.deleteCategoryGroupMessages(
-            groupID: "victim", transferCategoryID: "destination", builder: &builder
+        let messages = try await CategoryDeletionSQL.deleteCategoryGroupMessages(
+            groupID: "victim", transferCategoryID: "destination", builder: &builder,
+            in: database
         )
         #expect(messages.contains { $0.dataset == "categories" && $0.row == "one" && $0.column == "tombstone" })
         #expect(messages.contains { $0.dataset == "categories" && $0.row == "old" && $0.column == "tombstone" })

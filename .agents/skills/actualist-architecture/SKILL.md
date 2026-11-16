@@ -81,7 +81,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - State and derived display logic: `BudgetViewModel.swift`, `BudgetViewportModel.swift`, and nearby `*Presentation.swift`, `*Policy.swift`, and draft-model files.
 - Month navigation and layout: `BudgetMonthSwipeModifier.swift`, `BudgetAssignmentViewport.swift`, `BudgetAssignmentScrollPresentation.swift`, and viewport/layout helpers.
 - Assignment and move-money workflows: `BudgetMoveMoneyWorkflow.swift` and `BudgetMoveMoneyView.swift`; persistence enters through `BudgetRepositoryProtocol` and `LocalFirstActualStore+AssignMove.swift`.
-- Category create/rename/reorder/delete/visibility: `BudgetCategory*Workflow.swift` and the category sheets. Store writes are `LocalFirstActualStore+CategoryLifecycle.swift`; SQLite is `BudgetDatabase+CategoryLifecycle*.swift` and `+CategoryVisibility.swift`.
+- Category create/rename/reorder/delete/visibility: `BudgetCategory*Workflow.swift` and the category sheets. Store writes are `LocalFirstActualStore+CategoryLifecycle.swift`; SQLite is `CategorySQL` and `CategoryDeletionSQL` in `LocalFirst/Database/`.
 - Hold for next month: `BudgetHoldViewModel.swift` and `BudgetHoldSheet.swift` own the shared compact/wide review workflow. `BudgetDatabase+EnvelopeHolds.swift` owns the stored hold calculation; the focused hold store/database writers own persistence.
 - Uncategorized flow: `UncategorizedTransactionsView.swift` and its view model/coordinator siblings.
 - Backend reads/writes: `LocalFirstActualStore+Reads.swift`, `+AssignMove.swift`, `+Mutations.swift`, `+ActionLog.swift`; `BudgetDatabase+BudgetReads.swift`, `+BudgetWrites.swift`, and `+ActionLog*.swift`.
@@ -197,7 +197,7 @@ File naming is the ownership index:
 - `+Sync`, `+Merkle` — remote CRDT application and the merkle trie (see Sync and merkle below).
 - `+LocalCommit`, `+UserActionPlan` — the write core (see Write trace).
 - `+BudgetWrites`, `+EnvelopeHolds`, `+EnvelopeCarryIn`, `+HoldWrites`, `+TransactionCreation`, `+TransactionDiffUpdate`, `+TransactionGraphPlanning`, `+TransactionUpdates`, `+TransactionSplitWrites` — budget and transaction mutation families.
-- `+CategoryLifecycle`, `+CategoryLifecycleDeletion`, `+CategoryVisibility` — category structure and hidden-category persistence.
+- `CategorySQL` (category reads, create, rename, reorder and hide) and `CategoryDeletionSQL` (delete with the budget and mapping transfer) — category structure and hidden-category persistence; `EntityName` holds the name check those writes share.
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
 - `+Preferences`, `+Currency`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.

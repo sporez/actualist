@@ -14,10 +14,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
 
-        let hideCategory = try await database.setCategoryHiddenMessages(
+        let hideCategory = try await CategorySQL.setCategoryHiddenMessages(
             categoryID: "groceries",
             hidden: true,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(hideCategory.map(\.column) == ["hidden"])
         #expect(hideCategory.map(\.dataset) == ["categories"])
@@ -25,18 +26,20 @@ extension LocalFirstActualStoreTests {
         #expect(hideCategory.map(\.serializedValue) == ["N:1"])
         #expect(try await database.commitLocalSyncMessagesAndEnqueue(hideCategory) == 1)
 
-        let showCategory = try await database.setCategoryHiddenMessages(
+        let showCategory = try await CategorySQL.setCategoryHiddenMessages(
             categoryID: "groceries",
             hidden: false,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(showCategory.map(\.serializedValue) == ["N:0"])
         #expect(try await database.commitLocalSyncMessagesAndEnqueue(showCategory) == 1)
 
-        let hideGroup = try await database.setCategoryGroupHiddenMessages(
+        let hideGroup = try await CategorySQL.setCategoryGroupHiddenMessages(
             groupID: "hidden-grp",
             hidden: true,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(hideGroup.map(\.dataset) == ["category_groups"])
         #expect(hideGroup.map(\.column) == ["hidden"])
@@ -54,10 +57,11 @@ extension LocalFirstActualStoreTests {
         let fixtureURL = try makeSQLiteFixture()
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryGroupHiddenMessages(
+        let messages = try await CategorySQL.setCategoryGroupHiddenMessages(
             groupID: "group",
             hidden: true,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(messages.count == 1)
         #expect(messages.first?.dataset == "category_groups")
@@ -71,10 +75,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         await #expect(throws: LocalFirstError.refusedChange("Income groups cannot be hidden.")) {
-            _ = try await database.setCategoryGroupHiddenMessages(
+            _ = try await CategorySQL.setCategoryGroupHiddenMessages(
                 groupID: "income-grp",
                 hidden: true,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
     }
@@ -88,10 +93,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: fixtureURL, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         await #expect(throws: LocalFirstError.refusedChange("This category is in a hidden group. Show the group before changing it.")) {
-            _ = try await database.setCategoryHiddenMessages(
+            _ = try await CategorySQL.setCategoryHiddenMessages(
                 categoryID: "secret",
                 hidden: true,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
     }
@@ -101,10 +107,11 @@ extension LocalFirstActualStoreTests {
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
         var builder = LocalFirstSyncMessageBuilder()
         await #expect(throws: LocalFirstError.schemaUnavailable("missing column category_groups.hidden")) {
-            _ = try await database.setCategoryGroupHiddenMessages(
+            _ = try await CategorySQL.setCategoryGroupHiddenMessages(
                 groupID: "group",
                 hidden: true,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
     }

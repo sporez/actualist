@@ -21,7 +21,7 @@ enum PayeeManagementSQL {
         builder: inout LocalFirstSyncMessageBuilder,
         in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        let trimmedName = try BudgetDatabase.validatedName(name, label: "payee")
+        let trimmedName = try EntityName.validatedName(name, label: "payee")
         return try database.queue.read { db in
             _ = try database.requiredColumns(table: "payees", required: ["name"], db: db)
             try rejectPickerDuplicatePayeeName(name, in: database, db: db)
@@ -54,7 +54,7 @@ enum PayeeManagementSQL {
         builder: inout LocalFirstSyncMessageBuilder,
         in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        let trimmedName = try BudgetDatabase.validatedName(name, label: "payee")
+        let trimmedName = try EntityName.validatedName(name, label: "payee")
         return try database.queue.read { db in
             let payee = try requiredRegularPayee(payeeID, in: database, db: db)
             guard payee.name != trimmedName else {

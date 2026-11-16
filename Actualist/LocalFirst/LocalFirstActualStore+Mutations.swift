@@ -328,10 +328,11 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryHiddenMessages(
+        let messages = try await CategorySQL.setCategoryHiddenMessages(
             categoryID: categoryID,
             hidden: hidden,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         if !messages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
@@ -350,10 +351,11 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setCategoryGroupHiddenMessages(
+        let messages = try await CategorySQL.setCategoryGroupHiddenMessages(
             groupID: groupID,
             hidden: hidden,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         if !messages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)

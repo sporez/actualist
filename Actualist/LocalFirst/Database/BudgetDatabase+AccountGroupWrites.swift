@@ -10,7 +10,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         let trimmedID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedName = try Self.validatedName(name, label: "account group")
+        let trimmedName = try EntityName.validatedName(name, label: "account group")
         guard !trimmedID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing account group")
         }
@@ -54,7 +54,7 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> [ActualSyncDecodedMessage] {
         let groupID = groupID.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedName = try Self.validatedName(name, label: "account group")
+        let trimmedName = try EntityName.validatedName(name, label: "account group")
         return try queue.read { db in
             let group = try requiredLiveAccountGroup(groupID, db: db)
             guard group.name != trimmedName else {

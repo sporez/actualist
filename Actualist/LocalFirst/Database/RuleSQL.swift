@@ -4,7 +4,7 @@ import GRDB
 enum RuleSQL {
     static func fetchRuleEditorOptions(in database: isolated BudgetDatabase) throws -> RuleEditorOptions {
         let accounts = try database.fetchAccounts()
-        let categories = try database.fetchCategories()
+        let categories = try CategorySQL.fetchCategories(in: database)
         let payees = try PayeeSQL.fetchPayees(in: database)
         let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
         let categoryGroups = try database.queue.read { db -> [RuleEditorChoice] in
