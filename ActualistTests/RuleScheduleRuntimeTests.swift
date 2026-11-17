@@ -284,11 +284,11 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let preview = try await store.previewRules(for: draft, budgetID: "group-1")
+        let preview = try await store.transactions.previewRules(for: draft, budgetID: "group-1")
         #expect(preview.scheduleID == "internet-sched")
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
         #expect(created.schedule == "internet-sched")
     }
@@ -323,7 +323,7 @@ extension LocalFirstActualStoreTests {
         let snapshot = try #require(store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         #expect(snapshot.payees.first { $0.id == "unused-sched" }?.canDelete == true)
 
-        let preview = try await store.previewRules(
+        let preview = try await store.transactions.previewRules(
             for: TransactionDraft(
                 accountID: "checking",
                 date: try makeDate(year: 2026, month: 8, day: 11),

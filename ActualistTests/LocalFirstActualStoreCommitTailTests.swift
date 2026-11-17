@@ -31,7 +31,7 @@ struct LocalFirstActualStoreCommitTailTests {
             try fixture.onFeedRead?()
         }
         _ = try await store.openCachedBudget(bundle.budget)
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         return (store, fixture)
     }
 
@@ -54,7 +54,7 @@ struct LocalFirstActualStoreCommitTailTests {
         fixture.failFeedReads = true
         let queuedBefore = fixture.queuedCount
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
 
         #expect(result.ok)
         #expect(fixture.queuedCount == queuedBefore + 1)
@@ -99,7 +99,7 @@ struct LocalFirstActualStoreCommitTailTests {
                 editingIdentity: .creating(transactionID: "new-id"),
                 draft: draft,
                 budgetID: "group-1",
-                repository: store
+                repository: store.transactions
             )
         }
         fixture.onFeedRead = {

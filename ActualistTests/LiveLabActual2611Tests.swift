@@ -69,7 +69,7 @@ struct LiveLabActual2611Tests {
         var result: [String: Any] = [:]
 
         // OP-88: the formula rule's split amounts, against Actual's own `rules-run`.
-        let preview = try await store.previewRules(
+        let preview = try await store.transactions.previewRules(
             for: TransactionDraft(
                 accountID: checkingID,
                 date: try #require(ActualDateOnly.date(from: today, timeZone: .autoupdatingCurrent)),

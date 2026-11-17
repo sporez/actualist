@@ -40,10 +40,10 @@ struct TransactionUndoChangedCellsTests {
     @Test func singleDeleteOfATransferLegClearsItsLinkAndUndoRestoresIt() async throws {
         let bundle = try await batch.makeBatchFixture(additionalFixtureSQL: Self.legs)
         let store = bundle.store
-        let leg = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "leg-a"))
+        let leg = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "leg-a"))
         let beforeDelete = try messages(in: bundle)
 
-        _ = try await store.deleteTransactionAndRefresh(leg, budgetID: "group-1", didDelete: {})
+        _ = try await store.transactions.deleteTransactionAndRefresh(leg, budgetID: "group-1", didDelete: {})
 
         #expect(try cells(since: beforeDelete, in: bundle) == ["leg-a.tombstone", "leg-a.transferred_id", "leg-b.tombstone"])
         #expect(try link("leg-a", in: bundle) == nil)
@@ -95,13 +95,13 @@ struct TransactionUndoChangedCellsTests {
     @Test func editUndoWritesOnlyTheEditedCells() async throws {
         let bundle = try await batch.makeBatchFixture()
         let store = bundle.store
-        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         let draft = TransactionDraft(
             accountID: baseline.account, date: try support.makeDate(year: 2026, month: 7, day: 3),
             amountMinorUnits: -20_000, payeeID: baseline.payee, payeeName: "", categoryID: baseline.category,
             notes: baseline.notes, cleared: baseline.cleared?.boolValue ?? false, isTransfer: false
         )
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             "txn", with: draft, budgetID: "group-1", originalAccountID: baseline.account, originalMonth: "2026-07",
             baseline: baseline, actionSource: .ui, didUpdate: {}
         )
@@ -116,7 +116,7 @@ struct TransactionUndoChangedCellsTests {
     @Test func editingATransactionWithNullNotesAndAnEmptyFieldWritesNoNotesCell() async throws {
         let bundle = try await batch.makeBatchFixture()
         let store = bundle.store
-        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         #expect(baseline.notes == nil)
         let before = try messages(in: bundle)
         let draft = TransactionDraft(
@@ -125,7 +125,7 @@ struct TransactionUndoChangedCellsTests {
             notes: "", cleared: baseline.cleared?.boolValue ?? false, isTransfer: false
         )
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             "txn", with: draft, budgetID: "group-1", originalAccountID: baseline.account, originalMonth: "2026-07",
             baseline: baseline, actionSource: .ui, didUpdate: {}
         )

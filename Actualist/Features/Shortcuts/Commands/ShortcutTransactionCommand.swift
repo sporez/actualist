@@ -143,7 +143,7 @@ enum ShortcutTransactionCommand {
         prepared: PreparedBudget
     ) async throws -> TransactionEntity {
         let draft = try await makeLogDraft(input, session: session, prepared: prepared)
-        let result = try await prepared.store.createTransactionAndRefresh(
+        let result = try await prepared.store.transactions.createTransactionAndRefresh(
             draft,
             budgetID: prepared.budgetID,
             actionSource: .shortcuts,
@@ -218,7 +218,7 @@ enum ShortcutTransactionCommand {
             cleared: input.cleared,
             isTransfer: transfer
         )
-        let preview = try await prepared.store.previewRules(for: draft, budgetID: prepared.budgetID)
+        let preview = try await prepared.store.transactions.previewRules(for: draft, budgetID: prepared.budgetID)
         if preview.deletesTransaction {
             throw ShortcutsError.writeFailed
         }

@@ -129,7 +129,7 @@ struct BankSyncCategoryLearningTests {
             try await TransactionReadSQL.fetchTransactions(accountID: "savings", in: database)
                 .first { $0.id == "manual-1" }
         )
-        _ = try await bundle.store.categorizeTransactionAndRefresh(
+        _ = try await bundle.store.transactions.categorizeTransactionAndRefresh(
             transaction,
             categoryID: "groceries",
             budgetID: "group-1",

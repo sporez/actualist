@@ -35,7 +35,7 @@ extension LocalFirstActualStoreTests {
             isTransfer: false,
             splits: splits
         )
-        _ = try await bundle.store.updateTransactionAndRefresh(
+        _ = try await bundle.store.transactions.updateTransactionAndRefresh(
             "p", with: draft, budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07"
         ) {}

@@ -34,7 +34,7 @@ struct LiveLabRunningBalanceTests {
     }
 
     private func feedSetting(_ store: LocalFirstActualStore, _ database: BudgetDatabase, budgetID: String, accountID: String) async throws -> Bool? {
-        try await store.loadedAccountTransactions(
+        try await store.transactions.loadedAccountTransactions(
             database: database, budgetID: budgetID, accountID: accountID, query: TransactionFeedQuery()
         ).runningBalanceSetting
     }
@@ -49,7 +49,7 @@ struct LiveLabRunningBalanceTests {
         try await store.accounts.createAccountAndRefresh(budgetID: budget.syncID, name: "Balance Checking", offbudget: false)
         let database = try store.requireDatabase(for: budget.syncID)
         let accountID = try await accountID(named: "Balance Checking", in: database)
-        try await store.setShowsRunningBalance(budgetID: budget.syncID, accountID: accountID, enabled: true)
+        try await store.transactions.setShowsRunningBalance(budgetID: budget.syncID, accountID: accountID, enabled: true)
         #expect(try await feedSetting(store, database, budgetID: budget.syncID, accountID: accountID) == true)
         try await store.refresh(budgetID: budget.syncID, serverURLString: serverURL)
         let queue = await database.queue

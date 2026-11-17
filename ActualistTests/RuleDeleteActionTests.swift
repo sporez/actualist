@@ -169,11 +169,11 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let preview = try await store.previewRules(for: draft, budgetID: "group-1")
+        let preview = try await store.transactions.previewRules(for: draft, budgetID: "group-1")
         #expect(preview.deletesTransaction)
 
         await #expect(throws: LocalFirstError.self) {
-            _ = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+            _ = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         }
     }
 
@@ -209,7 +209,7 @@ extension LocalFirstActualStoreTests {
             )
         )
 
-        let result = try await store.importWalletTransactions(
+        let result = try await store.transactions.importWalletTransactions(
             [candidate],
             intoAccountID: "checking",
             budgetID: "group-1"

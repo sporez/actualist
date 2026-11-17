@@ -11,7 +11,7 @@ struct LocalFirstActualStoreIdempotentCreateTests {
 
     private func makeStore() async throws -> LocalFirstActualStore {
         let store = try await support.makeOpenedWritableStore()
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         return store
     }
 
@@ -30,19 +30,19 @@ struct LocalFirstActualStoreIdempotentCreateTests {
     }
 
     private func rows(_ store: LocalFirstActualStore, notes: String = "idem") -> [ActualTransaction] {
-        (store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.transactions ?? [])
+        (store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.transactions ?? [])
             .filter { $0.notes == notes }
     }
 
     @Test func creatingWithTheSameIDTwiceWritesOneRowAndOneActionLogEntry() async throws {
         let store = try await makeStore()
 
-        let first = try await store.createTransactionAndRefresh(
+        let first = try await store.transactions.createTransactionAndRefresh(
             draft(), budgetID: "group-1", transactionID: "txn-x"
         ) {}
         let pendingAfterFirst = try await store.pendingLocalSyncMessageCount(budgetID: "group-1")
         let didCreate = DidCreateCounter()
-        let second = try await store.createTransactionAndRefresh(
+        let second = try await store.transactions.createTransactionAndRefresh(
             draft(), budgetID: "group-1", transactionID: "txn-x"
         ) { didCreate.count += 1 }
 
@@ -59,15 +59,15 @@ struct LocalFirstActualStoreIdempotentCreateTests {
 
     @Test func retryingACreateAfterItsRowWasDeletedDoesNotResurrectIt() async throws {
         let store = try await makeStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             draft(), budgetID: "group-1", transactionID: "txn-x"
         ) {}
         let row = try #require(rows(store).first)
-        _ = try await store.deleteTransactionAndRefresh(row, budgetID: "group-1") {}
+        _ = try await store.transactions.deleteTransactionAndRefresh(row, budgetID: "group-1") {}
         #expect(rows(store).isEmpty)
         let pendingAfterDelete = try await store.pendingLocalSyncMessageCount(budgetID: "group-1")
 
-        let retry = try await store.createTransactionAndRefresh(
+        let retry = try await store.transactions.createTransactionAndRefresh(
             draft(), budgetID: "group-1", transactionID: "txn-x"
         ) {}
 
@@ -78,12 +78,12 @@ struct LocalFirstActualStoreIdempotentCreateTests {
 
     @Test func retryingATransferCreateWritesNoSecondLeg() async throws {
         let store = try await makeStore()
-        _ = try await store.createTransactionAndRefresh(
+        _ = try await store.transactions.createTransactionAndRefresh(
             draft(transfer: true), budgetID: "group-1", transactionID: "txn-x"
         ) {}
         let pendingAfterFirst = try await store.pendingLocalSyncMessageCount(budgetID: "group-1")
 
-        _ = try await store.createTransactionAndRefresh(
+        _ = try await store.transactions.createTransactionAndRefresh(
             draft(transfer: true), budgetID: "group-1", transactionID: "txn-x"
         ) {}
 
@@ -94,8 +94,8 @@ struct LocalFirstActualStoreIdempotentCreateTests {
     @Test func nilIDKeepsEveryCreateIndependent() async throws {
         let store = try await makeStore()
 
-        _ = try await store.createTransactionAndRefresh(draft(), budgetID: "group-1") {}
-        _ = try await store.createTransactionAndRefresh(draft(), budgetID: "group-1") {}
+        _ = try await store.transactions.createTransactionAndRefresh(draft(), budgetID: "group-1") {}
+        _ = try await store.transactions.createTransactionAndRefresh(draft(), budgetID: "group-1") {}
 
         #expect(rows(store).count == 2)
     }
@@ -105,10 +105,10 @@ struct LocalFirstActualStoreIdempotentCreateTests {
         let coordinator = TransactionEditorMutationCoordinator(transaction: nil)
 
         let first = await coordinator.submit(
-            validation: .valid, draft: draft(), budgetID: "group-1", repository: store
+            validation: .valid, draft: draft(), budgetID: "group-1", repository: store.transactions
         )
         let second = await coordinator.submit(
-            validation: .valid, draft: draft(), budgetID: "group-1", repository: store
+            validation: .valid, draft: draft(), budgetID: "group-1", repository: store.transactions
         )
 
         #expect(first == .saved)

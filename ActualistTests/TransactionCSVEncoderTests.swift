@@ -164,7 +164,7 @@ struct TransactionCSVExportDatabaseTests {
         let pendingBeforeWrite = try await database.pendingLocalSyncMessages()
         #expect(pendingBeforeWrite.isEmpty)
 
-        _ = try await bundle.store.createTransactionAndRefresh(
+        _ = try await bundle.store.transactions.createTransactionAndRefresh(
             TransactionDraft(
                 accountID: "checking",
                 date: try support.makeDate(year: 2026, month: 7, day: 16),

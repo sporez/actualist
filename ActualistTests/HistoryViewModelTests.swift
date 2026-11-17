@@ -242,7 +242,7 @@ extension LocalFirstActualStoreTests {
     @Test func createTransactionRowDescribesThePayeeAndAmount() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)
-        _ = try await bundle.store.createTransactionAndRefresh(
+        _ = try await bundle.store.transactions.createTransactionAndRefresh(
             TransactionDraft(
                 accountID: "checking",
                 date: try makeDate(year: 2026, month: 7, day: 8),

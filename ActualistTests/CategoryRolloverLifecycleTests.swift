@@ -15,15 +15,15 @@ struct CategoryRolloverLifecycleTests {
         let details = CategoryMonthDetails(category: category, month: "2026-07", modeIdentity: loaded.modeIdentity)
         let model = CategoryMonthDetailsViewModel(details: details)
         let feed = AccountTransactionsViewModel(scope: .category(details))
-        await feed.loadLocal(budgetID: "group-1", repository: store)
-        let before = try #require(store.cachedCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07"))
+        await feed.loadLocal(budgetID: "group-1", repository: store.transactions)
+        let before = try #require(store.transactions.cachedCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07"))
         #expect(!before.transactions.isEmpty)
         for enabled in [!category.carryover, category.carryover, !category.carryover] {
             await model.setCarryover(enabled, budgetID: "group-1", repository: store.budget)
             #expect(model.carryoverErrorMessage == nil)
             #expect(model.isCarryoverEnabled == enabled)
-            #expect(store.cachedCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07") == before)
-            let displayed = feed.displayState(budgetID: "group-1", repository: store,
+            #expect(store.transactions.cachedCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07") == before)
+            let displayed = feed.displayState(budgetID: "group-1", repository: store.transactions,
                 pendingNewTransactionIDs: [], privacyModeEnabled: false)
             #expect(displayed.transactionCount == before.transactions.count)
             #expect(displayed.hasLoadedSnapshot)
@@ -38,8 +38,8 @@ struct CategoryRolloverLifecycleTests {
         let store = bundle.store
         let database = try #require(store.database)
         _ = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-08")
-        try await store.refreshCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07")
-        _ = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        try await store.transactions.refreshCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07")
+        _ = try await store.transactions.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
         _ = try await database.applyRemoteSyncMessages([
             .init(timestamp: "2026-09-08T00:00:00.000Z-0000-0000000000000001", dataset: "transactions",
                 row: "txn", column: "category", serializedValue: "0:")
@@ -51,9 +51,9 @@ struct CategoryRolloverLifecycleTests {
         case "account": try await store.reloadAfterAccountMutation(database: database, budgetID: "group-1")
         default: try await store.reloadSelectedBudgetCache(budgetID: "group-1")
         }
-        let category = try #require(store.cachedCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07"))
+        let category = try #require(store.transactions.cachedCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07"))
         #expect(category.transactions.isEmpty)
-        let uncategorized = try #require(store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-07"))
+        let uncategorized = try #require(store.transactions.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-07"))
         #expect(uncategorized.transactions.contains { $0.id == "txn" })
     }
 

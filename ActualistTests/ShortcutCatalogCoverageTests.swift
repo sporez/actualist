@@ -108,14 +108,14 @@ struct ShortcutCatalogCoverageTests {
                 VALUES ('split-b', 'checking', 20260710, -3000, 'utilities', 0, 'split-parent', 0, 1);
             """
         )
-        let parent = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "split-parent"))
+        let parent = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "split-parent"))
         #expect(parent.isParent)
         #expect(parent.subtransactions.count == 2)
-        let child = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "split-a"))
+        let child = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "split-a"))
         #expect(child.isChild)
         #expect(child.parentID == "split-parent")
-        #expect(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "missing") == nil)
-        #expect(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "   ") == nil)
+        #expect(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "missing") == nil)
+        #expect(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "   ") == nil)
         await #expect(throws: ShortcutsError.transactionNotFound) {
             _ = try await session.actualTransaction(id: " ")
         }

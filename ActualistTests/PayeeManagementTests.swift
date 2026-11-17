@@ -221,7 +221,7 @@ extension LocalFirstActualStoreTests {
 
         let after = try #require(store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         #expect(!after.payees.contains { $0.id == "coffee" })
-        let page = try await store.transactionPage(
+        let page = try await store.transactions.transactionPage(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery(), limit: 50, offset: 0
         )
         let row = try #require(page.transactions.first { $0.id == "txn" })
@@ -423,7 +423,7 @@ extension LocalFirstActualStoreTests {
         #expect(rule.draft?.actions.first?.value == .string("groceries"))
         #expect(rule.payeeIDs == ["coffee"])
 
-        let preview = try await store.previewRules(
+        let preview = try await store.transactions.previewRules(
             for: TransactionDraft(
                 accountID: "checking",
                 date: Date(timeIntervalSince1970: 1_783_036_800),
@@ -507,7 +507,7 @@ extension LocalFirstActualStoreTests {
         let mappedRule = try #require(rules.first { $0.id == "mapped-payee" })
         #expect(mappedRule.draft?.conditions.first?.value == .string("coffee"))
 
-        let preview = try await store.previewRules(
+        let preview = try await store.transactions.previewRules(
             for: TransactionDraft(
                 accountID: "checking",
                 date: try makeDate(year: 2026, month: 8, day: 12),
@@ -667,7 +667,7 @@ extension LocalFirstActualStoreTests {
         let database = try #require(store.database)
         let transaction = try #require(try await TransactionReadSQL.fetchTransactions(in: database).first { $0.id == "txn" })
 
-        _ = try await store.categorizeTransactionAndRefresh(
+        _ = try await store.transactions.categorizeTransactionAndRefresh(
             transaction,
             categoryID: "groceries",
             budgetID: "group-1",
@@ -678,7 +678,7 @@ extension LocalFirstActualStoreTests {
         let learned = try #require(rules.first { $0.payeeIDs.contains(payeeID) })
         #expect(learned.draft?.actions.first?.value == .string("groceries"))
 
-        let preview = try await store.previewRules(
+        let preview = try await store.transactions.previewRules(
             for: TransactionDraft(
                 accountID: "checking",
                 date: try makeDate(year: 2026, month: 7, day: 3),
@@ -724,7 +724,7 @@ extension LocalFirstActualStoreTests {
         let date = try makeDate(year: 2026, month: 8, day: 12)
 
         // Selected payee: editor synthesizes importedPayee = "1Password".
-        let selectedPayeePreview = try await store.previewRules(
+        let selectedPayeePreview = try await store.transactions.previewRules(
             for: TransactionDraft(
                 accountID: "checking",
                 date: date,
@@ -742,7 +742,7 @@ extension LocalFirstActualStoreTests {
         #expect(selectedPayeePreview.categoryID == "subscriptions")
 
         // Custom-typed payee: editor synthesizes importedPayee = "1Password".
-        let customPayeePreview = try await store.previewRules(
+        let customPayeePreview = try await store.transactions.previewRules(
             for: TransactionDraft(
                 accountID: "checking",
                 date: date,

@@ -13,12 +13,12 @@ struct LocalFirstActualStoreTransactionMergeTests {
         let range = ReportDateRange.dashboard(
             through: try StoreFixtures().makeDate(year: 2026, month: 8, day: 10)
         )
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery())
-        try await store.refreshTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery())
         _ = try await store.reports.refreshReportsDashboard(budgetID: "group-1", range: range)
-        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) != nil)
-        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()) != nil)
+        #expect(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) != nil)
+        #expect(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()) != nil)
         #expect(store.reports.cachedReportsDashboard(budgetID: "group-1", range: range) != nil)
 
         let review = try await store.transactionCommands.reviewTransactionMerge(
@@ -32,9 +32,9 @@ struct LocalFirstActualStoreTransactionMergeTests {
         #expect(outcome.receipt.changedTransactionIDs == ["peer-a", "peer-b", "root-b", "txn"])
         #expect(!outcome.refreshPending)
         #expect(outcome.sessionCurrent)
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
-        let credit = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
-        let spending = try #require(store.cachedTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let credit = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
+        let spending = try #require(store.transactions.cachedTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery()))
         #expect(checking.transactions.contains { $0.id == "txn" })
         #expect(!checking.transactions.contains { $0.id == "root-b" })
         #expect(credit.transactions.contains { $0.id == "peer-a" })
@@ -52,9 +52,9 @@ struct LocalFirstActualStoreTransactionMergeTests {
             }
         )
         let store = bundle.store
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery())
-        try await store.refreshTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery())
         behavior.failReads = true
         let review = try await store.transactionCommands.reviewTransactionMerge(
             context: context(for: store),
@@ -66,9 +66,9 @@ struct LocalFirstActualStoreTransactionMergeTests {
         #expect(outcome.receipt.actionID == review.id)
         #expect(outcome.refreshPending)
         #expect(outcome.sessionCurrent)
-        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)
-        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()) == nil)
-        #expect(store.cachedTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery()) == nil)
+        #expect(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)
+        #expect(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()) == nil)
+        #expect(store.transactions.cachedTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery()) == nil)
         #expect(try await store.history.recentBudgetActions(budgetID: "group-1").count == 1)
     }
 
@@ -79,7 +79,7 @@ struct LocalFirstActualStoreTransactionMergeTests {
         )
         let store = bundle.store
         let database = try store.requireDatabase(for: "group-1")
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         let review = try await store.transactionCommands.reviewTransactionMerge(
             context: context(for: store),
             orderedTransactionIDs: ["txn", "root-b"]

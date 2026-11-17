@@ -20,16 +20,16 @@ extension LocalFirstActualStoreTests {
         )
         let store = bundle.store
         let model = AccountTransactionsViewModel(scope: .account(Self.balanceAccount))
-        await model.loadLocal(budgetID: "group-1", repository: store)
+        await model.loadLocal(budgetID: "group-1", repository: store.transactions)
         func rows() -> [AccountTransactionRowPresentation] {
             model.displayState(
-                budgetID: "group-1", repository: store,
+                budgetID: "group-1", repository: store.transactions,
                 pendingNewTransactionIDs: [], privacyModeEnabled: false
             ).groups.flatMap(\.rows)
         }
         #expect(rows().allSatisfy { $0.runningBalanceText == nil })
 
-        try await store.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: true)
+        try await store.transactions.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: true)
 
         #expect(try await pendingCells(bundle) == ["preferences|\(Self.balanceKey)|value|S:true"])
         let shown = rows()
@@ -37,7 +37,7 @@ extension LocalFirstActualStoreTests {
         #expect(shown.allSatisfy { $0.runningBalanceText != nil })
         #expect(try await ActionLogStorageSQL.recentBudgetActions(in: try #require(bundle.store.database)).isEmpty == true)
 
-        try await store.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: false)
+        try await store.transactions.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: false)
 
         #expect(rows().allSatisfy { $0.runningBalanceText == nil })
         #expect(try await pendingCells(bundle).suffix(1) == ["preferences|\(Self.balanceKey)|value|S:false"])
@@ -49,18 +49,18 @@ extension LocalFirstActualStoreTests {
             INSERT INTO preferences VALUES ('\(Self.balanceKey)', 'true');
             """)
         let store = bundle.store
-        try await store.refreshTransactions(
+        try await store.transactions.refreshTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )
-        let before = store.cachedTransactions(
+        let before = store.transactions.cachedTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )
         #expect(before?.runningBalanceSetting == true)
 
-        try await store.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: true)
+        try await store.transactions.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: true)
 
         #expect(try await pendingCells(bundle).isEmpty)
-        #expect(store.cachedTransactions(
+        #expect(store.transactions.cachedTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         ) == before)
     }
@@ -70,7 +70,7 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT, tombstone INTEGER);
             """)
 
-        try await bundle.store.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: true)
+        try await bundle.store.transactions.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: true)
 
         #expect(Set(try await pendingCells(bundle)) == [
             "preferences|\(Self.balanceKey)|value|S:true",
@@ -85,21 +85,21 @@ extension LocalFirstActualStoreTests {
             INSERT INTO preferences VALUES ('transaction-table-columns-checking', '\(layout)');
             """)
         let store = bundle.store
-        try await store.refreshTransactions(
+        try await store.transactions.refreshTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )
-        #expect(store.cachedTransactions(
+        #expect(store.transactions.cachedTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )?.runningBalanceSetting == true)
 
-        try await store.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: false)
+        try await store.transactions.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: false)
 
         let cells = try await pendingCells(bundle)
         #expect(cells.contains("preferences|\(Self.balanceKey)|value|S:false"))
         let layoutCell = try #require(cells.first { $0.hasPrefix("preferences|transaction-table-columns-checking|value|S:") })
         let written = String(layoutCell.dropFirst("preferences|transaction-table-columns-checking|value|S:".count))
         #expect(RunningBalancePreference.parseColumns(written).first { $0.id == "balance" }?.hidden == true)
-        #expect(store.cachedTransactions(
+        #expect(store.transactions.cachedTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )?.runningBalanceSetting == false)
     }
@@ -109,21 +109,21 @@ extension LocalFirstActualStoreTests {
             CREATE TABLE preferences (id TEXT PRIMARY KEY, value TEXT);
             INSERT INTO preferences VALUES ('transaction-table-columns', '[{"id":"date","hidden":false}]');
             """)
-        try await bundle.store.refreshTransactions(
+        try await bundle.store.transactions.refreshTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )
-        #expect(bundle.store.cachedTransactions(
+        #expect(bundle.store.transactions.cachedTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )?.runningBalanceSetting == false)
 
-        try await bundle.store.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: true)
+        try await bundle.store.transactions.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: true)
 
         let cells = try await pendingCells(bundle)
         #expect(cells.count == 2)
         #expect(cells.contains("preferences|\(Self.balanceKey)|value|S:true"))
         #expect(cells.contains { $0.hasPrefix("preferences|transaction-table-columns-checking|value|S:") })
         #expect(!cells.contains { $0.hasPrefix("preferences|transaction-table-columns|") })
-        #expect(bundle.store.cachedTransactions(
+        #expect(bundle.store.transactions.cachedTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )?.runningBalanceSetting == true)
     }
@@ -132,7 +132,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle()
 
         await #expect(throws: LocalFirstError.self) {
-            try await bundle.store.setShowsRunningBalance(
+            try await bundle.store.transactions.setShowsRunningBalance(
                 budgetID: "group-1", accountID: "checking", enabled: true
             )
         }

@@ -89,7 +89,7 @@ extension LocalFirstActualStoreTests {
             }
         }
 
-        let result = try await bundle.store.importWalletTransactions(
+        let result = try await bundle.store.transactions.importWalletTransactions(
             [candidate], intoAccountID: "checking", budgetID: "group-1"
         )
 
@@ -120,7 +120,7 @@ extension LocalFirstActualStoreTests {
         }
 
         await #expect(throws: LocalFirstError.importedTransactionConflict) {
-            _ = try await bundle.store.importWalletTransactions(
+            _ = try await bundle.store.transactions.importWalletTransactions(
                 candidates, intoAccountID: "checking", budgetID: "group-1"
             )
         }

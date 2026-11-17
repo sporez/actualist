@@ -430,7 +430,7 @@ struct AccountReconciliationWriteTests {
 
         let transactionID = try #require(result.changed.transactions.first)
         let loaded = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         )
         let adjustment = try #require(loaded.transactions.first { $0.id == transactionID })
         #expect(adjustment.amount == 1_000)
@@ -448,7 +448,7 @@ struct AccountReconciliationWriteTests {
                 (id, acct, date, amount, category, tombstone, parent_id, is_parent, cleared, reconciled)
             VALUES ('locked', 'checking', 20260704, -500, NULL, 0, NULL, 0, 1, 1);
             """)
-        let repository: any TransactionRepositoryProtocol = store
+        let repository: any TransactionRepositoryProtocol = store.transactions
         let databaseURL = try await store.requireDatabase(for: "group-1").databaseURL
 
         let result = try await repository.unlockReconciledTransactionAndRefresh(

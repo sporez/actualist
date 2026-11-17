@@ -91,12 +91,12 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let preview = try await store.previewRules(for: draft, budgetID: "group-1")
+        let preview = try await store.transactions.previewRules(for: draft, budgetID: "group-1")
         #expect(preview.splits.map(\.amountMinorUnits) == [4_000, -14_000])
         #expect(preview.splits.map(\.categoryID) == ["groceries", "utilities"])
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
         #expect(created.isParent)
         #expect(created.subtransactions.map { $0.amount ?? 0 } == [4_000, -14_000])

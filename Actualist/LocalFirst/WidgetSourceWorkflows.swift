@@ -38,7 +38,7 @@ final class WidgetSourceWorkflows {
         if let maps,
            let uncategorized = try? await TransactionReadSQL.fetchUncategorizedTransactions(in: database) {
             let count = uncategorized.filter {
-                LocalFirstActualStore.isUncategorized($0, transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+                TransactionWorkflows.isUncategorized($0, transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
                                      offBudgetAccountIDs: maps.offBudgetAccountIDs)
             }.count
             let overspent = month.categoryGroups.filter { !$0.isIncome }.flatMap {

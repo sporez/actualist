@@ -22,11 +22,11 @@ extension LocalFirstActualStoreTests {
             isTransfer: false
         )
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {
             didCreate = true
         }
 
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
         #expect(didCreate)
         #expect(result.ok)
@@ -55,11 +55,11 @@ extension LocalFirstActualStoreTests {
             isTransfer: false
         )
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
 
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
-        let options = try await store.editorOptions(budgetID: "group-1", month: "2026-07")
+        let options = try await store.transactions.editorOptions(budgetID: "group-1", month: "2026-07")
         let newPayee = try #require(options.payees.first { $0.name == "New Cafe" })
         #expect(created.payee == newPayee.id)
         #expect(created.payeeName == "New Cafe")
@@ -82,11 +82,11 @@ extension LocalFirstActualStoreTests {
             isTransfer: false
         )
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
 
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let created = try #require(loaded.transactions.first { $0.id == result.changed.transactions.first })
-        let options = try await store.editorOptions(budgetID: "group-1", month: "2026-07")
+        let options = try await store.transactions.editorOptions(budgetID: "group-1", month: "2026-07")
         #expect(created.payee == "coffee")
         #expect(created.payeeName == "Coffee Shop")
         #expect(options.payees.filter { $0.name.caseInsensitiveCompare("coffee shop") == .orderedSame }.count == 1)
@@ -105,13 +105,13 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let createResult = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
-        let uncategorizedBefore = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        let createResult = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let uncategorizedBefore = try await store.transactions.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
         let transactionID = try #require(createResult.changed.transactions.first)
         let transaction = try #require(uncategorizedBefore.transactions.first { $0.id == transactionID })
         var didUpdate = false
 
-        let categorizeResult = try await store.categorizeTransactionAndRefresh(
+        let categorizeResult = try await store.transactions.categorizeTransactionAndRefresh(
             transaction,
             categoryID: "groceries",
             budgetID: "group-1"
@@ -119,9 +119,9 @@ extension LocalFirstActualStoreTests {
             didUpdate = true
         }
 
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let categorized = try #require(loaded.transactions.first { $0.id == transactionID })
-        let uncategorizedAfter = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        let uncategorizedAfter = try await store.transactions.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
         let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let groceries = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
 
@@ -167,17 +167,17 @@ extension LocalFirstActualStoreTests {
         ]
         var createdIDs: [String] = []
         for draft in drafts {
-            let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+            let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
             createdIDs += result.changed.transactions
         }
-        let uncategorized = try await store.uncategorizedTransactions(
+        let uncategorized = try await store.transactions.uncategorizedTransactions(
             budgetID: "group-1",
             month: "2026-07"
         )
         let selected = uncategorized.transactions.filter { createdIDs.contains($0.rowID) }
         var didUpdateCount = 0
 
-        let result = try await store.categorizeTransactionsAndRefresh(
+        let result = try await store.transactions.categorizeTransactionsAndRefresh(
             selected,
             categoryID: "groceries",
             budgetID: "group-1"
@@ -185,9 +185,9 @@ extension LocalFirstActualStoreTests {
             didUpdateCount += 1
         }
 
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
-        let credit = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
-        let uncategorizedAfter = try await store.uncategorizedTransactions(
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let credit = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
+        let uncategorizedAfter = try await store.transactions.uncategorizedTransactions(
             budgetID: "group-1",
             month: "2026-07"
         )
@@ -231,9 +231,9 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: true
         )
-        _ = try await store.createTransactionAndRefresh(outgoing, budgetID: "group-1") {}
-        _ = try await store.createTransactionAndRefresh(incoming, budgetID: "group-1") {}
-        let uncategorized = try await store.uncategorizedTransactions(
+        _ = try await store.transactions.createTransactionAndRefresh(outgoing, budgetID: "group-1") {}
+        _ = try await store.transactions.createTransactionAndRefresh(incoming, budgetID: "group-1") {}
+        let uncategorized = try await store.transactions.uncategorizedTransactions(
             budgetID: "group-1",
             month: "2026-07"
         )
@@ -245,13 +245,13 @@ extension LocalFirstActualStoreTests {
             transferRows.first { $0.account == "checking" && $0.amount == 3_500 }
         )
 
-        _ = try await store.categorizeTransactionsAndRefresh(
+        _ = try await store.transactions.categorizeTransactionsAndRefresh(
             [outgoingBudgetRow, incomingBudgetRow],
             categoryID: "groceries",
             budgetID: "group-1"
         ) {}
 
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         #expect(checking.transactions.first { $0.rowID == outgoingBudgetRow.rowID }?.category == "groceries")
         #expect(checking.transactions.first { $0.rowID == incomingBudgetRow.rowID }?.category == "groceries")
     }
@@ -280,27 +280,27 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: true
         )
-        let regularResult = try await store.createTransactionAndRefresh(
+        let regularResult = try await store.transactions.createTransactionAndRefresh(
             regularDraft,
             budgetID: "group-1"
         ) {}
-        _ = try await store.createTransactionAndRefresh(transferDraft, budgetID: "group-1") {}
+        _ = try await store.transactions.createTransactionAndRefresh(transferDraft, budgetID: "group-1") {}
         let regularID = try #require(regularResult.changed.transactions.first)
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let regular = try #require(checking.transactions.first { $0.rowID == regularID })
         let sameBudgetTransfer = try #require(
             checking.transactions.first { $0.payee == "xfer-credit" && $0.amount == -1_800 }
         )
 
         await #expect(throws: LocalFirstError.self) {
-            _ = try await store.categorizeTransactionsAndRefresh(
+            _ = try await store.transactions.categorizeTransactionsAndRefresh(
                 [regular, sameBudgetTransfer],
                 categoryID: "groceries",
                 budgetID: "group-1"
             ) {}
         }
 
-        let uncategorizedAfter = try await store.uncategorizedTransactions(
+        let uncategorizedAfter = try await store.transactions.uncategorizedTransactions(
             budgetID: "group-1",
             month: "2026-07"
         )
@@ -319,7 +319,7 @@ extension LocalFirstActualStoreTests {
             """
         )
 
-        let before = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        let before = try await store.transactions.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
         #expect(before.transactions.contains { $0.id == "s03-uncat" })
         #expect(!before.transactions.contains { $0.id == "s03-parent" })
         #expect(!before.transactions.contains { $0.id == "s03-a" })
@@ -327,14 +327,14 @@ extension LocalFirstActualStoreTests {
         #expect(child.isChild)
         #expect(child.parentID == "s03-parent")
 
-        _ = try await store.categorizeTransactionAndRefresh(
+        _ = try await store.transactions.categorizeTransactionAndRefresh(
             child,
             categoryID: "utilities",
             budgetID: "group-1"
         ) {}
 
-        let after = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let after = try await store.transactions.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let parent = try #require(loaded.transactions.first { $0.id == "s03-parent" })
         #expect(!after.transactions.contains { $0.id == "s03-uncat" })
         #expect(parent.isParent)

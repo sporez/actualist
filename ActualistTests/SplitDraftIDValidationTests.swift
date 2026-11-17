@@ -9,7 +9,7 @@ extension LocalFirstActualStoreTests {
 
     /// Creates an unrelated simple transaction and returns its id.
     private func makeBystander(in store: LocalFirstActualStore) async throws -> String {
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(amount: -2_000, splits: []),
             budgetID: "group-1"
         ) {}
@@ -26,7 +26,7 @@ extension LocalFirstActualStoreTests {
         let before = try #require(transaction(bystanderID, in: store))
 
         await #expect(throws: (any Error).self) {
-            _ = try await store.createTransactionAndRefresh(
+            _ = try await store.transactions.createTransactionAndRefresh(
                 splitDraft(amount: -10_000, splits: [
                     child(bystanderID, amount: -4_000),
                     child("fresh-child", amount: -6_000),
@@ -41,7 +41,7 @@ extension LocalFirstActualStoreTests {
     @Test func updateSplitWithAForeignChildIDThrowsAndLeavesBothFamiliesUntouched() async throws {
         let store = try await makeOpenedWritableStore()
         let bystanderID = try await makeBystander(in: store)
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(amount: -10_000, splits: [
                 child("child-a", amount: -4_000),
                 child("child-b", amount: -6_000),
@@ -53,7 +53,7 @@ extension LocalFirstActualStoreTests {
         let parentBefore = try #require(transaction(parentID, in: store))
 
         await #expect(throws: (any Error).self) {
-            _ = try await store.updateTransactionAndRefresh(
+            _ = try await store.transactions.updateTransactionAndRefresh(
                 parentID,
                 with: splitDraft(amount: -10_000, splits: [
                     child("child-a", amount: -4_000),
@@ -71,7 +71,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func updateSplitWhoseChildUsesTheParentIDThrows() async throws {
         let store = try await makeOpenedWritableStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(amount: -10_000, splits: [child("child-a", amount: -10_000)]),
             budgetID: "group-1"
         ) {}
@@ -79,7 +79,7 @@ extension LocalFirstActualStoreTests {
         let parentBefore = try #require(transaction(parentID, in: store))
 
         await #expect(throws: (any Error).self) {
-            _ = try await store.updateTransactionAndRefresh(
+            _ = try await store.transactions.updateTransactionAndRefresh(
                 parentID,
                 with: splitDraft(amount: -10_000, splits: [child(parentID, amount: -10_000)]),
                 budgetID: "group-1",
@@ -95,7 +95,7 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore()
 
         await #expect(throws: (any Error).self) {
-            _ = try await store.createTransactionAndRefresh(
+            _ = try await store.transactions.createTransactionAndRefresh(
                 splitDraft(amount: -10_000, splits: [
                     child("dup", amount: -4_000),
                     child("dup", amount: -6_000),
@@ -107,7 +107,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func updateSplitWithDuplicateChildIDsThrowsAndKeepsTheFamily() async throws {
         let store = try await makeOpenedWritableStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(amount: -10_000, splits: [
                 child("child-a", amount: -4_000),
                 child("child-b", amount: -6_000),
@@ -118,7 +118,7 @@ extension LocalFirstActualStoreTests {
         let parentBefore = try #require(transaction(parentID, in: store))
 
         await #expect(throws: (any Error).self) {
-            _ = try await store.updateTransactionAndRefresh(
+            _ = try await store.transactions.updateTransactionAndRefresh(
                 parentID,
                 with: splitDraft(amount: -10_000, splits: [
                     child("child-a", amount: -4_000),

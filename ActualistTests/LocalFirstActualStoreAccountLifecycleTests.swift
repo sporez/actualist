@@ -10,7 +10,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let bundle = try await support.makeOpenedWritableStoreBundle()
         let store = bundle.store
         try await store.accounts.refreshAccountsWithBalances(budgetID: "group-1")
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         let initialAccount = try #require(store.accounts.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account)
         let feed = AccountTransactionsViewModel(scope: .account(initialAccount))
 
@@ -24,15 +24,15 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         }
         #expect(!outcome.refreshPending)
         #expect(store.accounts.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account.name == "Daily Spending")
-        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.accountNames["checking"] == "Daily Spending")
+        #expect(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.accountNames["checking"] == "Daily Spending")
         #expect(store.actionLogDiagnosticSnapshot.count == 1)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") == 1)
         #expect(feed.displayState(
-            budgetID: "group-1", repository: store,
+            budgetID: "group-1", repository: store.transactions,
             pendingNewTransactionIDs: [], privacyModeEnabled: false
         ).title == "Daily Spending")
         #expect(feed.displayState(
-            budgetID: "group-1", repository: store,
+            budgetID: "group-1", repository: store.transactions,
             pendingNewTransactionIDs: [], privacyModeEnabled: true
         ).title == PrivacyDisplay.name(for: .account, seed: "checking"))
     }
@@ -134,7 +134,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         #expect(AccountLifecyclePresentation.mutationSheet(for: .completed(refreshed)) == nil)
         #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
         #expect(try await database.pendingLocalSyncMessageCount() == 1)
-        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.accountNames["checking"] == "Daily Spending")
+        #expect(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.accountNames["checking"] == "Daily Spending")
     }
 
     @Test func sessionReplacementDuringRefreshCannotRepublishOldFeedsOrDiagnostics() async throws {
@@ -191,7 +191,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         }
         #expect(submission.isCancelled)
         #expect(!outcome.refreshPending)
-        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.accountNames["checking"] == "Daily Spending")
+        #expect(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.accountNames["checking"] == "Daily Spending")
         #expect(store.actionLogDiagnosticSnapshot.count == 1)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") == 1)
     }
@@ -215,7 +215,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         )
         store.seams.transactionFeedPageReadHook = { _, _, _, _ in try hook.action?() }
         _ = try await store.openCachedBudget(bundle.budget)
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         return (store, hook)
     }
 

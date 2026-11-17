@@ -270,9 +270,10 @@ Remove one layer of glass before handing off.
   the flow returns, and then opportunistically flush. Clear the cache
   (`reset()`) on budget switch / connection change.
 - The repository protocols (`BudgetRepositoryProtocol`,
-  `TransactionRepositoryProtocol`) are the dependency-injection seam the store
-  conforms to; inject the store in production and fakes in tests. There are no
-  concrete repository structs.
+  `TransactionRepositoryProtocol`) are the dependency-injection seam. The
+  store's collaborators (`store.budget`, `store.transactions`, ...) conform to
+  them, not the store itself; inject the collaborator in production and fakes
+  in tests. There are no concrete repository structs.
 - Put feature screen state, loading/error handling, expansion/selection state,
   submission state machines, and derived display logic in feature view models.
 - Put reusable pure calculations or draft input interpretation in explicit
@@ -603,7 +604,7 @@ different ranges, guards fixed in one layout and not the other.
 | Weekday names | `ActualScheduleWeekday.fullName` (`Features/Schedules/SchedulePresentation.swift`); a site abbreviates or words it itself | A second weekday switch |
 | Store write tail | `finish*` helpers (`LocalFirst/LocalFirstActualStore+CommitTail.swift`) | A hand-written commit, reload and flush sequence |
 | Repository writes | One protocol requirement per write, carrying every parameter including `actionSource`. Shorter call shapes are protocol-extension conveniences that forward every parameter (`Repositories/TransactionRepository.swift`, `BudgetRepository.swift`). The store's function has default values. | An overload that emulates a default argument, or a convenience that drops a parameter |
-| Transaction feeds | `cachedTransactions(budgetID:scope:query:)`, `refreshTransactions`, `transactionPage` with `TransactionFeedQuery` | A per-scope `cached…`/`refresh…`/`search…` member. Category feeds are the one remaining exception, because they have their own cache. |
+| Transaction feeds | `store.transactions` (`TransactionWorkflows`): `cachedTransactions(budgetID:scope:query:)`, `refreshTransactions`, `transactionPage` with `TransactionFeedQuery` | A per-scope `cached…`/`refresh…`/`search…` member. Category feeds are the one remaining exception, because they have their own cache. |
 | Synced preferences | `SyncedPreferences` (`LocalFirst/Database/SyncedPreferences.swift`), one `SyncedPreferenceKey` per row. `firstDayOfWeekIdx` is read through it and parsed by `ReportCalendar.firstWeekdayIndex(preference:)` (Sunday unless 0...6); only the Reports transaction calendar applies it today | Raw `preferences` rows, `Calendar.current.firstWeekday` for an Actual report |
 | Live (non-deleted) rows | `predicateForLiveRows` (`BudgetDatabase+Schema.swift`) | A hand-written `tombstone = 0` predicate |
 | Transaction row reading | `TransactionRowReader` (`LocalFirst/Database/TransactionRowReader.swift`): the raw `transactions` row by id, `parentID(in:columns:)`, `effectiveIsChild`. The split record, batch snapshot and undo snapshot loaders keep their own projections, which differ on purpose (Decision Register D1, D10) | A fourth `SELECT * FROM transactions WHERE id = ?` loader, a copy of `effectiveIsChild` |

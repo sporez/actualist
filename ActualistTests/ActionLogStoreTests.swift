@@ -491,7 +491,7 @@ extension LocalFirstActualStoreTests {
             cleared: true,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
         let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
         #expect(row.kind == .createTransaction)
@@ -507,7 +507,7 @@ extension LocalFirstActualStoreTests {
         try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         #expect(try await store.history.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         #expect(!loaded.transactions.contains { $0.id == transactionID })
     }
 
@@ -524,20 +524,20 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
         let createdRow = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
-        _ = try await store.deleteTransactionAndRefresh(createdRow, budgetID: "group-1") {}
+        _ = try await store.transactions.deleteTransactionAndRefresh(createdRow, budgetID: "group-1") {}
         let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.count == 2)
         #expect(rows[0].kind == .deleteTransaction)
 
         try await store.history.undoBudgetActionAndRefresh(actionID: rows[0].id, budgetID: "group-1")
 
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         #expect(loaded.transactions.contains { $0.id == transactionID })
         #expect(try await store.history.recentBudgetActions(budgetID: "group-1").first?.status == .undone)
     }
@@ -555,13 +555,13 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
         let createdRow = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
-        _ = try await store.categorizeTransactionAndRefresh(
+        _ = try await store.transactions.categorizeTransactionAndRefresh(
             createdRow,
             categoryID: "groceries",
             budgetID: "group-1"
@@ -572,7 +572,7 @@ extension LocalFirstActualStoreTests {
         try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let loaded = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         #expect(loaded.category == nil)
@@ -591,7 +591,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
         let notesOnly = TransactionDraft(
             accountID: "checking",
@@ -604,7 +604,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: notesOnly,
             budgetID: "group-1",
@@ -633,7 +633,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: true
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
         #expect(row.kind == .createTransaction)
         guard case .createTransaction(let summary) = row.summary else {
@@ -645,15 +645,15 @@ extension LocalFirstActualStoreTests {
 
         try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
-        let credit = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let credit = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
         #expect(!checking.transactions.contains { $0.id == created.changed.transactions.first })
         #expect(!credit.transactions.contains { $0.amount == 1000 && $0.notes == "move to card" })
     }
 
     @Test func splitCreateIsOneRowAndUndoTombstonesTheFamily() async throws {
         let store = try await makeOpenedWritableStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(
                 amount: -10_000,
                 splits: [
@@ -673,7 +673,7 @@ extension LocalFirstActualStoreTests {
 
         try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         #expect(!loaded.transactions.contains { $0.id == created.changed.transactions.first })
     }
 
@@ -690,7 +690,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
         let edited = TransactionDraft(
             accountID: "checking",
@@ -703,7 +703,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: edited,
             budgetID: "group-1",
@@ -716,7 +716,7 @@ extension LocalFirstActualStoreTests {
         try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let loaded = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         #expect(loaded.amount == -725)
@@ -811,7 +811,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        _ = try await store.createTransactionAndRefresh(
+        _ = try await store.transactions.createTransactionAndRefresh(
             draft,
             budgetID: "group-1",
             actionSource: .shortcuts

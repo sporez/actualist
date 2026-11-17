@@ -43,15 +43,15 @@ extension LocalFirstActualStoreTests {
     @Test func updateRecordsTheCallersActionSource() async throws {
         for source in [nil, BudgetActionSource.shortcuts] {
             let store = try await makeOpenedWritableStore()
-            let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+            let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
             let draft = try edited(baseline, amount: -20_000)
             if let source {
-                _ = try await store.updateTransactionAndRefresh(
+                _ = try await store.transactions.updateTransactionAndRefresh(
                     "txn", with: draft, budgetID: "group-1", originalAccountID: "checking",
                     originalMonth: "2026-07", actionSource: source, didUpdate: {}
                 )
             } else {
-                _ = try await store.updateTransactionAndRefresh(
+                _ = try await store.transactions.updateTransactionAndRefresh(
                     "txn", with: draft, budgetID: "group-1", originalAccountID: "checking",
                     originalMonth: "2026-07", didUpdate: {}
                 )
@@ -63,13 +63,13 @@ extension LocalFirstActualStoreTests {
     @Test func deleteRecordsTheCallersActionSource() async throws {
         for source in [nil, BudgetActionSource.shortcuts] {
             let store = try await makeOpenedWritableStore()
-            let transaction = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+            let transaction = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
             if let source {
-                _ = try await store.deleteTransactionAndRefresh(
+                _ = try await store.transactions.deleteTransactionAndRefresh(
                     transaction, budgetID: "group-1", actionSource: source, didDelete: {}
                 )
             } else {
-                _ = try await store.deleteTransactionAndRefresh(transaction, budgetID: "group-1", didDelete: {})
+                _ = try await store.transactions.deleteTransactionAndRefresh(transaction, budgetID: "group-1", didDelete: {})
             }
             #expect(try await loggedSource(store) == (source ?? .ui))
         }
@@ -78,14 +78,14 @@ extension LocalFirstActualStoreTests {
     @Test func categorizeRecordsTheCallersActionSource() async throws {
         for source in [nil, BudgetActionSource.shortcuts] {
             let store = try await makeOpenedWritableStore()
-            let transaction = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+            let transaction = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
             if let source {
-                _ = try await store.categorizeTransactionAndRefresh(
+                _ = try await store.transactions.categorizeTransactionAndRefresh(
                     transaction, categoryID: "utilities", budgetID: "group-1",
                     actionSource: source, didUpdate: {}
                 )
             } else {
-                _ = try await store.categorizeTransactionAndRefresh(
+                _ = try await store.transactions.categorizeTransactionAndRefresh(
                     transaction, categoryID: "utilities", budgetID: "group-1", didUpdate: {}
                 )
             }
@@ -96,14 +96,14 @@ extension LocalFirstActualStoreTests {
     @Test func categorizeTransactionsRecordsTheCallersActionSource() async throws {
         for source in [nil, BudgetActionSource.shortcuts] {
             let store = try await makeOpenedWritableStore()
-            let transaction = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+            let transaction = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
             if let source {
-                _ = try await store.categorizeTransactionsAndRefresh(
+                _ = try await store.transactions.categorizeTransactionsAndRefresh(
                     [transaction], categoryID: "utilities", budgetID: "group-1",
                     actionSource: source, didUpdate: {}
                 )
             } else {
-                _ = try await store.categorizeTransactionsAndRefresh(
+                _ = try await store.transactions.categorizeTransactionsAndRefresh(
                     [transaction], categoryID: "utilities", budgetID: "group-1", didUpdate: {}
                 )
             }
@@ -144,10 +144,10 @@ extension LocalFirstActualStoreTests {
 
     @Test func protocolUpdateCarriesTheReconciliationAuthorizationToTheStore() async throws {
         let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: Self.reconciledFixtureSQL)
-        let repository: any TransactionRepositoryProtocol = bundle.store
-        let baseline = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let repository: any TransactionRepositoryProtocol = bundle.store.transactions
+        let baseline = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         let review = try #require(
-            try await bundle.store.reconciledMutationReview(budgetID: "group-1", transactionID: "txn")
+            try await bundle.store.transactions.reconciledMutationReview(budgetID: "group-1", transactionID: "txn")
         )
         let draft = try edited(baseline, amount: -20_000)
         let before = try await amount(bundle)
@@ -170,10 +170,10 @@ extension LocalFirstActualStoreTests {
 
     @Test func protocolDeleteCarriesTheReconciliationAuthorizationToTheStore() async throws {
         let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: Self.reconciledFixtureSQL)
-        let repository: any TransactionRepositoryProtocol = bundle.store
-        let transaction = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let repository: any TransactionRepositoryProtocol = bundle.store.transactions
+        let transaction = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         let review = try #require(
-            try await bundle.store.reconciledMutationReview(budgetID: "group-1", transactionID: "txn")
+            try await bundle.store.transactions.reconciledMutationReview(budgetID: "group-1", transactionID: "txn")
         )
 
         await #expect(throws: ReconciledTransactionMutationError.self) {
@@ -195,10 +195,10 @@ extension LocalFirstActualStoreTests {
 
     @Test func protocolCategorizeCarriesTheReconciliationAuthorizationsToTheStore() async throws {
         let bundle = try await makeOpenedWritableStoreBundle(additionalFixtureSQL: Self.reconciledFixtureSQL)
-        let repository: any TransactionRepositoryProtocol = bundle.store
-        let transaction = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let repository: any TransactionRepositoryProtocol = bundle.store.transactions
+        let transaction = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         let review = try #require(
-            try await bundle.store.reconciledMutationReview(budgetID: "group-1", transactionID: "txn")
+            try await bundle.store.transactions.reconciledMutationReview(budgetID: "group-1", transactionID: "txn")
         )
 
         await #expect(throws: ReconciledTransactionMutationError.self) {

@@ -211,7 +211,7 @@ struct LiveLabInteropTests {
             cleared: false,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: budget.syncID) {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: budget.syncID) {}
         try await store.refresh(budgetID: budget.syncID, serverURLString: serverURL)
         let afterWrite = try await snapshot(of: store)
         let hash = try merkleHash(of: store, fileID: fileID)

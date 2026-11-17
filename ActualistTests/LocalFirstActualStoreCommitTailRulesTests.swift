@@ -31,7 +31,7 @@ struct LocalFirstActualStoreCommitTailRulesTests {
             syncDebugRecorder: { event in recorded.events.append(event) }
         )
         _ = try await store.openCachedBudget(bundle.budget)
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
         return (store, recorded)
     }
 
@@ -64,7 +64,7 @@ struct LocalFirstActualStoreCommitTailRulesTests {
         defer { release.trip() }
 
         let create = Task { @MainActor in
-            try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+            try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         }
         let parked = await entered.wait(timeout: .seconds(20)) { release.trip() }
         #expect(parked)
@@ -85,7 +85,7 @@ struct LocalFirstActualStoreCommitTailRulesTests {
         let queuedBefore = recorded.queuedCount
         store.seams.rulesReadHook = { _ in throw RulesReadFailure() }
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
 
         #expect(result.ok)
         #expect(result.refreshPending)

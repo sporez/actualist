@@ -620,7 +620,7 @@ final class ScheduleWorkflows {
             return
         }
         invalidateScheduleCache(budgetID: budgetID)
-        store.invalidateTransactionFeedCaches(budgetID: budgetID)
+        store.transactions.invalidateTransactionFeedCaches(budgetID: budgetID)
         await store.schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
     }
 

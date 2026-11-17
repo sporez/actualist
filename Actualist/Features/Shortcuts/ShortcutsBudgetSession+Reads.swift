@@ -139,7 +139,7 @@ extension ShortcutsBudgetSession {
         guard !trimmed.isEmpty else {
             throw ShortcutsError.transactionNotFound
         }
-        guard let match = try await prepared.store.fetchTransaction(
+        guard let match = try await prepared.store.transactions.fetchTransaction(
             budgetID: prepared.budgetID,
             id: trimmed
         ) else {
@@ -150,12 +150,12 @@ extension ShortcutsBudgetSession {
 
     func nameMaps(for transaction: ActualTransaction) async throws -> TransactionNameMaps {
         let prepared = try await prepare()
-        try await prepared.store.refreshTransactions(
+        try await prepared.store.transactions.refreshTransactions(
             budgetID: prepared.budgetID,
             scope: .account(transaction.account),
             query: TransactionFeedQuery()
         )
-        if let loaded = prepared.store.cachedTransactions(
+        if let loaded = prepared.store.transactions.cachedTransactions(
             budgetID: prepared.budgetID,
             scope: .account(transaction.account),
             query: TransactionFeedQuery()
@@ -212,13 +212,13 @@ extension ShortcutsBudgetSession {
         let prepared = try await prepare()
         let loadedMonth = try await loadedMonth(preferred: month)
         let loaded: LoadedUncategorizedTransactions
-        if let cached = prepared.store.cachedUncategorizedTransactions(
+        if let cached = prepared.store.transactions.cachedUncategorizedTransactions(
             budgetID: prepared.budgetID,
             month: loadedMonth.selectedMonth
         ) {
             loaded = cached
         } else {
-            loaded = try await prepared.store.uncategorizedTransactions(
+            loaded = try await prepared.store.transactions.uncategorizedTransactions(
                 budgetID: prepared.budgetID,
                 month: loadedMonth.selectedMonth
             )
@@ -248,7 +248,7 @@ extension ShortcutsBudgetSession {
         let hasQuery = query.map { !$0.isEmpty } ?? false
         if let accountID {
             if hasQuery, let query {
-                return try await store.transactionPage(
+                return try await store.transactions.transactionPage(
                     budgetID: budgetID,
                     scope: .account(accountID),
                     query: TransactionFeedQuery(text: query),
@@ -256,16 +256,16 @@ extension ShortcutsBudgetSession {
                     offset: 0
                 )
             }
-            if let cached = store.cachedTransactions(budgetID: budgetID, scope: .account(accountID), query: TransactionFeedQuery()) {
+            if let cached = store.transactions.cachedTransactions(budgetID: budgetID, scope: .account(accountID), query: TransactionFeedQuery()) {
                 return cached
             }
-            try await store.refreshTransactions(budgetID: budgetID, scope: .account(accountID), query: TransactionFeedQuery())
+            try await store.transactions.refreshTransactions(budgetID: budgetID, scope: .account(accountID), query: TransactionFeedQuery())
             return try requireCachedTransactions(
-                store.cachedTransactions(budgetID: budgetID, scope: .account(accountID), query: TransactionFeedQuery())
+                store.transactions.cachedTransactions(budgetID: budgetID, scope: .account(accountID), query: TransactionFeedQuery())
             )
         }
         if hasQuery, let query {
-            return try await store.transactionPage(
+            return try await store.transactions.transactionPage(
                 budgetID: budgetID,
                 scope: .spending,
                 query: TransactionFeedQuery(text: query),
@@ -273,11 +273,11 @@ extension ShortcutsBudgetSession {
                 offset: 0
             )
         }
-        if let cached = store.cachedTransactions(budgetID: budgetID,scope: .spending,query: TransactionFeedQuery()) {
+        if let cached = store.transactions.cachedTransactions(budgetID: budgetID,scope: .spending,query: TransactionFeedQuery()) {
             return cached
         }
-        try await store.refreshTransactions(budgetID: budgetID,scope: .spending,query: TransactionFeedQuery())
-        return try requireCachedTransactions(store.cachedTransactions(budgetID: budgetID,scope: .spending,query: TransactionFeedQuery()))
+        try await store.transactions.refreshTransactions(budgetID: budgetID,scope: .spending,query: TransactionFeedQuery())
+        return try requireCachedTransactions(store.transactions.cachedTransactions(budgetID: budgetID,scope: .spending,query: TransactionFeedQuery()))
     }
 
     private func requireCachedTransactions(

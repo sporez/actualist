@@ -5,7 +5,7 @@ import Testing
 extension LocalFirstActualStoreTests {
     @Test func createSplitNullsParentPayeeAndInheritsChildPayee() async throws {
         let store = try await makeOpenedWritableStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(
                 amount: -10_000,
                 splits: [
@@ -26,7 +26,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func createSplitPreservesNullableChildFieldsAndMixedSigns() async throws {
         let store = try await makeOpenedWritableStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(
                 amount: -10_000,
                 splits: [
@@ -72,7 +72,7 @@ extension LocalFirstActualStoreTests {
             INSERT INTO payees VALUES ('market', 'Market', NULL, 0);
             INSERT INTO payee_mapping VALUES ('market', 'market');
             """)
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(
                 amount: -10_000,
                 splits: [
@@ -97,7 +97,7 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1"
         ) {}
         let parentID = try #require(created.changed.transactions.first)
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             parentID,
             with: splitDraft(
                 amount: -10_000,
@@ -127,7 +127,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func deleteLastChildCollapsesParent() async throws {
         let store = try await makeOpenedWritableStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(
                 amount: -10_000,
                 splits: [
@@ -139,7 +139,7 @@ extension LocalFirstActualStoreTests {
         let parentID = try #require(created.changed.transactions.first)
         let parent = try #require(parentTransaction(in: store, id: parentID))
         let child = try #require(parent.subtransactions.first)
-        _ = try await store.deleteTransactionAndRefresh(child, budgetID: "group-1") {}
+        _ = try await store.transactions.deleteTransactionAndRefresh(child, budgetID: "group-1") {}
         let collapsed = try #require(parentTransaction(in: store, id: parentID))
         #expect(!collapsed.isParent)
         #expect(collapsed.subtransactions.isEmpty)
@@ -149,7 +149,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func childTransferCreatesPairedRowAndParentIsNotTransfer() async throws {
         let store = try await makeOpenedWritableStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(
                 amount: -10_000,
                 splits: [
@@ -174,7 +174,7 @@ extension LocalFirstActualStoreTests {
         #expect(parent.payee == nil)
         let transferChild = try #require(parent.subtransactions.first { $0.id == "xfer" })
         #expect(transferChild.payee == "xfer-savings")
-        let savings = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery()))
+        let savings = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery()))
         let paired = try #require(savings.transactions.first { $0.amount == 6_000 })
         #expect(paired.payeeName == "Checking")
         #expect(parent.amount == -10_000)
@@ -182,7 +182,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func updatingSiblingNotesDoesNotDuplicateTransferPair() async throws {
         let store = try await makeOpenedWritableStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(
                 amount: -10_000,
                 splits: [
@@ -207,12 +207,12 @@ extension LocalFirstActualStoreTests {
         ) {}
         let parentID = try #require(created.changed.transactions.first)
         func pairedCount() -> Int {
-            store.cachedTransactions(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery())?
                 .transactions.filter { $0.amount == 6_000 }.count ?? 0
         }
         #expect(pairedCount() == 1)
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             parentID,
             with: splitDraft(
                 amount: -10_000,
@@ -248,7 +248,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func categorizeChildIsAllowedAndParentStaysUncategorized() async throws {
         let store = try await makeOpenedWritableStore()
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             splitDraft(
                 amount: -3_000,
                 splits: [
@@ -260,13 +260,13 @@ extension LocalFirstActualStoreTests {
         ) {}
         let parent = try #require(parentTransaction(in: store, id: created.changed.transactions.first))
         let child = try #require(parent.subtransactions.first { $0.id == "child-a" })
-        _ = try await store.categorizeTransactionAndRefresh(
+        _ = try await store.transactions.categorizeTransactionAndRefresh(
             child,
             categoryID: "groceries",
             budgetID: "group-1"
         ) {}
         await #expect(throws: LocalFirstError.unsupportedSplitWrite) {
-            _ = try await store.categorizeTransactionAndRefresh(
+            _ = try await store.transactions.categorizeTransactionAndRefresh(
                 parent,
                 categoryID: "groceries",
                 budgetID: "group-1"
@@ -307,7 +307,7 @@ extension LocalFirstActualStoreTests {
         #expect(parent.category == nil)
         #expect(parent.subtransactions.first { $0.id == "s07-a" }?.payee == "coffee")
         #expect(parent.subtransactions.first { $0.id == "s07-a" }?.cleared?.boolValue == true)
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         #expect(!checking.transactions.contains { $0.id == "orphan" })
         #expect(!checking.transactions.contains { transaction in
             transaction.subtransactions.contains { $0.id == "orphan" }
@@ -342,7 +342,7 @@ extension LocalFirstActualStoreTests {
     }
 
     func parentTransaction(in store: LocalFirstActualStore, id: String?) -> ActualTransaction? {
-        store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+        store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
             .transactions.first { $0.id == id }
     }
 }

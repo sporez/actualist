@@ -79,16 +79,16 @@ extension LocalFirstActualStoreTests {
         store.database = database
         store.accountsByBudget["group-1"] = try await AccountSQL.fetchAccountDisplays(in: database)
 
-        try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
-        let firstPage = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        try await store.transactions.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
+        let firstPage = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
 
         #expect(firstPage.transactions.count == 100)
         #expect(!firstPage.reachedEnd)
 
-        try await store.loadOlderTransactions(
+        try await store.transactions.loadOlderTransactions(
             budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()
         )
-        let fullWindow = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let fullWindow = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
 
         #expect(fullWindow.transactions.count == 106)
         #expect(fullWindow.reachedEnd)
@@ -148,7 +148,7 @@ extension LocalFirstActualStoreTests {
     @Test func refreshAccountTransactionsWithoutOpenBudgetThrows() async {
         let store = makeStore()
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            try await store.refreshTransactions(budgetID: "b", scope: .account("a"), query: TransactionFeedQuery())
+            try await store.transactions.refreshTransactions(budgetID: "b", scope: .account("a"), query: TransactionFeedQuery())
         }
     }
 
@@ -159,7 +159,7 @@ extension LocalFirstActualStoreTests {
             payee: nil, payeeName: nil, importedPayee: nil, category: nil, notes: nil, cleared: nil
         )
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            _ = try await store.deleteTransactionAndRefresh(transaction, budgetID: "b") {}
+            _ = try await store.transactions.deleteTransactionAndRefresh(transaction, budgetID: "b") {}
         }
     }
 
@@ -317,14 +317,14 @@ extension LocalFirstActualStoreTests {
         )
 
         let july = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
-        #expect(bundle.store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-07") == nil)
-        let julyCached = try await bundle.store.uncategorizedTransactions(
+        #expect(bundle.store.transactions.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-07") == nil)
+        let julyCached = try await bundle.store.transactions.uncategorizedTransactions(
             budgetID: "group-1",
             month: "2026-07"
         )
         let june = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-06")
-        #expect(bundle.store.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-06") == nil)
-        let juneCached = try await bundle.store.uncategorizedTransactions(
+        #expect(bundle.store.transactions.cachedUncategorizedTransactions(budgetID: "group-1", month: "2026-06") == nil)
+        let juneCached = try await bundle.store.transactions.uncategorizedTransactions(
             budgetID: "group-1",
             month: "2026-06"
         )
@@ -354,12 +354,12 @@ extension LocalFirstActualStoreTests {
             selectedMonth: "2026-07"
         )
         #expect(loaded.alerts.first(where: { $0.kind == "uncategorizedTransactions" })?.count == 1)
-        #expect(bundle.store.cachedUncategorizedTransactions(
+        #expect(bundle.store.transactions.cachedUncategorizedTransactions(
             budgetID: "group-1",
             month: "2026-07"
         ) == nil)
 
-        let requested = try await bundle.store.uncategorizedTransactions(
+        let requested = try await bundle.store.transactions.uncategorizedTransactions(
             budgetID: "group-1",
             month: "2026-07"
         )
@@ -367,7 +367,7 @@ extension LocalFirstActualStoreTests {
         #expect(requested.transactions.compactMap(\.id) == ["txn"])
         #expect(requested.payeeNames["coffee"] == "Coffee Shop")
         #expect(requested.categoryGroups.flatMap(\.options).contains { $0.id == "groceries" })
-        #expect(bundle.store.cachedUncategorizedTransactions(
+        #expect(bundle.store.transactions.cachedUncategorizedTransactions(
             budgetID: "group-1",
             month: "2026-07"
         ) == requested)
@@ -383,7 +383,7 @@ extension LocalFirstActualStoreTests {
             try await store.accounts.refreshAccountsWithBalances(budgetID: "group-2")
         }
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            try await store.refreshTransactions(budgetID: "group-2", scope: .account("checking"), query: TransactionFeedQuery())
+            try await store.transactions.refreshTransactions(budgetID: "group-2", scope: .account("checking"), query: TransactionFeedQuery())
         }
     }
 
@@ -414,7 +414,7 @@ extension LocalFirstActualStoreTests {
             }
         }
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            _ = try await store.createTransactionAndRefresh(draft, budgetID: "group-2") {
+            _ = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-2") {
                 didCreate = true
             }
         }
@@ -461,13 +461,13 @@ extension LocalFirstActualStoreTests {
     @Test func categoryMonthFeedLoadsACompleteLocalSnapshot() async throws {
         let store = try await makeOpenedWritableStore()
 
-        try await store.refreshCategoryTransactions(
+        try await store.transactions.refreshCategoryTransactions(
             budgetID: "group-1",
             categoryID: "groceries",
             month: "2026-07"
         )
 
-        let loaded = try #require(store.cachedCategoryTransactions(
+        let loaded = try #require(store.transactions.cachedCategoryTransactions(
             budgetID: "group-1",
             categoryID: "groceries",
             month: "2026-07"

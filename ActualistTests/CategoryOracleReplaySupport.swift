@@ -236,7 +236,7 @@ enum CategoryOracleReplay {
             return .object(["groups": await outline(store: store, order: false)])
         case "read-deleted-display":
             let accountID = try OracleJSON.string(input, "account")
-            let loaded = try await store.loadedAccountTransactions(
+            let loaded = try await store.transactions.loadedAccountTransactions(
                 database: database, budgetID: budgetID, accountID: accountID, query: TransactionFeedQuery()
             )
             let rows = loaded.transactions.map { transaction -> OracleValue in

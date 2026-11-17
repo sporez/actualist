@@ -240,7 +240,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        _ = try await store.createTransactionAndRefresh(overspend, budgetID: "group-1") {}
+        _ = try await store.transactions.createTransactionAndRefresh(overspend, budgetID: "group-1") {}
         let before = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let beforeUtilities = try #require(before.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" })
 

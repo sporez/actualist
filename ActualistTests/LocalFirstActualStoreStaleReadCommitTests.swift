@@ -54,11 +54,11 @@ extension LocalFirstActualStoreTests {
     @Test func categorizeRejectsARowThatBecameASplitParentBeforeCommit() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let store = bundle.store
-        let transaction = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let transaction = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         landRemote([remoteMessage("transactions", "txn", "is_parent", "N:1")], on: store)
 
         await #expect(throws: LocalFirstError.unsupportedSplitWrite) {
-            _ = try await store.categorizeTransactionAndRefresh(
+            _ = try await store.transactions.categorizeTransactionAndRefresh(
                 transaction, categoryID: "utilities", budgetID: "group-1"
             ) {}
         }
@@ -75,7 +75,7 @@ extension LocalFirstActualStoreTests {
             ALTER TABLE transactions ADD COLUMN reconciled INTEGER;
             \(TransactionBatchDeleteTests.family(children: 2))
             """)
-        let parent = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "p"))
+        let parent = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "p"))
         landRemote([
             remoteMessage("transactions", "c3", "acct", "S:checking"),
             remoteMessage("transactions", "c3", "date", "N:20260705"),
@@ -85,7 +85,7 @@ extension LocalFirstActualStoreTests {
             remoteMessage("transactions", "c3", "tombstone", "N:0"),
         ], on: bundle.store)
 
-        _ = try await bundle.store.deleteTransactionAndRefresh(parent, budgetID: "group-1") {}
+        _ = try await bundle.store.transactions.deleteTransactionAndRefresh(parent, budgetID: "group-1") {}
 
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
         let live = try await DatabaseQueue(path: url.path).read { db in
@@ -111,7 +111,7 @@ extension LocalFirstActualStoreTests {
             isTransfer: false
         )
 
-        let result = try await store.updateTransactionAndRefresh(
+        let result = try await store.transactions.updateTransactionAndRefresh(
             "txn", with: draft, budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07"
         ) {}

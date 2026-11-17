@@ -231,7 +231,7 @@ final class PayeeWorkflows {
         try await publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
         store.reports.invalidateReports(budgetID: budgetID)
 
-        try await store.refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
+        try await store.transactions.refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
         await store.history.refreshActionLogDiagnosticSnapshot(database: database)
     }
 }

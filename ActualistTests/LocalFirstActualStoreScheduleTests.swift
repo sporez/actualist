@@ -240,7 +240,7 @@ extension LocalFirstActualStoreTests {
                 cleared: false,
                 isTransfer: false
             )
-            _ = try await bundle.store.createTransactionAndRefresh(
+            _ = try await bundle.store.transactions.createTransactionAndRefresh(
                 draft,
                 budgetID: "group-1"
             ) {}

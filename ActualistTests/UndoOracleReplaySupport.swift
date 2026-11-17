@@ -169,7 +169,7 @@ enum UndoOracleReplay {
                 categoryID: input["categoryID"] as? String,
                 date: try date(try OracleJSON.string(input, "date"))
             )
-            _ = try await store.createTransactionAndRefresh(draft, budgetID: budgetID, didCreate: {})
+            _ = try await store.transactions.createTransactionAndRefresh(draft, budgetID: budgetID, didCreate: {})
         case "edit":
             let existing = try await existingTransaction(store, input)
             let draft = try submissionDraft(
@@ -184,7 +184,7 @@ enum UndoOracleReplay {
                 reconciled: existing.reconciled,
                 originalIsParent: existing.isParent
             )
-            _ = try await store.updateTransactionAndRefresh(
+            _ = try await store.transactions.updateTransactionAndRefresh(
                 try OracleJSON.string(input, "transactionID"),
                 with: draft,
                 budgetID: budgetID,
@@ -194,11 +194,11 @@ enum UndoOracleReplay {
                 didUpdate: {}
             )
         case "delete":
-            _ = try await store.deleteTransactionAndRefresh(
+            _ = try await store.transactions.deleteTransactionAndRefresh(
                 try await existingTransaction(store, input), budgetID: budgetID, didDelete: {}
             )
         case "categorize":
-            _ = try await store.categorizeTransactionAndRefresh(
+            _ = try await store.transactions.categorizeTransactionAndRefresh(
                 try await existingTransaction(store, input),
                 categoryID: try OracleJSON.string(input, "categoryID"),
                 budgetID: budgetID,
@@ -222,7 +222,7 @@ enum UndoOracleReplay {
         _ input: [String: Any]
     ) async throws -> ActualTransaction {
         let id = try OracleJSON.string(input, "transactionID")
-        guard let transaction = try await store.fetchTransaction(budgetID: budgetID, id: id) else {
+        guard let transaction = try await store.transactions.fetchTransaction(budgetID: budgetID, id: id) else {
             throw OracleReplayError.malformedFixture("transaction \(id) is not seeded")
         }
         return transaction
@@ -273,7 +273,7 @@ enum UndoOracleReplay {
     ) async throws {
         var selections: [TransactionSelectionIdentity] = []
         for id in ids {
-            guard let transaction = try await store.fetchTransaction(budgetID: budgetID, id: id),
+            guard let transaction = try await store.transactions.fetchTransaction(budgetID: budgetID, id: id),
                   let selection = TransactionSelectionIdentity(transaction: transaction) else {
                 throw OracleReplayError.malformedFixture("transaction \(id) has no selection identity")
             }

@@ -169,7 +169,7 @@ struct BankSyncDeletedTransactionsTests {
         })
         let transaction = try #require(try await TransactionReadSQL.fetchTransactions(accountID: "savings", in: database)
             .first { $0.id == importedID })
-        _ = try await store.deleteTransactionAndRefresh(transaction, budgetID: "group-1") {}
+        _ = try await store.transactions.deleteTransactionAndRefresh(transaction, budgetID: "group-1") {}
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
         let messagesAfterDelete = try support.storedCRDTMessages(at: databaseURL)
             .filter { $0.dataset == "transactions" }

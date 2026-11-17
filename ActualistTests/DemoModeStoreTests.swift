@@ -138,7 +138,7 @@ struct DemoModeStoreTests {
             cleared: false,
             isTransfer: false
         )
-        _ = try await store.createTransactionAndRefresh(
+        _ = try await store.transactions.createTransactionAndRefresh(
             draft,
             budgetID: budgetID,
             didCreate: {}

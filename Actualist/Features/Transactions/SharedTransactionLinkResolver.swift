@@ -13,7 +13,7 @@ struct AppSharedTransactionLinkSource: SharedTransactionLinkSource {
     let appState: AppState
 
     func lookUpSharedTransaction(budgetID: String, id: String) async throws -> SharedTransactionLookup {
-        try await appState.localFirstStore.sharedTransactionLookup(budgetID: budgetID, id: id)
+        try await appState.localFirstStore.transactions.sharedTransactionLookup(budgetID: budgetID, id: id)
     }
 
     func syncForSharedTransaction(budgetID: String) async -> Bool {

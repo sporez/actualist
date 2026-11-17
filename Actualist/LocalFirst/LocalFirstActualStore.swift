@@ -4,7 +4,7 @@ import Observation
 
 @MainActor
 @Observable
-final class LocalFirstActualStore: TransactionRepositoryProtocol {
+final class LocalFirstActualStore {
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
     let syncTransportFactory: (@Sendable (URL) -> any ActualSyncTransport)?
@@ -15,7 +15,6 @@ final class LocalFirstActualStore: TransactionRepositoryProtocol {
     let syncDebugRecorder: @MainActor (LocalFirstSyncDebugEvent) -> Void
     let pendingLocalMessageFlushRetryDelays: [Duration]
     let backgroundExecution: any BackgroundExecutionAssertion
-    @ObservationIgnored let transactionFeedCacheRefreshGate: TransactionFeedCacheRefreshGate
     let syncClient = SyncClient()
     /// Plaintext budget ZIPs awaiting a share. Tests point it at a scratch directory.
     @ObservationIgnored var portableExportFiles = PortableExportFiles()
@@ -81,12 +80,12 @@ final class LocalFirstActualStore: TransactionRepositoryProtocol {
     var scheduleAutoPostRefusals: [ScheduleAutoPostRefusal] = []
     @ObservationIgnored private(set) lazy var schedules = ScheduleWorkflows(store: self)
     var transactionFeedPagesByKey: [TransactionFeedCacheKey: TransactionFeedPage] = [:]
-    @ObservationIgnored var transactionFeedRequestIdentity = TransactionFeedRequestIdentity()
     var categoryTransactionsByKey: [String: TransactionFeedPage] = [:]
     var uncategorizedTransactionsByKey: [String: LoadedUncategorizedTransactions] = [:]
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
     @ObservationIgnored private(set) lazy var reports = ReportWorkflows(store: self)
     @ObservationIgnored private(set) lazy var accounts = AccountWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var transactions = TransactionWorkflows(store: self)
     @ObservationIgnored private(set) lazy var budget = BudgetWorkflows(store: self)
     @ObservationIgnored private(set) lazy var reconciliation = ReconciliationWorkflows(store: self)
     @ObservationIgnored private(set) lazy var accountLifecycle = AccountLifecycleWorkflows(store: self)
@@ -212,7 +211,6 @@ final class LocalFirstActualStore: TransactionRepositoryProtocol {
         self.syncDebugRecorder = syncDebugRecorder
         self.pendingLocalMessageFlushRetryDelays = pendingLocalMessageFlushRetryDelays
         self.backgroundExecution = backgroundExecution ?? UIKitBackgroundExecutionAssertion()
-        self.transactionFeedCacheRefreshGate = TransactionFeedCacheRefreshGate()
         // Constructed in the main-actor init body (not a default argument) so
         // the @MainActor struct is built in an isolated context.
         self.endpointHealth = endpointHealth ?? ServerEndpointHealth()
@@ -226,8 +224,6 @@ final class LocalFirstActualStore: TransactionRepositoryProtocol {
             loaded.nextOffset
         }
     }
-
-    let transactionPageSize = 100
 
     var hasOpenBudget: Bool {
         database != nil
@@ -251,7 +247,7 @@ final class LocalFirstActualStore: TransactionRepositoryProtocol {
         activeReimportID = nil
         database?.invalidateSessionWrites()
         schedules.resetRequestSession()
-        transactionFeedRequestIdentity.resetSession()
+        transactions.resetRequestSession()
         budgetReadGeneration &+= 1
         budgetSessionGeneration &+= 1
         budgetDiscoveryGeneration &+= 1

@@ -663,7 +663,7 @@ extension LocalFirstActualStore {
         payeesByBudget[budgetID] = payees
             .settingCanUndo(lastPayeeUndoMessagesByBudget[budgetID]?.isEmpty == false)
 
-        try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
+        try await transactions.refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
         try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
     }
 

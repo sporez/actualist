@@ -35,7 +35,7 @@ extension LocalFirstActualStoreTests {
     private func expectCreateThrows(_ draft: TransactionDraft, _ label: String) async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: Self.tombstonedFixtureSQL)
         do {
-            _ = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+            _ = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
             Issue.record("create accepted a tombstoned \(label)")
         } catch {}
     }
@@ -43,7 +43,7 @@ extension LocalFirstActualStoreTests {
     private func expectUpdateThrows(_ draft: TransactionDraft, _ label: String) async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: Self.tombstonedFixtureSQL)
         do {
-            _ = try await store.updateTransactionAndRefresh(
+            _ = try await store.transactions.updateTransactionAndRefresh(
                 "txn", with: draft, budgetID: "group-1",
                 originalAccountID: "checking", originalMonth: "2026-07"
             ) {}
@@ -77,15 +77,15 @@ extension LocalFirstActualStoreTests {
 
     @Test func categorizeRejectsTombstonedCategory() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: Self.tombstonedFixtureSQL)
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             liveExistenceDraft(category: nil), budgetID: "group-1"
         ) {}
-        let uncategorized = try await store.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
+        let uncategorized = try await store.transactions.uncategorizedTransactions(budgetID: "group-1", month: "2026-07")
         let transaction = try #require(
             uncategorized.transactions.first { $0.id == created.changed.transactions.first }
         )
         do {
-            _ = try await store.categorizeTransactionAndRefresh(
+            _ = try await store.transactions.categorizeTransactionAndRefresh(
                 transaction, categoryID: "gone-cat", budgetID: "group-1"
             ) {}
             Issue.record("categorize accepted a tombstoned category")

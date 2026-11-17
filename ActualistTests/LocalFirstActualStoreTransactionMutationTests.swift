@@ -20,7 +20,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let createResult = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let createResult = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(createResult.changed.transactions.first)
         let updateDraft = TransactionDraft(
             accountID: "credit",
@@ -35,7 +35,7 @@ extension LocalFirstActualStoreTests {
         )
         var didUpdate = false
 
-        let updateResult = try await store.updateTransactionAndRefresh(
+        let updateResult = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: updateDraft,
             budgetID: "group-1",
@@ -45,10 +45,10 @@ extension LocalFirstActualStoreTests {
             didUpdate = true
         }
 
-        let oldAccount = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
-        let newAccount = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
+        let oldAccount = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let newAccount = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
         let updated = try #require(newAccount.transactions.first { $0.id == transactionID })
-        let options = try await store.editorOptions(budgetID: "group-1", month: "2026-08")
+        let options = try await store.transactions.editorOptions(budgetID: "group-1", month: "2026-08")
 
         #expect(didUpdate)
         #expect(updateResult.ok)
@@ -79,10 +79,10 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let createResult = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let createResult = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(createResult.changed.transactions.first)
         let created = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         let monthBeforeDelete = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
@@ -92,14 +92,14 @@ extension LocalFirstActualStoreTests {
         #expect(groceriesBeforeDelete.spent == -13_070)
         var didDelete = false
 
-        let deleteResult = try await store.deleteTransactionAndRefresh(
+        let deleteResult = try await store.transactions.deleteTransactionAndRefresh(
             created,
             budgetID: "group-1"
         ) {
             didDelete = true
         }
 
-        let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let loaded = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let groceries = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
 
@@ -127,12 +127,12 @@ extension LocalFirstActualStoreTests {
         )
         var didCreate = false
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {
             didCreate = true
         }
 
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
-        let credit = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let credit = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
         let source = try #require(checking.transactions.first { $0.id == result.changed.transactions.first })
         let paired = try #require(credit.transactions.first { $0.amount == 1000 })
 
@@ -162,13 +162,13 @@ extension LocalFirstActualStoreTests {
             isTransfer: true
         )
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
 
         let source = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == result.changed.transactions.first }
         )
-        let tracking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("tracking"), query: TransactionFeedQuery()))
+        let tracking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("tracking"), query: TransactionFeedQuery()))
         let paired = try #require(tracking.transactions.first { $0.amount == 1000 })
 
         #expect(source.category == "groceries")
@@ -189,13 +189,13 @@ extension LocalFirstActualStoreTests {
             isTransfer: true
         )
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
 
         let source = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("tracking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("tracking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == result.changed.transactions.first }
         )
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let paired = try #require(
             checking.transactions.first {
                 $0.amount == 1000 && $0.payeeName == "Tracking"
@@ -220,10 +220,10 @@ extension LocalFirstActualStoreTests {
             isTransfer: true
         )
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
 
         let source = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == result.changed.transactions.first }
         )
         #expect(source.category == nil)
@@ -242,7 +242,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
 
         let transferDraft = TransactionDraft(
@@ -256,7 +256,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: true
         )
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: transferDraft,
             budgetID: "group-1",
@@ -265,7 +265,7 @@ extension LocalFirstActualStoreTests {
         ) {}
 
         let source = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         #expect(source.category == "groceries")
@@ -284,7 +284,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
 
         let transferDraft = TransactionDraft(
@@ -298,7 +298,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: true
         )
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: transferDraft,
             budgetID: "group-1",
@@ -307,10 +307,10 @@ extension LocalFirstActualStoreTests {
         ) {}
 
         let source = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("tracking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("tracking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let paired = try #require(
             checking.transactions.first {
                 $0.amount == 1000 && $0.payeeName == "Tracking"
@@ -339,9 +339,9 @@ extension LocalFirstActualStoreTests {
             ]
         )
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
 
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let parent = try #require(checking.transactions.first { $0.id == result.changed.transactions.first })
         let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let groceries = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
@@ -374,9 +374,9 @@ extension LocalFirstActualStoreTests {
             ]
         )
 
-        let result = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let result = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let parent = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == result.changed.transactions.first }
         )
         #expect(parent.error?.type == "SplitTransactionError")
@@ -402,10 +402,10 @@ extension LocalFirstActualStoreTests {
                 TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -1000)
             ]
         )
-        let created = try await store.createTransactionAndRefresh(createDraft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(createDraft, budgetID: "group-1") {}
         let parentID = try #require(created.changed.transactions.first)
         let parent = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == parentID }
         )
         let keptChildID = try #require(parent.subtransactions.first?.id)
@@ -427,7 +427,7 @@ extension LocalFirstActualStoreTests {
             ]
         )
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             parentID,
             with: updateDraft,
             budgetID: "group-1",
@@ -436,7 +436,7 @@ extension LocalFirstActualStoreTests {
         ) {}
 
         let updatedParent = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == parentID }
         )
         let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
@@ -462,7 +462,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
 
         let transferDraft = TransactionDraft(
@@ -476,7 +476,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: true
         )
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: transferDraft,
             budgetID: "group-1",
@@ -484,16 +484,16 @@ extension LocalFirstActualStoreTests {
             originalMonth: "2026-07"
         ) {}
 
-        let creditAfterTransfer = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
+        let creditAfterTransfer = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
         let paired = try #require(creditAfterTransfer.transactions.first { $0.amount == 1000 })
         let sourceAfterTransfer = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         #expect(sourceAfterTransfer.category == nil)
         #expect(paired.payeeName == "Checking")
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: simpleDraft,
             budgetID: "group-1",
@@ -501,9 +501,9 @@ extension LocalFirstActualStoreTests {
             originalMonth: "2026-07"
         ) {}
 
-        let creditAfterRevert = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
+        let creditAfterRevert = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
         let sourceAfterRevert = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         #expect(!creditAfterRevert.transactions.contains { $0.id == paired.id })
@@ -523,7 +523,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: true
         )
-        let created = try await store.createTransactionAndRefresh(createDraft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(createDraft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
 
         let editDraft = TransactionDraft(
@@ -537,7 +537,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: true
         )
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: editDraft,
             budgetID: "group-1",
@@ -545,10 +545,10 @@ extension LocalFirstActualStoreTests {
             originalMonth: "2026-07"
         ) {}
 
-        let credit = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
-        let savings = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery()))
+        let credit = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
+        let savings = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("savings"), query: TransactionFeedQuery()))
         let source = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         let paired = try #require(savings.transactions.first { $0.amount == 2500 })
@@ -572,7 +572,7 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(simpleDraft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
 
         let splitDraft = TransactionDraft(
@@ -590,7 +590,7 @@ extension LocalFirstActualStoreTests {
                 TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -1000)
             ]
         )
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: splitDraft,
             budgetID: "group-1",
@@ -599,7 +599,7 @@ extension LocalFirstActualStoreTests {
         ) {}
 
         let asSplit = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         #expect(asSplit.isParent)
@@ -641,7 +641,7 @@ extension LocalFirstActualStoreTests {
             )
         }
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             transactionID,
             with: simpleDraft,
             budgetID: "group-1",
@@ -650,7 +650,7 @@ extension LocalFirstActualStoreTests {
         ) {}
 
         let asSimple = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
         #expect(!asSimple.isParent)
@@ -681,16 +681,16 @@ extension LocalFirstActualStoreTests {
                 TransactionSplitDraft(id: nil, categoryID: "groceries", categoryName: "Groceries", amountMinorUnits: -1000)
             ]
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let parentID = try #require(created.changed.transactions.first)
         let parent = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == parentID }
         )
 
-        let result = try await store.deleteTransactionAndRefresh(parent, budgetID: "group-1") {}
+        let result = try await store.transactions.deleteTransactionAndRefresh(parent, budgetID: "group-1") {}
 
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let month = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let groceries = try #require(month.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
 
@@ -713,18 +713,18 @@ extension LocalFirstActualStoreTests {
             cleared: false,
             isTransfer: true
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
         let source = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
-        #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery())?.transactions.isEmpty == false)
+        #expect(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery())?.transactions.isEmpty == false)
 
-        let result = try await store.deleteTransactionAndRefresh(source, budgetID: "group-1") {}
+        let result = try await store.transactions.deleteTransactionAndRefresh(source, budgetID: "group-1") {}
 
-        let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
-        let credit = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
+        let checking = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
+        let credit = try #require(store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
 
         #expect(result.ok)
         #expect(Set(result.changed.accounts) == Set(["checking", "credit"]))

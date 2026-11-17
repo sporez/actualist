@@ -106,7 +106,7 @@ final class AccountLifecycleWorkflows {
                 store.reports.invalidateReports(budgetID: budgetID)
                 try await store.reloadAccountCaches(database: database, budgetID: budgetID)
                 try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-                try await store.refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
+                try await store.transactions.refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
                 try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
                 let diagnostics = try await ActionLogStorageSQL.actionLogDiagnosticSnapshot(in: database)
                 try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)

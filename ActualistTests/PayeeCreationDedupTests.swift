@@ -27,14 +27,14 @@ extension LocalFirstActualStoreTests {
         store.seams.userActionBeforeCommitHook = { [store] in
             store.seams.userActionBeforeCommitHook = nil
             do {
-                let result = try await store.createTransactionAndRefresh(second, budgetID: "group-1") {}
+                let result = try await store.transactions.createTransactionAndRefresh(second, budgetID: "group-1") {}
                 secondID = result.changed.transactions.first
             } catch {
                 Issue.record("the competing create failed: \(error)")
             }
         }
 
-        let first = try await store.createTransactionAndRefresh(try draft(amount: -100), budgetID: "group-1") {}
+        let first = try await store.transactions.createTransactionAndRefresh(try draft(amount: -100), budgetID: "group-1") {}
 
         let database = try #require(store.database)
         let named = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)

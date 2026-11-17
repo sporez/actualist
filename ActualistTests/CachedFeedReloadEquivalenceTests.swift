@@ -68,10 +68,10 @@ struct CachedFeedReloadEquivalenceTests {
 
     private func cacheEveryKey(_ store: LocalFirstActualStore, categories: Int, months: Int) async throws {
         for (category, month) in Self.categoryScopes.prefix(categories) {
-            try await store.refreshCategoryTransactions(budgetID: Self.budgetID, categoryID: category, month: month)
+            try await store.transactions.refreshCategoryTransactions(budgetID: Self.budgetID, categoryID: category, month: month)
         }
         for month in Self.uncategorizedMonths.prefix(months) {
-            _ = try await store.uncategorizedTransactions(budgetID: Self.budgetID, month: month)
+            _ = try await store.transactions.uncategorizedTransactions(budgetID: Self.budgetID, month: month)
         }
     }
 
@@ -90,23 +90,23 @@ struct CachedFeedReloadEquivalenceTests {
 
         var compared = 0
         for (category, month) in Self.categoryScopes {
-            let reloaded = try #require(store.cachedCategoryTransactions(
+            let reloaded = try #require(store.transactions.cachedCategoryTransactions(
                 budgetID: Self.budgetID, categoryID: category, month: month))
-            try await store.refreshCategoryTransactions(budgetID: Self.budgetID, categoryID: category, month: month)
-            let oracle = try #require(store.cachedCategoryTransactions(
+            try await store.transactions.refreshCategoryTransactions(budgetID: Self.budgetID, categoryID: category, month: month)
+            let oracle = try #require(store.transactions.cachedCategoryTransactions(
                 budgetID: Self.budgetID, categoryID: category, month: month))
             #expect(reloaded == oracle, "category \(category) \(month) seed \(seed)")
             compared += 1
         }
         for month in Self.uncategorizedMonths {
-            let reloaded = try #require(store.cachedUncategorizedTransactions(budgetID: Self.budgetID, month: month))
-            let oracle = try await store.uncategorizedTransactions(budgetID: Self.budgetID, month: month)
+            let reloaded = try #require(store.transactions.cachedUncategorizedTransactions(budgetID: Self.budgetID, month: month))
+            let oracle = try await store.transactions.uncategorizedTransactions(budgetID: Self.budgetID, month: month)
             #expect(reloaded == oracle, "uncategorized \(month) seed \(seed)")
             #expect(!reloaded.transactions.isEmpty)
             compared += 1
         }
         #expect(compared == Self.categoryScopes.count + Self.uncategorizedMonths.count)
-        let groceriesJuly = try #require(store.cachedCategoryTransactions(
+        let groceriesJuly = try #require(store.transactions.cachedCategoryTransactions(
             budgetID: Self.budgetID, categoryID: "groceries", month: "2026-07"))
         #expect(!groceriesJuly.transactions.contains { $0.id == "july-cat" })
     }
@@ -131,10 +131,10 @@ struct CachedFeedReloadEquivalenceTests {
         try await cacheEveryKey(store, categories: Self.categoryScopes.count, months: 1)
         // The cost of one single-key refresh of each kind.
         let oneCategory = try await tableReads {
-            try await store.refreshCategoryTransactions(budgetID: Self.budgetID, categoryID: "groceries", month: "2026-07")
+            try await store.transactions.refreshCategoryTransactions(budgetID: Self.budgetID, categoryID: "groceries", month: "2026-07")
         }
         let oneUncategorized = try await tableReads {
-            _ = try await store.uncategorizedTransactions(budgetID: Self.budgetID, month: "2026-07")
+            _ = try await store.transactions.uncategorizedTransactions(budgetID: Self.budgetID, month: "2026-07")
         }
         #expect(oneCategory > 0 && oneUncategorized > 0)
         let reload = try await tableReads {

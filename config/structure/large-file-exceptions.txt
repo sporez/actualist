@@ -3,3 +3,9 @@
 # reports a listed file as a warning instead of an error, and fails on a
 # listed file that no longer exists. Each entry states its reason in the
 # comment above it. Adding a line needs the maintainer's approval.
+
+# TransactionRepositoryProtocol's one owner. The feeds, the transaction
+# writes and Wallet import share one conformer, so every requirement has a
+# direct witness and none can fall back to a protocol default; a split
+# would need forwarding witnesses for the defaulted feed requirements.
+Actualist/LocalFirst/TransactionWorkflows.swift

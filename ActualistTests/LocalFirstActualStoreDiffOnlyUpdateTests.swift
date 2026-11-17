@@ -61,11 +61,11 @@ extension LocalFirstActualStoreTests {
         let store = bundle.store
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
         try await landRemoteNow([("txn", "description", "S:coffee")], stamp: 1, on: store)
-        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         try await landRemoteNow([("txn", "notes", "S:remote note")], stamp: 2, on: store)
         let before = try storedCRDTMessages(at: url)
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             "txn", with: try draftEditing(baseline, amount: -20_000), budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07", baseline: baseline,
             actionSource: .ui, didUpdate: {}
@@ -80,11 +80,11 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle()
         let store = bundle.store
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
-        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         #expect(baseline.payee == nil)
         let before = try storedCRDTMessages(at: url)
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             "txn", with: try draftEditing(baseline, notes: "edited without a payee"), budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07", baseline: baseline,
             actionSource: .ui, didUpdate: {}
@@ -100,10 +100,10 @@ extension LocalFirstActualStoreTests {
         let store = bundle.store
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
         try await landRemoteNow([("txn", "description", "S:coffee")], stamp: 1, on: store)
-        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         let before = try storedCRDTMessages(at: url)
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             "txn", with: try draftEditing(baseline, notes: .some("edited")), budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07",
             reconciliationAuthorization: nil, baseline: baseline, didUpdate: {}
@@ -119,7 +119,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle()
         let store = bundle.store
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             TransactionDraft(
                 accountID: "checking", date: try makeDate(year: 2026, month: 7, day: 3),
                 amountMinorUnits: -1_000, payeeID: "xfer-credit", payeeName: "",
@@ -128,11 +128,11 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1"
         ) {}
         let mainID = try #require(created.changed.transactions.first)
-        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: mainID))
+        let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: mainID))
         let pairedID = try #require(try await column("transferred_id", row: mainID, at: url))
         let before = try storedCRDTMessages(at: url)
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             mainID, with: try draftEditing(baseline, amount: -1_500, isTransfer: true), budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07", baseline: baseline,
             actionSource: .ui, didUpdate: {}
@@ -145,7 +145,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle()
         let store = bundle.store
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
-        let created = try await store.createTransactionAndRefresh(
+        let created = try await store.transactions.createTransactionAndRefresh(
             TransactionDraft(
                 accountID: "checking", date: try makeDate(year: 2026, month: 7, day: 3),
                 amountMinorUnits: -1_000, payeeID: "xfer-credit", payeeName: "",
@@ -154,11 +154,11 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1"
         ) {}
         let mainID = try #require(created.changed.transactions.first)
-        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: mainID))
+        let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: mainID))
         let pairedID = try #require(try await column("transferred_id", row: mainID, at: url))
         let before = try storedCRDTMessages(at: url)
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             mainID, with: try draftEditing(baseline, payeeID: "xfer-savings", isTransfer: true), budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07", baseline: baseline,
             actionSource: .ui, didUpdate: {}
@@ -175,10 +175,10 @@ extension LocalFirstActualStoreTests {
         let store = bundle.store
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
         try await landRemoteNow([("txn", "description", "S:coffee")], stamp: 1, on: store)
-        let loaded = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let loaded = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         let before = try storedCRDTMessages(at: url)
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             "txn", with: try draftEditing(loaded, notes: .some("only notes")), budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07"
         ) {}
@@ -191,10 +191,10 @@ extension LocalFirstActualStoreTests {
         let store = bundle.store
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
         try await landRemoteNow([("txn", "description", "S:coffee")], stamp: 1, on: store)
-        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         let before = try storedCRDTMessages(at: url)
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             "txn", with: try draftEditing(baseline, accountID: "tracking"), budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07", baseline: baseline,
             actionSource: .ui, didUpdate: {}
@@ -207,9 +207,9 @@ extension LocalFirstActualStoreTests {
     @Test func undoRestoresTheFieldAfterADiffOnlyEdit() async throws {
         let store = try await makeOpenedWritableStore()
         try await landRemoteNow([("txn", "description", "S:coffee")], stamp: 1, on: store)
-        let baseline = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let baseline = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
 
-        _ = try await store.updateTransactionAndRefresh(
+        _ = try await store.transactions.updateTransactionAndRefresh(
             "txn", with: try draftEditing(baseline, amount: -20_000), budgetID: "group-1",
             originalAccountID: "checking", originalMonth: "2026-07", baseline: baseline,
             actionSource: .ui, didUpdate: {}
@@ -218,7 +218,7 @@ extension LocalFirstActualStoreTests {
         #expect(row.kind == .editTransaction)
         try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
-        let restored = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let restored = try #require(try await store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         #expect(restored.amount == -12_345)
     }
 }

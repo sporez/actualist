@@ -142,13 +142,13 @@ import Testing
             amountMinorUnits: -725, payeeID: "coffee", payeeName: "Coffee Shop",
             categoryID: "groceries", notes: nil, cleared: false, isTransfer: false
         )
-        let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
+        let created = try await store.transactions.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
         let row = try #require(
-            store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
+            store.transactions.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
                 .transactions.first { $0.id == transactionID }
         )
-        _ = try await store.deleteTransactionAndRefresh(row, budgetID: "group-1") {}
+        _ = try await store.transactions.deleteTransactionAndRefresh(row, budgetID: "group-1") {}
         let actions = try await store.history.recentBudgetActions(budgetID: "group-1")
         let deleteAction = try #require(actions.first)
         #expect(deleteAction.kind == .deleteTransaction)

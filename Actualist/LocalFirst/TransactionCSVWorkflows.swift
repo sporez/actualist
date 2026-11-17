@@ -17,14 +17,14 @@ extension TransactionCSVWorkflows: TransactionCSVExportRepositoryProtocol {
     func exportTransactionsCSV(_ request: TransactionCSVExportRequest) async throws -> TransactionCSVExport {
         try Task.checkCancellation()
         let database = try store.requireDatabase(for: request.budgetID)
-        let sessionID = store.transactionFeedRequestIdentity.sessionID
+        let sessionID = store.transactions.feedRequestIdentity.sessionID
         let rows = try await TransactionCSVExportSQL.fetchTransactionCSVExportRows(
             accountID: request.accountID,
             query: request.query,
             in: database
         )
         try Task.checkCancellation()
-        guard store.transactionFeedRequestIdentity.sessionID == sessionID,
+        guard store.transactions.feedRequestIdentity.sessionID == sessionID,
               store.database === database,
               store.openedBudgetID == request.budgetID else {
             throw CancellationError()
@@ -45,7 +45,7 @@ extension TransactionCSVWorkflows: TransactionCSVImportRepositoryProtocol {
     ) async throws -> TransactionCSVImportReview {
         try Task.checkCancellation()
         let database = try store.requireDatabase(for: request.budgetID)
-        let sessionID = store.transactionFeedRequestIdentity.sessionID
+        let sessionID = store.transactions.feedRequestIdentity.sessionID
         let generation = store.budgetSessionGeneration
 
         let settings: ImportSettings
@@ -96,7 +96,7 @@ extension TransactionCSVWorkflows: TransactionCSVImportRepositoryProtocol {
             options: options
         )
 
-        guard store.transactionFeedRequestIdentity.sessionID == sessionID,
+        guard store.transactions.feedRequestIdentity.sessionID == sessionID,
               generation == store.budgetSessionGeneration,
               store.database === database,
               store.openedBudgetID == request.budgetID else {

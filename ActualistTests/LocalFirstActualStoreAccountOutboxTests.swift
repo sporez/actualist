@@ -329,7 +329,7 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        _ = try await bundle.store.createTransactionAndRefresh(
+        _ = try await bundle.store.transactions.createTransactionAndRefresh(
             TransactionDraft(
                 accountID: "checking",
                 date: try makeDate(year: 2026, month: 7, day: 16),

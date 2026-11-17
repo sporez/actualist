@@ -193,7 +193,7 @@ struct ReconciledTransactionMutationTests {
         )
 
         await #expect(throws: ReconciledTransactionMutationError.self) {
-            try await bundle.store.updateTransactionAndRefresh(
+            try await bundle.store.transactions.updateTransactionAndRefresh(
                 "txn",
                 with: draft,
                 budgetID: "group-1",
@@ -204,18 +204,18 @@ struct ReconciledTransactionMutationTests {
         }
 
         await #expect(throws: ReconciledTransactionMutationError.self) {
-            try await bundle.store.deleteTransactionAndRefresh(
+            try await bundle.store.transactions.deleteTransactionAndRefresh(
                 transaction,
                 budgetID: "group-1",
                 didDelete: {}
             )
         }
-        let loadedReview = try await bundle.store.reconciledMutationReview(
+        let loadedReview = try await bundle.store.transactions.reconciledMutationReview(
             budgetID: "group-1",
             transactionID: "txn"
         )
         let review = try #require(loadedReview)
-        _ = try await bundle.store.deleteTransactionAndRefresh(
+        _ = try await bundle.store.transactions.deleteTransactionAndRefresh(
             transaction,
             budgetID: "group-1",
             reconciliationAuthorization: review.authorization,

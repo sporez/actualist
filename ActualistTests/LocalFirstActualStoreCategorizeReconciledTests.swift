@@ -35,11 +35,11 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: Self.reconciledCategorizeFixtureSQL
         )
-        let transaction = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let transaction = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         let before = try await categoryAndOutboxCount(bundle, id: "txn")
 
         do {
-            _ = try await bundle.store.categorizeTransactionAndRefresh(
+            _ = try await bundle.store.transactions.categorizeTransactionAndRefresh(
                 transaction, categoryID: "utilities", budgetID: "group-1"
             ) {}
             Issue.record("categorize changed a reconciled row without confirmation")
@@ -56,10 +56,10 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: Self.reconciledCategorizeFixtureSQL
         )
-        let transaction = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "xfer"))
+        let transaction = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "xfer"))
 
         do {
-            _ = try await bundle.store.categorizeTransactionAndRefresh(
+            _ = try await bundle.store.transactions.categorizeTransactionAndRefresh(
                 transaction, categoryID: "utilities", budgetID: "group-1"
             ) {}
             Issue.record("categorize changed a row whose transfer pair is reconciled")
@@ -76,12 +76,12 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: Self.reconciledCategorizeFixtureSQL
         )
-        let transaction = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let transaction = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
         let review = try #require(
-            try await bundle.store.reconciledMutationReview(budgetID: "group-1", transactionID: "txn")
+            try await bundle.store.transactions.reconciledMutationReview(budgetID: "group-1", transactionID: "txn")
         )
 
-        _ = try await bundle.store.categorizeTransactionAndRefresh(
+        _ = try await bundle.store.transactions.categorizeTransactionAndRefresh(
             transaction,
             categoryID: "utilities",
             budgetID: "group-1",
@@ -96,12 +96,12 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: Self.reconciledCategorizeFixtureSQL
         )
-        let transaction = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "xfer"))
+        let transaction = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "xfer"))
         let review = try #require(
-            try await bundle.store.reconciledMutationReview(budgetID: "group-1", transactionID: "xfer")
+            try await bundle.store.transactions.reconciledMutationReview(budgetID: "group-1", transactionID: "xfer")
         )
 
-        _ = try await bundle.store.categorizeTransactionAndRefresh(
+        _ = try await bundle.store.transactions.categorizeTransactionAndRefresh(
             transaction,
             categoryID: "utilities",
             budgetID: "group-1",
@@ -116,11 +116,11 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: Self.reconciledCategorizeFixtureSQL
         )
-        let plain = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "plain"))
-        let reconciled = try #require(try await bundle.store.fetchTransaction(budgetID: "group-1", id: "txn"))
+        let plain = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "plain"))
+        let reconciled = try #require(try await bundle.store.transactions.fetchTransaction(budgetID: "group-1", id: "txn"))
 
         await #expect(throws: ReconciledTransactionMutationError.self) {
-            _ = try await bundle.store.categorizeTransactionsAndRefresh(
+            _ = try await bundle.store.transactions.categorizeTransactionsAndRefresh(
                 [plain, reconciled], categoryID: "utilities", budgetID: "group-1"
             ) {}
         }

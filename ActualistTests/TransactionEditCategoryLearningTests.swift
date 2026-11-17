@@ -51,7 +51,7 @@ struct TransactionEditCategoryLearningTests {
         let bundle = try await support.makeOpenedWritableStoreBundle(
             additionalFixtureSQL: fixtureSQL(editCategory: startingCategory)
         )
-        _ = try await bundle.store.updateTransactionAndRefresh(
+        _ = try await bundle.store.transactions.updateTransactionAndRefresh(
             "edit-1",
             with: try draft(category: category, notes: notes),
             budgetID: "group-1",
@@ -97,7 +97,7 @@ struct TransactionEditCategoryLearningTests {
             additionalFixtureSQL: fixtureSQL(editCategory: "groceries")
         )
         let newDraft = try draft(category: "groceries", notes: nil, day: 6)
-        _ = try await bundle.store.createTransactionAndRefresh(newDraft, budgetID: "group-1") {}
+        _ = try await bundle.store.transactions.createTransactionAndRefresh(newDraft, budgetID: "group-1") {}
         let result = try await outcome(of: bundle)
         #expect(result.rules.count == 1)
     }
@@ -107,7 +107,7 @@ struct TransactionEditCategoryLearningTests {
             additionalFixtureSQL: fixtureSQL(editCategory: "groceries")
         )
         let newDraft = try draft(category: nil, notes: nil, day: 6)
-        _ = try await bundle.store.createTransactionAndRefresh(newDraft, budgetID: "group-1") {}
+        _ = try await bundle.store.transactions.createTransactionAndRefresh(newDraft, budgetID: "group-1") {}
         #expect(try await outcome(of: bundle).ruleMessages.isEmpty)
     }
 }

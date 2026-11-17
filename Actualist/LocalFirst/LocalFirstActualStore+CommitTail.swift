@@ -47,7 +47,7 @@ extension LocalFirstActualStore {
         do {
             try await reload()
         } catch {
-            invalidateTransactionFeedCaches(budgetID: budgetID)
+            transactions.invalidateTransactionFeedCaches(budgetID: budgetID)
             await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
             return true
         }
@@ -118,7 +118,7 @@ extension LocalFirstActualStore {
                 var sessionCurrent = (try? requireSession()) != nil
                 if sessionCurrent {
                     if invalidatesFeedCachesOnFailure {
-                        invalidateTransactionFeedCaches(budgetID: budgetID)
+                        transactions.invalidateTransactionFeedCaches(budgetID: budgetID)
                     }
                     if flushes {
                         await schedulePendingLocalMessageFlush(database: database, budgetID: budgetID)
@@ -215,7 +215,7 @@ extension LocalFirstActualStore {
                 let transactions = try await TransactionReadSQL.fetchTransactions(in: database)
                 for scope in categoryScopes {
                     try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-                    publishCategoryTransactions(
+                    self.transactions.publishCategoryTransactions(
                         budgetID: budgetID, categoryID: scope.categoryID, month: scope.month,
                         allTransactions: transactions, maps: maps
                     )
@@ -224,7 +224,7 @@ extension LocalFirstActualStore {
             if !uncategorizedMonths.isEmpty {
                 let rows = try await TransactionReadSQL.fetchUncategorizedTransactions(in: database)
                 for month in uncategorizedMonths {
-                    _ = try await publishUncategorizedTransactions(
+                    _ = try await self.transactions.publishUncategorizedTransactions(
                         database: database, budgetID: budgetID, month: month,
                         generation: generation, revision: publicationRevision, rows: rows, maps: maps
                     )
@@ -271,7 +271,7 @@ extension LocalFirstActualStore {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
         reports.invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
-        try await refreshLoadedTransactionFeedCaches(
+        try await transactions.refreshLoadedTransactionFeedCaches(
             database: database,
             budgetID: budgetID,
             accountIDs: Set(accountIDs)
@@ -286,7 +286,7 @@ extension LocalFirstActualStore {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
         reports.invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
-        try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
+        try await transactions.refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
         await history.refreshActionLogDiagnosticSnapshot(database: database)
     }
 

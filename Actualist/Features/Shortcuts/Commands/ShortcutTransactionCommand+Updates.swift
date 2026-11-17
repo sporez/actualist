@@ -19,7 +19,7 @@ extension ShortcutTransactionCommand {
             if isSplitParent(original) {
                 throw ShortcutsError.unsupportedSplit
             }
-            _ = try await prepared.store.categorizeTransactionAndRefresh(
+            _ = try await prepared.store.transactions.categorizeTransactionAndRefresh(
                 original,
                 categoryID: categoryID,
                 budgetID: prepared.budgetID,
@@ -55,7 +55,7 @@ extension ShortcutTransactionCommand {
         let original = try await session.actualTransaction(id: input.transactionID)
         try rejectSplitChild(original)
         let draft = try await makeUpdateDraft(input, original: original, session: session)
-        _ = try await prepared.store.updateTransactionAndRefresh(
+        _ = try await prepared.store.transactions.updateTransactionAndRefresh(
             input.transactionID,
             with: draft,
             budgetID: prepared.budgetID,
@@ -79,7 +79,7 @@ extension ShortcutTransactionCommand {
                 maps: try await session.nameMaps(for: original),
                 currency: prepared.currency
             )
-            _ = try await prepared.store.deleteTransactionAndRefresh(
+            _ = try await prepared.store.transactions.deleteTransactionAndRefresh(
                 original,
                 budgetID: prepared.budgetID,
                 actionSource: .shortcuts,
