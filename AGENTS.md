@@ -97,7 +97,8 @@ permits more work or easier validation.
   Budget's `BudgetHoldViewModel` owns the shared compact/wide hold/release review;
   its sheet stays presentation-only and writes through the repository seam.
 - `Actualist/Repositories/`: dependency-injection protocols and domain/display
-  models. Production injects `LocalFirstActualStore`; there are no concrete
+  models. Production injects the store's `<Domain>Workflows` collaborators
+  (`localFirstStore.budget`, `.transactions`, ...); there are no concrete
   repository structs.
 - `Actualist/LocalFirst/`: the observable store, cached local source of truth,
   CRDT write orchestration, sync, imports, and connection lifecycle.
@@ -425,6 +426,10 @@ implementation shape:
 - Do not add feature workflows or feature-specific state to `AppState`.
   `AppState` may coordinate app-wide session, settings, and routing while a
   focused collaborator owns each independent workflow.
+- Name the owner of every new domain member before writing it: its
+  `<Concept>SQL` type, `<Domain>Workflows` collaborator and repository
+  protocol (Domain Ownership And Central Types). "The central type, for now"
+  is never an answer.
 - Do not represent a multi-step workflow with a growing collection of loosely
   coupled Boolean flags, optional tasks, and continuations. Use an explicit
   state model or focused coordinator with cancellation, identity/generation,
@@ -467,7 +472,9 @@ current task.
   below the threshold through a responsibility-based extraction first, unless
   the user explicitly approves a documented exception. An approved exception
   is listed, with its reason, in `config/structure/large-file-exceptions.txt`;
-  `scripts/check.sh` then warns instead of failing.
+  `scripts/check.sh` then warns instead of failing. A listed file is frozen,
+  not licensed: a change may shrink it but never add net lines to it, and an
+  entry is not precedent for another one.
 - A split that leaves both halves near the threshold, or that produces
   `X`/`XReads`/`XWrites` siblings sharing the same helpers, was probably cut
   by size. Find the seam instead.
@@ -484,19 +491,9 @@ current task.
   lower line counts. Preserve or improve access control. A split should reduce
   coupling or make ownership clearer; it should not expose previously private
   state, create forwarding boilerplate, or make one workflow harder to follow.
-- `BudgetDatabase` and `LocalFirstActualStore` are already spread across many
-  extension files. Another `BudgetDatabase+X.swift` or
-  `LocalFirstActualStore+X.swift` file does not count as an extraction. Put a
-  new domain's logic in a focused type that keeps its helpers `private`. For the
-  database, that is a stateless type whose functions take the GRDB handle inside
-  the actor's transaction. The actor stays the single owner of the queue,
-  clock, merkle state, and write fence. Do not split it into multiple actors.
-  Thin entry points on the central type are fine.
-  `scripts/lint-central-type-extensions.sh` enforces this: it fails on any
-  `BudgetDatabase+*.swift` or `LocalFirstActualStore+*.swift` not listed in
-  `config/structure/central-type-extensions.txt`, and on a listed file that no
-  longer exists. The list only shrinks as domains move out; adding a line needs
-  the maintainer's approval.
+- Where domain code may and may not live is a hard rule of its own: see
+  Domain Ownership And Central Types below. Another `+X.swift` file never
+  counts as an extraction.
 - Prefer composition when a view model or coordinator owns multiple independent
   workflows. Extract a focused collaborator with an explicit input/output
   contract and focused tests, while leaving the parent responsible for
@@ -518,6 +515,100 @@ current task.
   check; do not add an identical standalone build. For other targets, inspect
   their actual synchronized groups and membership rather than assuming the
   app/unit-target layout applies.
+
+## Domain Ownership And Central Types
+
+`BudgetDatabase` and `LocalFirstActualStore` once held nearly every domain in
+the app: 136 extension files, about 32,000 lines and 1,000 members. Each
+`+X.swift` file looked like a module but was not. Its helpers had to be
+`internal`, its state lived on the central type, and every domain could call
+every other domain's internals. Copies of Canonical Owners and repository
+protocols serving several domains hid inside the tangle. A month as an
+"opportunistic" follow-up moved nothing, and untangling it took a dedicated
+eleven-phase plan. These rules exist so that never happens again. They are
+hard rules, not preferences. They apply to every type, not only these two. A
+change that breaks one is not finished, whatever its tests say.
+
+What may live on the central types:
+
+- `BudgetDatabase`: the GRDB queue, the clock, merkle state, the session
+  write fence and `beforeBudgetDataMutation`, the schema caches, sync, and the
+  commit core (`commitLocalPlan`, `commitUserActionPlan`). It stays one actor.
+- `LocalFirstActualStore`: session open, close and connection switching, sync,
+  the commit tail, the observed caches and their publication, and the
+  declarations of its collaborators.
+- Nothing else. Never add a domain member to either type: no read, write,
+  message builder, validation, cache key, request identity or gate that
+  belongs to one feature. This covers every file of the type, including
+  `BudgetDatabase.swift`, `LocalFirstActualStore.swift` and the extension
+  files still listed in `config/structure/central-type-extensions.txt`. A
+  thin actor entry point is allowed only when the domain type cannot reach
+  the actor state it needs any other way, and the commit message names that
+  state.
+
+Where domain code goes:
+
+- **Database side.** A stateless `enum <Concept>SQL` in
+  `LocalFirst/Database/`, one type per file, with `private static` helpers.
+  The architecture skill describes the idiom: the `isolated BudgetDatabase`
+  parameter, entry points the store awaits directly, and the `Database`-only
+  and pure shapes. A domain gets a second type only along a responsibility
+  seam, never as `X`/`XReads`/`XWrites`.
+- **Store side.** A `@MainActor final class <Domain>Workflows` in
+  `LocalFirst/`. The store owns it as an `@ObservationIgnored private(set)
+  lazy var`, and it keeps an `unowned` back-reference for session checks, the
+  commit tail and reloads. It owns the domain's request identity, gates and
+  revisions. Observed caches stay on the store, so publication does not
+  change. Screens, view models and `AppState` take `localFirstStore.<domain>`.
+- **Repository protocols.** One protocol per domain, in its own
+  `Repositories/` file, with exactly one production conformer: that domain's
+  `<Domain>Workflows`. `LocalFirstActualStore` conforms to no repository
+  protocol. Never add a requirement to an existing protocol because that
+  protocol is already injected where you need it. Another domain's behavior
+  gets its own protocol, and the caller takes both.
+- **No default bodies for requirements.** With a protocol-extension body
+  (`throw …Error.unavailable`, `return nil`, `return []`), a missing witness,
+  a fake that forgot one, or a witness whose signature drifted silently runs
+  the default instead. New protocols and new requirements have none, and
+  fakes implement every requirement. A protocol extension holds only
+  conveniences that forward every parameter (Reuse Before You Build, rule 6).
+  `TransactionRepositoryProtocol` still has such defaults. A change that
+  touches one deletes it and gives every conformer a witness.
+- **Private by default.** A member is `internal` only when another type calls
+  it today. One domain's type never calls a helper that exists for another
+  domain. When two domains need the same rows or rule, that code moves to a
+  shared owner both call: an input type such as `ReportInputSQL`, or a
+  Canonical Owner.
+
+What does not count as a split:
+
+- A `<Type>+<Name>.swift` file that adds members to a type the app owns, for
+  any type. That is how both central types grew. Split along a responsibility
+  into a new type with its own state and `private` helpers. Extension files
+  remain fine for types the app does not own (`String`, `Error`, `Binding`).
+  Existing `+X` files on app types, such as `BudgetTemplateEngine+*` and
+  `AppState+*`, are not precedent for new ones.
+- A collaborator grown into the next central type. A `*Workflows` or `*SQL`
+  type follows the 800-line review trigger like any file. It splits along a
+  seam into another collaborator, as `TransactionCommandWorkflows` and
+  `PendingTransactionWorkflows` did, never into `+X` files.
+
+No "move it later":
+
+- Ownership is decided before code is written (Mandatory Pre-Implementation
+  Architecture Gate). If a task cannot put its code in the right owner within
+  its scope, for example because a protocol needs splitting or a collaborator
+  does not exist yet, stop and ask for that step first. Never land domain code
+  on a central type, a shared protocol or a listed oversized file with a
+  follow-up that promises to move it.
+
+Enforcement: `scripts/lint-central-type-extensions.sh` fails on any
+`BudgetDatabase+*.swift` or `LocalFirstActualStore+*.swift` not listed in
+`config/structure/central-type-extensions.txt`, and on a listed file that no
+longer exists. The list only shrinks; adding a line needs the maintainer's
+approval. No lint yet sees a member added to a listed file or a main type
+file, a store conformance, a requirement default, or a `+X` file on another
+type. The pre-handoff gate checks those by hand.
 
 ## Duplication And Complexity Discipline
 
@@ -546,6 +637,13 @@ current task.
   no gitignored files (`.artifacts/`, planning notes, audit evidence), and no
   device or simulator identifiers, hostnames, or IP addresses. Cite only
   tracked files or public upstream sources.
+- Cite code by type and member (`PayeeManagementSQL.renamePayeeMessages`), not
+  by file path and line, in comments, `known-divergences.json`, skills and
+  reference notes. Paths go stale when code moves; dozens of registry and
+  checklist citations did. A commit that deletes or renames a file or type
+  runs `rg <old name>` across the repository and fixes every tracked mention
+  in the same commit. Canonical Owners rows keep their file paths and change
+  with them.
 
 ## Reuse Before You Build
 
@@ -963,8 +1061,14 @@ tree or range touches.
   `verify <domain>` for a routine change. It counts as one focused run, not a
   full-suite run.
 - New behavior that Actual also has requires a new oracle case in that
-  domain's generator. Changing an uncovered domain does not require building
-  its harness, but the handoff names the domain as unverified against Actual.
+  domain's generator. Every domain in `config/parity/domains.json` has a
+  harness. A new domain arrives with its harness and fixture in the plan that
+  adds the behavior; never add an entry with `harness: null`. Payees,
+  categories, account groups, reports and undo once ran without an oracle,
+  and their first oracle runs found 28 differences from Actual.
+- A new file that holds a domain's behavior joins that domain's `paths` in
+  `config/parity/domains.json` in the commit that creates it. A file missing
+  from the map is a change `scripts/parity.sh touched` cannot see.
 - Expected values in an oracle fixture come only from running its generator
   against the pinned Actual. Never edit them by hand.
 - A divergence from Actual is a finding (`OP-nn`), not something to hide. It
@@ -1114,6 +1218,12 @@ production-code change, review the completed diff against the architecture gate.
   computes payload values, money conversions, or business rules.
 - Audit every `AppState` change and confirm that it is app-wide
   session/settings/routing coordination.
+- Confirm the diff adds none of these: a domain member on `BudgetDatabase` or
+  `LocalFirstActualStore`; a `+X.swift` file for a type the app owns; a
+  repository conformance on the store; a requirement for another domain on an
+  existing protocol; a protocol-extension body for a requirement; an
+  `internal` helper only one type calls; net lines in a listed size
+  exception; a file path cited where a type and member would do.
 - Do not introduce new concurrency warnings in changed code. Do not silence
   diagnostics with `@unchecked Sendable` or `@preconcurrency` without a
   documented invariant and appropriate focused verification.
