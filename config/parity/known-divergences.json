@@ -11,7 +11,7 @@
       "fixtureCases": [
         "rename-handler-input-boundary"
       ],
-      "summary": "Rename trims outer whitespace and writes nothing when the trimmed name is unchanged; the pinned Actual's handler writes every submitted value. Cause: BudgetDatabase+AccountLifecycleWrites.swift:66 (trim) and :72 (no change).",
+      "summary": "Rename trims outer whitespace and writes nothing when the trimmed name is unchanged; the pinned Actual's handler writes every submitted value. Cause: AccountRenameCommand.normalized (trim) and AccountLifecycleCommitSQL.validateAccountLifecycleMutation (no change).",
       "opened": "2026-10-11",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: trimming and skipping an unchanged rename are harmless and intended."
@@ -25,7 +25,7 @@
       "fixtureCases": [
         "finish"
       ],
-      "summary": "Finishing reconciliation with a nonzero difference throws balanceChanged, where the pinned Actual records no error and locks zero transactions (nonzeroDifferenceLocks 0). Cause: BudgetDatabase+Reconciliation.swift:221-222 guards on canLockTransactions and throws. Expected output: reconciliation-contract.json, case finish.",
+      "summary": "Finishing reconciliation with a nonzero difference throws balanceChanged, where the pinned Actual records no error and locks zero transactions (nonzeroDifferenceLocks 0). Cause: ReconciliationSQL.finishReconciliation guards on canLockTransactions and throws. Expected output: reconciliation-contract.json, case finish.",
       "opened": "2026-10-10",
       "status": "intended",
       "decided": "2026-10-11",
@@ -40,7 +40,7 @@
       "fixtureCases": [
         "adjustment-rule-clears-notes"
       ],
-      "summary": "A balance adjustment whose rule clears notes still records the default note 'Reconciliation balance adjustment', where the pinned Actual leaves notes null. Cause: BudgetDatabase+Reconciliation.swift:140-142 restores the default note when the draft and preview notes are both nil or empty.",
+      "summary": "A balance adjustment whose rule clears notes still records the default note 'Reconciliation balance adjustment', where the pinned Actual leaves notes null. Cause: ReconciliationSQL.createReconciliationAdjustment restores the default note when the draft and preview notes are both nil or empty.",
       "opened": "2026-10-10",
       "status": "intended",
       "decided": "2026-10-11",
@@ -55,7 +55,7 @@
       "fixtureCases": [
         "adjustment-rule-delete"
       ],
-      "summary": "A balance adjustment whose rule deletes it writes no tombstone, where the pinned Actual's expected output records one deleted row. Cause: BudgetDatabase+Reconciliation.swift:130-135 returns committed false when the rule preview deletes the transaction. The delete rule is authored by the replay adapter (ReconciliationOracleReplaySupport.swift), so the expected deletion is a scripted outcome; see the README.",
+      "summary": "A balance adjustment whose rule deletes it writes no tombstone, where the pinned Actual's expected output records one deleted row. Cause: ReconciliationSQL.createReconciliationAdjustment returns committed false when the rule preview deletes the transaction. The delete rule is authored by the replay adapter (ReconciliationOracleReplaySupport.swift), so the expected deletion is a scripted outcome; see the README.",
       "opened": "2026-10-10",
       "status": "intended",
       "decided": "2026-10-11",
@@ -70,7 +70,7 @@
       "fixtureCases": [
         "unlock-split-member"
       ],
-      "summary": "Unlocking a child of a reconciled split writes reconciled = false to the parent and both children, where the pinned Actual's real unlock sends nothing: the grouped query returns the family, but makeChild copies the parent's reconciled value, so the update carries no change and all three rows stay reconciled (readback.after). Cause: BudgetDatabase+Reconciliation.swift:290-306 unlocks every reconciled row of the family. unlock-split-parent, unlock-split-member-unreconciled-parent and unlock-simple-row match the oracle.",
+      "summary": "Unlocking a child of a reconciled split writes reconciled = false to the parent and both children, where the pinned Actual's real unlock sends nothing: the grouped query returns the family, but makeChild copies the parent's reconciled value, so the update carries no change and all three rows stay reconciled (readback.after). Cause: ReconciliationSQL.unlockReconciledTransaction unlocks every reconciled row of the family. unlock-split-parent, unlock-split-member-unreconciled-parent and unlock-simple-row match the oracle.",
       "opened": "2026-10-10",
       "status": "intended",
       "decided": "2026-10-11",
@@ -216,7 +216,7 @@
         "tapply-named-year-boundary-by",
         "tapply-named-yearly-sinking-fund"
       ],
-      "summary": "A category with a null stored goal_def but a #template or #goal directive in its note gets no budget at apply; the pinned Actual regenerates goal_def from the note first, so the same case budgets it. Cause: BudgetDatabase+TemplateCategoryReads.swift:29-39 reads only stored goal_def and nothing regenerates it from the note at apply (called from BudgetDatabase+TemplatePreview.swift:399). The Swift replay that seeds the oracle's definition (replaysTemplateEngineWithStoredDefinitions) matches the oracle in every one of these cases, so the apply engine agrees once the definition exists. BudgetDatabase+TemplateNoteSync.swift:9 says Actualist applies CRDT-synced goal_def directly, so this may be a deliberate difference; the product decides. Up-to-date cases in this set produce zero messages, as the oracle does.",
+      "summary": "A category with a null stored goal_def but a #template or #goal directive in its note gets no budget at apply; the pinned Actual regenerates goal_def from the note first, so the same case budgets it. Cause: TemplateCategorySQL.readCategoryGoalDefsRaw reads only stored goal_def and nothing regenerates it from the note at apply (called from TemplatePreviewSQL.budgetTemplatePlan). The Swift replay that seeds the oracle's definition (replaysTemplateEngineWithStoredDefinitions) matches the oracle in every one of these cases, so the apply engine agrees once the definition exists. TemplateCategorySQL.swift says Actualist applies CRDT-synced goal_def directly, so this may be a deliberate difference; the product decides. Up-to-date cases in this set produce zero messages, as the oracle does.",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -232,7 +232,7 @@
       "fixtureCases": [
         "tapply-named-stale-note-goal-def"
       ],
-      "summary": "A stored template definition that no longer matches its category note makes the whole apply refuse, with no budget written in any category. The pinned Actual clears the stale definition and applies the other categories (tapply-named-stale-note-goal-def: Synthetic Rent's definition is cleared, Synthetic Groceries is budgeted 30000). Cause: the stale-note guard in BudgetDatabase+TemplatePreview.swift:440-457 throws unsupportedTemplate before any write, with the comparison from staleNoteManagedTemplateCategories (BudgetDatabase+TemplateNoteSync.swift:37). BudgetDatabase+TemplateNoteSync.swift:9-30 describes the guard as the safety half of Actual's preprocessing, so the refusal may be deliberate; the product decides. Once the refusal is removed, Synthetic Groceries also needs the OP-24 behavior. Since 2026-10-29 the Apply Templates review shows such a category as a blocked tile and the reviewed apply excludes it, so the other categories can apply; an apply that does not exclude it still refuses.",
+      "summary": "A stored template definition that no longer matches its category note makes the whole apply refuse, with no budget written in any category. The pinned Actual clears the stale definition and applies the other categories (tapply-named-stale-note-goal-def: Synthetic Rent's definition is cleared, Synthetic Groceries is budgeted 30000). Cause: the stale-note guard in TemplatePreviewSQL.budgetTemplatePlan throws unsupportedTemplate before any write, with the comparison from staleNoteManagedTemplateCategories (TemplateCategorySQL). TemplateCategorySQL.swift describes the guard as the safety half of Actual's preprocessing, so the refusal may be deliberate; the product decides. Once the refusal is removed, Synthetic Groceries also needs the OP-24 behavior. Since 2026-10-29 the Apply Templates review shows such a category as a blocked tile and the reviewed apply excludes it, so the other categories can apply; an apply that does not exclude it still refuses.",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -299,7 +299,7 @@
       ],
       "id": "OP-32",
       "opened": "2026-10-11",
-      "summary": "A move or cover writes no 'Reassigned … from … on …' month note, where the pinned Actual writes one. Only the note's presence is compared; its date text comes from the fixture's fake clock and is not compared. Cause: no Reassigned writer exists in Actualist/. The move seam is BudgetDatabase+BudgetWrites.swift:210-240 and the cover commands OverspentCoverSelectionWorkflow.swift:58-84.",
+      "summary": "A move or cover writes no 'Reassigned … from … on …' month note, where the pinned Actual writes one. Only the note's presence is compared; its date text comes from the fixture's fake clock and is not compared. Cause: no Reassigned writer exists in Actualist/. The move seam is BudgetAssignmentSQL.resolvedMoveMoneyCommands and the cover commands OverspentCoverSelectionWorkflow.swift:58-84.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: Actualist does not add automatic 'Reassigned' month notes on moves or covers."
@@ -314,7 +314,7 @@
       ],
       "id": "OP-51",
       "opened": "2026-10-11",
-      "summary": "Skipping the next date of a one-time schedule is refused with an unsupported-capability error, where the pinned Actual accepts the skip and leaves the schedule unchanged. The stored result is the same. Cause: canSkip requires a recurrence (ScheduleRuleProjection.swift:105) and prepareScheduleSkip throws at BudgetDatabase+ScheduleWrites.swift:310-312.",
+      "summary": "Skipping the next date of a one-time schedule is refused with an unsupported-capability error, where the pinned Actual accepts the skip and leaves the schedule unchanged. The stored result is the same. Cause: canSkip requires a recurrence (ScheduleRuleProjection.swift:105) and prepareScheduleSkip throws at ScheduleEditSQL.prepareScheduleSkip.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: Actualist hides Skip Next Date for one-time schedules, so the refusal is unreachable from the UI and the saved data is identical; Actual's menu offers a skip that does nothing."
@@ -329,7 +329,7 @@
       ],
       "id": "OP-53",
       "opened": "2026-10-11",
-      "summary": "Creating a schedule on a closed account is refused (\"Choose an available, open account for this schedule.\"), where the pinned Actual's createSchedule accepts any account in the rule. Actual's own editor does not offer closed accounts, so this is an API-level difference. Cause: validateScheduleAccount rejects a closed or deleted account (BudgetDatabase+ScheduleWrites.swift:412-420).",
+      "summary": "Creating a schedule on a closed account is refused (\"Choose an available, open account for this schedule.\"), where the pinned Actual's createSchedule accepts any account in the rule. Actual's own editor does not offer closed accounts, so this is an API-level difference. Cause: validateScheduleAccount rejects a closed or deleted account (ScheduleEditSQL).",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: keep refusing closed accounts at create. Neither app's editor offers a closed account, and advancement of an existing schedule on a closed account already matches Actual."
@@ -376,7 +376,7 @@
       ],
       "id": "OP-60",
       "opened": "2026-10-11",
-      "summary": "The Starting Balance row is dated at the earliest downloaded day, where the pinned Actual uses the date of the last transaction in the download, which differs when the download is listed oldest first or its last row is skipped. Cause: earliestDayID is candidateDayIDs.min() (LocalFirstActualStore+BankSyncPlanning.swift:390).",
+      "summary": "The Starting Balance row is dated at the earliest downloaded day, where the pinned Actual uses the date of the last transaction in the download, which differs when the download is listed oldest first or its last row is skipped. Cause: earliestDayID is candidateDayIDs.min() (BankSyncPlanWorkflows.makeBankSyncPlan).",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: date the Starting Balance on the earliest downloaded day, independent of the bank's row order and of skipped rows."
@@ -400,7 +400,7 @@
       ],
       "id": "OP-61",
       "opened": "2026-10-11",
-      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:216-220) fed by bankSyncSuppressedFinancialIDs (LocalFirstActualStore+ImportReconcile.swift:64-72). Deliberate: deleted IDs are used only for exact dedupe, never for updates.",
+      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:216-220) fed by bankSyncSuppressedFinancialIDs (ImportReconcileSteps.reconcileProjectedImport). Deliberate: deleted IDs are used only for exact dedupe, never for updates.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: leave deleted rows untouched; with reimport-deleted off, both apps ignore the download and the visible result is identical."
@@ -431,7 +431,7 @@
       ],
       "id": "OP-66",
       "opened": "2026-10-11",
-      "summary": "A provider payee name with leading or trailing spaces creates a trimmed payee, where the pinned Actual creates the payee with the spaces (the imported payee is trimmed in both). Cause: payee creation trims the name (BudgetDatabase+TransactionCreation.swift:29-35) and prepareDownload trims the mapped name (LocalFirstActualStore+BankSyncPlanning.swift:320-321).",
+      "summary": "A provider payee name with leading or trailing spaces creates a trimmed payee, where the pinned Actual creates the payee with the spaces (the imported payee is trimmed in both). Cause: payee creation trims the name (TransactionCreationSQL.resolveOrCreatePayeeMessages) and prepareDownload trims the mapped name (BankSyncPlanWorkflows.prepareDownload).",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: create payees with trimmed names."
@@ -460,7 +460,7 @@
       "fixtureCases": [
         "D2-split-error-clone"
       ],
-      "summary": "Duplicating a split whose children do not add up to the parent is refused, where the pinned Actual clones the parent with its split error and the child. Cause: TransactionDuplicatePlanner.swift:290-324 throws malformedSplit for a family that fails the split invariants; BudgetDatabase+TransactionDuplicate.swift reports it as 'cannot be duplicated'.",
+      "summary": "Duplicating a split whose children do not add up to the parent is refused, where the pinned Actual clones the parent with its split error and the child. Cause: TransactionDuplicatePlanner.swift:290-324 throws malformedSplit for a family that fails the split invariants; TransactionDuplicateSQL reports it as 'cannot be duplicated'.",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -492,7 +492,7 @@
         "M2-split-zero-children",
         "M2-conflicting-split-families"
       ],
-      "summary": "Merging a split with no children, or a family whose children do not add up (split error), is refused, where the pinned Actual merges them. Cause: BudgetDatabase+TransactionBatchSnapshots.swift:53 (no live entries) and TransactionMergePlanner.swift:289 (splitHasError).",
+      "summary": "Merging a split with no children, or a family whose children do not add up (split error), is refused, where the pinned Actual merges them. Cause: TransactionBatchSnapshotSQL.transactionBatchGraph (no live entries) and TransactionMergePlanner.swift:289 (splitHasError).",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -508,7 +508,7 @@
         "M3-partial-transfer-pair",
         "M3-malformed-transfer-pair"
       ],
-      "summary": "Merging a transfer whose peer is missing, or a pair that does not link back, is refused, where the pinned Actual merges them (and for a missing peer tombstones the row). Cause: BudgetDatabase+TransactionBatchSnapshots.swift:79-88 marks the graph invalid.",
+      "summary": "Merging a transfer whose peer is missing, or a pair that does not link back, is refused, where the pinned Actual merges them (and for a missing peer tombstones the row). Cause: TransactionBatchSnapshotSQL.transactionBatchGraph marks the graph invalid.",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -538,7 +538,7 @@
       "fixtureCases": [
         "M4-atomic-reject-invalid-second-pair"
       ],
-      "summary": "A merge that is refused leaves every row untouched, where the pinned Actual's handler has already written four transferred_id = null messages (all four rows of both pairs) before it refuses. Both refuse. Cause: BudgetDatabase+TransactionMerge.swift plans and validates the whole graph before the single atomic commit.",
+      "summary": "A merge that is refused leaves every row untouched, where the pinned Actual's handler has already written four transferred_id = null messages (all four rows of both pairs) before it refuses. Both refuse. Cause: TransactionMergeSQL plans and validates the whole graph before the single atomic commit.",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -553,7 +553,7 @@
       "fixtureCases": [
         "M4-undo-conflict-after-merge"
       ],
-      "summary": "Undo of a merge is blocked after a later edit to a merged row (the note changed), where the pinned Actual's in-memory undo applies it and overwrites the edit. Cause: BudgetDatabase+ActionLog.swift:525-533 compares every live row with the recorded after-state and returns transactionCommandChanged.",
+      "summary": "Undo of a merge is blocked after a later edit to a merged row (the note changed), where the pinned Actual's in-memory undo applies it and overwrites the edit. Cause: ActionLogSQL.evaluateActionUndo compares every live row with the recorded after-state and returns transactionCommandChanged.",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -568,7 +568,7 @@
       "fixtureCases": [
         "q3-free-text-grouped-versus-physical"
       ],
-      "summary": "Free-text search is flat across split children: searching text that only a child's note contains returns just that child, with no parent and no sibling context, where the pinned Actual's grouped account query returns the parent family with the parent and sibling as unmatched context (rootIDs [parent], 3 displayed, 2 context). The individually matching ids agree. Cause: fetchTransactionQueryPage routes any text query to flatTransactionQuerySelection (BudgetDatabase+TransactionQuery.swift:122-131). The grouped read fetchTransactionPage(matching:splits:.grouped) does return the family (split-mode case child-note-search matches).",
+      "summary": "Free-text search is flat across split children: searching text that only a child's note contains returns just that child, with no parent and no sibling context, where the pinned Actual's grouped account query returns the parent family with the parent and sibling as unmatched context (rootIDs [parent], 3 displayed, 2 context). The individually matching ids agree. Cause: fetchTransactionQueryPage routes any text query to flatTransactionQuerySelection (TransactionQuerySQL). The grouped read fetchTransactionPage(matching:splits:.grouped) does return the family (split-mode case child-note-search matches).",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -583,7 +583,7 @@
       "fixtureCases": [
         "dead-parent-excludes-orphan"
       ],
-      "summary": "A deleted parent hides its orphan child in the all-rows read, and so does a child whose parent row is missing: Actualist returns [simple], where the pinned Actual's splits: all returns [simple, orphan, missing-parent-child] (Actual applies its alive filter only to inline and none; inline, none, grouped and the account balance agree). Cause: liveEffectivePredicate always includes alivePredicate (BudgetDatabase+TransactionSplitQuery.swift:80-93) and fetchTransactionPage seeds it for every mode (BudgetDatabase+TransactionReads.swift:127). TransactionSplitQueryTests.deadParentExcludesOrphanFromLiveReadsAndBalances hard-codes the Actualist value.",
+      "summary": "A deleted parent hides its orphan child in the all-rows read, and so does a child whose parent row is missing: Actualist returns [simple], where the pinned Actual's splits: all returns [simple, orphan, missing-parent-child] (Actual applies its alive filter only to inline and none; inline, none, grouped and the account balance agree). Cause: liveEffectivePredicate always includes alivePredicate (TransactionSplitQueryExpressions) and fetchTransactionPage seeds it for every mode (TransactionReadSQL). TransactionSplitQueryTests.deadParentExcludesOrphanFromLiveReadsAndBalances hard-codes the Actualist value.",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -599,7 +599,7 @@
         "transfer-on-to-on-category-supplied",
         "transfer-off-to-on"
       ],
-      "summary": "Category on a transfer create differs from Actual in two shapes. Off-budget to on-budget: Actualist puts the chosen category on the paired on-budget leg, where Actual's batch update clears the category of the off-budget source leg and leaves the on-budget leg uncategorized (transferCategories, BudgetDatabase+TransactionCreation.swift:437-456). On-budget to on-budget with a category supplied: Actual writes the category then clears it with a null write; Actualist never writes the category, so the final row state matches but the intermediate cell does not.",
+      "summary": "Category on a transfer create differs from Actual in two shapes. Off-budget to on-budget: Actualist puts the chosen category on the paired on-budget leg, where Actual's batch update clears the category of the off-budget source leg and leaves the on-budget leg uncategorized (TransferSQL.transferCategories). On-budget to on-budget with a category supplied: Actual writes the category then clears it with a null write; Actualist never writes the category, so the final row state matches but the intermediate cell does not.",
       "opened": "2026-10-12",
       "status": "intended",
       "decided": "2026-10-12",
@@ -748,7 +748,7 @@
       "fixtureCases": [
         "rename-to-existing"
       ],
-      "summary": "Renaming a payee to another payee's name (case-insensitive) is refused with 'A payee with that name already exists. Merge the duplicates instead.' Actual's payees-batch-change renames it, leaving two payees with the same name. Cause: BudgetDatabase+Payees.swift renamePayeeMessages (rejectDuplicatePayeeName).",
+      "summary": "Renaming a payee to another payee's name (case-insensitive) is refused with 'A payee with that name already exists. Merge the duplicates instead.' Actual's payees-batch-change renames it, leaving two payees with the same name. Cause: PayeeManagementSQL.renamePayeeMessages (rejectDuplicatePayeeName).",
       "opened": "2026-11-13",
       "status": "intended",
       "decided": "2026-11-13",
@@ -766,7 +766,7 @@
         "favorite-selection-mixed",
         "learn-selection-mixed"
       ],
-      "summary": "Payee writes skip cells whose value would not change: an unchanged rename writes nothing, and a selection favorite or category-learning toggle writes only the payees whose value changes. Actual's mobile rename and its selection toggles write every submitted cell. The stored rows end the same. Cause: BudgetDatabase+Payees.swift renamePayeeMessages (unchanged name) and updatePayeeManagementMessages (unchanged favorite and learn_categories). Same pattern as intended OP-22 for account rename.",
+      "summary": "Payee writes skip cells whose value would not change: an unchanged rename writes nothing, and a selection favorite or category-learning toggle writes only the payees whose value changes. Actual's mobile rename and its selection toggles write every submitted cell. The stored rows end the same. Cause: PayeeManagementSQL.renamePayeeMessages (unchanged name) and PayeeManagementSQL.updatePayeeManagementMessages (unchanged favorite and learn_categories). Same pattern as intended OP-22 for account rename.",
       "opened": "2026-11-13",
       "status": "intended",
       "decided": "2026-11-13",
@@ -781,7 +781,7 @@
       "fixtureCases": [
         "read-seed"
       ],
-      "summary": "Payee list order. Actual's payees-get sorts regular payees by name COLLATE NOCASE (ASCII-only case folding, so 'Éclair' sorts after 'zebra') and transfer payees by on-budget before off-budget, then account sort_order. Actualist sorts both groups by display name with localizedCaseInsensitiveCompare, so 'Éclair' sits among the E names and transfer payees are alphabetical. Cause: BudgetDatabase+Payees.swift fetchPayeeManagementSnapshot(in:) sort.",
+      "summary": "Payee list order. Actual's payees-get sorts regular payees by name COLLATE NOCASE (ASCII-only case folding, so 'Éclair' sorts after 'zebra') and transfer payees by on-budget before off-budget, then account sort_order. Actualist sorts both groups by display name with localizedCaseInsensitiveCompare, so 'Éclair' sits among the E names and transfer payees are alphabetical. Cause: PayeeManagementSQL.fetchPayeeManagementSnapshot(in:) sort.",
       "opened": "2026-11-13",
       "status": "intended",
       "decided": "2026-11-13",
@@ -797,7 +797,7 @@
         "cat-create-income",
         "cat-delete-income-transfer"
       ],
-      "summary": "Creating or deleting an income category in an envelope budget is refused. Actual's category-create and category-delete allow both; deleting an income category with a transfer re-points its mapping without moving budget amounts. Cause: BudgetDatabase+CategoryLifecycle.swift requireCategoryManagementAllowed.",
+      "summary": "Creating or deleting an income category in an envelope budget is refused. Actual's category-create and category-delete allow both; deleting an income category with a transfer re-points its mapping without moving budget amounts. Cause: CategorySQL.requireCategoryManagementAllowed.",
       "opened": "2026-11-13",
       "status": "intended",
       "decided": "2026-11-14",
@@ -812,7 +812,7 @@
       "fixtureCases": [
         "grp-create-trimmed"
       ],
-      "summary": "Creating a group trims its name; Actual's category-group-create stores the name as typed ('  Savings  '). Category names are trimmed by both. This case's writes also carry OP-103's extra tombstone cell. Cause: BudgetDatabase+CategoryLifecycle.swift createCategoryGroupMessages (validatedName).",
+      "summary": "Creating a group trims its name; Actual's category-group-create stores the name as typed ('  Savings  '). Category names are trimmed by both. This case's writes also carry OP-103's extra tombstone cell. Cause: CategorySQL.createCategoryGroupMessages (validatedName).",
       "opened": "2026-11-13",
       "status": "intended",
       "decided": "2026-11-14",
@@ -838,7 +838,7 @@
         "grp-unhide",
         "cat-delete-budget-transfer"
       ],
-      "summary": "Category and group edits write only the changed cell. Actual's web app sends the whole category or group to category-update / category-group-update, so a rename or hide also rewrites cat_group, is_income, hidden, name, goal_def, cleanup_def, template_settings and tombstone with their current values, and an unchanged rename still writes. A move within a group also rewrites cat_group with its current value. Deleting with a transfer, Actual's doTransfer rewrites the transfer category's budget in every month even when unchanged. The stored rows end the same. Same pattern as intended OP-98 (payees) and OP-22 (accounts). Cause: renameCategoryMessages and renameCategoryGroupMessages (BudgetDatabase+CategoryLifecycle.swift), setCategoryHiddenMessages and setCategoryGroupHiddenMessages (BudgetDatabase+CategoryVisibility.swift), categoryBudgetTransferMessages (BudgetDatabase+CategoryLifecycleDeletion.swift), applyCategoryOutlineMessages.",
+      "summary": "Category and group edits write only the changed cell. Actual's web app sends the whole category or group to category-update / category-group-update, so a rename or hide also rewrites cat_group, is_income, hidden, name, goal_def, cleanup_def, template_settings and tombstone with their current values, and an unchanged rename still writes. A move within a group also rewrites cat_group with its current value. Deleting with a transfer, Actual's doTransfer rewrites the transfer category's budget in every month even when unchanged. The stored rows end the same. Same pattern as intended OP-98 (payees) and OP-22 (accounts). Cause: renameCategoryMessages and renameCategoryGroupMessages (CategorySQL), setCategoryHiddenMessages and setCategoryGroupHiddenMessages (CategorySQL), categoryBudgetTransferMessages (CategoryDeletionSQL), applyCategoryOutlineMessages.",
       "opened": "2026-11-13",
       "status": "intended",
       "decided": "2026-11-14",
