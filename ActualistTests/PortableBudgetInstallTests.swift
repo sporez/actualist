@@ -113,7 +113,7 @@ struct PortableBudgetInstallTests {
         )
         let zip = try makePortableZip(in: rootURL)
 
-        let creation = try await store.importPortableBudget(
+        let creation = try await store.portableBudgets.importPortableBudget(
             archiveAt: zip.url,
             serverURLString: "https://portable-import.example",
             token: "session-token",
@@ -180,7 +180,7 @@ struct PortableBudgetInstallTests {
         let zip = try makePortableZip(in: rootURL)
 
         await #expect(throws: ActualFileRegistrationError.uploadUnconfirmed) {
-            try await store.importPortableBudget(
+            try await store.portableBudgets.importPortableBudget(
                 archiveAt: zip.url,
                 serverURLString: "https://portable-import.example",
                 token: "session-token",
@@ -204,7 +204,7 @@ struct PortableBudgetInstallTests {
         let transport = PortableImportFakeRegistrationTransport()
 
         await #expect(throws: NewBudgetError.budgetDirectoryAlreadyExists) {
-            try await store.importPortableBudget(
+            try await store.portableBudgets.importPortableBudget(
                 archiveAt: URL(fileURLWithPath: "/nonexistent/portable.zip"),
                 serverURLString: "https://portable-import.example",
                 token: "session-token",
@@ -226,7 +226,7 @@ struct PortableBudgetInstallTests {
         await #expect(
             throws: PortableBudgetArchiveError(stage: .beforeInstall, reason: .missingDatabase)
         ) {
-            try await store.importPortableBudget(
+            try await store.portableBudgets.importPortableBudget(
                 archiveAt: zipURL,
                 serverURLString: "https://portable-import.example",
                 token: "session-token",

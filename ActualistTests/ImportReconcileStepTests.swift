@@ -206,7 +206,7 @@ struct ImportReconcileStepTests {
         let database = try #require(bundle.store.database)
         let marker = "off-main-plan-\(UUID().uuidString)"
 
-        let outcome = try await bundle.store.reconcileProjectedImport(
+        let outcome = try await ImportReconcileSteps.reconcileProjectedImport(
             database: database,
             accountID: "checking",
             accountIsOffBudget: false,

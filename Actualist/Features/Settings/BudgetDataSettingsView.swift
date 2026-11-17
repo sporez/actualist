@@ -294,7 +294,7 @@ struct BudgetDataSettingsView: View {
         guard let budgetID = appState.settings.selectedBudgetID else { return }
         Task {
             await exportWorkflow.prepare(budgetID: budgetID) { budgetID in
-                try await appState.localFirstStore.exportPortableBudgetArchive(budgetID: budgetID)
+                try await appState.localFirstStore.portableBudgets.exportPortableBudgetArchive(budgetID: budgetID)
             }
         }
     }

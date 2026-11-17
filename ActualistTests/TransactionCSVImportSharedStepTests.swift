@@ -68,7 +68,7 @@ struct TransactionCSVImportSharedStepTests {
     }
 
     private func prepare(_ bundle: Bundle, _ csv: String, accountID: String = "checking") async throws -> TransactionCSVImportReview {
-        try await bundle.store.prepareTransactionCSVImport(
+        try await bundle.store.transactionCSV.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: accountID,
@@ -83,7 +83,7 @@ struct TransactionCSVImportSharedStepTests {
         _ bundle: Bundle, _ csv: String, accountID: String = "checking"
     ) async throws -> TransactionCSVImportApplyResult {
         let review = try await prepare(bundle, csv, accountID: accountID)
-        return try await bundle.store.applyTransactionCSVImport(
+        return try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: accountID,

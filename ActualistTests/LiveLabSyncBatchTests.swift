@@ -52,7 +52,7 @@ struct LiveLabSyncBatchTests {
         _ = try await LiveLab.signIn(store)
         let serverURL = try #require(LiveLab.url)
         let name = "Interop Check \(label) \(UUID().uuidString.prefix(6))"
-        let creation = try await store.createNewBudget(named: name, serverURLString: serverURL)
+        let creation = try await store.portableBudgets.createNewBudget(named: name, serverURLString: serverURL)
         try recordBudget(label, ["fileID": creation.fileID, "name": name])
         let budget = try #require(try await store.loadBudgets(serverURLString: serverURL)
             .first { $0.cloudFileId == creation.fileID })

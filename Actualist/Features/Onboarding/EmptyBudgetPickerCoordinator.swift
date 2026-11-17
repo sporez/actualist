@@ -108,7 +108,7 @@ final class EmptyBudgetPickerCoordinator {
     }
 
     /// The store and selection calls behind the create and import workflows.
-    /// Production uses `LocalFirstActualStore.createNewBudget` (which owns the
+    /// Production uses `PortableBudgetWorkflows.createNewBudget` (which owns the
     /// no-selectable-budget-on-failure cleanup), the portable-import flow, and
     /// the existing `selectBudgetForCurrentBackend` handoff. Tests inject
     /// fakes.
@@ -120,12 +120,12 @@ final class EmptyBudgetPickerCoordinator {
         /// Validates a user-chosen portable ZIP, registers it as a new server
         /// file, and installs the validated pair into a new local directory
         /// under one minted file ID. Production uses
-        /// `LocalFirstActualStore.importPortableBudget`; tests inject fakes.
+        /// `PortableBudgetWorkflows.importPortableBudget`; tests inject fakes.
         var importPortableBudget: @MainActor (
             _ appState: AppState,
             _ archiveURL: URL
         ) async throws -> NewBudgetCreation = { appState, archiveURL in
-            try await appState.localFirstStore.importPortableBudget(
+            try await appState.localFirstStore.portableBudgets.importPortableBudget(
                 archiveAt: archiveURL,
                 serverURLString: appState.settings.localFirstServerURLString
             )
@@ -135,7 +135,7 @@ final class EmptyBudgetPickerCoordinator {
         @MainActor
         static let production = Workflows(
             createNewBudget: { appState, input in
-                try await appState.localFirstStore.createNewBudget(
+                try await appState.localFirstStore.portableBudgets.createNewBudget(
                     named: input.budgetName,
                     serverURLString: appState.settings.localFirstServerURLString,
                     encryptionPassword: input.encryptionPassword

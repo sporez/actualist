@@ -39,7 +39,7 @@ struct RuleBatchReadReuseTests {
             "2026-07-\(String(format: "%02d", 10 + index)),\(index % 2 == 0 ? "New" : "new") Payee \(index / 2),,-\(index + 1).00"
         }
         let csv = Data((["Date,Payee,Notes,Amount"] + rows).joined(separator: "\n").appending("\n").utf8)
-        let review = try await bundle.store.prepareTransactionCSVImport(
+        let review = try await bundle.store.transactionCSV.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1", accountID: "checking", data: csv
             )
@@ -47,7 +47,7 @@ struct RuleBatchReadReuseTests {
         let database = try #require(bundle.store.database)
         let log = StatementLog()
         try await database.startStatementTraceForTesting(log)
-        let result = try await bundle.store.applyTransactionCSVImport(TransactionCSVImportApplyRequest(
+        let result = try await bundle.store.transactionCSV.applyTransactionCSVImport(TransactionCSVImportApplyRequest(
             budgetID: "group-1", accountID: "checking", sessionGeneration: review.sessionGeneration,
             rows: review.rows.filter { $0.outcome.kind == .insert }
         ))

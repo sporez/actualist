@@ -355,7 +355,7 @@ enum TransactionEditSQL {
         return messages
     }
 
-    /// `allowsZeroAmount` is for import inserts only (`importReconcileWrites`);
+    /// `allowsZeroAmount` is for import inserts only (`ImportReconcileSteps.importReconcileWrites`);
     /// an entered or edited transaction needs an amount.
     static func validateSimpleTransactionDraft(_ draft: TransactionDraft, allowsZeroAmount: Bool = false) throws {
         guard !draft.isSplit else {

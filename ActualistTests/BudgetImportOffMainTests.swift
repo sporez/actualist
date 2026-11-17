@@ -128,7 +128,7 @@ struct BudgetImportOffMainTests {
             ),
             fileManager: BudgetFileManager(applicationSupportURL: sourceRoot)
         )
-        _ = try await source.createNewBudget(
+        _ = try await source.portableBudgets.createNewBudget(
             named: "Portable Source",
             serverURLString: "https://newbudget.example",
             token: "session-token",
@@ -147,7 +147,7 @@ struct BudgetImportOffMainTests {
             ),
             fileManager: BudgetFileManager(applicationSupportURL: makeRoot())
         )
-        _ = try await target.importPortableBudget(
+        _ = try await target.portableBudgets.importPortableBudget(
             archiveAt: archiveURL,
             serverURLString: "https://newbudget.example",
             token: "session-token",

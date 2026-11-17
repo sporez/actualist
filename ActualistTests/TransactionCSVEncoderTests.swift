@@ -181,7 +181,7 @@ struct TransactionCSVExportDatabaseTests {
         let pendingAfterWrite = try await database.pendingLocalSyncMessages()
         #expect(!pendingAfterWrite.isEmpty)
 
-        let export = try await bundle.store.exportTransactionsCSV(
+        let export = try await bundle.store.transactionCSV.exportTransactionsCSV(
             TransactionCSVExportRequest(budgetID: "group-1", accountID: "checking", query: .all)
         )
         let pendingAfterExport = try await database.pendingLocalSyncMessages()
@@ -203,7 +203,7 @@ struct TransactionCSVExportDatabaseTests {
         let rows = try await TransactionCSVExportSQL.fetchTransactionCSVExportRows(accountID: "checking", query: .all, in: database)
         let firstID = try #require(rows.first?.id)
 
-        _ = try await bundle.store.exportTransactionsCSV(
+        _ = try await bundle.store.transactionCSV.exportTransactionsCSV(
             TransactionCSVExportRequest(budgetID: "group-1", accountID: "checking", query: .all)
         )
 

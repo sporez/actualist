@@ -40,7 +40,7 @@ Actual's `export-budget` handler writes `actual-export.zip`. Actual's `import-bu
 `actual`) reads it into a fresh budget directory, and the digest of that database plus each
 account's all-time balance (AQL sum, splits inline) is `actual-export-digest.json`.
 
-The replay imports `actual-export.zip` through `LocalFirstActualStore.importPortableBudget`: the
+The replay imports `actual-export.zip` through `PortableBudgetWorkflows.importPortableBudget`: the
 production validate, sync reset, install and registration path. Only the registration transport is
 replaced (`PortableBudgetImportSyncResetTests.AcceptingRegistrationTransport`); every import path
 needs a server for that step. It then opens the budget as the app does (`openImportedBudget`),
@@ -52,7 +52,7 @@ Accounts screen balances.
 `produce-actualist-export.sh` runs one Swift test,
 `PortableArchiveOracleReplayTests/produceActualistExport()`, which does nothing unless
 `ACTUALIST_PRODUCE_PORTABLE_EXPORT=1` (passed as `TEST_RUNNER_...`). It imports `actual-export.zip`
-and writes `LocalFirstActualStore.exportPortableBudgetArchive` to
+and writes `PortableBudgetWorkflows.exportPortableBudgetArchive` to
 `.artifacts/portable-archive-parity/actualist-export.zip`; the script copies it to the fixture folder
 as `actualist-export.zip`. That ZIP is an input, not a generated file. Regenerate it only when the
 exporter, importer or `actual-export.zip` changes: run the producer, then `generate.mjs`.

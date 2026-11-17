@@ -22,7 +22,7 @@ struct LiveLabActual2611Tests {
     private func createAndOpen(_ label: String, in store: LocalFirstActualStore) async throws -> (fileID: String, budget: ActualBudget) {
         let serverURL = try #require(LiveLab.url)
         let name = "Interop Check v2611 \(label) \(UUID().uuidString.prefix(6))"
-        let creation = try await store.createNewBudget(named: name, serverURLString: serverURL)
+        let creation = try await store.portableBudgets.createNewBudget(named: name, serverURLString: serverURL)
         return (creation.fileID, try await open(creation.fileID, in: store))
     }
 
@@ -87,7 +87,7 @@ struct LiveLabActual2611Tests {
         let tieDay = try #require(seed["tieDay"] as? String)
         let csv = "Date,Payee,Notes,Amount\n"
             + ["-25.00", "-35.00", "-45.00"].map { "\(tieDay),Interop Import,,\($0)" }.joined(separator: "\n") + "\n"
-        let review = try await store.prepareTransactionCSVImport(TransactionCSVImportPreparationRequest(
+        let review = try await store.transactionCSV.prepareTransactionCSVImport(TransactionCSVImportPreparationRequest(
             budgetID: budget.syncID, accountID: tiesID, data: Data(csv.utf8)
         ))
         var tieMatches: [String: String] = [:]

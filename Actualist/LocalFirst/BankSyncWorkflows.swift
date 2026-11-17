@@ -332,7 +332,7 @@ final class BankSyncWorkflows {
             }
             return (update: update, existing: existing)
         }
-        let writes = try await store.importReconcileWrites(
+        let writes = try await ImportReconcileSteps.importReconcileWrites(
             database: database,
             accountID: plan.link.accountID,
             accountIsOffBudget: accountIsOffBudget,

@@ -34,14 +34,14 @@ struct TransactionCSVImportStoreRulesTests {
         into accountID: String,
         bundle: Bundle
     ) async throws -> (review: TransactionCSVImportReview, result: TransactionCSVImportApplyResult) {
-        let review = try await bundle.store.prepareTransactionCSVImport(
+        let review = try await bundle.store.transactionCSV.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: accountID,
                 data: Data(("Date,Payee,Notes,Amount,Category,Cleared\n" + body + "\n").utf8)
             )
         )
-        let result = try await bundle.store.applyTransactionCSVImport(
+        let result = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: accountID,
@@ -87,7 +87,7 @@ struct TransactionCSVImportStoreRulesTests {
     /// CSV-only matcher excluded them with no upstream source.
     @Test func aRowCanMatchASplitChildLikeUpstream() async throws {
         let bundle = try await makeBundle()
-        let review = try await bundle.store.prepareTransactionCSVImport(
+        let review = try await bundle.store.transactionCSV.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: "checking",

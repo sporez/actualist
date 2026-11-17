@@ -19,7 +19,7 @@ struct PortableBudgetExportTests {
         let store = LocalFirstActualStore(keychain: keychain, fileManager: fileManager)
 
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            try await store.exportPortableBudgetArchive(budgetID: "file-1")
+            try await store.portableBudgets.exportPortableBudgetArchive(budgetID: "file-1")
         }
     }
 
@@ -35,7 +35,7 @@ struct PortableBudgetExportTests {
         // The store's open-budget identity is the budget's sync ID
         // (group ID, with the cloud file ID as fallback), matching
         // `openedBudgetID` and the production caller's `selectedBudgetID`.
-        let archiveURL = try await bundle.store.exportPortableBudgetArchive(
+        let archiveURL = try await bundle.store.portableBudgets.exportPortableBudgetArchive(
             budgetID: bundle.budget.syncID
         )
         #expect(FileManager.default.fileExists(atPath: archiveURL.path))

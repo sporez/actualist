@@ -271,7 +271,7 @@
         "Actualist/LocalFirst/PortableBudgetArchive.swift",
         "Actualist/LocalFirst/PortableExportFiles.swift",
         "Actualist/LocalFirst/UntrustedZipExtractor.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+PortableImport.swift",
+        "Actualist/LocalFirst/PortableBudgetWorkflows.swift",
         "Actualist/LocalFirst/Database/PortableDatabaseSQL.swift",
         "Actualist/LocalFirst/Database/PortableBudgetSchema.swift"
       ],
@@ -293,7 +293,7 @@
         "Actualist/LocalFirst/Database/TransactionCSVExportSQL.swift",
         "Actualist/LocalFirst/Database/TransactionImportSQL.swift",
         "Actualist/LocalFirst/TransactionImportEngine.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+TransactionCSVImport.swift"
+        "Actualist/LocalFirst/TransactionCSVWorkflows.swift"
       ],
       "notes": "The interop suite is opt-in and skips without its environment. The opt-in live-lab harness scripts/parity/live-lab-file-interop/ also compares exported CSVs and imports in both directions (LiveLabFileInteropTests)."
     },
@@ -444,7 +444,7 @@
         "Actualist/Shared/ImportReconcileOptions.swift",
         "Actualist/Shared/ImportPayeeNameNormalization.swift",
         "Actualist/LocalFirst/BankSyncPlanWorkflows.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+ImportReconcile.swift",
+        "Actualist/LocalFirst/ImportReconcileSteps.swift",
         "Actualist/LocalFirst/Database/BankSyncLinkSQL.swift",
         "Actualist/LocalFirst/Database/BankSyncMatchSQL.swift",
         "Actualist/LocalFirst/Database/BankSyncRunSQL.swift",

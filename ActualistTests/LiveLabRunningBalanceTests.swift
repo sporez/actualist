@@ -42,7 +42,7 @@ struct LiveLabRunningBalanceTests {
     @Test func runningBalancePrepare() async throws {
         let store = try await makeSignedInStore()
         let serverURL = try #require(LiveLab.url)
-        let creation = try await store.createNewBudget(
+        let creation = try await store.portableBudgets.createNewBudget(
             named: "Interop Check running-balance \(UUID().uuidString.prefix(6))", serverURLString: serverURL
         )
         let budget = try await open(creation.fileID, in: store)

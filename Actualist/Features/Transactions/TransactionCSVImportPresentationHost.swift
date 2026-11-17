@@ -28,7 +28,7 @@ struct TransactionCSVImportPresentationHost: ViewModifier {
                         contentsOf: url,
                         accountID: accountID,
                         budgetID: budgetID,
-                        repository: appState.localFirstStore
+                        repository: appState.localFirstStore.transactionCSV
                     )
                 }
             }
@@ -55,7 +55,7 @@ struct TransactionCSVImportPresentationHost: ViewModifier {
         if let budgetID = appState.settings.selectedBudgetID {
             TransactionCSVImportReviewView(
                 coordinator: coordinator,
-                repository: appState.localFirstStore,
+                repository: appState.localFirstStore.transactionCSV,
                 currency: appState.localFirstStore.budgetCurrency(budgetID: budgetID),
                 isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
                 onCancel: { coordinator.reset() },

@@ -370,7 +370,7 @@ struct PortableBudgetRegistrationTests {
         )
         let recovery = RegistrationRecoveryStub()
 
-        let receipt = try await store.registerPortableBudget(
+        let receipt = try await store.portableBudgets.registerPortableBudget(
             archiveBytes: archiveBytes,
             budgetName: "Portable Budget",
             knownFileID: fileID,
@@ -406,7 +406,7 @@ struct PortableBudgetRegistrationTests {
         )
         let recovery = RegistrationRecoveryStub()
 
-        let receipt = try await store.registerPortableBudget(
+        let receipt = try await store.portableBudgets.registerPortableBudget(
             archiveBytes: archiveBytes,
             budgetName: "Portable Budget",
             knownFileID: fileID,
@@ -432,7 +432,7 @@ struct PortableBudgetRegistrationTests {
         try store.keychain.saveActualSyncToken("session-token")
 
         await #expect(throws: LocalFirstError.encryptedBudgetRequiresPassword) {
-            try await store.registerPortableBudget(
+            try await store.portableBudgets.registerPortableBudget(
                 archiveBytes: archiveBytes,
                 budgetName: "Portable Budget",
                 knownFileID: fileID,
@@ -452,7 +452,7 @@ struct PortableBudgetRegistrationTests {
         )
 
         await #expect(throws: LocalFirstError.missingSyncToken) {
-            try await store.registerPortableBudget(
+            try await store.portableBudgets.registerPortableBudget(
                 archiveBytes: archiveBytes,
                 budgetName: "Portable Budget",
                 knownFileID: fileID,

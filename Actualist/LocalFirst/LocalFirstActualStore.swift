@@ -55,6 +55,8 @@ final class LocalFirstActualStore:
     @ObservationIgnored private(set) lazy var savedFilters = SavedFilterWorkflows(store: self)
     @ObservationIgnored private(set) lazy var transactionCommands = TransactionCommandWorkflows(store: self)
     @ObservationIgnored private(set) lazy var pendingTransactions = PendingTransactionWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var portableBudgets = PortableBudgetWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var transactionCSV = TransactionCSVWorkflows(store: self)
     var budgetReadGeneration = 0
     @ObservationIgnored var syncStatusSequence = 0
     @ObservationIgnored var appliedPendingCountSequence = 0

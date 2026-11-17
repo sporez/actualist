@@ -43,7 +43,7 @@ struct NewBudgetCreationTests {
             uploadResults: [.success(ActualUploadUserFileResponse(groupID: "group-new"))]
         )
 
-        let creation = try await store.createNewBudget(
+        let creation = try await store.portableBudgets.createNewBudget(
             named: "  Fresh Budget  ",
             serverURLString: "https://newbudget.example",
             token: "session-token",
@@ -80,7 +80,7 @@ struct NewBudgetCreationTests {
             uploadResults: [.success(ActualUploadUserFileResponse(groupID: "group-new"))]
         )
 
-        let creation = try await store.createNewBudget(
+        let creation = try await store.portableBudgets.createNewBudget(
             named: "Fresh Budget",
             serverURLString: "https://newbudget.example",
             encryptionPassword: "secret-passphrase",
@@ -112,7 +112,7 @@ struct NewBudgetCreationTests {
             uploadResults: [.success(ActualUploadUserFileResponse(groupID: "group-new"))]
         )
 
-        let creation = try await store.createNewBudget(
+        let creation = try await store.portableBudgets.createNewBudget(
             named: "Fresh Budget",
             serverURLString: "https://newbudget.example",
             token: "session-token",
@@ -190,7 +190,7 @@ struct NewBudgetCreationTests {
             uploadResults: [.success(ActualUploadUserFileResponse(groupID: "group-new"))]
         )
 
-        let creation = try await store.createNewBudget(
+        let creation = try await store.portableBudgets.createNewBudget(
             named: "Fresh Budget",
             serverURLString: "https://newbudget.example",
             token: "session-token",
@@ -242,7 +242,7 @@ struct NewBudgetCreationTests {
         let recovery = NewBudgetRegistrationRecoveryStub(listResults: [.success([])])
 
         await #expect(throws: ActualFileRegistrationError.uploadUnconfirmed) {
-            try await store.createNewBudget(
+            try await store.portableBudgets.createNewBudget(
                 named: "Fresh Budget",
                 serverURLString: "https://newbudget.example",
                 token: "session-token",
@@ -285,7 +285,7 @@ struct NewBudgetCreationTests {
         }
 
         await #expect(throws: ActualFileRegistrationError.uploadUnconfirmed) {
-            try await store.createNewBudget(
+            try await store.portableBudgets.createNewBudget(
                 named: "Fresh Budget",
                 serverURLString: "https://newbudget.example",
                 token: "session-token",
@@ -311,7 +311,7 @@ struct NewBudgetCreationTests {
         let recovery = NewBudgetRegistrationRecoveryStub()
 
         await #expect(throws: ActualFileRegistrationError.keyRegistrationNotConfirmed) {
-            try await store.createNewBudget(
+            try await store.portableBudgets.createNewBudget(
                 named: "Fresh Budget",
                 serverURLString: "https://newbudget.example",
                 encryptionPassword: "secret-passphrase",
@@ -339,7 +339,7 @@ struct NewBudgetCreationTests {
         )
 
         await #expect(throws: ActualFileRegistrationError.keyRegistrationNotConfirmed) {
-            try await store.createNewBudget(
+            try await store.portableBudgets.createNewBudget(
                 named: "Fresh Budget",
                 serverURLString: "https://newbudget.example",
                 encryptionPassword: "secret-passphrase",
@@ -363,7 +363,7 @@ struct NewBudgetCreationTests {
         let recovery = NewBudgetRegistrationRecoveryStub()
 
         await #expect(throws: ActualAPIError.self) {
-            try await store.createNewBudget(
+            try await store.portableBudgets.createNewBudget(
                 named: "Fresh Budget",
                 serverURLString: "https://newbudget.example",
                 token: "session-token",
@@ -388,7 +388,7 @@ struct NewBudgetCreationTests {
         let recovery = NewBudgetRegistrationRecoveryStub(listResults: [.success([])])
 
         await #expect(throws: ActualFileRegistrationError.uploadUnconfirmed) {
-            try await store.createNewBudget(
+            try await store.portableBudgets.createNewBudget(
                 named: "Fresh Budget",
                 serverURLString: "https://newbudget.example",
                 token: "session-token",
@@ -422,7 +422,7 @@ struct NewBudgetCreationTests {
         )
 
         await #expect(throws: Error.self) {
-            try await store.createNewBudget(
+            try await store.portableBudgets.createNewBudget(
                 named: "Fresh Budget",
                 serverURLString: "https://newbudget.example",
                 encryptionPassword: "secret-passphrase",
@@ -450,7 +450,7 @@ struct NewBudgetCreationTests {
             String(repeating: "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}", count: 100)
         ] {
             await #expect(throws: ActualFileRegistrationError.budgetNameTooLong) {
-                try await store.createNewBudget(
+                try await store.portableBudgets.createNewBudget(
                     named: name,
                     serverURLString: "https://newbudget.example",
                     token: "session-token",
@@ -462,7 +462,7 @@ struct NewBudgetCreationTests {
         #expect(try fileManager.importedBudgetFileIDs().isEmpty)
 
         let boundary = String(repeating: "a", count: 255)
-        let creation = try await store.createNewBudget(
+        let creation = try await store.portableBudgets.createNewBudget(
             named: boundary,
             serverURLString: "https://newbudget.example",
             token: "session-token",
@@ -479,7 +479,7 @@ struct NewBudgetCreationTests {
         let transport = NewBudgetFakeRegistrationTransport()
 
         await #expect(throws: NewBudgetError.invalidBudgetName) {
-            try await store.createNewBudget(
+            try await store.portableBudgets.createNewBudget(
                 named: "   ",
                 serverURLString: "https://newbudget.example",
                 token: "session-token",
@@ -508,7 +508,7 @@ struct NewBudgetCreationTests {
         try Data("keep".utf8).write(to: sentinelURL)
 
         await #expect(throws: NewBudgetError.budgetDirectoryAlreadyExists) {
-            try await store.createNewBudget(
+            try await store.portableBudgets.createNewBudget(
                 named: "Fresh Budget",
                 serverURLString: "https://newbudget.example",
                 token: "session-token",

@@ -92,7 +92,7 @@ enum BankSyncOracleReplay {
         }
         // Both sources match by imported id wherever the stored row sits.
         let importedIDs = Set(candidates.compactMap(\.financialID))
-        let outcome = try await store.reconcileProjectedImport(
+        let outcome = try await ImportReconcileSteps.reconcileProjectedImport(
             database: database,
             accountID: accountID,
             accountIsOffBudget: accountIsOffBudget,
@@ -299,7 +299,7 @@ enum BankSyncOracleReplay {
         }
         var builder = LocalFirstSyncMessageBuilder()
         let sortBase = 1_000_000.0
-        let writes = try await store.importReconcileWrites(
+        let writes = try await ImportReconcileSteps.importReconcileWrites(
             database: database,
             accountID: accountID,
             accountIsOffBudget: accountIsOffBudget,

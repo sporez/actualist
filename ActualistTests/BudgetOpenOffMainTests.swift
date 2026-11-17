@@ -63,7 +63,7 @@ struct BudgetOpenOffMainTests {
             uploadResults: [.success(ActualUploadUserFileResponse(groupID: "group-new"))]
         )
 
-        _ = try await store.createNewBudget(
+        _ = try await store.portableBudgets.createNewBudget(
             named: "Off Main",
             serverURLString: "https://newbudget.example",
             token: "session-token",

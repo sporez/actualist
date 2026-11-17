@@ -1,19 +1,52 @@
 import Foundation
 
+/// Transaction CSV export and import. The store owns it and injects it as the
+/// export and import repositories; the feed caches stay on the store.
+@MainActor
+final class TransactionCSVWorkflows {
+    // The store creates this lazily and keeps it for its whole life, so the
+    // store outlives every holder of it.
+    private unowned let store: LocalFirstActualStore
+
+    init(store: LocalFirstActualStore) {
+        self.store = store
+    }
+}
+
+extension TransactionCSVWorkflows: TransactionCSVExportRepositoryProtocol {
+    func exportTransactionsCSV(_ request: TransactionCSVExportRequest) async throws -> TransactionCSVExport {
+        try Task.checkCancellation()
+        let database = try store.requireDatabase(for: request.budgetID)
+        let sessionID = store.transactionFeedRequestIdentity.sessionID
+        let rows = try await TransactionCSVExportSQL.fetchTransactionCSVExportRows(
+            accountID: request.accountID,
+            query: request.query,
+            in: database
+        )
+        try Task.checkCancellation()
+        guard store.transactionFeedRequestIdentity.sessionID == sessionID,
+              store.database === database,
+              store.openedBudgetID == request.budgetID else {
+            throw CancellationError()
+        }
+        return await TransactionCSVEncoder().encode(rows)
+    }
+}
+
 /// CSV import prepare/apply. Prepare is read-only: parse, all-or-nothing
 /// validation, then the shared import reconcile (rules, matching) for review.
 /// Apply receives the decided rows and writes them through the same shared step
-/// as Bank Sync (`importReconcileWrites`) in one atomic commit, with the
+/// as Bank Sync (`ImportReconcileSteps.importReconcileWrites`) in one atomic commit, with the
 /// review's preconditions re-checked inside it. There is no second
 /// reconcile implementation and no wallet or bank-sync routing.
-extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
+extension TransactionCSVWorkflows: TransactionCSVImportRepositoryProtocol {
     func prepareTransactionCSVImport(
         _ request: TransactionCSVImportPreparationRequest
     ) async throws -> TransactionCSVImportReview {
         try Task.checkCancellation()
-        let database = try requireDatabase(for: request.budgetID)
-        let sessionID = transactionFeedRequestIdentity.sessionID
-        let generation = budgetSessionGeneration
+        let database = try store.requireDatabase(for: request.budgetID)
+        let sessionID = store.transactionFeedRequestIdentity.sessionID
+        let generation = store.budgetSessionGeneration
 
         let settings: ImportSettings
         if let chosen = request.settings {
@@ -53,7 +86,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         if let moved = projection.movedSources.first {
             throw TransactionCSVImportError.unsupportedAccountMove(line: rows[moved].sourceLine)
         }
-        let reconciled = try await reconcileProjectedImport(
+        let reconciled = try await ImportReconcileSteps.reconcileProjectedImport(
             database: database,
             accountID: request.accountID,
             accountIsOffBudget: accountIsOffBudget,
@@ -63,10 +96,10 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             options: options
         )
 
-        guard transactionFeedRequestIdentity.sessionID == sessionID,
-              generation == budgetSessionGeneration,
-              self.database === database,
-              openedBudgetID == request.budgetID else {
+        guard store.transactionFeedRequestIdentity.sessionID == sessionID,
+              generation == store.budgetSessionGeneration,
+              store.database === database,
+              store.openedBudgetID == request.budgetID else {
             throw CancellationError()
         }
         return TransactionCSVImportReview(
@@ -84,8 +117,8 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         _ request: TransactionCSVImportApplyRequest
     ) async throws -> TransactionCSVImportApplyResult {
         try Task.checkCancellation()
-        let database = try requireDatabase(for: request.budgetID)
-        try requireSyncSession(
+        let database = try store.requireDatabase(for: request.budgetID)
+        try store.requireSyncSession(
             database: database,
             budgetID: request.budgetID,
             generation: request.sessionGeneration
@@ -101,7 +134,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         // Pinned Actual stamps inserted rows with a descending sort_order from
         // Date.now() so file order survives on display.
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
-        let writes = try await importReconcileWrites(
+        let writes = try await ImportReconcileSteps.importReconcileWrites(
             database: database,
             accountID: request.accountID,
             accountIsOffBudget: accountIsOffBudget,
@@ -111,7 +144,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             sortOrder: { sortOrderBase - Double($0) },
             builder: &builder
         )
-        try requireSyncSession(
+        try store.requireSyncSession(
             database: database,
             budgetID: request.budgetID,
             generation: request.sessionGeneration
@@ -132,7 +165,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
         }
         // The import is committed and cannot be repeated, so it finishes on the
         // durable tail; a pending refresh never turns it into a failure.
-        _ = await finishDurableTransactionWrite(
+        _ = await store.finishDurableTransactionWrite(
             database: database,
             budgetID: request.budgetID,
             generation: request.sessionGeneration,

@@ -73,7 +73,7 @@ extension LocalFirstActualStore {
             accountID: accountID,
             accountIsOffBudget: accountIsOffBudget
         )
-        let outcome = try await reconcileProjectedImport(
+        let outcome = try await ImportReconcileSteps.reconcileProjectedImport(
             database: database,
             accountID: accountID,
             accountIsOffBudget: accountIsOffBudget,
@@ -109,7 +109,7 @@ extension LocalFirstActualStore {
 
         var builder = LocalFirstSyncMessageBuilder()
         let sortOrderBase = Date().timeIntervalSince1970 * 1_000
-        let writes = try await importReconcileWrites(
+        let writes = try await ImportReconcileSteps.importReconcileWrites(
             database: database,
             accountID: accountID,
             accountIsOffBudget: accountIsOffBudget,

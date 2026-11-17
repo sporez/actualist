@@ -39,7 +39,8 @@ struct ImportReconcileWrites {
 /// → `importReconcileWrites`. The caller owns what is specific to its source:
 /// Bank Sync's link identity, generation, opening balance and completion
 /// messages; CSV's file mapping and review.
-extension LocalFirstActualStore {
+@MainActor
+enum ImportReconcileSteps {
     /// Reads the matching window and plans the projected candidates.
     ///
     /// - Parameters:
@@ -47,7 +48,7 @@ extension LocalFirstActualStore {
     ///     a rule that moves a date cannot hide a row from matching.
     ///   - importedIDs: Ids matched exactly wherever the stored row sits,
     ///     because the exact tier is not date-bound (`imported_id = ?`).
-    func reconcileProjectedImport(
+    static func reconcileProjectedImport(
         database: BudgetDatabase,
         accountID: String,
         accountIsOffBudget: Bool,
@@ -89,7 +90,7 @@ extension LocalFirstActualStore {
     /// and appends its completion messages around this.
     ///
     /// - Parameter sortOrder: The `sort_order` of the insert at an index.
-    func importReconcileWrites(
+    static func importReconcileWrites(
         database: BudgetDatabase,
         accountID: String,
         accountIsOffBudget: Bool,
@@ -205,7 +206,7 @@ extension LocalFirstActualStore {
         return writes
     }
 
-    private func importInsertDraft(
+    private static func importInsertDraft(
         candidate: BankSyncReconciliation.Candidate,
         accountID: String,
         payeeID: String?,
@@ -250,7 +251,7 @@ extension LocalFirstActualStore {
 
     /// A row with no payee text stays payee-less (CSV allows it; Bank Sync
     /// rejects such a row before it becomes a candidate).
-    private func resolveReconcileInsertPayee(
+    private static func resolveReconcileInsertPayee(
         candidate: BankSyncReconciliation.Candidate,
         resolvedPayeeIDs: inout [String: String],
         knownPayees: inout [ActualPayee]?,
@@ -272,7 +273,7 @@ extension LocalFirstActualStore {
 
     /// Finds the payee by case-insensitive name or creates it, once per name
     /// for the whole import.
-    private func resolveReconcilePayee(
+    private static func resolveReconcilePayee(
         named name: String,
         resolvedPayeeIDs: inout [String: String],
         knownPayees: inout [ActualPayee]?,

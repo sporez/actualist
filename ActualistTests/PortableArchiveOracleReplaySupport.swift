@@ -162,7 +162,7 @@ enum PortableArchiveOracleReplay {
     static func importArchive(at archiveURL: URL) async throws -> Imported {
         let support = LocalFirstActualStoreTests()
         let bundle = try await support.makeOpenedWritableStoreBundle()
-        let creation = try await bundle.store.importPortableBudget(
+        let creation = try await bundle.store.portableBudgets.importPortableBudget(
             archiveAt: archiveURL,
             serverURLString: "https://sync.example",
             token: "token",
@@ -193,7 +193,7 @@ enum PortableArchiveOracleReplay {
             temporaryDirectory: FileManager.default.temporaryDirectory
                 .appending(path: "PortableArchiveReplay-\(UUID().uuidString)", directoryHint: .isDirectory)
         )
-        return try await imported.bundle.store.exportPortableBudgetArchive(budgetID: imported.groupID)
+        return try await imported.bundle.store.portableBudgets.exportPortableBudgetArchive(budgetID: imported.groupID)
     }
 
     /// The database exactly as written in the ZIP, before any open.

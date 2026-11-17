@@ -12,7 +12,7 @@ struct TransactionCSVExportPresentationHost: ViewModifier {
                     TransactionCSVExportReviewView(
                         budgetID: budgetID,
                         accountID: accountID,
-                        repository: appState.localFirstStore
+                        repository: appState.localFirstStore.transactionCSV
                     )
                 } else {
                     ChooseBudgetUnavailableView()

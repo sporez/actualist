@@ -161,7 +161,7 @@ struct LiveLabInteropTests {
         let store = makeStore(root: root)
         let before = try await signIn(store).budgets.count
         let name = "Interop Check \(UUID().uuidString.prefix(8))"
-        let creation = try await store.createNewBudget(
+        let creation = try await store.portableBudgets.createNewBudget(
             named: name,
             serverURLString: try #require(LiveLab.url)
         )

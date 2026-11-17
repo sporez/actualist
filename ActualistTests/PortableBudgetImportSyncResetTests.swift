@@ -53,7 +53,7 @@ struct PortableBudgetImportSyncResetTests {
 
         let destination = try await support.makeOpenedWritableStoreBundle { _ in transport }
         try destination.keychain.saveActualSyncToken("token")
-        let creation = try await destination.store.importPortableBudget(
+        let creation = try await destination.store.portableBudgets.importPortableBudget(
             archiveAt: archiveURL,
             serverURLString: "https://sync.example",
             token: "token",

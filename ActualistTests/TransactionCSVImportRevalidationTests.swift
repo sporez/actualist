@@ -33,7 +33,7 @@ struct TransactionCSVImportRevalidationTests {
         """.utf8)
 
     private func review(_ bundle: Bundle, _ data: Data) async throws -> TransactionCSVImportReview {
-        try await bundle.store.prepareTransactionCSVImport(
+        try await bundle.store.transactionCSV.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -76,7 +76,7 @@ struct TransactionCSVImportRevalidationTests {
         let pendingBefore = try await pendingCount(bundle)
         let countBefore = try await transactionCount(bundle)
         await #expect(throws: TransactionCSVImportError.matchChanged(line: 1)) {
-            _ = try await bundle.store.applyTransactionCSVImport(request)
+            _ = try await bundle.store.transactionCSV.applyTransactionCSVImport(request)
         }
         #expect(try await pendingCount(bundle) == pendingBefore)
         #expect(try await transactionCount(bundle) == countBefore)
@@ -96,7 +96,7 @@ struct TransactionCSVImportRevalidationTests {
         let pendingBefore = try await pendingCount(bundle)
         let countBefore = try await transactionCount(bundle)
         await #expect(throws: CancellationError.self) {
-            _ = try await bundle.store.applyTransactionCSVImport(
+            _ = try await bundle.store.transactionCSV.applyTransactionCSVImport(
                 applyRequest(reviewed, generation: reviewed.sessionGeneration - 1)
             )
         }
@@ -110,7 +110,7 @@ struct TransactionCSVImportRevalidationTests {
         let database = try #require(bundle.store.database)
         bundle.store.reset()
         await #expect(throws: (any Error).self) {
-            _ = try await bundle.store.applyTransactionCSVImport(applyRequest(reviewed))
+            _ = try await bundle.store.transactionCSV.applyTransactionCSVImport(applyRequest(reviewed))
         }
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
     }
@@ -167,7 +167,7 @@ struct TransactionCSVImportRevalidationTests {
     @Test func untouchedMatchStillAppliesAfterRevalidation() async throws {
         let bundle = try await makeBundle()
         let reviewed = try await review(bundle, matchAndInsertCSV)
-        let result = try await bundle.store.applyTransactionCSVImport(applyRequest(reviewed))
+        let result = try await bundle.store.transactionCSV.applyTransactionCSVImport(applyRequest(reviewed))
         #expect(result.updatedCount == 1)
         #expect(result.insertedCount == 1)
     }

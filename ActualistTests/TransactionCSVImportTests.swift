@@ -342,7 +342,7 @@ struct TransactionCSVImportTests {
                 );
                 """
         )
-        let review = try await bundle.store.prepareTransactionCSVImport(
+        let review = try await bundle.store.transactionCSV.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -391,7 +391,7 @@ struct TransactionCSVImportTests {
         )
         let before = try await checkingRows(database).count
 
-        let first = try await bundle.store.applyTransactionCSVImport(
+        let first = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -404,7 +404,7 @@ struct TransactionCSVImportTests {
         #expect(imported.compactMap(\.amount).sorted() == [-2_000, -1_000, 0])
         #expect(try await checkingRows(database).count == before + 3)
 
-        let second = try await bundle.store.applyTransactionCSVImport(
+        let second = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -422,7 +422,7 @@ struct TransactionCSVImportTests {
         let database = try #require(bundle.store.database)
         let data = csv("2026-09-27,Sample Market,Groceries,12.34")
 
-        let first = try await bundle.store.applyTransactionCSVImport(
+        let first = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -433,7 +433,7 @@ struct TransactionCSVImportTests {
         #expect(first.insertedCount == 1)
         #expect(try await checkingRows(database).count == 2)
 
-        let second = try await bundle.store.applyTransactionCSVImport(
+        let second = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -452,7 +452,7 @@ struct TransactionCSVImportTests {
         let firstFile = csv("2026-09-02,Fuzzy Market,,-19.99")
         let secondFile = csv("2026-09-05,Different Payee,,-19.99")
 
-        _ = try await bundle.store.applyTransactionCSVImport(
+        _ = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -460,7 +460,7 @@ struct TransactionCSVImportTests {
                 rows: try preparedRows(bundle.store, data: firstFile, accountID: "checking")
             )
         )
-        let second = try await bundle.store.applyTransactionCSVImport(
+        let second = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -481,7 +481,7 @@ struct TransactionCSVImportTests {
         let database = try #require(bundle.store.database)
         let data = csv("2026-09-27,Sample Market,Groceries,12.34\n2026-09-27,Sample Market,Groceries,12.34")
 
-        let result = try await bundle.store.applyTransactionCSVImport(
+        let result = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -498,7 +498,7 @@ struct TransactionCSVImportTests {
         let database = try #require(bundle.store.database)
         let data = csv("2026-09-10,To Savings,,-50.00")
 
-        let result = try await bundle.store.applyTransactionCSVImport(
+        let result = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -530,7 +530,7 @@ struct TransactionCSVImportTests {
         let data = csv("2026-09-27,Sample Market,Groceries,12.34\n2026-02-30,Bad Row,,1.00")
 
         await #expect(throws: TransactionCSVImportError.self) {
-            try await bundle.store.prepareTransactionCSVImport(
+            try await bundle.store.transactionCSV.prepareTransactionCSVImport(
                 TransactionCSVImportPreparationRequest(
                     budgetID: "group-1",
                     accountID: "checking",
@@ -564,7 +564,7 @@ struct TransactionCSVImportTests {
         ]
         let export = await TransactionCSVEncoder().encode(exportedRows, generatedAt: Self.fixedGenerationDate())
 
-        let review = try await bundle.store.prepareTransactionCSVImport(
+        let review = try await bundle.store.transactionCSV.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -585,7 +585,7 @@ struct TransactionCSVImportTests {
         // category, and no category is named "Food".
         #expect(review.rows[1].row.categoryName == "Food")
 
-        let result = try await bundle.store.applyTransactionCSVImport(
+        let result = try await bundle.store.transactionCSV.applyTransactionCSVImport(
             TransactionCSVImportApplyRequest(
                 budgetID: "group-1",
                 accountID: "checking",
@@ -617,7 +617,7 @@ struct TransactionCSVImportTests {
         data: Data,
         accountID: String
     ) async throws -> [TransactionCSVImportReviewRow] {
-        let review = try await store.prepareTransactionCSVImport(
+        let review = try await store.transactionCSV.prepareTransactionCSVImport(
             TransactionCSVImportPreparationRequest(
                 budgetID: "group-1",
                 accountID: accountID,

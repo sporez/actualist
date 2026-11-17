@@ -34,7 +34,7 @@ struct LiveLabFileInteropTests {
             try LiveLabFileInterop.snapshot(store, fileID: sourceFileID, to: "actualist-source.sqlite")
 
             do {
-                let archive = try await store.exportPortableBudgetArchive(budgetID: budget.syncID)
+                let archive = try await store.portableBudgets.exportPortableBudgetArchive(budgetID: budget.syncID)
                 try LiveLabFileInterop.replace(handoff.appending(path: "actualist-export.zip"), with: archive)
                 store.portableExportFiles.discard(archive)
             } catch {
@@ -44,7 +44,7 @@ struct LiveLabFileInteropTests {
             var csvExports: [[String: Any]] = []
             for account in csvAccounts {
                 do {
-                    let export = try await store.exportTransactionsCSV(TransactionCSVExportRequest(
+                    let export = try await store.transactionCSV.exportTransactionsCSV(TransactionCSVExportRequest(
                         budgetID: budget.syncID,
                         accountID: account.id,
                         query: TransactionFeedQuery()
@@ -65,7 +65,7 @@ struct LiveLabFileInteropTests {
         }
 
         do {
-            let creation = try await store.importPortableBudget(
+            let creation = try await store.portableBudgets.importPortableBudget(
                 archiveAt: handoff.appending(path: "actual-export.zip"),
                 serverURLString: serverURL
             )
@@ -116,7 +116,7 @@ struct LiveLabFileInteropTests {
                     store.accountDisplays(budgetID: budget.syncID).first { $0.account.name == name }?.id
                 )
                 record["accountID"] = accountID
-                let review = try await store.prepareTransactionCSVImport(TransactionCSVImportPreparationRequest(
+                let review = try await store.transactionCSV.prepareTransactionCSVImport(TransactionCSVImportPreparationRequest(
                     budgetID: budget.syncID,
                     accountID: accountID,
                     data: try Data(contentsOf: handoff.appending(path: "actual-\(account.key).csv"))
@@ -124,7 +124,7 @@ struct LiveLabFileInteropTests {
                 record["reviewRows"] = review.rows.count
                 record["outcomes"] = Dictionary(grouping: review.rows, by: { "\($0.outcome.kind)" })
                     .mapValues(\.count)
-                let applied = try await store.applyTransactionCSVImport(TransactionCSVImportApplyRequest(
+                let applied = try await store.transactionCSV.applyTransactionCSVImport(TransactionCSVImportApplyRequest(
                     budgetID: budget.syncID,
                     accountID: accountID,
                     sessionGeneration: review.sessionGeneration,

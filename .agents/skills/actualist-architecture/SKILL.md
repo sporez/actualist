@@ -173,10 +173,10 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - `+TransactionFeeds` / `+TransactionFeedCache` — cached account and Spending feeds. Do not duplicate this cache.
 - `+LaunchWarmup` — store-side cache warming after open.
 - `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle`, `+Holds`, `+CommitTail` — local CRDT write flows and the shared post-commit tail.
-- `TransactionCommandWorkflows` (`LocalFirst/TransactionCommandWorkflows.swift`, the store's `transactionCommands`: batch, duplicate and merge review and commit), `+TransactionCSVImport`, `+TransactionCSVExport`, `PendingTransactionWorkflows` (the store's `pendingTransactions`: new-transaction alert rows, conforming to `BackgroundPendingTransactionPersisting`) — transaction-list actions, saved filters, and CSV.
+- `TransactionCommandWorkflows` (`LocalFirst/TransactionCommandWorkflows.swift`, the store's `transactionCommands`: batch, duplicate and merge review and commit), `TransactionCSVWorkflows` (the store's `transactionCSV`: CSV export, prepare and apply), `PendingTransactionWorkflows` (the store's `pendingTransactions`: new-transaction alert rows, conforming to `BackgroundPendingTransactionPersisting`) — transaction-list actions, saved filters, and CSV.
 - `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
-- `+WalletImport`, `+ImportReconcile` — imported transaction flows (Bank Sync is `BankSyncWorkflows` and `BankSyncPlanWorkflows`).
-- `+PortableExport`, `+PortableImport`, `+PortableRegistration`, `+NewBudget` — ZIP export and import, server registration, and New Budget.
+- `+WalletImport`, `ImportReconcileSteps` (`LocalFirst/ImportReconcileSteps.swift`, the shared reconcile and write steps) — imported transaction flows (Bank Sync is `BankSyncWorkflows` and `BankSyncPlanWorkflows`).
+- `PortableBudgetWorkflows` (`LocalFirst/PortableBudgetWorkflows.swift`, the store's `portableBudgets`) — ZIP export and import, server registration, and New Budget.
 - `+Templates`, `+Notes`, `+Widgets`, `+ActionLog`, `+AccountGroups`, `+Reconciliation` — focused feature bridges.
 - `ServerSyncLane.swift` — the one serialized flush/pull lane per budget session (flush flag, queued waiters, scheduled flush task, status tickets). `closeOpenBudget()` invalidates it and installs a fresh lane, so a late finisher releases its own dead lane.
 - `ServerEndpointHealth.swift` — endpoint health cache.
@@ -258,10 +258,10 @@ Adapters over the core: `commitUserActionPlan` (user gestures; adds the action-l
 
 ### Import, export and the CRDT reset
 
-- Bank Sync, CSV import and Wallet import share one reconcile pipeline: rule projection, then `reconcileProjectedImport`, then `importReconcileWrites` (`LocalFirstActualStore+ImportReconcile.swift`, `Shared/BankSyncReconciler.swift`). The source owns only parsing, mapping and its own review. Bank Sync and Wallet use `ImportReconcileOptions.bankSync`; CSV uses `.csv`. This is the shared import path that the `bank-sync-matching` parity domain replays.
-- CSV import stages are `@concurrent` helpers in `Shared/TransactionCSVImportPipeline.swift`. `LocalFirstActualStore+TransactionCSVImport.swift` keeps the orchestration (session guards, rule preview, reconcile, commit); the pure lookups, review outcomes and write plan are in `LocalFirst/TransactionImportEngine.swift`, and the in-commit checks in `Database/TransactionImportSQL.swift`.
+- Bank Sync, CSV import and Wallet import share one reconcile pipeline: rule projection, then `reconcileProjectedImport`, then `importReconcileWrites` (`LocalFirst/ImportReconcileSteps.swift`, `Shared/BankSyncReconciler.swift`). The source owns only parsing, mapping and its own review. Bank Sync and Wallet use `ImportReconcileOptions.bankSync`; CSV uses `.csv`. This is the shared import path that the `bank-sync-matching` parity domain replays.
+- CSV import stages are `@concurrent` helpers in `Shared/TransactionCSVImportPipeline.swift`. `LocalFirst/TransactionCSVWorkflows.swift` keeps the orchestration (session guards, rule preview, reconcile, commit); the pure lookups, review outcomes and write plan are in `LocalFirst/TransactionImportEngine.swift`, and the in-commit checks in `Database/TransactionImportSQL.swift`.
 - Portable ZIP export writes a temporary plaintext archive that is removed after the share (`PortableExportFiles`). Portable import validates and stages the archive (`PortableBudgetArchive`, `UntrustedZipExtractor`), clears its carried CRDT history with `PortableDatabaseSQL.resetSyncHistory` (the new server group starts empty, so a carried trie could never converge), installs it into a new directory, and registers it on the server. A budget downloaded or re-imported from a server keeps its `messages_crdt`.
-- New Budget (`+NewBudget`, `NewBudgetSeedSQL`) seeds a starter schema and registers it the same way.
+- New Budget (`PortableBudgetWorkflows`, `NewBudgetSeedSQL`) seeds a starter schema and registers it the same way.
 
 ### Schedules
 

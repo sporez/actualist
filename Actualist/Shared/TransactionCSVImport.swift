@@ -3,7 +3,8 @@ import Foundation
 /// One transaction as Actual's import step (`importTransactions`) receives it,
 /// plus its place in the file for review. The CSV mapper builds these the way
 /// Actual's import modal does; matching and writing are the shared import
-/// reconcile step (`BankSyncReconciliation`, `importReconcileWrites`). Pure
+/// reconcile step (`BankSyncReconciliation`,
+/// `ImportReconcileSteps.importReconcileWrites`). Pure
 /// value logic only; no repository access and no message construction.
 struct TransactionCSVImportRow: Identifiable, Hashable, Sendable {
     /// Stable review identity, one row per CSV data row in file order.

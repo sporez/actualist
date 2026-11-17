@@ -371,7 +371,7 @@ final class BankSyncPlanWorkflows {
         database: BudgetDatabase
     ) async throws -> BankSyncReview.AccountPlan {
         let candidateDayIDs = prepared.candidates.map(\.dayID)
-        let outcome = try await store.reconcileProjectedImport(
+        let outcome = try await ImportReconcileSteps.reconcileProjectedImport(
             database: database,
             accountID: account.id,
             accountIsOffBudget: account.offbudget,

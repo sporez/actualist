@@ -38,7 +38,7 @@ struct PortableBudgetExportLifecycleTests {
     @Test func exportIsWrittenInsideTheExportDirectory() async throws {
         let (bundle, files) = try await makeBundle()
 
-        let url = try await bundle.store.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
+        let url = try await bundle.store.portableBudgets.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
 
         #expect(url.deletingLastPathComponent().deletingLastPathComponent().standardizedFileURL == files.directory.standardizedFileURL)
         #expect(url.lastPathComponent == PortableExportFiles.archiveFileName)
@@ -51,7 +51,7 @@ struct PortableBudgetExportLifecycleTests {
         let workflow = PortableBudgetExportWorkflow(files: files)
         let budgetID = bundle.budget.syncID
 
-        await workflow.prepare(budgetID: budgetID) { try await store.exportPortableBudgetArchive(budgetID: $0) }
+        await workflow.prepare(budgetID: budgetID) { try await store.portableBudgets.exportPortableBudgetArchive(budgetID: $0) }
 
         let url = try #require(workflow.readyArchive(for: budgetID))
         #expect(workflow.readyArchive(for: "another-budget") == nil)
@@ -70,7 +70,7 @@ struct PortableBudgetExportLifecycleTests {
         let workflow = PortableBudgetExportWorkflow(files: files)
 
         await workflow.prepare(budgetID: "a-budget-that-is-not-open") {
-            try await store.exportPortableBudgetArchive(budgetID: $0)
+            try await store.portableBudgets.exportPortableBudgetArchive(budgetID: $0)
         }
 
         guard case .failed = workflow.state else {
@@ -86,7 +86,7 @@ struct PortableBudgetExportLifecycleTests {
         let store = bundle.store
         let workflow = PortableBudgetExportWorkflow(files: files)
         let budgetID = bundle.budget.syncID
-        let export: @MainActor (String) async throws -> URL = { try await store.exportPortableBudgetArchive(budgetID: $0) }
+        let export: @MainActor (String) async throws -> URL = { try await store.portableBudgets.exportPortableBudgetArchive(budgetID: $0) }
 
         await workflow.prepare(budgetID: budgetID, export: export)
         let first = try #require(workflow.readyArchive(for: budgetID))
@@ -107,7 +107,7 @@ struct PortableBudgetExportLifecycleTests {
         var finishedURL: URL?
 
         await workflow.prepare(budgetID: bundle.budget.syncID) { budgetID in
-            let url = try await store.exportPortableBudgetArchive(budgetID: budgetID)
+            let url = try await store.portableBudgets.exportPortableBudgetArchive(budgetID: budgetID)
             finishedURL = url
             workflow.reset()
             return url
@@ -123,7 +123,7 @@ struct PortableBudgetExportLifecycleTests {
     /// still accept the export's own entries.
     @Test func validationAcceptsAStagingDirectoryReachedThroughASymlink() async throws {
         let (bundle, _) = try await makeBundle()
-        let url = try await bundle.store.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
+        let url = try await bundle.store.portableBudgets.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
         let base = FileManager.default.temporaryDirectory
             .appending(path: "SymlinkStage-\(UUID().uuidString)", directoryHint: .isDirectory)
         let real = base.appending(path: "real", directoryHint: .isDirectory)
@@ -172,14 +172,14 @@ struct PortableBudgetExportLifecycleTests {
         try Data("old".utf8).write(to: stale)
         try age(stale, to: Date().addingTimeInterval(-3_600))
 
-        _ = try await bundle.store.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
+        _ = try await bundle.store.portableBudgets.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
 
         #expect(!FileManager.default.fileExists(atPath: stale.path))
     }
 
     @Test func eraseLocalDataRemovesEveryExport() async throws {
         let (bundle, files) = try await makeBundle()
-        let url = try await bundle.store.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
+        let url = try await bundle.store.portableBudgets.exportPortableBudgetArchive(budgetID: bundle.budget.syncID)
         #expect(FileManager.default.fileExists(atPath: url.path))
 
         try await bundle.store.eraseLocalData()
