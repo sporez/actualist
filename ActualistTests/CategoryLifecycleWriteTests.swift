@@ -225,7 +225,7 @@ struct CategoryLifecycleWriteTests {
             databaseURL: try makeSQLiteFixture(extraSQL: "UPDATE categories SET tombstone = 1 WHERE id = 'groceries';"),
             localNodeID: "node1"
         )
-        let transaction = try #require(try await database.fetchTransactions().first { $0.id == "txn" })
+        let transaction = try #require(try await TransactionReadSQL.fetchTransactions(in: database).first { $0.id == "txn" })
         #expect(transaction.category == nil)
     }
 
@@ -270,7 +270,7 @@ struct CategoryLifecycleWriteTests {
 
         #expect(loaded.month.categoryGroups.flatMap(\.categories).contains { $0.name == "Fuel" })
         #expect(loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }?.spent == -12345)
-        let transactions = try await bundle.store.database?.fetchTransactions() ?? []
+        let transactions = try await TransactionReadSQL.fetchTransactions(in: try #require(bundle.store.database))
         #expect(transactions.first { $0.id == "txn" }?.category == "groceries")
     }
 

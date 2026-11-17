@@ -110,7 +110,7 @@ enum RulePreviewSQL {
             return RuleTransactionMatchPreview(transactions: [], totalCount: 0)
         }
 
-        let transactions = try database.fetchTransactions()
+        let transactions = try TransactionReadSQL.fetchTransactions(in: database)
         let metadata = try ruleEvaluationMetadata(in: database)
         let matches = transactions.compactMap { transaction -> RuleTransactionMatch? in
             guard let context = ruleEvaluationContext(

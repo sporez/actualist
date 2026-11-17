@@ -5,7 +5,7 @@ struct TransactionStatusFilterBaselineTests {
     @Test func currentReadsProjectExclusiveStatusesAndNullAsUncleared() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
 
-        let accountRows = try await database.fetchTransactions(accountID: "checking")
+        let accountRows = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let statusRows = accountRows.filter { $0.id?.hasPrefix("status-") == true }
         let semantics = Dictionary(uniqueKeysWithValues: statusRows.compactMap { transaction in
             transaction.id.map {
@@ -23,7 +23,7 @@ struct TransactionStatusFilterBaselineTests {
         #expect(semantics["status-reconciled-uncleared"] == .reconciled)
         #expect(semantics["status-null"] == .uncleared)
 
-        let spendingRows = try await database.fetchTransactions()
+        let spendingRows = try await TransactionReadSQL.fetchTransactions(in: database)
         #expect(spendingRows.contains { $0.id == "other-account-row" })
         #expect(!accountRows.contains { $0.id == "other-account-row" })
     }
@@ -31,7 +31,7 @@ struct TransactionStatusFilterBaselineTests {
     @Test func existingUncategorizedReadPreservesMappedSplitTransferAndTombstoneSemantics() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
 
-        let grouped = try await database.fetchTransactions(accountID: "checking")
+        let grouped = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let mixedParent = try #require(grouped.first { $0.id == "mixed-parent" })
         #expect(mixedParent.subtransactions.map(\.id) == [
             "mixed-uncategorized-child", "mixed-categorized-child",
@@ -43,7 +43,7 @@ struct TransactionStatusFilterBaselineTests {
         #expect(mixedParent.subtransactions[1].cleared?.boolValue == true)
         #expect(mixedParent.subtransactions[1].reconciled)
 
-        let reviewRows = try await database.fetchUncategorizedTransactions()
+        let reviewRows = try await TransactionReadSQL.fetchUncategorizedTransactions(in: database)
         // "raw-category" maps to NULL and has no live categories row, so the row reads as
         // uncategorized, as Actual's transactions view reads it (category from the mapping,
         // joined to live categories only).
@@ -66,20 +66,23 @@ struct TransactionStatusFilterBaselineTests {
     @Test func existingSearchPagesInterleavedMatchesBeforeApplyingOffsets() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
 
-        let first = try await database.fetchTransactionPage(
-            accountID: "checking",
-            matching: "status-search-needle",
-            limit: 50
-        )
-        let second = try await database.fetchTransactionPage(
+        let first = try await TransactionReadSQL.fetchTransactionPage(
             accountID: "checking",
             matching: "status-search-needle",
             limit: 50,
-            offset: 50
+            in: database
         )
-        let allAccounts = try await database.fetchTransactionPage(
+        let second = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking",
             matching: "status-search-needle",
-            limit: 60
+            limit: 50,
+            offset: 50,
+            in: database
+        )
+        let allAccounts = try await TransactionReadSQL.fetchTransactionPage(
+            matching: "status-search-needle",
+            limit: 60,
+            in: database
         )
 
         #expect(first.transactions.compactMap(\.id) == (0..<50).map { String(format: "search-match-%03d", $0) })
@@ -94,11 +97,11 @@ struct TransactionStatusFilterBaselineTests {
     @Test func missingStatusColumnsReadAsUncleared() async throws {
         let database = try TransactionStatusFilterTestSupport.legacyDatabaseWithoutStatusColumns()
 
-        let rows = try await database.fetchTransactions(accountID: "checking")
+        let rows = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let transaction = try #require(rows.first { $0.id == "legacy-no-status" })
         let semantics = TransactionRowSemantics.project(transaction, lookup: TransactionRowLookup())
-        let uncleared = try await database.fetchTransactionPage(statusFilter: .uncleared)
-        let cleared = try await database.fetchTransactionPage(statusFilter: .cleared)
+        let uncleared = try await TransactionReadSQL.fetchTransactionPage(statusFilter: .uncleared, in: database)
+        let cleared = try await TransactionReadSQL.fetchTransactionPage(statusFilter: .cleared, in: database)
 
         #expect(transaction.cleared?.boolValue == false)
         #expect(!transaction.reconciled)
@@ -110,15 +113,15 @@ struct TransactionStatusFilterBaselineTests {
     @Test func filteredPagesApplyExclusiveStatusesBeforePagination() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
 
-        let all = try await database.fetchTransactionPage(accountID: "checking")
-        let uncleared = try await database.fetchTransactionPage(
-            accountID: "checking", statusFilter: .uncleared
+        let all = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", in: database)
+        let uncleared = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", statusFilter: .uncleared, in: database
         )
-        let cleared = try await database.fetchTransactionPage(
-            accountID: "checking", statusFilter: .cleared
+        let cleared = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", statusFilter: .cleared, in: database
         )
-        let reconciled = try await database.fetchTransactionPage(
-            accountID: "checking", statusFilter: .reconciled
+        let reconciled = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", statusFilter: .reconciled, in: database
         )
 
         #expect(all.transactions.contains { $0.id == "status-reconciled" })
@@ -134,8 +137,8 @@ struct TransactionStatusFilterBaselineTests {
         #expect(!cleared.transactions.contains { $0.id == "status-reconciled" })
         #expect(uncleared.transactions.first?.id != "other-account-row")
 
-        let flatChildSearch = try await database.fetchTransactionPage(
-            accountID: "checking", matching: "mixed uncategorized search needle", statusFilter: .uncleared
+        let flatChildSearch = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", matching: "mixed uncategorized search needle", statusFilter: .uncleared, in: database
         )
         #expect(flatChildSearch.transactions.map(\.id) == ["mixed-uncategorized-child"])
         #expect(flatChildSearch.transactions.first?.subtransactions.isEmpty == true)
@@ -144,12 +147,12 @@ struct TransactionStatusFilterBaselineTests {
     @Test func uncategorizedStatusSelectionUsesEligibleSplitChildrenAndExistingExclusions() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
 
-        let grouped = try await database.fetchTransactionPage(
-            accountID: "checking", statusFilter: .uncategorized
+        let grouped = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", statusFilter: .uncategorized, in: database
         )
-        let spending = try await database.fetchTransactionPage(statusFilter: .uncategorized)
-        let search = try await database.fetchTransactionPage(
-            accountID: "checking", matching: "mixed uncategorized search needle", statusFilter: .uncategorized
+        let spending = try await TransactionReadSQL.fetchTransactionPage(statusFilter: .uncategorized, in: database)
+        let search = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", matching: "mixed uncategorized search needle", statusFilter: .uncategorized, in: database
         )
 
         #expect(grouped.transactions.compactMap(\.id) == [
@@ -172,23 +175,23 @@ struct TransactionStatusFilterBaselineTests {
     @Test func groupedStatusFiltersSelectMatchingPhysicalRowsBeforeFamilyAssembly() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
 
-        let unclearedPage = try await database.fetchTransactionPage(
-            accountID: "checking", limit: 1, statusFilter: .uncleared
+        let unclearedPage = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", limit: 1, statusFilter: .uncleared, in: database
         )
-        let unclearedRemainder = try await database.fetchTransactionPage(
-            accountID: "checking", limit: 500, offset: unclearedPage.nextOffset, statusFilter: .uncleared
+        let unclearedRemainder = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", limit: 500, offset: unclearedPage.nextOffset, statusFilter: .uncleared, in: database
         )
-        let unclearedAll = try await database.fetchTransactionPage(
-            accountID: "checking", statusFilter: .uncleared
+        let unclearedAll = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", statusFilter: .uncleared, in: database
         )
-        let clearedPage = try await database.fetchTransactionPage(
-            accountID: "checking", limit: 1, statusFilter: .cleared
+        let clearedPage = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", limit: 1, statusFilter: .cleared, in: database
         )
-        let clearedRemainder = try await database.fetchTransactionPage(
-            accountID: "checking", limit: 500, offset: clearedPage.nextOffset, statusFilter: .cleared
+        let clearedRemainder = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", limit: 500, offset: clearedPage.nextOffset, statusFilter: .cleared, in: database
         )
-        let clearedAll = try await database.fetchTransactionPage(
-            accountID: "checking", statusFilter: .cleared
+        let clearedAll = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", statusFilter: .cleared, in: database
         )
 
         #expect(unclearedRemainder.reachedEnd)
@@ -209,17 +212,20 @@ struct TransactionStatusFilterBaselineTests {
         #expect(clearedAll.nextOffset == clearedAll.transactions.count)
         #expect(unclearedAll.nextOffset == unclearedAll.transactions.count)
 
-        let unclearedTyped = try await database.fetchTransactionQueryPage(
+        let unclearedTyped = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .account("checking"),
-            query: TransactionFeedQuery(status: .uncleared)
+            query: TransactionFeedQuery(status: .uncleared),
+            in: database
         )
-        let clearedTyped = try await database.fetchTransactionQueryPage(
+        let clearedTyped = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .account("checking"),
-            query: TransactionFeedQuery(status: .cleared)
+            query: TransactionFeedQuery(status: .cleared),
+            in: database
         )
-        let reconciledTyped = try await database.fetchTransactionQueryPage(
+        let reconciledTyped = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .account("checking"),
-            query: TransactionFeedQuery(status: .reconciled)
+            query: TransactionFeedQuery(status: .reconciled),
+            in: database
         )
         #expect(unclearedTyped.matchingTransactionIDs.contains("mixed-uncategorized-child"))
         #expect(unclearedTyped.attachedContextTransactionIDs.contains("mixed-parent"))
@@ -228,11 +234,12 @@ struct TransactionStatusFilterBaselineTests {
         #expect(reconciledTyped.matchingTransactionIDs.contains("mixed-categorized-child"))
         #expect(reconciledTyped.attachedContextTransactionIDs.contains("mixed-parent"))
 
-        let groupedChildSearch = try await database.fetchTransactionPage(
+        let groupedChildSearch = try await TransactionReadSQL.fetchTransactionPage(
             accountID: "checking",
             matching: "mixed uncategorized search needle",
             splits: .grouped,
-            statusFilter: .uncleared
+            statusFilter: .uncleared,
+            in: database
         )
         #expect(groupedChildSearch.transactions.map(\.id) == ["mixed-parent"])
     }
@@ -240,16 +247,17 @@ struct TransactionStatusFilterBaselineTests {
     @Test func searchFilterPagesAndOffsetsCountOnlyMatchingRowsNotAttachedContext() async throws {
         let database = try TransactionStatusFilterTestSupport.database()
 
-        let first = try await database.fetchTransactionPage(
+        let first = try await TransactionReadSQL.fetchTransactionPage(
             accountID: "checking", matching: "status-search-needle", limit: 50,
-            statusFilter: .uncleared
+            statusFilter: .uncleared,
+            in: database
         )
-        let second = try await database.fetchTransactionPage(
+        let second = try await TransactionReadSQL.fetchTransactionPage(
             accountID: "checking", matching: "status-search-needle", limit: 50,
-            offset: first.nextOffset, statusFilter: .uncleared
+            offset: first.nextOffset, statusFilter: .uncleared, in: database
         )
-        let parentMatch = try await database.fetchTransactionPage(
-            accountID: "checking", matching: "split parent", limit: 1, statusFilter: .cleared
+        let parentMatch = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: "checking", matching: "split parent", limit: 1, statusFilter: .cleared, in: database
         )
 
         #expect(first.transactions.map(\.id) == (0..<50).map { String(format: "search-match-%03d", $0) })

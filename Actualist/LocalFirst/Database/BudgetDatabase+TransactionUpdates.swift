@@ -76,7 +76,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("missing payee")
         }
         let dateValue = try Self.actualDateValue(draft.date)
-        guard let baselineRow = try baseline ?? fetchTransaction(id: trimmedTransactionID, db: db) else {
+        guard let baselineRow = try baseline ?? TransactionReadSQL.fetchTransaction(id: trimmedTransactionID, in: self, db: db) else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
         let isTransferDraft = draft.isTransfer

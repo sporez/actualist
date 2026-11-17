@@ -26,7 +26,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         #expect(receipt.scheduleID == "rent")
         #expect(receipt.postedDayID == Self.today())
         #expect(!receipt.refreshPending)
-        let posted = try #require(try await database.fetchTransaction(id: receipt.transactionID))
+        let posted = try #require(try await TransactionReadSQL.fetchTransaction(id: receipt.transactionID, in: database))
         #expect(posted.schedule == "rent")
         #expect(posted.amount == -10_000)
         #expect(posted.cleared?.boolValue == false)
@@ -75,8 +75,8 @@ struct LocalFirstActualStoreSchedulePostingTests {
             try await store.schedules.postSchedule(review: review, date: .scheduled)
         }
 
-        #expect(try await database.fetchTransaction(id: "peer-posted")?.schedule == "rent")
-        #expect(try await database.fetchTransaction(id: "peer-posted")?.amount == -10_000)
+        #expect(try await TransactionReadSQL.fetchTransaction(id: "peer-posted", in: database)?.schedule == "rent")
+        #expect(try await TransactionReadSQL.fetchTransaction(id: "peer-posted", in: database)?.amount == -10_000)
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
     }
 
@@ -114,7 +114,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         gate.release()
 
         let receipt = try await posting.value
-        #expect(try await database.fetchTransaction(id: receipt.transactionID)?.schedule == "rent")
+        #expect(try await TransactionReadSQL.fetchTransaction(id: receipt.transactionID, in: database)?.schedule == "rent")
         #expect((outboxObservation.pendingCount ?? 0) > 0)
     }
 
@@ -145,7 +145,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
 
         let freshReview = try await store.schedules.schedulePostingReview(budgetID: "group-1", scheduleID: "rent")
         let retried = try await store.schedules.postSchedule(review: freshReview, date: .scheduled)
-        #expect(try await database.fetchTransaction(id: retried.transactionID)?.schedule == "rent")
+        #expect(try await TransactionReadSQL.fetchTransaction(id: retried.transactionID, in: database)?.schedule == "rent")
     }
 
     @Test func sameBudgetSessionChangePreventsOldLeaseReleasingNewPost() async throws {
@@ -184,7 +184,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         let receipt = try await store.schedules.postSchedule(review: review, date: .scheduled)
 
         #expect(receipt.refreshPending)
-        #expect(try await database.fetchTransaction(id: receipt.transactionID)?.schedule == "rent")
+        #expect(try await TransactionReadSQL.fetchTransaction(id: receipt.transactionID, in: database)?.schedule == "rent")
         #expect(try await database.pendingLocalSyncMessageCount() > 0)
     }
 
@@ -230,7 +230,7 @@ struct LocalFirstActualStoreSchedulePostingTests {
         let receipt = try await store.schedules.postSchedule(review: review, date: .scheduled)
 
         #expect(receipt.refreshPending)
-        #expect(try await database.fetchTransaction(id: receipt.transactionID)?.schedule == "rent")
+        #expect(try await TransactionReadSQL.fetchTransaction(id: receipt.transactionID, in: database)?.schedule == "rent")
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)
         #expect((outboxObservation.pendingCount ?? 0) > 0)
     }

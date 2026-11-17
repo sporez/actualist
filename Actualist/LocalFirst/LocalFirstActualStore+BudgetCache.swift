@@ -25,7 +25,7 @@ extension LocalFirstActualStore {
         if !categoryScopes.isEmpty || !uncategorizedMonths.isEmpty {
             let maps = try await nameMaps(database)
             if !categoryScopes.isEmpty {
-                let transactions = try await database.fetchTransactions()
+                let transactions = try await TransactionReadSQL.fetchTransactions(in: database)
                 for scope in categoryScopes {
                     try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
                     publishCategoryTransactions(
@@ -35,7 +35,7 @@ extension LocalFirstActualStore {
                 }
             }
             if !uncategorizedMonths.isEmpty {
-                let rows = try await database.fetchUncategorizedTransactions()
+                let rows = try await TransactionReadSQL.fetchUncategorizedTransactions(in: database)
                 for month in uncategorizedMonths {
                     _ = try await publishUncategorizedTransactions(
                         database: database, budgetID: budgetID, month: month,

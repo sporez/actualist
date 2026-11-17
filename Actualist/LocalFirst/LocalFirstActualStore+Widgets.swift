@@ -20,11 +20,11 @@ extension LocalFirstActualStore {
         let currency = financial.currency
         let accounts = try? await AccountSQL.fetchAccountDisplays(in: database)
         let maps = try? await nameMaps(database)
-        let recent = try? await database.fetchTransactionPage(limit: 16, splits: .grouped).transactions
+        let recent = try? await TransactionReadSQL.fetchTransactionPage(limit: 16, splits: .grouped, in: database).transactions
         let netWorth = try? await ReportDashboardSQL.fetchNetWorthReport(range: .dashboard(through: now), in: database)
         let attention: WidgetAttentionSnapshot?
         if let maps,
-           let uncategorized = try? await database.fetchUncategorizedTransactions() {
+           let uncategorized = try? await TransactionReadSQL.fetchUncategorizedTransactions(in: database) {
             let count = uncategorized.filter {
                 Self.isUncategorized($0, transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
                                      offBudgetAccountIDs: maps.offBudgetAccountIDs)

@@ -126,7 +126,7 @@ struct BankSyncCategoryLearningTests {
         )
         let database = try bundle.store.requireDatabase(for: "group-1")
         let transaction = try #require(
-            try await database.fetchTransactions(accountID: "savings")
+            try await TransactionReadSQL.fetchTransactions(accountID: "savings", in: database)
                 .first { $0.id == "manual-1" }
         )
         _ = try await bundle.store.categorizeTransactionAndRefresh(

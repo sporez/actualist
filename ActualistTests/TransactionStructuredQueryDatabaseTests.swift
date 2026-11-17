@@ -14,7 +14,7 @@ struct TransactionStructuredQueryDatabaseTests {
             ]
         )
 
-        let page = try await database.fetchTransactionQueryPage(scope: .spending, query: query)
+        let page = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: query, in: database)
 
         #expect(page.transactions.map(\.id) == ["split-parent"])
         #expect(page.transactions.first?.subtransactions.map(\.id) == ["split-match", "split-context"])
@@ -36,17 +36,19 @@ struct TransactionStructuredQueryDatabaseTests {
             ]
         )
 
-        let first = try await database.fetchTransactionQueryPage(
+        let first = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
             query: query,
             limit: 1,
-            offset: 0
+            offset: 0,
+            in: database
         )
-        let second = try await database.fetchTransactionQueryPage(
+        let second = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
             query: query,
             limit: 1,
-            offset: first.nextOffset
+            offset: first.nextOffset,
+            in: database
         )
 
         #expect(first.transactions.map(\.id) == ["split-parent"])
@@ -71,7 +73,7 @@ struct TransactionStructuredQueryDatabaseTests {
             ]
         )
 
-        let page = try await database.fetchTransactionQueryPage(scope: .spending, query: query)
+        let page = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: query, in: database)
 
         #expect(page.transactions.map(\.id) == ["checking-new", "split-parent"])
         #expect(page.totalMatchCount == 2)
@@ -87,8 +89,8 @@ struct TransactionStructuredQueryDatabaseTests {
         let childQuery = TransactionFeedQuery(text: "child needle")
         let parentQuery = TransactionFeedQuery(text: "parent needle")
 
-        let child = try await database.fetchTransactionQueryPage(scope: .spending, query: childQuery)
-        let parent = try await database.fetchTransactionQueryPage(scope: .spending, query: parentQuery)
+        let child = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: childQuery, in: database)
+        let parent = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: parentQuery, in: database)
 
         #expect(child.transactions.map(\.id) == ["split-match"])
         #expect(child.totalMatchCount == 1)
@@ -105,9 +107,10 @@ struct TransactionStructuredQueryDatabaseTests {
         let database = try database()
         let query = TransactionFeedQuery(text: "common needle")
 
-        let page = try await database.fetchTransactionQueryPage(scope: .spending, query: query)
-        let drilldown = try await database.fetchTransactionDrilldown(
-            TransactionDrilldownRequest(scope: .spending, query: query)
+        let page = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: query, in: database)
+        let drilldown = try await TransactionQuerySQL.fetchTransactionDrilldown(
+            TransactionDrilldownRequest(scope: .spending, query: query),
+            in: database
         )
 
         #expect(page.transactions.map(\.id) == ["checking-new", "split-parent", "split-match"])
@@ -129,19 +132,21 @@ struct TransactionStructuredQueryDatabaseTests {
         let notOneOfMarket = TransactionFeedQuery(conditions: [.payee(.notOneOf(["market"]))])
         let emptyNotOneOf = TransactionFeedQuery(conditions: [.payee(.notOneOf([" "]))])
 
-        let nullPage = try await database.fetchTransactionQueryPage(scope: .spending, query: explicitNull)
-        let blankPage = try await database.fetchTransactionQueryPage(scope: .spending, query: blankScalar)
-        let blankNegativePage = try await database.fetchTransactionQueryPage(
+        let nullPage = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: explicitNull, in: database)
+        let blankPage = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: blankScalar, in: database)
+        let blankNegativePage = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: blankNegativeScalar
+            query: blankNegativeScalar,
+            in: database
         )
-        let oneOfPage = try await database.fetchTransactionQueryPage(scope: .spending, query: oneOf)
-        let emptyOneOfPage = try await database.fetchTransactionQueryPage(scope: .spending, query: emptyOneOf)
-        let notMarketPage = try await database.fetchTransactionQueryPage(scope: .spending, query: notMarket)
-        let notOneOfPage = try await database.fetchTransactionQueryPage(scope: .spending, query: notOneOfMarket)
-        let emptyNotOneOfPage = try await database.fetchTransactionQueryPage(
+        let oneOfPage = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: oneOf, in: database)
+        let emptyOneOfPage = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: emptyOneOf, in: database)
+        let notMarketPage = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: notMarket, in: database)
+        let notOneOfPage = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: notOneOfMarket, in: database)
+        let emptyNotOneOfPage = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: emptyNotOneOf
+            query: emptyNotOneOf,
+            in: database
         )
 
         #expect(nullPage.transactions.map(\.id) == ["split-parent"])
@@ -163,13 +168,15 @@ struct TransactionStructuredQueryDatabaseTests {
         let directTransferDatabase = try categoryNullDatabase(storage: .directCompatibility)
         let scalarNull = TransactionFeedQuery(conditions: [.category(.equals(nil))])
 
-        let mappedPage = try await mappedTransferDatabase.fetchTransactionQueryPage(
+        let mappedPage = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: scalarNull
+            query: scalarNull,
+            in: mappedTransferDatabase
         )
-        let directPage = try await directTransferDatabase.fetchTransactionQueryPage(
+        let directPage = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: scalarNull
+            query: scalarNull,
+            in: directTransferDatabase
         )
 
         #expect(mappedPage.transactions.map(\.id) == ["null-normal"])
@@ -182,9 +189,10 @@ struct TransactionStructuredQueryDatabaseTests {
         let mixedNullSet = TransactionFeedQuery(
             conditions: [.category(.oneOf([nil, "groceries"]))]
         )
-        let mixedPage = try await mappedTransferDatabase.fetchTransactionQueryPage(
+        let mixedPage = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: mixedNullSet
+            query: mixedNullSet,
+            in: mappedTransferDatabase
         )
 
         #expect(mixedPage.transactions.map(\.id) == [
@@ -204,13 +212,15 @@ struct TransactionStructuredQueryDatabaseTests {
     @Test func transferConditionReadsTheTransferLinkAndPreservesSplitContext() async throws {
         for storage in TransferStorageShape.allCases {
             let database = try transferDatabase(storage: storage)
-            let transfers = try await database.fetchTransactionQueryPage(
+            let transfers = try await TransactionQuerySQL.fetchTransactionQueryPage(
                 scope: .spending,
-                query: TransactionFeedQuery(conditions: [.transfer(true)])
+                query: TransactionFeedQuery(conditions: [.transfer(true)]),
+                in: database
             )
-            let nonTransfers = try await database.fetchTransactionQueryPage(
+            let nonTransfers = try await TransactionQuerySQL.fetchTransactionQueryPage(
                 scope: .spending,
-                query: TransactionFeedQuery(conditions: [.transfer(false)])
+                query: TransactionFeedQuery(conditions: [.transfer(false)]),
+                in: database
             )
 
             #expect(transfers.transactions.map(\.id) == ["direct-transfer"])
@@ -237,13 +247,15 @@ struct TransactionStructuredQueryDatabaseTests {
     @Test func transferPayeeConditionClassifiesRawAndMappedPayeesAndPreservesSplitContext() async throws {
         for storage in TransferStorageShape.allCases {
             let database = try transferDatabase(storage: storage)
-            let transfers = try await database.fetchTransactionQueryPage(
+            let transfers = try await TransactionQuerySQL.fetchTransactionQueryPage(
                 scope: .spending,
-                query: TransactionFeedQuery(conditions: [.transferPayee(true)])
+                query: TransactionFeedQuery(conditions: [.transferPayee(true)]),
+                in: database
             )
-            let nonTransfers = try await database.fetchTransactionQueryPage(
+            let nonTransfers = try await TransactionQuerySQL.fetchTransactionQueryPage(
                 scope: .spending,
-                query: TransactionFeedQuery(conditions: [.transferPayee(false)])
+                query: TransactionFeedQuery(conditions: [.transferPayee(false)]),
+                in: database
             )
 
             #expect(transfers.transactions.map(\.id) == ["mapped-payee-transfer", "split-parent"])
@@ -262,13 +274,15 @@ struct TransactionStructuredQueryDatabaseTests {
 
     @Test func unlinkedTransferPayeeRowIsKeptByTransferAndExcludedByTransferPayee() async throws {
         let database = try transferDatabase(storage: .actualMapped)
-        let link = try await database.fetchTransactionQueryPage(
+        let link = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: TransactionFeedQuery(conditions: [.transfer(false)])
+            query: TransactionFeedQuery(conditions: [.transfer(false)]),
+            in: database
         )
-        let payee = try await database.fetchTransactionQueryPage(
+        let payee = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: TransactionFeedQuery(conditions: [.transferPayee(false)])
+            query: TransactionFeedQuery(conditions: [.transferPayee(false)]),
+            in: database
         )
         #expect(link.transactions.map(\.id).contains("mapped-payee-transfer"))
         #expect(!payee.transactions.map(\.id).contains("mapped-payee-transfer"))
@@ -281,7 +295,7 @@ struct TransactionStructuredQueryDatabaseTests {
             query: TransactionFeedQuery(conditions: [.transferPayee(true)])
         )
 
-        let wrapped = try await database.fetchTransactionDrilldown(request)
+        let wrapped = try await TransactionQuerySQL.fetchTransactionDrilldown(request, in: database)
         let existingRead = try await database.testTransactionDrilldown(request)
 
         #expect(existingRead == wrapped)
@@ -301,20 +315,23 @@ struct TransactionStructuredQueryDatabaseTests {
             ])
         }
 
-        let exact = try await database.fetchTransactionQueryPage(scope: .spending, query: query(.isOn))
-        let approximate = try await database.fetchTransactionQueryPage(
+        let exact = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: query(.isOn), in: database)
+        let approximate = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: query(.isApproximately)
+            query: query(.isApproximately),
+            in: database
         )
-        let after = try await database.fetchTransactionQueryPage(scope: .spending, query: query(.isAfter))
-        let onOrAfter = try await database.fetchTransactionQueryPage(
+        let after = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: query(.isAfter), in: database)
+        let onOrAfter = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: query(.isOnOrAfter)
+            query: query(.isOnOrAfter),
+            in: database
         )
-        let before = try await database.fetchTransactionQueryPage(scope: .spending, query: query(.isBefore))
-        let onOrBefore = try await database.fetchTransactionQueryPage(
+        let before = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: query(.isBefore), in: database)
+        let onOrBefore = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
-            query: query(.isOnOrBefore)
+            query: query(.isOnOrBefore),
+            in: database
         )
 
         #expect(exact.transactions.map(\.id) == ["split-parent"])
@@ -336,7 +353,7 @@ struct TransactionStructuredQueryDatabaseTests {
             ]
         )
 
-        let page = try await database.fetchTransactionQueryPage(scope: .spending, query: query)
+        let page = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: query, in: database)
 
         #expect(page.transactions.map(\.id) == ["split-parent"])
         #expect(page.matchingTransactionIDs == ["split-match"])
@@ -353,17 +370,19 @@ struct TransactionStructuredQueryDatabaseTests {
         )
 
         for scope in [TransactionQueryScope.spending, .account("checking")] {
-            let first = try await database.fetchTransactionQueryPage(
+            let first = try await TransactionQuerySQL.fetchTransactionQueryPage(
                 scope: scope,
                 query: query,
                 limit: 1,
-                offset: 0
+                offset: 0,
+                in: database
             )
-            let second = try await database.fetchTransactionQueryPage(
+            let second = try await TransactionQuerySQL.fetchTransactionQueryPage(
                 scope: scope,
                 query: query,
                 limit: 1,
-                offset: first.nextOffset
+                offset: first.nextOffset,
+                in: database
             )
 
             #expect(first.transactions.map(\.id) == ["checking-new"])
@@ -384,13 +403,14 @@ struct TransactionStructuredQueryDatabaseTests {
         let missing = TransactionFeedQuery(conditions: [.category(.equals("utilities"))])
         let coffee = TransactionFeedQuery(conditions: [.payee(.equals("coffee"))])
 
-        let empty = try await database.fetchTransactionQueryPage(
+        let empty = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .account("savings"),
             query: missing,
             limit: 1,
-            offset: 7
+            offset: 7,
+            in: database
         )
-        let live = try await database.fetchTransactionQueryPage(scope: .spending, query: coffee)
+        let live = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: coffee, in: database)
 
         #expect(empty.transactions.isEmpty)
         #expect(empty.totalMatchCount == 0)
@@ -407,9 +427,10 @@ struct TransactionStructuredQueryDatabaseTests {
             conditions: [.category(.equals(nil))]
         )
 
-        let page = try await database.fetchTransactionQueryPage(
+        let page = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .account("checking"),
-            query: query
+            query: query,
+            in: database
         )
 
         #expect(page.transactions.map(\.id) == ["legacy-no-status"])
@@ -421,8 +442,9 @@ struct TransactionStructuredQueryDatabaseTests {
         let database = try database()
         let query = TransactionFeedQuery(conditions: [.category(.equals("groceries"))])
 
-        let result = try await database.fetchTransactionDrilldown(
-            TransactionDrilldownRequest(scope: .spending, query: query)
+        let result = try await TransactionQuerySQL.fetchTransactionDrilldown(
+            TransactionDrilldownRequest(scope: .spending, query: query),
+            in: database
         )
 
         #expect(result.displayTransactions.map(\.id) == ["checking-new", "split-parent", "savings-row"])
@@ -623,7 +645,7 @@ private extension BudgetDatabase {
         _ request: TransactionDrilldownRequest
     ) throws -> TransactionDrilldownResult {
         try queue.read { db in
-            try transactionDrilldown(request, db: db)
+            try TransactionQuerySQL.transactionDrilldown(request, in: self, db: db)
         }
     }
 }

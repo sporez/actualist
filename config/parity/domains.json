@@ -337,7 +337,8 @@
         "TransactionSplitQueryTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionQuery.swift",
+        "Actualist/LocalFirst/Database/TransactionQuerySQL.swift",
+        "Actualist/LocalFirst/Database/TransactionReadSQL.swift",
         "Actualist/LocalFirst/Database/SavedFilterSQL.swift",
         "Actualist/LocalFirst/Database/TransactionSplitQueryExpressions.swift",
         "Actualist/LocalFirst/Database/TransactionReadJoins.swift"

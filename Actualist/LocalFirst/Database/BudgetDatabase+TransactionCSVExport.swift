@@ -6,7 +6,7 @@ extension BudgetDatabase {
         accountID: String,
         query: TransactionFeedQuery
     ) throws -> [TransactionCSVExportRow] {
-        try withTransactionQuerySnapshot(scope: .account(accountID), query: query) { db, transactions in
+        try TransactionQuerySQL.withTransactionQuerySnapshot(scope: .account(accountID), query: query, in: self) { db, transactions in
             let accountNames = try Self.transactionCSVNameMap(table: "accounts", db: db)
             let categoryNames = try Self.transactionCSVCategoryNames(db: db)
             let physical = transactions.flatMap { [$0] + $0.subtransactions }

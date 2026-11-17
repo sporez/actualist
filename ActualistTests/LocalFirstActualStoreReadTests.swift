@@ -16,7 +16,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transactions = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let ids = transactions.compactMap(\.id)
 
         #expect(!ids.contains("dead"))
@@ -41,10 +41,10 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let all = try await database.fetchTransactions()
+        let all = try await TransactionReadSQL.fetchTransactions(in: database)
         #expect(Set(all.compactMap(\.id)) == ["txn", "txn2"])
 
-        let search = try await database.fetchTransactions(matching: "55500")
+        let search = try await TransactionReadSQL.fetchTransactions(matching: "55500", in: database)
         #expect(search.compactMap(\.id) == ["txn2"])
     }
 
@@ -58,8 +58,8 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let firstPage = try await database.fetchTransactionPage(accountID: "checking", limit: 2)
-        let secondPage = try await database.fetchTransactionPage(accountID: "checking", limit: 2, offset: 2)
+        let firstPage = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", limit: 2, in: database)
+        let secondPage = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", limit: 2, offset: 2, in: database)
 
         #expect(firstPage.transactions.compactMap(\.id) == ["split", "txn"])
         #expect(firstPage.transactions.first?.subtransactions.count == 2)
@@ -105,8 +105,8 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let percent = try await database.fetchTransactions(matching: "%")
-        let underscore = try await database.fetchTransactions(matching: "_")
+        let percent = try await TransactionReadSQL.fetchTransactions(matching: "%", in: database)
+        let underscore = try await TransactionReadSQL.fetchTransactions(matching: "_", in: database)
 
         #expect(percent.compactMap(\.id) == ["percent"])
         #expect(underscore.compactMap(\.id) == ["underscore"])
@@ -125,7 +125,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let amazon = try await database.fetchTransactions(accountID: "checking").first { $0.id == "amz" }
+        let amazon = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database).first { $0.id == "amz" }
         #expect(amazon?.payee == "amazon")
         #expect(amazon?.payeeName == "Amazon")
     }
@@ -141,7 +141,7 @@ extension LocalFirstActualStoreTests {
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
 
-        let transfer = try await database.fetchTransactions(accountID: "checking").first { $0.id == "t-xfer" }
+        let transfer = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database).first { $0.id == "t-xfer" }
         #expect(transfer?.payeeName == "Savings")
     }
 

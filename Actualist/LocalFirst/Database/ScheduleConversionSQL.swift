@@ -175,7 +175,7 @@ enum ScheduleConversionSQL {
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(database.transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate)),
+                SELECT \(TransactionReadSQL.transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate)),
                        \(split.qualifiedPayee) AS conversion_raw_payee_id,
                        \(joins.transferIDExpression) AS conversion_transfer_id,
                        (\(joins.isTransferExpression)) AS conversion_is_transfer_payee
@@ -190,7 +190,7 @@ enum ScheduleConversionSQL {
         )
         let converted = rows.map { row in
             ScheduleConversionRow(
-                transaction: database.mapTransactionRow(row),
+                transaction: TransactionReadSQL.mapTransactionRow(row),
                 rawPayeeID: (row["conversion_raw_payee_id"] as String?).flatMap { $0.isEmpty ? nil : $0 },
                 transferID: (row["conversion_transfer_id"] as String?).flatMap { $0.isEmpty ? nil : $0 },
                 isTransferPayee: SQLiteValueCoercion.lenientBool(row["conversion_is_transfer_payee"])

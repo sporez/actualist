@@ -40,7 +40,7 @@ extension LocalFirstActualStoreTests {
         let named = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
             .filter { $0.name == "Brand New Payee" }
         #expect(named.count == 1)
-        let transactions = try await database.fetchTransactions()
+        let transactions = try await TransactionReadSQL.fetchTransactions(in: database)
         let firstPayee = transactions.first { $0.id == first.changed.transactions.first }?.payee
         let secondPayee = transactions.first { $0.id == secondID }?.payee
         #expect(firstPayee != nil)

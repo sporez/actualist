@@ -1,123 +1,6 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    struct TransactionQueryPage: Sendable {
-        let transactions: [ActualTransaction]
-        let reachedEnd: Bool
-        let nextOffset: Int
-        let totalMatchCount: Int
-        let querySignature: TransactionQuerySignature
-        let matchingTransactionIDs: Set<String>
-        let contributingTransactionIDs: Set<String>
-        let attachedContextTransactionIDs: Set<String>
-    }
-
-    func fetchTransactionQueryPage(
-        scope: TransactionQueryScope,
-        query: TransactionFeedQuery,
-        limit: Int? = nil,
-        offset: Int = 0
-    ) throws -> TransactionQueryPage {
-        try queue.read { db in
-            try transactionQuerySelection(
-                db: db,
-                scope: scope,
-                query: query,
-                limit: limit,
-                offset: offset
-            ).page
-        }
-    }
-
-    struct AccountTransactionQueryPage: Sendable {
-        let page: TransactionQueryPage
-        /// Live inline balance of the account, from the same read as `page`.
-        let balance: Int?
-        /// Actual's running-balance setting (`RunningBalancePreference`); nil when preferences are unavailable.
-        let runningBalanceSetting: Bool?
-    }
-
-    /// The account's page, balance and running-balance setting from one read,
-    /// so running balances start from the number the header shows.
-    func fetchAccountTransactionQueryPage(
-        accountID: String,
-        query: TransactionFeedQuery,
-        limit: Int? = nil,
-        offset: Int = 0
-    ) throws -> AccountTransactionQueryPage {
-        try queue.read { db in
-            let page = try transactionQuerySelection(
-                db: db,
-                scope: .account(accountID),
-                query: query,
-                limit: limit,
-                offset: offset
-            ).page
-            let setting: Bool? = switch try SyncedPreferences.availability(in: self, db: db) {
-            case .unavailable: nil
-            case .available:
-                RunningBalancePreference.isShown(RunningBalancePreference.values(
-                    try SyncedPreferences.values(RunningBalancePreference.keys(accountID: accountID), in: self, db: db),
-                    accountID: accountID
-                ))
-            }
-            return AccountTransactionQueryPage(
-                page: page,
-                balance: try AccountSQL.accountBalance(accountID: accountID, in: self, db: db),
-                runningBalanceSetting: setting
-            )
-        }
-    }
-
-    func fetchTransactionDrilldown(
-        _ request: TransactionDrilldownRequest
-    ) throws -> TransactionDrilldownResult {
-        try queue.read { db in
-            try transactionDrilldown(request, db: db)
-        }
-    }
-
-    func transactionDrilldown(
-        _ request: TransactionDrilldownRequest,
-        db: Database
-    ) throws -> TransactionDrilldownResult {
-        let selection = try transactionQuerySelection(
-            db: db,
-            scope: request.scope,
-            query: request.query,
-            limit: nil,
-            offset: 0
-        )
-        return TransactionDrilldownResult(
-            querySignature: request.query.signature,
-            displayTransactions: selection.page.transactions,
-            matchingTransactionIDs: selection.page.matchingTransactionIDs,
-            contributingTransactions: selection.contributingTransactions,
-            attachedContextTransactionIDs: selection.page.attachedContextTransactionIDs,
-            totalMatchCount: selection.page.totalMatchCount
-        )
-    }
-
-    /// Gives focused local projections the exact query rows and names from one SQLite read.
-    func withTransactionQuerySnapshot<T>(
-        scope: TransactionQueryScope,
-        query: TransactionFeedQuery,
-        project: (Database, [ActualTransaction]) throws -> T
-    ) throws -> T {
-        try queue.read { db in
-            let selection = try transactionQuerySelection(
-                db: db,
-                scope: scope,
-                query: query,
-                limit: nil,
-                offset: 0
-            )
-            return try project(db, selection.page.transactions)
-        }
-    }
-}
-
 private struct CompiledTransactionQuery {
     let split: TransactionSplitQueryExpressions
     let joins: TransactionReadJoins
@@ -132,19 +15,144 @@ private struct CompiledTransactionQuery {
 }
 
 private struct TransactionQuerySelection {
-    let page: BudgetDatabase.TransactionQueryPage
+    let page: TransactionQuerySQL.TransactionQueryPage
     let contributingTransactions: [ActualTransaction]
 }
 
-private extension BudgetDatabase {
-    func transactionQuerySelection(
-        db: Database,
+enum TransactionQuerySQL {
+    struct TransactionQueryPage: Sendable {
+        let transactions: [ActualTransaction]
+        let reachedEnd: Bool
+        let nextOffset: Int
+        let totalMatchCount: Int
+        let querySignature: TransactionQuerySignature
+        let matchingTransactionIDs: Set<String>
+        let contributingTransactionIDs: Set<String>
+        let attachedContextTransactionIDs: Set<String>
+    }
+
+    static func fetchTransactionQueryPage(
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery,
+        limit: Int? = nil,
+        offset: Int = 0,
+        in database: isolated BudgetDatabase
+    ) throws -> TransactionQueryPage {
+        try database.queue.read { db in
+            try transactionQuerySelection(
+                scope: scope,
+                query: query,
+                limit: limit,
+                offset: offset,
+                in: database,
+                db: db
+            ).page
+        }
+    }
+
+    struct AccountTransactionQueryPage: Sendable {
+        let page: TransactionQueryPage
+        /// Live inline balance of the account, from the same read as `page`.
+        let balance: Int?
+        /// Actual's running-balance setting (`RunningBalancePreference`); nil when preferences are unavailable.
+        let runningBalanceSetting: Bool?
+    }
+
+    /// The account's page, balance and running-balance setting from one read,
+    /// so running balances start from the number the header shows.
+    static func fetchAccountTransactionQueryPage(
+        accountID: String,
+        query: TransactionFeedQuery,
+        limit: Int? = nil,
+        offset: Int = 0,
+        in database: isolated BudgetDatabase
+    ) throws -> AccountTransactionQueryPage {
+        try database.queue.read { db in
+            let page = try transactionQuerySelection(
+                scope: .account(accountID),
+                query: query,
+                limit: limit,
+                offset: offset,
+                in: database,
+                db: db
+            ).page
+            let setting: Bool? = switch try SyncedPreferences.availability(in: database, db: db) {
+            case .unavailable: nil
+            case .available:
+                RunningBalancePreference.isShown(RunningBalancePreference.values(
+                    try SyncedPreferences.values(RunningBalancePreference.keys(accountID: accountID), in: database, db: db),
+                    accountID: accountID
+                ))
+            }
+            return AccountTransactionQueryPage(
+                page: page,
+                balance: try AccountSQL.accountBalance(accountID: accountID, in: database, db: db),
+                runningBalanceSetting: setting
+            )
+        }
+    }
+
+    static func fetchTransactionDrilldown(
+        _ request: TransactionDrilldownRequest,
+        in database: isolated BudgetDatabase
+    ) throws -> TransactionDrilldownResult {
+        try database.queue.read { db in
+            try transactionDrilldown(request, in: database, db: db)
+        }
+    }
+
+    static func transactionDrilldown(
+        _ request: TransactionDrilldownRequest,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> TransactionDrilldownResult {
+        let selection = try transactionQuerySelection(
+            scope: request.scope,
+            query: request.query,
+            limit: nil,
+            offset: 0,
+            in: database,
+            db: db
+        )
+        return TransactionDrilldownResult(
+            querySignature: request.query.signature,
+            displayTransactions: selection.page.transactions,
+            matchingTransactionIDs: selection.page.matchingTransactionIDs,
+            contributingTransactions: selection.contributingTransactions,
+            attachedContextTransactionIDs: selection.page.attachedContextTransactionIDs,
+            totalMatchCount: selection.page.totalMatchCount
+        )
+    }
+
+    /// Gives focused local projections the exact query rows and names from one SQLite read.
+    static func withTransactionQuerySnapshot<T>(
+        scope: TransactionQueryScope,
+        query: TransactionFeedQuery,
+        in database: isolated BudgetDatabase,
+        project: (Database, [ActualTransaction]) throws -> T
+    ) throws -> T {
+        try database.queue.read { db in
+            let selection = try transactionQuerySelection(
+                scope: scope,
+                query: query,
+                limit: nil,
+                offset: 0,
+                in: database,
+                db: db
+            )
+            return try project(db, selection.page.transactions)
+        }
+    }
+
+    private static func transactionQuerySelection(
         scope: TransactionQueryScope,
         query: TransactionFeedQuery,
         limit: Int?,
-        offset: Int
+        offset: Int,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> TransactionQuerySelection {
-        guard try tableExists("transactions", db: db) else {
+        guard try database.tableExists("transactions", db: db) else {
             let page = TransactionQueryPage(
                 transactions: [],
                 reachedEnd: true,
@@ -158,38 +166,39 @@ private extension BudgetDatabase {
             return TransactionQuerySelection(page: page, contributingTransactions: [])
         }
 
-        let compiled = try compileTransactionQuery(db: db, scope: scope, query: query)
+        let compiled = try compileTransactionQuery(scope: scope, query: query, in: database, db: db)
         if query.text == nil {
             return try groupedTransactionQuerySelection(
-                db: db,
                 query: query,
                 compiled: compiled,
                 limit: limit,
-                offset: offset
+                offset: offset,
+                db: db
             )
         }
         return try flatTransactionQuerySelection(
-            db: db,
             query: query,
             compiled: compiled,
             limit: limit,
-            offset: offset
+            offset: offset,
+            db: db
         )
     }
 
-    func compileTransactionQuery(
-        db: Database,
+    private static func compileTransactionQuery(
         scope: TransactionQueryScope,
-        query: TransactionFeedQuery
+        query: TransactionFeedQuery,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> CompiledTransactionQuery {
-        let columns = try columnSet(for: "transactions", db: db)
+        let columns = try database.columnSet(for: "transactions", db: db)
         let split = TransactionSplitQueryExpressions(columns: columns)
-        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let normalizedDate = database.normalizedDateExpression(split.qualifiedDate)
         var joins = try TransactionReadJoins.resolve(
             split: split,
             transactionColumns: columns,
             includeNames: true,
-            in: self,
+            in: database,
             db: db
         )
         var conditions = [split.liveEffectivePredicate()]
@@ -201,7 +210,7 @@ private extension BudgetDatabase {
         }
 
         if query.status == .uncategorized {
-            let context = try uncategorizedReadContext(db: db)
+            let context = try TransactionReadSQL.uncategorizedReadContext(in: database, db: db)
             joins = context.joins
             conditions = context.conditions
             if case .account(let accountID) = scope {
@@ -209,7 +218,7 @@ private extension BudgetDatabase {
                 arguments = [accountID]
             }
             conditions.append(split.splitModePredicate(.inline))
-        } else if let status = statusFilterPredicate(query.status, split: split) {
+        } else if let status = TransactionReadSQL.statusFilterPredicate(query.status, split: split) {
             conditions.append(status)
         }
 
@@ -231,8 +240,8 @@ private extension BudgetDatabase {
         }
 
         if let text = query.text {
-            conditions.append(transactionSearchPredicate(split: split, joins: joins))
-            let like = "%\(escapeLikePattern(text))%"
+            conditions.append(TransactionReadSQL.transactionSearchPredicate(split: split, joins: joins))
+            let like = "%\(TransactionReadSQL.escapeLikePattern(text))%"
             arguments.append(contentsOf: Array(repeating: like, count: 4))
         }
 
@@ -255,12 +264,12 @@ private extension BudgetDatabase {
         )
     }
 
-    func groupedTransactionQuerySelection(
-        db: Database,
+    private static func groupedTransactionQuerySelection(
         query: TransactionFeedQuery,
         compiled: CompiledTransactionQuery,
         limit: Int?,
-        offset: Int
+        offset: Int,
+        db: Database
     ) throws -> TransactionQuerySelection {
         let rowOffset = max(0, offset)
         let rowLimit = limit.map { max(1, $0) }
@@ -337,12 +346,12 @@ private extension BudgetDatabase {
             )
         }
 
-        let assembled = try assembledTransactions(
+        let assembled = try TransactionReadSQL.assembledTransactions(
             forGroupIDs: groupIDs,
-            db: db,
             split: compiled.split,
             joins: compiled.joins,
-            normalizedDate: compiled.normalizedDate
+            normalizedDate: compiled.normalizedDate,
+            db: db
         )
         let displayed = TransactionGroupedOrdering.transactions(assembled, orderedByGroupIDs: groupIDs)
         let physical = physicalTransactions(in: displayed)
@@ -352,9 +361,9 @@ private extension BudgetDatabase {
             matchingIDs = displayedIDs
         } else {
             matchingIDs = try matchingTransactionIDs(
-                db: db,
                 compiled: compiled,
-                groupIDs: groupIDs
+                groupIDs: groupIDs,
+                db: db
             )
         }
         return makeTransactionQuerySelection(
@@ -368,12 +377,12 @@ private extension BudgetDatabase {
         )
     }
 
-    func flatTransactionQuerySelection(
-        db: Database,
+    private static func flatTransactionQuerySelection(
         query: TransactionFeedQuery,
         compiled: CompiledTransactionQuery,
         limit: Int?,
-        offset: Int
+        offset: Int,
+        db: Database
     ) throws -> TransactionQuerySelection {
         let rowOffset = max(0, offset)
         let rowLimit = limit.map { max(1, $0) }
@@ -419,15 +428,15 @@ private extension BudgetDatabase {
 
         let mapped = try transactions(
             forIDs: matchingIDs,
-            db: db,
-            compiled: compiled
+            compiled: compiled,
+            db: db
         )
-        let displayed = try transactionsByAttachingSplitFamilies(
+        let displayed = try TransactionReadSQL.transactionsByAttachingSplitFamilies(
             mapped,
-            db: db,
             split: compiled.split,
             joins: compiled.joins,
-            normalizedDate: compiled.normalizedDate
+            normalizedDate: compiled.normalizedDate,
+            db: db
         )
         let physical = physicalTransactions(in: displayed)
         return makeTransactionQuerySelection(
@@ -441,7 +450,7 @@ private extension BudgetDatabase {
         )
     }
 
-    func matchedTransactionRowsSQL(_ compiled: CompiledTransactionQuery) -> String {
+    private static func matchedTransactionRowsSQL(_ compiled: CompiledTransactionQuery) -> String {
         """
         SELECT t.id AS id, IFNULL(\(compiled.split.effectiveParentID), t.id) AS group_id
         FROM transactions t
@@ -451,10 +460,10 @@ private extension BudgetDatabase {
         """
     }
 
-    func matchingTransactionIDs(
-        db: Database,
+    private static func matchingTransactionIDs(
         compiled: CompiledTransactionQuery,
-        groupIDs: [String]
+        groupIDs: [String],
+        db: Database
     ) throws -> Set<String> {
         let placeholders = Array(repeating: "?", count: groupIDs.count).joined(separator: ", ")
         var arguments = compiled.arguments
@@ -471,16 +480,16 @@ private extension BudgetDatabase {
         return Set(ids)
     }
 
-    func transactions(
+    private static func transactions(
         forIDs ids: [String],
-        db: Database,
-        compiled: CompiledTransactionQuery
+        compiled: CompiledTransactionQuery,
+        db: Database
     ) throws -> [ActualTransaction] {
         let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
         let rows = try Row.fetchAll(
             db,
             sql: """
-                SELECT \(transactionReadSelectList(
+                SELECT \(TransactionReadSQL.transactionReadSelectList(
                     split: compiled.split,
                     joins: compiled.joins,
                     normalizedDate: compiled.normalizedDate
@@ -493,13 +502,13 @@ private extension BudgetDatabase {
                 """,
             arguments: StatementArguments(ids.map { $0 as DatabaseValueConvertible })
         )
-        let byID = Dictionary(uniqueKeysWithValues: rows.map(mapTransactionRow).compactMap { transaction in
+        let byID = Dictionary(uniqueKeysWithValues: rows.map(TransactionReadSQL.mapTransactionRow).compactMap { transaction in
             transaction.id.map { ($0, transaction) }
         })
         return ids.compactMap { byID[$0] }
     }
 
-    func makeTransactionQuerySelection(
+    private static func makeTransactionQuerySelection(
         query: TransactionFeedQuery,
         transactions: [ActualTransaction],
         physicalTransactions: [ActualTransaction],
@@ -527,7 +536,7 @@ private extension BudgetDatabase {
         return TransactionQuerySelection(page: page, contributingTransactions: contributing)
     }
 
-    func emptyTransactionQuerySelection(
+    private static func emptyTransactionQuerySelection(
         query: TransactionFeedQuery,
         offset: Int,
         totalMatchCount: Int
@@ -545,7 +554,7 @@ private extension BudgetDatabase {
         return TransactionQuerySelection(page: page, contributingTransactions: [])
     }
 
-    func physicalTransactions(in transactions: [ActualTransaction]) -> [ActualTransaction] {
+    private static func physicalTransactions(in transactions: [ActualTransaction]) -> [ActualTransaction] {
         var seenIDs = Set<String>()
         var ordered: [ActualTransaction] = []
         for transaction in transactions.flatMap({ [$0] + $0.subtransactions }) {
@@ -557,7 +566,7 @@ private extension BudgetDatabase {
         return ordered
     }
 
-    func transactionQueryLimitSQL(
+    private static func transactionQueryLimitSQL(
         limit: Int?,
         offset: Int,
         arguments: inout [DatabaseValueConvertible]
@@ -568,7 +577,7 @@ private extension BudgetDatabase {
         return "LIMIT ? OFFSET ?"
     }
 
-    func structuredTransactionPredicate(
+    private static func structuredTransactionPredicate(
         _ condition: TransactionQueryCondition,
         split: TransactionSplitQueryExpressions,
         joins: TransactionReadJoins,
@@ -605,7 +614,7 @@ private extension BudgetDatabase {
         }
     }
 
-    func datePredicate(
+    private static func datePredicate(
         _ condition: TransactionQueryDateCondition,
         expression: String,
         arguments: inout [DatabaseValueConvertible]
@@ -637,7 +646,7 @@ private extension BudgetDatabase {
     /// `day` is validated by `TransactionQueryDay`, so the calendar lookups below
     /// cannot fail in practice. Should one fail, the bounds collapse to the day
     /// itself rather than trapping.
-    func approximateDateBounds(_ day: TransactionQueryDay) -> (lower: String, upper: String) {
+    private static func approximateDateBounds(_ day: TransactionQueryDay) -> (lower: String, upper: String) {
         guard let lower = ActualDateOnly.shiftedDayID(day.rawValue, byDays: -2),
               let upper = ActualDateOnly.shiftedDayID(day.rawValue, byDays: 2) else {
             return (day.rawValue, day.rawValue)
@@ -645,7 +654,7 @@ private extension BudgetDatabase {
         return (lower, upper)
     }
 
-    func idPredicate(
+    private static func idPredicate(
         _ condition: TransactionQueryIDCondition,
         expression: String,
         arguments: inout [DatabaseValueConvertible]
@@ -683,7 +692,7 @@ private extension BudgetDatabase {
         }
     }
 
-    func idEqualityPredicate(
+    private static func idEqualityPredicate(
         _ value: String?,
         expression: String,
         negated: Bool,

@@ -188,7 +188,7 @@ extension LocalFirstActualStore {
             )
             let resolvedPayeeID = settled.payeeID
             let createdPayeeID = settled.createdPayeeID
-            let existing = try database.fetchTransaction(id: transactionID, db: db)
+            let existing = try TransactionReadSQL.fetchTransaction(id: transactionID, in: database, db: db)
             let existingState = try database.existingTransactionState(
                 id: transactionID,
                 columns: try TransactionRowColumns.resolve(in: database, db: db),

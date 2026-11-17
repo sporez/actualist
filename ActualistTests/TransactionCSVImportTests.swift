@@ -372,7 +372,7 @@ struct TransactionCSVImportTests {
     }
 
     private func checkingRows(_ database: BudgetDatabase) async throws -> [ActualTransaction] {
-        try await database.fetchTransactions(accountID: "checking")
+        try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
     }
 
     /// Actual's account export writes each split as a zero-amount parent row
@@ -508,7 +508,7 @@ struct TransactionCSVImportTests {
         )
         #expect(result.insertedCount == 1)
 
-        let savingsRows = try await database.fetchTransactions(accountID: "savings")
+        let savingsRows = try await TransactionReadSQL.fetchTransactions(accountID: "savings", in: database)
         #expect(savingsRows.count == 1)
         let mirror = savingsRows[0]
         // The mirror: negated amount, the source account's transfer payee,

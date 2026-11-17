@@ -45,7 +45,7 @@ extension LocalFirstActualStoreTests {
         await #expect(throws: CancellationError.self) { try await pending.value }
         #expect(bundle.store.syncStatus?.lastError == "new-session-status")
         let currentDatabase = try #require(bundle.store.database)
-        let transaction = try #require(try await currentDatabase.fetchTransaction(id: "txn"))
+        let transaction = try #require(try await TransactionReadSQL.fetchTransaction(id: "txn", in: currentDatabase))
         #expect(transaction.amount == -12_345)
     }
 

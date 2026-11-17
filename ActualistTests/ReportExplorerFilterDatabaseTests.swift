@@ -31,7 +31,7 @@ extension ReportExplorerTests {
             #expect(included.totals.expenses == 321)
             let request = try #require(included.drilldown.request)
             #expect(request.query.conditions.contains(.category(.equals(nil))))
-            let result = try await database.fetchTransactionDrilldown(request)
+            let result = try await TransactionQuerySQL.fetchTransactionDrilldown(request, in: database)
             #expect(result.contributingTransactions.compactMap(\.id) == ["uncategorized-normal"])
         }
     }
@@ -94,7 +94,7 @@ extension ReportExplorerTests {
             endDay: try #require(comparison.history.last).endDay,
             catalog: average.filterCatalog
         )
-        let historyResult = try await database.fetchTransactionDrilldown(historyRequest)
+        let historyResult = try await TransactionQuerySQL.fetchTransactionDrilldown(historyRequest, in: database)
         let historySpending = 0 - (try ReportArithmetic.sum(
             historyResult.contributingTransactions.compactMap(\.amount)
         ))
@@ -160,7 +160,7 @@ extension ReportExplorerTests {
         _ snapshot: ReportExplorerSnapshot,
         database: BudgetDatabase
     ) async throws -> TransactionDrilldownResult {
-        try await database.fetchTransactionDrilldown(try #require(snapshot.drilldown.request))
+        try await TransactionQuerySQL.fetchTransactionDrilldown(try #require(snapshot.drilldown.request), in: database)
     }
 
     private func netWorth(

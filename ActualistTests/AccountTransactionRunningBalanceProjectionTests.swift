@@ -132,13 +132,13 @@ struct AccountTransactionRunningBalanceProjectionTests {
             INSERT INTO transactions (id, acct, date, amount, tombstone) VALUES ('t4', 'savings', 20260704, 5, 0);
             """)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "node1")
-        let checking = try await database.fetchAccountTransactionQueryPage(
-            accountID: "checking", query: TransactionFeedQuery())
+        let checking = try await TransactionQuerySQL.fetchAccountTransactionQueryPage(
+            accountID: "checking", query: TransactionFeedQuery(), in: database)
         #expect(checking.runningBalanceSetting == true)
         #expect(checking.balance == -12_345 + 700)
         #expect(checking.page.transactions.map(\.id) == ["t2", "txn"])
-        let savings = try await database.fetchAccountTransactionQueryPage(
-            accountID: "savings", query: TransactionFeedQuery())
+        let savings = try await TransactionQuerySQL.fetchAccountTransactionQueryPage(
+            accountID: "savings", query: TransactionFeedQuery(), in: database)
         #expect(savings.runningBalanceSetting == false)
         #expect(savings.balance == 5)
     }
@@ -146,8 +146,8 @@ struct AccountTransactionRunningBalanceProjectionTests {
     @Test func budgetWithoutPreferencesTableHasNoSetting() async throws {
         let fixtures = LocalFirstActualStoreTests()
         let database = try BudgetDatabase(databaseURL: try fixtures.makeSQLiteFixture(), localNodeID: "node1")
-        let page = try await database.fetchAccountTransactionQueryPage(
-            accountID: "checking", query: TransactionFeedQuery())
+        let page = try await TransactionQuerySQL.fetchAccountTransactionQueryPage(
+            accountID: "checking", query: TransactionFeedQuery(), in: database)
         #expect(page.runningBalanceSetting == nil)
         #expect(page.balance == -12_345)
     }

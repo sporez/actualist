@@ -33,7 +33,7 @@ extension LocalFirstActualStoreTests {
         let now = try #require(ReportCalendar.date(fromDayID: "2026-08-15", calendar: ReportCalendar.gregorianLocal))
         let source = try await store.fetchWidgetSource(budgetID: "group-1", now: now)
         let accounts = try await AccountSQL.fetchAccountDisplays(in: database)
-        let transactions = try await database.fetchTransactionPage(limit: 16, splits: .grouped).transactions
+        let transactions = try await TransactionReadSQL.fetchTransactionPage(limit: 16, splits: .grouped, in: database).transactions
         let reports = try await ReportDashboardSQL.fetchReportsDashboard(range: .dashboard(through: now), in: database)
         #expect(source.accounts == accounts)
         #expect(source.recentTransactions == transactions)

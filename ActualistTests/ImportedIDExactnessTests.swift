@@ -31,7 +31,7 @@ struct ImportedIDExactnessTests {
             VALUES ('stored', 'checking', 20260912, -999, 'A1', 0)
             """)
         let database = try #require(bundle.store.database)
-        #expect(try await database.existingImportedIDs(accountID: "checking") == ["A1"])
+        #expect(try await TransactionReadSQL.existingImportedIDs(accountID: "checking", in: database) == ["A1"])
     }
 
     @Test func aBankSyncRowWhoseIDDiffersOnlyByCaseAppliesWithoutAConflict() async throws {

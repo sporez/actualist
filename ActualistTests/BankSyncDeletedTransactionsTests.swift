@@ -167,7 +167,7 @@ struct BankSyncDeletedTransactionsTests {
         let importedID = try #require(try await queue.read { db in
             try String.fetchOne(db, sql: "SELECT id FROM transactions WHERE financial_id = 'bank-transaction'")
         })
-        let transaction = try #require(try await database.fetchTransactions(accountID: "savings")
+        let transaction = try #require(try await TransactionReadSQL.fetchTransactions(accountID: "savings", in: database)
             .first { $0.id == importedID })
         _ = try await store.deleteTransactionAndRefresh(transaction, budgetID: "group-1") {}
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
@@ -186,7 +186,7 @@ struct BankSyncDeletedTransactionsTests {
             try Int.fetchAll(db, sql: "SELECT tombstone FROM transactions WHERE financial_id = 'bank-transaction'")
         }
         #expect(rows == [1])
-        #expect(try await database.fetchTransactions(accountID: "savings").allSatisfy { $0.id != importedID })
+        #expect(try await TransactionReadSQL.fetchTransactions(accountID: "savings", in: database).allSatisfy { $0.id != importedID })
     }
 
     @Test func syncedPreferenceIsReadAgainOnNextPlan() async throws {

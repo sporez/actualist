@@ -33,10 +33,10 @@ struct TransactionSplitQueryTests {
             ('child-b', 0, 1, 'checking', 'utilities', -3000, NULL, 'Q01-CHILD-NOTE', 20260815, 0, 0, 'parent', 0);
             """)
 
-        let all = try await database.fetchTransactionPage(accountID: "checking", splits: .all)
-        let inline = try await database.fetchTransactionPage(accountID: "checking", splits: .inline)
-        let none = try await database.fetchTransactionPage(accountID: "checking", splits: TransactionSplitQueryMode.none)
-        let grouped = try await database.fetchTransactionPage(accountID: "checking", splits: .grouped)
+        let all = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: .all, in: database)
+        let inline = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: .inline, in: database)
+        let none = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: TransactionSplitQueryMode.none, in: database)
+        let grouped = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: .grouped, in: database)
 
         #expect(all.transactions.map(\.id) == ["simple", "parent", "child-a", "child-b"])
         #expect(inline.transactions.map(\.id) == ["simple", "child-a", "child-b"])
@@ -66,17 +66,17 @@ struct TransactionSplitQueryTests {
             ('orphan', 0, 1, 'checking', 'groceries', -900, NULL, NULL, 20260805, 0, 0, 'dead-parent');
             """)
 
-        guard case .found(let simple) = try await database.sharedTransactionLookup(id: "simple"),
-              case .found(let parent) = try await database.sharedTransactionLookup(id: "child") else {
+        guard case .found(let simple) = try await TransactionReadSQL.sharedTransactionLookup(id: "simple", in: database),
+              case .found(let parent) = try await TransactionReadSQL.sharedTransactionLookup(id: "child", in: database) else {
             Issue.record("Live rows should be found")
             return
         }
         #expect(simple.id == "simple")
         #expect(parent.id == "parent")
         #expect(parent.subtransactions.map(\.id) == ["child"])
-        #expect(try await database.sharedTransactionLookup(id: "deleted") == .deleted)
-        #expect(try await database.sharedTransactionLookup(id: "orphan") == .deleted)
-        #expect(try await database.sharedTransactionLookup(id: "not-synced") == .missing)
+        #expect(try await TransactionReadSQL.sharedTransactionLookup(id: "deleted", in: database) == .deleted)
+        #expect(try await TransactionReadSQL.sharedTransactionLookup(id: "orphan", in: database) == .deleted)
+        #expect(try await TransactionReadSQL.sharedTransactionLookup(id: "not-synced", in: database) == .missing)
     }
 
     @Test func searchAllReturnsMatchingChildAndGroupedReturnsFamily() async throws {
@@ -92,10 +92,10 @@ struct TransactionSplitQueryTests {
             INSERT INTO payee_mapping VALUES ('child-a-payee', 'child-a-payee');
             """)
 
-        let all = try await database.fetchTransactionPage(matching: "Q01-CHILD-NOTE", splits: .all)
-        let grouped = try await database.fetchTransactionPage(matching: "Q01-CHILD-NOTE", splits: .grouped)
-        let payee = try await database.fetchTransactionPage(matching: "SPLIT · Child A", splits: .all)
-        let category = try await database.fetchTransactionPage(matching: "Groceries", splits: .all)
+        let all = try await TransactionReadSQL.fetchTransactionPage(matching: "Q01-CHILD-NOTE", splits: .all, in: database)
+        let grouped = try await TransactionReadSQL.fetchTransactionPage(matching: "Q01-CHILD-NOTE", splits: .grouped, in: database)
+        let payee = try await TransactionReadSQL.fetchTransactionPage(matching: "SPLIT · Child A", splits: .all, in: database)
+        let category = try await TransactionReadSQL.fetchTransactionPage(matching: "Groceries", splits: .all, in: database)
 
         #expect(all.transactions.map(\.id) == ["child-b"])
         #expect(all.transactions.first?.isChild == true)
@@ -116,8 +116,8 @@ struct TransactionSplitQueryTests {
             ('child-b', 0, 1, 'checking', NULL, -3000, NULL, 'Q01-CHILD-NOTE', 20260815, 0, 0, 'parent');
             """)
 
-        let feed = try await database.fetchTransactions(accountID: "checking")
-        let search = try await database.fetchTransactions(accountID: "checking", matching: "Q01-CHILD-NOTE")
+        let feed = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
+        let search = try await TransactionReadSQL.fetchTransactions(accountID: "checking", matching: "Q01-CHILD-NOTE", in: database)
         #expect(feed.map(\.id) == ["parent"])
         #expect(feed.first?.subtransactions.map(\.id) == ["child-b"])
         #expect(search.map(\.id) == ["child-b"])
@@ -137,7 +137,7 @@ struct TransactionSplitQueryTests {
             ('child-b', 0, 1, 'checking', 'utilities', -3000, 'market', 'child b', 20260815, 1, 0, 'parent');
             """)
 
-        let search = try await database.fetchTransactionPage(matching: "PARENT-ONLY-NOTE")
+        let search = try await TransactionReadSQL.fetchTransactionPage(matching: "PARENT-ONLY-NOTE", in: database)
         #expect(search.transactions.map(\.id) == ["simple-needle", "parent"])
         let parent = try #require(search.transactions.first { $0.id == "parent" })
         #expect(parent.subtransactions.map(\.id) == ["child-a", "child-b"])
@@ -149,15 +149,15 @@ struct TransactionSplitQueryTests {
         #expect(semantics.payeeText != "Split (no payee)")
         #expect(semantics.payeeText.contains("Coffee Shop") || semantics.payeeText.contains("Market"))
 
-        let childOnly = try await database.fetchTransactionPage(matching: "Market")
+        let childOnly = try await TransactionReadSQL.fetchTransactionPage(matching: "Market", in: database)
         #expect(childOnly.transactions.map(\.id) == ["child-b"])
         #expect(childOnly.transactions.first?.subtransactions.isEmpty == true)
 
-        let first = try await database.fetchTransactionPage(matching: "PARENT-ONLY-NOTE", limit: 1)
+        let first = try await TransactionReadSQL.fetchTransactionPage(matching: "PARENT-ONLY-NOTE", limit: 1, in: database)
         #expect(first.transactions.map(\.id) == ["simple-needle"])
         #expect(first.transactions.count == 1)
         #expect(!first.reachedEnd)
-        let second = try await database.fetchTransactionPage(matching: "PARENT-ONLY-NOTE", limit: 1, offset: 1)
+        let second = try await TransactionReadSQL.fetchTransactionPage(matching: "PARENT-ONLY-NOTE", limit: 1, offset: 1, in: database)
         #expect(second.transactions.map(\.id) == ["parent"])
         #expect(second.transactions.count == 1)
         #expect(second.transactions.first?.subtransactions.map(\.id) == ["child-a", "child-b"])
@@ -176,8 +176,8 @@ struct TransactionSplitQueryTests {
             ('missing-parent-child', 0, 1, 'checking', 'groceries', -900, 'coffee', 'missing', 20260814, 0, 0, 'no-such-parent');
             """)
 
-        let all = try await database.fetchTransactionPage(accountID: "checking", splits: .all)
-        let inline = try await database.fetchTransactionPage(accountID: "checking", splits: .inline)
+        let all = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: .all, in: database)
+        let inline = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: .inline, in: database)
         let balances = try await AccountSQL.accountBalances(in: database)
         #expect(all.transactions.map(\.id) == ["simple"])
         #expect(inline.transactions.map(\.id) == ["simple"])
@@ -193,8 +193,8 @@ struct TransactionSplitQueryTests {
             ('flagged', 0, 0, 'checking', 'groceries', -1000, 'coffee', NULL, 20260815, 1, 0, 'someone');
             """)
 
-        let all = try await database.fetchTransactionPage(accountID: "checking", splits: .all)
-        let grouped = try await database.fetchTransactionPage(accountID: "checking", splits: .grouped)
+        let all = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: .all, in: database)
+        let grouped = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: .grouped, in: database)
         #expect(all.transactions.map(\.id) == ["flagged"])
         #expect(all.transactions.first?.isChild == false)
         #expect(all.transactions.first?.parentID == nil)
@@ -211,7 +211,7 @@ struct TransactionSplitQueryTests {
             ('broken', 0, 1, 'checking', 'groceries', -1000, 'coffee', NULL, 20260815, 1, 0, NULL);
             """)
 
-        let all = try await database.fetchTransactionPage(accountID: "checking", splits: .all)
+        let all = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: .all, in: database)
         #expect(all.transactions.isEmpty)
     }
 
@@ -227,7 +227,7 @@ struct TransactionSplitQueryTests {
             ('newer', 0, 0, 'checking', 'groceries', -3000, 'coffee', NULL, 20260820, 1, 0, NULL, 0);
             """)
 
-        let all = try await database.fetchTransactionPage(accountID: "checking", splits: .all)
+        let all = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: .all, in: database)
         #expect(all.transactions.map(\.id) == ["newer", "regular", "starting", "older"])
     }
 
@@ -264,7 +264,7 @@ struct TransactionSplitQueryTests {
             ('child-b', 0, 1, 'checking', 'utilities', -5000, 'coffee', 'b', 20260815, 0, 0, 'parent', NULL);
             """)
 
-        let grouped = try await database.fetchTransactions(accountID: "checking")
+        let grouped = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let parent = try #require(grouped.first { $0.id == "parent" })
         #expect(parent.error?.type == "SplitTransactionError")
         #expect(parent.error?.version == 1)
@@ -284,7 +284,7 @@ struct TransactionSplitQueryTests {
             ('dead-child', 0, 1, 'checking', 'utilities', -3000, 'coffee', NULL, 20260815, 0, 1, 'parent');
             """)
 
-        let grouped = try await database.fetchTransactions(accountID: "checking")
+        let grouped = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         #expect(grouped.first?.subtransactions.map(\.id) == ["alive"])
         let balances = try await AccountSQL.accountBalances(in: database)
         #expect(balances["checking"] == -2_000)
@@ -326,8 +326,8 @@ struct TransactionSplitQueryTests {
             ('parent-old-b', 0, 1, 'checking', 'utilities', -2500, 'coffee', 'older-b', 20260801, 6, 0, 'parent-old', 0);
             """)
 
-        let grouped = try await database.fetchTransactions(accountID: "checking")
-        let none = try await database.fetchTransactionPage(accountID: "checking", splits: TransactionSplitQueryMode.none)
+        let grouped = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
+        let none = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", splits: TransactionSplitQueryMode.none, in: database)
 
         #expect(grouped.map(\.id) == ["simple-new", "parent-new", "simple-old", "parent-old"])
         #expect(grouped.map(\.id) == none.transactions.map(\.id))
@@ -359,14 +359,15 @@ struct TransactionSplitQueryTests {
             ('parent-old-b', 0, 1, 'checking', 'utilities', -2500, 'coffee', 'older-b', 20260801, 6, 0, 'parent-old', 0);
             """)
 
-        let first = try await database.fetchTransactionPage(accountID: "checking", limit: 2, splits: .grouped)
-        let second = try await database.fetchTransactionPage(
+        let first = try await TransactionReadSQL.fetchTransactionPage(accountID: "checking", limit: 2, splits: .grouped, in: database)
+        let second = try await TransactionReadSQL.fetchTransactionPage(
             accountID: "checking",
             limit: 2,
             offset: 2,
-            splits: .grouped
+            splits: .grouped,
+            in: database
         )
-        let unlimited = try await database.fetchTransactions(accountID: "checking")
+        let unlimited = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
 
         #expect(first.transactions.map(\.id) == ["simple-new", "parent-new"])
         #expect(first.transactions.count == 2)
@@ -395,9 +396,9 @@ struct TransactionSplitQueryTests {
             INSERT INTO payee_mapping VALUES ('child-a-payee', 'child-a-payee');
             """)
 
-        let note = try await database.fetchTransactionPage(matching: "Q01-CHILD-NOTE", splits: .grouped)
-        let payee = try await database.fetchTransactionPage(matching: "SPLIT · Child A", splits: .grouped)
-        let category = try await database.fetchTransactionPage(matching: "Groceries", splits: .grouped)
+        let note = try await TransactionReadSQL.fetchTransactionPage(matching: "Q01-CHILD-NOTE", splits: .grouped, in: database)
+        let payee = try await TransactionReadSQL.fetchTransactionPage(matching: "SPLIT · Child A", splits: .grouped, in: database)
+        let category = try await TransactionReadSQL.fetchTransactionPage(matching: "Groceries", splits: .grouped, in: database)
 
         #expect(note.transactions.map(\.id) == ["parent"])
         #expect(payee.transactions.map(\.id) == ["parent"])
@@ -420,9 +421,9 @@ struct TransactionSplitQueryTests {
             ('june-child', 0, 1, 'checking', NULL, -800, 'coffee', NULL, 20260601, 1, 0, 'missing-parent');
             """)
 
-        let july = try await database.fetchTransactionPage(splits: .inline, month: "2026-07")
-        let june = try await database.fetchTransactionPage(splits: .inline, month: "2026-06")
-        let invalid = try await database.fetchTransactionPage(splits: .inline, month: "not-a-month")
+        let july = try await TransactionReadSQL.fetchTransactionPage(splits: .inline, month: "2026-07", in: database)
+        let june = try await TransactionReadSQL.fetchTransactionPage(splits: .inline, month: "2026-06", in: database)
+        let invalid = try await TransactionReadSQL.fetchTransactionPage(splits: .inline, month: "not-a-month", in: database)
 
         #expect(july.transactions.map(\.id) == ["july-simple", "july-child"])
         #expect(!july.transactions.contains { $0.id == "june-simple" || $0.id == "july-parent" })
@@ -452,7 +453,7 @@ struct TransactionSplitQueryTests {
             ('june-uncat', 0, 0, 'checking', NULL, -900, 'coffee', NULL, 20260610, 0, 0, NULL);
             """)
 
-        let rows = try await database.fetchUncategorizedTransactions()
+        let rows = try await TransactionReadSQL.fetchUncategorizedTransactions(in: database)
 
         #expect(Set(rows.compactMap(\.id)) == [
             "july-uncat", "july-child", "july-off-budget-xfer", "june-uncat",
@@ -489,7 +490,7 @@ struct TransactionSplitQueryTests {
                 """)
         }
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transactions = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let split = try #require(transactions.first { $0.id == "split" })
         #expect(split.isParent)
         #expect(split.subtransactions.count == 2)

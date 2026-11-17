@@ -445,7 +445,7 @@ extension LocalFirstActualStoreTests {
         )
 
         let transaction = try #require(
-            try await database.fetchTransactions(accountID: "checking")
+            try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
                 .first { $0.id == "txn" }
         )
         let events = recorder.events()
@@ -516,7 +516,7 @@ extension LocalFirstActualStoreTests {
         }
 
         let transaction = try #require(
-            try await database.fetchTransactions(accountID: "checking")
+            try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
                 .first { $0.id == "txn" }
         )
         #expect(transaction.category == "groceries")
@@ -534,7 +534,7 @@ extension LocalFirstActualStoreTests {
 
         let appliedCount = try await database.commitLocalSyncMessagesAndEnqueue([draft])
 
-        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transactions = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let transaction = try #require(transactions.first { $0.id == "txn" })
         let stored = try storedCRDTMessages(at: fixtureURL)
         #expect(appliedCount == 1)
@@ -569,7 +569,7 @@ extension LocalFirstActualStoreTests {
             ])
         }
 
-        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transactions = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let transaction = try #require(transactions.first { $0.id == "txn" })
         #expect(transaction.category == "first")
         #expect(try await database.latestSyncTimestamp() != newerTimestamp)
@@ -640,7 +640,7 @@ extension LocalFirstActualStoreTests {
 
         let appliedCount = try await database.commitLocalSyncMessagesAndEnqueue([draft])
         let pending = try await database.pendingLocalSyncMessages()
-        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transactions = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let transaction = try #require(transactions.first { $0.id == "txn" })
 
         #expect(appliedCount == 1)
@@ -709,7 +709,7 @@ extension LocalFirstActualStoreTests {
         let appliedCount = try await database.applyRemoteSyncMessages(
             [unknownColumn, unknownDataset, laterKnownColumn]
         )
-        let transactions = try await database.fetchTransactions(accountID: "checking")
+        let transactions = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: database)
         let transaction = try #require(transactions.first { $0.id == "txn" })
         let stored = try storedCRDTMessages(at: fixtureURL)
 

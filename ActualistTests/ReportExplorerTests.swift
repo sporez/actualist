@@ -308,7 +308,7 @@ struct ReportExplorerTests {
             filters: filters
         ), in: database)
         let request = try #require(snapshot.drilldown.request)
-        let result = try await database.fetchTransactionDrilldown(request)
+        let result = try await TransactionQuerySQL.fetchTransactionDrilldown(request, in: database)
         let signedContributorTotal = try ReportArithmetic.sum(
             result.contributingTransactions.compactMap(\.amount)
         )
@@ -485,7 +485,7 @@ struct ReportExplorerTests {
         #expect(current.query.signature != historySignature)
         #expect(snapshot.activityQuerySignature == current.query.signature)
         #expect(snapshot.totals.averageSpending == 6_000)
-        let result = try await database.fetchTransactionDrilldown(current)
+        let result = try await TransactionQuerySQL.fetchTransactionDrilldown(current, in: database)
         #expect(result.contributingTransactions.compactMap(\.id) == ["current"])
     }
 

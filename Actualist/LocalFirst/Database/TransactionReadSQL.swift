@@ -16,24 +16,30 @@ enum TransactionGroupedOrdering {
     }
 }
 
-extension BudgetDatabase {
+struct UncategorizedReadContext {
+    let split: TransactionSplitQueryExpressions
+    let normalizedDate: String
+    let joins: TransactionReadJoins
+    let conditions: [String]
+}
 
-    func fetchTransactions(accountID: String? = nil, matching query: String? = nil) throws -> [ActualTransaction] {
-        try fetchTransactionPage(accountID: accountID, matching: query, limit: nil, offset: 0).transactions
+enum TransactionReadSQL {
+    static func fetchTransactions(accountID: String? = nil, matching query: String? = nil, in database: isolated BudgetDatabase) throws -> [ActualTransaction] {
+        try fetchTransactionPage(accountID: accountID, matching: query, limit: nil, offset: 0, in: database).transactions
     }
 
-    func fetchTransaction(id: String) throws -> ActualTransaction? {
-        try queue.read { db in try fetchTransaction(id: id, db: db) }
+    static func fetchTransaction(id: String, in database: isolated BudgetDatabase) throws -> ActualTransaction? {
+        try database.queue.read { db in try fetchTransaction(id: id, in: database, db: db) }
     }
 
     /// One read, so a deleted row is never mistaken for one that hasn't synced yet.
-    func sharedTransactionLookup(id: String) throws -> SharedTransactionLookup {
-        try queue.read { db in
-            if let transaction = try fetchTransaction(id: id, db: db) {
+    static func sharedTransactionLookup(id: String, in database: isolated BudgetDatabase) throws -> SharedTransactionLookup {
+        try database.queue.read { db in
+            if let transaction = try fetchTransaction(id: id, in: database, db: db) {
                 guard transaction.isChild, let parentID = transaction.parentID else { return .found(transaction) }
-                return try fetchTransaction(id: parentID, db: db).map(SharedTransactionLookup.found) ?? .deleted
+                return try fetchTransaction(id: parentID, in: database, db: db).map(SharedTransactionLookup.found) ?? .deleted
             }
-            guard try tableExists("transactions", db: db) else { return .missing }
+            guard try database.tableExists("transactions", db: db) else { return .missing }
             let exists = try Bool.fetchOne(
                 db,
                 sql: "SELECT EXISTS(SELECT 1 FROM transactions WHERE id = ?)",
@@ -44,24 +50,24 @@ extension BudgetDatabase {
     }
 
     /// Reads through `db`, so a write transaction can read the live row it is about to change.
-    func fetchTransaction(id: String, db: Database) throws -> ActualTransaction? {
+    static func fetchTransaction(id: String, in database: isolated BudgetDatabase, db: Database) throws -> ActualTransaction? {
         let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             return nil
         }
 
-        guard try tableExists("transactions", db: db) else {
+        guard try database.tableExists("transactions", db: db) else {
             return nil
         }
 
-        let columns = try columnSet(for: "transactions", db: db)
+        let columns = try database.columnSet(for: "transactions", db: db)
         let split = TransactionSplitQueryExpressions(columns: columns)
-        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let normalizedDate = database.normalizedDateExpression(split.qualifiedDate)
         let joins = try TransactionReadJoins.resolve(
             split: split,
             transactionColumns: columns,
             includeNames: false,
-            in: self,
+            in: database,
             db: db
         )
         let familyPredicate: String
@@ -72,7 +78,7 @@ extension BudgetDatabase {
                 OR \(split.effectiveParentID) = ?
                 OR t.id = (
                     SELECT parent_id FROM transactions
-                    WHERE id = ? AND \(predicateForLiveRows(columns: columns))
+                    WHERE id = ? AND \(database.predicateForLiveRows(columns: columns))
                 )
                 """
             arguments = [trimmed, trimmed, trimmed]
@@ -103,42 +109,44 @@ extension BudgetDatabase {
         return assembled.first
     }
 
-    func fetchTransactionPage(
+    static func fetchTransactionPage(
         accountID: String? = nil,
         matching query: String? = nil,
         limit: Int? = nil,
         offset: Int = 0,
         splits: TransactionSplitQueryMode? = nil,
         month: String? = nil,
-        statusFilter: TransactionStatusFilter = .all
-    ) throws -> TransactionFetchResult {
+        statusFilter: TransactionStatusFilter = .all,
+        in database: isolated BudgetDatabase
+    ) throws -> BudgetDatabase.TransactionFetchResult {
         if splits == nil, month == nil {
             let scope = accountID.map(TransactionQueryScope.account) ?? .spending
-            let page = try fetchTransactionQueryPage(
+            let page = try TransactionQuerySQL.fetchTransactionQueryPage(
                 scope: scope,
                 query: TransactionFeedQuery(status: statusFilter, text: query),
                 limit: limit,
-                offset: offset
+                offset: offset,
+                in: database
             )
-            return TransactionFetchResult(
+            return BudgetDatabase.TransactionFetchResult(
                 transactions: page.transactions,
                 reachedEnd: page.reachedEnd,
                 nextOffset: page.nextOffset
             )
         }
-        return try queue.read { db in
-            guard try tableExists("transactions", db: db) else {
-                return TransactionFetchResult(transactions: [], reachedEnd: true, nextOffset: max(0, offset))
+        return try database.queue.read { db in
+            guard try database.tableExists("transactions", db: db) else {
+                return BudgetDatabase.TransactionFetchResult(transactions: [], reachedEnd: true, nextOffset: max(0, offset))
             }
 
-            let columns = try columnSet(for: "transactions", db: db)
+            let columns = try database.columnSet(for: "transactions", db: db)
             let split = TransactionSplitQueryExpressions(columns: columns)
-            let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+            let normalizedDate = database.normalizedDateExpression(split.qualifiedDate)
             var joins = try TransactionReadJoins.resolve(
                 split: split,
                 transactionColumns: columns,
                 includeNames: true,
-                in: self,
+                in: database,
                 db: db
             )
             let mode = splits ?? ((query?.isEmpty ?? true) ? .grouped : .all)
@@ -151,9 +159,9 @@ extension BudgetDatabase {
             }
             if let month {
                 guard isYearMonthID(month) else {
-                    return TransactionFetchResult(transactions: [], reachedEnd: true, nextOffset: max(0, offset))
+                    return BudgetDatabase.TransactionFetchResult(transactions: [], reachedEnd: true, nextOffset: max(0, offset))
                 }
-                conditions.append("\(normalizedMonthExpression(split.qualifiedDate)) = ?")
+                conditions.append("\(database.normalizedMonthExpression(split.qualifiedDate)) = ?")
                 arguments.append(month)
             }
             if let query, !query.isEmpty {
@@ -163,7 +171,7 @@ extension BudgetDatabase {
             }
 
             if statusFilter == .uncategorized {
-                let context = try uncategorizedReadContext(db: db)
+                let context = try uncategorizedReadContext(in: database, db: db)
                 joins = context.joins
                 conditions.append(contentsOf: context.conditions.dropFirst())
                 conditions.append(split.splitModePredicate(.inline))
@@ -177,7 +185,6 @@ extension BudgetDatabase {
             switch mode {
             case .all, .inline, .none:
                 return try fetchFlatTransactionPage(
-                    db: db,
                     split: split,
                     joins: joins,
                     normalizedDate: normalizedDate,
@@ -185,11 +192,11 @@ extension BudgetDatabase {
                     conditions: conditions,
                     arguments: arguments,
                     rowLimit: rowLimit,
-                    rowOffset: rowOffset
+                    rowOffset: rowOffset,
+                    db: db
                 )
             case .grouped:
                 return try fetchGroupedTransactionPage(
-                    db: db,
                     split: split,
                     joins: joins,
                     normalizedDate: normalizedDate,
@@ -198,7 +205,8 @@ extension BudgetDatabase {
                     selectsMatchedGroups: query?.isEmpty == false || statusFilter != .all,
                     allowsUnfilteredFastPath: statusFilter == .all && query?.isEmpty != false,
                     rowLimit: rowLimit,
-                    rowOffset: rowOffset
+                    rowOffset: rowOffset,
+                    db: db
                 )
             }
         }
@@ -206,14 +214,13 @@ extension BudgetDatabase {
 
     /// Reviewable uncategorized rows across every month. Actual web's banner
     /// has no date filter; SQL keeps this from loading categorized history.
-    func fetchUncategorizedTransactions() throws -> [ActualTransaction] {
-        try queue.read { db in
-            guard try tableExists("transactions", db: db) else {
+    static func fetchUncategorizedTransactions(in database: isolated BudgetDatabase) throws -> [ActualTransaction] {
+        try database.queue.read { db in
+            guard try database.tableExists("transactions", db: db) else {
                 return []
             }
-            let context = try uncategorizedReadContext(db: db)
+            let context = try uncategorizedReadContext(in: database, db: db)
             return try fetchFlatTransactionPage(
-                db: db,
                 split: context.split,
                 joins: context.joins,
                 normalizedDate: context.normalizedDate,
@@ -221,19 +228,20 @@ extension BudgetDatabase {
                 conditions: context.conditions,
                 arguments: [],
                 rowLimit: nil,
-                rowOffset: 0
+                rowOffset: 0,
+                db: db
             ).transactions
         }
     }
 
     /// Count used by the first Budget frame. Full transaction/name/category
     /// models remain lazy until the user opens the Uncategorized sheet.
-    func fetchUncategorizedTransactionCount() throws -> Int {
-        try queue.read { db in
-            guard try tableExists("transactions", db: db) else {
+    static func fetchUncategorizedTransactionCount(in database: isolated BudgetDatabase) throws -> Int {
+        try database.queue.read { db in
+            guard try database.tableExists("transactions", db: db) else {
                 return 0
             }
-            let context = try uncategorizedReadContext(db: db)
+            let context = try uncategorizedReadContext(in: database, db: db)
             let conditions = context.conditions + [
                 context.split.splitModePredicate(.inline),
             ]
@@ -250,14 +258,14 @@ extension BudgetDatabase {
         }
     }
 
-    func escapeLikePattern(_ value: String) -> String {
+    static func escapeLikePattern(_ value: String) -> String {
         value
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "%", with: "\\%")
             .replacingOccurrences(of: "_", with: "\\_")
     }
 
-    func assembleTransactions(from rows: [Row]) -> [ActualTransaction] {
+    private static func assembleTransactions(from rows: [Row]) -> [ActualTransaction] {
         var childrenByParent: [String: [ActualTransaction]] = [:]
         var parents: [ActualTransaction] = []
 
@@ -278,11 +286,11 @@ extension BudgetDatabase {
         }
     }
 
-    func existingImportedIDs(accountID: String) throws -> Set<String> {
-        try queue.read { db in try existingImportedIDs(accountID: accountID, db: db) }
+    static func existingImportedIDs(accountID: String, in database: isolated BudgetDatabase) throws -> Set<String> {
+        try database.queue.read { db in try database.existingImportedIDs(accountID: accountID, db: db) }
     }
 
-    func mapTransactionRow(_ row: Row) -> ActualTransaction {
+    static func mapTransactionRow(_ row: Row) -> ActualTransaction {
         let parentID = (row["parent_id"] as String?).flatMap { $0.isEmpty ? nil : $0 }
         let payeeName = (row["payee_name"] as String?).flatMap { $0.isEmpty ? nil : $0 }
         let amount: Int? = row["amount"]
@@ -307,17 +315,8 @@ extension BudgetDatabase {
             error: SplitTransactionError.parse(row["error"])
         )
     }
-}
 
-struct UncategorizedReadContext {
-    let split: TransactionSplitQueryExpressions
-    let normalizedDate: String
-    let joins: TransactionReadJoins
-    let conditions: [String]
-}
-
-extension BudgetDatabase {
-    func statusFilterPredicate(
+    static func statusFilterPredicate(
         _ filter: TransactionStatusFilter,
         split: TransactionSplitQueryExpressions
     ) -> String? {
@@ -333,15 +332,15 @@ extension BudgetDatabase {
         }
     }
 
-    func uncategorizedReadContext(db: Database) throws -> UncategorizedReadContext {
-        let columns = try columnSet(for: "transactions", db: db)
+    static func uncategorizedReadContext(in database: isolated BudgetDatabase, db: Database) throws -> UncategorizedReadContext {
+        let columns = try database.columnSet(for: "transactions", db: db)
         let split = TransactionSplitQueryExpressions(columns: columns)
-        let normalizedDate = normalizedDateExpression(split.qualifiedDate)
+        let normalizedDate = database.normalizedDateExpression(split.qualifiedDate)
         let joins = try TransactionReadJoins.resolve(
             split: split,
             transactionColumns: columns,
             includeNames: true,
-            in: self,
+            in: database,
             db: db
         )
 
@@ -350,13 +349,13 @@ extension BudgetDatabase {
             split.liveEffectivePredicate(),
             "(\(joins.liveCategory) IS NULL OR \(joins.liveCategory) = '')",
         ]
-        if try tableExists("accounts", db: db) {
+        if try database.tableExists("accounts", db: db) {
             extraJoin = "LEFT JOIN accounts src ON src.id = \(split.qualifiedAccount)"
             conditions.append("IFNULL(src.offbudget, 0) = 0")
         }
-        if try tableExists("payees", db: db) {
-            let payeeColumns = try columnSet(for: "payees", db: db)
-            if payeeColumns.contains("transfer_acct"), try tableExists("accounts", db: db) {
+        if try database.tableExists("payees", db: db) {
+            let payeeColumns = try database.columnSet(for: "payees", db: db)
+            if payeeColumns.contains("transfer_acct"), try database.tableExists("accounts", db: db) {
                 conditions.append(
                     "(py.transfer_acct IS NULL OR py.transfer_acct = '' OR IFNULL(pax.offbudget, 0) = 1)"
                 )
@@ -379,7 +378,7 @@ extension BudgetDatabase {
         )
     }
 
-    func transactionReadSelectList(
+    static func transactionReadSelectList(
         split: TransactionSplitQueryExpressions,
         joins: TransactionReadJoins,
         normalizedDate: String
@@ -404,7 +403,7 @@ extension BudgetDatabase {
             """
     }
 
-    func transactionSearchPredicate(split: TransactionSplitQueryExpressions, joins: TransactionReadJoins) -> String {
+    static func transactionSearchPredicate(split: TransactionSplitQueryExpressions, joins: TransactionReadJoins) -> String {
         """
         (\(joins.payeeNameSelect) LIKE ? ESCAPE '\\'
          OR \(split.qualifiedNotes) LIKE ? ESCAPE '\\'
@@ -413,8 +412,7 @@ extension BudgetDatabase {
         """
     }
 
-    func fetchFlatTransactionPage(
-        db: Database,
+    private static func fetchFlatTransactionPage(
         split: TransactionSplitQueryExpressions,
         joins: TransactionReadJoins,
         normalizedDate: String,
@@ -422,8 +420,9 @@ extension BudgetDatabase {
         conditions: [String],
         arguments: [DatabaseValueConvertible],
         rowLimit: Int?,
-        rowOffset: Int
-    ) throws -> TransactionFetchResult {
+        rowOffset: Int,
+        db: Database
+    ) throws -> BudgetDatabase.TransactionFetchResult {
         var pageConditions = conditions
         pageConditions.append(split.splitModePredicate(mode))
         var pageArguments = arguments
@@ -449,21 +448,20 @@ extension BudgetDatabase {
         let transactions = mode == .all
             ? try transactionsByAttachingSplitFamilies(
                 mapped,
-                db: db,
                 split: split,
                 joins: joins,
-                normalizedDate: normalizedDate
+                normalizedDate: normalizedDate,
+                db: db
             )
             : mapped
-        return TransactionFetchResult(
+        return BudgetDatabase.TransactionFetchResult(
             transactions: transactions,
             reachedEnd: reachedEnd,
             nextOffset: rowOffset + page.count
         )
     }
 
-    func fetchGroupedTransactionPage(
-        db: Database,
+    private static func fetchGroupedTransactionPage(
         split: TransactionSplitQueryExpressions,
         joins: TransactionReadJoins,
         normalizedDate: String,
@@ -472,16 +470,17 @@ extension BudgetDatabase {
         selectsMatchedGroups: Bool,
         allowsUnfilteredFastPath: Bool,
         rowLimit: Int?,
-        rowOffset: Int
-    ) throws -> TransactionFetchResult {
+        rowOffset: Int,
+        db: Database
+    ) throws -> BudgetDatabase.TransactionFetchResult {
         if rowLimit == nil && allowsUnfilteredFastPath {
             return try fetchAssembledGroupedTransactions(
-                db: db,
                 split: split,
                 joins: joins,
                 normalizedDate: normalizedDate,
                 conditions: conditions,
-                arguments: arguments
+                arguments: arguments,
+                db: db
             )
         }
 
@@ -543,18 +542,18 @@ extension BudgetDatabase {
         }
 
         guard !groupIDs.isEmpty else {
-            return TransactionFetchResult(transactions: [], reachedEnd: true, nextOffset: rowOffset)
+            return BudgetDatabase.TransactionFetchResult(transactions: [], reachedEnd: true, nextOffset: rowOffset)
         }
 
         let assembled = try assembledTransactions(
             forGroupIDs: groupIDs,
-            db: db,
             split: split,
             joins: joins,
-            normalizedDate: normalizedDate
+            normalizedDate: normalizedDate,
+            db: db
         )
         let ordered = TransactionGroupedOrdering.transactions(assembled, orderedByGroupIDs: groupIDs)
-        return TransactionFetchResult(
+        return BudgetDatabase.TransactionFetchResult(
             transactions: ordered,
             reachedEnd: reachedEnd,
             nextOffset: rowOffset + groupIDs.count
@@ -563,12 +562,12 @@ extension BudgetDatabase {
 
     /// Nested children on parent rows for payee projection. Does not add or
     /// remove page rows, so `.all` search match sets and pagination stay intact.
-    func transactionsByAttachingSplitFamilies(
+    static func transactionsByAttachingSplitFamilies(
         _ transactions: [ActualTransaction],
-        db: Database,
         split: TransactionSplitQueryExpressions,
         joins: TransactionReadJoins,
-        normalizedDate: String
+        normalizedDate: String,
+        db: Database
     ) throws -> [ActualTransaction] {
         let parentIDs = transactions.compactMap { transaction -> String? in
             guard transaction.isParent else { return nil }
@@ -580,10 +579,10 @@ extension BudgetDatabase {
         let childrenByParentID = Dictionary(
             uniqueKeysWithValues: try assembledTransactions(
                 forGroupIDs: parentIDs,
-                db: db,
                 split: split,
                 joins: joins,
-                normalizedDate: normalizedDate
+                normalizedDate: normalizedDate,
+                db: db
             ).compactMap { parent -> (String, [ActualTransaction])? in
                 guard let id = parent.id else { return nil }
                 return (id, parent.subtransactions)
@@ -597,12 +596,12 @@ extension BudgetDatabase {
         }
     }
 
-    func assembledTransactions(
+    static func assembledTransactions(
         forGroupIDs groupIDs: [String],
-        db: Database,
         split: TransactionSplitQueryExpressions,
         joins: TransactionReadJoins,
-        normalizedDate: String
+        normalizedDate: String,
+        db: Database
     ) throws -> [ActualTransaction] {
         guard !groupIDs.isEmpty else {
             return []
@@ -625,14 +624,14 @@ extension BudgetDatabase {
         return assembleTransactions(from: rows)
     }
 
-    func fetchAssembledGroupedTransactions(
-        db: Database,
+    private static func fetchAssembledGroupedTransactions(
         split: TransactionSplitQueryExpressions,
         joins: TransactionReadJoins,
         normalizedDate: String,
         conditions: [String],
-        arguments: [DatabaseValueConvertible]
-    ) throws -> TransactionFetchResult {
+        arguments: [DatabaseValueConvertible],
+        db: Database
+    ) throws -> BudgetDatabase.TransactionFetchResult {
         let sql = """
             SELECT \(transactionReadSelectList(split: split, joins: joins, normalizedDate: normalizedDate))
             FROM transactions t
@@ -643,14 +642,14 @@ extension BudgetDatabase {
             """
         let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
         let transactions = assembleTransactions(from: rows)
-        return TransactionFetchResult(
+        return BudgetDatabase.TransactionFetchResult(
             transactions: transactions,
             reachedEnd: true,
             nextOffset: transactions.count
         )
     }
 
-    func isYearMonthID(_ value: String) -> Bool {
+    private static func isYearMonthID(_ value: String) -> Bool {
         let parts = value.split(separator: "-", omittingEmptySubsequences: false)
         guard parts.count == 2,
               parts[0].count == 4,

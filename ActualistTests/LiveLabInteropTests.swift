@@ -136,7 +136,7 @@ struct LiveLabInteropTests {
     @MainActor
     private func snapshot(of store: LocalFirstActualStore) async throws -> [[String: Any]] {
         let database = try #require(store.database)
-        let transactions = try await database.fetchTransactions()
+        let transactions = try await TransactionReadSQL.fetchTransactions(in: database)
         return transactions
             .sorted { ($0.id ?? "") < ($1.id ?? "") }
             .map { transaction in

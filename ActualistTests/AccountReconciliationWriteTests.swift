@@ -102,7 +102,7 @@ struct AccountReconciliationWriteTests {
         #expect(row?["description"] as String? == nil)
         #expect(row?["category"] as String? == nil)
         #expect(row?["notes"] as String? == "Reconciliation balance adjustment")
-        let fetched = try await bundle.database.fetchTransactions(accountID: "checking")
+        let fetched = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: bundle.database)
         #expect(fetched.first { $0.id == "adjustment" }?.notes == "Reconciliation balance adjustment")
         #expect(row?["cleared"] as Int? == 1)
         #expect(row?["reconciled"] as Int? == 0)
@@ -134,7 +134,7 @@ struct AccountReconciliationWriteTests {
             in: bundle.database
         )
 
-        let fetched = try await bundle.database.fetchTransactions(accountID: "checking")
+        let fetched = try await TransactionReadSQL.fetchTransactions(accountID: "checking", in: bundle.database)
         #expect(fetched.first { $0.id == "cleared-notes" }?.notes == "Reconciliation balance adjustment")
     }
 

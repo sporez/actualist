@@ -451,7 +451,7 @@ enum ReportExplorerSQL {
             endDay: query.activityEndDay,
             catalog: catalog
         )
-        let current = try database.transactionDrilldown(currentRequest, db: db)
+        let current = try TransactionQuerySQL.transactionDrilldown(currentRequest, in: database, db: db)
         let history: TransactionDrilldownResult?
         if let comparison = query.spendingAverageComparison,
            let first = comparison.history.first,
@@ -462,7 +462,7 @@ enum ReportExplorerSQL {
                 endDay: last.endDay,
                 catalog: catalog
             )
-            history = try database.transactionDrilldown(request, db: db)
+            history = try TransactionQuerySQL.transactionDrilldown(request, in: database, db: db)
         } else {
             history = nil
         }

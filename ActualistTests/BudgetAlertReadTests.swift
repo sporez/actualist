@@ -17,7 +17,7 @@ extension LocalFirstActualStoreTests {
             \(extraSQL)
             """)
         let database = try BudgetDatabase(databaseURL: fixtureURL)
-        return try await database.fetchUncategorizedTransactionCount()
+        return try await TransactionReadSQL.fetchUncategorizedTransactionCount(in: database)
     }
 
     @Test func uncategorizedCountIncludesOnlyReviewableTransactions() async throws {

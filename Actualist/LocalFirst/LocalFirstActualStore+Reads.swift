@@ -136,12 +136,12 @@ extension LocalFirstActualStore {
 
     func fetchTransaction(budgetID: String, id: String) async throws -> ActualTransaction? {
         let database = try requireDatabase(for: budgetID)
-        return try await database.fetchTransaction(id: id)
+        return try await TransactionReadSQL.fetchTransaction(id: id, in: database)
     }
 
     func sharedTransactionLookup(budgetID: String, id: String) async throws -> SharedTransactionLookup {
         let database = try requireDatabase(for: budgetID)
-        return try await database.sharedTransactionLookup(id: id)
+        return try await TransactionReadSQL.sharedTransactionLookup(id: id, in: database)
     }
 
     func cachedCategoryTransactions(
@@ -168,7 +168,7 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         let revision = cachePublicationRevision
         let maps = try await nameMaps(database)
-        let transactions = try await database.fetchTransactions()
+        let transactions = try await TransactionReadSQL.fetchTransactions(in: database)
         #if DEBUG
         await testSeams?.readPublicationHook?(.categoryFeed)
         #endif
@@ -241,7 +241,7 @@ extension LocalFirstActualStore {
         let generation = budgetSessionGeneration
         let revision = cachePublicationRevision
         let maps = try await nameMaps(database)
-        let rows = try await database.fetchUncategorizedTransactions()
+        let rows = try await TransactionReadSQL.fetchUncategorizedTransactions(in: database)
         #if DEBUG
         await testSeams?.readPublicationHook?(.uncategorizedFeed)
         #endif
@@ -301,7 +301,7 @@ extension LocalFirstActualStore {
         ) {
             alerts.append(overspending)
         }
-        let uncategorizedCount = try await database.fetchUncategorizedTransactionCount()
+        let uncategorizedCount = try await TransactionReadSQL.fetchUncategorizedTransactionCount(in: database)
         if let uncategorized = Self.uncategorizedAlert(count: uncategorizedCount) {
             alerts.append(uncategorized)
         }

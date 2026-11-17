@@ -95,7 +95,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Submission and guarded mutation: `TransactionEditorSubmissionCoordinator.swift`, `TransactionEditorMutationCoordinator.swift`, and reconciled-mutation presentation files.
 - Protocol/model seam: `Actualist/Repositories/TransactionRepository.swift` and `TransactionModels.swift`.
 - Store writes: `LocalFirstActualStore+TransactionMutations.swift` and related mutation extensions.
-- Database reads/writes: `BudgetDatabase+TransactionReads.swift`, `+TransactionCreation.swift`, `+TransactionUpdates.swift`, `+TransactionCategorization.swift`, and `+TransactionSplit*.swift`.
+- Database reads/writes: `TransactionReadSQL` (reads, pages, uncategorized rows) and `TransactionQuerySQL` (the structured query, drilldowns and the CSV snapshot) in `LocalFirst/Database/`, `+TransactionCreation.swift`, `+TransactionUpdates.swift`, `+TransactionCategorization.swift`, and `+TransactionSplit*.swift`.
 - Split-family invariants: `Actualist/LocalFirst/SplitTransactionFamily.swift`.
 - Sharing a transaction: link format and parsing in `Actualist/Shared/SharedTransactionLink.swift`, routed by `Actualist/App/AppDeepLinkRouter.swift`; opening a link (lookup, one sync, messages) in `SharedTransactionLinkResolver.swift` over `BudgetDatabase.sharedTransactionLookup(id:)`; the card in `TransactionShareContent.swift`; and `TransactionShareSheet.swift`, the app's one UIKit view (see `AGENTS.md`).
 
@@ -193,7 +193,7 @@ Repositories are per feature, not one facade: `Actualist/Repositories/` holds `B
 
 File naming is the ownership index:
 
-- `Budget*SQL`, `+TransactionReads` — query families. Reports are the `Report*SQL` types (see Reports, history, notes, and shortcuts).
+- `Budget*SQL`, `TransactionReadSQL`, `TransactionQuerySQL` — query families. Reports are the `Report*SQL` types (see Reports, history, notes, and shortcuts).
 - `+Sync`, `+Merkle` — remote CRDT application and the merkle trie (see Sync and merkle below).
 - `+LocalCommit`, `+UserActionPlan` — the write core (see Write trace).
 - `+TransactionCreation`, `+TransactionDiffUpdate`, `+TransactionGraphPlanning`, `+TransactionUpdates`, `+TransactionSplitWrites` — budget and transaction mutation families.
@@ -207,7 +207,7 @@ File naming is the ownership index:
 - `ActionLog*SQL` — durable action history and undo inputs.
 - `+Schedules`, `+ScheduleReads`, `+ScheduleWrites`, `+SchedulePosting`, `+ScheduleAdvancement`, `+ScheduleConversion` and `ScheduleRuleProjection.swift` — schedules and their linked rules.
 - `+PortableExport`, `+PortableSyncReset`, `+NewBudgetSeed` — portable ZIP content and the CRDT reset applied to an imported file.
-- `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `SavedFilterSQL` (saved filters), `+TransactionCSV*`, `+TransactionQuery` — list actions, structured queries and CSV export.
+- `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `SavedFilterSQL` (saved filters), `+TransactionCSV*` — list actions, structured queries and CSV export.
 - `TransactionImportSQL.swift` — file-import checks inside the commit (stateless; takes `isolated BudgetDatabase` and the GRDB handle), plus the thin `commitTransactionCSVImport` entry point.
 - `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `+ImportedIDPrecondition`, `+TransactionIDPrecondition`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
 - `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.

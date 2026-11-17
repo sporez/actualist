@@ -73,7 +73,7 @@ enum TransactionQueryOracleReplay {
             filterRun = (try decodeConditions(raw), RuleConditionJoin(rawValue: joinName) ?? .and)
         }
 
-        let page = try await session.database.fetchTransactionQueryPage(scope: .spending, query: query)
+        let page = try await TransactionQuerySQL.fetchTransactionQueryPage(scope: .spending, query: query, in: session.database)
         let roots = page.transactions.compactMap(\.id)
         let displayed = page.transactions.flatMap { [$0] + $0.subtransactions }.compactMap(\.id)
         var fields = queryFields(
@@ -249,12 +249,12 @@ enum TransactionQueryOracleReplay {
         func ids(_ result: BudgetDatabase.TransactionFetchResult) -> [OracleValue] {
             result.transactions.compactMap(\.id).map(OracleValue.string)
         }
-        let all = try await session.database.fetchTransactionPage(accountID: account, matching: search, splits: .all)
-        let inline = try await session.database.fetchTransactionPage(accountID: account, matching: search, splits: .inline)
-        let none = try await session.database.fetchTransactionPage(
-            accountID: account, matching: search, splits: TransactionSplitQueryMode.none
+        let all = try await TransactionReadSQL.fetchTransactionPage(accountID: account, matching: search, splits: .all, in: session.database)
+        let inline = try await TransactionReadSQL.fetchTransactionPage(accountID: account, matching: search, splits: .inline, in: session.database)
+        let none = try await TransactionReadSQL.fetchTransactionPage(
+            accountID: account, matching: search, splits: TransactionSplitQueryMode.none, in: session.database
         )
-        let grouped = try await session.database.fetchTransactionPage(accountID: account, matching: search, splits: .grouped)
+        let grouped = try await TransactionReadSQL.fetchTransactionPage(accountID: account, matching: search, splits: .grouped, in: session.database)
         let matched = Set(all.transactions.compactMap(\.id))
         let families = grouped.transactions.map { root -> OracleValue in
             let children = root.subtransactions.compactMap(\.id)
@@ -303,9 +303,10 @@ enum TransactionQueryOracleReplay {
         let permit = await OracleReplayGate.shared.acquire()
         defer { permit.release() }
         let session = try open(world: world, filters: [], directory: makeDirectory())
-        let page = try await session.database.fetchAccountTransactionQueryPage(
+        let page = try await TransactionQuerySQL.fetchAccountTransactionQueryPage(
             accountID: OracleJSON.string(entry, "account"),
-            query: TransactionFeedQuery()
+            query: TransactionFeedQuery(),
+            in: session.database
         ).page
         var rows: [String: OracleValue] = [:]
         for transaction in page.transactions {

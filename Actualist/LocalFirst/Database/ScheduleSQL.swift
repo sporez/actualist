@@ -591,7 +591,7 @@ enum ScheduleSQL {
     ) throws -> TransactionDraft {
         var resolved = draft
         if resolved.scheduleID == nil, let existingTransactionID {
-            resolved.scheduleID = try database.fetchTransaction(id: existingTransactionID)?.schedule
+            resolved.scheduleID = try TransactionReadSQL.fetchTransaction(id: existingTransactionID, in: database)?.schedule
         }
         let preview = try RulePreviewSQL.previewRules(for: resolved, in: database)
         if preview.deletesTransaction {

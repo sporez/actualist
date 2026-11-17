@@ -129,7 +129,7 @@ extension LocalFirstActualStoreTests {
 
         let snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         let target = try #require(snapshot.payees.first { $0.id == "cafe-b" })
-        let transactions = try await database.fetchTransactions()
+        let transactions = try await TransactionReadSQL.fetchTransactions(in: database)
         let pending = try await database.pendingLocalSyncMessages().map(\.message)
 
         #expect(!snapshot.payees.contains { $0.id == "cafe-a" })
@@ -146,7 +146,7 @@ extension LocalFirstActualStoreTests {
         try await store.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
         let restored = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         #expect(restored.payees.contains { $0.id == "cafe-a" })
-        #expect(try await database.fetchTransactions().first { $0.id == "txn" }?.payee == "cafe-a")
+        #expect(try await TransactionReadSQL.fetchTransactions(in: database).first { $0.id == "txn" }?.payee == "cafe-a")
     }
 
     @Test func deleteAllowsEveryRegularPayeeButNotTransfers() async throws {
@@ -665,7 +665,7 @@ extension LocalFirstActualStoreTests {
                 VALUES ('txn-3', 'checking', 20260701, -700, 'groceries', 0, NULL, 0, 'ABCDEF12-3456-4789-ABCD-EF1234567890', NULL, 0, NULL, 0);
             """)
         let database = try #require(store.database)
-        let transaction = try #require(try await database.fetchTransactions().first { $0.id == "txn" })
+        let transaction = try #require(try await TransactionReadSQL.fetchTransactions(in: database).first { $0.id == "txn" })
 
         _ = try await store.categorizeTransactionAndRefresh(
             transaction,
