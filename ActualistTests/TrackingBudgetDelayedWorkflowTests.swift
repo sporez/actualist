@@ -107,6 +107,16 @@ struct TrackingBudgetDelayedWorkflowTests {
 private actor DelayedWorkflowRepository: BudgetRepositoryProtocol {
     func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
 
+    func applyReviewedBudgetTemplateAndRefresh(
+        reviewRevision: BudgetTemplateReviewRevision,
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
     enum Result { case success, failure }
 
     private let result: Result

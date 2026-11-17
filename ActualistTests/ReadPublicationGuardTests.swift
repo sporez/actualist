@@ -73,7 +73,7 @@ extension LocalFirstActualStoreTests {
     @Test func templateBrowserReadFromAClosedSessionIsNotPublished() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let result = try await parkedRead(.templateBrowser, on: bundle.store, read: {
-            try await bundle.store.categoryTemplateBrowserSnapshot(budgetID: "group-1")
+            try await bundle.store.templates.categoryTemplateBrowserSnapshot(budgetID: "group-1")
         }, whileParked: { try await reopenSameBudget(bundle) })
 
         #expect(throws: CancellationError.self) { try result.get() }

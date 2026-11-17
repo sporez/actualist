@@ -141,7 +141,7 @@ struct BudgetTemplatesBrowserView: View {
     private func load() async {
         viewModel.isPrivacyModeEnabled = appState.settings.randomizedDisplayValuesEnabled
         await viewModel.load(
-            repository: appState.budgetRepository,
+            repository: appState.localFirstStore.templates,
             budgetID: appState.settings.selectedBudgetID
         )
     }

@@ -88,16 +88,16 @@ struct BudgetTemplateBrowserSnapshotTests {
             ALTER TABLE categories ADD COLUMN template_settings TEXT;
             UPDATE categories SET template_settings = '{"source":"ui"}';
             """)
-        let before = try await bundle.store.categoryTemplateBrowserSnapshot(budgetID: "group-1")
+        let before = try await bundle.store.templates.categoryTemplateBrowserSnapshot(budgetID: "group-1")
         #expect(before.categories.contains { $0.id == "groceries" && $0.hasDefinition })
 
-        _ = try await bundle.store.setCategoryTemplatesAndRefresh(
+        _ = try await bundle.store.templates.setCategoryTemplatesAndRefresh(
             categoryID: "groceries",
             drafts: [],
             budgetID: "group-1",
             month: "2026-07"
         )
-        let after = try await bundle.store.categoryTemplateBrowserSnapshot(budgetID: "group-1")
+        let after = try await bundle.store.templates.categoryTemplateBrowserSnapshot(budgetID: "group-1")
         #expect(after.categories.contains { $0.id == "groceries" && $0.hasDefinition } == false)
         #expect(after.month == "2026-07")
     }

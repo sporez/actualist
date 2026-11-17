@@ -59,37 +59,6 @@ protocol BudgetRepositoryProtocol: Sendable {
         month: String,
         didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth
-    func setCategoryTemplatesAndRefresh(
-        categoryID: String,
-        drafts: [BudgetTemplateDraft],
-        budgetID: String,
-        month: String
-    ) async throws -> LoadedBudgetMonth
-    func dryRunCategoryTemplate(
-        categoryID: String,
-        drafts: [BudgetTemplateDraft],
-        budgetID: String,
-        month: String
-    ) async throws -> BudgetTemplateCategoryDryRun
-    func categoryTemplateEditorSnapshot(
-        categoryID: String,
-        budgetID: String
-    ) async throws -> BudgetTemplateEditorSnapshot
-    func categoryTemplateBrowserSnapshot(
-        budgetID: String
-    ) async throws -> BudgetTemplateBrowserSnapshot
-    func previewBudgetTemplate(
-        command: BudgetTemplateCommand,
-        budgetID: String,
-        month: String
-    ) async throws -> BudgetTemplateApplyPreview
-    /// `excluding` holds the categories the review has skipped; each mode
-    /// applies only the ones it lists (see `BudgetTemplateApplyPreview`).
-    func previewBudgetTemplatePair(
-        budgetID: String,
-        month: String,
-        excluding: Set<String>
-    ) async throws -> BudgetTemplateApplyPreviewPair
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?,
         commands: [BudgetMoveMoneyCommand],
         budgetID: String,
@@ -149,62 +118,6 @@ extension BudgetRepositoryProtocol {
         )
     }
 
-    func applyReviewedBudgetTemplateAndRefresh(
-        reviewRevision: BudgetTemplateReviewRevision,
-        command: BudgetTemplateCommand,
-        budgetID: String,
-        month: String,
-        didApply: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
-        throw LocalFirstError.unsupportedWrite
-    }
-
-    func setCategoryTemplatesAndRefresh(
-        categoryID: String,
-        drafts: [BudgetTemplateDraft],
-        budgetID: String,
-        month: String
-    ) async throws -> LoadedBudgetMonth {
-        throw LocalFirstError.unsupportedWrite
-    }
-
-    func dryRunCategoryTemplate(
-        categoryID: String,
-        drafts: [BudgetTemplateDraft],
-        budgetID: String,
-        month: String
-    ) async throws -> BudgetTemplateCategoryDryRun {
-        throw LocalFirstError.unsupportedWrite
-    }
-
-    func categoryTemplateEditorSnapshot(
-        categoryID: String,
-        budgetID: String
-    ) async throws -> BudgetTemplateEditorSnapshot {
-        throw LocalFirstError.unsupportedWrite
-    }
-
-    func categoryTemplateBrowserSnapshot(
-        budgetID: String
-    ) async throws -> BudgetTemplateBrowserSnapshot {
-        throw LocalFirstError.unsupportedWrite
-    }
-
-    func previewBudgetTemplate(
-        command: BudgetTemplateCommand,
-        budgetID: String,
-        month: String
-    ) async throws -> BudgetTemplateApplyPreview {
-        throw LocalFirstError.unsupportedWrite
-    }
-
-    func previewBudgetTemplatePair(
-        budgetID: String,
-        month: String,
-        excluding: Set<String>
-    ) async throws -> BudgetTemplateApplyPreviewPair {
-        throw LocalFirstError.unsupportedWrite
-    }
 }
 
 struct LoadedBudgetMonth: Equatable {

@@ -237,6 +237,16 @@ private enum BulkCarryoverTestError: LocalizedError {
 private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
     func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
 
+    func applyReviewedBudgetTemplateAndRefresh(
+        reviewRevision: BudgetTemplateReviewRevision,
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
     private let loaded: LoadedBudgetMonth
     private let updated: LoadedBudgetMonth
     private let mutationError: Error?

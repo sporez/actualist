@@ -68,7 +68,7 @@ final class CategoryMonthDetailsViewModel {
             budgetID: budgetID,
             isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
             currency: appState.localFirstStore.budgetCurrency(budgetID: budgetID),
-            repository: appState.budgetRepository
+            repository: appState.localFirstStore.templates
         )
     }
 
@@ -76,7 +76,7 @@ final class CategoryMonthDetailsViewModel {
         budgetID: String,
         isPrivacyModeEnabled: Bool,
         currency: BudgetCurrency,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetTemplateRepositoryProtocol
     ) async {
         templateDoorGeneration += 1
         let requestGeneration = templateDoorGeneration

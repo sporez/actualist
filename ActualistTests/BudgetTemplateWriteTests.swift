@@ -248,14 +248,14 @@ struct BudgetTemplateWriteTests {
             )
         ]
 
-        _ = try await bundle.store.setCategoryTemplatesAndRefresh(
+        _ = try await bundle.store.templates.setCategoryTemplatesAndRefresh(
             categoryID: "groceries",
             drafts: drafts,
             budgetID: "group-1",
             month: "2026-07"
         )
 
-        let snapshot = try await bundle.store.categoryTemplateEditorSnapshot(
+        let snapshot = try await bundle.store.templates.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
             budgetID: "group-1"
         )
@@ -329,7 +329,7 @@ struct BudgetTemplateWriteTests {
         )
         #expect(groceriesBefore.hasTemplateDefinition)
 
-        let after = try await bundle.store.setCategoryTemplatesAndRefresh(
+        let after = try await bundle.store.templates.setCategoryTemplatesAndRefresh(
             categoryID: "groceries",
             drafts: [.monthlyFixed(amount: 250, now: Self.templateWriteNow)],
             budgetID: "group-1",
@@ -343,7 +343,7 @@ struct BudgetTemplateWriteTests {
         #expect(after.month.toBudget == before.month.toBudget)
         #expect(try await bundle.store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
 
-        let cleared = try await bundle.store.setCategoryTemplatesAndRefresh(
+        let cleared = try await bundle.store.templates.setCategoryTemplatesAndRefresh(
             categoryID: "groceries",
             drafts: [],
             budgetID: "group-1",
@@ -369,14 +369,14 @@ struct BudgetTemplateWriteTests {
             .refill(priority: 1)
         ]
 
-        _ = try await bundle.store.setCategoryTemplatesAndRefresh(
+        _ = try await bundle.store.templates.setCategoryTemplatesAndRefresh(
             categoryID: "groceries",
             drafts: drafts,
             budgetID: "group-1",
             month: "2026-07"
         )
 
-        let snapshot = try await bundle.store.categoryTemplateEditorSnapshot(
+        let snapshot = try await bundle.store.templates.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
             budgetID: "group-1"
         )

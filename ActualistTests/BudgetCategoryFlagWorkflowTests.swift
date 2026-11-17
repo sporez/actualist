@@ -410,6 +410,16 @@ private func rolloverCategory(isIncome: Bool) -> BudgetMonthCategory {
 private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
     func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
 
+    func applyReviewedBudgetTemplateAndRefresh(
+        reviewRevision: BudgetTemplateReviewRevision,
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
+    }
+
     private var continuation: CheckedContinuation<Void, Never>?
     private var startedContinuation: CheckedContinuation<Void, Never>?
     private var didStart = false

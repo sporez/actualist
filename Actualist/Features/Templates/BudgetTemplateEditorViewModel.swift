@@ -28,7 +28,7 @@ final class BudgetTemplateEditorViewModel {
     @ObservationIgnored private var session: Session?
 
     private struct Session {
-        var repository: any BudgetRepositoryProtocol
+        var repository: any BudgetTemplateRepositoryProtocol
         var budgetID: String
     }
 
@@ -254,7 +254,7 @@ final class BudgetTemplateEditorViewModel {
         )
     }
 
-    func load(repository: any BudgetRepositoryProtocol, budgetID: String?) async {
+    func load(repository: any BudgetTemplateRepositoryProtocol, budgetID: String?) async {
         loadGeneration += 1
         let requestGeneration = loadGeneration
         cancelDryRun()

@@ -198,6 +198,27 @@ extension LocalFirstActualStore {
         )
     }
 
+    func applyReviewedBudgetTemplateAndRefresh(
+        reviewRevision: BudgetTemplateReviewRevision,
+        command: BudgetTemplateCommand,
+        budgetID: String,
+        month: String,
+        didApply: @escaping @MainActor @Sendable () async -> Void
+    ) async throws -> LoadedBudgetMonth {
+        guard reviewRevision.month == month else {
+            throw LocalFirstError.budgetTemplateReviewStale
+        }
+        return try await applyBudgetTemplateAndRefresh(
+            reviewRevision: reviewRevision,
+            expectedMode: nil,
+            command: command,
+            budgetID: budgetID,
+            month: month,
+            actionSource: .ui,
+            didApply: didApply
+        )
+    }
+
     func applyBudgetTemplateAndRefresh(reviewRevision: BudgetTemplateReviewRevision? = nil,
         expectedMode: BudgetModeIdentity? = nil,
         command: BudgetTemplateCommand,

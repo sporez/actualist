@@ -132,7 +132,7 @@ struct BudgetTemplateEditorView: View {
         .interactiveDismissDisabled(viewModel.phase == .saving)
         .environment(\.budgetCurrency, viewModel.editor.currency)
         .task(id: appState.settings.selectedBudgetID) {
-            await viewModel.load(repository: appState.budgetRepository, budgetID: appState.settings.selectedBudgetID)
+            await viewModel.load(repository: appState.localFirstStore.templates, budgetID: appState.settings.selectedBudgetID)
         }
         .onChange(of: appState.settings.randomizedDisplayValuesEnabled, initial: true) { _, enabled in
             viewModel.isPrivacyModeEnabled = enabled

@@ -127,7 +127,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 ### Templates
 
 - UI and workflow state: `Actualist/Features/Templates/` (`BudgetTemplatesBrowser*`, `BudgetTemplateEditor*`, apply-preview, confirmation, draft, input, and validation types).
-- Store seam: `Actualist/LocalFirst/LocalFirstActualStore+Templates.swift` and `BudgetTemplatePreview.swift`.
+- Store seam: `Actualist/LocalFirst/TemplateWorkflows.swift` and `BudgetTemplatePreview.swift`.
 - Database/engine: `Actualist/LocalFirst/Database/BudgetTemplate*`, `BudgetTemplateEngine*`, and the stateless SQL types `TemplateInputSQL` (engine inputs and spending history), `TemplateCategorySQL` (template categories, their order and note-managed templates), `TemplatePreviewSQL` (preview, dry run and the review revision a commit revalidates), `TemplateApplySQL` and `TemplateAuthoringSQL` (editor and browser snapshots and template writes).
 - Template calendar/schedules: `BudgetTemplateCalendar.swift`, schedule recurrence, and engine schedule files.
 
@@ -177,7 +177,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
 - `+WalletImport`, `ImportReconcileSteps` (`LocalFirst/ImportReconcileSteps.swift`, the shared reconcile and write steps) — imported transaction flows (Bank Sync is `BankSyncWorkflows` and `BankSyncPlanWorkflows`).
 - `PortableBudgetWorkflows` (`LocalFirst/PortableBudgetWorkflows.swift`, the store's `portableBudgets`) — ZIP export and import, server registration, and New Budget.
-- `+Templates`, `+AccountGroups`, `+Reconciliation` — focused feature bridges.
+- `+AccountGroups`, `+Reconciliation` — focused feature bridges.
 - `ServerSyncLane.swift` — the one serialized flush/pull lane per budget session (flush flag, queued waiters, scheduled flush task, status tickets). `closeOpenBudget()` invalidates it and installs a fresh lane, so a late finisher releases its own dead lane.
 - `ServerEndpointHealth.swift` — endpoint health cache.
 - `StoreTestSeams.swift` — every optional test hook, in one `#if DEBUG` type behind `store.seams`. Release builds contain no hook property, type or awaited call site. Add new hooks here, never as store properties.

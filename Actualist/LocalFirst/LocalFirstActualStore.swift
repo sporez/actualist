@@ -63,6 +63,7 @@ final class LocalFirstActualStore:
     @ObservationIgnored private(set) lazy var holds = HoldWorkflows(store: self)
     @ObservationIgnored private(set) lazy var history = HistoryWorkflows(store: self)
     @ObservationIgnored private(set) lazy var categoryLifecycle = CategoryLifecycleWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var templates = TemplateWorkflows(store: self)
     var budgetReadGeneration = 0
     @ObservationIgnored var syncStatusSequence = 0
     @ObservationIgnored var appliedPendingCountSequence = 0

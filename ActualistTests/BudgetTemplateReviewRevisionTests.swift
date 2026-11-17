@@ -250,7 +250,7 @@ struct BudgetTemplateReviewRevisionTests {
 
     @Test func storeReviewedApplyReusesTheExistingTemplateMutationPath() async throws {
         let bundle = try await fixtures.makeOpenedWritableStoreBundle()
-        let preview = try await bundle.store.previewBudgetTemplate(
+        let preview = try await bundle.store.templates.previewBudgetTemplate(
             command: .category("groceries"),
             budgetID: "group-1",
             month: "2026-07"

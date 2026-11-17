@@ -123,7 +123,7 @@ struct BudgetTemplateConfirmationSheet: View {
             budgetID: appState.settings.selectedBudgetID,
             modeIdentity: modeIdentity,
             randomized: appState.settings.randomizedDisplayValuesEnabled,
-            repository: appState.budgetRepository
+            repository: appState.localFirstStore.templates
         )
     }
 }

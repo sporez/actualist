@@ -166,7 +166,7 @@ final class BudgetTemplateApplyPreviewViewModel {
         budgetID: String?,
         modeIdentity: BudgetModeIdentity? = nil,
         randomized: Bool,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetTemplateRepositoryProtocol
     ) async {
         let request = PreviewRequest(
             context: RequestContext(
@@ -205,7 +205,7 @@ final class BudgetTemplateApplyPreviewViewModel {
         budgetID: String?,
         modeIdentity: BudgetModeIdentity? = nil,
         randomized: Bool,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetTemplateRepositoryProtocol
     ) async {
         loadGeneration += 1
         let requestGeneration = loadGeneration

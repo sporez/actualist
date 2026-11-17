@@ -218,7 +218,7 @@ struct DemoModeStoreTests {
         try await store.demoBudget.openDemoBudget()
         let budgetID = DemoBudget.groupID
 
-        let rent = try await store.categoryTemplateEditorSnapshot(
+        let rent = try await store.templates.categoryTemplateEditorSnapshot(
             categoryID: "rent",
             budgetID: budgetID
         )
@@ -226,14 +226,14 @@ struct DemoModeStoreTests {
         #expect(rent.hasDefinition)
         #expect(rent.drafts.map(\.kind) == [.monthlyFixed, .remainder])
 
-        let groceries = try await store.categoryTemplateEditorSnapshot(
+        let groceries = try await store.templates.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
             budgetID: budgetID
         )
         #expect(groceries.lock == .readOnly(.noteManaged))
         #expect(groceries.hasDefinition)
 
-        let browser = try await store.categoryTemplateBrowserSnapshot(budgetID: budgetID)
+        let browser = try await store.templates.categoryTemplateBrowserSnapshot(budgetID: budgetID)
         #expect(browser.categories.contains { $0.id == "rent" && $0.hasDefinition && $0.lock == .editable })
         #expect(browser.categories.contains { $0.id == "groceries" && $0.hasDefinition && $0.lock == .readOnly(.noteManaged) })
         #expect(await transport.messageCounts().isEmpty)
@@ -259,7 +259,7 @@ struct DemoModeStoreTests {
             "vacation": [.goal],
         ]
         for (categoryID, kinds) in expectedKinds {
-            let snapshot = try await store.categoryTemplateEditorSnapshot(
+            let snapshot = try await store.templates.categoryTemplateEditorSnapshot(
                 categoryID: categoryID,
                 budgetID: budgetID
             )
@@ -267,7 +267,7 @@ struct DemoModeStoreTests {
             #expect(snapshot.drafts.map(\.kind) == kinds)
             #expect(snapshot.drafts.contains { $0.description != nil })
 
-            let preview = try await store.previewBudgetTemplate(
+            let preview = try await store.templates.previewBudgetTemplate(
                 command: .category(categoryID),
                 budgetID: budgetID,
                 month: DemoBudget.fixtureMonth
@@ -275,13 +275,13 @@ struct DemoModeStoreTests {
             #expect(preview.categories.allSatisfy { $0.categoryID == categoryID })
         }
 
-        let rent = try await store.categoryTemplateEditorSnapshot(
+        let rent = try await store.templates.categoryTemplateEditorSnapshot(
             categoryID: "rent",
             budgetID: budgetID
         )
         #expect(rent.drafts.first?.description == "Set aside before weekend plans.\nReview after payday.")
 
-        let schedule = try await store.categoryTemplateEditorSnapshot(
+        let schedule = try await store.templates.categoryTemplateEditorSnapshot(
             categoryID: "emergency_fund",
             budgetID: budgetID
         )
@@ -297,13 +297,13 @@ struct DemoModeStoreTests {
             description: "Cover the full annual bill when due."
         ))
 
-        let groceries = try await store.categoryTemplateEditorSnapshot(
+        let groceries = try await store.templates.categoryTemplateEditorSnapshot(
             categoryID: "groceries",
             budgetID: budgetID
         )
         #expect(groceries.lock == .readOnly(.noteManaged))
 
-        let empty = try await store.categoryTemplateEditorSnapshot(
+        let empty = try await store.templates.categoryTemplateEditorSnapshot(
             categoryID: "retirement",
             budgetID: budgetID
         )
@@ -311,7 +311,7 @@ struct DemoModeStoreTests {
         #expect(empty.hasDefinition == false)
         #expect(empty.drafts.isEmpty)
 
-        let browser = try await store.categoryTemplateBrowserSnapshot(budgetID: budgetID)
+        let browser = try await store.templates.categoryTemplateBrowserSnapshot(budgetID: budgetID)
         #expect(browser.categories.filter(\.hasDefinition).count == expectedKinds.count + 1)
         #expect(browser.categories.first { $0.id == "retirement" }?.hasDefinition == false)
         #expect(await transport.messageCounts().isEmpty)

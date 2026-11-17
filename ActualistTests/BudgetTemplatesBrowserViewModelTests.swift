@@ -213,9 +213,7 @@ struct BudgetTemplatesBrowserViewModelTests {
     }
 }
 
-private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
-    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
-
+private actor BrowserTemplateRepository: BudgetTemplateRepositoryProtocol {
     var snapshot: BudgetTemplateBrowserSnapshot
 
     init(snapshot: BudgetTemplateBrowserSnapshot) {
@@ -228,108 +226,44 @@ private actor BrowserTemplateRepository: BudgetRepositoryProtocol {
         snapshot
     }
 
-    func budgets() async throws -> [ActualBudget] { [] }
-
-    func currentBudgetMonth(
-        budgetID: String,
-        preferredMonth: String
-    ) async throws -> LoadedBudgetMonth {
-        Self.dummyMonth
-    }
-
-    func budgetMonth(
-        budgetID: String,
-        selectedMonth: String
-    ) async throws -> LoadedBudgetMonth {
-        Self.dummyMonth
-    }
-
-    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity? = nil,
+    func setCategoryTemplatesAndRefresh(
         categoryID: String,
-        budgeted: Int,
+        drafts: [BudgetTemplateDraft],
         budgetID: String,
-        month: String,
-        actionSource: BudgetActionSource,
-        didAssign: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth? {
-        Self.dummyMonth
+        month: String
+    ) async throws -> LoadedBudgetMonth {
+        throw LocalFirstError.unsupportedWrite
     }
 
-    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
+    func dryRunCategoryTemplate(
         categoryID: String,
-        carryover: Bool,
+        drafts: [BudgetTemplateDraft],
         budgetID: String,
-        startMonth: String,
-        didSetCarryover: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
-        Self.dummyMonth
+        month: String
+    ) async throws -> BudgetTemplateCategoryDryRun {
+        throw LocalFirstError.unsupportedWrite
     }
 
-    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
-        carryover: Bool,
-        budgetID: String,
-        startMonth: String
-    ) async throws -> LoadedBudgetMonth {
-        Self.dummyMonth
-    }
-
-    func setCategoryHiddenAndRefresh(
+    func categoryTemplateEditorSnapshot(
         categoryID: String,
-        hidden: Bool,
-        budgetID: String,
-        month: String,
-        didUpdate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
-        Self.dummyMonth
+        budgetID: String
+    ) async throws -> BudgetTemplateEditorSnapshot {
+        throw LocalFirstError.unsupportedWrite
     }
 
-    func setCategoryGroupHiddenAndRefresh(
-        groupID: String,
-        hidden: Bool,
-        budgetID: String,
-        month: String,
-        didUpdate: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
-        Self.dummyMonth
-    }
-
-    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil,
+    func previewBudgetTemplate(
         command: BudgetTemplateCommand,
         budgetID: String,
-        month: String,
-        didApply: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth {
-        Self.dummyMonth
+        month: String
+    ) async throws -> BudgetTemplateApplyPreview {
+        throw LocalFirstError.unsupportedWrite
     }
 
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil,
-        commands: [BudgetMoveMoneyCommand],
+    func previewBudgetTemplatePair(
         budgetID: String,
         month: String,
-        actionSource: BudgetActionSource,
-        didMove: @escaping @MainActor @Sendable () async -> Void
-    ) async throws -> LoadedBudgetMonth? {
-        Self.dummyMonth
+        excluding: Set<String>
+    ) async throws -> BudgetTemplateApplyPreviewPair {
+        throw LocalFirstError.unsupportedWrite
     }
-
-    private static let dummyMonth = LoadedBudgetMonth(
-        availableMonths: ["2026-09"],
-        selectedMonth: "2026-09",
-        month: try! JSONDecoder().decode(BudgetMonth.self, from: Data(#"""
-            {
-              "month": "2026-09",
-              "incomeAvailable": 0,
-              "lastMonthOverspent": 0,
-              "forNextMonth": 0,
-              "totalBudgeted": 0,
-              "toBudget": 0,
-              "fromLastMonth": 0,
-              "totalIncome": 0,
-              "totalSpent": 0,
-              "totalBalance": 0,
-              "categoryGroups": []
-            }
-            """#.utf8)),
-        alerts: []
-    )
 }

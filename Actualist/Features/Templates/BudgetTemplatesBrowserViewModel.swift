@@ -93,7 +93,7 @@ final class BudgetTemplatesBrowserViewModel {
             : "Open a budget to manage templates."
     }
 
-    func load(repository: any BudgetRepositoryProtocol, budgetID: String?) async {
+    func load(repository: any BudgetTemplateRepositoryProtocol, budgetID: String?) async {
         loadGeneration += 1
         let requestGeneration = loadGeneration
         guard let budgetID, !budgetID.isEmpty else {
