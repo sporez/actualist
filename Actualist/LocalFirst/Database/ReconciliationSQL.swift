@@ -390,7 +390,7 @@ enum ReconciliationSQL {
 
     private static func reconciliationTransferDestination(payeeID: String, in database: isolated BudgetDatabase) throws -> String? {
         try database.queue.read { db in
-            try database.transferAccountID(ifPayee: payeeID, db: db)
+            try TransferSQL.transferAccountID(ifPayee: payeeID, in: database, db: db)
         }
     }
 

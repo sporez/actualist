@@ -150,7 +150,7 @@ extension LocalFirstActualStore {
             )
             let transferDestinationID = candidate.isSplit
                 ? nil
-                : try await database.transferAccountID(ifPayee: payeeResolution.payeeID)
+                : try await TransferSQL.transferAccountID(ifPayee: payeeResolution.payeeID, in: database)
             let draft = try importInsertDraft(
                 candidate: candidate,
                 accountID: accountID,

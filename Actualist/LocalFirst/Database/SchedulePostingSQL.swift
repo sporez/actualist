@@ -141,7 +141,7 @@ enum SchedulePostingSQL {
             throw SchedulePostingRefusal.draftMismatch
         }
         let initialTransfer = try draft.payeeID.map {
-            try database.transferAccountID(ifPayee: $0, db: db) != nil
+            try TransferSQL.transferAccountID(ifPayee: $0, in: database, db: db) != nil
         } ?? false
         let ruleInputDraft = schedulePostingDraft(draft, isTransfer: initialTransfer)
         let evaluated = try RulePreviewSQL.previewRules(for: ruleInputDraft, in: database, db: db)
@@ -150,7 +150,7 @@ enum SchedulePostingSQL {
         }
         let projected = TransactionRulePreviewProjection.applying(evaluated, to: ruleInputDraft)
         let finalTransfer = try projected.payeeID.map {
-            try database.transferAccountID(ifPayee: $0, db: db) != nil
+            try TransferSQL.transferAccountID(ifPayee: $0, in: database, db: db) != nil
         } ?? false
         let finalPayeeName = try RulePreviewSQL.rulePayeeName(for: projected.payeeID, in: database, db: db) ?? projected.payeeName
         let finalDraft = schedulePostingDraft(

@@ -203,7 +203,7 @@ extension BudgetDatabase {
     ) throws -> TransactionMergeReferenceMetadata {
         var destinations: [TransactionMergePayeeDestination] = []
         for payeeID in Set(snapshots.compactMap(\.payeeID)).sorted() {
-            if let accountID = try transferAccountID(ifPayee: payeeID, db: db) {
+            if let accountID = try TransferSQL.transferAccountID(ifPayee: payeeID, in: self, db: db) {
                 destinations.append(TransactionMergePayeeDestination(
                     payeeID: payeeID,
                     accountID: accountID
@@ -225,7 +225,7 @@ extension BudgetDatabase {
         ) {
             accounts.append(TransactionMergeAccountMetadata(
                 id: accountID,
-                isOffBudget: try accountOffBudget(accountID, db: db)
+                isOffBudget: try AccountSQL.accountOffBudget(accountID, in: self, db: db)
             ))
         }
         return TransactionMergeReferenceMetadata(

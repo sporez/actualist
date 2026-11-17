@@ -39,7 +39,7 @@ extension LocalFirstActualStore {
         }
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let accountIsOffBudget = try await database.accountIsOffBudget(accountID)
+        let accountIsOffBudget = try await AccountSQL.accountIsOffBudget(accountID, in: database)
         // loot-core resolves `trans.payee` before `runRules`, so Payee-is
         // conditions and the payee match pass see existing non-transfer payees.
         let payeeIDsByName = try await PayeeSQL.fetchPayees(in: database).reduce(

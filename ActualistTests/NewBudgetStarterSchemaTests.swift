@@ -143,14 +143,15 @@ struct NewBudgetStarterSchemaTests {
         )
 
         var filterBuilder = LocalFirstSyncMessageBuilder()
-        let filter = try await database.createSavedTransactionFilter(
+        let filter = try await SavedFilterSQL.createSavedTransactionFilter(
             id: "filter",
             draft: SavedTransactionFilterDraft(
                 name: "Big",
                 conditions: [RuleCondition(field: "account", operation: "is", value: .string("checking"), type: "id")],
                 join: .and
             ),
-            builder: &filterBuilder
+            builder: &filterBuilder,
+            in: database
         )
         #expect(filter.changed)
 

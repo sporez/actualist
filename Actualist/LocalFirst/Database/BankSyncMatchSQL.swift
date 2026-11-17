@@ -234,7 +234,7 @@ enum BankSyncMatchSQL {
     ) throws -> (messages: [ActualSyncDecodedMessage], destinationAccountID: String?, pairedTransactionID: String?) {
         try database.queue.read { db in
             guard !existing.isTransfer, !existing.isParent, let payeeID = update.payeeID, payeeID != existing.payeeID,
-                  try database.transferAccountID(ifPayee: payeeID, db: db) != nil else { return ([], nil, nil) }
+                  try TransferSQL.transferAccountID(ifPayee: payeeID, in: database, db: db) != nil else { return ([], nil, nil) }
             let columns = try TransactionRowColumns.resolve(in: database, db: db)
             guard var old = try database.loadTransactionRecord(id: update.existingID, columns: columns, db: db) else {
                 return ([], nil, nil)

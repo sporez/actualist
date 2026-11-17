@@ -338,7 +338,7 @@
       ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionQuery.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionFilters.swift",
+        "Actualist/LocalFirst/Database/SavedFilterSQL.swift",
         "Actualist/LocalFirst/Database/TransactionSplitQueryExpressions.swift",
         "Actualist/LocalFirst/Database/TransactionReadJoins.swift"
       ],
@@ -360,6 +360,7 @@
       ],
       "paths": [
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCreation.swift",
+        "Actualist/LocalFirst/Database/TransferSQL.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionUpdates.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionDiffUpdate.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionBatch*.swift",

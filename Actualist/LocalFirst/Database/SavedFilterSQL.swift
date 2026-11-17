@@ -1,13 +1,13 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func fetchSavedTransactionFilters() throws -> SavedTransactionFilterReadResult {
-        try queue.read { db in
-            guard try tableExists("transaction_filters", db: db) else {
+enum SavedFilterSQL {
+    static func fetchSavedTransactionFilters(in database: isolated BudgetDatabase) throws -> SavedTransactionFilterReadResult {
+        try database.queue.read { db in
+            guard try database.tableExists("transaction_filters", db: db) else {
                 return .unavailable("Saved filters are not available in this budget")
             }
-            let columns = try columnSet(for: "transaction_filters", db: db)
+            let columns = try database.columnSet(for: "transaction_filters", db: db)
             guard columns.isSuperset(of: ["id", "name", "conditions"]) else {
                 return .unavailable("Saved-filter data columns are unavailable")
             }
@@ -45,15 +45,16 @@ extension BudgetDatabase {
         }
     }
 
-    func createSavedTransactionFilter(
+    static func createSavedTransactionFilter(
         id: String,
         draft: SavedTransactionFilterDraft,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> SavedTransactionFilterCommitReceipt {
-        let commit = try commitSavedFilterPlan { db in
-            let columns = try writableSavedFilterColumns(db)
+        let commit = try commitSavedFilterPlan(in: database) { db in
+            let columns = try writableSavedFilterColumns(in: database, db: db)
             let name = try validatedSavedFilterName(draft.name)
-            let peers = try liveSavedFilters(db: db)
+            let peers = try liveSavedFilters(in: database, db: db)
             if let duplicate = SavedTransactionFilterComparator.duplicateName(
                 candidate: name, excludingID: nil, among: peers
             ) {
@@ -77,7 +78,7 @@ extension BudgetDatabase {
                 columns: columns,
                 builder: &builder
             )
-            return LocalCommitPlan(drafts: messages, action: nil, outcome: true)
+            return BudgetDatabase.LocalCommitPlan(drafts: messages, action: nil, outcome: true)
         }
         return SavedTransactionFilterCommitReceipt(
             changed: commit.outcome,
@@ -85,14 +86,15 @@ extension BudgetDatabase {
         )
     }
 
-    func updateSavedTransactionFilter(
+    static func updateSavedTransactionFilter(
         _ update: SavedTransactionFilterUpdate,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> SavedTransactionFilterCommitReceipt {
-        let commit = try commitSavedFilterPlan { db in
-            let columns = try writableSavedFilterColumns(db)
+        let commit = try commitSavedFilterPlan(in: database) { db in
+            let columns = try writableSavedFilterColumns(in: database, db: db)
             let name = try validatedSavedFilterName(update.name)
-            let peers = try liveSavedFilters(db: db)
+            let peers = try liveSavedFilters(in: database, db: db)
             if let duplicate = SavedTransactionFilterComparator.duplicateName(
                 candidate: name, excludingID: update.filterID, among: peers
             ) {
@@ -130,7 +132,7 @@ extension BudgetDatabase {
             let conditionsChanged = update.conditions != nil
                 && (current.rawConditionsJSON != rawConditions || current.conditionsOperation != join.rawValue)
             guard nameChanged || conditionsChanged else {
-                return LocalCommitPlan(drafts: [], action: nil, outcome: false)
+                return BudgetDatabase.LocalCommitPlan(drafts: [], action: nil, outcome: false)
             }
             let messages = try savedFilterMessages(
                 id: update.filterID,
@@ -141,7 +143,7 @@ extension BudgetDatabase {
                 columns: columns,
                 builder: &builder
             )
-            return LocalCommitPlan(drafts: messages, action: nil, outcome: true)
+            return BudgetDatabase.LocalCommitPlan(drafts: messages, action: nil, outcome: true)
         }
         return SavedTransactionFilterCommitReceipt(
             changed: commit.outcome,
@@ -149,18 +151,19 @@ extension BudgetDatabase {
         )
     }
 
-    func deleteSavedTransactionFilter(
+    static func deleteSavedTransactionFilter(
         id: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> SavedTransactionFilterCommitReceipt {
-        let commit = try commitSavedFilterPlan { db in
-            _ = try writableSavedFilterColumns(db)
-            let peers = try liveSavedFilters(db: db)
+        let commit = try commitSavedFilterPlan(in: database) { db in
+            _ = try writableSavedFilterColumns(in: database, db: db)
+            let peers = try liveSavedFilters(in: database, db: db)
             guard peers.contains(where: { $0.id == id }) else {
                 throw SavedTransactionFilterMutationError.missingFilter.asLocalFirstError
             }
             let message = try builder.tombstone(dataset: "transaction_filters", row: id)
-            return LocalCommitPlan(drafts: [message], action: nil, outcome: true)
+            return BudgetDatabase.LocalCommitPlan(drafts: [message], action: nil, outcome: true)
         }
         return SavedTransactionFilterCommitReceipt(
             changed: commit.outcome,
@@ -168,35 +171,36 @@ extension BudgetDatabase {
         )
     }
 
-    private func writableSavedFilterColumns(_ db: Database) throws -> Set<String> {
-        guard try tableExists("transaction_filters", db: db) else {
+    private static func writableSavedFilterColumns(in database: isolated BudgetDatabase, db: Database) throws -> Set<String> {
+        guard try database.tableExists("transaction_filters", db: db) else {
             throw SavedTransactionFilterMutationError.unavailable.asLocalFirstError
         }
-        let columns = try columnSet(for: "transaction_filters", db: db)
+        let columns = try database.columnSet(for: "transaction_filters", db: db)
         guard columns.isSuperset(of: ["id", "name", "conditions", "conditions_op", "tombstone"]) else {
             throw SavedTransactionFilterMutationError.unavailable.asLocalFirstError
         }
         return columns
     }
 
-    private func commitSavedFilterPlan<Outcome: Sendable>(
-        prepare: (Database) throws -> LocalCommitPlan<Outcome>
+    private static func commitSavedFilterPlan<Outcome: Sendable>(
+        in database: isolated BudgetDatabase,
+        prepare: (Database) throws -> BudgetDatabase.LocalCommitPlan<Outcome>
     ) throws -> (outcome: Outcome, appliedCount: Int) {
         try Task.checkCancellation()
-        return try commitLocalPlan { db in
+        return try database.commitLocalPlan { db in
             try Task.checkCancellation()
             return try prepare(db)
         }
     }
 
-    private func liveSavedFilters(db: Database) throws -> [SavedTransactionFilter] {
-        let columns = try columnSet(for: "transaction_filters", db: db)
+    private static func liveSavedFilters(in database: isolated BudgetDatabase, db: Database) throws -> [SavedTransactionFilter] {
+        let columns = try database.columnSet(for: "transaction_filters", db: db)
         let rows = try Row.fetchAll(
             db,
             sql: """
                 SELECT id, name, conditions, conditions_op, tombstone
                 FROM transaction_filters
-                WHERE \(predicateForLiveRows(columns: columns))
+                WHERE \(database.predicateForLiveRows(columns: columns))
                 ORDER BY id
                 """
         )
@@ -212,13 +216,13 @@ extension BudgetDatabase {
         }
     }
 
-    private func validatedSavedFilterName(_ name: String) throws -> String {
+    private static func validatedSavedFilterName(_ name: String) throws -> String {
         let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { throw SavedTransactionFilterMutationError.invalidName.asLocalFirstError }
         return normalized
     }
 
-    private func encodedSupportedConditions(
+    private static func encodedSupportedConditions(
         _ conditions: [RuleCondition],
         join: RuleConditionJoin
     ) throws -> String {
@@ -233,7 +237,7 @@ extension BudgetDatabase {
         return raw
     }
 
-    private func savedFilterMessages(
+    private static func savedFilterMessages(
         id: String,
         name: String?,
         conditions: String?,

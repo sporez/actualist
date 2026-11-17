@@ -28,7 +28,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
 
         let payees = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
         let categories = try await database.importCategoryList()
-        let accountIsOffBudget = try await database.accountIsOffBudget(request.accountID)
+        let accountIsOffBudget = try await AccountSQL.accountIsOffBudget(request.accountID, in: database)
         let options = ImportReconcileOptions.csv
         let lookup = TransactionImportEngine.lookup(payees: payees, categories: categories)
         let candidates = TransactionCSVImportCandidates.candidates(
@@ -96,7 +96,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
             return TransactionCSVImportApplyResult(insertedCount: 0, updatedCount: 0)
         }
 
-        let accountIsOffBudget = try await database.accountIsOffBudget(request.accountID)
+        let accountIsOffBudget = try await AccountSQL.accountIsOffBudget(request.accountID, in: database)
         var builder = LocalFirstSyncMessageBuilder()
         // Pinned Actual stamps inserted rows with a descending sort_order from
         // Date.now() so file order survives on display.

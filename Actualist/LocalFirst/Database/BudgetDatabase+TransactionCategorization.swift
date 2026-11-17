@@ -166,8 +166,8 @@ extension BudgetDatabase {
         ) else {
             throw LocalFirstError.invalidLocalWrite("missing transaction account")
         }
-        let sourceOffBudget = try accountOffBudget(sourceAccountID, db: db)
-        let destinationOffBudget = try accountOffBudget(destinationAccountID, db: db)
+        let sourceOffBudget = try AccountSQL.accountOffBudget(sourceAccountID, in: self, db: db)
+        let destinationOffBudget = try AccountSQL.accountOffBudget(destinationAccountID, in: self, db: db)
         guard !sourceOffBudget, destinationOffBudget else {
             throw LocalFirstError.unsupportedTransferWrite
         }

@@ -11,7 +11,7 @@ struct TransactionSavedFilterReadTests {
             ("filter-deleted", "Deleted", raw, "and", 1),
         ])
 
-        guard case .available(let filters) = try await database.fetchSavedTransactionFilters() else {
+        guard case .available(let filters) = try await SavedFilterSQL.fetchSavedTransactionFilters(in: database) else {
             Issue.record("Expected saved-filter capability")
             return
         }
@@ -33,7 +33,7 @@ struct TransactionSavedFilterReadTests {
             ("filter-a", "Alpha  ", "[]", nil, 0),
         ], includeJoinColumn: false)
 
-        guard case .available(let filters) = try await database.fetchSavedTransactionFilters() else {
+        guard case .available(let filters) = try await SavedFilterSQL.fetchSavedTransactionFilters(in: database) else {
             Issue.record("Expected saved-filter capability")
             return
         }
@@ -66,12 +66,12 @@ struct TransactionSavedFilterReadTests {
 
     @Test func missingTableAndRequiredColumnsReportUnavailable() async throws {
         let missingTable = try emptyDatabase()
-        guard case .unavailable = try await missingTable.fetchSavedTransactionFilters() else {
+        guard case .unavailable = try await SavedFilterSQL.fetchSavedTransactionFilters(in: missingTable) else {
             Issue.record("Missing table must not appear as an empty supported list")
             return
         }
         let missingColumns = try database(rows: [], schema: "CREATE TABLE transaction_filters (id TEXT)")
-        guard case .unavailable = try await missingColumns.fetchSavedTransactionFilters() else {
+        guard case .unavailable = try await SavedFilterSQL.fetchSavedTransactionFilters(in: missingColumns) else {
             Issue.record("Missing required columns must be unavailable")
             return
         }

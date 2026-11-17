@@ -480,14 +480,14 @@ extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> (row: SplitTransactionRecord, messages: [ActualSyncDecodedMessage]) {
         guard !row.isParent,
-              let destination = try transferAccountID(ifPayee: row.payee, db: db),
+              let destination = try TransferSQL.transferAccountID(ifPayee: row.payee, in: self, db: db),
               columns.transferID != nil,
               let account = row.account else {
             return (row, [])
         }
         let pairedID = UUID().uuidString
-        let fromPayeeID = try transferPayeeID(forAccount: account, db: db)
-        let clearCategory = try accountOffBudget(account, db: db) == accountOffBudget(destination, db: db)
+        let fromPayeeID = try TransferSQL.transferPayeeID(forAccount: account, in: self, db: db)
+        let clearCategory = try AccountSQL.accountOffBudget(account, in: self, db: db) == AccountSQL.accountOffBudget(destination, in: self, db: db)
         var next = row
         next.transferID = pairedID
         if clearCategory {
@@ -532,7 +532,7 @@ extension BudgetDatabase {
         if new.isParent {
             return try transferMessagesOnDelete(old, columns: columns, db: db, builder: &builder)
         }
-        let destination = try transferAccountID(ifPayee: new.payee, db: db)
+        let destination = try TransferSQL.transferAccountID(ifPayee: new.payee, in: self, db: db)
         if destination != nil, new.transferID == nil, old.transferID == nil {
             var accounts: Set<String> = []
             var transactions: Set<String> = []
@@ -574,7 +574,7 @@ extension BudgetDatabase {
         guard let destination, let pairedID = new.transferID ?? old.transferID, let account = new.account else {
             return ([], [], [])
         }
-        let fromPayeeID = try transferPayeeID(forAccount: account, db: db)
+        let fromPayeeID = try TransferSQL.transferPayeeID(forAccount: account, in: self, db: db)
         var messages: [ActualSyncDecodedMessage] = []
         messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.account, value: .string(destination)))
         messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .string(fromPayeeID)))
@@ -582,7 +582,7 @@ extension BudgetDatabase {
             messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "notes", value: new.notes.map(LocalFirstSyncValue.string) ?? .null))
         }
         messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-new.amount))))
-        if try accountOffBudget(account, db: db) == accountOffBudget(destination, db: db) {
+        if try AccountSQL.accountOffBudget(account, in: self, db: db) == AccountSQL.accountOffBudget(destination, in: self, db: db) {
             messages.append(try builder.makeMessage(dataset: "transactions", row: new.id, column: "category", value: .null))
             messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
         }
@@ -615,24 +615,6 @@ extension BudgetDatabase {
             messages.append(try builder.makeMessage(dataset: "transactions", row: old.id, column: transferColumn, value: .null))
         }
         return (messages, accounts, [pairedID])
-    }
-
-    func transferAccountID(ifPayee payeeID: String?, db: Database) throws -> String? {
-        guard let payeeID, !payeeID.isEmpty, try tableExists("payees", db: db) else {
-            return nil
-        }
-        let payeeColumns = try columnSet(for: "payees", db: db)
-        let transferColumn = column(
-            "transfer_acct",
-            fallback: column("transferAccount", fallback: "NULL", columns: payeeColumns),
-            columns: payeeColumns
-        )
-        guard transferColumn != "NULL" else { return nil }
-        return try String.fetchOne(
-            db,
-            sql: "SELECT \(transferColumn) FROM payees WHERE id = ?",
-            arguments: [payeeID]
-        ).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     func loadSplitFamily(

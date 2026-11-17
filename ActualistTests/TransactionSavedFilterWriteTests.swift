@@ -13,9 +13,10 @@ struct TransactionSavedFilterWriteTests {
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "savedfilternode")
 
         var builder = LocalFirstSyncMessageBuilder()
-        let renamed = try await database.updateSavedTransactionFilter(
+        let renamed = try await SavedFilterSQL.updateSavedTransactionFilter(
             SavedTransactionFilterUpdate(filterID: "filter-1", name: "New", conditions: nil, join: nil),
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(renamed.changed)
         #expect(try savedFilterRow("filter-1", at: url).name == "New")
@@ -26,9 +27,10 @@ struct TransactionSavedFilterWriteTests {
         let clockBefore = await database.localClock
         let pendingBefore = try await database.pendingLocalSyncMessageCount()
         var noOpBuilder = LocalFirstSyncMessageBuilder()
-        let unchanged = try await database.updateSavedTransactionFilter(
+        let unchanged = try await SavedFilterSQL.updateSavedTransactionFilter(
             SavedTransactionFilterUpdate(filterID: "filter-1", name: "New", conditions: nil, join: nil),
-            builder: &noOpBuilder
+            builder: &noOpBuilder,
+            in: database
         )
         #expect(!unchanged.changed)
         #expect(await database.localClock == clockBefore)
@@ -47,9 +49,10 @@ struct TransactionSavedFilterWriteTests {
 
         do {
             var builder = LocalFirstSyncMessageBuilder()
-            _ = try await database.updateSavedTransactionFilter(
+            _ = try await SavedFilterSQL.updateSavedTransactionFilter(
                 SavedTransactionFilterUpdate(filterID: "aSelf", name: "Peer", conditions: [condition], join: .and),
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             Issue.record("Duplicate names must be rejected before condition equivalence")
         } catch {
@@ -58,9 +61,10 @@ struct TransactionSavedFilterWriteTests {
 
         do {
             var builder = LocalFirstSyncMessageBuilder()
-            _ = try await database.updateSavedTransactionFilter(
+            _ = try await SavedFilterSQL.updateSavedTransactionFilter(
                 SavedTransactionFilterUpdate(filterID: "aSelf", name: "Self", conditions: [condition], join: .and),
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             Issue.record("An equivalent live peer must be rejected while self is excluded")
         } catch {
@@ -83,10 +87,11 @@ struct TransactionSavedFilterWriteTests {
         )
 
         var builder = LocalFirstSyncMessageBuilder()
-        let created = try await database.createSavedTransactionFilter(
+        let created = try await SavedFilterSQL.createSavedTransactionFilter(
             id: "created",
             draft: SavedTransactionFilterDraft(name: "Another name", conditions: [condition], join: .and),
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #expect(created.changed)
         #expect(try savedFilterRow("created", at: url).name == "Another name")
@@ -99,7 +104,7 @@ struct TransactionSavedFilterWriteTests {
         let url = try fixture(filterRows: "INSERT INTO transaction_filters VALUES ('unsupported', 'Future', '\(raw)', 'and', 0);")
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "savedfilternode")
         var builder = LocalFirstSyncMessageBuilder()
-        #expect(try await database.deleteSavedTransactionFilter(id: "unsupported", builder: &builder).changed)
+        #expect(try await SavedFilterSQL.deleteSavedTransactionFilter(id: "unsupported", builder: &builder, in: database).changed)
         #expect(try savedFilterRow("unsupported", at: url).conditions == raw)
         #expect(try savedFilterRow("unsupported", at: url).tombstone == 1)
         #expect(try support.storedCRDTMessages(at: url).map(\.column) == ["tombstone"])
@@ -110,7 +115,7 @@ struct TransactionSavedFilterWriteTests {
         let url = try fixture(filterRows: "INSERT INTO transaction_filters VALUES ('null-tombstone', 'Legacy', '\(raw)', 'and', NULL);")
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "savedfilternode")
         var builder = LocalFirstSyncMessageBuilder()
-        #expect(try await database.deleteSavedTransactionFilter(id: "null-tombstone", builder: &builder).changed)
+        #expect(try await SavedFilterSQL.deleteSavedTransactionFilter(id: "null-tombstone", builder: &builder, in: database).changed)
         #expect(try savedFilterRow("null-tombstone", at: url).tombstone == 1)
     }
 

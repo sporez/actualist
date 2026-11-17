@@ -254,4 +254,27 @@ enum AccountSQL {
             return (accountID, row["balance"] ?? 0)
         })
     }
+
+    static func accountIsOffBudget(_ accountID: String, in database: isolated BudgetDatabase) throws -> Bool {
+        try database.queue.read { db in
+            try accountOffBudget(accountID, in: database, db: db)
+        }
+    }
+
+    static func accountOffBudget(_ accountID: String, in database: isolated BudgetDatabase, db: Database) throws -> Bool {
+        guard try database.tableExists("accounts", db: db) else {
+            return false
+        }
+        let columns = try database.columnSet(for: "accounts", db: db)
+        let offbudgetColumn = database.column("offbudget", fallback: "0", columns: columns)
+        guard offbudgetColumn != "0" else {
+            return false
+        }
+        let value = try Int.fetchOne(
+            db,
+            sql: "SELECT \(offbudgetColumn) FROM accounts WHERE id = ?",
+            arguments: [accountID]
+        )
+        return (value ?? 0) != 0
+    }
 }

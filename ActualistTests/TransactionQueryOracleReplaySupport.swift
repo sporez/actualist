@@ -166,10 +166,11 @@ enum TransactionQueryOracleReplay {
         var builder = LocalFirstSyncMessageBuilder()
         let outcome: String
         do {
-            _ = try await session.database.createSavedTransactionFilter(
+            _ = try await SavedFilterSQL.createSavedTransactionFilter(
                 id: filterID,
                 draft: SavedTransactionFilterDraft(name: name, conditions: conditions, join: join),
-                builder: &builder
+                builder: &builder,
+                in: session.database
             )
             outcome = "created"
         } catch {

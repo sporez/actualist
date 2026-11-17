@@ -201,13 +201,13 @@ File naming is the ownership index:
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
 - `+Preferences`, `BudgetCurrencySQL`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
-- `Account*SQL`, `+AccountGroupCompatibility`, `BankSync*SQL`, `Reconcil*SQL`, `+Notes` — account-side families.
+- `Account*SQL`, `TransferSQL` (transfer payee and account lookups every transaction write uses), `+AccountGroupCompatibility`, `BankSync*SQL`, `Reconcil*SQL`, `+Notes` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
 - `ActionLog*SQL` — durable action history and undo inputs.
 - `+Schedules`, `+ScheduleReads`, `+ScheduleWrites`, `+SchedulePosting`, `+ScheduleAdvancement`, `+ScheduleConversion` and `ScheduleRuleProjection.swift` — schedules and their linked rules.
 - `+PortableExport`, `+PortableSyncReset`, `+NewBudgetSeed` — portable ZIP content and the CRDT reset applied to an imported file.
-- `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `+TransactionFilters`, `+TransactionCSV*`, `+TransactionQuery` — list actions, structured queries and CSV export.
+- `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `SavedFilterSQL` (saved filters), `+TransactionCSV*`, `+TransactionQuery` — list actions, structured queries and CSV export.
 - `TransactionImportSQL.swift` — file-import checks inside the commit (stateless; takes `isolated BudgetDatabase` and the GRDB handle), plus the thin `commitTransactionCSVImport` entry point.
 - `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `+ImportedIDPrecondition`, `+TransactionIDPrecondition`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
 - `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.

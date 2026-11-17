@@ -32,7 +32,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+TransactionCategorization.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionCreation.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionDiffUpdate.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionDuplicate.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TransactionFilters.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionGraphPlanning.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionIDPrecondition.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionMerge.swift

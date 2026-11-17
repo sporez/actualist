@@ -41,8 +41,8 @@ extension BudgetDatabase {
             guard let payeeID = draft.payeeID else {
                 throw LocalFirstError.referencedRowUnavailable("missing transfer payee")
             }
-            let destinationAccountID = try transferDestinationAccountID(payeeID: payeeID, db: db)
-            let destinationPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
+            let destinationAccountID = try TransferSQL.transferDestinationAccountID(payeeID: payeeID, in: self, db: db)
+            let destinationPayeeID = try TransferSQL.transferPayeeID(forAccount: draft.accountID, in: self, db: db)
             let destinationDraft = TransactionDraft(
                 accountID: destinationAccountID,
                 date: draft.date,

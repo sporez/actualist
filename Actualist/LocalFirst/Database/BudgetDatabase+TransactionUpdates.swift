@@ -84,17 +84,18 @@ extension BudgetDatabase {
         let pairedCategory: String?
         if isTransferDraft, let payeeID {
             // Put the category on the budget side of a cross-budget transfer.
-            let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
-            let categories = try transferCategories(
+            let destination = try TransferSQL.transferDestinationAccountID(payeeID: payeeID, in: self, db: db)
+            let categories = try TransferSQL.transferCategories(
                 draft: draft,
                 sourceAccountID: draft.accountID,
                 destinationAccountID: destination,
+                in: self,
                 db: db
             )
             mainCategory = categories.source
             pairedCategory = categories.destination
         } else if draft.accountID != baselineRow.account,
-                  try accountOffBudget(draft.accountID, db: db) {
+                  try AccountSQL.accountOffBudget(draft.accountID, in: self, db: db) {
             // loot-core `batchUpdateTransactions`: moving a row to an off-budget
             // account clears its category.
             mainCategory = nil
@@ -254,8 +255,8 @@ extension BudgetDatabase {
             guard let transferColumn = columns.transferID else {
                 throw LocalFirstError.schemaUnavailable("missing column transactions.transferred_id")
             }
-            let destination = try transferDestinationAccountID(payeeID: payeeID, db: db)
-            let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
+            let destination = try TransferSQL.transferDestinationAccountID(payeeID: payeeID, in: self, db: db)
+            let fromPayeeID = try TransferSQL.transferPayeeID(forAccount: draft.accountID, in: self, db: db)
             affectedAccounts.insert(destination)
             if let oldPaired = existing.pairedAccount {
                 affectedAccounts.insert(oldPaired)
@@ -279,8 +280,8 @@ extension BudgetDatabase {
                     messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-draft.amountMinorUnits))))
                 }
                 if change.categoryChanged || change.accountChanged || change.payeeChanged {
-                    let sourceOffBudget = try accountOffBudget(draft.accountID, db: db)
-                    let destinationOffBudget = try accountOffBudget(destination, db: db)
+                    let sourceOffBudget = try AccountSQL.accountOffBudget(draft.accountID, in: self, db: db)
+                    let destinationOffBudget = try AccountSQL.accountOffBudget(destination, in: self, db: db)
                     if sourceOffBudget == destinationOffBudget || destinationOffBudget {
                         messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
                     } else if let pairedCategory {

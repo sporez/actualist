@@ -201,20 +201,21 @@ extension BudgetDatabase {
                try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
                 throw LocalFirstError.referencedRowUnavailable("missing account")
             }
-            let destinationAccountID = try transferDestinationAccountID(payeeID: payeeID, db: db)
-            let fromPayeeID = try transferPayeeID(forAccount: draft.accountID, db: db)
+            let destinationAccountID = try TransferSQL.transferDestinationAccountID(payeeID: payeeID, in: self, db: db)
+            let fromPayeeID = try TransferSQL.transferPayeeID(forAccount: draft.accountID, in: self, db: db)
             let dateValue = try Self.actualDateValue(draft.date)
             let pairedTransactionID = UUID().uuidString
             let sortOrder = draft.sortOrder ?? Self.newRowSortOrder
             // Actual clears the source category of a transfer between accounts on the same side
             // of the budget; crossing sides leaves an unassigned category unwritten.
-            let sameSide = try accountOffBudget(draft.accountID, db: db)
-                == accountOffBudget(destinationAccountID, db: db)
+            let sameSide = try AccountSQL.accountOffBudget(draft.accountID, in: self, db: db)
+                == AccountSQL.accountOffBudget(destinationAccountID, in: self, db: db)
             // Only the budget side of a cross-budget transfer carries a category.
-            let transferCategories = try transferCategories(
+            let transferCategories = try TransferSQL.transferCategories(
                 draft: draft,
                 sourceAccountID: draft.accountID,
                 destinationAccountID: destinationAccountID,
+                in: self,
                 db: db
             )
 
@@ -256,40 +257,6 @@ extension BudgetDatabase {
         return (sourceMessages + pairedMessages, destinationAccountID, pairedTransactionID)
     }
 
-    func transferDestinationAccountID(payeeID: String, db: Database) throws -> String {
-        guard try tableExists("payees", db: db) else {
-            throw LocalFirstError.schemaUnavailable("missing payees table")
-        }
-        let payeeColumns = try columnSet(for: "payees", db: db)
-        let transferColumn = column(
-            "transfer_acct",
-            fallback: column("transferAccount", fallback: "NULL", columns: payeeColumns),
-            columns: payeeColumns
-        )
-        guard transferColumn != "NULL",
-              let destination = try String.fetchOne(
-                db,
-                sql: "SELECT \(transferColumn) FROM payees WHERE id = ?",
-                arguments: [payeeID]
-              ),
-              !destination.isEmpty else {
-            throw LocalFirstError.invalidLocalWrite("selected payee is not a transfer payee")
-        }
-        return destination
-    }
-
-    func accountIsOffBudget(_ accountID: String) throws -> Bool {
-        try queue.read { db in
-            try accountOffBudget(accountID, db: db)
-        }
-    }
-
-    func transferAccountID(ifPayee payeeID: String?) throws -> String? {
-        try queue.read { db in
-            try transferAccountID(ifPayee: payeeID, db: db)
-        }
-    }
-
     func makeImportedIdentityMessages(
         transactionID: String,
         importedID: String?,
@@ -319,65 +286,5 @@ extension BudgetDatabase {
             }
             return messages
         }
-    }
-
-    func accountOffBudget(_ accountID: String, db: Database) throws -> Bool {
-        guard try tableExists("accounts", db: db) else {
-            return false
-        }
-        let columns = try columnSet(for: "accounts", db: db)
-        let offbudgetColumn = column("offbudget", fallback: "0", columns: columns)
-        guard offbudgetColumn != "0" else {
-            return false
-        }
-        let value = try Int.fetchOne(
-            db,
-            sql: "SELECT \(offbudgetColumn) FROM accounts WHERE id = ?",
-            arguments: [accountID]
-        )
-        return (value ?? 0) != 0
-    }
-
-    func transferCategories(
-        draft: TransactionDraft,
-        sourceAccountID: String,
-        destinationAccountID: String,
-        db: Database
-    ) throws -> (source: String?, destination: String?) {
-        let sourceOffBudget = try accountOffBudget(sourceAccountID, db: db)
-        let destinationOffBudget = try accountOffBudget(destinationAccountID, db: db)
-        guard sourceOffBudget != destinationOffBudget else {
-            return (nil, nil)
-        }
-        guard let categoryID = draft.categoryID else {
-            return (nil, nil)
-        }
-        if try tableExists("categories", db: db),
-           try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
-            throw LocalFirstError.referencedRowUnavailable("missing category")
-        }
-        return sourceOffBudget ? (nil, categoryID) : (categoryID, nil)
-    }
-
-    func transferPayeeID(forAccount account: String, db: Database) throws -> String {
-        guard try tableExists("payees", db: db) else {
-            throw LocalFirstError.schemaUnavailable("missing payees table")
-        }
-        let payeeColumns = try columnSet(for: "payees", db: db)
-        let transferColumn = column(
-            "transfer_acct",
-            fallback: column("transferAccount", fallback: "NULL", columns: payeeColumns),
-            columns: payeeColumns
-        )
-        guard transferColumn != "NULL",
-              let payeeID = try String.fetchOne(
-                db,
-                sql: "SELECT id FROM payees WHERE \(transferColumn) = ? AND \(predicateForLiveRows(columns: payeeColumns)) LIMIT 1",
-                arguments: [account]
-              ),
-              !payeeID.isEmpty else {
-            throw LocalFirstError.referencedRowUnavailable("missing transfer payee for account")
-        }
-        return payeeID
     }
 }

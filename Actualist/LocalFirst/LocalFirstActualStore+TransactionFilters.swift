@@ -7,7 +7,7 @@ extension LocalFirstActualStore {
         nextSavedTransactionFilterReadRevision &+= 1
         let revision = nextSavedTransactionFilterReadRevision
         savedTransactionFilterReadRevisionByBudget[budgetID] = revision
-        let result = try await database.fetchSavedTransactionFilters()
+        let result = try await SavedFilterSQL.fetchSavedTransactionFilters(in: database)
         try requireSavedFilterSession(database: database, budgetID: budgetID, generation: generation)
         guard savedTransactionFilterReadRevisionByBudget[budgetID] == revision else {
             throw CancellationError()
@@ -26,10 +26,11 @@ extension LocalFirstActualStore {
         await testSeams?.savedFilterBeforeCommitHook?()
         #endif
         try requireSavedFilterSession(database: database, context: context)
-        let receipt = try await database.createSavedTransactionFilter(
+        let receipt = try await SavedFilterSQL.createSavedTransactionFilter(
             id: UUID().uuidString,
             draft: draft,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         #if DEBUG
         await awaitSavedFilterAfterCommitHook()
@@ -49,7 +50,7 @@ extension LocalFirstActualStore {
         await testSeams?.savedFilterBeforeCommitHook?()
         #endif
         try requireSavedFilterSession(database: database, context: context)
-        let receipt = try await database.updateSavedTransactionFilter(update, builder: &builder)
+        let receipt = try await SavedFilterSQL.updateSavedTransactionFilter(update, builder: &builder, in: database)
         #if DEBUG
         await awaitSavedFilterAfterCommitHook()
         #endif
@@ -68,7 +69,7 @@ extension LocalFirstActualStore {
         await testSeams?.savedFilterBeforeCommitHook?()
         #endif
         try requireSavedFilterSession(database: database, context: context)
-        let receipt = try await database.deleteSavedTransactionFilter(id: filterID, builder: &builder)
+        let receipt = try await SavedFilterSQL.deleteSavedTransactionFilter(id: filterID, builder: &builder, in: database)
         #if DEBUG
         await awaitSavedFilterAfterCommitHook()
         #endif

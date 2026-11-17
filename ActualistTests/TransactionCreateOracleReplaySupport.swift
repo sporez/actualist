@@ -156,7 +156,7 @@ enum TransactionCreateOracleReplay {
     ) async throws -> [ActualSyncDecodedMessage] {
         let accountID = try OracleJSON.string(input, "account")
         var draft = try makeDraft(input, isTransfer: false)
-        if try await database.accountIsOffBudget(accountID) {
+        if try await AccountSQL.accountIsOffBudget(accountID, in: database) {
             draft = draft.withoutBudgetCategory()
         }
         let payee = try await resolvePayee(draft, database: database, aliases: &aliases, builder: &builder)
@@ -200,7 +200,7 @@ enum TransactionCreateOracleReplay {
     ) async throws -> [ActualSyncDecodedMessage] {
         let row = try OracleJSON.object(input["transaction"], "transaction")
         let accountID = try OracleJSON.string(input, "account")
-        let offBudget = try await database.accountIsOffBudget(accountID)
+        let offBudget = try await AccountSQL.accountIsOffBudget(accountID, in: database)
         let payeeName = row["payee_name"] as? String
         var draft = TransactionDraft(
             accountID: accountID,
