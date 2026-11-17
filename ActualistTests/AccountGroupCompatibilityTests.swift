@@ -143,7 +143,7 @@ extension LocalFirstActualStoreTests {
         #expect(bundle.store.accountDisplays(budgetID: "group-1").isEmpty)
         #expect(bundle.store.accountGroups(budgetID: "group-1").isEmpty)
 
-        await bundle.store.warmLaunchCaches(budgetID: "group-1")
+        await bundle.store.budgetLaunch.warmLaunchCaches(budgetID: "group-1")
 
         let groups = bundle.store.accountGroups(budgetID: "group-1")
         let checking = try #require(

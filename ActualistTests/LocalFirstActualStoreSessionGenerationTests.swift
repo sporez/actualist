@@ -321,7 +321,7 @@ extension LocalFirstActualStoreTests {
                 warmupPaused.trip()
             }
         }
-        let pending = Task { await bundle.store.warmLaunchCaches(budgetID: "group-1") }
+        let pending = Task { await bundle.store.budgetLaunch.warmLaunchCaches(budgetID: "group-1") }
         await warmupPaused.wait()
         let resume = try #require(resumeWarmup)
         bundle.store.closeOpenBudget()

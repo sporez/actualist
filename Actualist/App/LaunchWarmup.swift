@@ -72,7 +72,7 @@ final class LaunchWarmupCoordinator {
             await appState.prepareBackgroundTransactionNotifications()
         }
 
-        await appState.localFirstStore.warmLaunchCaches(budgetID: budgetID)
+        await appState.localFirstStore.budgetLaunch.warmLaunchCaches(budgetID: budgetID)
         guard !Task.isCancelled,
               appState.setupPhase == .ready,
               appState.settings.selectedBudgetID == budgetID,

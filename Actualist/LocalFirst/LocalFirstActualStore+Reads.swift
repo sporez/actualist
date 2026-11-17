@@ -68,7 +68,7 @@ extension LocalFirstActualStore {
             // its snapshot rather than report a committed write as cancelled.
             guard generation == budgetReadGeneration, currentIdentity == snapshot.modeIdentity else { continue }
             if let launchRevision {
-                await persistBudgetLaunchSnapshotIfCanonical(loaded, revision: launchRevision)
+                await budgetLaunch.persistBudgetLaunchSnapshotIfCanonical(loaded, revision: launchRevision)
             }
             return loaded
         }
@@ -85,29 +85,6 @@ extension LocalFirstActualStore {
     func refreshAccountsWithBalances(budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
-    }
-
-    func reloadAccountCaches(
-        database: BudgetDatabase,
-        budgetID: String,
-        bestEffort: Bool = false
-    ) async throws {
-        let generation = budgetSessionGeneration
-        let accounts: [AccountDisplay]?
-        if bestEffort { accounts = try? await AccountSQL.fetchAccountDisplays(in: database) }
-        else { accounts = try await AccountSQL.fetchAccountDisplays(in: database) }
-        #if DEBUG
-        #if DEBUG
-        if bestEffort { await testSeams?.launchWarmupSuspension?() }
-        #endif
-        #endif
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-        if let accounts { accountsByBudget[budgetID] = accounts }
-        let groups: [ActualAccountGroup]?
-        if bestEffort { groups = try? await AccountGroupSQL.fetchAccountGroups(in: database) }
-        else { groups = try await AccountGroupSQL.fetchAccountGroups(in: database) }
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
-        if let groups { accountGroupsByBudget[budgetID] = groups }
     }
 
     func fetchTransaction(budgetID: String, id: String) async throws -> ActualTransaction? {

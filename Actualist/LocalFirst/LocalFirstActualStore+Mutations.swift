@@ -258,41 +258,4 @@ extension LocalFirstActualStore {
         )
         return repair.result
     }
-
-    func reloadAfterTransactionMutation(
-        database: BudgetDatabase,
-        budgetID: String,
-        accountIDs: [String]
-    ) async throws {
-        try await reloadSelectedBudgetCache(budgetID: budgetID)
-        reports.invalidateReports(budgetID: budgetID)
-        try await reloadAccountCaches(database: database, budgetID: budgetID)
-        try await refreshLoadedTransactionFeedCaches(
-            database: database,
-            budgetID: budgetID,
-            accountIDs: Set(accountIDs)
-        )
-        await refreshActionLogDiagnosticSnapshot(database: database)
-    }
-
-    func reloadAfterBudgetMutation(
-        database: BudgetDatabase,
-        budgetID: String
-    ) async throws {
-        try await reloadSelectedBudgetCache(budgetID: budgetID)
-        reports.invalidateReports(budgetID: budgetID)
-        try await reloadAccountCaches(database: database, budgetID: budgetID)
-        try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
-        await refreshActionLogDiagnosticSnapshot(database: database)
-    }
-
-    func reloadAfterAccountMutation(
-        database: BudgetDatabase,
-        budgetID: String
-    ) async throws {
-        try await reloadSelectedBudgetCache(budgetID: budgetID)
-        reports.invalidateReports(budgetID: budgetID)
-        try await reloadAccountCaches(database: database, budgetID: budgetID)
-        await refreshActionLogDiagnosticSnapshot(database: database)
-    }
 }

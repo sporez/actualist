@@ -567,7 +567,7 @@ extension LocalFirstActualStore {
         // materialized projection is authoritative for its unchanged revision;
         // only a miss runs the existing live calculation.
         await LaunchSignpost.measure(LaunchStage.budgetSeedMonth) {
-            await seedBudgetForLaunch(
+            await budgetLaunch.seedBudgetForLaunch(
                 database: database,
                 files: launchFiles,
                 metadata: metadata,

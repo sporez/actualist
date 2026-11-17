@@ -175,7 +175,7 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle(
             additionalFixtureSQL: Self.accountGroupMigrationSQL
         )
-        await bundle.store.warmLaunchCaches(budgetID: "group-1")
+        await bundle.store.budgetLaunch.warmLaunchCaches(budgetID: "group-1")
 
         try await bundle.store.createAccountGroupAndRefresh(budgetID: "group-1", name: "Cash")
         let groups = bundle.store.accountGroups(budgetID: "group-1")

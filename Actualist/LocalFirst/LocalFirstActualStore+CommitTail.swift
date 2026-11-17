@@ -187,4 +187,116 @@ extension LocalFirstActualStore {
         )
         return tail.value
     }
+
+    /// Recompute the selected month even for backdated writes; its balance may
+    /// depend on any earlier rollover month. External reads do not change selection.
+    func reloadSelectedBudgetCache(budgetID: String, now: Date = Date()) async throws {
+        let database = try requireDatabase(for: budgetID)
+        let generation = budgetSessionGeneration
+        schedules.invalidateScheduleCache(budgetID: budgetID)
+        budgetReadGeneration &+= 1
+        cachePublicationRevision &+= 1
+        let publicationRevision = cachePublicationRevision
+        monthsByBudget[budgetID] = nil
+        templateBrowserByBudget[budgetID] = nil
+        let prefix = "\(budgetID)|"
+        // Open feeds observe these snapshots directly. Replace their contents
+        // after a write instead of evicting them until the screen is reopened.
+        let categoryScopes = categoryTransactionsByKey.keys.filter { $0.hasPrefix(prefix) }.compactMap { key in
+            let scope = key.dropFirst(prefix.count).split(separator: "|", maxSplits: 1)
+            return scope.count == 2 ? (categoryID: String(scope[0]), month: String(scope[1])) : nil
+        }
+        let uncategorizedMonths = uncategorizedTransactionsByKey.keys.filter { $0.hasPrefix(prefix) }
+            .map { String($0.dropFirst(prefix.count)) }
+        // One name-map read and one table read serve every cached feed.
+        if !categoryScopes.isEmpty || !uncategorizedMonths.isEmpty {
+            let maps = try await nameMaps(database)
+            if !categoryScopes.isEmpty {
+                let transactions = try await TransactionReadSQL.fetchTransactions(in: database)
+                for scope in categoryScopes {
+                    try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+                    publishCategoryTransactions(
+                        budgetID: budgetID, categoryID: scope.categoryID, month: scope.month,
+                        allTransactions: transactions, maps: maps
+                    )
+                }
+            }
+            if !uncategorizedMonths.isEmpty {
+                let rows = try await TransactionReadSQL.fetchUncategorizedTransactions(in: database)
+                for month in uncategorizedMonths {
+                    _ = try await publishUncategorizedTransactions(
+                        database: database, budgetID: budgetID, month: month,
+                        generation: generation, revision: publicationRevision, rows: rows, maps: maps
+                    )
+                }
+            }
+            try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        }
+        guard let selected = loadedBudgetMonthsByBudget[budgetID]?.selectedMonth else { return }
+        let loaded = try await readBudgetMonth(budgetID: budgetID, month: selected, now: now)
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        guard loadedBudgetMonthsByBudget[budgetID]?.selectedMonth == selected else { return }
+        loadedBudgetMonthsByBudget[budgetID] = loaded
+        currencyByBudget[budgetID] = loaded.currency
+    }
+
+    func reloadAccountCaches(
+        database: BudgetDatabase,
+        budgetID: String,
+        bestEffort: Bool = false
+    ) async throws {
+        let generation = budgetSessionGeneration
+        let accounts: [AccountDisplay]?
+        if bestEffort { accounts = try? await AccountSQL.fetchAccountDisplays(in: database) }
+        else { accounts = try await AccountSQL.fetchAccountDisplays(in: database) }
+        #if DEBUG
+        #if DEBUG
+        if bestEffort { await testSeams?.launchWarmupSuspension?() }
+        #endif
+        #endif
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        if let accounts { accountsByBudget[budgetID] = accounts }
+        let groups: [ActualAccountGroup]?
+        if bestEffort { groups = try? await AccountGroupSQL.fetchAccountGroups(in: database) }
+        else { groups = try await AccountGroupSQL.fetchAccountGroups(in: database) }
+        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        if let groups { accountGroupsByBudget[budgetID] = groups }
+    }
+
+    func reloadAfterTransactionMutation(
+        database: BudgetDatabase,
+        budgetID: String,
+        accountIDs: [String]
+    ) async throws {
+        try await reloadSelectedBudgetCache(budgetID: budgetID)
+        reports.invalidateReports(budgetID: budgetID)
+        try await reloadAccountCaches(database: database, budgetID: budgetID)
+        try await refreshLoadedTransactionFeedCaches(
+            database: database,
+            budgetID: budgetID,
+            accountIDs: Set(accountIDs)
+        )
+        await refreshActionLogDiagnosticSnapshot(database: database)
+    }
+
+    func reloadAfterBudgetMutation(
+        database: BudgetDatabase,
+        budgetID: String
+    ) async throws {
+        try await reloadSelectedBudgetCache(budgetID: budgetID)
+        reports.invalidateReports(budgetID: budgetID)
+        try await reloadAccountCaches(database: database, budgetID: budgetID)
+        try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
+        await refreshActionLogDiagnosticSnapshot(database: database)
+    }
+
+    func reloadAfterAccountMutation(
+        database: BudgetDatabase,
+        budgetID: String
+    ) async throws {
+        try await reloadSelectedBudgetCache(budgetID: budgetID)
+        reports.invalidateReports(budgetID: budgetID)
+        try await reloadAccountCaches(database: database, budgetID: budgetID)
+        await refreshActionLogDiagnosticSnapshot(database: database)
+    }
 }

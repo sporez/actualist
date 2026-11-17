@@ -136,7 +136,7 @@ extension LocalFirstActualStoreTests {
         let database = try #require(store.database)
 
         let result: Result<Void, any Error> = try await parkedRead(.launchWarmupSyncStatus, on: store, read: {
-            await store.warmLaunchCaches(budgetID: "group-1")
+            await store.budgetLaunch.warmLaunchCaches(budgetID: "group-1")
         }, whileParked: {
             var builder = LocalFirstSyncMessageBuilder()
             let draft = try builder.makeMessage(

@@ -62,7 +62,7 @@ Start here for launch, session, routing, background refresh, or app-wide state:
 - `Actualist/App/AppStateModels.swift` — small app-state enums/value types.
 - `Actualist/App/AppSyncCoordinator.swift` — foreground sync coordination and status publication.
 - `Actualist/App/BackgroundTransactionWorkflow.swift`, `BackgroundTransactionRefreshRunner.swift`, and `BackgroundRefreshTaskDriver.swift` — background transaction/bank work and the BGTask driver. `NewTransactionNotificationCoordinator.swift` owns new-transaction notifications.
-- `Actualist/App/LaunchWarmup.swift` and `LaunchInstrumentation.swift` — post-open warmup and launch measurements. Store cache warming is `LocalFirstActualStore+LaunchWarmup.swift`, not more work in `AppState`.
+- `Actualist/App/LaunchWarmup.swift` and `LaunchInstrumentation.swift` — post-open warmup and launch measurements. Store cache warming is `BudgetLaunchWorkflows` (`LocalFirst/BudgetLaunchWorkflows.swift`, the store's `budgetLaunch`), not more work in `AppState`.
 - `Actualist/App/AppTab.swift` — native tab identity. `BudgetCalendarCoordinator.swift` owns local month-boundary invalidation. `SpringboardQuickActionCoordinator.swift` owns home-screen quick actions.
 - `Actualist/Features/Root/RootView.swift` — setup-to-main-shell boundary. `CredentialRecoveryView.swift` is the credential-recovery surface.
 - `Actualist/Features/Root/MainTabView.swift` — compact native tab shell: Budget, Spending, Accounts, and Reports. Settings is not a tab; it opens from the Budget screen's gear menu through `AppRouteCoordinator`.
@@ -168,10 +168,10 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 `Actualist/LocalFirst/LocalFirstActualStore.swift` defines the observable production repository implementation and owned caches/dependencies. Extensions divide orchestration by workflow:
 
 - `+Connection` — authenticate, select/open/import/reset budget sessions. The database is built off the main actor with `BudgetDatabase.open` (`@concurrent`); `init` stays for tests and records main-thread construction in DEBUG.
-- `+Sync`, `+SyncQuarantine`, `+Failover` — pull/apply/flush through the session's `ServerSyncLane`, quarantine diagnostics, and endpoint failover.
-- `+Reads` / `+BudgetCache` / `+BudgetLaunchSnapshot` — cached budget-month reads and launch snapshots.
+- `+Sync`, `+SyncQuarantine` — pull/apply/flush through the session's `ServerSyncLane`, quarantine diagnostics. Endpoint failover lives in `LocalFirstActualStore.swift`.
+- `+Reads` and `+CommitTail` (`reloadSelectedBudgetCache`), with `BudgetLaunchWorkflows` for the launch snapshot — cached budget-month reads and launch snapshots.
 - `+TransactionFeeds` / `+TransactionFeedCache` — cached account and Spending feeds. Do not duplicate this cache.
-- `+LaunchWarmup` — store-side cache warming after open.
+- `BudgetLaunchWorkflows` — store-side cache warming after open.
 - `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle`, `+Holds`, `+CommitTail` — local CRDT write flows and the shared post-commit tail.
 - `TransactionCommandWorkflows` (`LocalFirst/TransactionCommandWorkflows.swift`, the store's `transactionCommands`: batch, duplicate and merge review and commit), `TransactionCSVWorkflows` (the store's `transactionCSV`: CSV export, prepare and apply), `PendingTransactionWorkflows` (the store's `pendingTransactions`: new-transaction alert rows, conforming to `BackgroundPendingTransactionPersisting`) — transaction-list actions, saved filters, and CSV.
 - `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
