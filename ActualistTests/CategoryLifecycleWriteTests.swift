@@ -243,7 +243,7 @@ struct CategoryLifecycleWriteTests {
 
     @Test func storeCategoryLifecycleCommitsReloadsAndReturnsTheRequestedMonth() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
-        let loaded = try await bundle.store.createCategoryAndRefresh(
+        let loaded = try await bundle.store.categoryLifecycle.createCategoryAndRefresh(
             name: "Fuel",
             groupID: "group",
             budgetID: "group-1",
@@ -261,7 +261,7 @@ struct CategoryLifecycleWriteTests {
             ALTER TABLE category_mapping RENAME COLUMN transferId TO transfer_id;
             """)
 
-        let loaded = try await bundle.store.createCategoryAndRefresh(
+        let loaded = try await bundle.store.categoryLifecycle.createCategoryAndRefresh(
             name: "Fuel",
             groupID: "group",
             budgetID: "group-1",
@@ -532,8 +532,8 @@ struct CategoryLifecycleWriteTests {
             INSERT INTO category_mapping VALUES ('clean-delete', 'clean-delete');
             INSERT INTO zero_budgets VALUES (202607, 'clean-delete', 0, 0);
             """)
-        #expect(try await bundle.store.categoryNeedsTransfer(categoryID: "clean-delete", budgetID: "group-1") == false)
-        let loaded = try await bundle.store.deleteCategoryAndRefresh(
+        #expect(try await bundle.store.categoryLifecycle.categoryNeedsTransfer(categoryID: "clean-delete", budgetID: "group-1") == false)
+        let loaded = try await bundle.store.categoryLifecycle.deleteCategoryAndRefresh(
             categoryID: "clean-delete", transferCategoryID: nil,
             budgetID: "group-1", month: "2026-07"
         )

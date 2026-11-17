@@ -619,7 +619,7 @@ struct BudgetView: View {
                 isTrackingBudget: viewModel.isTrackingBudget,
                 month: viewModel.selectedMonth,
                 budget: categoryActionBudget,
-                repository: appState.budgetRepository,
+                repository: appState.localFirstStore.categoryLifecycle,
                 onReview: { categoryLifecycleSheet = $0 },
                 onDeleted: { await viewModel.refreshSelectedMonth(using: appState) }
             )
@@ -634,7 +634,7 @@ struct BudgetView: View {
                 isTrackingBudget: viewModel.isTrackingBudget,
                 month: viewModel.selectedMonth,
                 budget: categoryActionBudget,
-                repository: appState.budgetRepository,
+                repository: appState.localFirstStore.categoryLifecycle,
                 onReview: { categoryLifecycleSheet = $0 },
                 onDeleted: { await viewModel.refreshSelectedMonth(using: appState) }
             )
@@ -648,7 +648,7 @@ struct BudgetView: View {
             sheet: sheet,
             selectedMonth: viewModel.selectedMonth,
             budgetID: appState.settings.selectedBudgetID,
-            repository: appState.budgetRepository,
+            repository: appState.localFirstStore.categoryLifecycle,
             onSaved: { await viewModel.refreshSelectedMonth(using: appState) }
         )
     }

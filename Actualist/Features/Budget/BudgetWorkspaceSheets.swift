@@ -85,7 +85,7 @@ struct BudgetWorkspaceSheets: ViewModifier {
                 sheet: lifecycleSheet,
                 selectedMonth: actions.actionMonth,
                 budgetID: actions.actionBudgetID,
-                repository: viewport.repository,
+                repository: appState.localFirstStore.categoryLifecycle,
                 onSaved: {}
             )
         }

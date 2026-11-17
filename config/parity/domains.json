@@ -491,7 +491,7 @@
       "paths": [
         "Actualist/LocalFirst/Database/CategorySQL.swift",
         "Actualist/LocalFirst/Database/CategoryDeletionSQL.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+CategoryLifecycle.swift",
+        "Actualist/LocalFirst/CategoryLifecycleWorkflows.swift",
         "Actualist/Features/Budget/BudgetCategoryOutlineDraft.swift"
       ],
       "notes": "37 cases from Actual's category handlers as the desktop client calls them (create, rename, hide, move, delete with transfer, and three reads) on an envelope budget with a loaded spreadsheet. CategoryOracleReplayTests replays net writes, rows and order through the store; the recorded undo is not replayed."

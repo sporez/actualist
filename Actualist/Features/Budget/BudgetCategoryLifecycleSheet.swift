@@ -92,7 +92,7 @@ final class BudgetCategoryLifecycleController {
         sheet: BudgetCategoryLifecycleSheet,
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> Bool {
         switch sheet {
         case .createCategory(let groups, let isTrackingBudget):
@@ -143,7 +143,7 @@ final class BudgetCategoryLifecycleController {
         isTrackingBudget: Bool,
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> BudgetCategoryDeletionRequestResult {
         organization.cancel()
         reorder.cancel()
@@ -168,7 +168,7 @@ final class BudgetCategoryLifecycleController {
         isTrackingBudget: Bool,
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> BudgetCategoryDeletionRequestResult {
         organization.cancel()
         reorder.cancel()
@@ -196,7 +196,7 @@ final class BudgetCategoryLifecycleController {
         isTrackingBudget: Bool,
         month: String?,
         budget: BudgetActionBudgetScope,
-        repository: any BudgetRepositoryProtocol,
+        repository: any BudgetCategoryLifecycleRepositoryProtocol,
         onReview: @MainActor (BudgetCategoryLifecycleSheet) -> Void,
         onDeleted: @MainActor () async -> Void
     ) async {
@@ -218,7 +218,7 @@ final class BudgetCategoryLifecycleController {
         isTrackingBudget: Bool,
         month: String?,
         budget: BudgetActionBudgetScope,
-        repository: any BudgetRepositoryProtocol,
+        repository: any BudgetCategoryLifecycleRepositoryProtocol,
         onReview: @MainActor (BudgetCategoryLifecycleSheet) -> Void,
         onDeleted: @MainActor () async -> Void
     ) async {
@@ -255,7 +255,7 @@ final class BudgetCategoryLifecycleController {
     func confirmDeletion(
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> Bool {
         committed(await deletion.delete(
             selectedMonth: selectedMonth,
@@ -267,7 +267,7 @@ final class BudgetCategoryLifecycleController {
     func saveReorder(
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> Bool {
         if reorder.draft?.command == nil { return true }
         return committed(await reorder.save(
@@ -287,7 +287,7 @@ final class BudgetCategoryLifecycleController {
         reviewSheet: BudgetCategoryLifecycleSheet,
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> BudgetCategoryDeletionRequestResult {
         guard case .ready(let requiresTransfer) = deletion.state else { return .failed }
         if requiresTransfer { return .review(reviewSheet) }
@@ -305,7 +305,7 @@ struct BudgetCategoryNameSheet: View {
     let sheet: BudgetCategoryLifecycleSheet
     let selectedMonth: String?
     let budgetID: String?
-    let repository: any BudgetRepositoryProtocol
+    let repository: any BudgetCategoryLifecycleRepositoryProtocol
     let onSaved: @MainActor () async -> Void
 
     @State private var name: String
@@ -316,7 +316,7 @@ struct BudgetCategoryNameSheet: View {
         sheet: BudgetCategoryLifecycleSheet,
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol,
+        repository: any BudgetCategoryLifecycleRepositoryProtocol,
         onSaved: @escaping @MainActor () async -> Void
     ) {
         self.controller = controller
@@ -470,7 +470,7 @@ struct BudgetCategoryLifecycleContent: View {
     let sheet: BudgetCategoryLifecycleSheet
     let selectedMonth: String?
     let budgetID: String?
-    let repository: any BudgetRepositoryProtocol
+    let repository: any BudgetCategoryLifecycleRepositoryProtocol
     let onSaved: @MainActor () async -> Void
 
     @ViewBuilder

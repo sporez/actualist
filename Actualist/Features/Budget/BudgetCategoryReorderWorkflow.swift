@@ -42,7 +42,7 @@ final class BudgetCategoryReorderWorkflow {
     func save(
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard !isSubmitting, let command = draft?.command else { return nil }
         guard let selectedMonth, let budgetID else {

@@ -136,7 +136,7 @@ final class BudgetWorkspaceActions {
             isTrackingBudget: viewport.isTrackingBudget,
             month: actionMonth,
             budget: budgetScope(using: appState),
-            repository: viewport.repository,
+            repository: appState.localFirstStore.categoryLifecycle,
             onReview: { sheet = .categoryLifecycle($0) },
             onDeleted: finishDelete
         )
@@ -150,7 +150,7 @@ final class BudgetWorkspaceActions {
             isTrackingBudget: viewport.isTrackingBudget,
             month: actionMonth,
             budget: budgetScope(using: appState),
-            repository: viewport.repository,
+            repository: appState.localFirstStore.categoryLifecycle,
             onReview: { sheet = .categoryLifecycle($0) },
             onDeleted: finishDelete
         )

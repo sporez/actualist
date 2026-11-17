@@ -1,6 +1,17 @@
 import Foundation
 
-extension LocalFirstActualStore {
+/// Category and category-group lifecycle on the store: create, rename,
+/// reorder and delete, each with the reload that follows. The store owns it.
+@MainActor
+final class CategoryLifecycleWorkflows {
+    // The store creates this lazily and keeps it for its whole life, so the
+    // store outlives every holder of it.
+    private unowned let store: LocalFirstActualStore
+
+    init(store: LocalFirstActualStore) {
+        self.store = store
+    }
+
     func createCategoryAndRefresh(name: String, groupID: String, budgetID: String, month: String) async throws -> LoadedBudgetMonth {
         try await commitCategoryLifecycle(budgetID: budgetID, month: month) { database, builder in
             try await CategorySQL.createCategoryMessages(
@@ -42,7 +53,7 @@ extension LocalFirstActualStore {
     }
 
     func categoryNeedsTransfer(categoryID: String, budgetID: String) async throws -> Bool {
-        let database = try requireDatabase(for: budgetID)
+        let database = try store.requireDatabase(for: budgetID)
         return try await CategoryDeletionSQL.categoryNeedsTransfer(categoryID: categoryID, in: database)
     }
 
@@ -79,13 +90,15 @@ extension LocalFirstActualStore {
         month: String,
         messages: (BudgetDatabase, inout LocalFirstSyncMessageBuilder) async throws -> [ActualSyncDecodedMessage]
     ) async throws -> LoadedBudgetMonth {
-        let database = try requireDatabase(for: budgetID)
+        let database = try store.requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await messages(database, &builder)
         if !messages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(messages)
-            try await finishCommittedBudgetWrite(database: database, budgetID: budgetID)
+            try await store.finishCommittedBudgetWrite(database: database, budgetID: budgetID)
         }
-        return try await budgetMonth(budgetID: budgetID, selectedMonth: month)
+        return try await store.budgetMonth(budgetID: budgetID, selectedMonth: month)
     }
 }
+
+extension CategoryLifecycleWorkflows: BudgetCategoryLifecycleRepositoryProtocol { }

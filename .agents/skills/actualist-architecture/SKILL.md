@@ -81,7 +81,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - State and derived display logic: `BudgetViewModel.swift`, `BudgetViewportModel.swift`, and nearby `*Presentation.swift`, `*Policy.swift`, and draft-model files.
 - Month navigation and layout: `BudgetMonthSwipeModifier.swift`, `BudgetAssignmentViewport.swift`, `BudgetAssignmentScrollPresentation.swift`, and viewport/layout helpers.
 - Assignment and move-money workflows: `BudgetMoveMoneyWorkflow.swift` and `BudgetMoveMoneyView.swift`; persistence enters through `BudgetRepositoryProtocol` and `LocalFirstActualStore+AssignMove.swift`.
-- Category create/rename/reorder/delete/visibility: `BudgetCategory*Workflow.swift` and the category sheets. Store writes are `LocalFirstActualStore+CategoryLifecycle.swift`; SQLite is `CategorySQL` and `CategoryDeletionSQL` in `LocalFirst/Database/`.
+- Category create/rename/reorder/delete/visibility: `BudgetCategory*Workflow.swift` and the category sheets. Store writes are `CategoryLifecycleWorkflows.swift`; SQLite is `CategorySQL` and `CategoryDeletionSQL` in `LocalFirst/Database/`.
 - Hold for next month: `BudgetHoldViewModel.swift` and `BudgetHoldSheet.swift` own the shared compact/wide review workflow. `BudgetHoldSQL` owns the stored hold calculation, the hold review and its writes; the focused hold store/database writers own persistence.
 - Uncategorized flow: `UncategorizedTransactionsView.swift` and its view model/coordinator siblings.
 - Backend reads/writes: `LocalFirstActualStore+Reads.swift`, `+AssignMove.swift`, `+Mutations.swift`, `HistoryWorkflows.swift`; `BudgetMonthSQL` (month and snapshot reads, envelope availability, carry-in, available months), `BudgetCategoryValueSQL` (category values, budgets and spending over time), `BudgetAssignmentSQL` (assign, move money, carryover), `BudgetRowSQL` (budget row ids and the shared row write), `BudgetCurrencySQL`, and the `ActionLog*SQL` types.
@@ -172,7 +172,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - `+Reads` and `+CommitTail` (`reloadSelectedBudgetCache`), with `BudgetLaunchWorkflows` for the launch snapshot — cached budget-month reads and launch snapshots.
 - `+TransactionFeeds` / `+TransactionFeedCache` — cached account and Spending feeds. Do not duplicate this cache.
 - `BudgetLaunchWorkflows` — store-side cache warming after open.
-- `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle`, `+CommitTail` — local CRDT write flows and the shared post-commit tail.
+- `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CommitTail` — local CRDT write flows and the shared post-commit tail.
 - `TransactionCommandWorkflows` (`LocalFirst/TransactionCommandWorkflows.swift`, the store's `transactionCommands`: batch, duplicate and merge review and commit), `TransactionCSVWorkflows` (the store's `transactionCSV`: CSV export, prepare and apply), `PendingTransactionWorkflows` (the store's `pendingTransactions`: new-transaction alert rows, conforming to `BackgroundPendingTransactionPersisting`) — transaction-list actions, saved filters, and CSV.
 - `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
 - `+WalletImport`, `ImportReconcileSteps` (`LocalFirst/ImportReconcileSteps.swift`, the shared reconcile and write steps) — imported transaction flows (Bank Sync is `BankSyncWorkflows` and `BankSyncPlanWorkflows`).

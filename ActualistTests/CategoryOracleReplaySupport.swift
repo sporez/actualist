@@ -114,23 +114,23 @@ enum CategoryOracleReplay {
         }
         switch kind {
         case "category-create":
-            _ = try await store.createCategoryAndRefresh(
+            _ = try await store.categoryLifecycle.createCategoryAndRefresh(
                 name: try OracleJSON.string(input, "typed"),
                 groupID: try OracleJSON.string(input, "groupID"),
                 budgetID: budgetID, month: month
             )
         case "group-create":
-            _ = try await store.createCategoryGroupAndRefresh(
+            _ = try await store.categoryLifecycle.createCategoryGroupAndRefresh(
                 name: try OracleJSON.string(input, "typed"), budgetID: budgetID, month: month
             )
         case "category-rename":
-            _ = try await store.renameCategoryAndRefresh(
+            _ = try await store.categoryLifecycle.renameCategoryAndRefresh(
                 categoryID: try OracleJSON.string(input, "categoryID"),
                 name: try OracleJSON.string(input, "typed"),
                 budgetID: budgetID, month: month
             )
         case "group-rename":
-            _ = try await store.renameCategoryGroupAndRefresh(
+            _ = try await store.categoryLifecycle.renameCategoryGroupAndRefresh(
                 groupID: try OracleJSON.string(input, "groupID"),
                 name: try OracleJSON.string(input, "typed"),
                 budgetID: budgetID, month: month
@@ -166,8 +166,8 @@ enum CategoryOracleReplay {
             try await save(draft, store: store)
         case "category-delete":
             let categoryID = try OracleJSON.string(input, "categoryID")
-            let needs = await needsTransferValue { try await store.categoryNeedsTransfer(categoryID: categoryID, budgetID: budgetID) }
-            _ = try await store.deleteCategoryAndRefresh(
+            let needs = await needsTransferValue { try await store.categoryLifecycle.categoryNeedsTransfer(categoryID: categoryID, budgetID: budgetID) }
+            _ = try await store.categoryLifecycle.deleteCategoryAndRefresh(
                 categoryID: categoryID,
                 transferCategoryID: try payload()["transferId"] as? String,
                 budgetID: budgetID, month: month
@@ -179,12 +179,12 @@ enum CategoryOracleReplay {
             let groups = try await store.budgetMonth(budgetID: budgetID, selectedMonth: month).month.categoryGroups
             let categoryIDs = groups.first { $0.id == groupID }?.categories.map(\.id) ?? []
             let needs = await needsTransferValue {
-                for categoryID in categoryIDs where try await store.categoryNeedsTransfer(categoryID: categoryID, budgetID: budgetID) {
+                for categoryID in categoryIDs where try await store.categoryLifecycle.categoryNeedsTransfer(categoryID: categoryID, budgetID: budgetID) {
                     return true
                 }
                 return false
             }
-            _ = try await store.deleteCategoryGroupAndRefresh(
+            _ = try await store.categoryLifecycle.deleteCategoryGroupAndRefresh(
                 groupID: groupID,
                 transferCategoryID: try payload()["transferId"] as? String,
                 budgetID: budgetID, month: month
@@ -211,7 +211,7 @@ enum CategoryOracleReplay {
 
     private static func save(_ draft: BudgetCategoryOutlineDraft, store: LocalFirstActualStore) async throws {
         guard let command = draft.command else { return }
-        _ = try await store.applyCategoryOutlineAndRefresh(draft: command, budgetID: budgetID, month: month)
+        _ = try await store.categoryLifecycle.applyCategoryOutlineAndRefresh(draft: command, budgetID: budgetID, month: month)
     }
 
     // MARK: Reads
@@ -229,7 +229,7 @@ enum CategoryOracleReplay {
             var result: [String: OracleValue] = [:]
             for row in live {
                 let id = try OracleJSON.string(row, "id")
-                result[id] = await needsTransferValue { try await store.categoryNeedsTransfer(categoryID: id, budgetID: budgetID) }
+                result[id] = await needsTransferValue { try await store.categoryLifecycle.categoryNeedsTransfer(categoryID: id, budgetID: budgetID) }
             }
             return .object(["mustTransfer": .object(result)])
         case "read-outline":

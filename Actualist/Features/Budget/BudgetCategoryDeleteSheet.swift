@@ -6,7 +6,7 @@ struct BudgetCategoryDeleteSheet: View {
     @Bindable var controller: BudgetCategoryLifecycleController
     let selectedMonth: String?
     let budgetID: String?
-    let repository: any BudgetRepositoryProtocol
+    let repository: any BudgetCategoryLifecycleRepositoryProtocol
     let onDeleted: @MainActor () async -> Void
 
     var body: some View {

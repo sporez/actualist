@@ -20,7 +20,7 @@ final class BudgetCategoryOrganizationWorkflow {
         isTrackingBudget: Bool,
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard isTrackingBudget || !group.isIncome else {
             errorMessage = "Income categories cannot be changed in this type of budget."
@@ -38,7 +38,7 @@ final class BudgetCategoryOrganizationWorkflow {
         name: String,
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard let name = validatedName(name, kind: "Category group") else { return nil }
         return await submit(selectedMonth: selectedMonth, budgetID: budgetID) { month, budgetID in
@@ -52,7 +52,7 @@ final class BudgetCategoryOrganizationWorkflow {
         isTrackingBudget: Bool,
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard isTrackingBudget || !category.isIncome else {
             errorMessage = "Income categories cannot be changed in this type of budget."
@@ -72,7 +72,7 @@ final class BudgetCategoryOrganizationWorkflow {
         isTrackingBudget: Bool,
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard isTrackingBudget || !group.isIncome else {
             errorMessage = "Income groups cannot be changed in this type of budget."

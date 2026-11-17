@@ -73,7 +73,7 @@ final class BudgetCategoryDeletionWorkflow {
         groups: [BudgetMonthCategoryGroup],
         isTrackingBudget: Bool,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async {
         let target = Target.category(id: category.id, name: category.name, isIncome: category.isIncome)
         await prepare(
@@ -89,7 +89,7 @@ final class BudgetCategoryDeletionWorkflow {
         groups: [BudgetMonthCategoryGroup],
         isTrackingBudget: Bool,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async {
         let categoryIDs = group.categories.map(\.id)
         let target = Target.group(id: group.id, name: group.name, isIncome: group.isIncome)
@@ -124,7 +124,7 @@ final class BudgetCategoryDeletionWorkflow {
     func delete(
         selectedMonth: String?,
         budgetID: String?,
-        repository: any BudgetRepositoryProtocol
+        repository: any BudgetCategoryLifecycleRepositoryProtocol
     ) async -> LoadedBudgetMonth? {
         guard case .ready(let requiresTransfer) = state, let target else { return nil }
         guard let selectedMonth, let budgetID else {

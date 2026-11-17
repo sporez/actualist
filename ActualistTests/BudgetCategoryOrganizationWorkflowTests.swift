@@ -144,9 +144,7 @@ struct BudgetCategoryOrganizationWorkflowTests {
     }
 }
 
-actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
-    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
-
+actor CategoryLifecycleRecordingRepository: BudgetCategoryLifecycleRepositoryProtocol {
     struct CreatedCategory: Equatable, Sendable { let name: String; let groupID: String }
     struct RenamedEntity: Equatable, Sendable { let id: String; let name: String }
 
@@ -281,17 +279,6 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
         if suspendDeletes { await withCheckedContinuation { deleteContinuation = $0 } }
         return emptyCategoryLifecycleMonth
     }
-
-    func budgets() async throws -> [ActualBudget] { [] }
-    func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity?, categoryID: String, budgeted: Int, budgetID: String, month: String, actionSource: BudgetActionSource, didAssign: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? { emptyCategoryLifecycleMonth }
-    func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?, categoryID: String, carryover: Bool, budgetID: String, startMonth: String, didSetCarryover: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity?, carryover: Bool, budgetID: String, startMonth: String) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func setCategoryHiddenAndRefresh(categoryID: String, hidden: Bool, budgetID: String, month: String, didUpdate: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func setCategoryGroupHiddenAndRefresh(groupID: String, hidden: Bool, budgetID: String, month: String, didUpdate: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity?, command: BudgetTemplateCommand, budgetID: String, month: String, didApply: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
-    func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, actionSource: BudgetActionSource, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? { emptyCategoryLifecycleMonth }
 }
 
 let emptyCategoryLifecycleMonth = LoadedBudgetMonth(
