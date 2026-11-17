@@ -8,10 +8,11 @@ extension LocalFirstActualStore: TransactionBatchRepositoryProtocol {
     ) async throws -> TransactionBatchReview {
         let database = try requireDatabase(for: context.budgetID)
         try requireBatchSession(context, database: database)
-        let review = try await database.reviewTransactionBatch(
+        let review = try await TransactionBatchSQL.reviewTransactionBatch(
             context: context,
             intent: intent,
-            selections: selections
+            selections: selections,
+            in: database
         )
         try requireBatchSession(context, database: database)
         return review
@@ -25,9 +26,10 @@ extension LocalFirstActualStore: TransactionBatchRepositoryProtocol {
         let database = try requireDatabase(for: review.context.budgetID)
         let generation = review.context.sessionGeneration
         try requireBatchSession(review.context, database: database)
-        let receipt = try await database.commitTransactionBatch(
+        let receipt = try await TransactionBatchSQL.commitTransactionBatch(
             review: review,
-            authorization: authorization
+            authorization: authorization,
+            in: database
         )
         let tail = await finishDurableCommit(
             database: database,

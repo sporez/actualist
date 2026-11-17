@@ -57,20 +57,20 @@ struct PlainTransactionDeletePair {
     let isChild: Bool
 }
 
-extension BudgetDatabase {
+enum TransactionBatchDeleteSQL {
     /// Deletes a plain (non-split) row. A transfer counterpart that is a split
     /// child only loses its link and payee; any other counterpart is deleted.
     /// The deleted leg's own link is cleared whenever it had one, even when the
     /// counterpart is gone (Actual's transfer `onDelete` and `removeTransfer`).
     /// Shared by single delete and batch delete.
-    func plainTransactionDeleteWrite(
+    static func plainTransactionDeleteWrite(
         transactionID: String,
         accountID: String?,
         transferID: String?,
         pair: PlainTransactionDeletePair?,
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
+    ) throws -> BudgetDatabase.TransactionWriteResult {
         var messages = [try builder.tombstone(dataset: "transactions", row: transactionID)]
         var affectedIDs: Set<String> = [transactionID]
         var affectedAccounts = Set([accountID].compactMap { $0 })
@@ -87,7 +87,7 @@ extension BudgetDatabase {
         if let transferID, !transferID.isEmpty, let transferColumn = columns.transferID {
             messages.append(try builder.makeMessage(dataset: "transactions", row: transactionID, column: transferColumn, value: .null))
         }
-        return TransactionWriteResult(
+        return BudgetDatabase.TransactionWriteResult(
             messages: messages,
             affectedAccountIDs: Array(affectedAccounts),
             affectedTransactionIDs: Array(affectedIDs)
@@ -96,22 +96,23 @@ extension BudgetDatabase {
 
     /// Messages for one selected row, given the batch's earlier deletions.
     /// Returns no messages when an earlier selection already tombstoned it.
-    func batchDeleteWrite(
+    static func batchDeleteWrite(
         transactionID: String,
         overlay: inout BatchFamilyOverlay,
         columns: TransactionRowColumns,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> BudgetDatabase.TransactionWriteResult {
         if overlay.tombstoned.contains(transactionID) {
-            return TransactionWriteResult(messages: [], affectedAccountIDs: [], affectedTransactionIDs: [])
+            return BudgetDatabase.TransactionWriteResult(messages: [], affectedAccountIDs: [], affectedTransactionIDs: [])
         }
-        guard try loadBatchFamily(containing: transactionID, overlay: &overlay, columns: columns, db: db),
+        guard try loadBatchFamily(containing: transactionID, overlay: &overlay, columns: columns, in: database, db: db),
               let record = overlay.record(transactionID),
               let family = overlay.family(containing: transactionID) else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
-        let write: TransactionWriteResult
+        let write: BudgetDatabase.TransactionWriteResult
         if record.isParent || record.isChild {
             let result = SplitTransactionFamilyOps.deleteTransaction(family, id: transactionID)
             write = try SplitFamilySQL.persistFamilyChange(
@@ -119,14 +120,14 @@ extension BudgetDatabase {
                 newRows: result.data,
                 columns: columns,
                 builder: &builder,
-                in: self,
+                in: database,
                 db: db
             )
             overlay.replaceFamily(root: family[0].id, with: result.data)
         } else {
             var pair: PlainTransactionDeletePair?
             if let pairedID = record.transferID,
-               try loadBatchFamily(containing: pairedID, overlay: &overlay, columns: columns, db: db),
+               try loadBatchFamily(containing: pairedID, overlay: &overlay, columns: columns, in: database, db: db),
                let paired = overlay.record(pairedID) {
                 pair = PlainTransactionDeletePair(id: pairedID, accountID: paired.account, isChild: paired.isChild)
             }
@@ -139,22 +140,23 @@ extension BudgetDatabase {
                 builder: &builder
             )
         }
-        try absorbBatchDeleteMessages(write.messages, overlay: &overlay, columns: columns, db: db)
+        try absorbBatchDeleteMessages(write.messages, overlay: &overlay, columns: columns, in: database, db: db)
         return write
     }
 
     /// Loads the family from SQLite unless an earlier selection already did.
     /// Returns false for a missing or already tombstoned row.
-    func loadBatchFamily(
+    static func loadBatchFamily(
         containing id: String,
         overlay: inout BatchFamilyOverlay,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> Bool {
         if overlay.isLoaded(id) { return true }
         guard !overlay.tombstoned.contains(id),
-              try transactionBatchSnapshot(id: id, columns: columns, db: db)?.tombstone != true else { return false }
-        let family = try SplitFamilySQL.loadSplitFamily(containing: id, columns: columns, in: self, db: db)
+              try TransactionBatchSnapshotSQL.transactionBatchSnapshot(id: id, columns: columns, db: db)?.tombstone != true else { return false }
+        let family = try SplitFamilySQL.loadSplitFamily(containing: id, columns: columns, in: database, db: db)
         guard !family.isEmpty else { return false }
         overlay.load(family)
         return overlay.isLoaded(id)
@@ -162,10 +164,11 @@ extension BudgetDatabase {
 
     /// Reflects a write's side effects on rows outside the deleted family
     /// (tombstoned counterparts, split children that lose their transfer link).
-    private func absorbBatchDeleteMessages(
+    private static func absorbBatchDeleteMessages(
         _ messages: [ActualSyncDecodedMessage],
         overlay: inout BatchFamilyOverlay,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
         for message in messages {
@@ -175,7 +178,7 @@ extension BudgetDatabase {
             } else if !overlay.tombstoned.contains(message.row),
                       message.column == columns.transferID || message.column == columns.payee,
                       case .null = value {
-                _ = try loadBatchFamily(containing: message.row, overlay: &overlay, columns: columns, db: db)
+                _ = try loadBatchFamily(containing: message.row, overlay: &overlay, columns: columns, in: database, db: db)
                 if message.column == columns.transferID { overlay.clearTransferLink(of: message.row) }
             }
         }

@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
+enum TransactionDuplicateSQL {
     private struct DuplicateDatabasePlan {
         let review: TransactionDuplicateReview
         let sourcePlan: TransactionDuplicatePlan
@@ -10,14 +10,15 @@ extension BudgetDatabase {
         let descriptor: TransactionDuplicateActionDescriptor
     }
 
-    func reviewTransactionDuplicate(
+    static func reviewTransactionDuplicate(
         context: TransactionSelectionContext,
         selections: [TransactionSelectionIdentity],
         cloneIDAtIndex: @escaping @Sendable (Int) -> String = { _ in UUID().uuidString },
-        now: Date = Date()
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
     ) throws -> TransactionDuplicateReview {
         let id = UUID().uuidString
-        return try queue.read { db in
+        return try database.queue.read { db in
             try transactionDuplicatePlan(
                 id: id,
                 context: context,
@@ -25,18 +26,20 @@ extension BudgetDatabase {
                 allocations: nil,
                 cloneIDAtIndex: cloneIDAtIndex,
                 now: now,
+                in: database,
                 db: db
             ).review
         }
     }
 
-    func commitTransactionDuplicate(
+    static func commitTransactionDuplicate(
         review: TransactionDuplicateReview,
-        now: Date = Date()
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
     ) throws -> TransactionDuplicateReceipt {
         try Task.checkCancellation()
         try Task.checkCancellation()
-        let committed = try commitLocalPlan(now: now) { db in
+        let committed = try database.commitLocalPlan(now: now) { db in
             try Task.checkCancellation()
             let plan = try transactionDuplicatePlan(
                 id: review.id,
@@ -45,6 +48,7 @@ extension BudgetDatabase {
                 allocations: review.allocations,
                 cloneIDAtIndex: nil,
                 now: now,
+                in: database,
                 db: db
             )
             guard review.canSubmit,
@@ -72,18 +76,19 @@ extension BudgetDatabase {
                 source: .ui,
                 actionID: review.id
             )
-            return LocalCommitPlan(drafts: drafts, action: action, outcome: receipt)
+            return BudgetDatabase.LocalCommitPlan(drafts: drafts, action: action, outcome: receipt)
         }
         return committed.outcome
     }
 
-    private func transactionDuplicatePlan(
+    private static func transactionDuplicatePlan(
         id: String,
         context: TransactionSelectionContext,
         selections: [TransactionSelectionIdentity],
         allocations suppliedAllocations: [TransactionDuplicateAllocation]?,
         cloneIDAtIndex: (@Sendable (Int) -> String)?,
         now: Date,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> DuplicateDatabasePlan {
         guard !id.isEmpty,
@@ -93,7 +98,7 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("invalid transaction duplicate selection")
         }
 
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         guard columns.hasTombstone,
               columns.hasParentID,
               columns.isParent != nil,
@@ -109,6 +114,7 @@ extension BudgetDatabase {
         let sourceSnapshots = try transactionDuplicateSourceSnapshots(
             selections: selections,
             columns: columns,
+            in: database,
             db: db
         )
         let allocations: [TransactionDuplicateAllocation]
@@ -149,7 +155,7 @@ extension BudgetDatabase {
             duplicatePlan,
             payeeNames: try PayeeSQL.reviewPayeeNames(
                 payeeIDs: duplicatePlan.rowChanges.map(\.duplicate.payeeID),
-                in: self,
+                in: database,
                 db: db
             )
         )
@@ -184,14 +190,14 @@ extension BudgetDatabase {
         )
     }
 
-    private func transactionDuplicateDrafts(
+    private static func transactionDuplicateDrafts(
         from plan: TransactionDuplicatePlan,
         columns: TransactionRowColumns
     ) throws -> [ActualSyncDecodedMessage] {
         var builder = LocalFirstSyncMessageBuilder()
         var drafts: [ActualSyncDecodedMessage] = []
         for snapshot in plan.afterSnapshots {
-            drafts += try transactionBatchRestoreMessages(
+            drafts += try TransactionBatchSnapshotSQL.transactionBatchRestoreMessages(
                 snapshot,
                 columns: columns,
                 builder: &builder
@@ -200,16 +206,18 @@ extension BudgetDatabase {
         return drafts
     }
 
-    private func transactionDuplicateSourceSnapshots(
+    private static func transactionDuplicateSourceSnapshots(
         selections: [TransactionSelectionIdentity],
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [TransactionBatchTransactionSnapshot] {
         var snapshotsByID: [String: TransactionBatchTransactionSnapshot] = [:]
         for selection in selections {
-            let graph = try transactionBatchGraph(
+            let graph = try TransactionBatchSnapshotSQL.transactionBatchGraph(
                 containing: selection.transactionID,
                 columns: columns,
+                in: database,
                 db: db
             )
             guard graph.invalidReason == nil,
@@ -236,13 +244,13 @@ extension BudgetDatabase {
 
         let snapshots = snapshotsByID.values.sorted { $0.id < $1.id }
         guard !snapshots.isEmpty,
-              try transactionBatchGraphMembershipMatches(snapshots, db: db) else {
+              try TransactionBatchSnapshotSQL.transactionBatchGraphMembershipMatches(snapshots, in: database, db: db) else {
             throw LocalFirstError.invalidLocalWrite("a transaction duplicate source graph is incomplete")
         }
         return snapshots
     }
 
-    private func validateDuplicateCloneIDAvailability(
+    private static func validateDuplicateCloneIDAvailability(
         _ allocations: [TransactionDuplicateAllocation],
         sourceSnapshots: [TransactionBatchTransactionSnapshot],
         columns: TransactionRowColumns,
@@ -257,13 +265,13 @@ extension BudgetDatabase {
             throw LocalFirstError.invalidLocalWrite("invalid or colliding transaction duplicate IDs")
         }
         for cloneID in cloneIDs {
-            guard try transactionBatchSnapshot(id: cloneID, columns: columns, db: db) == nil else {
+            guard try TransactionBatchSnapshotSQL.transactionBatchSnapshot(id: cloneID, columns: columns, db: db) == nil else {
                 throw LocalFirstError.invalidLocalWrite("a transaction duplicate ID already exists")
             }
         }
     }
 
-    private func transactionDuplicateReviewGroups(
+    private static func transactionDuplicateReviewGroups(
         _ plan: TransactionDuplicatePlan,
         payeeNames: [String: String]
     ) throws -> [TransactionDuplicateGroupReview] {
@@ -309,7 +317,7 @@ extension BudgetDatabase {
         }
     }
 
-    private func transactionDuplicateFingerprint(
+    private static func transactionDuplicateFingerprint(
         id: String,
         context: TransactionSelectionContext,
         selections: [TransactionSelectionIdentity],

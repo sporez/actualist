@@ -7,9 +7,10 @@ extension LocalFirstActualStore: TransactionMergeRepositoryProtocol {
     ) async throws -> TransactionMergeReview {
         let database = try requireDatabase(for: context.budgetID)
         try requireMergeSession(context, database: database)
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context,
-            orderedTransactionIDs: orderedTransactionIDs
+            orderedTransactionIDs: orderedTransactionIDs,
+            in: database
         )
         try requireMergeSession(context, database: database)
         return review
@@ -23,9 +24,10 @@ extension LocalFirstActualStore: TransactionMergeRepositoryProtocol {
         let database = try requireDatabase(for: review.context.budgetID)
         let generation = review.context.sessionGeneration
         try requireMergeSession(review.context, database: database)
-        let receipt = try await database.commitTransactionMerge(
+        let receipt = try await TransactionMergeSQL.commitTransactionMerge(
             review: review,
-            authorization: authorization
+            authorization: authorization,
+            in: database
         )
         let tail = await finishDurableCommit(
             database: database,

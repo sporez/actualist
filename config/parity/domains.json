@@ -316,9 +316,9 @@
         "Actualist/LocalFirst/Database/TransactionDuplicatePlanner.swift",
         "Actualist/LocalFirst/Database/TransactionMergePlanner.swift",
         "Actualist/LocalFirst/Database/TransactionMergePlanModels.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionDuplicate.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionMerge.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionBatchSnapshots.swift"
+        "Actualist/LocalFirst/Database/TransactionDuplicateSQL.swift",
+        "Actualist/LocalFirst/Database/TransactionMergeSQL.swift",
+        "Actualist/LocalFirst/Database/TransactionBatchSnapshotSQL.swift"
       ],
       "notes": "39 duplicate/merge cases from Actual's real handlers, with undo. TransactionCommandOracleReplayTests replays all 39 through the database review/commit/undo path. The September contract (ratified 2026-10-11) refuses several shapes Actual accepts; those are intended OPs."
     },
@@ -365,7 +365,9 @@
         "Actualist/LocalFirst/Database/TransferSQL.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionUpdates.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionDiffUpdate.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionBatch*.swift",
+        "Actualist/LocalFirst/Database/TransactionBatchSQL.swift",
+        "Actualist/LocalFirst/Database/TransactionBatchDeleteSQL.swift",
+        "Actualist/LocalFirst/Database/TransactionBatchSnapshotSQL.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCategorization.swift",
         "Actualist/LocalFirst/Database/BudgetDatabase+TransactionGraphPlanning.swift",
         "Actualist/LocalFirst/Database/TransactionRowColumns.swift"

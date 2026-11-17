@@ -31,7 +31,7 @@ struct TransactionRowLoaderCharacterizationTests {
             for id in ids {
                 output[id] = Loaded(
                     split: try SplitFamilySQL.loadTransactionRecord(id: id, columns: columns, db: db),
-                    batch: try database.transactionBatchSnapshot(id: id, columns: columns, db: db),
+                    batch: try TransactionBatchSnapshotSQL.transactionBatchSnapshot(id: id, columns: columns, db: db),
                     undo: try TransactionActionLogSQL.transactionUndoSnapshot(id: id, in: database, db: db),
                     columns: columns.all.sorted()
                 )
@@ -246,7 +246,7 @@ struct TransactionRowLoaderCharacterizationTests {
             let columns = try TransactionRowColumns.resolve(in: database, db: db)
             return try cases.indices.map { index in
                 (
-                    batch: try database.transactionBatchSnapshot(id: "p\(index)", columns: columns, db: db),
+                    batch: try TransactionBatchSnapshotSQL.transactionBatchSnapshot(id: "p\(index)", columns: columns, db: db),
                     undo: try TransactionActionLogSQL.transactionUndoSnapshot(id: "p\(index)", in: database, db: db)
                 )
             }
@@ -310,7 +310,7 @@ struct TransactionRowLoaderCharacterizationTests {
             return try cases.indices.map { index in
                 (
                     split: try SplitFamilySQL.loadTransactionRecord(id: "p\(index)", columns: columns, db: db),
-                    batch: try database.transactionBatchSnapshot(id: "p\(index)", columns: columns, db: db)
+                    batch: try TransactionBatchSnapshotSQL.transactionBatchSnapshot(id: "p\(index)", columns: columns, db: db)
                 )
             }
         }

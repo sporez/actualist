@@ -108,7 +108,7 @@ enum TransactionActionLogSQL {
             )
 
         case .transactionBatch(let batch):
-            let before = try database.transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, db: db)
+            let before = try TransactionBatchSnapshotSQL.transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, in: database, db: db)
             guard before.count == Set(batch.snapshotTransactionIDs).count else {
                 throw LocalFirstError.invalidLocalWrite("a transaction in the batch changed before action logging")
             }
@@ -167,7 +167,7 @@ enum TransactionActionLogSQL {
         }
         if case .transactionBatch(let batch) = descriptor,
            case .transactionBatch(var inverse) = facts.inverse {
-            let after = try database.transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, db: db)
+            let after = try TransactionBatchSnapshotSQL.transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, in: database, db: db)
             guard after.count == Set(batch.snapshotTransactionIDs).count else {
                 throw LocalFirstError.invalidLocalWrite("a transaction disappeared while recording the batch")
             }
@@ -425,7 +425,7 @@ enum TransactionActionLogSQL {
             let columns = try TransactionRowColumns.resolve(in: database, db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for snapshot in snapshots {
-                let restored = try database.transactionBatchRestoreMessages(
+                let restored = try TransactionBatchSnapshotSQL.transactionBatchRestoreMessages(
                     snapshot,
                     columns: columns,
                     builder: &builder

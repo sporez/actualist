@@ -165,16 +165,17 @@ enum TransactionCommandOracleReplay {
             return identity
         }
         do {
-            let review = try await session.database.reviewTransactionDuplicate(
+            let review = try await TransactionDuplicateSQL.reviewTransactionDuplicate(
                 context: makeCommandContext(),
                 selections: selections,
                 cloneIDAtIndex: { "clone-\($0)" },
-                now: now
+                now: now,
+                in: session.database
             )
             guard review.canSubmit else {
                 return .refused
             }
-            _ = try await session.database.commitTransactionDuplicate(review: review, now: now)
+            _ = try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, now: now, in: session.database)
             return .committed(actionID: review.id, kept: nil)
         } catch is LocalFirstError {
             return .refused
@@ -183,9 +184,10 @@ enum TransactionCommandOracleReplay {
 
     private static func merge(_ session: Session, selected: [String]) async throws -> Applied {
         do {
-            let review = try await session.database.reviewTransactionMerge(
+            let review = try await TransactionMergeSQL.reviewTransactionMerge(
                 context: makeCommandContext(),
-                orderedTransactionIDs: selected
+                orderedTransactionIDs: selected,
+                in: session.database
             )
             guard review.canSubmit, review.blockedReason == nil else {
                 return .refused
@@ -197,10 +199,11 @@ enum TransactionCommandOracleReplay {
                 reviewFingerprint: review.reviewFingerprint,
                 reconciledTransactionIDs: review.reconciledTransactionIDs
             )
-            _ = try await session.database.commitTransactionMerge(
+            _ = try await TransactionMergeSQL.commitTransactionMerge(
                 review: review,
                 authorization: authorization,
-                now: now
+                now: now,
+                in: session.database
             )
             return .committed(actionID: review.id, kept: review.keptRow?.transactionID)
         } catch is LocalFirstError {

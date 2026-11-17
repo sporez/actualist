@@ -6,10 +6,11 @@ struct TransactionBatchGraphSnapshot {
     let invalidReason: String?
 }
 
-extension BudgetDatabase {
-    func transactionBatchGraph(
+enum TransactionBatchSnapshotSQL {
+    static func transactionBatchGraph(
         containing transactionID: String,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> TransactionBatchGraphSnapshot {
         var snapshots: [String: TransactionBatchTransactionSnapshot] = [:]
@@ -46,7 +47,7 @@ extension BudgetDatabase {
                 }
                 let childIDs = try String.fetchAll(
                     db,
-                    sql: "SELECT id FROM transactions WHERE parent_id = ? AND \(predicateForLiveRows(columns: columns.all))",
+                    sql: "SELECT id FROM transactions WHERE parent_id = ? AND \(database.predicateForLiveRows(columns: columns.all))",
                     arguments: [id]
                 )
                 guard !childIDs.isEmpty else {
@@ -65,7 +66,7 @@ extension BudgetDatabase {
             } else if columns.hasParentID {
                 let liveChildren = try Int.fetchOne(
                     db,
-                    sql: "SELECT COUNT(*) FROM transactions WHERE parent_id = ? AND \(predicateForLiveRows(columns: columns.all))",
+                    sql: "SELECT COUNT(*) FROM transactions WHERE parent_id = ? AND \(database.predicateForLiveRows(columns: columns.all))",
                     arguments: [id]
                 ) ?? 0
                 if liveChildren > 0 {
@@ -95,6 +96,7 @@ extension BudgetDatabase {
                     to: id,
                     transferColumn: transferColumn,
                     columns: columns,
+                    in: database,
                     db: db
                 )
                 let expectedIncoming = snapshot.transferID.map { Set([$0]) } ?? []
@@ -112,7 +114,7 @@ extension BudgetDatabase {
         return TransactionBatchGraphSnapshot(snapshots: snapshots, invalidReason: invalidReason)
     }
 
-    func transactionBatchSnapshot(
+    static func transactionBatchSnapshot(
         id: String,
         columns: TransactionRowColumns,
         db: Database
@@ -168,11 +170,12 @@ extension BudgetDatabase {
         )
     }
 
-    func transactionBatchSnapshots(
+    static func transactionBatchSnapshots(
         ids: [String],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [TransactionBatchTransactionSnapshot] {
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         var output: [TransactionBatchTransactionSnapshot] = []
         for id in Set(ids).sorted() {
             guard let snapshot = try transactionBatchSnapshot(id: id, columns: columns, db: db) else {
@@ -183,22 +186,23 @@ extension BudgetDatabase {
         return output
     }
 
-    func transactionBatchLiveCategoryExists(id: String, db: Database) throws -> Bool {
-        guard try tableExists("categories", db: db) else { return false }
-        let columns = try columnSet(for: "categories", db: db)
+    static func transactionBatchLiveCategoryExists(id: String, in database: isolated BudgetDatabase, db: Database) throws -> Bool {
+        guard try database.tableExists("categories", db: db) else { return false }
+        let columns = try database.columnSet(for: "categories", db: db)
         guard columns.contains("id") else { return false }
         return try Bool.fetchOne(
             db,
-            sql: "SELECT EXISTS(SELECT 1 FROM categories WHERE id = ? AND \(predicateForLiveRows(columns: columns)))",
+            sql: "SELECT EXISTS(SELECT 1 FROM categories WHERE id = ? AND \(database.predicateForLiveRows(columns: columns)))",
             arguments: [id]
         ) ?? false
     }
 
-    func transactionBatchGraphMembershipMatches(
+    static func transactionBatchGraphMembershipMatches(
         _ snapshots: [TransactionBatchTransactionSnapshot],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> Bool {
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         let byID = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.id, $0) })
         let rootIDs = Set(snapshots.compactMap { snapshot -> String? in
             if snapshot.isParent == true { return snapshot.id }
@@ -208,7 +212,7 @@ extension BudgetDatabase {
             guard columns.hasParentID else { return false }
             let liveIDs = Set(try String.fetchAll(
                 db,
-                sql: "SELECT id FROM transactions WHERE parent_id = ? AND \(predicateForLiveRows(columns: columns.all))",
+                sql: "SELECT id FROM transactions WHERE parent_id = ? AND \(database.predicateForLiveRows(columns: columns.all))",
                 arguments: [rootID]
             ))
             let expectedIDs = Set(snapshots.compactMap { snapshot -> String? in
@@ -229,6 +233,7 @@ extension BudgetDatabase {
                     to: snapshot.id,
                     transferColumn: transferColumn,
                     columns: columns,
+                    in: database,
                     db: db
                 )
                 let expectedIncoming = Set(snapshots.compactMap { candidate -> String? in
@@ -240,20 +245,21 @@ extension BudgetDatabase {
         return true
     }
 
-    private func transactionBatchLiveIncomingTransferIDs(
+    private static func transactionBatchLiveIncomingTransferIDs(
         to transactionID: String,
         transferColumn: String,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> Set<String> {
         Set(try String.fetchAll(
             db,
-            sql: "SELECT id FROM transactions WHERE \(quotedIdentifier(transferColumn)) = ? AND \(predicateForLiveRows(columns: columns.all))",
+            sql: "SELECT id FROM transactions WHERE \(database.quotedIdentifier(transferColumn)) = ? AND \(database.predicateForLiveRows(columns: columns.all))",
             arguments: [transactionID]
         ))
     }
 
-    func transactionBatchRestoreMessages(
+    static func transactionBatchRestoreMessages(
         _ snapshot: TransactionBatchTransactionSnapshot,
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder

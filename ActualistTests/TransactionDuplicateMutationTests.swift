@@ -15,11 +15,12 @@ struct TransactionDuplicateMutationTests {
             WHERE id = 'txn';
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionDuplicate(
+        let review = try await TransactionDuplicateSQL.reviewTransactionDuplicate(
             context: context(bundle.store),
             selections: [identity("txn")],
             cloneIDAtIndex: { _ in "fractional-order-clone" },
-            now: Date(timeIntervalSince1970: 123.00025)
+            now: Date(timeIntervalSince1970: 123.00025),
+            in: database
         )
 
         #expect(review.canSubmit)
@@ -28,7 +29,7 @@ struct TransactionDuplicateMutationTests {
         let cloneID = try #require(review.allocations.first?.duplicateTransactionID)
         let allocatedOrder = try #require(review.allocations.first?.sortOrder)
         #expect(allocatedOrder.rounded(.towardZero) != allocatedOrder)
-        let receipt = try await database.commitTransactionDuplicate(review: review)
+        let receipt = try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
 
         #expect(receipt.actionID == review.id)
         #expect(receipt.changed.accounts == ["checking"])
@@ -77,7 +78,7 @@ struct TransactionDuplicateMutationTests {
         #expect(review.groups.count == 1)
         #expect(review.groups[0].sourceTransactionIDs.count == 3)
         #expect(review.groups[0].duplicateTransactionIDs.count == 3)
-        let receipt = try await database.commitTransactionDuplicate(review: review)
+        let receipt = try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
         let clones = try readCloneRows(review, bundle: bundle)
 
         #expect(clones.count == 3)
@@ -115,7 +116,7 @@ struct TransactionDuplicateMutationTests {
         let sourceCloneID = try #require(cloneBySource["source-transfer"])
         let peerCloneID = try #require(cloneBySource["source-transfer-peer"])
 
-        let receipt = try await database.commitTransactionDuplicate(review: review)
+        let receipt = try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
 
         #expect(receipt.changed.accounts == ["checking", "credit"])
         #expect(receipt.changed.months == ["2026-07"])
@@ -139,7 +140,7 @@ struct TransactionDuplicateMutationTests {
         let pendingBefore = try await database.pendingLocalSyncMessageCount()
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionDuplicate(review: review)
+            try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
         }
 
         let cloneID = try #require(review.allocations.first?.duplicateTransactionID)
@@ -153,9 +154,10 @@ struct TransactionDuplicateMutationTests {
         let database = try bundle.store.requireDatabase(for: "group-1")
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.reviewTransactionDuplicate(
+            try await TransactionDuplicateSQL.reviewTransactionDuplicate(
                 context: context(bundle.store),
-                selections: [identity("txn")]
+                selections: [identity("txn")],
+                in: database
             )
         }
     }
@@ -171,9 +173,10 @@ struct TransactionDuplicateMutationTests {
         let database = try bundle.store.requireDatabase(for: "group-1")
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.reviewTransactionDuplicate(
+            try await TransactionDuplicateSQL.reviewTransactionDuplicate(
                 context: context(bundle.store),
-                selections: [identity("txn")]
+                selections: [identity("txn")],
+                in: database
             )
         }
     }
@@ -183,10 +186,11 @@ struct TransactionDuplicateMutationTests {
         let database = try bundle.store.requireDatabase(for: "group-1")
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.reviewTransactionDuplicate(
+            try await TransactionDuplicateSQL.reviewTransactionDuplicate(
                 context: context(bundle.store),
                 selections: [identity("txn")],
-                cloneIDAtIndex: { _ in "occupied-root-clone" }
+                cloneIDAtIndex: { _ in "occupied-root-clone" },
+                in: database
             )
         }
     }
@@ -197,10 +201,11 @@ struct TransactionDuplicateMutationTests {
         let database = try bundle.store.requireDatabase(for: "group-1")
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.reviewTransactionDuplicate(
+            try await TransactionDuplicateSQL.reviewTransactionDuplicate(
                 context: context(bundle.store),
                 selections: [identity("source-parent")],
-                cloneIDAtIndex: { index in index == 1 ? "occupied-child-clone" : "fresh-\(index)" }
+                cloneIDAtIndex: { index in index == 1 ? "occupied-child-clone" : "fresh-\(index)" },
+                in: database
             )
         }
     }
@@ -211,10 +216,11 @@ struct TransactionDuplicateMutationTests {
         let database = try bundle.store.requireDatabase(for: "group-1")
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.reviewTransactionDuplicate(
+            try await TransactionDuplicateSQL.reviewTransactionDuplicate(
                 context: context(bundle.store),
                 selections: [identity("source-transfer")],
-                cloneIDAtIndex: { index in index == 1 ? "occupied-peer-clone" : "fresh-\(index)" }
+                cloneIDAtIndex: { index in index == 1 ? "occupied-peer-clone" : "fresh-\(index)" },
+                in: database
             )
         }
     }
@@ -228,7 +234,7 @@ struct TransactionDuplicateMutationTests {
         let pendingBefore = try await database.pendingLocalSyncMessageCount()
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionDuplicate(review: review)
+            try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
         }
 
         #expect(try transactionState(cloneID, bundle: bundle)?.amount == -50)
@@ -258,7 +264,7 @@ struct TransactionDuplicateMutationTests {
         )
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionDuplicate(review: changedReview)
+            try await TransactionDuplicateSQL.commitTransactionDuplicate(review: changedReview, in: database)
         }
 
         #expect(try transactionState(original.duplicateTransactionID, bundle: bundle) == nil)
@@ -270,9 +276,10 @@ struct TransactionDuplicateMutationTests {
         let database = try bundle.store.requireDatabase(for: "group-1")
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.reviewTransactionDuplicate(
+            try await TransactionDuplicateSQL.reviewTransactionDuplicate(
                 context: context(bundle.store),
-                selections: [identity("txn")]
+                selections: [identity("txn")],
+                in: database
             )
         }
     }
@@ -284,7 +291,7 @@ struct TransactionDuplicateMutationTests {
         let pendingBefore = try await database.pendingLocalSyncMessageCount()
         let commit = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            return try await database.commitTransactionDuplicate(review: review)
+            return try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
         }
 
         await #expect(throws: CancellationError.self) { try await commit.value }
@@ -300,7 +307,7 @@ struct TransactionDuplicateMutationTests {
         let review = try await review(bundle, selections: [identity("txn")])
         database.invalidateSessionWrites()
         let pendingCommit = Task {
-            try await database.commitTransactionDuplicate(review: review)
+            try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
         }
 
         await #expect(throws: LocalFirstError.budgetNotOpened) {
@@ -323,7 +330,7 @@ struct TransactionDuplicateMutationTests {
             """, bundle: bundle)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionDuplicate(review: review)
+            try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
         }
 
         #expect(try transactionState(cloneID, bundle: bundle) == nil)
@@ -344,7 +351,7 @@ struct TransactionDuplicateMutationTests {
             """, bundle: bundle)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionDuplicate(review: review)
+            try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
         }
 
         #expect(try transactionState(cloneID, bundle: bundle) == nil)
@@ -358,7 +365,7 @@ struct TransactionDuplicateMutationTests {
         let database = try bundle.store.requireDatabase(for: "group-1")
         let review = try await review(bundle, selections: [identity("txn")])
         let cloneID = try #require(review.allocations.first?.duplicateTransactionID)
-        _ = try await database.commitTransactionDuplicate(review: review)
+        _ = try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
         let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
         try write("UPDATE transactions SET notes = 'edited after duplicate' WHERE id = '\(cloneID)';", bundle: bundle)
 
@@ -376,7 +383,7 @@ struct TransactionDuplicateMutationTests {
         let cloneParentID = try #require(review.allocations.first {
             $0.sourceTransactionID == "source-parent"
         }?.duplicateTransactionID)
-        _ = try await database.commitTransactionDuplicate(review: review)
+        _ = try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
         let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
         try write("""
             INSERT INTO transactions

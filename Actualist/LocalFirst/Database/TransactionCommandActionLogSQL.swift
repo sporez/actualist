@@ -24,7 +24,7 @@ enum TransactionCommandActionLogSQL {
         }
         let columns = try TransactionRowColumns.resolve(in: database, db: db)
         for id in cloneIDs {
-            guard try database.transactionBatchSnapshot(id: id, columns: columns, db: db) == nil else {
+            guard try TransactionBatchSnapshotSQL.transactionBatchSnapshot(id: id, columns: columns, db: db) == nil else {
                 throw LocalFirstError.invalidLocalWrite("a transaction duplicate ID already exists")
             }
         }
@@ -90,7 +90,7 @@ enum TransactionCommandActionLogSQL {
             guard after.allSatisfy({ $0.tombstone == false }),
                   completeCloneGraph.map(\.id) == cloneIDs,
                   Array(zip(after, completeCloneGraph)).allSatisfy({ $0.0.matches($0.1) }),
-                  try database.transactionBatchGraphMembershipMatches(after, db: db) else {
+                  try TransactionBatchSnapshotSQL.transactionBatchGraphMembershipMatches(after, in: database, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("transaction duplicate graph changed while recording History")
             }
             inverse.afterSnapshots = after
@@ -113,7 +113,7 @@ enum TransactionCommandActionLogSQL {
                 in: database,
                 db: db
             )
-            guard try database.transactionBatchGraphMembershipMatches(after, db: db),
+            guard try TransactionBatchSnapshotSQL.transactionBatchGraphMembershipMatches(after, in: database, db: db),
                   let kept = after.first(where: { $0.id == summary.keptTransactionID }),
                   let dropped = after.first(where: { $0.id == summary.droppedTransactionID }),
                   kept.tombstone == false,
@@ -145,7 +145,7 @@ enum TransactionCommandActionLogSQL {
             let columns = try TransactionRowColumns.resolve(in: database, db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for snapshot in snapshots {
-                messages += try database.transactionBatchRestoreMessages(
+                messages += try TransactionBatchSnapshotSQL.transactionBatchRestoreMessages(
                     snapshot,
                     columns: columns,
                     builder: &builder
@@ -238,7 +238,7 @@ enum TransactionCommandActionLogSQL {
         try requireTransactionCommandGraphSchema(columns)
         var snapshotsByID: [String: TransactionBatchTransactionSnapshot] = [:]
         for sourceID in selectedSourceIDs {
-            let graph = try database.transactionBatchGraph(containing: sourceID, columns: columns, db: db)
+            let graph = try TransactionBatchSnapshotSQL.transactionBatchGraph(containing: sourceID, columns: columns, in: database, db: db)
             guard graph.invalidReason == nil,
                   graph.snapshots[sourceID] != nil,
                   graph.snapshots.values.allSatisfy({
@@ -257,7 +257,7 @@ enum TransactionCommandActionLogSQL {
             }
         }
         let snapshots = snapshotsByID.values.sorted { $0.id < $1.id }
-        guard try database.transactionBatchGraphMembershipMatches(snapshots, db: db) else {
+        guard try TransactionBatchSnapshotSQL.transactionBatchGraphMembershipMatches(snapshots, in: database, db: db) else {
             throw LocalFirstError.invalidLocalWrite("a transaction duplicate source graph is incomplete")
         }
         return snapshots
@@ -287,7 +287,7 @@ enum TransactionCommandActionLogSQL {
         var snapshotsByID: [String: TransactionBatchTransactionSnapshot] = [:]
         var graphIDs = Set<String>()
         for inputID in inputs {
-            let graph = try database.transactionBatchGraph(containing: inputID, columns: columns, db: db)
+            let graph = try TransactionBatchSnapshotSQL.transactionBatchGraph(containing: inputID, columns: columns, in: database, db: db)
             guard graph.invalidReason == nil,
                   let input = graph.snapshots[inputID],
                   input.isChild == false,
@@ -311,7 +311,7 @@ enum TransactionCommandActionLogSQL {
         }
         let snapshots = snapshotsByID.values.sorted { $0.id < $1.id }
         guard snapshots.map(\.id) == affectedIDs,
-              try database.transactionBatchGraphMembershipMatches(snapshots, db: db) else {
+              try TransactionBatchSnapshotSQL.transactionBatchGraphMembershipMatches(snapshots, in: database, db: db) else {
             throw LocalFirstError.invalidLocalWrite("a transaction merge source graph is incomplete")
         }
         return snapshots
@@ -325,7 +325,7 @@ enum TransactionCommandActionLogSQL {
         let ids = before.map(\.id)
         let current = try completeTransactionCommandSnapshots(ids: ids, in: database, db: db)
         guard Array(zip(before, current)).allSatisfy({ $0.0.matches($0.1) }),
-              try database.transactionBatchGraphMembershipMatches(before, db: db) else {
+              try TransactionBatchSnapshotSQL.transactionBatchGraphMembershipMatches(before, in: database, db: db) else {
             throw LocalFirstError.invalidLocalWrite("a transaction duplicate source changed while recording History")
         }
     }
@@ -341,7 +341,7 @@ enum TransactionCommandActionLogSQL {
               Set(ids).count == ids.count else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction command snapshot IDs")
         }
-        let snapshots = try database.transactionBatchSnapshots(ids: ids, db: db)
+        let snapshots = try TransactionBatchSnapshotSQL.transactionBatchSnapshots(ids: ids, in: database, db: db)
         guard snapshots.map(\.id) == ids,
               snapshots.allSatisfy(TransactionCommandActionValidation.isCompleteSnapshot) else {
             throw LocalFirstError.invalidLocalWrite("a transaction command snapshot is incomplete")

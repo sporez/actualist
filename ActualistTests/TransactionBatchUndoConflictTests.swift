@@ -20,7 +20,7 @@ struct TransactionBatchUndoConflictTests {
             familyRootID: "txn",
             role: .root
         ))
-        let review = try await database.reviewTransactionBatch(
+        let review = try await TransactionBatchSQL.reviewTransactionBatch(
             context: TransactionSelectionContext(
                 budgetID: "group-1",
                 sessionGeneration: bundle.store.budgetSessionGeneration,
@@ -28,9 +28,10 @@ struct TransactionBatchUndoConflictTests {
                 querySignature: TransactionFeedQuery().signature
             ),
             intent: intent,
-            selections: [selection]
+            selections: [selection],
+            in: database
         )
-        _ = try await database.commitTransactionBatch(review: review, authorization: review.authorization)
+        _ = try await TransactionBatchSQL.commitTransactionBatch(review: review, authorization: review.authorization, in: database)
         let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
 
         let url = try bundle.fileManager.databaseURL(fileID: #require(bundle.budget.budgetID))

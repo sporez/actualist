@@ -7,9 +7,10 @@ extension LocalFirstActualStore: TransactionDuplicateRepositoryProtocol {
     ) async throws -> TransactionDuplicateReview {
         let database = try requireDatabase(for: context.budgetID)
         try requireDuplicateSession(context, database: database)
-        let review = try await database.reviewTransactionDuplicate(
+        let review = try await TransactionDuplicateSQL.reviewTransactionDuplicate(
             context: context,
-            selections: selections
+            selections: selections,
+            in: database
         )
         try requireDuplicateSession(context, database: database)
         return review
@@ -22,7 +23,7 @@ extension LocalFirstActualStore: TransactionDuplicateRepositoryProtocol {
         let database = try requireDatabase(for: review.context.budgetID)
         let generation = review.context.sessionGeneration
         try requireDuplicateSession(review.context, database: database)
-        let receipt = try await database.commitTransactionDuplicate(review: review)
+        let receipt = try await TransactionDuplicateSQL.commitTransactionDuplicate(review: review, in: database)
 
         // Once SQLite commits, keep receipt delivery independent of caller
         // cancellation. Cache publication can be retried from the durable rows.

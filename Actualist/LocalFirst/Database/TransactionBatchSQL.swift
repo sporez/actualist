@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
+enum TransactionBatchSQL {
     private struct BatchPlan {
         let review: TransactionBatchReview
         let messages: [ActualSyncDecodedMessage]
@@ -13,36 +13,40 @@ extension BudgetDatabase {
         let learningTransactionIDs: Set<String>
     }
 
-    func reviewTransactionBatch(
+    static func reviewTransactionBatch(
         context: TransactionSelectionContext,
         intent: TransactionBatchIntent,
-        selections: [TransactionSelectionIdentity]
+        selections: [TransactionSelectionIdentity],
+        in database: isolated BudgetDatabase
     ) throws -> TransactionBatchReview {
         let reviewID = UUID().uuidString
-        return try queue.read { db in
+        return try database.queue.read { db in
             try transactionBatchPlan(
                 id: reviewID,
                 context: context,
                 intent: intent,
                 selections: selections,
+                in: database,
                 db: db
             ).review
         }
     }
 
-    func commitTransactionBatch(
+    static func commitTransactionBatch(
         review: TransactionBatchReview,
         authorization: TransactionBatchAuthorization?,
-        now: Date = Date()
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
     ) throws -> TransactionBatchResult {
         try Task.checkCancellation()
-        let committed = try commitLocalPlan(now: now) { db in
+        let committed = try database.commitLocalPlan(now: now) { db in
             try Task.checkCancellation()
             let plan = try transactionBatchPlan(
                 id: review.id,
                 context: review.context,
                 intent: review.intent,
                 selections: review.selections,
+                in: database,
                 db: db
             )
             guard plan.review.reviewFingerprint == review.reviewFingerprint,
@@ -64,7 +68,7 @@ extension BudgetDatabase {
                 actionID: review.id,
                 learningTransactionIDs: plan.learningTransactionIDs
             )
-            return LocalCommitPlan(
+            return BudgetDatabase.LocalCommitPlan(
                 drafts: plan.messages,
                 action: action,
                 outcome: TransactionBatchResult(
@@ -78,11 +82,12 @@ extension BudgetDatabase {
         return committed.outcome
     }
 
-    private func transactionBatchPlan(
+    private static func transactionBatchPlan(
         id: String,
         context: TransactionSelectionContext,
         intent: TransactionBatchIntent,
         selections: [TransactionSelectionIdentity],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> BatchPlan {
         guard !selections.isEmpty,
@@ -90,7 +95,7 @@ extension BudgetDatabase {
               selections.allSatisfy({ !$0.transactionID.isEmpty && !$0.familyRootID.isEmpty }) else {
             throw LocalFirstError.invalidLocalWrite("invalid transaction selection")
         }
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         let isDelete = intent == .delete
         if isDelete && !columns.hasTombstone {
             throw LocalFirstError.invalidLocalWrite("transactions.tombstone is unavailable")
@@ -102,7 +107,7 @@ extension BudgetDatabase {
         if case .categorize(let requestedCategoryID) = intent {
             categoryID = requestedCategoryID
             if let categoryID,
-               try !transactionBatchLiveCategoryExists(id: categoryID, db: db) {
+               try !TransactionBatchSnapshotSQL.transactionBatchLiveCategoryExists(id: categoryID, in: database, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
         } else {
@@ -113,9 +118,10 @@ extension BudgetDatabase {
         var graphSnapshots: [String: TransactionBatchTransactionSnapshot] = [:]
         var blockedReasons: [String: String] = [:]
         for selection in selections {
-            let graph = try transactionBatchGraph(
+            let graph = try TransactionBatchSnapshotSQL.transactionBatchGraph(
                 containing: selection.transactionID,
                 columns: columns,
+                in: database,
                 db: db
             )
             graphs[selection.transactionID] = graph
@@ -199,8 +205,9 @@ extension BudgetDatabase {
                         target: targetClear,
                         overlay: &familyOverlay,
                         columns: columns,
-                        db: db,
-                        builder: &builder
+                        builder: &builder,
+                        in: database,
+                        db: db
                     )
                     messages += clearMessages
                     affectedIDs.formUnion(clearMessages.map(\.row))
@@ -219,6 +226,7 @@ extension BudgetDatabase {
                 let reconciled = try aggregateBatchReconciledRows(
                     transactionID: selection.transactionID,
                     columns: columns,
+                    in: database,
                     db: db
                 )
                 if !reconciled.target.isEmpty || !reconciled.paired.isEmpty {
@@ -232,7 +240,7 @@ extension BudgetDatabase {
                     break
                 case .categorize:
                     do {
-                        try validateCategorizationTarget(
+                        try database.validateCategorizationTarget(
                             transactionID: selection.transactionID,
                             columns: columns.all,
                             payeeColumn: columns.payee,
@@ -264,12 +272,13 @@ extension BudgetDatabase {
                     if let account = row.accountID { accountIDs.insert(account) }
                     if let month = PackedDate.monthID(ofDate: row.dateValue) { monthIDs.insert(month) }
                 case .delete:
-                    let write = try batchDeleteWrite(
+                    let write = try TransactionBatchDeleteSQL.batchDeleteWrite(
                         transactionID: selection.transactionID,
                         overlay: &familyOverlay,
                         columns: columns,
-                        db: db,
-                        builder: &builder
+                        builder: &builder,
+                        in: database,
+                        db: db
                     )
                     messages += write.messages
                     affectedIDs.insert(selection.transactionID)
@@ -339,6 +348,7 @@ extension BudgetDatabase {
         let metadata = try transactionBatchReviewMetadata(
             renderedChanges: rowChanges.filter { renderedRowIDs.contains($0.id) },
             targetCategoryID: categoryID,
+            in: database,
             db: db
         )
         let blockedCount = dispositions.filter { if case .blocked = $0 { true } else { false } }.count
@@ -382,15 +392,16 @@ extension BudgetDatabase {
         )
     }
 
-    private func aggregateBatchReconciledRows(
+    private static func aggregateBatchReconciledRows(
         transactionID: String,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> (target: Set<String>, paired: Set<String>) {
         guard let review = try ReconciledMutationReviewSQL.reconciledMutationReview(
             transactionID: transactionID,
             columns: columns,
-            in: self,
+            in: database,
             db: db
         ) else { return ([], []) }
         return (
@@ -399,7 +410,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func transactionBatchFingerprint(
+    private static func transactionBatchFingerprint(
         context: TransactionSelectionContext,
         intent: TransactionBatchIntent,
         selections: [TransactionSelectionIdentity],
@@ -457,7 +468,7 @@ extension BudgetDatabase {
     }
 
     /// `messages` are this row's messages only, in order.
-    private func projectedBatchSnapshot(
+    private static func projectedBatchSnapshot(
         _ snapshot: TransactionBatchTransactionSnapshot,
         messages: [ActualSyncDecodedMessage],
         columns: TransactionRowColumns
@@ -552,19 +563,20 @@ extension BudgetDatabase {
         )
     }
 
-    private func transactionBatchReviewMetadata(
+    private static func transactionBatchReviewMetadata(
         renderedChanges: [TransactionBatchRowChange],
         targetCategoryID: String?,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> TransactionBatchReviewMetadata {
         func names(in table: String) throws -> [String: String] {
-            guard try tableExists(table, db: db) else { return [:] }
-            let columns = try columnSet(for: table, db: db)
+            guard try database.tableExists(table, db: db) else { return [:] }
+            let columns = try database.columnSet(for: table, db: db)
             guard columns.contains("id"), columns.contains("name") else { return [:] }
             return Dictionary(
                 try Row.fetchAll(
                     db,
-                    sql: "SELECT id, name FROM \(table) WHERE \(predicateForLiveRows(columns: columns))"
+                    sql: "SELECT id, name FROM \(table) WHERE \(database.predicateForLiveRows(columns: columns))"
                 ).compactMap { row -> (String, String)? in
                     guard let id = row["id"] as String? else { return nil }
                     return (id, row["name"] as String? ?? "")
@@ -575,8 +587,8 @@ extension BudgetDatabase {
 
         let accountNames = try names(in: "accounts")
         var payeeNames = try names(in: "payees")
-        if try tableExists("payees", db: db) {
-            let columns = try columnSet(for: "payees", db: db)
+        if try database.tableExists("payees", db: db) {
+            let columns = try database.columnSet(for: "payees", db: db)
             if columns.contains("id"), columns.contains("transfer_acct") {
                 for row in try Row.fetchAll(db, sql: "SELECT id, transfer_acct FROM payees") {
                     guard let id = row["id"] as String?,
@@ -587,7 +599,7 @@ extension BudgetDatabase {
                 }
             }
         }
-        for mapping in try PayeeSQL.payeeMappingRows(in: self, db: db) {
+        for mapping in try PayeeSQL.payeeMappingRows(in: database, db: db) {
             guard let targetName = nonemptyBatchName(payeeNames[mapping.target]) else { continue }
             payeeNames[mapping.id] = targetName
         }
@@ -596,14 +608,14 @@ extension BudgetDatabase {
         var categoryIDs = Set(renderedChanges.flatMap { [$0.before.categoryID, $0.after.categoryID].compactMap { $0 } })
         if let targetCategoryID { categoryIDs.insert(targetCategoryID) }
         return TransactionBatchReviewMetadata(
-            currency: try BudgetCurrencySQL.budgetCurrency(in: self, db: db),
+            currency: try BudgetCurrencySQL.budgetCurrency(in: database, db: db),
             accountNames: accountNames.filter { accountIDs.contains($0.key) },
             payeeNames: payeeNames.filter { payeeIDs.contains($0.key) },
             categoryNames: try names(in: "categories").filter { categoryIDs.contains($0.key) }
         )
     }
 
-    private func nonemptyBatchName(_ value: String?) -> String? {
+    private static func nonemptyBatchName(_ value: String?) -> String? {
         guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         return value
     }
@@ -632,6 +644,54 @@ extension BudgetDatabase {
         let skipped = skippedCount > 0 ? " \(skippedCount) reconciled selected rows will be left unchanged." : ""
         let count = changedCount == selectedCount ? "" : " This includes linked rows beyond the \(selectedCount) selected entries."
         return base + skipped + count
+    }
+
+    /// Clear for a selected split parent or child. Actual's `updateTransaction`
+    /// rebuilds every child with `makeChild`, which copies the parent's
+    /// `cleared`. Setting it on a parent therefore reaches its children, and a
+    /// child alone cannot diverge from its parent.
+    ///
+    /// Only `cleared` is written. `makeChild` also resets other child fields
+    /// (reconciled, transfer link) that Clear must not touch, and a reconciled
+    /// row keeps its cleared state. The change goes through
+    /// `messagesForChangedFields`, not `persistFamilyChange`, so no transfer
+    /// reconciliation runs for rows whose transfer fields did not change.
+    private static func batchClearFamilyMessages(
+        transactionID: String,
+        target: Bool,
+        overlay: inout BatchFamilyOverlay,
+        columns: TransactionRowColumns,
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> [ActualSyncDecodedMessage] {
+        guard try TransactionBatchDeleteSQL.loadBatchFamily(containing: transactionID, overlay: &overlay, columns: columns, in: database, db: db),
+              let family = overlay.family(containing: transactionID),
+              var selected = overlay.record(transactionID) else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
+        }
+        selected.cleared = target
+        let result = SplitTransactionFamilyOps.updateTransaction(family, transaction: selected)
+        guard !result.data.isEmpty else {
+            throw LocalFirstError.invalidLocalWrite("missing transaction")
+        }
+        let oldByID = Dictionary(uniqueKeysWithValues: family.map { ($0.id, $0) })
+        var messages: [ActualSyncDecodedMessage] = []
+        var updated: [SplitTransactionRecord] = []
+        for row in result.data {
+            guard let old = oldByID[row.id] else {
+                updated.append(row)
+                continue
+            }
+            var next = old
+            if old.reconciled != true { next.cleared = row.cleared }
+            updated.append(next)
+            if old.cleared != next.cleared {
+                messages += try SplitFamilySQL.messagesForChangedFields(from: old, to: next, columns: columns, builder: &builder)
+            }
+        }
+        overlay.replaceFamily(root: family[0].id, with: updated)
+        return messages
     }
 }
 

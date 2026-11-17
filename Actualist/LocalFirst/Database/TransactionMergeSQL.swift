@@ -25,34 +25,38 @@ private struct TransactionMergeFingerprintPayload: Encodable {
     let transferPayeeDestinations: [TransactionMergeFingerprintPayeeDestination]
 }
 
-extension BudgetDatabase {
-    func reviewTransactionMerge(
+enum TransactionMergeSQL {
+    static func reviewTransactionMerge(
         context: TransactionSelectionContext,
-        orderedTransactionIDs: [String]
+        orderedTransactionIDs: [String],
+        in database: isolated BudgetDatabase
     ) throws -> TransactionMergeReview {
         let reviewID = UUID().uuidString
-        return try queue.read { db in
+        return try database.queue.read { db in
             try transactionMergeDatabasePlan(
                 id: reviewID,
                 context: context,
                 orderedTransactionIDs: orderedTransactionIDs,
+                in: database,
                 db: db
             ).review
         }
     }
 
-    func commitTransactionMerge(
+    static func commitTransactionMerge(
         review: TransactionMergeReview,
         authorization: TransactionMergeAuthorization?,
-        now: Date = Date()
+        now: Date = Date(),
+        in database: isolated BudgetDatabase
     ) throws -> TransactionMergeReceipt {
         try Task.checkCancellation()
-        let committed = try commitLocalPlan(now: now) { db in
+        let committed = try database.commitLocalPlan(now: now) { db in
             try Task.checkCancellation()
             let current = try transactionMergeDatabasePlan(
                 id: review.id,
                 context: review.context,
                 orderedTransactionIDs: review.orderedTransactionIDs,
+                in: database,
                 db: db
             )
             guard current.review == review,
@@ -69,7 +73,7 @@ extension BudgetDatabase {
             }
 
             var builder = LocalFirstSyncMessageBuilder()
-            let messages = try transactionMergeMessages(for: plan, db: db, builder: &builder)
+            let messages = try transactionMergeMessages(for: plan, builder: &builder, in: database, db: db)
             guard !messages.isEmpty else {
                 throw LocalFirstError.refusedChange("Merging these transactions would not change anything.")
             }
@@ -86,7 +90,7 @@ extension BudgetDatabase {
                 changedTransactionIDs: affectedIDs,
                 actionID: review.id
             )
-            return LocalCommitPlan(
+            return BudgetDatabase.LocalCommitPlan(
                 drafts: messages,
                 action: ActionLogCommit(
                     descriptor: .transactionMerge(descriptor),
@@ -100,10 +104,11 @@ extension BudgetDatabase {
         return committed.outcome
     }
 
-    private func transactionMergeDatabasePlan(
+    private static func transactionMergeDatabasePlan(
         id: String,
         context: TransactionSelectionContext,
         orderedTransactionIDs: [String],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> TransactionMergeDatabasePlan {
         guard orderedTransactionIDs.count == 2,
@@ -112,15 +117,17 @@ extension BudgetDatabase {
             throw LocalFirstError.refusedChange("Select two different transactions to merge.")
         }
 
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         let firstGraph = try transactionMergeGraph(
             containing: orderedTransactionIDs[0],
             columns: columns,
+            in: database,
             db: db
         )
         let secondGraph = try transactionMergeGraph(
             containing: orderedTransactionIDs[1],
             columns: columns,
+            in: database,
             db: db
         )
         let firstSnapshots = firstGraph.values.sorted { $0.id < $1.id }
@@ -131,6 +138,7 @@ extension BudgetDatabase {
         )
         let reference = try transactionMergeReferenceMetadata(
             snapshots: Array(allSnapshotsByID.values),
+            in: database,
             db: db
         )
         let input = TransactionMergePlannerInput(
@@ -148,7 +156,7 @@ extension BudgetDatabase {
             ?? transactionMergeAffectedResources(Array(allSnapshotsByID.values))
         let payeeNames = try PayeeSQL.reviewPayeeNames(
             payeeIDs: allSnapshotsByID.values.map(\.payeeID),
-            in: self,
+            in: database,
             db: db
         )
         let keptRow = plan.flatMap { plan in
@@ -181,12 +189,13 @@ extension BudgetDatabase {
         )
     }
 
-    private func transactionMergeGraph(
+    private static func transactionMergeGraph(
         containing transactionID: String,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [String: TransactionBatchTransactionSnapshot] {
-        let graph = try transactionBatchGraph(containing: transactionID, columns: columns, db: db)
+        let graph = try TransactionBatchSnapshotSQL.transactionBatchGraph(containing: transactionID, columns: columns, in: database, db: db)
         guard graph.invalidReason == nil,
               graph.snapshots[transactionID] != nil,
               graph.snapshots.values.allSatisfy(TransactionCommandActionValidation.isCompleteSnapshot) else {
@@ -197,13 +206,14 @@ extension BudgetDatabase {
         return graph.snapshots
     }
 
-    private func transactionMergeReferenceMetadata(
+    private static func transactionMergeReferenceMetadata(
         snapshots: [TransactionBatchTransactionSnapshot],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> TransactionMergeReferenceMetadata {
         var destinations: [TransactionMergePayeeDestination] = []
         for payeeID in Set(snapshots.compactMap(\.payeeID)).sorted() {
-            if let accountID = try TransferSQL.transferAccountID(ifPayee: payeeID, in: self, db: db) {
+            if let accountID = try TransferSQL.transferAccountID(ifPayee: payeeID, in: database, db: db) {
                 destinations.append(TransactionMergePayeeDestination(
                     payeeID: payeeID,
                     accountID: accountID
@@ -213,19 +223,19 @@ extension BudgetDatabase {
 
         var accountIDs = Set(snapshots.compactMap(\.accountID))
         accountIDs.formUnion(destinations.map(\.accountID))
-        guard try tableExists("accounts", db: db),
-              try columnSet(for: "accounts", db: db).contains("id") else {
+        guard try database.tableExists("accounts", db: db),
+              try database.columnSet(for: "accounts", db: db).contains("id") else {
             return TransactionMergeReferenceMetadata(accounts: [], transferPayeeDestinations: destinations)
         }
         var accounts: [TransactionMergeAccountMetadata] = []
-        for accountID in accountIDs.sorted() where try rowExists(
+        for accountID in accountIDs.sorted() where try database.rowExists(
             table: "accounts",
             rowID: accountID,
             db: db
         ) {
             accounts.append(TransactionMergeAccountMetadata(
                 id: accountID,
-                isOffBudget: try AccountSQL.accountOffBudget(accountID, in: self, db: db)
+                isOffBudget: try AccountSQL.accountOffBudget(accountID, in: database, db: db)
             ))
         }
         return TransactionMergeReferenceMetadata(
@@ -236,7 +246,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func transactionMergeFingerprint(_ input: TransactionMergePlannerInput) throws -> String {
+    private static func transactionMergeFingerprint(_ input: TransactionMergePlannerInput) throws -> String {
         let payload = TransactionMergeFingerprintPayload(
             orderedTransactionIDs: input.orderedTransactionIDs,
             firstGraph: input.firstGraph.sorted { $0.id < $1.id },
@@ -256,7 +266,7 @@ extension BudgetDatabase {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    private func transactionMergeAuthorization(
+    private static func transactionMergeAuthorization(
         for review: TransactionMergeReview
     ) -> TransactionMergeAuthorization? {
         guard !review.reconciledTransactionIDs.isEmpty else { return nil }
@@ -267,16 +277,17 @@ extension BudgetDatabase {
         )
     }
 
-    private func transactionMergeMessages(
+    private static func transactionMergeMessages(
         for plan: TransactionMergePlan,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [ActualSyncDecodedMessage] {
         guard plan.beforeSnapshots.map(\.id) == plan.afterSnapshots.map(\.id),
               plan.beforeSnapshots.count == plan.afterSnapshots.count else {
             throw LocalFirstError.invalidLocalWrite("the transaction merge plan has incomplete snapshots")
         }
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         var messages: [ActualSyncDecodedMessage] = []
         for (before, after) in zip(plan.beforeSnapshots, plan.afterSnapshots) {
             guard before.columns == after.columns,
@@ -295,7 +306,7 @@ extension BudgetDatabase {
         return messages
     }
 
-    private func transactionMergeRowMessages(
+    private static func transactionMergeRowMessages(
         from before: TransactionBatchTransactionSnapshot,
         to after: TransactionBatchTransactionSnapshot,
         columns: TransactionRowColumns,
@@ -381,7 +392,7 @@ extension BudgetDatabase {
         try text("imported_description", before.importedDescription, after.importedDescription)
     }
 
-    private func appendTransactionMergeDifference<Value: Equatable>(
+    private static func appendTransactionMergeDifference<Value: Equatable>(
         rowID: String,
         column: String,
         beforeColumns: [String],
@@ -404,7 +415,7 @@ extension BudgetDatabase {
         ))
     }
 
-    private func transactionMergeReviewRow(
+    private static func transactionMergeReviewRow(
         _ snapshot: TransactionBatchTransactionSnapshot,
         payeeNames: [String: String]
     ) -> TransactionMergeReviewRow? {
@@ -428,7 +439,7 @@ extension BudgetDatabase {
         )
     }
 
-    private func transactionMergeAffectedResources(
+    private static func transactionMergeAffectedResources(
         _ snapshots: [TransactionBatchTransactionSnapshot]
     ) -> TransactionMergeAffectedResources {
         let months = Set(snapshots.compactMap { PackedDate.monthID(ofDate: $0.dateValue) })

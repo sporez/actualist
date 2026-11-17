@@ -10,16 +10,17 @@ struct TransactionMergeMutationTests {
     @Test func exactTieKeepsSecondOrderedInputAndWritesOneCompleteHistoryAction() async throws {
         let bundle = try await makeMergeFixture(additionalFixtureSQL: simpleSecondRowSQL)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "second"]
+            orderedTransactionIDs: ["txn", "second"],
+            in: database
         )
         #expect(review.orderedTransactionIDs == ["txn", "second"])
         #expect(review.keptRow?.transactionID == "second")
         #expect(review.droppedRow?.transactionID == "txn")
         #expect(review.canSubmit)
 
-        let receipt = try await database.commitTransactionMerge(review: review, authorization: nil)
+        let receipt = try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         #expect(receipt.actionID == review.id)
         #expect(receipt.changedAccountIDs == ["checking"])
         #expect(receipt.changedMonths == ["2026-07"])
@@ -52,13 +53,14 @@ struct TransactionMergeMutationTests {
         ] {
             let bundle = try await makeMergeFixture(additionalFixtureSQL: simpleSecondRowSQL)
             let database = try bundle.store.requireDatabase(for: "group-1")
-            let review = try await database.reviewTransactionMerge(
+            let review = try await TransactionMergeSQL.reviewTransactionMerge(
                 context: context(for: bundle.store),
-                orderedTransactionIDs: orderedIDs
+                orderedTransactionIDs: orderedIDs,
+                in: database
             )
             #expect(review.orderedTransactionIDs == orderedIDs)
             #expect(review.keptRow?.transactionID == expectedKeeper)
-            _ = try await database.commitTransactionMerge(review: review, authorization: nil)
+            _ = try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
             #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database)?.status == .applied)
         }
     }
@@ -71,9 +73,10 @@ struct TransactionMergeMutationTests {
             UPDATE transactions SET description = 'xfer-credit' WHERE id = 'second';
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "second"]
+            orderedTransactionIDs: ["txn", "second"],
+            in: database
         )
         #expect(review.inputRows.map(\.payeeName) == ["Coffee Shop", "Credit Card"])
         #expect(review.keptRow?.payeeName == "Credit Card")
@@ -100,16 +103,17 @@ struct TransactionMergeMutationTests {
                         'xfer-checking', NULL, 0, 1, 'split-child', 0, NULL, NULL);
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "split-root"]
+            orderedTransactionIDs: ["txn", "split-root"],
+            in: database
         )
         #expect(review.keptRow?.transactionID == "txn")
         #expect(review.reconciledTransactionIDs == ["split-child", "split-peer"])
         let beforeCommit = try await persistenceState(bundle, database: database)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: review, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == beforeCommit)
 
@@ -118,7 +122,7 @@ struct TransactionMergeMutationTests {
             reviewFingerprint: review.reviewFingerprint,
             reconciledTransactionIDs: review.reconciledTransactionIDs
         )
-        let receipt = try await database.commitTransactionMerge(review: review, authorization: authorization)
+        let receipt = try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: authorization, in: database)
         #expect(receipt.changedTransactionIDs == ["split-child", "split-peer", "split-root", "txn"])
         #expect(try readRows(bundle) { db in
             try String.fetchOne(db, sql: "SELECT parent_id FROM transactions WHERE id = 'split-child'")
@@ -138,15 +142,16 @@ struct TransactionMergeMutationTests {
                         'coffee', NULL, 0, 0, NULL, 0, NULL, NULL);
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "second"]
+            orderedTransactionIDs: ["txn", "second"],
+            in: database
         )
         try mutateDatabase(bundle, sql: "UPDATE transactions SET reconciled = 1 WHERE id = 'second'")
         let afterReconciliation = try await persistenceState(bundle, database: database)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: review, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == afterReconciliation)
     }
@@ -171,9 +176,10 @@ struct TransactionMergeMutationTests {
                         'xfer-checking', NULL, 0, 0, 'split-child', 0, NULL, NULL);
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let staleReview = try await database.reviewTransactionMerge(
+        let staleReview = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "split-root"]
+            orderedTransactionIDs: ["txn", "split-root"],
+            in: database
         )
         try mutateDatabase(
             bundle,
@@ -182,13 +188,14 @@ struct TransactionMergeMutationTests {
         let afterReconciliation = try await persistenceState(bundle, database: database)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: staleReview, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: staleReview, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == afterReconciliation)
 
-        let freshReview = try await database.reviewTransactionMerge(
+        let freshReview = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "split-root"]
+            orderedTransactionIDs: ["txn", "split-root"],
+            in: database
         )
         #expect(freshReview.reconciledTransactionIDs == ["split-child", "split-peer"])
         let authorization = TransactionMergeAuthorization(
@@ -196,16 +203,17 @@ struct TransactionMergeMutationTests {
             reviewFingerprint: freshReview.reviewFingerprint,
             reconciledTransactionIDs: freshReview.reconciledTransactionIDs
         )
-        _ = try await database.commitTransactionMerge(review: freshReview, authorization: authorization)
+        _ = try await TransactionMergeSQL.commitTransactionMerge(review: freshReview, authorization: authorization, in: database)
     }
 
     @Test(arguments: ["account", "amount", "date"])
     func changedSourceIdentityAfterReviewRejectsTheMerge(_ field: String) async throws {
         let bundle = try await makeMergeFixture(additionalFixtureSQL: simpleSecondRowSQL)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "second"]
+            orderedTransactionIDs: ["txn", "second"],
+            in: database
         )
         let mutation: String
         switch field {
@@ -220,7 +228,7 @@ struct TransactionMergeMutationTests {
         let afterSourceChange = try await persistenceState(bundle, database: database)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: review, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == afterSourceChange)
     }
@@ -241,15 +249,16 @@ struct TransactionMergeMutationTests {
                         'coffee', NULL, 0, 0, NULL, 0, NULL, NULL);
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "simple"]
+            orderedTransactionIDs: ["txn", "simple"],
+            in: database
         )
         try mutateDatabase(bundle, sql: "UPDATE payees SET transfer_acct = 'savings' WHERE id = 'xfer-credit'")
         let afterDestinationChange = try await persistenceState(bundle, database: database)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: review, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == afterDestinationChange)
     }
@@ -268,9 +277,10 @@ struct TransactionMergeMutationTests {
                         'coffee', NULL, 0, 0, NULL, 1, -1, NULL);
             """)
         let childDatabase = try childBundle.store.requireDatabase(for: "group-1")
-        let childReview = try await childDatabase.reviewTransactionMerge(
+        let childReview = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: childBundle.store),
-            orderedTransactionIDs: ["split-child", "txn"]
+            orderedTransactionIDs: ["split-child", "txn"],
+            in: childDatabase
         )
         #expect(childReview.blockedReason == .selectedChild("split-child"))
         #expect(!childReview.canSubmit)
@@ -290,9 +300,10 @@ struct TransactionMergeMutationTests {
                         'coffee', NULL, 0, 0, NULL, 1, -1, NULL);
             """)
         let errorDatabase = try errorBundle.store.requireDatabase(for: "group-1")
-        let errorReview = try await errorDatabase.reviewTransactionMerge(
+        let errorReview = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: errorBundle.store),
-            orderedTransactionIDs: ["error-root", "txn"]
+            orderedTransactionIDs: ["error-root", "txn"],
+            in: errorDatabase
         )
         #expect(errorReview.blockedReason == .splitHasError("error-root"))
         #expect(!errorReview.canSubmit)
@@ -309,15 +320,16 @@ struct TransactionMergeMutationTests {
                         'xfer-checking', NULL, 0, 0, 'txn', 0, NULL, NULL);
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "transfer-peer"]
+            orderedTransactionIDs: ["txn", "transfer-peer"],
+            in: database
         )
         #expect(!review.canSubmit)
         #expect(review.blockedReason == .overlappingGraphs(["transfer-peer", "txn"]))
         let beforeCommit = try await persistenceState(bundle, database: database)
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: review, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == beforeCommit)
     }
@@ -340,9 +352,10 @@ struct TransactionMergeMutationTests {
             let database = try bundle.store.requireDatabase(for: "group-1")
             let beforeReview = try await persistenceState(bundle, database: database)
             await #expect(throws: LocalFirstError.self) {
-                try await database.reviewTransactionMerge(
+                try await TransactionMergeSQL.reviewTransactionMerge(
                     context: context(for: bundle.store),
-                    orderedTransactionIDs: ["txn", "second"]
+                    orderedTransactionIDs: ["txn", "second"],
+                    in: database
                 )
             }
             #expect(try await persistenceState(bundle, database: database) == beforeReview)
@@ -376,15 +389,16 @@ struct TransactionMergeMutationTests {
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
         let beforeCommit = try await persistenceState(bundle, database: database)
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "root-b"]
+            orderedTransactionIDs: ["txn", "root-b"],
+            in: database
         )
         #expect(review.blockedReason == .invalidProposedParentFields("peer-a"))
         #expect(!review.canSubmit)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: review, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == beforeCommit)
     }
@@ -392,9 +406,10 @@ struct TransactionMergeMutationTests {
     @Test func addedSplitMembershipAfterReviewRejectsCommit() async throws {
         let bundle = try await makeMergeFixture(additionalFixtureSQL: simpleSecondRowSQL)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "second"]
+            orderedTransactionIDs: ["txn", "second"],
+            in: database
         )
         try mutateDatabase(bundle, sql: """
             INSERT INTO transactions (id, acct, date, amount, category, tombstone, parent_id, is_parent,
@@ -406,7 +421,7 @@ struct TransactionMergeMutationTests {
         let afterMembershipChange = try await persistenceState(bundle, database: database)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: review, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == afterMembershipChange)
     }
@@ -419,14 +434,15 @@ struct TransactionMergeMutationTests {
             localNodeID: "merge-failure",
             beforeBudgetDataMutation: { throw TransactionMergeInjectedFailure.expected }
         )
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "second"]
+            orderedTransactionIDs: ["txn", "second"],
+            in: database
         )
         let beforeCommit = try await persistenceState(bundle, database: database)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: review, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == beforeCommit)
     }
@@ -434,9 +450,10 @@ struct TransactionMergeMutationTests {
     @Test func transactionApplyFailureRollsBackMessagesOutboxClockAndHistory() async throws {
         let bundle = try await makeMergeFixture(additionalFixtureSQL: simpleSecondRowSQL)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionMerge(
+        let review = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: bundle.store),
-            orderedTransactionIDs: ["txn", "second"]
+            orderedTransactionIDs: ["txn", "second"],
+            in: database
         )
         try mutateDatabase(bundle, sql: """
             CREATE TRIGGER reject_merge_tombstone BEFORE UPDATE OF tombstone ON transactions
@@ -446,7 +463,7 @@ struct TransactionMergeMutationTests {
         let beforeCommit = try await persistenceState(bundle, database: database)
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionMerge(review: review, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: review, authorization: nil, in: database)
         }
         #expect(try await persistenceState(bundle, database: database) == beforeCommit)
     }
@@ -454,16 +471,18 @@ struct TransactionMergeMutationTests {
     @Test func cancellationAndSessionInvalidationRejectBeforeWriting() async throws {
         let cancelledBundle = try await makeMergeFixture(additionalFixtureSQL: simpleSecondRowSQL)
         let cancelledDatabase = try cancelledBundle.store.requireDatabase(for: "group-1")
-        let cancelledReview = try await cancelledDatabase.reviewTransactionMerge(
+        let cancelledReview = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: cancelledBundle.store),
-            orderedTransactionIDs: ["txn", "second"]
+            orderedTransactionIDs: ["txn", "second"],
+            in: cancelledDatabase
         )
         let beforeCancellation = try await persistenceState(cancelledBundle, database: cancelledDatabase)
         let task = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            return try await cancelledDatabase.commitTransactionMerge(
+            return try await TransactionMergeSQL.commitTransactionMerge(
                 review: cancelledReview,
-                authorization: nil
+                authorization: nil,
+                in: cancelledDatabase
             )
         }
         do {
@@ -474,14 +493,15 @@ struct TransactionMergeMutationTests {
 
         let closedBundle = try await makeMergeFixture(additionalFixtureSQL: simpleSecondRowSQL)
         let closedDatabase = try closedBundle.store.requireDatabase(for: "group-1")
-        let closedReview = try await closedDatabase.reviewTransactionMerge(
+        let closedReview = try await TransactionMergeSQL.reviewTransactionMerge(
             context: context(for: closedBundle.store),
-            orderedTransactionIDs: ["txn", "second"]
+            orderedTransactionIDs: ["txn", "second"],
+            in: closedDatabase
         )
         let beforeClose = try await persistenceState(closedBundle, database: closedDatabase)
         closedDatabase.invalidateSessionWrites()
         await #expect(throws: LocalFirstError.self) {
-            try await closedDatabase.commitTransactionMerge(review: closedReview, authorization: nil)
+            try await TransactionMergeSQL.commitTransactionMerge(review: closedReview, authorization: nil, in: closedDatabase)
         }
         #expect(try await persistenceState(closedBundle, database: closedDatabase) == beforeClose)
     }

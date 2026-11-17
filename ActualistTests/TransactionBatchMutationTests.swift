@@ -10,10 +10,11 @@ struct TransactionBatchMutationTests {
     @Test func batchCategorizeCommitsOneHistoryActionAndUndoRestoresAtomically() async throws {
         let bundle = try await makeBatchFixture()
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionBatch(
+        let review = try await TransactionBatchSQL.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
-            selections: [identity("txn")]
+            selections: [identity("txn")],
+            in: database
         )
         #expect(review.canSubmit)
         #expect(review.blockedCount == 0)
@@ -22,7 +23,7 @@ struct TransactionBatchMutationTests {
         #expect(reviewedRow.after.categoryID == "utilities")
         #expect(review.metadata.accountNames["checking"]?.isEmpty == false)
 
-        let result = try await database.commitTransactionBatch(review: review, authorization: nil)
+        let result = try await TransactionBatchSQL.commitTransactionBatch(review: review, authorization: nil, in: database)
         #expect(result.changedTransactionIDs == ["txn"])
         let records = try await ActionLogStorageSQL.recentBudgetActions(in: database)
         let record = try #require(records.first)
@@ -46,10 +47,11 @@ struct TransactionBatchMutationTests {
     @Test func staleBatchReviewIsRejectedWithoutAppendingAnyBatchMessagesOrHistory() async throws {
         let bundle = try await makeBatchFixture()
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionBatch(
+        let review = try await TransactionBatchSQL.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
-            selections: [identity("txn")]
+            selections: [identity("txn")],
+            in: database
         )
         var builder = LocalFirstSyncMessageBuilder()
         let newerWrite = try builder.makeMessage(
@@ -59,7 +61,7 @@ struct TransactionBatchMutationTests {
         let pendingAfterNewerWrite = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.commitTransactionBatch(review: review, authorization: nil)
+            try await TransactionBatchSQL.commitTransactionBatch(review: review, authorization: nil, in: database)
         }
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingAfterNewerWrite)
         #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).isEmpty)
@@ -253,10 +255,11 @@ struct TransactionBatchMutationTests {
         let clockBefore = await database.localClock
 
         await #expect(throws: LocalFirstError.self) {
-            try await database.reviewTransactionBatch(
+            try await TransactionBatchSQL.reviewTransactionBatch(
                 context: context(for: bundle.store),
                 intent: .categorize(categoryID: "utilities"),
-                selections: [identity("txn")]
+                selections: [identity("txn")],
+                in: database
             )
         }
 
@@ -437,7 +440,7 @@ struct TransactionBatchMutationTests {
         )
         database.invalidateSessionWrites()
         do {
-            _ = try await database.commitTransactionBatch(review: review, authorization: nil)
+            _ = try await TransactionBatchSQL.commitTransactionBatch(review: review, authorization: nil, in: database)
             Issue.record("Expected a closed session to reject batch commit")
         } catch let error as LocalFirstError {
             #expect(error == .budgetNotOpened)
@@ -467,13 +470,13 @@ struct TransactionBatchMutationTests {
             UPDATE transactions SET cleared = 0, reconciled = 0 WHERE id = 'txn';
             """)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let review = try await database.reviewTransactionBatch(
-            context: context(for: bundle.store), intent: .clear, selections: [identity("txn")]
+        let review = try await TransactionBatchSQL.reviewTransactionBatch(
+            context: context(for: bundle.store), intent: .clear, selections: [identity("txn")], in: database
         )
         let clockBefore = await database.localClock
         let cancelledCommit = Task {
             withUnsafeCurrentTask { $0?.cancel() }
-            return try await database.commitTransactionBatch(review: review, authorization: nil)
+            return try await TransactionBatchSQL.commitTransactionBatch(review: review, authorization: nil, in: database)
         }
         do {
             _ = try await cancelledCommit.value

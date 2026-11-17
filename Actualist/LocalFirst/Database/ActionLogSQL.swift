@@ -303,8 +303,9 @@ enum ActionLogSQL {
         }
         let liveBatchSnapshots: [String: TransactionBatchTransactionSnapshot?]
         if let expectedGraphSnapshots {
-            let snapshots = try database.transactionBatchSnapshots(
+            let snapshots = try TransactionBatchSnapshotSQL.transactionBatchSnapshots(
                 ids: expectedGraphSnapshots.map(\.id),
+                in: database,
                 db: db
             )
             liveBatchSnapshots = Dictionary(
@@ -312,7 +313,7 @@ enum ActionLogSQL {
             )
             guard snapshots.count == expectedGraphSnapshots.count,
                   snapshots.map(\.id) == expectedGraphSnapshots.map(\.id),
-                  try database.transactionBatchGraphMembershipMatches(expectedGraphSnapshots, db: db) else {
+                  try TransactionBatchSnapshotSQL.transactionBatchGraphMembershipMatches(expectedGraphSnapshots, in: database, db: db) else {
                 return .blocked(record.kind == .transactionBatch ? .batchChanged : .transactionCommandChanged)
             }
             if case .transactionDuplicate = record.inverse,

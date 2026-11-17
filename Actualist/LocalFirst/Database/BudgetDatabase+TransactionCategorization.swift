@@ -107,7 +107,7 @@ extension BudgetDatabase {
                     isChild: existing.pairedIsChild
                 )
         }
-        return try plainTransactionDeleteWrite(
+        return try TransactionBatchDeleteSQL.plainTransactionDeleteWrite(
             transactionID: trimmedTransactionID,
             accountID: existing.account,
             transferID: existing.transferID,
