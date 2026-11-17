@@ -9,8 +9,7 @@ final class LocalFirstActualStore:
     AccountRepositoryProtocol,
     EntityNotesRepositoryProtocol,
     PayeeRepositoryProtocol,
-    TransactionRepositoryProtocol,
-    SavedTransactionFilterRepositoryProtocol
+    TransactionRepositoryProtocol
 {
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
@@ -53,8 +52,7 @@ final class LocalFirstActualStore:
     var rulesByBudget: [String: [ManagedRule]] = [:]
     @ObservationIgnored private(set) lazy var rules = RuleWorkflows(store: self)
     var savedTransactionFiltersByBudget: [String: SavedTransactionFilterReadResult] = [:]
-    @ObservationIgnored var savedTransactionFilterReadRevisionByBudget: [String: UInt64] = [:]
-    @ObservationIgnored var nextSavedTransactionFilterReadRevision: UInt64 = 0
+    @ObservationIgnored private(set) lazy var savedFilters = SavedFilterWorkflows(store: self)
     var budgetReadGeneration = 0
     @ObservationIgnored var syncStatusSequence = 0
     @ObservationIgnored var appliedPendingCountSequence = 0
@@ -270,7 +268,7 @@ final class LocalFirstActualStore:
         rulesByBudget = [:]
         rules.resetRequestSession()
         savedTransactionFiltersByBudget = [:]
-        savedTransactionFilterReadRevisionByBudget = [:]
+        savedFilters.resetRequestSession()
         #if DEBUG
         testSeams?.savedFilterBeforeCommitHook = nil
         testSeams?.savedFilterAfterCommitHook = nil

@@ -46,7 +46,7 @@ struct TransactionSavedFilterCoordinatorTests {
                 id TEXT PRIMARY KEY, name TEXT, conditions TEXT, conditions_op TEXT, tombstone INTEGER
             );
             """)
-        guard case .available(let filters) = try await bundle.store.refreshSavedTransactionFilters(budgetID: "group-1") else {
+        guard case .available(let filters) = try await bundle.store.savedFilters.refreshSavedTransactionFilters(budgetID: "group-1") else {
             Issue.record("Expected saved-filter capability in the opened fixture")
             return
         }
@@ -70,7 +70,7 @@ struct TransactionSavedFilterCoordinatorTests {
         let gate = SavedFilterTestGate()
         bundle.store.seams.savedFilterBeforeCommitHook = { await gate.pause() }
         let pending = Task {
-            try await bundle.store.createSavedTransactionFilter(
+            try await bundle.store.savedFilters.createSavedTransactionFilter(
                 context: context,
                 draft: Self.draft
             )
@@ -100,7 +100,7 @@ struct TransactionSavedFilterCoordinatorTests {
         let gate = SavedFilterTestGate()
         bundle.store.seams.savedFilterAfterCommitHook = { await gate.pause() }
         let pending = Task {
-            try await bundle.store.createSavedTransactionFilter(
+            try await bundle.store.savedFilters.createSavedTransactionFilter(
                 context: context,
                 draft: Self.draft
             )
@@ -136,7 +136,7 @@ struct TransactionSavedFilterCoordinatorTests {
         let gate = SavedFilterTestGate()
         bundle.store.seams.savedFilterAfterCommitHook = { await gate.pause() }
         let pending = Task {
-            try await bundle.store.createSavedTransactionFilter(
+            try await bundle.store.savedFilters.createSavedTransactionFilter(
                 context: context,
                 draft: Self.draft
             )
@@ -178,7 +178,7 @@ struct TransactionSavedFilterCoordinatorTests {
         )
         let coordinator = SavedTransactionFiltersCoordinator(
             mutationContext: originalSession,
-            repository: bundle.store,
+            repository: bundle.store.savedFilters,
             conditions: [TransactionQueryCondition.account(.equals("checking"))],
             join: .and,
             onApply: { _, _ in }
@@ -219,7 +219,7 @@ struct TransactionSavedFilterCoordinatorTests {
             mutationContext: SavedTransactionFilterMutationContext(
                 budgetID: "group-1", generation: bundle.store.budgetSessionGeneration
             ),
-            repository: bundle.store,
+            repository: bundle.store.savedFilters,
             conditions: [TransactionQueryCondition.account(.equals("checking"))],
             join: .and,
             onApply: { _, _ in }

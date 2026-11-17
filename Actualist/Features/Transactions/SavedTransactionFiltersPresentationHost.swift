@@ -22,7 +22,7 @@ final class SavedTransactionFiltersPresentation {
         }
         let coordinator = SavedTransactionFiltersCoordinator(
             mutationContext: mutationContext,
-            repository: store,
+            repository: store.savedFilters,
             conditions: viewModel.activeFeedQuery.conditions,
             join: viewModel.activeFeedQuery.conditionsJoin
         ) { [weak self] conditions, join in

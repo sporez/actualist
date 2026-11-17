@@ -73,7 +73,6 @@ Actualist/LocalFirst/LocalFirstActualStore+TransactionCSVImport.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionDuplicate.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionFeedCache.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionFeeds.swift
-Actualist/LocalFirst/LocalFirstActualStore+TransactionFilters.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionMerge.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionMutations.swift
 Actualist/LocalFirst/LocalFirstActualStore+WalletImport.swift

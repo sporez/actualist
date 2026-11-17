@@ -1,9 +1,27 @@
 import Foundation
 
-extension LocalFirstActualStore {
+/// Saved transaction filters on the store: the cached list's refresh and its
+/// request revisions, and create, update and delete with their durable tail.
+/// The store owns it; the filter cache (`savedTransactionFiltersByBudget`)
+/// stays on the store, which publishes it.
+@MainActor
+final class SavedFilterWorkflows {
+    // The store creates this lazily and keeps it for its whole life, so the
+    // store outlives every holder of it.
+    private unowned let store: LocalFirstActualStore
+    private var savedTransactionFilterReadRevisionByBudget: [String: UInt64] = [:]
+    private var nextSavedTransactionFilterReadRevision: UInt64 = 0
+
+    init(store: LocalFirstActualStore) {
+        self.store = store
+    }
+
+    /// Called where the store clears its budget session.
+    func resetRequestSession() { savedTransactionFilterReadRevisionByBudget = [:] }
+
     func refreshSavedTransactionFilters(budgetID: String) async throws -> SavedTransactionFilterReadResult {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
         nextSavedTransactionFilterReadRevision &+= 1
         let revision = nextSavedTransactionFilterReadRevision
         savedTransactionFilterReadRevisionByBudget[budgetID] = revision
@@ -12,7 +30,7 @@ extension LocalFirstActualStore {
         guard savedTransactionFilterReadRevisionByBudget[budgetID] == revision else {
             throw CancellationError()
         }
-        savedTransactionFiltersByBudget[budgetID] = result
+        store.savedTransactionFiltersByBudget[budgetID] = result
         return result
     }
 
@@ -23,7 +41,7 @@ extension LocalFirstActualStore {
         let database = try requireSavedFilterMutationSession(context)
         var builder = LocalFirstSyncMessageBuilder()
         #if DEBUG
-        await testSeams?.savedFilterBeforeCommitHook?()
+        await store.testSeams?.savedFilterBeforeCommitHook?()
         #endif
         try requireSavedFilterSession(database: database, context: context)
         let receipt = try await SavedFilterSQL.createSavedTransactionFilter(
@@ -47,7 +65,7 @@ extension LocalFirstActualStore {
         let database = try requireSavedFilterMutationSession(context)
         var builder = LocalFirstSyncMessageBuilder()
         #if DEBUG
-        await testSeams?.savedFilterBeforeCommitHook?()
+        await store.testSeams?.savedFilterBeforeCommitHook?()
         #endif
         try requireSavedFilterSession(database: database, context: context)
         let receipt = try await SavedFilterSQL.updateSavedTransactionFilter(update, builder: &builder, in: database)
@@ -66,7 +84,7 @@ extension LocalFirstActualStore {
         let database = try requireSavedFilterMutationSession(context)
         var builder = LocalFirstSyncMessageBuilder()
         #if DEBUG
-        await testSeams?.savedFilterBeforeCommitHook?()
+        await store.testSeams?.savedFilterBeforeCommitHook?()
         #endif
         try requireSavedFilterSession(database: database, context: context)
         let receipt = try await SavedFilterSQL.deleteSavedTransactionFilter(id: filterID, builder: &builder, in: database)
@@ -85,7 +103,7 @@ extension LocalFirstActualStore {
     ) async -> SavedTransactionFilterMutationResult {
         // The commit receipt is already durable; caller cancellation or session
         // retirement may only affect refresh/publication, never report save failure.
-        let tail: DurableCommitTailOutcome<[SavedTransactionFilter]> = await finishDurableCommit(
+        let tail: DurableCommitTailOutcome<[SavedTransactionFilter]> = await store.finishDurableCommit(
             database: database,
             budgetID: context.budgetID,
             flushes: receipt.changed,
@@ -109,7 +127,7 @@ extension LocalFirstActualStore {
 
     #if DEBUG
     private func awaitSavedFilterAfterCommitHook() async {
-        guard let hook = testSeams?.savedFilterAfterCommitHook else { return }
+        guard let hook = store.testSeams?.savedFilterAfterCommitHook else { return }
         await Task { @MainActor in await hook() }.value
     }
     #endif
@@ -130,9 +148,9 @@ extension LocalFirstActualStore {
         budgetID: String,
         generation: Int
     ) throws {
-        guard self.database === database,
-              openedBudgetID == budgetID,
-              budgetSessionGeneration == generation else {
+        guard store.database === database,
+              store.openedBudgetID == budgetID,
+              store.budgetSessionGeneration == generation else {
             throw CancellationError()
         }
     }
@@ -140,15 +158,17 @@ extension LocalFirstActualStore {
     private func requireSavedFilterMutationSession(
         _ context: SavedTransactionFilterMutationContext
     ) throws -> BudgetDatabase {
-        guard openedBudgetID == context.budgetID,
-              budgetSessionGeneration == context.generation else {
+        guard store.openedBudgetID == context.budgetID,
+              store.budgetSessionGeneration == context.generation else {
             throw CancellationError()
         }
-        let database = try requireDatabase(for: context.budgetID)
+        let database = try store.requireDatabase(for: context.budgetID)
         try requireSavedFilterSession(database: database, context: context)
         return database
     }
 }
+
+extension SavedFilterWorkflows: SavedTransactionFilterRepositoryProtocol { }
 
 /// The refresh after a committed saved-filter write could not read the filters.
 private struct SavedFilterRefreshUnavailable: Error {}
