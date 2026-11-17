@@ -112,6 +112,25 @@ else
 fi
 
 section "Touched Swift size"
+size_exceptions_file="config/structure/large-file-exceptions.txt"
+size_exceptions=()
+if [[ -f "$size_exceptions_file" ]]; then
+  while IFS= read -r entry; do
+    [[ -z "$entry" || "$entry" == \#* ]] && continue
+    if [[ ! -f "$entry" ]]; then
+      echo "error: $size_exceptions_file lists $entry, which no longer exists."
+      status=1
+    fi
+    size_exceptions+=("$entry")
+  done < "$size_exceptions_file"
+fi
+is_size_exception() {
+  local entry
+  for entry in "${size_exceptions[@]+"${size_exceptions[@]}"}"; do
+    [[ "$entry" == "$1" ]] && return 0
+  done
+  return 1
+}
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   touched=()
   while IFS= read -r path; do
@@ -132,7 +151,9 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     git diff --numstat HEAD || true
     for path in "${touched[@]}"; do
       lines="$(wc -l < "$path" | tr -d ' ')"
-      if [[ "$lines" -ge 1000 && "$path" == Actualist/* ]]; then
+      if [[ "$lines" -ge 1000 && "$path" == Actualist/* ]] && is_size_exception "$path"; then
+        echo "warning: $path is $lines lines; a listed exception in $size_exceptions_file."
+      elif [[ "$lines" -ge 1000 && "$path" == Actualist/* ]]; then
         echo "error: $path is $lines lines; do not add production code to a file at or above 1,000."
         status=1
       elif [[ "$lines" -ge 800 ]]; then

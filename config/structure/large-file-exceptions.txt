@@ -1,0 +1,5 @@
+# Production Swift files allowed at or above 1,000 lines (AGENTS.md, File
+# Size And Structural Maintainability). scripts/check.sh's touched-size check
+# reports a listed file as a warning instead of an error, and fails on a
+# listed file that no longer exists. Each entry states its reason in the
+# comment above it. Adding a line needs the maintainer's approval.

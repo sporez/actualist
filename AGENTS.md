@@ -464,7 +464,9 @@ current task.
   growth; explain that exception in the handoff.
 - Do not add net-new production code to a file at or above 1,000 lines. Reduce it
   below the threshold through a responsibility-based extraction first, unless
-  the user explicitly approves a documented exception.
+  the user explicitly approves a documented exception. An approved exception
+  is listed, with its reason, in `config/structure/large-file-exceptions.txt`;
+  `scripts/check.sh` then warns instead of failing.
 - A split that leaves both halves near the threshold, or that produces
   `X`/`XReads`/`XWrites` siblings sharing the same helpers, was probably cut
   by size. Find the seam instead.
