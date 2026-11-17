@@ -121,7 +121,7 @@ extension LocalFirstActualStore: TransactionCSVImportRepositoryProtocol {
                 accountID: request.accountID,
                 messages: writes.messages,
                 matches: matches,
-                expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence(
+                expectedAbsentImportedIDs: ImportedIDAbsence(
                     accountID: request.accountID,
                     importedIDs: inserts.compactMap(\.financialID)
                 )

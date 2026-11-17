@@ -25,8 +25,8 @@ extension LocalFirstActualStoreTests {
             )
         )
 
-        #expect(try await database.pendingNewTransactionIDsByAccount() == ["checking": ["new-1"]])
-        #expect(try await database.pendingNewTransactionDelivery()?.notificationID == "opaque-1")
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: database) == ["checking": ["new-1"]])
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionDelivery(in: database)?.notificationID == "opaque-1")
     }
 
     @Test func failedLocalCommitRollsBackPendingMarker() async throws {
@@ -50,56 +50,56 @@ extension LocalFirstActualStoreTests {
                 )
             )
         }
-        #expect(try await database.pendingNewTransactionIDsByAccount().isEmpty)
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: database).isEmpty)
     }
 
     @Test func pendingMarkersSurviveDatabaseReopen() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let url = try bundle.fileManager.databaseURL(fileID: "file-1")
         let database = try #require(bundle.store.database)
-        try await database.recordPendingNewTransactions(.init(
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(.init(
             transactionIDsByAccount: ["checking": ["new-1"]],
             source: .remoteSync,
             notificationID: "opaque-1"
-        ))
+        ), in: database)
         bundle.store.closeOpenBudget()
 
         let reopened = try BudgetDatabase(databaseURL: url, localNodeID: "reopened")
-        #expect(try await reopened.pendingNewTransactionIDsByAccount() == ["checking": ["new-1"]])
-        #expect(try await reopened.pendingNewTransactionDelivery()?.notificationID == "opaque-1")
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: reopened) == ["checking": ["new-1"]])
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionDelivery(in: reopened)?.notificationID == "opaque-1")
     }
 
     @Test func reviewPersistsAndSuppressesDeliveryWithoutResurrection() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let database = try #require(bundle.store.database)
-        let commit = BudgetDatabase.PendingNewTransactionCommit(
+        let commit = PendingNewTransactionCommit(
             transactionIDsByAccount: ["checking": ["new-1"]],
             source: .bankSync,
             notificationID: "opaque-1"
         )
-        try await database.recordPendingNewTransactions(commit)
-        #expect(try await database.migrateLegacyAndReviewPendingNewTransactions(
-            [:], transactionIDs: ["new-1"], accountID: "checking"
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(commit, in: database)
+        #expect(try await PendingNewTransactionSQL.migrateLegacyAndReviewPendingNewTransactions(
+            [:], transactionIDs: ["new-1"], accountID: "checking", in: database
         ) == 1)
-        try await database.recordPendingNewTransactions(commit)
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(commit, in: database)
 
-        #expect(try await database.pendingNewTransactionIDsByAccount().isEmpty)
-        #expect(try await database.pendingNewTransactionDelivery() == nil)
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: database).isEmpty)
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionDelivery(in: database) == nil)
     }
 
     @Test func notificationAcknowledgementDoesNotReviewMarker() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let database = try #require(bundle.store.database)
-        try await database.recordPendingNewTransactions(.init(
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(.init(
             transactionIDsByAccount: ["checking": ["new-1"]],
             source: .bankSync,
             notificationID: "opaque-1"
-        ))
-        let delivery = try #require(try await database.pendingNewTransactionDelivery())
-        try await database.acknowledgePendingNewTransactionDelivery(delivery.transactionIDs)
+        ), in: database)
+        let delivery = try #require(try await PendingNewTransactionSQL.pendingNewTransactionDelivery(in: database))
+        try await PendingNewTransactionSQL.acknowledgePendingNewTransactionDelivery(delivery.transactionIDs, in: database)
 
-        #expect(try await database.pendingNewTransactionDelivery() == nil)
-        #expect(try await database.pendingNewTransactionIDsByAccount() == ["checking": ["new-1"]])
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionDelivery(in: database) == nil)
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: database) == ["checking": ["new-1"]])
     }
 
     @Test func legacyProjectionMigratesAcknowledgedAndReconcilesExactly() async throws {
@@ -153,17 +153,17 @@ extension LocalFirstActualStoreTests {
     @Test func reviewMarksOnlyCapturedIDsAndPreservesNewArrival() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let database = try #require(bundle.store.database)
-        try await database.recordPendingNewTransactions(.init(
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(.init(
             transactionIDsByAccount: ["checking": ["visible-before-disappear"]],
             source: .bankSync,
             notificationID: "opaque-1"
-        ))
+        ), in: database)
         let capturedIDs = Set(["visible-before-disappear"])
-        try await database.recordPendingNewTransactions(.init(
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(.init(
             transactionIDsByAccount: ["checking": ["arrived-after-disappear"]],
             source: .bankSync,
             notificationID: "opaque-2"
-        ))
+        ), in: database)
 
         let reviewed = try await bundle.store.reviewPendingNewTransactions(
             budgetID: "group-1",
@@ -174,7 +174,7 @@ extension LocalFirstActualStoreTests {
 
         #expect(reviewed.clearedCount == 1)
         #expect(reviewed.projection["group-1|checking"] == ["arrived-after-disappear"])
-        #expect(try await database.pendingNewTransactionDelivery()?.transactionIDs == ["arrived-after-disappear"])
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionDelivery(in: database)?.transactionIDs == ["arrived-after-disappear"])
     }
 
     @Test func staleBudgetIdentityRefusesProjection() async throws {
@@ -190,11 +190,11 @@ extension LocalFirstActualStoreTests {
     @Test func preparationDoesNotRestoreSettingsAfterSessionIdentityChanges() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let database = try #require(bundle.store.database)
-        try await database.recordPendingNewTransactions(.init(
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(.init(
             transactionIDsByAccount: ["checking": ["new-1"]],
             source: .bankSync,
             notificationID: "opaque-1"
-        ))
+        ), in: database)
         let delay = ManualTestDelay()
         let state = try makeAppState(
             for: bundle,
@@ -221,11 +221,11 @@ extension LocalFirstActualStoreTests {
     @Test func preparationMergesMarkersAcrossUnrelatedSettingsAndLogChanges() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let database = try #require(bundle.store.database)
-        try await database.recordPendingNewTransactions(.init(
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(.init(
             transactionIDsByAccount: ["checking": ["new-1"]],
             source: .bankSync,
             notificationID: "opaque-1"
-        ))
+        ), in: database)
         let delay = ManualTestDelay()
         let state = try makeAppState(
             for: bundle,

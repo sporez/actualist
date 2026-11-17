@@ -5,9 +5,9 @@ enum BankSyncRunSQL {
     static func commitBankSyncMessages(
         _ messages: [ActualSyncDecodedMessage],
         expectedLink: BankSyncLinkIdentity,
-        pendingNewTransactions: BudgetDatabase.PendingNewTransactionCommit? = nil,
-        expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence? = nil,
-        expectedMatchedRows: BudgetDatabase.MatchedRowsUnchanged? = nil,
+        pendingNewTransactions: PendingNewTransactionCommit? = nil,
+        expectedAbsentImportedIDs: ImportedIDAbsence? = nil,
+        expectedMatchedRows: MatchedRowsUnchanged? = nil,
         in database: isolated BudgetDatabase
     ) throws -> Int {
         try Task.checkCancellation()

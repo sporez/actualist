@@ -109,7 +109,7 @@ extension BudgetDatabase {
                     db: db
                 )
                 if let pendingNewTransactions = plan.pendingNewTransactions {
-                    try recordPendingNewTransactions(pendingNewTransactions, db: db)
+                    try PendingNewTransactionSQL.recordPendingNewTransactions(pendingNewTransactions, in: self, db: db)
                 }
                 let appliedCount: Int
                 if let actionLogCommit = plan.action {
@@ -161,8 +161,8 @@ extension BudgetDatabase {
             drafts, expectedMode: review.mode, descriptor: action?.descriptor, db: db
         )
         try ReconciledMutationReviewSQL.validateReconciledMutationPrecondition(review.reconciledMutation, in: self, db: db)
-        try validateImportedIDsAbsent(review.absentImportedIDs, db: db)
-        try validateMatchedRowsUnchanged(review.matchedRows, db: db)
+        try ImportedIDPreconditionSQL.validateImportedIDsAbsent(review.absentImportedIDs, in: self, db: db)
+        try ImportedIDPreconditionSQL.validateMatchedRowsUnchanged(review.matchedRows, in: self, db: db)
     }
 
     struct CommittedDraftsResult: Sendable {

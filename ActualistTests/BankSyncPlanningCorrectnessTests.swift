@@ -557,7 +557,7 @@ extension LocalFirstActualStoreTests {
             notificationID: "opaque-transfer"
         ))
         let database = try #require(bundle.store.database)
-        let pending = try await database.pendingNewTransactionIDsByAccount()
+        let pending = try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: database)
 
         #expect(result.insertedTransactionIDsByAccount["savings"]?.isEmpty == false)
         #expect(result.insertedTransactionIDsByAccount["checking"]?.count == 1)

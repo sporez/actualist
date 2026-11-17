@@ -70,7 +70,7 @@ extension LocalFirstActualStoreTests {
         #expect(first.insertedTransactionIDsByAccount["savings"]?.count == 2)
         #expect(await transport.accountsRequests == 1)
         let database = try #require(bundle.store.database)
-        #expect(try await database.pendingNewTransactionIDsByAccount().isEmpty)
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: database).isEmpty)
 
         let firstRun = try #require(try await bundle.store.bankSync.bankSyncLastRun(budgetID: "group-1"))
         #expect(firstRun.trigger == .background)
@@ -103,10 +103,10 @@ extension LocalFirstActualStoreTests {
             notificationID: "opaque-bank-wake"
         ))
         let database = try #require(bundle.store.database)
-        let pending = try await database.pendingNewTransactionIDsByAccount()
+        let pending = try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: database)
 
         #expect(pending["savings"]?.count == result.insertedTransactionIDsByAccount["savings"]?.count)
-        #expect(try await database.pendingNewTransactionDelivery()?.notificationID == "opaque-bank-wake")
+        #expect(try await PendingNewTransactionSQL.pendingNewTransactionDelivery(in: database)?.notificationID == "opaque-bank-wake")
     }
 
     @Test func backgroundPreflightsEveryBatchedPlanBeforeFirstApply() async throws {

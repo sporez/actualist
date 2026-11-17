@@ -1,20 +1,28 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    /// `imported_id` values an import is about to insert on one account.
-    /// The commit transaction re-checks them, because a remote row can land
-    /// between the import's read and its write.
-    struct ImportedIDAbsence: Sendable {
-        let accountID: String
-        let importedIDs: Set<String>
+/// `imported_id` values an import is about to insert on one account.
+/// The commit transaction re-checks them, because a remote row can land
+/// between the import's read and its write.
+struct ImportedIDAbsence: Sendable {
+    let accountID: String
+    let importedIDs: Set<String>
 
-        init(accountID: String, importedIDs: some Sequence<String>) {
-            self.accountID = accountID
-            self.importedIDs = Set(importedIDs.compactMap(BudgetDatabase.normalizedImportedID))
-        }
+    init(accountID: String, importedIDs: some Sequence<String>) {
+        self.accountID = accountID
+        self.importedIDs = Set(importedIDs.compactMap(ImportedIDPreconditionSQL.normalizedImportedID))
     }
+}
 
+/// Concurrency 5.2c (audit CA-12): the matched rows an import will update,
+/// exactly as the review saw them. The commit transaction re-reads them, so
+/// an edit (local or synced) made after the review is not overwritten.
+struct MatchedRowsUnchanged: Sendable {
+    let accountID: String
+    let reviewed: [BankSyncReconciliation.Existing]
+}
+
+enum ImportedIDPreconditionSQL {
     /// Ids compare exactly, as upstream's `imported_id = ?` does (sync.ts ~850):
     /// whitespace is trimmed and nothing else changes, so `A1` and `a1` are
     /// different ids for every importer.
@@ -24,11 +32,11 @@ extension BudgetDatabase {
     }
 
     /// Live imported ids on an account, trimmed (see `normalizedImportedID`).
-    func existingImportedIDs(accountID: String, db: Database) throws -> Set<String> {
-        guard try tableExists("transactions", db: db) else {
+    static func existingImportedIDs(accountID: String, in database: isolated BudgetDatabase, db: Database) throws -> Set<String> {
+        guard try database.tableExists("transactions", db: db) else {
             return []
         }
-        let columns = try columnSet(for: "transactions", db: db)
+        let columns = try database.columnSet(for: "transactions", db: db)
         guard let importedIDColumn = TransactionRowColumns.importedID(in: columns),
               let accountColumn = TransactionRowColumns.account(in: columns) else {
             return []
@@ -40,32 +48,22 @@ extension BudgetDatabase {
                 FROM transactions
                 WHERE \(accountColumn) = ?
                   AND \(importedIDColumn) IS NOT NULL
-                  AND \(predicateForLiveRows(columns: columns))
+                  AND \(database.predicateForLiveRows(columns: columns))
                 """,
             arguments: [accountID]
         )
         return Set(values.compactMap(Self.normalizedImportedID))
     }
 
-    func validateImportedIDsAbsent(_ expected: ImportedIDAbsence?, db: Database) throws {
+    static func validateImportedIDsAbsent(_ expected: ImportedIDAbsence?, in database: isolated BudgetDatabase, db: Database) throws {
         guard let expected, !expected.importedIDs.isEmpty else { return }
-        let existing = try existingImportedIDs(accountID: expected.accountID, db: db)
+        let existing = try existingImportedIDs(accountID: expected.accountID, in: database, db: db)
         guard existing.isDisjoint(with: expected.importedIDs) else {
             throw LocalFirstError.importedTransactionConflict
         }
     }
-}
 
-extension BudgetDatabase {
-    /// Concurrency 5.2c (audit CA-12): the matched rows an import will update,
-    /// exactly as the review saw them. The commit transaction re-reads them, so
-    /// an edit (local or synced) made after the review is not overwritten.
-    struct MatchedRowsUnchanged: Sendable {
-        let accountID: String
-        let reviewed: [BankSyncReconciliation.Existing]
-    }
-
-    func validateMatchedRowsUnchanged(_ expected: MatchedRowsUnchanged?, db: Database) throws {
+    static func validateMatchedRowsUnchanged(_ expected: MatchedRowsUnchanged?, in database: isolated BudgetDatabase, db: Database) throws {
         guard let expected, !expected.reviewed.isEmpty else { return }
         let ids = expected.reviewed.map(\.id)
         var current: [String: BankSyncReconciliation.Existing] = [:]
@@ -76,7 +74,7 @@ extension BudgetDatabase {
                 window: 0...99_999_999,
                 idChunk: chunk,
                 importedIDChunk: [],
-                in: self,
+                in: database,
                 db: db
             ) {
                 current[row.id] = row

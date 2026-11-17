@@ -287,7 +287,7 @@ enum TransactionReadSQL {
     }
 
     static func existingImportedIDs(accountID: String, in database: isolated BudgetDatabase) throws -> Set<String> {
-        try database.queue.read { db in try database.existingImportedIDs(accountID: accountID, db: db) }
+        try database.queue.read { db in try ImportedIDPreconditionSQL.existingImportedIDs(accountID: accountID, in: database, db: db) }
     }
 
     static func mapTransactionRow(_ row: Row) -> ActualTransaction {

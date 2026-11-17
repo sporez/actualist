@@ -209,7 +209,7 @@ File naming is the ownership index:
 - `+PortableExport`, `+PortableSyncReset`, `+NewBudgetSeed` — portable ZIP content and the CRDT reset applied to an imported file.
 - `TransactionBatchSQL` (batch review, commit and clear), `TransactionBatchDeleteSQL`, `TransactionBatchSnapshotSQL` (the row snapshots batch, duplicate, merge and undo share), `TransactionDuplicateSQL`, `TransactionMergeSQL`, `SavedFilterSQL` (saved filters), `+TransactionCSV*` — list actions, structured queries and CSV export.
 - `TransactionImportSQL.swift` — file-import checks inside the commit (stateless; takes `isolated BudgetDatabase` and the GRDB handle), plus the thin `commitTransactionCSVImport` entry point.
-- `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `+ImportedIDPrecondition`, `TransactionCreationSQL.TransactionIDAbsence`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
+- `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `ImportedIDPreconditionSQL` (with the top-level `ImportedIDAbsence` and `MatchedRowsUnchanged` the commit takes), `TransactionCreationSQL.TransactionIDAbsence`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
 - `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.
 
 Keep SQL and storage-version tolerance here. Keep feature screen state out.

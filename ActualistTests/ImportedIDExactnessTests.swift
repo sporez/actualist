@@ -15,11 +15,11 @@ struct ImportedIDExactnessTests {
     private let support = LocalFirstActualStoreTests()
 
     @Test func theNormalizerTrimsAndNeverFoldsCase() {
-        #expect(BudgetDatabase.normalizedImportedID("A1") == "A1")
-        #expect(BudgetDatabase.normalizedImportedID("a1") == "a1")
-        #expect(BudgetDatabase.normalizedImportedID("  A1 ") == "A1")
-        #expect(BudgetDatabase.normalizedImportedID("   ") == nil)
-        #expect(BudgetDatabase.ImportedIDAbsence(accountID: "checking", importedIDs: ["A1", "a1"]).importedIDs == ["A1", "a1"])
+        #expect(ImportedIDPreconditionSQL.normalizedImportedID("A1") == "A1")
+        #expect(ImportedIDPreconditionSQL.normalizedImportedID("a1") == "a1")
+        #expect(ImportedIDPreconditionSQL.normalizedImportedID("  A1 ") == "A1")
+        #expect(ImportedIDPreconditionSQL.normalizedImportedID("   ") == nil)
+        #expect(ImportedIDAbsence(accountID: "checking", importedIDs: ["A1", "a1"]).importedIDs == ["A1", "a1"])
     }
 
     @Test func storedIDsAreReadExactly() async throws {

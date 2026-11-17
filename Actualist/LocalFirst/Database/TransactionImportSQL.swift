@@ -171,7 +171,7 @@ extension BudgetDatabase {
         _ = try commitLocalPlan(now: now) { db in
             try Task.checkCancellation()
             try TransactionImportSQL.validateMatches(matches, accountID: accountID, in: self, db: db)
-            try validateImportedIDsAbsent(expectedAbsentImportedIDs, db: db)
+            try ImportedIDPreconditionSQL.validateImportedIDsAbsent(expectedAbsentImportedIDs, in: self, db: db)
             return LocalCommitPlan(drafts: messages, action: nil, outcome: ())
         }
     }

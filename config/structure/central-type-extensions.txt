@@ -7,7 +7,6 @@
 # the maintainer's approval.
 Actualist/LocalFirst/Database/BudgetDatabase+AccountGroupCompatibility.swift
 Actualist/LocalFirst/Database/BudgetDatabase+CompatibilityMigrationIDs.swift
-Actualist/LocalFirst/Database/BudgetDatabase+ImportedIDPrecondition.swift
 Actualist/LocalFirst/Database/BudgetDatabase+LocalCommit.swift
 Actualist/LocalFirst/Database/BudgetDatabase+LocalMigrations.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Merkle.swift
@@ -15,7 +14,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+MessagesTimestampIndex.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ModeIdentity.swift
 Actualist/LocalFirst/Database/BudgetDatabase+NewBudgetSeed.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Notes.swift
-Actualist/LocalFirst/Database/BudgetDatabase+PendingNewTransactions.swift
 Actualist/LocalFirst/Database/BudgetDatabase+PortableExport.swift
 Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ReviewWatermark.swift

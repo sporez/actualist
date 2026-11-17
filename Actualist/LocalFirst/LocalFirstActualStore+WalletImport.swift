@@ -131,11 +131,11 @@ extension LocalFirstActualStore {
         }
         _ = try await database.commitLocalSyncMessagesAndEnqueue(
             writes.messages,
-            expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence(
+            expectedAbsentImportedIDs: ImportedIDAbsence(
                 accountID: accountID,
                 importedIDs: inserts.compactMap(\.financialID)
             ),
-            expectedMatchedRows: BudgetDatabase.MatchedRowsUnchanged(
+            expectedMatchedRows: MatchedRowsUnchanged(
                 accountID: accountID,
                 reviewed: outcome.reviewedRows
             )

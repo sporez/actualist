@@ -374,7 +374,7 @@ final class BankSyncWorkflows {
         // both apply the same prepared inserts. A failed apply requires a new download.
         store.bankSyncGenerationByAccount[plan.link.accountID] = nil
         let pendingCommit = backgroundNotificationID.map {
-            BudgetDatabase.PendingNewTransactionCommit(
+            PendingNewTransactionCommit(
                 transactionIDsByAccount: insertedIDsByAccount,
                 source: .bankSync,
                 notificationID: $0
@@ -385,11 +385,11 @@ final class BankSyncWorkflows {
                 messages,
                 expectedLink: plan.link,
                 pendingNewTransactions: pendingCommit,
-                expectedAbsentImportedIDs: BudgetDatabase.ImportedIDAbsence(
+                expectedAbsentImportedIDs: ImportedIDAbsence(
                     accountID: plan.link.accountID,
                     importedIDs: plan.inserts.compactMap(\.financialID)
                 ),
-                expectedMatchedRows: BudgetDatabase.MatchedRowsUnchanged(
+                expectedMatchedRows: MatchedRowsUnchanged(
                     accountID: plan.link.accountID,
                     reviewed: plan.reviewedRows
                 ),

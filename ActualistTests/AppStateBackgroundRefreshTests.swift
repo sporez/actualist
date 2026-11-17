@@ -44,12 +44,12 @@ extension LocalFirstActualStoreTests {
         let pendingCount = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
         #expect(pendingCount > 0)
         let database = try #require(bundle.store.database)
-        try await database.recordPendingNewTransactions(.init(
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(.init(
             transactionIDsByAccount: ["checking": ["cold-open-new"]],
             source: .bankSync,
             notificationID: nil,
             notificationAlreadyAcknowledged: true
-        ))
+        ), in: database)
 
         bundle.store.reset()
         let state = try makeAppState(for: bundle)
@@ -98,12 +98,12 @@ extension LocalFirstActualStoreTests {
     @Test func notificationTapPublishesNewTransactionsTheProjectionMissed() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let database = try #require(bundle.store.database)
-        try await database.recordPendingNewTransactions(.init(
+        try await PendingNewTransactionSQL.recordPendingNewTransactions(.init(
             transactionIDsByAccount: ["checking": ["tapped-new"]],
             source: .remoteSync,
             notificationID: "alert-1",
             notificationAlreadyAcknowledged: true
-        ))
+        ), in: database)
         let state = try makeAppState(for: bundle)
         state.settings.backgroundTransactionRefreshEnabled = true
         state.setupPhase = .ready
