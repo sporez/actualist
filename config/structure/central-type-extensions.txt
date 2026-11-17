@@ -16,7 +16,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+SchemaValidation.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Sync.swift
 Actualist/LocalFirst/Database/BudgetDatabase+UntrustedSanitization.swift
 Actualist/LocalFirst/Database/BudgetDatabase+UserActionPlan.swift
-Actualist/LocalFirst/LocalFirstActualStore+AccountGroups.swift
 Actualist/LocalFirst/LocalFirstActualStore+AssignMove.swift
 Actualist/LocalFirst/LocalFirstActualStore+CommitTail.swift
 Actualist/LocalFirst/LocalFirstActualStore+Connection.swift

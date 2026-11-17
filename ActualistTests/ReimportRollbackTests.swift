@@ -126,7 +126,7 @@ struct ReimportRollbackTests {
         }
 
         #expect(bundle.store.isOpen(budgetID: "group-1"))
-        let accounts = bundle.store.accountDisplays(budgetID: "group-1").map(\.account.id)
+        let accounts = bundle.store.accounts.accountDisplays(budgetID: "group-1").map(\.account.id)
         #expect(!accounts.contains("replacement"))
         #expect(!(try bundle.fileManager.reimportBackupExists(fileID: "file-1")))
     }
@@ -148,7 +148,7 @@ struct ReimportRollbackTests {
         fileSystem.rules.withLock { $0.failMove = nil }
         #expect(try await bundle.store.openCachedBudget(bundle.budget))
         #expect(bundle.store.isOpen(budgetID: "group-1"))
-        #expect(!bundle.store.accountDisplays(budgetID: "group-1").map(\.account.id).contains("replacement"))
+        #expect(!bundle.store.accounts.accountDisplays(budgetID: "group-1").map(\.account.id).contains("replacement"))
     }
 
     private func makeStoreBundle() async throws -> (LocalFirstActualStoreTests.OpenedWritableStoreBundle, FailingFileManager) {

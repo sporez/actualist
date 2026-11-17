@@ -792,7 +792,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func createAccountRecordsAHistoryRow() async throws {
         let store = try await makeOpenedWritableStore()
-        try await store.createAccountAndRefresh(budgetID: "group-1", name: "New Cash", offbudget: false)
+        try await store.accounts.createAccountAndRefresh(budgetID: "group-1", name: "New Cash", offbudget: false)
         let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
         #expect(row.kind == .account)
         #expect(row.source == .ui)

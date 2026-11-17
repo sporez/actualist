@@ -10,13 +10,13 @@ extension LocalFirstActualStoreTests {
     @Test func createAccountLocallyWritesAccountTransferPayeeAndOutboxMessages() async throws {
         let store = try await makeOpenedWritableStore()
 
-        try await store.createAccountAndRefresh(
+        try await store.accounts.createAccountAndRefresh(
             budgetID: "group-1",
             name: "Travel Checking",
             offbudget: false
         )
 
-        let accounts = store.accountDisplays(budgetID: "group-1")
+        let accounts = store.accounts.accountDisplays(budgetID: "group-1")
         let account = try #require(accounts.map(\.account).first { $0.name == "Travel Checking" })
         let accountDisplay = try #require(accounts.first { $0.account.id == account.id })
         let database = try #require(store.database)
@@ -34,7 +34,7 @@ extension LocalFirstActualStoreTests {
     @Test func createAccountOutboxOnlyWritesKnownAccountColumns() async throws {
         let store = try await makeOpenedWritableStore()
 
-        try await store.createAccountAndRefresh(
+        try await store.accounts.createAccountAndRefresh(
             budgetID: "group-1",
             name: "Travel Checking",
             offbudget: false
@@ -74,7 +74,7 @@ extension LocalFirstActualStoreTests {
 
         #expect(try await database.applyRemoteSyncMessages([groupName, membership]) == 2)
 
-        try await store.createAccountAndRefresh(
+        try await store.accounts.createAccountAndRefresh(
             budgetID: "group-1",
             name: "New Cash",
             offbudget: false
@@ -99,14 +99,14 @@ extension LocalFirstActualStoreTests {
     @Test func createOffBudgetAccountLocallyMarksAccountAsOffBudget() async throws {
         let store = try await makeOpenedWritableStore()
 
-        try await store.createAccountAndRefresh(
+        try await store.accounts.createAccountAndRefresh(
             budgetID: "group-1",
             name: "Brokerage",
             offbudget: true
         )
 
         let account = try #require(
-            store.accountDisplays(budgetID: "group-1").map(\.account).first { $0.name == "Brokerage" }
+            store.accounts.accountDisplays(budgetID: "group-1").map(\.account).first { $0.name == "Brokerage" }
         )
 
         #expect(account.offbudget)

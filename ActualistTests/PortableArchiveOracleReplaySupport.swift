@@ -180,9 +180,9 @@ enum PortableArchiveOracleReplay {
 
     /// The Accounts screen's balance per account id (all accounts, closed included).
     static func balances(of imported: Imported) async throws -> [String: Int] {
-        try await imported.bundle.store.refreshAccountsWithBalances(budgetID: imported.groupID)
+        try await imported.bundle.store.accounts.refreshAccountsWithBalances(budgetID: imported.groupID)
         return Dictionary(
-            uniqueKeysWithValues: imported.bundle.store.accountDisplays(budgetID: imported.groupID)
+            uniqueKeysWithValues: imported.bundle.store.accounts.accountDisplays(budgetID: imported.groupID)
                 .map { ($0.id, $0.balance ?? Int.min) }
         )
     }

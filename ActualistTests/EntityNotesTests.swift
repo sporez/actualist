@@ -281,8 +281,8 @@ extension LocalFirstActualStoreTests {
         #expect(!utilities.hasUserNote)
         // Account note flags live in the account cache, which the launch path
         // reads after the first Budget frame rather than during the open.
-        try await store.refreshAccountsWithBalances(budgetID: "group-1")
-        #expect(store.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.hasUserNote == true)
+        try await store.accounts.refreshAccountsWithBalances(budgetID: "group-1")
+        #expect(store.accounts.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.hasUserNote == true)
 
         let body = try await store.entityNotes.entityNote(target: categoryTarget, budgetID: "group-1")
         #expect(body.userBody == "Remember coupons")

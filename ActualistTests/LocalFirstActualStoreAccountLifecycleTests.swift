@@ -9,9 +9,9 @@ struct LocalFirstActualStoreAccountLifecycleTests {
     @Test func renameRefreshesAccountAndFeedNamesBeforeReturning() async throws {
         let bundle = try await support.makeOpenedWritableStoreBundle()
         let store = bundle.store
-        try await store.refreshAccountsWithBalances(budgetID: "group-1")
+        try await store.accounts.refreshAccountsWithBalances(budgetID: "group-1")
         try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
-        let initialAccount = try #require(store.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account)
+        let initialAccount = try #require(store.accounts.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account)
         let feed = AccountTransactionsViewModel(scope: .account(initialAccount))
 
         let result = try await store.accountLifecycle.renameAccountAndRefresh(
@@ -23,7 +23,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
             return
         }
         #expect(!outcome.refreshPending)
-        #expect(store.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account.name == "Daily Spending")
+        #expect(store.accounts.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account.name == "Daily Spending")
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.accountNames["checking"] == "Daily Spending")
         #expect(store.actionLogDiagnosticSnapshot.count == 1)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") == 1)
@@ -51,7 +51,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         }
         #expect(!outcome.refreshPending)
         #expect(!outcome.account.isClosed)
-        #expect(bundle.store.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account.closed == false)
+        #expect(bundle.store.accounts.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.account.closed == false)
     }
 
     @Test func ordinaryCloseRefreshesClosedMembershipBeforeReturning() async throws {
@@ -75,7 +75,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         }
         #expect(!outcome.refreshPending)
         #expect(outcome.account.isClosed)
-        #expect(bundle.store.accountDisplays(budgetID: "group-1")
+        #expect(bundle.store.accounts.accountDisplays(budgetID: "group-1")
             .first { $0.id == "checking" }?.account.closed == true)
     }
 

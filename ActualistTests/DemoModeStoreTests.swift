@@ -69,8 +69,8 @@ struct DemoModeStoreTests {
         #expect(fileManager.importedDatabaseExists(fileID: DemoBudget.fileID))
 
         // Account displays are warmed after the first Budget frame, not by the open.
-        try await store.refreshAccountsWithBalances(budgetID: DemoBudget.groupID)
-        let accounts = store.accountDisplays(budgetID: DemoBudget.groupID)
+        try await store.accounts.refreshAccountsWithBalances(budgetID: DemoBudget.groupID)
+        let accounts = store.accounts.accountDisplays(budgetID: DemoBudget.groupID)
         #expect(accounts.count == 4)
         #expect(accounts.first { $0.id == "checking" }?.hasUserNote == true)
         let budgetMonth = try await store.budgetMonth(

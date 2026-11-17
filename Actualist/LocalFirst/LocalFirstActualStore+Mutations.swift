@@ -22,42 +22,6 @@ extension LocalFirstActualStore {
     }
 
 
-    // MARK: - Account mutations / server operations
-
-    func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {
-        try await createAccountAndRefresh(
-            budgetID: budgetID,
-            name: name,
-            offbudget: offbudget,
-            actionSource: .ui
-        )
-    }
-
-    func createAccountAndRefresh(
-        budgetID: String,
-        name: String,
-        offbudget: Bool,
-        actionSource: BudgetActionSource
-    ) async throws {
-        let database = try requireDatabase(for: budgetID)
-        let accountID = UUID().uuidString
-        var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await AccountSQL.createAccountMessages(
-            accountID: accountID,
-            name: name,
-            offbudget: offbudget,
-            builder: &builder,
-            in: database
-        )
-
-        _ = try await database.commitUserAction(
-            messages,
-            descriptor: .account(AccountActionDescriptor(name: name, offbudget: offbudget)),
-            source: actionSource
-        )
-        try await finishCommittedAccountWrite(database: database, budgetID: budgetID)
-    }
-
     func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil,
         categoryID: String,
         carryover: Bool,

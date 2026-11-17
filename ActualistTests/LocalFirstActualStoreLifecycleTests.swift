@@ -133,7 +133,7 @@ extension LocalFirstActualStoreTests {
         #expect(replacementSnapshot.modeIdentity.storageID != originalSnapshot.modeIdentity.storageID)
         #expect(bundle.store.isOpen(budgetID: "group-1"))
         #expect(try await bundle.store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
-        let accounts = bundle.store.accountDisplays(budgetID: "group-1").map(\.account.id)
+        let accounts = bundle.store.accounts.accountDisplays(budgetID: "group-1").map(\.account.id)
         #expect(accounts.contains("replacement"))
         #expect(try bundle.fileManager.reimportBackupExists(fileID: "file-1"))
     }

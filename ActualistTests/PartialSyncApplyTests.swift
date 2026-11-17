@@ -17,7 +17,7 @@ extension LocalFirstActualStoreTests {
         await bundle.store.syncClient.configure(LocalFirstSyncConfiguration(
             fileID: "file-1", groupID: "group-1", nodeID: "node1", encryptionKeyID: nil, encryptionContext: nil
         ))
-        try await bundle.store.refreshAccountsWithBalances(budgetID: "group-1")
+        try await bundle.store.accounts.refreshAccountsWithBalances(budgetID: "group-1")
         let timestamp = "2026-07-04T12:00:00.000Z-0000-00000000000000cc"
         let cells = [("acct", "S:savings"), ("date", "N:20260704"), ("amount", "N:-4321"), ("tombstone", "N:0")]
         try await server.seed(cells.enumerated().map { index, cell in
@@ -32,7 +32,7 @@ extension LocalFirstActualStoreTests {
     }
 
     private func savingsBalance(_ bundle: OpenedWritableStoreBundle) -> Int? {
-        bundle.store.accountDisplays(budgetID: "group-1").first { $0.id == "savings" }?.balance
+        bundle.store.accounts.accountDisplays(budgetID: "group-1").first { $0.id == "savings" }?.balance
     }
 
     @Test func aRefreshThatFailsAfterApplyingStillReloadsTheCaches() async throws {

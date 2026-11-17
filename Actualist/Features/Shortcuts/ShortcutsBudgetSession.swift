@@ -191,10 +191,10 @@ final class ShortcutsBudgetSession {
 
     func accounts(includeClosed: Bool, matching query: String? = nil) async throws -> [AccountEntity] {
         let prepared = try await prepare()
-        var displays = prepared.store.accountDisplays(budgetID: prepared.budgetID)
+        var displays = prepared.store.accounts.accountDisplays(budgetID: prepared.budgetID)
         if displays.isEmpty {
-            try await prepared.store.refreshAccountsWithBalances(budgetID: prepared.budgetID)
-            displays = prepared.store.accountDisplays(budgetID: prepared.budgetID)
+            try await prepared.store.accounts.refreshAccountsWithBalances(budgetID: prepared.budgetID)
+            displays = prepared.store.accounts.accountDisplays(budgetID: prepared.budgetID)
         }
         return displays.compactMap { display in
             if !includeClosed, display.account.closed {

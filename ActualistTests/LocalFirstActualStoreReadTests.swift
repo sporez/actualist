@@ -380,7 +380,7 @@ extension LocalFirstActualStoreTests {
             _ = try await store.budgetMonth(budgetID: "group-2", selectedMonth: "2026-07")
         }
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            try await store.refreshAccountsWithBalances(budgetID: "group-2")
+            try await store.accounts.refreshAccountsWithBalances(budgetID: "group-2")
         }
         await #expect(throws: LocalFirstError.budgetNotOpened) {
             try await store.refreshTransactions(budgetID: "group-2", scope: .account("checking"), query: TransactionFeedQuery())

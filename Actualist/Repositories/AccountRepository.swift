@@ -11,7 +11,12 @@ protocol AccountRepositoryProtocol: Sendable {
     func refreshAccountsWithBalances(budgetID: String) async throws
 
     @MainActor
-    func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws
+    func createAccountAndRefresh(
+        budgetID: String,
+        name: String,
+        offbudget: Bool,
+        actionSource: BudgetActionSource
+    ) async throws
 
     @MainActor
     func createAccountGroupAndRefresh(budgetID: String, name: String) async throws
@@ -35,6 +40,18 @@ protocol AccountRepositoryProtocol: Sendable {
         groupID: String,
         beforeGroupID: String?
     ) async throws
+}
+
+extension AccountRepositoryProtocol {
+    @MainActor
+    func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {
+        try await createAccountAndRefresh(
+            budgetID: budgetID,
+            name: name,
+            offbudget: offbudget,
+            actionSource: .ui
+        )
+    }
 }
 
 struct BackgroundAccountRefreshResult: Hashable, Sendable {

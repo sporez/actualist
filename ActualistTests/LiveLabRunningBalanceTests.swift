@@ -46,7 +46,7 @@ struct LiveLabRunningBalanceTests {
             named: "Interop Check running-balance \(UUID().uuidString.prefix(6))", serverURLString: serverURL
         )
         let budget = try await open(creation.fileID, in: store)
-        try await store.createAccountAndRefresh(budgetID: budget.syncID, name: "Balance Checking", offbudget: false)
+        try await store.accounts.createAccountAndRefresh(budgetID: budget.syncID, name: "Balance Checking", offbudget: false)
         let database = try store.requireDatabase(for: budget.syncID)
         let accountID = try await accountID(named: "Balance Checking", in: database)
         try await store.setShowsRunningBalance(budgetID: budget.syncID, accountID: accountID, enabled: true)

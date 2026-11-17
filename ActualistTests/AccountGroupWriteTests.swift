@@ -177,8 +177,8 @@ extension LocalFirstActualStoreTests {
         )
         await bundle.store.budgetLaunch.warmLaunchCaches(budgetID: "group-1")
 
-        try await bundle.store.createAccountGroupAndRefresh(budgetID: "group-1", name: "Cash")
-        let groups = bundle.store.accountGroups(budgetID: "group-1")
+        try await bundle.store.accounts.createAccountGroupAndRefresh(budgetID: "group-1", name: "Cash")
+        let groups = bundle.store.accounts.accountGroups(budgetID: "group-1")
         let pending = try await bundle.store.database?.pendingLocalSyncMessages() ?? []
 
         #expect(groups.map(\.name) == ["Cash"])

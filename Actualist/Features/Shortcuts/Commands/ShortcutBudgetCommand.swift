@@ -156,7 +156,7 @@ enum ShortcutBudgetCommand {
         }
         return try await session.withExclusiveWrite { prepared in
             let before = Set(try await session.accounts(includeClosed: true).map(\.id))
-            try await prepared.store.createAccountAndRefresh(
+            try await prepared.store.accounts.createAccountAndRefresh(
                 budgetID: prepared.budgetID,
                 name: trimmed,
                 offbudget: offBudget,

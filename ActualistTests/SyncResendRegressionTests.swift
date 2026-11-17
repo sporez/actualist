@@ -175,7 +175,7 @@ extension LocalFirstActualStoreTests {
     @Test func aBackgroundRefreshWithALargeOutboxReportsARemoteTransaction() async throws {
         let server = MerkleAwareSyncTransport()
         let (bundle, database) = try await openResendStore(server)
-        try await bundle.store.refreshAccountsWithBalances(budgetID: "group-1")
+        try await bundle.store.accounts.refreshAccountsWithBalances(budgetID: "group-1")
         _ = try await database.commitLocalSyncMessagesAndEnqueue(Self.payeeDrafts(501, prefix: "bg"))
         let timestamp = "2026-07-04T12:00:00.000Z-0000-00000000000000cc"
         let cells = [("acct", "S:savings"), ("date", "N:20260704"), ("amount", "N:-4321"), ("tombstone", "N:0")]
@@ -191,7 +191,7 @@ extension LocalFirstActualStoreTests {
         )
 
         #expect(results.flatMap(\.newTransactionIDs) == ["remote-tx"])
-        #expect(bundle.store.accountDisplays(budgetID: "group-1").first { $0.id == "savings" }?.balance == -4321)
+        #expect(bundle.store.accounts.accountDisplays(budgetID: "group-1").first { $0.id == "savings" }?.balance == -4321)
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
     }
 

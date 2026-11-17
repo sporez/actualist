@@ -6,7 +6,6 @@ import Observation
 @Observable
 final class LocalFirstActualStore:
     BudgetRepositoryProtocol,
-    AccountRepositoryProtocol,
     TransactionRepositoryProtocol
 {
     let keychain: KeychainStore
@@ -90,6 +89,7 @@ final class LocalFirstActualStore:
     var uncategorizedTransactionsByKey: [String: LoadedUncategorizedTransactions] = [:]
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
     @ObservationIgnored private(set) lazy var reports = ReportWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var accounts = AccountWorkflows(store: self)
     @ObservationIgnored private(set) lazy var reconciliation = ReconciliationWorkflows(store: self)
     @ObservationIgnored private(set) lazy var accountLifecycle = AccountLifecycleWorkflows(store: self)
     @ObservationIgnored private(set) lazy var bankSync = BankSyncWorkflows(store: self)

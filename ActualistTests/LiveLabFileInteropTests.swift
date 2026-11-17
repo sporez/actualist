@@ -111,9 +111,9 @@ struct LiveLabFileInteropTests {
             let name = "CSV Import \(account.key)"
             var record: [String: Any] = ["key": account.key, "accountName": name]
             do {
-                try await store.createAccountAndRefresh(budgetID: budget.syncID, name: name, offbudget: account.offbudget)
+                try await store.accounts.createAccountAndRefresh(budgetID: budget.syncID, name: name, offbudget: account.offbudget)
                 let accountID = try #require(
-                    store.accountDisplays(budgetID: budget.syncID).first { $0.account.name == name }?.id
+                    store.accounts.accountDisplays(budgetID: budget.syncID).first { $0.account.name == name }?.id
                 )
                 record["accountID"] = accountID
                 let review = try await store.transactionCSV.prepareTransactionCSVImport(TransactionCSVImportPreparationRequest(
@@ -184,8 +184,8 @@ enum LiveLabFileInterop {
 
     @MainActor
     static func accounts(of store: LocalFirstActualStore, budgetID: String) async throws -> [[String: Any]] {
-        try await store.refreshAccountsWithBalances(budgetID: budgetID)
-        return store.accountDisplays(budgetID: budgetID).map { display in
+        try await store.accounts.refreshAccountsWithBalances(budgetID: budgetID)
+        return store.accounts.accountDisplays(budgetID: budgetID).map { display in
             [
                 "id": display.account.id,
                 "name": display.account.name,

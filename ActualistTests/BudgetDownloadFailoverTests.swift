@@ -68,7 +68,7 @@ struct BudgetDownloadFailoverTests {
         try await store.openBudget(testDownloadBudget(), serverURLString: primaryServerURLString)
 
         #expect(store.isOpen(budgetID: "group-1"))
-        let accounts = store.accountDisplays(budgetID: "group-1").map(\.account.id)
+        let accounts = store.accounts.accountDisplays(budgetID: "group-1").map(\.account.id)
         #expect(accounts.contains("replacement"))
         #expect(await fallback.recordedMethods() == [.userFileInfo, .downloadUserFile])
     }
@@ -162,7 +162,7 @@ struct BudgetDownloadFailoverTests {
         )
 
         #expect(bundle.store.isOpen(budgetID: "group-1"))
-        let accounts = bundle.store.accountDisplays(budgetID: "group-1").map(\.account.id)
+        let accounts = bundle.store.accounts.accountDisplays(budgetID: "group-1").map(\.account.id)
         #expect(accounts.contains("replacement"))
         #expect(try bundle.fileManager.reimportBackupExists(fileID: "file-1"))
         #expect(await fallback.recordedMethods() == [.userFileInfo, .downloadUserFile])

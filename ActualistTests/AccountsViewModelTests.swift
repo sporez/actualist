@@ -301,7 +301,12 @@ private final class FakeAccountRepository: AccountRepositoryProtocol {
         if let loadError { throw loadError }
     }
 
-    func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {
+    func createAccountAndRefresh(
+        budgetID: String,
+        name: String,
+        offbudget: Bool,
+        actionSource: BudgetActionSource
+    ) async throws {
         await record("createAccount")
     }
     func createAccountGroupAndRefresh(budgetID: String, name: String) async throws {

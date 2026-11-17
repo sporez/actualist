@@ -140,14 +140,14 @@ extension LocalFirstActualStoreTests {
         )
         // Opening a budget must not compute balances or account groups before the
         // restored Budget is on screen.
-        #expect(bundle.store.accountDisplays(budgetID: "group-1").isEmpty)
-        #expect(bundle.store.accountGroups(budgetID: "group-1").isEmpty)
+        #expect(bundle.store.accounts.accountDisplays(budgetID: "group-1").isEmpty)
+        #expect(bundle.store.accounts.accountGroups(budgetID: "group-1").isEmpty)
 
         await bundle.store.budgetLaunch.warmLaunchCaches(budgetID: "group-1")
 
-        let groups = bundle.store.accountGroups(budgetID: "group-1")
+        let groups = bundle.store.accounts.accountGroups(budgetID: "group-1")
         let checking = try #require(
-            bundle.store.accountDisplays(budgetID: "group-1").map(\.account).first { $0.id == "checking" }
+            bundle.store.accounts.accountDisplays(budgetID: "group-1").map(\.account).first { $0.id == "checking" }
         )
 
         #expect(groups.map(\.id) == ["cash"])
@@ -231,11 +231,11 @@ extension LocalFirstActualStoreTests {
         ]
 
         #expect(try await database.applyRemoteSyncMessages(messages) == 3)
-        try await store.refreshAccountsWithBalances(budgetID: "group-1")
+        try await store.accounts.refreshAccountsWithBalances(budgetID: "group-1")
 
-        #expect(store.accountGroups(budgetID: "group-1").map(\.id) == ["cash"])
+        #expect(store.accounts.accountGroups(budgetID: "group-1").map(\.id) == ["cash"])
         #expect(
-            store.accountDisplays(budgetID: "group-1")
+            store.accounts.accountDisplays(budgetID: "group-1")
                 .first { $0.account.id == "checking" }?
                 .account.accountGroupId == "cash"
         )

@@ -77,7 +77,7 @@ enum AccountGroupOracleReplay {
         } catch {
             outcome = "refused"
         }
-        try await store.refreshAccountsWithBalances(budgetID: budgetID)
+        try await store.accounts.refreshAccountsWithBalances(budgetID: budgetID)
 
         let messages = try await database.pendingLocalSyncMessages(limit: 100_000).map(\.message)
         let rows = try await readRows(database)
@@ -85,7 +85,7 @@ enum AccountGroupOracleReplay {
         var fields: [String: OracleValue] = [
             "writes": OracleWriteReplay.sortedWrites(OracleWriteReplay.aliased(OracleWriteReplay.netWrites(messages), aliases)),
             "rows": OracleWriteReplay.sortedRows(OracleWriteReplay.aliased(rows, aliases)),
-            "order": OracleWriteReplay.aliased(.array(store.accountGroups(budgetID: budgetID).map { .string($0.id) }), aliases),
+            "order": OracleWriteReplay.aliased(.array(store.accounts.accountGroups(budgetID: budgetID).map { .string($0.id) }), aliases),
         ]
         if !(entry["handlerCall"] is NSNull) {
             fields["outcome"] = .string(outcome)
@@ -103,24 +103,24 @@ enum AccountGroupOracleReplay {
     ) async throws {
         switch kind {
         case "group-create":
-            try await store.createAccountGroupAndRefresh(budgetID: budgetID, name: try OracleJSON.string(input, "typed"))
+            try await store.accounts.createAccountGroupAndRefresh(budgetID: budgetID, name: try OracleJSON.string(input, "typed"))
         case "group-rename":
-            try await store.renameAccountGroupAndRefresh(
+            try await store.accounts.renameAccountGroupAndRefresh(
                 budgetID: budgetID,
                 groupID: try OracleJSON.string(input, "groupID"),
                 name: try OracleJSON.string(input, "typed")
             )
         case "group-move":
             let payload = try OracleJSON.object(OracleJSON.object(call, "handlerCall")["payload"], "payload")
-            try await store.moveAccountGroupAndRefresh(
+            try await store.accounts.moveAccountGroupAndRefresh(
                 budgetID: budgetID,
                 groupID: try OracleJSON.string(input, "groupID"),
                 beforeGroupID: payload["targetId"] as? String
             )
         case "group-delete":
-            try await store.deleteAccountGroupAndRefresh(budgetID: budgetID, groupID: try OracleJSON.string(input, "groupID"))
+            try await store.accounts.deleteAccountGroupAndRefresh(budgetID: budgetID, groupID: try OracleJSON.string(input, "groupID"))
         case "account-assign":
-            try await store.moveAccountToGroupAndRefresh(
+            try await store.accounts.moveAccountToGroupAndRefresh(
                 budgetID: budgetID,
                 accountID: try OracleJSON.string(input, "accountID"),
                 groupID: input["groupID"] as? String
@@ -133,10 +133,10 @@ enum AccountGroupOracleReplay {
     // MARK: Reads
 
     private static func read(kind: String, store: LocalFirstActualStore) async throws -> OracleValue {
-        try await store.refreshAccountsWithBalances(budgetID: budgetID)
+        try await store.accounts.refreshAccountsWithBalances(budgetID: budgetID)
         switch kind {
         case "read-groups":
-            return .object(["groups": .array(store.accountGroups(budgetID: budgetID).map { group in
+            return .object(["groups": .array(store.accounts.accountGroups(budgetID: budgetID).map { group in
                 .object([
                     "id": .string(group.id),
                     "name": .string(group.name),
@@ -147,8 +147,8 @@ enum AccountGroupOracleReplay {
             // The sections the Accounts screen renders (AccountsViewModel.sections over the store's
             // cached displays and groups, no saved account order), each section's buckets as they are.
             let sections = AccountListLayout.sections(
-                displays: store.accountDisplays(budgetID: budgetID),
-                groups: store.accountGroups(budgetID: budgetID),
+                displays: store.accounts.accountDisplays(budgetID: budgetID),
+                groups: store.accounts.accountGroups(budgetID: budgetID),
                 preferredIDs: []
             )
             func buckets(_ kind: AccountListLayout.Kind) -> OracleValue {
