@@ -90,6 +90,7 @@ final class LocalFirstActualStore:
     var uncategorizedTransactionsByKey: [String: LoadedUncategorizedTransactions] = [:]
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
     @ObservationIgnored private(set) lazy var reports = ReportWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var reconciliation = ReconciliationWorkflows(store: self)
     @ObservationIgnored private(set) lazy var accountLifecycle = AccountLifecycleWorkflows(store: self)
     @ObservationIgnored private(set) lazy var bankSync = BankSyncWorkflows(store: self)
     @ObservationIgnored private(set) lazy var bankSyncPlans = BankSyncPlanWorkflows(store: self)

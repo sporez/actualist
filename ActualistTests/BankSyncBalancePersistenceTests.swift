@@ -206,7 +206,7 @@ extension LocalFirstActualStoreTests {
 
         bundle.store.reset()
         #expect(try await bundle.store.openCachedBudget(bundle.budget))
-        let reopened = try await bundle.store.accountReconciliationSnapshot(
+        let reopened = try await bundle.store.reconciliation.accountReconciliationSnapshot(
             budgetID: "group-1", accountID: "savings"
         )
         #expect(reopened.lastSyncedBalance == -749_511)

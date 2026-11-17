@@ -105,8 +105,8 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Add/group editing: `AddAccountSheet.swift`, `AddAccountViewModel.swift`, `AccountGroupEditorSheet.swift`, `LocalFirstActualStore+AccountGroups.swift`, and `AccountGroupSQL` (group reads and writes; `BudgetDatabase+AccountGroupCompatibility.swift` is the open-time compatibility pass). Account reads and new-account messages are `AccountSQL`.
 - Create/rename/close/reopen/delete: `AccountLifecycleCoordinator.swift` and `AccountLifecycle*` presentation siblings; `Repositories/AccountLifecycleRepository.swift`; `AccountLifecycleWorkflows` (`LocalFirst/AccountLifecycleWorkflows.swift`, the store's `accountLifecycle`); `AccountLifecycleReviewSQL` (the review a lifecycle action shows and revalidates, with its schedule facts) and `AccountLifecycleCommitSQL` (the close, delete, rename and reopen commits).
 - Reconciliation workflow: `AccountReconciliationCoordinator.swift`, `AccountReconciliationModels.swift`, `AccountReconciliationPresentation.swift`, and `AccountReconciliationViews.swift`.
-- Backend: `LocalFirstActualStore+Reconciliation.swift`; `ReconciliationSQL` (the reconciliation snapshot, adjustment, finish, exit and unlock) and `ReconciledMutationReviewSQL` (the reconciled-row review a transaction write revalidates) in `LocalFirst/Database/`.
-- Protocol seam: `Actualist/Repositories/AccountRepository.swift`.
+- Backend: `ReconciliationWorkflows` (`LocalFirst/ReconciliationWorkflows.swift`, the store's `reconciliation`: snapshot, adjustment, finish and exit); `LocalFirstActualStore+Reconciliation.swift` keeps the unlock and the reconciled-row review, which are `TransactionRepositoryProtocol` witnesses; `ReconciliationSQL` (the reconciliation snapshot, adjustment, finish, exit and unlock) and `ReconciledMutationReviewSQL` (the reconciled-row review a transaction write revalidates) in `LocalFirst/Database/`.
+- Protocol seams: `Actualist/Repositories/AccountRepository.swift` and `Actualist/Repositories/AccountReconciliationRepository.swift`.
 
 ### Bank Sync and Wallet import
 

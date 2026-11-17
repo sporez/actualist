@@ -92,14 +92,14 @@ struct AccountReconciliationReadTests {
         store.openedBudgetID = "budget"
         store.database = database
 
-        let snapshot = try await store.accountReconciliationSnapshot(
+        let snapshot = try await store.reconciliation.accountReconciliationSnapshot(
             budgetID: "budget",
             accountID: "checking"
         )
         #expect(snapshot.capability == .available)
 
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            try await store.accountReconciliationSnapshot(
+            try await store.reconciliation.accountReconciliationSnapshot(
                 budgetID: "different",
                 accountID: "checking"
             )

@@ -282,7 +282,7 @@ struct AccountReconciliationCoordinatorTests {
 }
 
 @MainActor
-private final class ReconciliationCoordinatorRepository: AccountRepositoryProtocol {
+private final class ReconciliationCoordinatorRepository: AccountReconciliationRepositoryProtocol {
     var snapshots: [AccountReconciliationSnapshot]
     var suspendsSnapshot = false
     var suspendsAdjustment = false
@@ -301,10 +301,6 @@ private final class ReconciliationCoordinatorRepository: AccountRepositoryProtoc
     init(snapshots: [AccountReconciliationSnapshot]) {
         self.snapshots = snapshots
     }
-
-    func accountDisplays(budgetID: String) -> [AccountDisplay] { [] }
-    func accountGroups(budgetID: String) -> [ActualAccountGroup] { [] }
-    func refreshAccountsWithBalances(budgetID: String) async throws {}
 
     func accountReconciliationSnapshot(
         budgetID: String,
@@ -350,14 +346,6 @@ private final class ReconciliationCoordinatorRepository: AccountRepositoryProtoc
         return exitResult ?? Self.result(accountID: accountID, cleared: 0)
     }
 
-    func unlockReconciledTransactionAndRefresh(
-        budgetID: String,
-        accountID: String,
-        transactionID: String
-    ) async throws -> AccountReconciliationMutationResult {
-        Self.result(accountID: accountID, cleared: 0)
-    }
-
     func finishSnapshot(with snapshot: AccountReconciliationSnapshot) {
         suspendsSnapshot = false
         snapshotContinuation?.resume(returning: snapshot)
@@ -377,21 +365,6 @@ private final class ReconciliationCoordinatorRepository: AccountRepositoryProtoc
         adjustmentContinuation?.resume(returning: result)
         adjustmentContinuation = nil
     }
-
-    func createAccountAndRefresh(budgetID: String, name: String, offbudget: Bool) async throws {}
-    func createAccountGroupAndRefresh(budgetID: String, name: String) async throws {}
-    func renameAccountGroupAndRefresh(budgetID: String, groupID: String, name: String) async throws {}
-    func deleteAccountGroupAndRefresh(budgetID: String, groupID: String) async throws {}
-    func moveAccountToGroupAndRefresh(
-        budgetID: String,
-        accountID: String,
-        groupID: String?
-    ) async throws {}
-    func moveAccountGroupAndRefresh(
-        budgetID: String,
-        groupID: String,
-        beforeGroupID: String?
-    ) async throws {}
 
     private static func result(
         accountID: String,

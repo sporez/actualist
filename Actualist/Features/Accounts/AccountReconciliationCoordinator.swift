@@ -92,7 +92,7 @@ final class AccountReconciliationCoordinator {
     func start(
         identity: AccountReconciliationIdentity,
         currency: BudgetCurrency,
-        repository: any AccountRepositoryProtocol
+        repository: any AccountReconciliationRepositoryProtocol
     ) {
         guard case .idle = state else { return }
         self.currency = currency
@@ -180,7 +180,7 @@ final class AccountReconciliationCoordinator {
 
     func refreshIfActive(
         identity: AccountReconciliationIdentity,
-        repository: any AccountRepositoryProtocol
+        repository: any AccountReconciliationRepositoryProtocol
     ) {
         guard let session = activeSession,
               session.identity == identity,
@@ -191,7 +191,7 @@ final class AccountReconciliationCoordinator {
     }
 
     func createAdjustment(
-        repository: any AccountRepositoryProtocol,
+        repository: any AccountReconciliationRepositoryProtocol,
         didMutate: @escaping @MainActor () -> Void
     ) {
         guard let session = actionableSession else { return }
@@ -199,7 +199,7 @@ final class AccountReconciliationCoordinator {
     }
 
     func lockTransactions(
-        repository: any AccountRepositoryProtocol,
+        repository: any AccountReconciliationRepositoryProtocol,
         didMutate: @escaping @MainActor () -> Void
     ) {
         guard let session = actionableSession else { return }
@@ -207,7 +207,7 @@ final class AccountReconciliationCoordinator {
     }
 
     func exit(
-        repository: any AccountRepositoryProtocol,
+        repository: any AccountReconciliationRepositoryProtocol,
         didMutate: @escaping @MainActor () -> Void
     ) {
         guard let session = actionableSession else { return }
@@ -280,7 +280,7 @@ final class AccountReconciliationCoordinator {
     private func perform(
         _ action: AccountReconciliationAction,
         session: AccountReconciliationSession,
-        repository: any AccountRepositoryProtocol,
+        repository: any AccountReconciliationRepositoryProtocol,
         didMutate: @escaping @MainActor () -> Void
     ) {
         let requestGeneration = beginOperation()
@@ -356,7 +356,7 @@ final class AccountReconciliationCoordinator {
     private func refreshedSessionAfterConflict(
         error: Error,
         session: AccountReconciliationSession,
-        repository: any AccountRepositoryProtocol,
+        repository: any AccountReconciliationRepositoryProtocol,
         requestGeneration: Int
     ) async -> AccountReconciliationSession {
         guard error as? AccountReconciliationCommandError == .balanceChanged,

@@ -422,7 +422,7 @@ struct AccountReconciliationWriteTests {
             ALTER TABLE accounts ADD COLUMN last_reconciled TEXT;
             """)
 
-        let result = try await store.createReconciliationAdjustmentAndRefresh(
+        let result = try await store.reconciliation.createReconciliationAdjustmentAndRefresh(
             budgetID: "group-1",
             accountID: "checking",
             targetBalance: 1_000
@@ -438,6 +438,49 @@ struct AccountReconciliationWriteTests {
         #expect(adjustment.category == nil)
         #expect(adjustment.cleared == .bool(true))
         #expect(result.snapshot.clearedBalance == 1_000)
+    }
+
+    @Test func storeUnlockClearsReconciledFlagThroughTransactionRepositoryAndEnqueuesMessage() async throws {
+        let store = try await support.makeOpenedWritableStore(additionalFixtureSQL: """
+            ALTER TABLE accounts ADD COLUMN last_reconciled TEXT;
+            ALTER TABLE transactions ADD COLUMN reconciled INTEGER;
+            INSERT INTO transactions
+                (id, acct, date, amount, category, tombstone, parent_id, is_parent, cleared, reconciled)
+            VALUES ('locked', 'checking', 20260704, -500, NULL, 0, NULL, 0, 1, 1);
+            """)
+        let repository: any TransactionRepositoryProtocol = store
+        let databaseURL = try await store.requireDatabase(for: "group-1").databaseURL
+
+        let result = try await repository.unlockReconciledTransactionAndRefresh(
+            budgetID: "group-1",
+            accountID: "checking",
+            transactionID: "locked"
+        )
+
+        #expect(result.changed.accounts == ["checking"])
+        #expect(result.changed.months == ["2026-07"])
+        #expect(result.changed.transactions == ["locked"])
+        let queue = try DatabaseQueue(path: databaseURL.path)
+        let row: Row? = try queue.readSync { db in
+            try Row.fetchOne(db, sql: "SELECT cleared, reconciled FROM transactions WHERE id = 'locked'")
+        }
+        #expect(row?["cleared"] as Int? == 1)
+        #expect(row?["reconciled"] as Int? == 0)
+        let unlockMessages = try support.storedCRDTMessages(at: databaseURL).filter {
+            $0.dataset == "transactions" && $0.row == "locked" && $0.column == "reconciled"
+        }
+        #expect(unlockMessages.count == 1)
+
+        let again = try await repository.unlockReconciledTransactionAndRefresh(
+            budgetID: "group-1",
+            accountID: "checking",
+            transactionID: "locked"
+        )
+        #expect(again.changed.transactions.isEmpty)
+        let messagesAfterRepeat = try support.storedCRDTMessages(at: databaseURL).filter {
+            $0.dataset == "transactions" && $0.row == "locked" && $0.column == "reconciled"
+        }
+        #expect(messagesAfterRepeat.count == 1)
     }
 
     private struct DatabaseBundle {

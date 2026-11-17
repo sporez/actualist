@@ -111,8 +111,8 @@ struct AccountTransactionsView: View {
         }
     }
 
-    private var accountRepository: any AccountRepositoryProtocol {
-        appState.accountRepository
+    private var reconciliationRepository: any AccountReconciliationRepositoryProtocol {
+        appState.localFirstStore.reconciliation
     }
 
     private var reconciliationIdentity: AccountReconciliationIdentity? {
@@ -381,7 +381,7 @@ struct AccountTransactionsView: View {
                 if let reconciliationIdentity {
                     reconciliationCoordinator.refreshIfActive(
                         identity: reconciliationIdentity,
-                        repository: accountRepository
+                        repository: reconciliationRepository
                     )
                 }
             }
@@ -557,19 +557,19 @@ struct AccountTransactionsView: View {
             presentation: presentation,
             onCreateAdjustment: {
                 reconciliationCoordinator.createAdjustment(
-                    repository: accountRepository,
+                    repository: reconciliationRepository,
                     didMutate: localDataDidMutate
                 )
             },
             onLockTransactions: {
                 reconciliationCoordinator.lockTransactions(
-                    repository: accountRepository,
+                    repository: reconciliationRepository,
                     didMutate: localDataDidMutate
                 )
             },
             onExit: {
                 reconciliationCoordinator.exit(
-                    repository: accountRepository,
+                    repository: reconciliationRepository,
                     didMutate: localDataDidMutate
                 )
             },
@@ -577,7 +577,7 @@ struct AccountTransactionsView: View {
                 guard let reconciliationIdentity else { return }
                 reconciliationCoordinator.refreshIfActive(
                     identity: reconciliationIdentity,
-                    repository: accountRepository
+                    repository: reconciliationRepository
                 )
             }
         )
@@ -763,7 +763,7 @@ struct AccountTransactionsView: View {
         reconciliationCoordinator.start(
             identity: reconciliationIdentity,
             currency: budgetCurrency,
-            repository: accountRepository
+            repository: reconciliationRepository
         )
     }
 
