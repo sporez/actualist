@@ -142,7 +142,7 @@ cases and oracle-only cases together cover all 86 manifest cases.
 Write seams: `budget-amount` through `assignCategoryBudgetMessages`; move through
 `moveMoneyMessages`; hold through `BudgetHoldSQL`; reset-hold and
 income-carryover reset through the same type; set-carryover through
-`LocalFirstActualStore+Mutations`.
+`BudgetWorkflows.setCategoryCarryoverAndRefresh`.
 
 - Cover without an amount: the replay reads the `to` category's negative balance
   through `fetchBudgetMonth` before the write, then moves that amount. This mirrors

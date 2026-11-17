@@ -252,7 +252,7 @@ enum BudgetMonthOracleReplay {
                 : []
             return try await commitMove(month: month, database, mode, commands: commands)
         case let .carryover(categoryID, carryover, startMonth):
-            // LocalFirstActualStore+Mutations.setCategoryCarryoverAndRefresh. The through-month is the case's last
+            // BudgetWorkflows.setCategoryCarryoverAndRefresh. The through-month is the case's last
             // created sheet month, a stand-in for Actual's `createdMonths` rather than an expectation.
             var builder = LocalFirstSyncMessageBuilder()
             let drafts = try await BudgetAssignmentSQL.categoryCarryoverMessages(
