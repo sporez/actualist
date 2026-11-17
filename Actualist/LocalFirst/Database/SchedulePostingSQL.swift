@@ -165,10 +165,11 @@ enum SchedulePostingSQL {
         )
         let trimmedName = finalDraft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
         var builderForPlan = LocalFirstSyncMessageBuilder()
-        let graph = try database.schedulePostingTransactionGraph(
+        let graph = try TransactionCreationSQL.schedulePostingTransactionGraph(
             draft: finalDraft,
             transactionID: transactionID,
             builder: &builderForPlan,
+            in: database,
             db: db
         )
         guard graph.primaryScheduleID == review.scheduleID else {

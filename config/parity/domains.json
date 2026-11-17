@@ -361,15 +361,12 @@
         "TransactionCreateOracleReplayTests"
       ],
       "paths": [
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCreation.swift",
+        "Actualist/LocalFirst/Database/TransactionCreationSQL.swift",
+        "Actualist/LocalFirst/Database/TransactionEditSQL.swift",
         "Actualist/LocalFirst/Database/TransferSQL.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionUpdates.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionDiffUpdate.swift",
         "Actualist/LocalFirst/Database/TransactionBatchSQL.swift",
         "Actualist/LocalFirst/Database/TransactionBatchDeleteSQL.swift",
         "Actualist/LocalFirst/Database/TransactionBatchSnapshotSQL.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCategorization.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionGraphPlanning.swift",
         "Actualist/LocalFirst/Database/TransactionRowColumns.swift"
       ],
       "notes": "Covers creation only: manual single and transfer creates, an imported (CSV / Bank Sync) new row, and the Starting Balance row, replayed through the shared simple-row and transfer writers and compared as exact CRDT cell multisets. Update, delete, batch update and categorization are not covered. Schedule posts are covered by the schedules domain."

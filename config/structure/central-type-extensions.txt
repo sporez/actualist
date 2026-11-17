@@ -23,12 +23,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+Schema.swift
 Actualist/LocalFirst/Database/BudgetDatabase+SchemaValidation.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Sync.swift
 Actualist/LocalFirst/Database/BudgetDatabase+TransactionCSVExport.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TransactionCategorization.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TransactionCreation.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TransactionDiffUpdate.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TransactionGraphPlanning.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TransactionIDPrecondition.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TransactionUpdates.swift
 Actualist/LocalFirst/Database/BudgetDatabase+UntrustedSanitization.swift
 Actualist/LocalFirst/Database/BudgetDatabase+UserActionPlan.swift
 Actualist/LocalFirst/DemoMode/LocalFirstActualStore+Demo.swift

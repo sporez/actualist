@@ -169,29 +169,32 @@ extension LocalFirstActualStore {
                     in: database
                 )
             } else if let transferDestinationID, let payeeID = payeeResolution.payeeID {
-                let transfer = try await database.createTransferTransactionMessages(
+                let transfer = try await TransactionCreationSQL.createTransferTransactionMessages(
                     draft: draft,
                     sourceTransactionID: transactionID,
                     payeeID: payeeID,
-                    builder: &builder
+                    builder: &builder,
+                    in: database
                 )
-                transactionMessages = transfer.messages + (try await database.makeImportedIdentityMessages(
+                transactionMessages = transfer.messages + (try await TransactionCreationSQL.makeImportedIdentityMessages(
                     transactionID: transactionID,
                     importedID: candidate.financialID,
                     importedPayee: candidate.importedPayee,
-                    builder: &builder
+                    builder: &builder,
+                    in: database
                 ))
                 writes.affectedAccountIDs.insert(transferDestinationID)
                 writes.insertedIDsByAccount[transferDestinationID, default: []].append(transfer.pairedTransactionID)
             } else {
-                transactionMessages = try await database.createSimpleTransactionMessages(
+                transactionMessages = try await TransactionCreationSQL.createSimpleTransactionMessages(
                     draft,
                     transactionID: transactionID,
                     payeeID: payeeResolution.payeeID,
                     // Upstream inserts a zero-amount row from either source: a
                     // $0.00 bank line, or a split parent in Actual's own CSV export.
                     allowsZeroAmount: true,
-                    builder: &builder
+                    builder: &builder,
+                    in: database
                 )
             }
             writes.messages.append(contentsOf: payeeResolution.messages)
@@ -284,11 +287,12 @@ extension LocalFirstActualStore {
             return (cachedID, [])
         }
         if knownPayees == nil { knownPayees = try await PayeeSQL.fetchPayees(in: database) }
-        let resolution = try await database.resolveOrCreatePayeeMessages(
+        let resolution = try await TransactionCreationSQL.resolveOrCreatePayeeMessages(
             selectedPayeeID: nil,
             payeeName: name,
             knownPayees: knownPayees,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         resolvedPayeeIDs[key] = resolution.payeeID
         return resolution

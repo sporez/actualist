@@ -284,13 +284,14 @@ private extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
         try queue.read { db in
-            try updateTransactionMessages(
+            try TransactionEditSQL.updateTransactionMessages(
                 transactionID: transactionID,
                 draft: draft,
                 payeeID: payeeID,
                 reconciliationAuthorization: reconciliationAuthorization,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: self,
+                db: db
             )
         }
     }
@@ -301,11 +302,12 @@ private extension BudgetDatabase {
         builder: inout LocalFirstSyncMessageBuilder
     ) throws -> TransactionWriteResult {
         try queue.read { db in
-            try deleteTransactionMessages(
+            try TransactionEditSQL.deleteTransactionMessages(
                 transactionID: transactionID,
                 reconciliationAuthorization: reconciliationAuthorization,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: self,
+                db: db
             )
         }
     }

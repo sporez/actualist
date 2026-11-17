@@ -160,11 +160,12 @@ enum TransactionCreateOracleReplay {
             draft = draft.withoutBudgetCategory()
         }
         let payee = try await resolvePayee(draft, database: database, aliases: &aliases, builder: &builder)
-        let transaction = try await database.createSimpleTransactionMessages(
+        let transaction = try await TransactionCreationSQL.createSimpleTransactionMessages(
             draft,
             transactionID: transactionID,
             payeeID: payee.payeeID,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         return payee.messages + transaction
     }
@@ -180,11 +181,12 @@ enum TransactionCreateOracleReplay {
         guard let payeeID = payee.payeeID else {
             throw LocalFirstError.invalidLocalWrite("missing payee")
         }
-        let result = try await database.createTransferTransactionMessages(
+        let result = try await TransactionCreationSQL.createTransferTransactionMessages(
             draft: draft,
             sourceTransactionID: transactionID,
             payeeID: payeeID,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         aliases[result.pairedTransactionID] = "txn-paired"
         return payee.messages + result.messages
@@ -220,20 +222,22 @@ enum TransactionCreateOracleReplay {
         var payeeMessages: [ActualSyncDecodedMessage] = []
         var payeeID: String?
         if let payeeName, !payeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            let resolved = try await database.resolveOrCreatePayeeMessages(
+            let resolved = try await TransactionCreationSQL.resolveOrCreatePayeeMessages(
                 selectedPayeeID: nil,
                 payeeName: payeeName,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             payeeID = resolved.payeeID
             payeeMessages = resolved.messages
             if !resolved.messages.isEmpty { aliases[resolved.payeeID] = "payee-new" }
         }
-        let transaction = try await database.createSimpleTransactionMessages(
+        let transaction = try await TransactionCreationSQL.createSimpleTransactionMessages(
             draft,
             transactionID: transactionID,
             payeeID: payeeID,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         return payeeMessages + transaction
     }
@@ -274,14 +278,15 @@ enum TransactionCreateOracleReplay {
         builder: inout LocalFirstSyncMessageBuilder
     ) async throws -> (payeeID: String?, messages: [ActualSyncDecodedMessage]) {
         if let selected = draft.payeeID, !selected.isEmpty {
-            try await database.requireLivePayee(selected)
+            try await TransactionCreationSQL.requireLivePayee(selected, in: database)
         } else if draft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !draft.isTransfer {
             return (nil, [])
         }
-        let resolved = try await database.resolveOrCreatePayeeMessages(
+        let resolved = try await TransactionCreationSQL.resolveOrCreatePayeeMessages(
             selectedPayeeID: draft.payeeID,
             payeeName: draft.payeeName,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         if !resolved.messages.isEmpty { aliases[resolved.payeeID] = "payee-new" }
         return (resolved.payeeID, resolved.messages)

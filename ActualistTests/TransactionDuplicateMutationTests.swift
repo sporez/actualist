@@ -533,11 +533,12 @@ struct TransactionDuplicateMutationTests {
             cleared: false,
             isTransfer: false
         )
-        let messages = try await database.createSimpleTransactionMessages(
+        let messages = try await TransactionCreationSQL.createSimpleTransactionMessages(
             draft,
             transactionID: "history-seed",
             payeeID: "coffee",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         _ = try await database.commitUserAction(
             messages,

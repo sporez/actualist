@@ -107,10 +107,11 @@ enum BankSyncRunSQL {
         builder: inout LocalFirstSyncMessageBuilder,
         in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        let (payeeID, payeeMessages) = try database.resolveOrCreatePayeeMessages(
+        let (payeeID, payeeMessages) = try TransactionCreationSQL.resolveOrCreatePayeeMessages(
             selectedPayeeID: nil,
             payeeName: "Starting Balance",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         guard let date = BankSyncAmounts.date(fromDayID: openingBalance.dayID) else {
             throw LocalFirstError.invalidLocalWrite("invalid opening balance date")
@@ -127,11 +128,12 @@ enum BankSyncRunSQL {
             isTransfer: false
         )
         draft.sortOrder = sortOrder
-        let transactionMessages = try database.createSimpleTransactionMessages(
+        let transactionMessages = try TransactionCreationSQL.createSimpleTransactionMessages(
             draft,
             transactionID: transactionID,
             payeeID: payeeID,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         let flagMessage: [ActualSyncDecodedMessage] = try database.queue.read { db in
             let columns = try database.columnSet(for: "transactions", db: db)

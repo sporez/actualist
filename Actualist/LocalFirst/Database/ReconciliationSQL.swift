@@ -156,11 +156,12 @@ enum ReconciliationSQL {
             graph = .split(childIDs: write.affectedTransactionIDs.filter { $0 != transactionID })
         } else if let payeeID = draft.payeeID,
                   try reconciliationTransferDestination(payeeID: payeeID, in: database) != nil {
-            let transfer = try database.createTransferTransactionMessages(
+            let transfer = try TransactionCreationSQL.createTransferTransactionMessages(
                 draft: draft,
                 sourceTransactionID: transactionID,
                 payeeID: payeeID,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             write = BudgetDatabase.TransactionWriteResult(
                 messages: transfer.messages,

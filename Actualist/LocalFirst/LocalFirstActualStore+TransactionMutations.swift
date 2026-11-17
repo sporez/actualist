@@ -34,11 +34,12 @@ extension LocalFirstActualStore {
             guard let payeeID = payeeResolution.payeeID else {
                 throw LocalFirstError.invalidLocalWrite("missing payee")
             }
-            let transfer = try await database.createTransferTransactionMessages(
+            let transfer = try await TransactionCreationSQL.createTransferTransactionMessages(
                 draft: draft,
                 sourceTransactionID: transactionID,
                 payeeID: payeeID,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             transactionMessages = transfer.messages
             changedAccounts.append(transfer.destinationAccountID)
@@ -58,11 +59,12 @@ extension LocalFirstActualStore {
             let childIDs = split.affectedTransactionIDs.filter { $0 != transactionID }
             graph = .split(childIDs: childIDs)
         } else {
-            transactionMessages = try await database.createSimpleTransactionMessages(
+            transactionMessages = try await TransactionCreationSQL.createSimpleTransactionMessages(
                 draft,
                 transactionID: transactionID,
                 payeeID: payeeResolution.payeeID,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
         }
 
@@ -79,7 +81,7 @@ extension LocalFirstActualStore {
         }
         let finalGraph = graph
         let finalAffectedIDs = affectedTransactionIDs
-        let absence = callerTransactionID.map { BudgetDatabase.TransactionIDAbsence(transactionID: $0) }
+        let absence = callerTransactionID.map { TransactionCreationSQL.TransactionIDAbsence(transactionID: $0) }
         #if DEBUG
         await testSeams?.userActionBeforeCommitHook?()
         #endif
@@ -190,19 +192,21 @@ extension LocalFirstActualStore {
             let resolvedPayeeID = settled.payeeID
             let createdPayeeID = settled.createdPayeeID
             let existing = try TransactionReadSQL.fetchTransaction(id: transactionID, in: database, db: db)
-            let existingState = try database.existingTransactionState(
+            let existingState = try TransactionEditSQL.existingTransactionState(
                 id: transactionID,
                 columns: try TransactionRowColumns.resolve(in: database, db: db),
+                in: database,
                 db: db
             )
-            let update = try database.updateTransactionMessages(
+            let update = try TransactionEditSQL.updateTransactionMessages(
                 transactionID: transactionID,
                 draft: draft,
                 payeeID: resolvedPayeeID,
                 reconciliationAuthorization: reconciliationAuthorization,
                 baseline: baseline,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
             let descriptor: BudgetActionDescriptor?
             let shouldRecord = existing.map {
@@ -341,12 +345,13 @@ extension LocalFirstActualStore {
             var builder = LocalFirstSyncMessageBuilder()
             var messages: [ActualSyncDecodedMessage] = []
             for transactionID in orderedIDs {
-                messages += try database.categorizeTransactionMessages(
+                messages += try TransactionEditSQL.categorizeTransactionMessages(
                     transactionID: transactionID,
                     categoryID: categoryID,
                     reconciliationAuthorization: reconciliationAuthorizations[transactionID],
-                    db: db,
-                    builder: &builder
+                    builder: &builder,
+                    in: database,
+                    db: db
                 )
             }
             return UserActionPlan(
@@ -408,15 +413,17 @@ extension LocalFirstActualStore {
             )
         ) { database, db in
             var builder = LocalFirstSyncMessageBuilder()
-            let delete = try database.deleteTransactionMessages(
+            let delete = try TransactionEditSQL.deleteTransactionMessages(
                 transactionID: transactionID,
                 reconciliationAuthorization: reconciliationAuthorization,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
-            let existingState = try database.existingTransactionState(
+            let existingState = try TransactionEditSQL.existingTransactionState(
                 id: transactionID,
                 columns: try TransactionRowColumns.resolve(in: database, db: db),
+                in: database,
                 db: db
             )
             let graph: BudgetTransactionGraph
@@ -472,12 +479,13 @@ extension LocalFirstActualStore {
             return (nil, [])
         }
         if let selectedPayeeID = draft.payeeID, !selectedPayeeID.isEmpty {
-            try await database.requireLivePayee(selectedPayeeID)
+            try await TransactionCreationSQL.requireLivePayee(selectedPayeeID, in: database)
         }
-        let resolved = try await database.resolveOrCreatePayeeMessages(
+        let resolved = try await TransactionCreationSQL.resolveOrCreatePayeeMessages(
             selectedPayeeID: draft.payeeID,
             payeeName: draft.payeeName,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         return (resolved.payeeID, resolved.messages)
     }

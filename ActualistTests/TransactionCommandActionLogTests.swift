@@ -148,7 +148,7 @@ import Testing
             databaseURL: bundle.fileManager.databaseURL(fileID: "file-1")
         ))
         var builder = LocalFirstSyncMessageBuilder()
-        let drafts = try await database.createSimpleTransactionMessages(
+        let drafts = try await TransactionCreationSQL.createSimpleTransactionMessages(
             makeSimpleDraft(
                 date: try StoreFixtures().makeDate(year: 2026, month: 7, day: 3),
                 amount: -12_345,
@@ -156,7 +156,8 @@ import Testing
             ),
             transactionID: "duplicate-simple",
             payeeID: "coffee",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         let record = try await makeAction(
             database: database,
@@ -260,7 +261,7 @@ import Testing
         let sourceIDs = ["source-transfer", "source-transfer-peer"]
         let sourceBefore = try sourceIDs.map { try #require(try rowState(id: $0, databaseURL: databaseURL)) }
         var builder = LocalFirstSyncMessageBuilder()
-        let result = try await database.createTransferTransactionMessages(
+        let result = try await TransactionCreationSQL.createTransferTransactionMessages(
             draft: TransactionDraft(
                 accountID: "checking",
                 date: try StoreFixtures().makeDate(year: 2026, month: 7, day: 3),
@@ -274,7 +275,8 @@ import Testing
             ),
             sourceTransactionID: "duplicate-transfer",
             payeeID: "xfer-credit",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         let cloneIDs = ["duplicate-transfer", result.pairedTransactionID].sorted()
         let record = try await makeAction(
@@ -353,7 +355,7 @@ import Testing
         let bundle = try await makeBundle()
         let database = try bundle.store.requireDatabase(for: "group-1")
         var builder = LocalFirstSyncMessageBuilder()
-        let drafts = try await database.createSimpleTransactionMessages(
+        let drafts = try await TransactionCreationSQL.createSimpleTransactionMessages(
             makeSimpleDraft(
                 date: try StoreFixtures().makeDate(year: 2026, month: 7, day: 3),
                 amount: -12_345,
@@ -361,7 +363,8 @@ import Testing
             ),
             transactionID: "edited-duplicate",
             payeeID: "coffee",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         let record = try await makeAction(
             database: database,
@@ -451,7 +454,7 @@ import Testing
             actionID: "child-added-action"
         )
         var childBuilder = LocalFirstSyncMessageBuilder()
-        var extraChild = try await database.createSimpleTransactionMessages(
+        var extraChild = try await TransactionCreationSQL.createSimpleTransactionMessages(
             makeSimpleDraft(
                 date: try StoreFixtures().makeDate(year: 2026, month: 7, day: 3),
                 amount: -100,
@@ -459,7 +462,8 @@ import Testing
             ),
             transactionID: "later-child",
             payeeID: "coffee",
-            builder: &childBuilder
+            builder: &childBuilder,
+            in: database
         )
         extraChild.removeAll { $0.column == "parent_id" || $0.column == "isChild" }
         extraChild.append(try makeMessage(&childBuilder, row: "later-child", column: "parent_id", value: .string("duplicate-parent")))
@@ -510,7 +514,7 @@ import Testing
             actionID: "incoming-link-action"
         )
         var linkBuilder = LocalFirstSyncMessageBuilder()
-        var extraIncoming = try await database.createSimpleTransactionMessages(
+        var extraIncoming = try await TransactionCreationSQL.createSimpleTransactionMessages(
             makeSimpleDraft(
                 date: try StoreFixtures().makeDate(year: 2026, month: 7, day: 3),
                 amount: -50,
@@ -518,7 +522,8 @@ import Testing
             ),
             transactionID: "external-incoming",
             payeeID: "coffee",
-            builder: &linkBuilder
+            builder: &linkBuilder,
+            in: database
         )
         extraIncoming.append(try makeMessage(
             &linkBuilder,
@@ -555,7 +560,7 @@ import Testing
         let database = try bundle.store.requireDatabase(for: "group-1")
         let pendingBefore = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
         var builder = LocalFirstSyncMessageBuilder()
-        let drafts = try await database.createSimpleTransactionMessages(
+        let drafts = try await TransactionCreationSQL.createSimpleTransactionMessages(
             makeSimpleDraft(
                 date: try StoreFixtures().makeDate(year: 2026, month: 7, day: 3),
                 amount: -12_345,
@@ -563,7 +568,8 @@ import Testing
             ),
             transactionID: "actual-clone",
             payeeID: "coffee",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
 
         await #expect(throws: (any Error).self) {

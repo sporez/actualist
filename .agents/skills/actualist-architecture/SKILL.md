@@ -95,7 +95,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Submission and guarded mutation: `TransactionEditorSubmissionCoordinator.swift`, `TransactionEditorMutationCoordinator.swift`, and reconciled-mutation presentation files.
 - Protocol/model seam: `Actualist/Repositories/TransactionRepository.swift` and `TransactionModels.swift`.
 - Store writes: `LocalFirstActualStore+TransactionMutations.swift` and related mutation extensions.
-- Database reads/writes: `TransactionReadSQL` (reads, pages, uncategorized rows) and `TransactionQuerySQL` (the structured query, drilldowns and the CSV snapshot) in `LocalFirst/Database/`, `+TransactionCreation.swift`, `+TransactionUpdates.swift`, `+TransactionCategorization.swift`, `SplitFamilySQL` (split families: create, update, delete, load, persist), `SplitRepairSQL` and `TransferSQL` (transfer lookups and the paired-leg messages).
+- Database reads/writes: `TransactionReadSQL` (reads, pages, uncategorized rows) and `TransactionQuerySQL` (the structured query, drilldowns and the CSV snapshot) in `LocalFirst/Database/`, `TransactionCreationSQL` (create, payee resolution, the posting graph), `TransactionEditSQL` (update, categorize, delete), `SplitFamilySQL` (split families: create, update, delete, load, persist), `SplitRepairSQL` and `TransferSQL` (transfer lookups and the paired-leg messages).
 - Split-family invariants: `Actualist/LocalFirst/SplitTransactionFamily.swift`.
 - Sharing a transaction: link format and parsing in `Actualist/Shared/SharedTransactionLink.swift`, routed by `Actualist/App/AppDeepLinkRouter.swift`; opening a link (lookup, one sync, messages) in `SharedTransactionLinkResolver.swift` over `BudgetDatabase.sharedTransactionLookup(id:)`; the card in `TransactionShareContent.swift`; and `TransactionShareSheet.swift`, the app's one UIKit view (see `AGENTS.md`).
 
@@ -196,7 +196,7 @@ File naming is the ownership index:
 - `Budget*SQL`, `TransactionReadSQL`, `TransactionQuerySQL` — query families. Reports are the `Report*SQL` types (see Reports, history, notes, and shortcuts).
 - `+Sync`, `+Merkle` — remote CRDT application and the merkle trie (see Sync and merkle below).
 - `+LocalCommit`, `+UserActionPlan` — the write core (see Write trace).
-- `+TransactionCreation`, `+TransactionDiffUpdate`, `+TransactionGraphPlanning`, `+TransactionUpdates` — transaction mutation families (splits are `SplitFamilySQL`).
+- `TransactionCreationSQL`, `TransactionEditSQL` — transaction mutation families (splits are `SplitFamilySQL`).
 - `CategorySQL` (category reads, create, rename, reorder and hide) and `CategoryDeletionSQL` (delete with the budget and mapping transfer) — category structure and hidden-category persistence; `EntityName` holds the name check those writes share.
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
@@ -209,7 +209,7 @@ File naming is the ownership index:
 - `+PortableExport`, `+PortableSyncReset`, `+NewBudgetSeed` — portable ZIP content and the CRDT reset applied to an imported file.
 - `TransactionBatchSQL` (batch review, commit and clear), `TransactionBatchDeleteSQL`, `TransactionBatchSnapshotSQL` (the row snapshots batch, duplicate, merge and undo share), `TransactionDuplicateSQL`, `TransactionMergeSQL`, `SavedFilterSQL` (saved filters), `+TransactionCSV*` — list actions, structured queries and CSV export.
 - `TransactionImportSQL.swift` — file-import checks inside the commit (stateless; takes `isolated BudgetDatabase` and the GRDB handle), plus the thin `commitTransactionCSVImport` entry point.
-- `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `+ImportedIDPrecondition`, `+TransactionIDPrecondition`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
+- `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `+ImportedIDPrecondition`, `TransactionCreationSQL.TransactionIDAbsence`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
 - `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.
 
 Keep SQL and storage-version tolerance here. Keep feature screen state out.

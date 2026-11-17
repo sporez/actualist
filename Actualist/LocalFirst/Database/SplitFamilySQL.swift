@@ -26,12 +26,13 @@ enum SplitFamilySQL {
         in database: isolated BudgetDatabase
     ) throws -> BudgetDatabase.TransactionWriteResult {
         try database.queue.read { db in
-            try database.createSplitFamilyWrite(
+            try TransactionCreationSQL.createSplitFamilyWrite(
                 draft: draft,
                 parentTransactionID: parentTransactionID,
                 payeeID: payeeID,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
         }
     }

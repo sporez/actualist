@@ -240,10 +240,11 @@ enum TransactionBatchSQL {
                     break
                 case .categorize:
                     do {
-                        try database.validateCategorizationTarget(
+                        try TransactionEditSQL.validateCategorizationTarget(
                             transactionID: selection.transactionID,
                             columns: columns.all,
                             payeeColumn: columns.payee,
+                            in: database,
                             db: db
                         )
                     } catch LocalFirstError.unsupportedSplitWrite {
