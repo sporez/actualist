@@ -70,7 +70,7 @@ final class ReportWorkflows {
         let database = try store.requireDatabase(for: budgetID)
         let generation = store.budgetSessionGeneration
         let result = try await TransactionQuerySQL.fetchTransactionDrilldown(request, in: database)
-        let maps = try await store.nameMaps(database)
+        let maps = try await TransactionReadSQL.nameMaps(database)
         guard reportExplorerSessionIsCurrent(
             database: database,
             budgetID: budgetID,

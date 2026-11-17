@@ -663,3 +663,54 @@ enum TransactionReadSQL {
         return true
     }
 }
+
+extension TransactionReadSQL {
+    /// Display names and transfer lookups for transaction rows. Shortcuts'
+    /// `TransactionNameMaps` is a different, smaller shape filled from a
+    /// loaded feed.
+    struct NameMaps: Sendable {
+        let accountNames: [String: String]
+        let categoryNames: [String: String]
+        let payeeNames: [String: String]
+        let transferPayeeIDs: Set<String>
+        let transferAccountIDsByPayeeID: [String: String]
+        let offBudgetAccountIDs: Set<String>
+    }
+
+    @MainActor
+    static func nameMaps(_ database: BudgetDatabase) async throws -> NameMaps {
+        let accounts = try await AccountSQL.fetchAccounts(in: database)
+        let categories = try await CategorySQL.fetchCategories(in: database)
+        let payees = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
+        let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
+        let categoryNames = categories.namesByID
+        // Transfer payees display the linked account name.
+        let payeeNames = Dictionary(uniqueKeysWithValues: payees.compactMap { payee -> (String, String)? in
+            guard let id = payee.id else {
+                return nil
+            }
+            if payee.name.isEmpty, let transferAccount = payee.transferAccount, let accountName = accountNames[transferAccount] {
+                return (id, accountName)
+            }
+            return (id, payee.name)
+        })
+        let transferPayeeIDs = Set(payees.compactMap { payee -> String? in
+            payee.transferAccount != nil ? payee.id : nil
+        })
+        let transferAccountIDsByPayeeID = Dictionary(uniqueKeysWithValues: payees.compactMap { payee -> (String, String)? in
+            guard let id = payee.id, let transferAccount = payee.transferAccount else {
+                return nil
+            }
+            return (id, transferAccount)
+        })
+        let offBudgetAccountIDs = Set(accounts.filter(\.offbudget).map(\.id))
+        return NameMaps(
+            accountNames: accountNames,
+            categoryNames: categoryNames,
+            payeeNames: payeeNames,
+            transferPayeeIDs: transferPayeeIDs,
+            transferAccountIDsByPayeeID: transferAccountIDsByPayeeID,
+            offBudgetAccountIDs: offBudgetAccountIDs
+        )
+    }
+}

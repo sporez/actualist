@@ -154,7 +154,7 @@ extension LocalFirstActualStore {
         limit: Int? = nil,
         offset: Int = 0
     ) async throws -> LoadedAccountTransactions {
-        let maps = try await nameMaps(database)
+        let maps = try await TransactionReadSQL.nameMaps(database)
         let accountPage = try await TransactionQuerySQL.fetchAccountTransactionQueryPage(
             accountID: accountID,
             query: query,
@@ -192,7 +192,7 @@ extension LocalFirstActualStore {
         limit: Int? = nil,
         offset: Int = 0
     ) async throws -> LoadedAccountTransactions {
-        let maps = try await nameMaps(database)
+        let maps = try await TransactionReadSQL.nameMaps(database)
         let page = try await TransactionQuerySQL.fetchTransactionQueryPage(
             scope: .spending,
             query: query,

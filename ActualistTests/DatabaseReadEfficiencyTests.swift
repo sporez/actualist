@@ -56,7 +56,7 @@ struct DatabaseReadEfficiencyTests {
                 }
             }
         }
-        let maps = try await store.nameMaps(database)
+        let maps = try await TransactionReadSQL.nameMaps(database)
         #expect(maps.payeeNames == ["merchant": "Merchant", "transfer": "Checking"])
         #expect(maps.transferAccountIDsByPayeeID == ["transfer": "checking"])
         #expect(reads.withLock { $0 } == 0)
@@ -65,7 +65,7 @@ struct DatabaseReadEfficiencyTests {
             try db.execute(sql: "UPDATE payees SET name = 'Renamed' WHERE id = 'merchant'")
             try db.execute(sql: "UPDATE payees SET tombstone = 1 WHERE id = 'transfer'")
         }
-        let refreshed = try await store.nameMaps(database)
+        let refreshed = try await TransactionReadSQL.nameMaps(database)
         #expect(refreshed.payeeNames == ["merchant": "Renamed"])
         #expect(refreshed.transferPayeeIDs.isEmpty)
     }

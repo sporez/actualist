@@ -31,7 +31,7 @@ final class WidgetSourceWorkflows {
         let month = financial.month
         let currency = financial.currency
         let accounts = try? await AccountSQL.fetchAccountDisplays(in: database)
-        let maps = try? await store.nameMaps(database)
+        let maps = try? await TransactionReadSQL.nameMaps(database)
         let recent = try? await TransactionReadSQL.fetchTransactionPage(limit: 16, splits: .grouped, in: database).transactions
         let netWorth = try? await ReportDashboardSQL.fetchNetWorthReport(range: .dashboard(through: now), in: database)
         let attention: WidgetAttentionSnapshot?

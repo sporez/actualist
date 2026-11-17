@@ -210,7 +210,7 @@ extension LocalFirstActualStore {
             .map { String($0.dropFirst(prefix.count)) }
         // One name-map read and one table read serve every cached feed.
         if !categoryScopes.isEmpty || !uncategorizedMonths.isEmpty {
-            let maps = try await nameMaps(database)
+            let maps = try await TransactionReadSQL.nameMaps(database)
             if !categoryScopes.isEmpty {
                 let transactions = try await TransactionReadSQL.fetchTransactions(in: database)
                 for scope in categoryScopes {

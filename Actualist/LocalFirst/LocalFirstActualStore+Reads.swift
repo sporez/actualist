@@ -120,7 +120,7 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let revision = cachePublicationRevision
-        let maps = try await nameMaps(database)
+        let maps = try await TransactionReadSQL.nameMaps(database)
         let transactions = try await TransactionReadSQL.fetchTransactions(in: database)
         #if DEBUG
         await testSeams?.readPublicationHook?(.categoryFeed)
@@ -141,7 +141,7 @@ extension LocalFirstActualStore {
         categoryID: String,
         month: String,
         allTransactions: [ActualTransaction],
-        maps: TransactionNameMaps
+        maps: TransactionReadSQL.NameMaps
     ) {
         let transactions = allTransactions.filter { transaction in
             transaction.belongs(toCategory: categoryID, month: month)
@@ -193,7 +193,7 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
         let revision = cachePublicationRevision
-        let maps = try await nameMaps(database)
+        let maps = try await TransactionReadSQL.nameMaps(database)
         let rows = try await TransactionReadSQL.fetchUncategorizedTransactions(in: database)
         #if DEBUG
         await testSeams?.readPublicationHook?(.uncategorizedFeed)
@@ -212,7 +212,7 @@ extension LocalFirstActualStore {
         generation: Int,
         revision: Int,
         rows: [ActualTransaction],
-        maps: TransactionNameMaps
+        maps: TransactionReadSQL.NameMaps
     ) async throws -> LoadedUncategorizedTransactions {
         let transactions = rows.filter { transaction in
             Self.isUncategorized(
@@ -333,44 +333,6 @@ extension LocalFirstActualStore {
     ) async throws -> [TransactionEditorCategoryGroup] {
         let budgetMonth = try await BudgetMonthSQL.fetchBudgetMonth(month: month, in: database)
         return budgetMonth.editorCategoryGroups(currency: budgetCurrency(budgetID: budgetID))
-    }
-
-    typealias TransactionNameMaps = (
-        accountNames: [String: String],
-        categoryNames: [String: String],
-        payeeNames: [String: String],
-        transferPayeeIDs: Set<String>,
-        transferAccountIDsByPayeeID: [String: String],
-        offBudgetAccountIDs: Set<String>
-    )
-
-    func nameMaps(_ database: BudgetDatabase) async throws -> TransactionNameMaps {
-        let accounts = try await AccountSQL.fetchAccounts(in: database)
-        let categories = try await CategorySQL.fetchCategories(in: database)
-        let payees = try await PayeeSQL.fetchPayees(orderedForPicker: false, in: database)
-        let accountNames = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
-        let categoryNames = categories.namesByID
-        // Transfer payees display the linked account name.
-        let payeeNames = Dictionary(uniqueKeysWithValues: payees.compactMap { payee -> (String, String)? in
-            guard let id = payee.id else {
-                return nil
-            }
-            if payee.name.isEmpty, let transferAccount = payee.transferAccount, let accountName = accountNames[transferAccount] {
-                return (id, accountName)
-            }
-            return (id, payee.name)
-        })
-        let transferPayeeIDs = Set(payees.compactMap { payee -> String? in
-            payee.transferAccount != nil ? payee.id : nil
-        })
-        let transferAccountIDsByPayeeID = Dictionary(uniqueKeysWithValues: payees.compactMap { payee -> (String, String)? in
-            guard let id = payee.id, let transferAccount = payee.transferAccount else {
-                return nil
-            }
-            return (id, transferAccount)
-        })
-        let offBudgetAccountIDs = Set(accounts.filter(\.offbudget).map(\.id))
-        return (accountNames, categoryNames, payeeNames, transferPayeeIDs, transferAccountIDsByPayeeID, offBudgetAccountIDs)
     }
 
     func categoryTransactionKey(_ budgetID: String, _ categoryID: String, _ month: String) -> String {
