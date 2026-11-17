@@ -282,8 +282,6 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         try #require(commands.first)
     }
 
-    func budgets() async throws -> [ActualBudget] { [] }
-
     func currentBudgetMonth(
         budgetID: String,
         preferredMonth: String

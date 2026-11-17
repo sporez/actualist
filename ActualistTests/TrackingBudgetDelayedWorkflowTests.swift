@@ -150,7 +150,6 @@ private actor DelayedWorkflowRepository: BudgetRepositoryProtocol {
         }
     }
 
-    func budgets() async throws -> [ActualBudget] { [] }
     func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth { loaded() }
     func budgetMonth(budgetID: String, selectedMonth: String) async throws -> LoadedBudgetMonth { loaded() }
 

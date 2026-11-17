@@ -106,7 +106,6 @@ actor BudgetViewportTestRepository: BudgetRepositoryProtocol, BudgetHistoryRepos
         return result
     }
 
-    func budgets() async throws -> [ActualBudget] { [] }
     func setCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil, categoryID: String, carryover: Bool, budgetID: String, startMonth: String, didSetCarryover: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
     func setAllExpenseCategoryCarryoverAndRefresh(expectedMode: BudgetModeIdentity? = nil, carryover: Bool, budgetID: String, startMonth: String) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }
     func setCategoryHiddenAndRefresh(categoryID: String, hidden: Bool, budgetID: String, month: String, didUpdate: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw ViewportTestError.unsupported }

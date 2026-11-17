@@ -286,8 +286,6 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
     private var suspendWaiters: [CheckedContinuation<Void, Never>] = []
     private var suspended = false
 
-    func budgets() async throws -> [ActualBudget] { [] }
-
     func currentBudgetMonth(
         budgetID: String,
         preferredMonth: String

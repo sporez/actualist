@@ -438,8 +438,6 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
         continuation = nil
     }
 
-    func budgets() async throws -> [ActualBudget] { [] }
-
     func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth {
         emptyLoadedMonth
     }

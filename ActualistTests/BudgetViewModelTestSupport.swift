@@ -226,10 +226,6 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol, BudgetHoldRepositoryP
         return try await holdApply(command, review)
     }
 
-    func budgets() async throws -> [ActualBudget] {
-        []
-    }
-
     func currentBudgetMonth(
         budgetID: String,
         preferredMonth: String

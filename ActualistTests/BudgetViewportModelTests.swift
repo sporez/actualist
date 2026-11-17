@@ -107,8 +107,6 @@ private struct ViewportTestRepository: BudgetRepositoryProtocol {
         throw LocalFirstError.unsupportedWrite
     }
 
-    func budgets() async throws -> [ActualBudget] { [] }
-
     func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth {
         throw BudgetViewportTestError.unimplemented
     }

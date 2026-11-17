@@ -3,7 +3,6 @@ import Foundation
 /// Local-first budget reads and writes. Completions run on the main actor so
 /// UI refresh hooks can cross this Sendable seam into the store.
 protocol BudgetRepositoryProtocol: Sendable {
-    func budgets() async throws -> [ActualBudget]
     func currentBudgetMonth(
         budgetID: String,
         preferredMonth: String
