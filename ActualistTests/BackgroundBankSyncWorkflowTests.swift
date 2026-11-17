@@ -470,7 +470,7 @@ struct BackgroundBankSyncWorkflowTests {
 @MainActor
 private final class BankWorkflowPendingStore: BackgroundPendingTransactionPersisting {
     private var byAccount: [String: [String]] = [:]
-    private var delivery: LocalFirstActualStore.PendingNewTransactionDelivery?
+    private var delivery: PendingTransactionWorkflows.PendingNewTransactionDelivery?
     private(set) var suppressionCount = 0
 
     init(seed: [String: [String]] = [:]) {
@@ -521,10 +521,10 @@ private final class BankWorkflowPendingStore: BackgroundPendingTransactionPersis
 
     func pendingNewTransactionDelivery(
         budgetID: String
-    ) async throws -> LocalFirstActualStore.PendingNewTransactionDelivery? { delivery }
+    ) async throws -> PendingTransactionWorkflows.PendingNewTransactionDelivery? { delivery }
 
     func acknowledgePendingNewTransactionDelivery(
-        _ delivery: LocalFirstActualStore.PendingNewTransactionDelivery,
+        _ delivery: PendingTransactionWorkflows.PendingNewTransactionDelivery,
         budgetID: String
     ) async throws { self.delivery = nil }
 

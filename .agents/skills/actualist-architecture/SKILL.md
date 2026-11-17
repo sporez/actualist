@@ -173,7 +173,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - `+TransactionFeeds` / `+TransactionFeedCache` — cached account and Spending feeds. Do not duplicate this cache.
 - `+LaunchWarmup` — store-side cache warming after open.
 - `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle`, `+Holds`, `+CommitTail` — local CRDT write flows and the shared post-commit tail.
-- `TransactionCommandWorkflows` (`LocalFirst/TransactionCommandWorkflows.swift`, the store's `transactionCommands`: batch, duplicate and merge review and commit), `+TransactionCSVImport`, `+TransactionCSVExport`, `+PendingNewTransactions` — transaction-list actions, saved filters, and CSV.
+- `TransactionCommandWorkflows` (`LocalFirst/TransactionCommandWorkflows.swift`, the store's `transactionCommands`: batch, duplicate and merge review and commit), `+TransactionCSVImport`, `+TransactionCSVExport`, `PendingTransactionWorkflows` (the store's `pendingTransactions`: new-transaction alert rows, conforming to `BackgroundPendingTransactionPersisting`) — transaction-list actions, saved filters, and CSV.
 - `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
 - `+WalletImport`, `+ImportReconcile` — imported transaction flows (Bank Sync is `BankSyncWorkflows` and `BankSyncPlanWorkflows`).
 - `+PortableExport`, `+PortableImport`, `+PortableRegistration`, `+NewBudget` — ZIP export and import, server registration, and New Budget.

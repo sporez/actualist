@@ -39,7 +39,6 @@ Actualist/LocalFirst/LocalFirstActualStore+LaunchWarmup.swift
 Actualist/LocalFirst/LocalFirstActualStore+Mutations.swift
 Actualist/LocalFirst/LocalFirstActualStore+NewBudget.swift
 Actualist/LocalFirst/LocalFirstActualStore+Notes.swift
-Actualist/LocalFirst/LocalFirstActualStore+PendingNewTransactions.swift
 Actualist/LocalFirst/LocalFirstActualStore+PortableExport.swift
 Actualist/LocalFirst/LocalFirstActualStore+PortableImport.swift
 Actualist/LocalFirst/LocalFirstActualStore+PortableRegistration.swift

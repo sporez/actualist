@@ -718,7 +718,7 @@ struct BackgroundTransactionWorkflowTests {
 @MainActor
 private final class FakePendingTransactionStore: BackgroundPendingTransactionPersisting {
     private var idsByAccount: [String: [String]] = [:]
-    private var delivery: LocalFirstActualStore.PendingNewTransactionDelivery?
+    private var delivery: PendingTransactionWorkflows.PendingNewTransactionDelivery?
     private var ackFailuresRemaining: Int
 
     init(ackFailuresRemaining: Int = 0) {
@@ -756,10 +756,10 @@ private final class FakePendingTransactionStore: BackgroundPendingTransactionPer
 
     func pendingNewTransactionDelivery(
         budgetID: String
-    ) async throws -> LocalFirstActualStore.PendingNewTransactionDelivery? { delivery }
+    ) async throws -> PendingTransactionWorkflows.PendingNewTransactionDelivery? { delivery }
 
     func acknowledgePendingNewTransactionDelivery(
-        _ delivery: LocalFirstActualStore.PendingNewTransactionDelivery,
+        _ delivery: PendingTransactionWorkflows.PendingNewTransactionDelivery,
         budgetID: String
     ) async throws {
         if ackFailuresRemaining > 0 {

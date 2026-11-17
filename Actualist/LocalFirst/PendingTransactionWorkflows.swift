@@ -1,6 +1,18 @@
 import Foundation
 
-extension LocalFirstActualStore {
+/// New-transaction alerts on the store: the pending rows a remote sync or
+/// Bank Sync recorded, their delivery to a notification, and the review that
+/// reconciles the legacy settings projection. The store owns it.
+@MainActor
+final class PendingTransactionWorkflows {
+    // The store creates this lazily and keeps it for its whole life, so the
+    // store outlives every holder of it.
+    private unowned let store: LocalFirstActualStore
+
+    init(store: LocalFirstActualStore) {
+        self.store = store
+    }
+
     struct PendingNewTransactionDelivery: Equatable, Sendable {
         let requestIdentifier: String
         let transactionIDs: [String]
@@ -10,13 +22,13 @@ extension LocalFirstActualStore {
         budgetID: String,
         legacyStorage: [String: [String]]
     ) async throws -> [String: [String]] {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
         let prefix = pendingNewTransactionPrefix(budgetID: budgetID)
         let legacyByAccount = Self.accountScopedIDs(in: legacyStorage, prefix: prefix)
         try await PendingNewTransactionSQL.migrateLegacyPendingNewTransactions(legacyByAccount, in: database)
         let durable = try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: database)
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         return replacingPendingNewTransactionProjection(
             legacyStorage,
             budgetID: budgetID,
@@ -30,9 +42,9 @@ extension LocalFirstActualStore {
         notificationID: String
     ) async throws {
         guard !pending.isEmpty else { return }
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         try await PendingNewTransactionSQL.recordPendingNewTransactions(.init(
             transactionIDsByAccount: Dictionary(
                 pending.map { ($0.accountID, $0.transactionIDs) },
@@ -41,16 +53,16 @@ extension LocalFirstActualStore {
             source: .remoteSync,
             notificationID: notificationID
         ), in: database)
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
     }
 
     func pendingNewTransactionDelivery(
         budgetID: String
     ) async throws -> PendingNewTransactionDelivery? {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
         let delivery = try await PendingNewTransactionSQL.pendingNewTransactionDelivery(in: database)
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         return delivery.map {
             PendingNewTransactionDelivery(
                 requestIdentifier: "actualist.new-transactions.\($0.notificationID)",
@@ -63,19 +75,19 @@ extension LocalFirstActualStore {
         _ delivery: PendingNewTransactionDelivery,
         budgetID: String
     ) async throws {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         try await PendingNewTransactionSQL.acknowledgePendingNewTransactionDelivery(delivery.transactionIDs, in: database)
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
     }
 
     func suppressPendingNewTransactionDeliveries(budgetID: String) async throws {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         try await PendingNewTransactionSQL.suppressPendingNewTransactionDeliveries(in: database)
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
     }
 
     func reviewPendingNewTransactions(
@@ -84,9 +96,9 @@ extension LocalFirstActualStore {
         transactionIDs: Set<String>,
         projection: [String: [String]]
     ) async throws -> (clearedCount: Int, projection: [String: [String]]) {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetSessionGeneration
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         let prefix = pendingNewTransactionPrefix(budgetID: budgetID)
         let legacyByAccount = Self.accountScopedIDs(in: projection, prefix: prefix)
         let clearedCount = try await PendingNewTransactionSQL.migrateLegacyAndReviewPendingNewTransactions(
@@ -96,7 +108,7 @@ extension LocalFirstActualStore {
             in: database
         )
         let durable = try await PendingNewTransactionSQL.pendingNewTransactionIDsByAccount(in: database)
-        try requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
         return (
             clearedCount,
             replacingPendingNewTransactionProjection(
@@ -136,4 +148,4 @@ extension LocalFirstActualStore {
     }
 }
 
-extension LocalFirstActualStore: BackgroundPendingTransactionPersisting {}
+extension PendingTransactionWorkflows: BackgroundPendingTransactionPersisting {}

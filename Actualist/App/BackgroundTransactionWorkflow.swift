@@ -20,9 +20,9 @@ protocol BackgroundPendingTransactionPersisting {
         notificationID: String
     ) async throws
     func pendingNewTransactionDelivery(budgetID: String) async throws
-        -> LocalFirstActualStore.PendingNewTransactionDelivery?
+        -> PendingTransactionWorkflows.PendingNewTransactionDelivery?
     func acknowledgePendingNewTransactionDelivery(
-        _ delivery: LocalFirstActualStore.PendingNewTransactionDelivery,
+        _ delivery: PendingTransactionWorkflows.PendingNewTransactionDelivery,
         budgetID: String
     ) async throws
     func suppressPendingNewTransactionDeliveries(budgetID: String) async throws
@@ -188,7 +188,7 @@ final class BackgroundTransactionWorkflow {
         store: LocalFirstActualStore
     ) async {
         guard !alertsEnabled, let budgetID else { return }
-        try? await store.suppressPendingNewTransactionDeliveries(budgetID: budgetID)
+        try? await store.pendingTransactions.suppressPendingNewTransactionDeliveries(budgetID: budgetID)
     }
 
     // MARK: Preparation
@@ -241,12 +241,12 @@ final class BackgroundTransactionWorkflow {
             )
         }
         do {
-            let projection = try await store.reconcilePendingNewTransactionProjection(
+            let projection = try await store.pendingTransactions.reconcilePendingNewTransactionProjection(
                 budgetID: budgetID,
                 legacyStorage: settings.pendingNewTransactionIDsByAccount
             )
             if !isEnabled {
-                try await store.suppressPendingNewTransactionDeliveries(budgetID: budgetID)
+                try await store.pendingTransactions.suppressPendingNewTransactionDeliveries(budgetID: budgetID)
             }
             return PreparedProjection(
                 budgetID: budgetID,
@@ -364,7 +364,7 @@ final class BackgroundTransactionWorkflow {
                 details.serverInsertedCount = result.newTransactionCount
                 debugRecorder.updateDetails(details, for: debugRunID, in: &local)
                 var runMessage = outcome.message
-                let pendingStore = pendingTransactionStore ?? store
+                let pendingStore = pendingTransactionStore ?? store.pendingTransactions
                 let alertsRequested = local.backgroundTransactionRefreshEnabled
                 if alertsRequested && liveEligibility().alertsEnabled {
                     _ = try remainingDuration(until: workDeadline, clock: clock)
@@ -670,7 +670,7 @@ final class BackgroundTransactionWorkflow {
         store: LocalFirstActualStore
     ) async -> PendingReviewOutcome? {
         let projectionGeneration = beginPendingProjectionOperation()
-        guard let result = try? await store.reviewPendingNewTransactions(
+        guard let result = try? await store.pendingTransactions.reviewPendingNewTransactions(
             budgetID: budgetID, accountID: accountID,
             transactionIDs: transactionIDs,
             projection: settings.pendingNewTransactionIDsByAccount

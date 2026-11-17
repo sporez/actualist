@@ -104,7 +104,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func legacyProjectionMigratesAcknowledgedAndReconcilesExactly() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
-        let projection = try await bundle.store.reconcilePendingNewTransactionProjection(
+        let projection = try await bundle.store.pendingTransactions.reconcilePendingNewTransactionProjection(
             budgetID: "group-1",
             legacyStorage: [
                 "group-1|checking": ["legacy-1"],
@@ -114,15 +114,15 @@ extension LocalFirstActualStoreTests {
 
         #expect(projection["group-1|checking"] == ["legacy-1"])
         #expect(projection["other|checking"] == ["other-1"])
-        #expect(try await bundle.store.pendingNewTransactionDelivery(budgetID: "group-1") == nil)
+        #expect(try await bundle.store.pendingTransactions.pendingNewTransactionDelivery(budgetID: "group-1") == nil)
 
-        _ = try await bundle.store.reviewPendingNewTransactions(
+        _ = try await bundle.store.pendingTransactions.reviewPendingNewTransactions(
             budgetID: "group-1",
             accountID: "checking",
             transactionIDs: ["legacy-1"],
             projection: projection
         )
-        let reconciled = try await bundle.store.reconcilePendingNewTransactionProjection(
+        let reconciled = try await bundle.store.pendingTransactions.reconcilePendingNewTransactionProjection(
             budgetID: "group-1",
             legacyStorage: projection
         )
@@ -134,13 +134,13 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle()
         let legacy = ["group-1|checking": ["legacy-1"]]
 
-        let reviewed = try await bundle.store.reviewPendingNewTransactions(
+        let reviewed = try await bundle.store.pendingTransactions.reviewPendingNewTransactions(
             budgetID: "group-1",
             accountID: "checking",
             transactionIDs: ["legacy-1"],
             projection: legacy
         )
-        let reconciled = try await bundle.store.reconcilePendingNewTransactionProjection(
+        let reconciled = try await bundle.store.pendingTransactions.reconcilePendingNewTransactionProjection(
             budgetID: "group-1",
             legacyStorage: legacy
         )
@@ -165,7 +165,7 @@ extension LocalFirstActualStoreTests {
             notificationID: "opaque-2"
         ), in: database)
 
-        let reviewed = try await bundle.store.reviewPendingNewTransactions(
+        let reviewed = try await bundle.store.pendingTransactions.reviewPendingNewTransactions(
             budgetID: "group-1",
             accountID: "checking",
             transactionIDs: capturedIDs,
@@ -180,7 +180,7 @@ extension LocalFirstActualStoreTests {
     @Test func staleBudgetIdentityRefusesProjection() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            try await bundle.store.reconcilePendingNewTransactionProjection(
+            try await bundle.store.pendingTransactions.reconcilePendingNewTransactionProjection(
                 budgetID: "other-budget",
                 legacyStorage: ["other-budget|checking": ["wrong"]]
             )
