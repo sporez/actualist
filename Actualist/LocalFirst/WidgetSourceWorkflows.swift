@@ -11,22 +11,34 @@ struct WidgetBudgetSource: Sendable {
     let netWorth: NetWorthReport?
 }
 
-extension LocalFirstActualStore {
+/// The widget snapshot read on the store: one publication read of the
+/// current month, accounts, attention counts, recent transactions and net
+/// worth. The store owns it.
+@MainActor
+final class WidgetSourceWorkflows {
+    // The store creates this lazily and keeps it for its whole life, so the
+    // store outlives every holder of it.
+    private unowned let store: LocalFirstActualStore
+
+    init(store: LocalFirstActualStore) {
+        self.store = store
+    }
+
     func fetchWidgetSource(budgetID: String, now: Date = Date()) async throws -> WidgetBudgetSource {
-        let database = try requireDatabase(for: budgetID)
-        let generation = budgetReadGeneration
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetReadGeneration
         let financial = try await BudgetMonthSQL.fetchBudgetSnapshot(month: WidgetMonthID.current(now: now), in: database)
         let month = financial.month
         let currency = financial.currency
         let accounts = try? await AccountSQL.fetchAccountDisplays(in: database)
-        let maps = try? await nameMaps(database)
+        let maps = try? await store.nameMaps(database)
         let recent = try? await TransactionReadSQL.fetchTransactionPage(limit: 16, splits: .grouped, in: database).transactions
         let netWorth = try? await ReportDashboardSQL.fetchNetWorthReport(range: .dashboard(through: now), in: database)
         let attention: WidgetAttentionSnapshot?
         if let maps,
            let uncategorized = try? await TransactionReadSQL.fetchUncategorizedTransactions(in: database) {
             let count = uncategorized.filter {
-                Self.isUncategorized($0, transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
+                LocalFirstActualStore.isUncategorized($0, transferAccountIDsByPayeeID: maps.transferAccountIDsByPayeeID,
                                      offBudgetAccountIDs: maps.offBudgetAccountIDs)
             }.count
             let overspent = month.categoryGroups.filter { !$0.isIncome }.flatMap {
@@ -37,8 +49,8 @@ extension LocalFirstActualStore {
             attention = nil
         }
         let currentIdentity = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
-        guard self.database === database, openedBudgetID == budgetID,
-              budgetReadGeneration == generation, financial.modeIdentity == currentIdentity else { throw CancellationError() }
+        guard store.database === database, store.openedBudgetID == budgetID,
+              store.budgetReadGeneration == generation, financial.modeIdentity == currentIdentity else { throw CancellationError() }
         return WidgetBudgetSource(
             month: month, currency: currency, accounts: accounts, attention: attention,
             recentTransactions: maps == nil || accounts == nil ? nil : recent,

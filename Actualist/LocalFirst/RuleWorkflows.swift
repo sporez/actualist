@@ -96,7 +96,7 @@ final class RuleWorkflows {
         store.schedules.invalidateScheduleCache(budgetID: budgetID)
         invalidateRulesCache(budgetID: budgetID)
         try await refreshRulesCache(database: database, budgetID: budgetID)
-        try await store.publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
+        try await store.payees.publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
         await store.refreshActionLogDiagnosticSnapshot(database: database)
     }
 
@@ -138,7 +138,7 @@ final class RuleWorkflows {
         } catch is CancellationError where !Task.isCancelled {
             // Superseded (or session retired, which the payee publish rechecks).
         }
-        try await store.publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
+        try await store.payees.publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
     }
 }
 

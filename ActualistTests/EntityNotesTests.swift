@@ -284,11 +284,11 @@ extension LocalFirstActualStoreTests {
         try await store.refreshAccountsWithBalances(budgetID: "group-1")
         #expect(store.accountDisplays(budgetID: "group-1").first { $0.id == "checking" }?.hasUserNote == true)
 
-        let body = try await store.entityNote(target: categoryTarget, budgetID: "group-1")
+        let body = try await store.entityNotes.entityNote(target: categoryTarget, budgetID: "group-1")
         #expect(body.userBody == "Remember coupons")
         #expect(body.reservedLines == ["#template 250"])
 
-        try await store.setEntityNoteAndRefresh(
+        try await store.entityNotes.setEntityNoteAndRefresh(
             target: categoryTarget,
             userBody: "Updated note",
             budgetID: "group-1"
@@ -307,7 +307,7 @@ extension LocalFirstActualStoreTests {
         #expect(noteMessages[0].column == "note")
         #expect(noteMessages[0].serializedValue == "S:Updated note\n#template 250")
 
-        try await store.setEntityNoteAndRefresh(
+        try await store.entityNotes.setEntityNoteAndRefresh(
             target: categoryTarget,
             userBody: "",
             budgetID: "group-1"
@@ -316,7 +316,7 @@ extension LocalFirstActualStoreTests {
             .categoryGroups.flatMap(\.categories)
             .first { $0.id == "groceries" }
         #expect(refreshedCategory?.hasUserNote == false)
-        let preservedDirective = try await store.entityNote(
+        let preservedDirective = try await store.entityNotes.entityNote(
             target: categoryTarget,
             budgetID: "group-1"
         )
@@ -338,7 +338,7 @@ extension LocalFirstActualStoreTests {
 
         #expect(try await database.applyRemoteSyncMessages([message]) == 1)
         let target = try #require(ActualNoteTarget.category(id: "groceries", title: "Groceries"))
-        let note = try await bundle.store.entityNote(target: target, budgetID: "group-1")
+        let note = try await bundle.store.entityNotes.entityNote(target: target, budgetID: "group-1")
         #expect(note.userBody == "Added in Actual web")
     }
 
@@ -352,8 +352,8 @@ extension LocalFirstActualStoreTests {
         let groceries = try #require(ActualNoteTarget.category(id: "groceries", title: "Groceries"))
         let utilities = try #require(ActualNoteTarget.category(id: "utilities", title: "Utilities"))
 
-        try await store.setEntityNoteAndRefresh(target: groceries, userBody: " \n ", budgetID: "group-1")
-        try await store.setEntityNoteAndRefresh(target: utilities, userBody: "", budgetID: "group-1")
+        try await store.entityNotes.setEntityNoteAndRefresh(target: groceries, userBody: " \n ", budgetID: "group-1")
+        try await store.entityNotes.setEntityNoteAndRefresh(target: utilities, userBody: "", budgetID: "group-1")
 
         let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
         let queue = try DatabaseQueue(path: databaseURL.path)
@@ -370,11 +370,11 @@ extension LocalFirstActualStoreTests {
         let bundle = try await makeOpenedWritableStoreBundle()
         let target = try #require(ActualNoteTarget.account(id: "checking", title: "Checking"))
 
-        let body = try await bundle.store.entityNote(target: target, budgetID: "group-1")
+        let body = try await bundle.store.entityNotes.entityNote(target: target, budgetID: "group-1")
         #expect(!body.hasUserNote)
         #expect(body.reservedLines.isEmpty)
         await #expect(throws: LocalFirstError.self) {
-            try await bundle.store.setEntityNoteAndRefresh(
+            try await bundle.store.entityNotes.setEntityNoteAndRefresh(
                 target: target,
                 userBody: "Should fail",
                 budgetID: "group-1"

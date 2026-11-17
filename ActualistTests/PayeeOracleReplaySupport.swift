@@ -107,21 +107,21 @@ enum PayeeOracleReplay {
     ) async throws {
         switch kind {
         case "create":
-            try await store.createPayeeAndRefresh(budgetID: budgetID, name: try OracleJSON.string(input, "typed"))
+            try await store.payees.createPayeeAndRefresh(budgetID: budgetID, name: try OracleJSON.string(input, "typed"))
         case "rename":
-            try await store.renamePayeeAndRefresh(
+            try await store.payees.renamePayeeAndRefresh(
                 budgetID: budgetID,
                 payeeID: try OracleJSON.string(input, "payeeID"),
                 name: try OracleJSON.string(input, "typed")
             )
         case "merge":
-            try await store.mergePayeesAndRefresh(
+            try await store.payees.mergePayeesAndRefresh(
                 budgetID: budgetID,
                 sourcePayeeIDs: Set(input["mergeIDs"] as? [String] ?? []),
                 targetPayeeID: try OracleJSON.string(input, "targetID")
             )
         case "delete":
-            try await store.deletePayeesAndRefresh(budgetID: budgetID, payeeIDs: Set(input["payeeIDs"] as? [String] ?? []))
+            try await store.payees.deletePayeesAndRefresh(budgetID: budgetID, payeeIDs: Set(input["payeeIDs"] as? [String] ?? []))
         case "toggle-single", "toggle-selection":
             let field = try OracleJSON.string(input, "field")
             let payload = try OracleJSON.object(OracleJSON.object(call, "handlerCall")["payload"], "payload")
@@ -134,10 +134,10 @@ enum PayeeOracleReplay {
                     ? PayeeManagementUpdate(payeeID: id, favorite: value)
                     : PayeeManagementUpdate(payeeID: id, learnCategories: value)
             }
-            try await store.updatePayeesAndRefresh(budgetID: budgetID, updates: updates)
+            try await store.payees.updatePayeesAndRefresh(budgetID: budgetID, updates: updates)
         case "global-learning":
             let payload = try OracleJSON.object(OracleJSON.object(call, "handlerCall")["payload"], "payload")
-            try await store.setGlobalCategoryLearningAndRefresh(
+            try await store.payees.setGlobalCategoryLearningAndRefresh(
                 budgetID: budgetID,
                 enabled: try OracleJSON.string(payload, "value") == "true"
             )

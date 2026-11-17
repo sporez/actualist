@@ -7,8 +7,6 @@ import Observation
 final class LocalFirstActualStore:
     BudgetRepositoryProtocol,
     AccountRepositoryProtocol,
-    EntityNotesRepositoryProtocol,
-    PayeeRepositoryProtocol,
     TransactionRepositoryProtocol
 {
     let keychain: KeychainStore
@@ -57,6 +55,10 @@ final class LocalFirstActualStore:
     @ObservationIgnored private(set) lazy var pendingTransactions = PendingTransactionWorkflows(store: self)
     @ObservationIgnored private(set) lazy var portableBudgets = PortableBudgetWorkflows(store: self)
     @ObservationIgnored private(set) lazy var transactionCSV = TransactionCSVWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var entityNotes = EntityNoteWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var payees = PayeeWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var widgetSource = WidgetSourceWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var demoBudget = DemoBudgetWorkflows(store: self)
     var budgetReadGeneration = 0
     @ObservationIgnored var syncStatusSequence = 0
     @ObservationIgnored var appliedPendingCountSequence = 0

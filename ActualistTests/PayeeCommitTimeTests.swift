@@ -34,7 +34,7 @@ extension LocalFirstActualStoreTests {
             """)
         landPayeeRemote([payeeRemote("transactions", "txn", "description", "S:late-use")], on: store)
 
-        try await store.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "late-use")
+        try await store.payees.deletePayeeAndRefresh(budgetID: "group-1", payeeID: "late-use")
 
         let database = try #require(store.database)
         let live = try await PayeeManagementSQL.fetchPayeeManagementSnapshot(in: database).payees
@@ -51,7 +51,7 @@ extension LocalFirstActualStoreTests {
         // Another device merged Cafe C into Cafe A after this merge was reviewed.
         landPayeeRemote([payeeRemote("payee_mapping", "cafe-c", "targetId", "S:cafe-a")], on: store)
 
-        try await store.mergePayeesAndRefresh(
+        try await store.payees.mergePayeesAndRefresh(
             budgetID: "group-1", sourcePayeeIDs: ["cafe-a"], targetPayeeID: "cafe-b"
         )
 

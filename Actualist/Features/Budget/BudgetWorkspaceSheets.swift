@@ -69,7 +69,7 @@ struct BudgetWorkspaceSheets: ViewModifier {
                     target: target,
                     budgetID: budgetID,
                     isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                    repository: appState.localFirstStore,
+                    repository: appState.localFirstStore.entityNotes,
                     onSaved: { Task { await viewport.refreshVisibleMonths() } }
                 )
             }

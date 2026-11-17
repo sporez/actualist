@@ -469,7 +469,7 @@
       "paths": [
         "Actualist/LocalFirst/Database/PayeeSQL.swift",
         "Actualist/LocalFirst/Database/PayeeManagementSQL.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+Mutations.swift",
+        "Actualist/LocalFirst/PayeeWorkflows.swift",
         "Actualist/Repositories/PayeeRepository.swift"
       ],
       "notes": "31 cases from Actual's payee handlers as the desktop client calls them (read, create, rename, merge, delete, favorite, learning, global learning). PayeeOracleReplayTests replays net writes and rows through the store's payee commands; the recorded undo is not replayed."

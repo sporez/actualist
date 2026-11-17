@@ -144,7 +144,7 @@ final class AppState {
         guard setupPhase == .needsConnection else { return }
         _ = await budgetSessionTransitions.run(.demo, budgetID: DemoBudget.budget.syncID) { [self] in
             do {
-                try await localFirstStore.openDemoBudget(tracking: tracking)
+                try await localFirstStore.demoBudget.openDemoBudget(tracking: tracking)
                 let budget = DemoBudget.budget
                 guard localFirstStore.isOpen(budgetID: budget.syncID) else {
                     throw LocalFirstError.budgetNotOpened

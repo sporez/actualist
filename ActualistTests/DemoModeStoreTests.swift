@@ -42,7 +42,7 @@ struct DemoModeStoreTests {
     @Test func trackingDemoImportsOfflineAndIncomeAssignmentSurvivesReopen() async throws {
         let transport = RecordingSyncTransport()
         let (store, _) = makeDemoStore(transport: transport)
-        try await store.openDemoBudget(tracking: true)
+        try await store.demoBudget.openDemoBudget(tracking: true)
         let loaded = try await store.budgetMonth(budgetID: DemoBudget.groupID, selectedMonth: "2026-08")
         #expect(loaded.isTrackingBudget)
         #expect(loaded.month.trackingSummary != nil)
@@ -50,7 +50,7 @@ struct DemoModeStoreTests {
             categoryID: "paycheck", budgeted: 12345, budgetID: DemoBudget.groupID, month: "2026-08") {})
         #expect(assigned.month.categoryGroups.flatMap(\.categories).first { $0.id == "paycheck" }?.budgeted == 12345)
         store.closeOpenBudget()
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
         let reopened = try await store.budgetMonth(budgetID: DemoBudget.groupID, selectedMonth: "2026-08")
         #expect(reopened.isTrackingBudget)
         #expect(reopened.month.categoryGroups.flatMap(\.categories).first { $0.id == "paycheck" }?.budgeted == 12345)
@@ -61,7 +61,7 @@ struct DemoModeStoreTests {
         let transport = RecordingSyncTransport()
         let (store, fileManager) = makeDemoStore(transport: transport)
 
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
 
         #expect(store.isDemoBudgetActive)
         #expect(store.isOpen(budgetID: DemoBudget.groupID))
@@ -97,7 +97,7 @@ struct DemoModeStoreTests {
         let transport = RecordingSyncTransport()
         let (store, fileManager) = makeDemoStore(transport: transport)
 
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
         // Simulate a stale fixture from an older app build by downgrading the
         // persisted cloudFileID on disk.
         let stale = LocalFirstBudgetMetadata(
@@ -111,7 +111,7 @@ struct DemoModeStoreTests {
         try JSONEncoder.actual.encode(stale).write(to: fileManager.metadataURL(fileID: DemoBudget.fileID))
         store.closeOpenBudget()
 
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
 
         #expect(store.isDemoBudgetActive)
         #expect(store.isOpen(budgetID: DemoBudget.groupID))
@@ -124,7 +124,7 @@ struct DemoModeStoreTests {
         let transport = RecordingSyncTransport()
         let (store, _) = makeDemoStore(transport: transport)
 
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
         let budgetID = DemoBudget.groupID
 
         let draft = TransactionDraft(
@@ -164,7 +164,7 @@ struct DemoModeStoreTests {
         let transport = RecordingSyncTransport()
         let (store, _) = makeDemoStore(transport: transport)
 
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
         let budgetID = DemoBudget.groupID
 
         try await store.refresh(budgetID: budgetID, serverURLString: "")
@@ -178,7 +178,7 @@ struct DemoModeStoreTests {
     @Test func demoHoldAndReleasePersistWithoutServerContact() async throws {
         let transport = RecordingSyncTransport()
         let (store, _) = makeDemoStore(transport: transport)
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
         let review = try await store.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
         let held = try #require(await store.applyBudgetHoldAndRefresh(
             command: .hold(amount: 100), review: review, budgetID: DemoBudget.groupID
@@ -186,7 +186,7 @@ struct DemoModeStoreTests {
         #expect(held.month.forNextMonth == 100)
         #expect(held.month.toBudget == review.toBudget - 100)
         store.closeOpenBudget()
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
         let reopened = try await store.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
         #expect(reopened.heldAmount == 100)
         let released = try #require(await store.applyBudgetHoldAndRefresh(
@@ -202,7 +202,7 @@ struct DemoModeStoreTests {
         let transport = RecordingSyncTransport()
         let (store, fileManager) = makeDemoStore(transport: transport)
 
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
         #expect(fileManager.importedDatabaseExists(fileID: DemoBudget.fileID))
 
         store.closeOpenBudget()
@@ -215,7 +215,7 @@ struct DemoModeStoreTests {
     @Test func demoBudgetHasEditableAndReadOnlyTemplates() async throws {
         let transport = RecordingSyncTransport()
         let (store, _) = makeDemoStore(transport: transport)
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
         let budgetID = DemoBudget.groupID
 
         let rent = try await store.categoryTemplateEditorSnapshot(
@@ -242,7 +242,7 @@ struct DemoModeStoreTests {
     @Test func demoBudgetCoversEveryTemplateFamilyAndEmptyAddDoor() async throws {
         let transport = RecordingSyncTransport()
         let (store, _) = makeDemoStore(transport: transport)
-        try await store.openDemoBudget()
+        try await store.demoBudget.openDemoBudget()
         let budgetID = DemoBudget.groupID
 
         let expectedKinds: [String: [BudgetTemplateKind]] = [

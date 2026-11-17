@@ -16,8 +16,8 @@ struct PayeesViewModelWriteGuardTests {
         let second = Task { await model.create(name: "Beta Payee", using: appState) }
         let results = [await first.value, await second.value]
 
-        try await bundle.store.refreshPayeeManagementSnapshot(budgetID: "group-1")
-        let names = try #require(bundle.store.cachedPayeeManagementSnapshot(budgetID: "group-1")).payees.map(\.name)
+        try await bundle.store.payees.refreshPayeeManagementSnapshot(budgetID: "group-1")
+        let names = try #require(bundle.store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1")).payees.map(\.name)
         #expect(results == [true, false])
         #expect(names.contains("Alpha Payee"))
         #expect(!names.contains("Beta Payee"))

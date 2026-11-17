@@ -16,7 +16,6 @@ Actualist/LocalFirst/Database/BudgetDatabase+SchemaValidation.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Sync.swift
 Actualist/LocalFirst/Database/BudgetDatabase+UntrustedSanitization.swift
 Actualist/LocalFirst/Database/BudgetDatabase+UserActionPlan.swift
-Actualist/LocalFirst/DemoMode/LocalFirstActualStore+Demo.swift
 Actualist/LocalFirst/LocalFirstActualStore+AccountGroups.swift
 Actualist/LocalFirst/LocalFirstActualStore+ActionLog.swift
 Actualist/LocalFirst/LocalFirstActualStore+AssignMove.swift
@@ -29,7 +28,6 @@ Actualist/LocalFirst/LocalFirstActualStore+Failover.swift
 Actualist/LocalFirst/LocalFirstActualStore+Holds.swift
 Actualist/LocalFirst/LocalFirstActualStore+LaunchWarmup.swift
 Actualist/LocalFirst/LocalFirstActualStore+Mutations.swift
-Actualist/LocalFirst/LocalFirstActualStore+Notes.swift
 Actualist/LocalFirst/LocalFirstActualStore+Reads.swift
 Actualist/LocalFirst/LocalFirstActualStore+Reconciliation.swift
 Actualist/LocalFirst/LocalFirstActualStore+Sync.swift
@@ -39,4 +37,3 @@ Actualist/LocalFirst/LocalFirstActualStore+TransactionFeedCache.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionFeeds.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionMutations.swift
 Actualist/LocalFirst/LocalFirstActualStore+WalletImport.swift
-Actualist/LocalFirst/LocalFirstActualStore+Widgets.swift

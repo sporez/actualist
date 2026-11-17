@@ -319,8 +319,8 @@ extension LocalFirstActualStoreTests {
             INSERT INTO schedules VALUES ('done-sched', 'done-rule', 1, 0);
             """)
 
-        try await store.refreshPayeeManagementSnapshot(budgetID: "group-1")
-        let snapshot = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        try await store.payees.refreshPayeeManagementSnapshot(budgetID: "group-1")
+        let snapshot = try #require(store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         #expect(snapshot.payees.first { $0.id == "unused-sched" }?.canDelete == true)
 
         let preview = try await store.previewRules(

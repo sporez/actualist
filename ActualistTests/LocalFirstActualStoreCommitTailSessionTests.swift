@@ -16,9 +16,9 @@ struct LocalFirstActualStoreCommitTailSessionTests {
         let store = try await makeStore()
         store.seams.payeeSnapshotReadHook = { [store] _ in store.closeOpenBudget() }
 
-        try await store.createPayeeAndRefresh(budgetID: "group-1", name: "Late Payee")
+        try await store.payees.createPayeeAndRefresh(budgetID: "group-1", name: "Late Payee")
 
-        #expect(store.cachedPayeeManagementSnapshot(budgetID: "group-1") == nil)
+        #expect(store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1") == nil)
     }
 
     @Test func standalonePayeeRefreshDoesNotRepopulateCachesAfterTheSessionCloses() async throws {
@@ -26,9 +26,9 @@ struct LocalFirstActualStoreCommitTailSessionTests {
         store.seams.payeeSnapshotReadHook = { [store] _ in store.closeOpenBudget() }
 
         await #expect(throws: CancellationError.self) {
-            try await store.refreshPayeeManagementSnapshot(budgetID: "group-1")
+            try await store.payees.refreshPayeeManagementSnapshot(budgetID: "group-1")
         }
 
-        #expect(store.cachedPayeeManagementSnapshot(budgetID: "group-1") == nil)
+        #expect(store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1") == nil)
     }
 }

@@ -296,7 +296,7 @@ struct BudgetView: View {
                             target: target,
                             budgetID: budgetID,
                             isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-                            repository: appState.localFirstStore,
+                            repository: appState.localFirstStore.entityNotes,
                             onSaved: {
                                 Task { await viewModel.refreshSelectedMonth(using: appState) }
                             }

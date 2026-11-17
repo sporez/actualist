@@ -242,10 +242,10 @@ final class ShortcutsBudgetSession {
 
     func payees(includeTransfers: Bool, matching query: String? = nil) async throws -> [PayeeEntity] {
         let prepared = try await prepare()
-        if prepared.store.cachedPayeeManagementSnapshot(budgetID: prepared.budgetID) == nil {
-            try await prepared.store.refreshPayeeManagementSnapshot(budgetID: prepared.budgetID)
+        if prepared.store.payees.cachedPayeeManagementSnapshot(budgetID: prepared.budgetID) == nil {
+            try await prepared.store.payees.refreshPayeeManagementSnapshot(budgetID: prepared.budgetID)
         }
-        let payees = prepared.store.cachedPayeeManagementSnapshot(budgetID: prepared.budgetID)?.payees ?? []
+        let payees = prepared.store.payees.cachedPayeeManagementSnapshot(budgetID: prepared.budgetID)?.payees ?? []
         return payees.compactMap { payee in
             if !includeTransfers, payee.isTransfer {
                 return nil

@@ -136,7 +136,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Settings UI: `BudgetRulesView.swift` and `PayeeRulesView.swift` for the lists, `RuleEditorView.swift` for editing, and `PayeesView.swift` for payees.
 - Protocol/display seam: `Actualist/Repositories/RuleRepository.swift`, `RulePresentation.swift`, and `PayeeRepository.swift`.
 - Store seam: `RuleWorkflows` (`LocalFirst/RuleWorkflows.swift`, the store's `rules`), which implements `RuleRepositoryProtocol` and owns the rules cache request revisions; the rules cache `rulesByBudget` stays on the store.
-- Payee persistence: the stateless `PayeeSQL` (the payee reads other domains use: the picker list with its recent-payee order, review row names, the payee a gesture settles on at commit, and the one reader of `payee_mapping`) and `PayeeManagementSQL` (the Payees screen's snapshot and its create, rename, merge, delete and setting edits with their undo messages) in `Actualist/LocalFirst/Database/`. `PayeeRepositoryProtocol` is conformed in `LocalFirstActualStore.swift` itself.
+- Payee persistence: the stateless `PayeeSQL` (the payee reads other domains use: the picker list with its recent-payee order, review row names, the payee a gesture settles on at commit, and the one reader of `payee_mapping`) and `PayeeManagementSQL` (the Payees screen's snapshot and its create, rename, merge, delete and setting edits with their undo messages) in `Actualist/LocalFirst/Database/`. `PayeeRepositoryProtocol` is conformed by `PayeeWorkflows` (`LocalFirst/PayeeWorkflows.swift`, the store's `payees`); the snapshot cache `payeesByBudget` and `lastPayeeUndoMessagesByBudget` stay on the store.
 - Evaluation/persistence: the stateless `RuleSQL` (rule rows: editor options, reads, writes, payee-mapping resolution and category learning), `RulePreviewSQL` (rule previews for drafts, matching transactions and the evaluation metadata) and `RuleBalanceOfSQL` (the BALANCE_OF prefetch) in `Actualist/LocalFirst/Database/`, plus `RuleCandidateIndex.swift`, `RuleScheduleIndex.swift`, `RuleRecurrenceDateMatcher.swift`, `RuleConditionEvaluator.swift`, `RuleFormulaEvaluator.swift`, `RuleSplitActionExecutor.swift`, `RuleRanking.swift`, and schedule helpers.
 - Shared post-rule projection: `Actualist/Shared/TransactionRulePreviewProjection.swift`.
 
@@ -152,12 +152,12 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 - Reports: `Actualist/Features/Reports/` (`ReportsView`, the `ReportExplorer*` explorer, and transaction drilldown), `ReportsRepository.swift`, `ReportWorkflows` (`LocalFirst/ReportWorkflows.swift`, the store's `reports`, which implements that protocol; the dashboard cache `reportsByKey` stays on the store), and in `LocalFirst/Database/` the stateless `ReportInputSQL` (the rows both reports read: activity days, budgeted expenses, transfer legs and the filter catalog), `ReportDashboardSQL` (the dashboard cards and the widget's net worth) and `ReportExplorerSQL` (explorer snapshots and the transaction request its filters build), with `ReportArithmetic.swift` and `ReportTransferAlignment.swift`.
 - History/undo: `Actualist/Features/History/`, `LocalFirstActualStore+ActionLog.swift`, `LocalFirst/ActionLog/` (the pure undo engine and action models), and in `LocalFirst/Database/` the stateless `ActionLogSQL` (recording, and budget undo evaluation, preview and messages), `ActionLogStorageSQL` (the local `actualist_action_log` table), `TransactionActionLogSQL` and `TransactionCommandActionLogSQL`. The undo commit (`commitActionUndo`), the second session write fence, stays on the actor in `+LocalCommit`; `commitUserAction` is in `+UserActionPlan`.
-- Entity notes: `Actualist/Features/Notes/`, `EntityNotesRepository.swift`, `LocalFirstActualStore+Notes.swift`, and `Database/EntityNoteSQL.swift`.
+- Entity notes: `Actualist/Features/Notes/`, `EntityNotesRepository.swift`, `EntityNoteWorkflows` (`LocalFirst/EntityNoteWorkflows.swift`, the store's `entityNotes`, which implements that protocol), and `Database/EntityNoteSQL.swift`.
 - App Intents/Shortcuts: `Actualist/Features/Shortcuts/Intents/` for OS-facing intents, `Commands/` for parsed command values, `Entities/` for AppEntity models, and `ShortcutsBudgetSession*` for local budget access.
 
 ### Widgets
 
-- App-side publication: `Actualist/Widgets/WidgetSnapshotCoordinator.swift`, snapshot builders/models/store, widget deep-link values (routed by `Actualist/App/AppDeepLinkRouter.swift`), theme, and quick-action definitions.
+- App-side publication: `Actualist/Widgets/WidgetSnapshotCoordinator.swift`, `WidgetSourceWorkflows` (`LocalFirst/WidgetSourceWorkflows.swift`, the store's `widgetSource`, with `WidgetBudgetSource`), snapshot builders/models/store, widget deep-link values (routed by `Actualist/App/AppDeepLinkRouter.swift`), theme, and quick-action definitions.
 - Extension UI/timelines: `ActualistWidget/`.
 - Shared target membership: curated in `Actualist.xcodeproj/project.pbxproj`; do not assume every app-side widget file is compiled into the extension.
 
@@ -177,11 +177,11 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
 - `+WalletImport`, `ImportReconcileSteps` (`LocalFirst/ImportReconcileSteps.swift`, the shared reconcile and write steps) — imported transaction flows (Bank Sync is `BankSyncWorkflows` and `BankSyncPlanWorkflows`).
 - `PortableBudgetWorkflows` (`LocalFirst/PortableBudgetWorkflows.swift`, the store's `portableBudgets`) — ZIP export and import, server registration, and New Budget.
-- `+Templates`, `+Notes`, `+Widgets`, `+ActionLog`, `+AccountGroups`, `+Reconciliation` — focused feature bridges.
+- `+Templates`, `+ActionLog`, `+AccountGroups`, `+Reconciliation` — focused feature bridges.
 - `ServerSyncLane.swift` — the one serialized flush/pull lane per budget session (flush flag, queued waiters, scheduled flush task, status tickets). `closeOpenBudget()` invalidates it and installs a fresh lane, so a late finisher releases its own dead lane.
 - `ServerEndpointHealth.swift` — endpoint health cache.
 - `StoreTestSeams.swift` — every optional test hook, in one `#if DEBUG` type behind `store.seams`. Release builds contain no hook property, type or awaited call site. Add new hooks here, never as store properties.
-- `DemoMode/` — offline bundled-budget session. Bundled files are `Actualist/Resources/DemoBudget.zip` and `TrackingDemoBudget.zip`.
+- `DemoMode/` — offline bundled-budget session; `DemoBudgetWorkflows` (the store's `demoBudget`) installs and opens it. Bundled files are `Actualist/Resources/DemoBudget.zip` and `TrackingDemoBudget.zip`.
 
 When adding a store operation, add a thin entry point to the matching workflow extension; never grow the base type or create a second concrete repository. Another `LocalFirstActualStore+X.swift` file does not count as an extraction (`AGENTS.md`, File Size): a new domain's logic belongs in a focused type that keeps its helpers `private`.
 
@@ -201,7 +201,7 @@ File naming is the ownership index:
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
 - `+Preferences`, `BudgetCurrencySQL`, `BudgetModeSQL` (envelope vs tracking budget) — payees and budget-level settings.
-- `Account*SQL`, `TransferSQL` (transfer payee and account lookups every transaction write uses), `+AccountGroupCompatibility`, `BankSync*SQL`, `Reconcil*SQL`, `+Notes` — account-side families.
+- `Account*SQL`, `TransferSQL` (transfer payee and account lookups every transaction write uses), `+AccountGroupCompatibility`, `BankSync*SQL`, `Reconcil*SQL`, `EntityNoteSQL` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
 - `ActionLog*SQL` — durable action history and undo inputs.

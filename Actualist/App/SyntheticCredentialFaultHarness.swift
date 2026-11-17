@@ -89,7 +89,7 @@ enum SyntheticCredentialFaultHarness {
         let store = appState.localFirstStore
         let files = store.fileManager
         do {
-            try await store.openDemoBudget()
+            try await store.demoBudget.openDemoBudget()
             store.reset()
             try files.deleteImportedBudget(fileID: fileID)
             let directory = try files.budgetDirectory(fileID: fileID)

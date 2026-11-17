@@ -134,7 +134,7 @@ enum ShortcutBudgetCommand {
         }
         return try await session.withExclusiveWrite { prepared in
             let before = Set(try await session.payees(includeTransfers: false).map(\.id))
-            try await prepared.store.createPayeeAndRefresh(budgetID: prepared.budgetID, name: trimmed)
+            try await prepared.store.payees.createPayeeAndRefresh(budgetID: prepared.budgetID, name: trimmed)
             session.recordSuccessfulWrite()
             let after = try await session.payees(includeTransfers: false)
             if let created = after.first(where: { !before.contains($0.id) }) {

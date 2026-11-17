@@ -730,17 +730,17 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        try await store.createPayeeAndRefresh(budgetID: "group-1", name: "New Cafe")
+        try await store.payees.createPayeeAndRefresh(budgetID: "group-1", name: "New Cafe")
         let rows = try await store.recentBudgetActions(budgetID: "group-1")
         #expect(rows.count == 2)
         #expect(rows[0].kind == .payee)
         #expect(rows[1].kind == .assign)
-        let payees = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        let payees = try #require(store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         #expect(payees.canUndo)
         try await store.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
         #expect(try await store.recentBudgetActions(budgetID: "group-1")[1].status == .undone)
-        try await store.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
-        let afterUndo = try #require(store.cachedPayeeManagementSnapshot(budgetID: "group-1"))
+        try await store.payees.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
+        let afterUndo = try #require(store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         #expect(!afterUndo.canUndo)
     }
 
@@ -764,7 +764,7 @@ extension LocalFirstActualStoreTests {
                 now: Date(timeIntervalSince1970: 1_700_000_000 + Double(index))
             )
         }
-        try await store.createPayeeAndRefresh(budgetID: "group-1", name: "Late Payee")
+        try await store.payees.createPayeeAndRefresh(budgetID: "group-1", name: "Late Payee")
         let rows = try await ActionLogStorageSQL.recentBudgetActions(limit: 100, in: database)
         #expect(rows.contains { $0.id == "money-1" })
         #expect(rows.contains { $0.kind == .payee })

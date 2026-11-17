@@ -350,7 +350,7 @@ enum UndoOracleReplay {
         let rowsAfterAction = try await PayeeOracleReplay.readRows(database, includePreferences: includePreferences)
         var outcome = "applied"
         do {
-            try await store.undoLastPayeeMutationAndRefresh(budgetID: budgetID)
+            try await store.payees.undoLastPayeeMutationAndRefresh(budgetID: budgetID)
         } catch {
             outcome = "refused"
         }

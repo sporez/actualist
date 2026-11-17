@@ -57,7 +57,7 @@ final class WidgetSnapshotCoordinator {
         loadSource: @escaping @MainActor (AppState, String) async throws -> WidgetBudgetSource? = { appState, budgetID in
             guard appState.setupPhase == .ready,
                   appState.localFirstStore.isOpen(budgetID: budgetID) else { return nil }
-            return try await appState.localFirstStore.fetchWidgetSource(budgetID: budgetID)
+            return try await appState.localFirstStore.widgetSource.fetchWidgetSource(budgetID: budgetID)
         }
     ) {
         self.snapshotStore = snapshotStore

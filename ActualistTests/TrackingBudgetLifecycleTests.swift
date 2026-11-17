@@ -29,7 +29,7 @@ struct TrackingBudgetLifecycleTests {
             let cached = try #require(store.cachedBudgetMonth(budgetID: "group-1"))
             #expect(cached.isTrackingBudget == (type == "tracking"))
             #expect(cached.modeIdentity != tracking.modeIdentity)
-            let source = try await store.fetchWidgetSource(budgetID: "group-1", now: date("2026-07"))
+            let source = try await store.widgetSource.fetchWidgetSource(budgetID: "group-1", now: date("2026-07"))
             let widget = WidgetFinancialSnapshotBuilder.make(source: source, budgetID: "group-1", budgetName: "Fixture", privacyEnabled: false, now: date("2026-07"))
             #expect(widget.isTrackingBudget == cached.isTrackingBudget)
             #expect((widget.overview?.toBudget == nil) == cached.isTrackingBudget)

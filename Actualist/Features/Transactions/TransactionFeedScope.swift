@@ -115,7 +115,7 @@ final class CategoryMonthDetailsViewModel {
         await loadCategoryNote(
             budgetID: budgetID,
             isPrivacyModeEnabled: appState.settings.randomizedDisplayValuesEnabled,
-            repository: appState.localFirstStore
+            repository: appState.localFirstStore.entityNotes
         )
     }
 
