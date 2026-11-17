@@ -140,7 +140,7 @@ enum UndoOracleReplay {
     private static func perform(kind: String, input: [String: Any], store: LocalFirstActualStore) async throws {
         switch kind {
         case "assign":
-            _ = try await store.assignCategoryBudgetAndRefresh(
+            _ = try await store.budget.assignCategoryBudgetAndRefresh(
                 categoryID: try OracleJSON.string(input, "categoryID"),
                 budgeted: OracleJSON.int(input["amount"]) ?? 0,
                 budgetID: budgetID,
@@ -148,7 +148,7 @@ enum UndoOracleReplay {
                 didAssign: {}
             )
         case "move":
-            _ = try await store.moveMoneyAndRefresh(
+            _ = try await store.budget.moveMoneyAndRefresh(
                 commands: [BudgetMoveMoneyCommand.move(
                     fromCategoryID: try OracleJSON.string(input, "fromID"),
                     toCategoryID: try OracleJSON.string(input, "toID"),

@@ -7,7 +7,7 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore()
 
         await #expect(throws: LocalFirstError.self) {
-            _ = try await store.moveMoneyAndRefresh(expectedMode: nil,
+            _ = try await store.budget.moveMoneyAndRefresh(expectedMode: nil,
                 command: BudgetMoveMoneyCommand(
                     fromCategoryID: "groceries",
                     toCategoryID: "dining",
@@ -29,7 +29,7 @@ extension LocalFirstActualStoreTests {
         )
 
         await #expect(throws: LocalFirstError.self) {
-            _ = try await store.moveMoneyAndRefresh(expectedMode: nil,
+            _ = try await store.budget.moveMoneyAndRefresh(expectedMode: nil,
                 commands: [leg],
                 budgetID: "group-1",
                 month: "2026-07"

@@ -118,22 +118,22 @@ extension LocalFirstActualStoreTests {
                 let store = try await makeOpenedWritableStore()
                 if let source {
                     if single {
-                        _ = try await store.moveMoneyAndRefresh(
+                        _ = try await store.budget.moveMoneyAndRefresh(
                             expectedMode: nil, command: command, budgetID: "group-1", month: "2026-07",
                             actionSource: source, didMove: {}
                         )
                     } else {
-                        _ = try await store.moveMoneyAndRefresh(
+                        _ = try await store.budget.moveMoneyAndRefresh(
                             expectedMode: nil, commands: [command], budgetID: "group-1", month: "2026-07",
                             actionSource: source, didMove: {}
                         )
                     }
                 } else if single {
-                    _ = try await store.moveMoneyAndRefresh(
+                    _ = try await store.budget.moveMoneyAndRefresh(
                         expectedMode: nil, command: command, budgetID: "group-1", month: "2026-07", didMove: {}
                     )
                 } else {
-                    _ = try await store.moveMoneyAndRefresh(
+                    _ = try await store.budget.moveMoneyAndRefresh(
                         expectedMode: nil, commands: [command], budgetID: "group-1", month: "2026-07", didMove: {}
                     )
                 }

@@ -32,7 +32,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func undoReloadsTheBudgetCachesOnce() async throws {
         let store = try await makeOpenedWritableStore()
-        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+        _ = try await store.budget.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",

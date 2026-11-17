@@ -7,7 +7,7 @@ extension LocalFirstActualStoreTests {
         _ store: LocalFirstActualStore,
         budgeted: Int
     ) async throws {
-        _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+        _ = try await store.budget.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: budgeted,
             budgetID: "group-1",
@@ -36,7 +36,7 @@ extension LocalFirstActualStoreTests {
     @Test func moveRowDescribesFromAndTo() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)
-        _ = try await bundle.store.moveMoneyAndRefresh(expectedMode: nil,
+        _ = try await bundle.store.budget.moveMoneyAndRefresh(expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries",
                 toCategoryID: "dining",
@@ -58,7 +58,7 @@ extension LocalFirstActualStoreTests {
     @Test func templateRowUsesTheModeName() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)
-        _ = try await bundle.store.applyBudgetTemplateAndRefresh(expectedMode: nil,
+        _ = try await bundle.store.budget.applyBudgetTemplateAndRefresh(expectedMode: nil,
             command: .category("utilities"),
             budgetID: "group-1",
             month: "2026-07"

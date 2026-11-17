@@ -37,7 +37,7 @@ struct BudgetAssignmentHostHandoffTests {
         let support = LocalFirstActualStoreTests()
         let bundle = try await support.makeOpenedWritableStoreBundle()
         let state = try support.makeAppState(for: bundle)
-        let session = AdaptiveBudgetSession(repository: bundle.store)
+        let session = AdaptiveBudgetSession(repository: bundle.store.budget)
         await session.update(mode: .compact, budgetID: "group-1", appState: state).value
         #expect(session.viewport.assignmentHost == .compact)
         await session.update(mode: .sidebar, budgetID: "group-1", appState: state).value

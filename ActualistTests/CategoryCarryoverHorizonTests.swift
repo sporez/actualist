@@ -12,15 +12,15 @@ struct CategoryCarryoverHorizonTests {
     }
 
     @Test func horizonIsTwelveMonthsPastTheCurrentMonth() {
-        #expect(LocalFirstActualStore.categoryCarryoverHorizonMonth(startMonth: "2026-01", now: date(2026, 10)) == "2027-10")
+        #expect(BudgetWorkflows.categoryCarryoverHorizonMonth(startMonth: "2026-01", now: date(2026, 10)) == "2027-10")
     }
 
     @Test func horizonRollsThroughTheYearBoundary() {
-        #expect(LocalFirstActualStore.categoryCarryoverHorizonMonth(startMonth: "2026-01", now: date(2026, 12)) == "2027-12")
-        #expect(LocalFirstActualStore.categoryCarryoverHorizonMonth(startMonth: "2026-01", now: date(2026, 1)) == "2027-01")
+        #expect(BudgetWorkflows.categoryCarryoverHorizonMonth(startMonth: "2026-01", now: date(2026, 12)) == "2027-12")
+        #expect(BudgetWorkflows.categoryCarryoverHorizonMonth(startMonth: "2026-01", now: date(2026, 1)) == "2027-01")
     }
 
     @Test func startMonthPastTheHorizonIsKept() {
-        #expect(LocalFirstActualStore.categoryCarryoverHorizonMonth(startMonth: "2029-03", now: date(2026, 10)) == "2029-03")
+        #expect(BudgetWorkflows.categoryCarryoverHorizonMonth(startMonth: "2029-03", now: date(2026, 10)) == "2029-03")
     }
 }

@@ -137,7 +137,7 @@ extension LocalFirstActualStoreTests {
     @Test func hidingAFundedCategoryLeavesToBudgetUnchanged() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let before = try await bundle.store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
-        let after = try await bundle.store.setCategoryHiddenAndRefresh(
+        let after = try await bundle.store.budget.setCategoryHiddenAndRefresh(
             categoryID: "groceries",
             hidden: true,
             budgetID: "group-1",

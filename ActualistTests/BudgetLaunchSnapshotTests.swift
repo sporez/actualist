@@ -186,7 +186,7 @@ extension LocalFirstActualStoreTests {
         let files = try bundle.fileManager.launchSnapshotFiles(fileID: "file-1")
         let initial = try files.prepareRevision()
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.budget.assignCategoryBudgetAndRefresh(
             expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,

@@ -259,7 +259,7 @@ struct BudgetTemplateReviewRevisionTests {
         let expectedAmount = try #require(
             preview.categories.first { $0.categoryID == "groceries" }?.proposed
         )
-        let loaded = try await bundle.store.applyReviewedBudgetTemplateAndRefresh(
+        let loaded = try await bundle.store.budget.applyReviewedBudgetTemplateAndRefresh(
             reviewRevision: revision,
             command: .category("groceries"),
             budgetID: "group-1",

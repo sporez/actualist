@@ -175,7 +175,7 @@ extension LocalFirstActualStoreTests {
             syncError: .syncRejected(status: 400, reason: .fileHasReset)
         )
 
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+        _ = try await bundle.store.budget.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries",
             budgeted: 62_500,
             budgetID: "group-1",

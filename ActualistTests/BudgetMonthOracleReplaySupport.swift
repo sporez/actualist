@@ -222,7 +222,7 @@ enum BudgetMonthOracleReplay {
         let mode = try await BudgetModeSQL.requireBudgetMode(nil, in: database)
         switch kind {
         case let .assign(month, categoryID, budgeted):
-            // LocalFirstActualStore+AssignMove.assignAndRefresh
+            // BudgetWorkflows.assignAndRefresh
             var builder = LocalFirstSyncMessageBuilder()
             let drafts = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
                 categoryID: categoryID,
@@ -239,7 +239,7 @@ enum BudgetMonthOracleReplay {
             )
             return drafts
         case let .move(month, commands):
-            // LocalFirstActualStore+AssignMove.moveMoneyAndRefresh. Transfer-available and cover are the
+            // BudgetWorkflows.moveMoneyAndRefresh. Transfer-available and cover are the
             // same command shape: a nil source is To Budget.
             return try await commitMove(month: month, database, mode, commands: commands)
         case let .cover(month, to, from):

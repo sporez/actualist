@@ -111,7 +111,7 @@ struct BudgetWorkspaceActionsTests {
         let bundle = try await support.makeOpenedWritableStoreBundle()
         let state = try support.makeAppState(for: bundle)
         state.settings.selectedBudgetID = "group-1"
-        let viewport = BudgetViewportModel(repository: bundle.store)
+        let viewport = BudgetViewportModel(repository: bundle.store.budget)
         await viewport.load(budgetID: "group-1", anchorMonth: "2026-07")
         let group = try #require(viewport.snapshot(for: "2026-07")?.month.categoryGroups.first { $0.id == "group" })
         return WideCategoryFixture(

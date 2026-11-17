@@ -35,7 +35,7 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore()
         landRemote([remoteMessage("zero_budgets", "202607-groceries", "amount", "N:70000")], on: store)
 
-        let loaded = try #require(await store.moveMoneyAndRefresh(
+        let loaded = try #require(await store.budget.moveMoneyAndRefresh(
             expectedMode: nil,
             command: BudgetMoveMoneyCommand(
                 fromCategoryID: "groceries", toCategoryID: "utilities", amount: 10_000
@@ -127,7 +127,7 @@ extension LocalFirstActualStoreTests {
             remoteMessage("zero_budgets", "202606-copycat", "amount", "N:4000"),
         ], on: store)
 
-        let loaded = try await store.applyBudgetTemplateAndRefresh(
+        let loaded = try await store.budget.applyBudgetTemplateAndRefresh(
             expectedMode: nil, command: .category("copycat"), budgetID: "group-1", month: "2026-07"
         ) {}
 

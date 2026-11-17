@@ -3,7 +3,7 @@ import GRDB
 @testable import Actualist
 
 /// Replays Apply Templates oracle cases through the production apply path that
-/// `LocalFirstActualStore.applyBudgetTemplateAndRefresh` runs: the plan and its messages are
+/// `BudgetWorkflows.applyBudgetTemplateAndRefresh` runs: the plan and its messages are
 /// built inside one `commitUserActionPlan` write transaction, with the fixture's `currentMonth`
 /// passed through the existing `budgetTemplateApply(currentMonth:)` parameter.
 @MainActor

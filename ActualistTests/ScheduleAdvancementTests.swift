@@ -381,7 +381,7 @@ struct ScheduleAdvancementTests {
         let store = bundle.store
         store.openedServerURLString = nil
         let database = try #require(store.database)
-        _ = try await store.assignCategoryBudgetAndRefresh(
+        _ = try await store.budget.assignCategoryBudgetAndRefresh(
             expectedMode: nil, categoryID: "groceries", budgeted: 61_000,
             budgetID: "group-1", month: "2026-07"
         ) {}

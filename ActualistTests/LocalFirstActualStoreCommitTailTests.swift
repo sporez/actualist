@@ -124,7 +124,7 @@ struct LocalFirstActualStoreCommitTailTests {
         let (store, fixture) = try await makeStore()
         let queuedBefore = fixture.queuedCount
         let caller = Task { @MainActor in
-            try await store.moveMoneyAndRefresh(
+            try await store.budget.moveMoneyAndRefresh(
                 expectedMode: nil,
                 command: BudgetMoveMoneyCommand(
                     fromCategoryID: "groceries", toCategoryID: "utilities", amount: 10_000

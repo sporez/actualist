@@ -157,7 +157,7 @@ extension LocalFirstActualStoreTests {
             for index in 0..<mutationCount {
                 group.addTask {
                     await Task.yield()
-                    _ = try await store.assignCategoryBudgetAndRefresh(
+                    _ = try await store.budget.assignCategoryBudgetAndRefresh(
                         expectedMode: nil,
                         categoryID: "groceries",
                         budgeted: 60_000 + index,
@@ -587,7 +587,7 @@ extension LocalFirstActualStoreTests {
                 """
         )
         let model = BudgetViewModel()
-        await model.load(budgetID: "group-1", repository: bundle.store)
+        await model.load(budgetID: "group-1", repository: bundle.store.budget)
         let initialCategory = try #require(
             model.visibleGroups.flatMap(\.visibleCategories).first { $0.id == "groceries" }
         )
@@ -599,7 +599,7 @@ extension LocalFirstActualStoreTests {
         }
         let saved = await model.submitAssignment(
             budgetID: "group-1",
-            repository: bundle.store
+            repository: bundle.store.budget
         )
 
         #expect(!saved)

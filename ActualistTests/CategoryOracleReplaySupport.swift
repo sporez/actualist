@@ -136,13 +136,13 @@ enum CategoryOracleReplay {
                 budgetID: budgetID, month: month
             )
         case "category-hide":
-            _ = try await store.setCategoryHiddenAndRefresh(
+            _ = try await store.budget.setCategoryHiddenAndRefresh(
                 categoryID: try OracleJSON.string(input, "categoryID"),
                 hidden: try payload()["hidden"] as? Bool ?? false,
                 budgetID: budgetID, month: month, didUpdate: {}
             )
         case "group-hide":
-            _ = try await store.setCategoryGroupHiddenAndRefresh(
+            _ = try await store.budget.setCategoryGroupHiddenAndRefresh(
                 groupID: try OracleJSON.string(input, "groupID"),
                 hidden: try payload()["hidden"] as? Bool ?? false,
                 budgetID: budgetID, month: month, didUpdate: {}

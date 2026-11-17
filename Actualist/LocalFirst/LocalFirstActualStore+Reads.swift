@@ -1,29 +1,12 @@
 import Foundation
 
 extension LocalFirstActualStore {
-    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? {
-        let database = try requireDatabase(for: budgetID)
-        return try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
-    }
-
     func cachedBudgetMonth(budgetID: String) -> LoadedBudgetMonth? {
         loadedBudgetMonthsByBudget[budgetID]
     }
 
     func budgetCurrency(budgetID: String) -> BudgetCurrency {
         currencyByBudget[budgetID] ?? .usd
-    }
-
-    func currentBudgetMonth(
-        budgetID: String,
-        preferredMonth: String
-    ) async throws -> LoadedBudgetMonth {
-        let months = try await availableMonths(budgetID: budgetID)
-        let tracking = try await LaunchSignpost.measure(LaunchStage.budgetModeLookup) {
-            try await requireDatabase(for: budgetID).isTrackingBudget()
-        }
-        let selected = tracking || months.contains(preferredMonth) ? preferredMonth : (months.last ?? preferredMonth)
-        return try await budgetMonth(budgetID: budgetID, selectedMonth: selected)
     }
 
     func budgetMonth(

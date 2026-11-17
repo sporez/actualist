@@ -59,7 +59,7 @@ enum ShortcutBudgetCommand {
             let loaded = try await session.loadedMonth(preferred: month)
             guard !loaded.isTrackingBudget else { throw ShortcutsError.trackingActionUnsupported }
             let monthID = loaded.selectedMonth
-            _ = try await prepared.store.moveMoneyAndRefresh(expectedMode: loaded.modeIdentity,
+            _ = try await prepared.store.budget.moveMoneyAndRefresh(expectedMode: loaded.modeIdentity,
                 command: .move(
                     fromCategoryID: fromCategoryID,
                     toCategoryID: toCategoryID,
@@ -92,7 +92,7 @@ enum ShortcutBudgetCommand {
                 mode: mode,
                 categoryIDs: categoryID.map { [$0] } ?? []
             )
-            _ = try await prepared.store.applyBudgetTemplateAndRefresh(expectedMode: loaded.modeIdentity,
+            _ = try await prepared.store.budget.applyBudgetTemplateAndRefresh(expectedMode: loaded.modeIdentity,
                 command: command,
                 budgetID: prepared.budgetID,
                 month: monthID,
@@ -114,7 +114,7 @@ enum ShortcutBudgetCommand {
         return try await session.withExclusiveWrite { prepared in
             let loaded = try await session.loadedMonth(preferred: startMonth)
             let monthID = loaded.selectedMonth
-            _ = try await prepared.store.setCategoryCarryoverAndRefresh(expectedMode: loaded.modeIdentity,
+            _ = try await prepared.store.budget.setCategoryCarryoverAndRefresh(expectedMode: loaded.modeIdentity,
                 categoryID: categoryID,
                 carryover: enabled,
                 budgetID: prepared.budgetID,
@@ -180,7 +180,7 @@ enum ShortcutBudgetCommand {
         session: ShortcutsBudgetSession
     ) async throws -> CategoryEntity {
         let loaded = try await session.loadedMonth(preferred: month)
-        _ = try await prepared.store.assignCategoryBudgetAndRefresh(expectedMode: loaded.modeIdentity,
+        _ = try await prepared.store.budget.assignCategoryBudgetAndRefresh(expectedMode: loaded.modeIdentity,
             categoryID: categoryID,
             budgeted: amountMinorUnits,
             budgetID: prepared.budgetID,

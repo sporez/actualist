@@ -7,7 +7,7 @@ extension LocalFirstActualStoreTests {
     func resizeRetainsPresentedHostUntilReplacementIsReady() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)
-        let session = AdaptiveBudgetSession(repository: bundle.store)
+        let session = AdaptiveBudgetSession(repository: bundle.store.budget)
         await session.update(mode: .compact, budgetID: "group-1", appState: appState).value
 
         let growing = session.update(mode: .sidebar, budgetID: "group-1", appState: appState)
@@ -32,7 +32,7 @@ extension LocalFirstActualStoreTests {
     func adaptiveSessionPreservesCompactMonthAcrossWideRoundTrip() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)
-        let session = AdaptiveBudgetSession(repository: bundle.store)
+        let session = AdaptiveBudgetSession(repository: bundle.store.budget)
 
         await session.update(mode: .compact, budgetID: "group-1", appState: appState).value
         let selectedMonth = try #require(session.compactModel.selectedMonth)
@@ -43,7 +43,7 @@ extension LocalFirstActualStoreTests {
         await session.compactModel.selectMonth(
             changedMonth,
             budgetID: "group-1",
-            repository: bundle.store
+            repository: bundle.store.budget
         )
         #expect(session.compactModel.selectedMonth == changedMonth)
 
@@ -57,7 +57,7 @@ extension LocalFirstActualStoreTests {
     func adaptiveSessionDoesNotLetFailedBudgetSwitchSeedOldViewport() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)
-        let session = AdaptiveBudgetSession(repository: bundle.store)
+        let session = AdaptiveBudgetSession(repository: bundle.store.budget)
 
         await session.update(mode: .compact, budgetID: "group-1", appState: appState).value
         await session.viewport.activate(
@@ -78,7 +78,7 @@ extension LocalFirstActualStoreTests {
     func latestResizeRequestWins() async throws {
         let bundle = try await makeOpenedWritableStoreBundle()
         let appState = try makeAppState(for: bundle)
-        let session = AdaptiveBudgetSession(repository: bundle.store)
+        let session = AdaptiveBudgetSession(repository: bundle.store.budget)
 
         let first = session.update(mode: .compact, budgetID: "group-1", appState: appState)
         let second = session.update(mode: .sidebar, budgetID: "group-1", appState: appState)

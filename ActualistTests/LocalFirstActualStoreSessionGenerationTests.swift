@@ -54,7 +54,7 @@ extension LocalFirstActualStoreTests {
         let transport = GatedSessionSyncTransport(gate: gate)
         let bundle = try await makeOpenedWritableStoreBundle(syncTransportFactory: { _ in transport })
         try bundle.keychain.saveActualSyncToken("synthetic-token")
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(
+        _ = try await bundle.store.budget.assignCategoryBudgetAndRefresh(
             expectedMode: nil, categoryID: "groceries", budgeted: 62_500,
             budgetID: "group-1", month: "2026-07"
         ) {}

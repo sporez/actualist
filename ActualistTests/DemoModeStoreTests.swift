@@ -46,7 +46,7 @@ struct DemoModeStoreTests {
         let loaded = try await store.budgetMonth(budgetID: DemoBudget.groupID, selectedMonth: "2026-08")
         #expect(loaded.isTrackingBudget)
         #expect(loaded.month.trackingSummary != nil)
-        let assigned = try #require(await store.assignCategoryBudgetAndRefresh(expectedMode: loaded.modeIdentity,
+        let assigned = try #require(await store.budget.assignCategoryBudgetAndRefresh(expectedMode: loaded.modeIdentity,
             categoryID: "paycheck", budgeted: 12345, budgetID: DemoBudget.groupID, month: "2026-08") {})
         #expect(assigned.month.categoryGroups.flatMap(\.categories).first { $0.id == "paycheck" }?.budgeted == 12345)
         store.closeOpenBudget()

@@ -124,7 +124,7 @@ final class BudgetLaunchWorkflows {
         expectedRevision: UInt64?
     ) async {
         let loaded = try? await LaunchSignpost.measure(LaunchStage.launchLiveProjectionFallback) {
-            try await store.currentBudgetMonth(
+            try await store.budget.currentBudgetMonth(
                 budgetID: budgetID,
                 preferredMonth: preferredCalendarMonth
             )

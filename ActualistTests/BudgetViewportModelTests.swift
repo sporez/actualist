@@ -75,7 +75,7 @@ struct BudgetViewportModelTests {
         let bundle = try await support.makeOpenedWritableStoreBundle(
             additionalFixtureSQL: "INSERT INTO zero_budgets VALUES (202608, 'groceries', 0, 1);"
         )
-        let model = BudgetViewportModel(repository: bundle.store)
+        let model = BudgetViewportModel(repository: bundle.store.budget)
         model.setResolvedMonthCount(2)
         await model.load(budgetID: "group-1", anchorMonth: "2026-07")
         let beforeAugust = try #require(model.snapshot(for: "2026-08"))

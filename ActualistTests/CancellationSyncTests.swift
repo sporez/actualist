@@ -9,7 +9,7 @@ extension LocalFirstActualStoreTests {
             CancelledSyncTransport(kind: kind)
         })
         try bundle.keychain.saveActualSyncToken("test")
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+        _ = try await bundle.store.budget.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries", budgeted: 62_500, budgetID: "group-1", month: "2026-07"
         ) {}
         let database = try #require(bundle.store.database)
@@ -46,7 +46,7 @@ extension LocalFirstActualStoreTests {
             pendingLocalMessageFlushRetryDelays: [.zero, .zero, .zero]
         )
         try bundle.keychain.saveActualSyncToken("test")
-        _ = try await bundle.store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+        _ = try await bundle.store.budget.assignCategoryBudgetAndRefresh(expectedMode: nil,
             categoryID: "groceries", budgeted: 62_500, budgetID: "group-1", month: "2026-07"
         ) {}
         let database = try #require(bundle.store.database)

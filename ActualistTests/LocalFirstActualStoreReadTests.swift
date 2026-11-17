@@ -282,7 +282,7 @@ extension LocalFirstActualStoreTests {
         #expect(store.isOpen(budgetID: "group-1"))
         let launchSnapshot = try #require(store.cachedBudgetMonth(budgetID: "group-1"))
         #expect(!launchSnapshot.month.categoryGroups.isEmpty)
-        let loaded = try await store.currentBudgetMonth(budgetID: "group-1", preferredMonth: "2026-07")
+        let loaded = try await store.budget.currentBudgetMonth(budgetID: "group-1", preferredMonth: "2026-07")
         #expect(loaded.month.month == "2026-07")
     }
 
@@ -404,7 +404,7 @@ extension LocalFirstActualStoreTests {
         )
 
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            _ = try await store.assignCategoryBudgetAndRefresh(expectedMode: nil,
+            _ = try await store.budget.assignCategoryBudgetAndRefresh(expectedMode: nil,
                 categoryID: "groceries",
                 budgeted: 10_000,
                 budgetID: "group-2",

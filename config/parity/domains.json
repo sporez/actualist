@@ -118,7 +118,7 @@
         "Actualist/LocalFirst/Database/BudgetRowSQL.swift",
         "Actualist/LocalFirst/Database/BudgetCurrencySQL.swift",
         "Actualist/LocalFirst/Database/BudgetFinancialCalculation.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+AssignMove.swift"
+        "Actualist/LocalFirst/BudgetWorkflows.swift"
       ],
       "notes": "BudgetMonthOracleReplayTests replays 80 of 86 cases through production writes and reads, with strict internal envelope-identity checks; 6 cases are actions Actualist lacks (oracle-only). Downstream summary rows after a case's first divergent step are attributed by co-occurrence; a counterfactual check is a planned follow-up."
     },

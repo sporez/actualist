@@ -20,7 +20,7 @@ extension LocalFirstActualStoreTests {
         var carried = false
 
         await #expect(throws: BudgetModeWriteError.budgetChanged) {
-            _ = try await store.assignCategoryBudgetAndRefresh(
+            _ = try await store.budget.assignCategoryBudgetAndRefresh(
                 expectedMode: stale,
                 categoryID: "groceries",
                 budgeted: 62_500,
@@ -30,7 +30,7 @@ extension LocalFirstActualStoreTests {
             )
         }
         await #expect(throws: BudgetModeWriteError.budgetChanged) {
-            _ = try await store.moveMoneyAndRefresh(
+            _ = try await store.budget.moveMoneyAndRefresh(
                 expectedMode: stale,
                 command: BudgetMoveMoneyCommand(
                     fromCategoryID: "groceries", toCategoryID: "utilities", amount: 1_000
@@ -41,7 +41,7 @@ extension LocalFirstActualStoreTests {
             )
         }
         await #expect(throws: BudgetModeWriteError.budgetChanged) {
-            _ = try await store.moveMoneyAndRefresh(
+            _ = try await store.budget.moveMoneyAndRefresh(
                 expectedMode: stale,
                 commands: [BudgetMoveMoneyCommand(
                     fromCategoryID: "groceries", toCategoryID: "utilities", amount: 1_000
@@ -52,7 +52,7 @@ extension LocalFirstActualStoreTests {
             )
         }
         await #expect(throws: BudgetModeWriteError.budgetChanged) {
-            _ = try await store.applyBudgetTemplateAndRefresh(
+            _ = try await store.budget.applyBudgetTemplateAndRefresh(
                 expectedMode: stale,
                 command: .fillEmpty,
                 budgetID: "group-1",
@@ -61,7 +61,7 @@ extension LocalFirstActualStoreTests {
             )
         }
         await #expect(throws: BudgetModeWriteError.budgetChanged) {
-            _ = try await store.setCategoryCarryoverAndRefresh(
+            _ = try await store.budget.setCategoryCarryoverAndRefresh(
                 expectedMode: stale,
                 categoryID: "utilities",
                 carryover: true,
@@ -71,7 +71,7 @@ extension LocalFirstActualStoreTests {
             )
         }
         await #expect(throws: BudgetModeWriteError.budgetChanged) {
-            _ = try await store.setAllExpenseCategoryCarryoverAndRefresh(
+            _ = try await store.budget.setAllExpenseCategoryCarryoverAndRefresh(
                 expectedMode: stale,
                 carryover: true,
                 budgetID: "group-1",

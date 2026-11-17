@@ -39,9 +39,9 @@ extension IPadAssignmentHandoffTests {
         let support = LocalFirstActualStoreTests()
         let bundle = try await support.makeOpenedWritableStoreBundle(additionalFixtureSQL: "INSERT INTO zero_budgets VALUES (202608, 'groceries', 900, 1);")
         let state = try support.makeAppState(for: bundle)
-        let session = AdaptiveBudgetSession(repository: bundle.store)
+        let session = AdaptiveBudgetSession(repository: bundle.store.budget)
         await session.update(mode: .compact, budgetID: "group-1", appState: state).value
-        await session.compactModel.selectMonth("2026-07", budgetID: "group-1", repository: bundle.store)
+        await session.compactModel.selectMonth("2026-07", budgetID: "group-1", repository: bundle.store.budget)
         await session.update(mode: .sidebar, budgetID: "group-1", appState: state).value
         session.viewport.setResolvedMonthCount(2)
         await session.viewport.refreshVisibleMonths()
@@ -57,21 +57,21 @@ extension IPadAssignmentHandoffTests {
         #expect(session.viewport.anchorMonth == "2026-07")
         #expect(session.viewport.assignmentWorkflow.draft == draft)
         await session.update(mode: .compact, budgetID: "group-1", appState: state).value
-        #expect(await session.compactModel.submitAssignment(budgetID: "group-1", repository: bundle.store))
+        #expect(await session.compactModel.submitAssignment(budgetID: "group-1", repository: bundle.store.budget))
         let july = try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-07")
         let august = try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-08")
         #expect(july.month == julyBefore.month)
         #expect(august.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }?.budgeted == draft.finalBudgeted)
-        #expect(await session.compactModel.submitAssignment(budgetID: "group-1", repository: bundle.store) == false)
+        #expect(await session.compactModel.submitAssignment(budgetID: "group-1", repository: bundle.store.budget) == false)
     }
 
     @Test func canceledCompactDraftDoesNotWriteEitherSQLiteMonth() async throws {
         let support = LocalFirstActualStoreTests()
         let bundle = try await support.makeOpenedWritableStoreBundle(additionalFixtureSQL: "INSERT INTO zero_budgets VALUES (202608, 'groceries', 900, 1);")
         let state = try support.makeAppState(for: bundle)
-        let session = AdaptiveBudgetSession(repository: bundle.store)
+        let session = AdaptiveBudgetSession(repository: bundle.store.budget)
         await session.update(mode: .compact, budgetID: "group-1", appState: state).value
-        await session.compactModel.selectMonth("2026-07", budgetID: "group-1", repository: bundle.store)
+        await session.compactModel.selectMonth("2026-07", budgetID: "group-1", repository: bundle.store.budget)
         let before = try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-07")
         let category = try #require(before.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" })
         session.compactModel.beginAssignmentEditing(for: category)
@@ -81,7 +81,7 @@ extension IPadAssignmentHandoffTests {
         await session.viewport.moveAnchor(by: 1)
         await session.update(mode: .compact, budgetID: "group-1", appState: state).value
         #expect(session.compactModel.assignmentWorkflow.draft == nil)
-        #expect(await session.compactModel.submitAssignment(budgetID: "group-1", repository: bundle.store) == false)
+        #expect(await session.compactModel.submitAssignment(budgetID: "group-1", repository: bundle.store.budget) == false)
         #expect(try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-07").month == before.month)
         #expect(try await bundle.store.readBudgetMonth(budgetID: "group-1", month: "2026-08").month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }?.budgeted == 900)
     }
@@ -90,7 +90,7 @@ extension IPadAssignmentHandoffTests {
         let support = LocalFirstActualStoreTests()
         let bundle = try await support.makeOpenedWritableStoreBundle()
         let state = try support.makeAppState(for: bundle)
-        let session = AdaptiveBudgetSession(repository: bundle.store)
+        let session = AdaptiveBudgetSession(repository: bundle.store.budget)
         for enabled in [true, false] {
             await session.update(mode: .sidebar, budgetID: "group-1", appState: state).value
             state.updateIncludeCarryoverCategoriesInOverspentAlerts(enabled)

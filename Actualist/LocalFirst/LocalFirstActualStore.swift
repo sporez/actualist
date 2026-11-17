@@ -4,10 +4,7 @@ import Observation
 
 @MainActor
 @Observable
-final class LocalFirstActualStore:
-    BudgetRepositoryProtocol,
-    TransactionRepositoryProtocol
-{
+final class LocalFirstActualStore: TransactionRepositoryProtocol {
     let keychain: KeychainStore
     let fileManager: BudgetFileManager
     let syncTransportFactory: (@Sendable (URL) -> any ActualSyncTransport)?
@@ -90,6 +87,7 @@ final class LocalFirstActualStore:
     var reportsByKey: [String: ReportsDashboardSnapshot] = [:]
     @ObservationIgnored private(set) lazy var reports = ReportWorkflows(store: self)
     @ObservationIgnored private(set) lazy var accounts = AccountWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var budget = BudgetWorkflows(store: self)
     @ObservationIgnored private(set) lazy var reconciliation = ReconciliationWorkflows(store: self)
     @ObservationIgnored private(set) lazy var accountLifecycle = AccountLifecycleWorkflows(store: self)
     @ObservationIgnored private(set) lazy var bankSync = BankSyncWorkflows(store: self)

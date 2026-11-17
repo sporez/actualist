@@ -79,7 +79,7 @@ struct RootView: View {
         }
         .task {
             if budgetSession == nil {
-                budgetSession = AdaptiveBudgetSession(repository: appState.localFirstStore, expansionStore: appState)
+                budgetSession = AdaptiveBudgetSession(repository: appState.budgetRepository, expansionStore: appState)
             }
         }
     }

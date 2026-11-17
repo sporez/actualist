@@ -19,7 +19,7 @@ struct CategoryRolloverLifecycleTests {
         let before = try #require(store.cachedCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07"))
         #expect(!before.transactions.isEmpty)
         for enabled in [!category.carryover, category.carryover, !category.carryover] {
-            await model.setCarryover(enabled, budgetID: "group-1", repository: store)
+            await model.setCarryover(enabled, budgetID: "group-1", repository: store.budget)
             #expect(model.carryoverErrorMessage == nil)
             #expect(model.isCarryoverEnabled == enabled)
             #expect(store.cachedCategoryTransactions(budgetID: "group-1", categoryID: "groceries", month: "2026-07") == before)
@@ -70,7 +70,7 @@ struct CategoryRolloverLifecycleTests {
         let store = bundle.store
         let september = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-09")
         #expect(september.month.totalBalance == -15000)
-        _ = try await store.setCategoryCarryoverAndRefresh(expectedMode: september.modeIdentity,
+        _ = try await store.budget.setCategoryCarryoverAndRefresh(expectedMode: september.modeIdentity,
             categoryID: "groceries", carryover: true, budgetID: "group-1", startMonth: "2026-09") {}
         let october = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-10")
         #expect(october.month.totalBalance == octoberBudgeted - 15000)

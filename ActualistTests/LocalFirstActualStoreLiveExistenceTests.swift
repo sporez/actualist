@@ -95,7 +95,7 @@ extension LocalFirstActualStoreTests {
     @Test func budgetAssignRejectsTombstonedCategory() async throws {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: Self.tombstonedFixtureSQL)
         do {
-            _ = try await store.assignCategoryBudgetAndRefresh(
+            _ = try await store.budget.assignCategoryBudgetAndRefresh(
                 categoryID: "gone-cat", budgeted: 1_000, budgetID: "group-1", month: "2026-07"
             ) {}
             Issue.record("assign accepted a tombstoned category")
@@ -106,7 +106,7 @@ extension LocalFirstActualStoreTests {
         let store = try await makeOpenedWritableStore(additionalFixtureSQL: Self.tombstonedFixtureSQL)
         for (from, to) in [("gone-cat", "groceries"), ("groceries", "gone-cat")] {
             do {
-                _ = try await store.moveMoneyAndRefresh(
+                _ = try await store.budget.moveMoneyAndRefresh(
                     command: BudgetMoveMoneyCommand(fromCategoryID: from, toCategoryID: to, amount: 100),
                     budgetID: "group-1", month: "2026-07"
                 ) {}
