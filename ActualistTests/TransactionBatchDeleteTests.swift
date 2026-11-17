@@ -65,11 +65,11 @@ struct TransactionBatchDeleteTests {
         _ bundle: LocalFirstActualStoreTests.OpenedWritableStoreBundle,
         _ selections: [TransactionSelectionIdentity]
     ) async throws -> TransactionBatchReview {
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: base.context(for: bundle.store), intent: .delete, selections: selections
         )
         #expect(review.canSubmit)
-        _ = try await bundle.store.commitTransactionBatch(review: review, authorization: nil)
+        _ = try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: nil)
         return review
     }
 

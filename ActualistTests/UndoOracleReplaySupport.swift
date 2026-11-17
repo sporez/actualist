@@ -279,7 +279,7 @@ enum UndoOracleReplay {
             }
             selections.append(selection)
         }
-        let review = try await store.reviewTransactionBatch(
+        let review = try await store.transactionCommands.reviewTransactionBatch(
             context: TransactionSelectionContext(
                 budgetID: budgetID,
                 sessionGeneration: store.budgetSessionGeneration,
@@ -292,7 +292,7 @@ enum UndoOracleReplay {
         guard review.canSubmit else {
             throw LocalFirstError.refusedChange("The review cannot be submitted.")
         }
-        _ = try await store.commitTransactionBatch(review: review, authorization: review.authorization)
+        _ = try await store.transactionCommands.commitTransactionBatch(review: review, authorization: review.authorization)
     }
 
     private static func date(_ dayID: String) throws -> Date {

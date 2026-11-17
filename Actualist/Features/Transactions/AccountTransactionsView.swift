@@ -458,14 +458,14 @@ struct AccountTransactionsView: View {
                     repository: transactionRepository
                 )
             },
-            batchRepository: appState.localFirstStore,
+            batchRepository: appState.localFirstStore.transactionCommands,
             onCommitted: { outcome in
                 guard outcome.sessionCurrent else { return }
                 appState.recordLocalDataMutation()
                 onChanged()
             },
-            duplicateRepository: appState.localFirstStore,
-            mergeRepository: appState.localFirstStore,
+            duplicateRepository: appState.localFirstStore.transactionCommands,
+            mergeRepository: appState.localFirstStore.transactionCommands,
             onDuplicateCommitted: { outcome in
                 guard outcome.sessionCurrent else { return }
                 appState.recordLocalDataMutation()

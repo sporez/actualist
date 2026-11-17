@@ -21,11 +21,11 @@ struct LocalFirstActualStoreTransactionMergeTests {
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()) != nil)
         #expect(store.reports.cachedReportsDashboard(budgetID: "group-1", range: range) != nil)
 
-        let review = try await store.reviewTransactionMerge(
+        let review = try await store.transactionCommands.reviewTransactionMerge(
             context: context(for: store),
             orderedTransactionIDs: ["txn", "root-b"]
         )
-        let outcome = try await store.commitTransactionMerge(review: review, authorization: nil)
+        let outcome = try await store.transactionCommands.commitTransactionMerge(review: review, authorization: nil)
 
         #expect(outcome.receipt.changedAccountIDs == ["checking", "credit"])
         #expect(outcome.receipt.changedMonths == ["2026-07", "2026-08"])
@@ -56,12 +56,12 @@ struct LocalFirstActualStoreTransactionMergeTests {
         try await store.refreshTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery())
         try await store.refreshTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery())
         behavior.failReads = true
-        let review = try await store.reviewTransactionMerge(
+        let review = try await store.transactionCommands.reviewTransactionMerge(
             context: context(for: store),
             orderedTransactionIDs: ["txn", "root-b"]
         )
 
-        let outcome = try await store.commitTransactionMerge(review: review, authorization: nil)
+        let outcome = try await store.transactionCommands.commitTransactionMerge(review: review, authorization: nil)
 
         #expect(outcome.receipt.actionID == review.id)
         #expect(outcome.refreshPending)
@@ -80,12 +80,12 @@ struct LocalFirstActualStoreTransactionMergeTests {
         let store = bundle.store
         let database = try store.requireDatabase(for: "group-1")
         try await store.refreshTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())
-        let review = try await store.reviewTransactionMerge(
+        let review = try await store.transactionCommands.reviewTransactionMerge(
             context: context(for: store),
             orderedTransactionIDs: ["txn", "root-b"]
         )
         gate.requestPause()
-        let commit = Task { try await store.commitTransactionMerge(review: review, authorization: nil) }
+        let commit = Task { try await store.transactionCommands.commitTransactionMerge(review: review, authorization: nil) }
         guard await gate.waitForEntry() else {
             gate.release()
             _ = try? await commit.value

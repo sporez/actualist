@@ -56,13 +56,10 @@ Actualist/LocalFirst/LocalFirstActualStore+Reconciliation.swift
 Actualist/LocalFirst/LocalFirstActualStore+Sync.swift
 Actualist/LocalFirst/LocalFirstActualStore+SyncQuarantine.swift
 Actualist/LocalFirst/LocalFirstActualStore+Templates.swift
-Actualist/LocalFirst/LocalFirstActualStore+TransactionBatch.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionCSVExport.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionCSVImport.swift
-Actualist/LocalFirst/LocalFirstActualStore+TransactionDuplicate.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionFeedCache.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionFeeds.swift
-Actualist/LocalFirst/LocalFirstActualStore+TransactionMerge.swift
 Actualist/LocalFirst/LocalFirstActualStore+TransactionMutations.swift
 Actualist/LocalFirst/LocalFirstActualStore+WalletImport.swift
 Actualist/LocalFirst/LocalFirstActualStore+Widgets.swift

@@ -61,10 +61,10 @@ struct TransactionUndoChangedCellsTests {
         let bundle = try await batch.makeBatchFixture(additionalFixtureSQL: Self.legs)
         let store = bundle.store
         let beforeDelete = try messages(in: bundle)
-        let review = try await store.reviewTransactionBatch(
+        let review = try await store.transactionCommands.reviewTransactionBatch(
             context: batch.context(for: store), intent: .delete, selections: [batch.identity("leg-a")]
         )
-        _ = try await store.commitTransactionBatch(review: review, authorization: nil)
+        _ = try await store.transactionCommands.commitTransactionBatch(review: review, authorization: nil)
 
         #expect(try cells(since: beforeDelete, in: bundle) == ["leg-a.tombstone", "leg-a.transferred_id", "leg-b.tombstone"])
         #expect(try link("leg-a", in: bundle) == nil)
@@ -80,10 +80,10 @@ struct TransactionUndoChangedCellsTests {
     @Test func batchCategorizeUndoWritesOnlyTheCategory() async throws {
         let bundle = try await batch.makeBatchFixture()
         let store = bundle.store
-        let review = try await store.reviewTransactionBatch(
+        let review = try await store.transactionCommands.reviewTransactionBatch(
             context: batch.context(for: store), intent: .categorize(categoryID: "utilities"), selections: [batch.identity("txn")]
         )
-        _ = try await store.commitTransactionBatch(review: review, authorization: nil)
+        _ = try await store.transactionCommands.commitTransactionBatch(review: review, authorization: nil)
         let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: store.requireDatabase(for: "group-1")))
         let beforeUndo = try messages(in: bundle)
 

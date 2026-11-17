@@ -19,7 +19,7 @@ struct AccountTransactionsSelectionToolbar: ToolbarContent {
                 batchPresentation.prepare(
                     intent: .clear,
                     feedContext: feedContext,
-                    repository: appState.localFirstStore
+                    repository: appState.localFirstStore.transactionCommands
                 )
             },
             onCategorize: {
@@ -32,19 +32,19 @@ struct AccountTransactionsSelectionToolbar: ToolbarContent {
                 batchPresentation.prepare(
                     intent: .delete,
                     feedContext: feedContext,
-                    repository: appState.localFirstStore
+                    repository: appState.localFirstStore.transactionCommands
                 )
             },
             onDuplicate: {
                 batchPresentation.prepareDuplicate(
                     feedContext: feedContext,
-                    repository: appState.localFirstStore
+                    repository: appState.localFirstStore.transactionCommands
                 )
             },
             onMerge: {
                 batchPresentation.prepareMerge(
                     feedContext: feedContext,
-                    repository: appState.localFirstStore
+                    repository: appState.localFirstStore.transactionCommands
                 )
             }
         )

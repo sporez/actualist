@@ -77,13 +77,13 @@ struct TransactionBatchMutationTests {
             """)
         let ctx = context(for: bundle.store)
         let rows = [identity("txn"), identity("reconciled")]
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: ctx, intent: .clear, selections: rows
         )
         #expect(review.clearTarget == true)
         #expect(review.skippedCount == 1)
 
-        let outcome = try await bundle.store.commitTransactionBatch(review: review, authorization: nil)
+        let outcome = try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: nil)
         #expect(outcome.receipt.changedTransactionIDs == ["txn"])
         #expect(!outcome.refreshPending)
         let state = try readRows(bundle) { db in
@@ -108,7 +108,7 @@ struct TransactionBatchMutationTests {
                 VALUES ('paired', 'credit', 20260703, 12345, 'groceries', 0, NULL, 0,
                         'Coffee Shop', 0, 1, 'txn', 0);
             """)
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .categorize(categoryID: "utilities"),
             selections: [identity("txn")]
         )
@@ -123,7 +123,7 @@ struct TransactionBatchMutationTests {
         #expect(requirement.effect.affectedTransactionIDs == ["txn"])
         #expect(review.rowChanges.first { $0.id == "paired" }?.changed == false)
 
-        let outcome = try await bundle.store.commitTransactionBatch(review: review, authorization: authorization)
+        let outcome = try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: authorization)
         #expect(outcome.receipt.changedTransactionIDs == ["txn"])
     }
 
@@ -133,7 +133,7 @@ struct TransactionBatchMutationTests {
             INSERT INTO payee_mapping VALUES ('coffee-alias', 'coffee');
             """)
 
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
             selections: [identity("txn")]
@@ -153,7 +153,7 @@ struct TransactionBatchMutationTests {
         let before = try await persistenceState(bundle)
 
         for intent in [TransactionBatchIntent.categorize(categoryID: "utilities"), .delete] {
-            let review = try await bundle.store.reviewTransactionBatch(
+            let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
                 context: context(for: bundle.store),
                 intent: intent,
                 selections: [identity("txn")]
@@ -161,7 +161,7 @@ struct TransactionBatchMutationTests {
             #expect(review.blockedCount == 1)
             #expect(!review.canSubmit)
             await #expect(throws: LocalFirstError.self) {
-                try await bundle.store.commitTransactionBatch(review: review, authorization: review.authorization)
+                try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: review.authorization)
             }
             #expect(try await persistenceState(bundle) == before)
         }
@@ -169,7 +169,7 @@ struct TransactionBatchMutationTests {
 
     @Test func incomingTransferLinkAddedAfterReviewInvalidatesWholeBatch() async throws {
         let bundle = try await makeBatchFixture()
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
             selections: [identity("txn")]
@@ -187,7 +187,7 @@ struct TransactionBatchMutationTests {
         let afterIncomingWrite = try await persistenceState(bundle)
 
         await #expect(throws: LocalFirstError.self) {
-            try await bundle.store.commitTransactionBatch(review: review, authorization: nil)
+            try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: nil)
         }
         #expect(try await persistenceState(bundle) == afterIncomingWrite)
     }
@@ -195,7 +195,7 @@ struct TransactionBatchMutationTests {
     @Test(arguments: ["rename", "tombstone"])
     func categoryMetadataChangeAfterReviewRejectsWholeBatch(_ mutation: String) async throws {
         let bundle = try await makeBatchFixture()
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store),
             intent: .categorize(categoryID: "utilities"),
             selections: [identity("txn")]
@@ -215,7 +215,7 @@ struct TransactionBatchMutationTests {
         let afterMetadataWrite = try await persistenceState(bundle)
 
         await #expect(throws: LocalFirstError.self) {
-            try await bundle.store.commitTransactionBatch(review: review, authorization: nil)
+            try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: nil)
         }
         #expect(try await persistenceState(bundle) == afterMetadataWrite)
     }
@@ -227,7 +227,7 @@ struct TransactionBatchMutationTests {
         let before = try await persistenceState(bundle)
 
         await #expect(throws: LocalFirstError.self) {
-            try await bundle.store.reviewTransactionBatch(
+            try await bundle.store.transactionCommands.reviewTransactionBatch(
                 context: context(for: bundle.store),
                 intent: .categorize(categoryID: "utilities"),
                 selections: [identity("txn")]
@@ -342,7 +342,7 @@ struct TransactionBatchMutationTests {
         }
         let outboxBefore = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
         let clockBefore = await database.localClock
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .categorize(categoryID: "utilities"),
             selections: [identity("txn")]
         )
@@ -350,7 +350,7 @@ struct TransactionBatchMutationTests {
         #expect(!review.canSubmit)
 
         do {
-            _ = try await bundle.store.commitTransactionBatch(review: review, authorization: review.authorization)
+            _ = try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: review.authorization)
             Issue.record("Expected malformed transfer graph \(corruption) to block commit")
         } catch is LocalFirstError { }
 
@@ -380,14 +380,14 @@ struct TransactionBatchMutationTests {
         let selections = [identity("txn"), identity("split-root")]
         let database = try bundle.store.requireDatabase(for: "group-1")
         let clockBefore = await database.localClock
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .categorize(categoryID: "utilities"),
             selections: selections
         )
         #expect(review.blockedCount == 1)
         #expect(!review.canSubmit)
         do {
-            _ = try await bundle.store.commitTransactionBatch(review: review, authorization: nil)
+            _ = try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: nil)
             Issue.record("Expected the blocked batch to reject as a whole")
         } catch let error as LocalFirstError {
             #expect(error.errorDescription != nil)
@@ -418,7 +418,7 @@ struct TransactionBatchMutationTests {
         // transfer lookup surface the underlying SQLite schema error.
 
         do {
-            _ = try await bundle.store.reviewTransactionBatch(
+            _ = try await bundle.store.transactionCommands.reviewTransactionBatch(
                 context: context(for: bundle.store), intent: .categorize(categoryID: "utilities"),
                 selections: [identity("txn")]
             )
@@ -435,7 +435,7 @@ struct TransactionBatchMutationTests {
             UPDATE transactions SET cleared = 0, reconciled = 0 WHERE id = 'txn';
             """)
         let database = try #require(bundle.store.database)
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .clear, selections: [identity("txn")]
         )
         database.invalidateSessionWrites()
@@ -450,10 +450,10 @@ struct TransactionBatchMutationTests {
             UPDATE transactions SET cleared = 0, reconciled = 0 WHERE id = 'txn';
             """)
         let reopenedDB = try #require(reopened.store.database)
-        let liveReview = try await reopened.store.reviewTransactionBatch(
+        let liveReview = try await reopened.store.transactionCommands.reviewTransactionBatch(
             context: context(for: reopened.store), intent: .clear, selections: [identity("txn")]
         )
-        _ = try await reopened.store.commitTransactionBatch(review: liveReview, authorization: nil)
+        _ = try await reopened.store.transactionCommands.commitTransactionBatch(review: liveReview, authorization: nil)
         let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: liveReview.id, in: reopenedDB))
         reopenedDB.invalidateSessionWrites()
         do {
@@ -494,7 +494,7 @@ struct TransactionBatchMutationTests {
             """)
         let store = bundle.store
         let oldContext = context(for: store)
-        let oldReview = try await store.reviewTransactionBatch(
+        let oldReview = try await store.transactionCommands.reviewTransactionBatch(
             context: oldContext, intent: .clear, selections: [identity("txn")]
         )
         let previousGeneration = store.budgetSessionGeneration
@@ -503,7 +503,7 @@ struct TransactionBatchMutationTests {
         #expect(store.budgetSessionGeneration != previousGeneration)
 
         await #expect(throws: CancellationError.self) {
-            try await store.commitTransactionBatch(review: oldReview, authorization: nil)
+            try await store.transactionCommands.commitTransactionBatch(review: oldReview, authorization: nil)
         }
         #expect(try await store.recentBudgetActions(budgetID: "group-1").isEmpty)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
@@ -511,10 +511,10 @@ struct TransactionBatchMutationTests {
             try Int.fetchOne(db, sql: "SELECT cleared FROM transactions WHERE id = 'txn'")
         } == 0)
 
-        let freshReview = try await store.reviewTransactionBatch(
+        let freshReview = try await store.transactionCommands.reviewTransactionBatch(
             context: context(for: store), intent: .clear, selections: [identity("txn")]
         )
-        let outcome = try await store.commitTransactionBatch(review: freshReview, authorization: nil)
+        let outcome = try await store.transactionCommands.commitTransactionBatch(review: freshReview, authorization: nil)
         #expect(outcome.receipt.actionID == freshReview.id)
         #expect(try await store.recentBudgetActions(budgetID: "group-1").count == 1)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
@@ -527,10 +527,10 @@ struct TransactionBatchMutationTests {
             transactionFeedPageReadHook: { _, _, _, _ in await gate.pause() }
         )
         let database = try #require(bundle.store.database)
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .clear, selections: [identity("txn")]
         )
-        let commit = Task { try await bundle.store.commitTransactionBatch(review: review, authorization: nil) }
+        let commit = Task { try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: nil) }
         guard await gate.waitForEntry() else {
             gate.release()
             _ = try? await commit.value
@@ -554,11 +554,11 @@ struct TransactionBatchMutationTests {
             transactionFeedPageReadHook: { _, _, _, _ in await gate.pause() }
         )
         let database = try #require(bundle.store.database)
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .clear,
             selections: [identity("txn")]
         )
-        let commit = Task { try await bundle.store.commitTransactionBatch(review: review, authorization: nil) }
+        let commit = Task { try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: nil) }
         guard await gate.waitForEntry() else {
             gate.release()
             _ = try? await commit.value
@@ -588,11 +588,11 @@ struct TransactionBatchMutationTests {
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) != nil)
         behavior.failReads = true
 
-        let review = try await store.reviewTransactionBatch(
+        let review = try await store.transactionCommands.reviewTransactionBatch(
             context: context(for: store), intent: .clear,
             selections: [identity("txn")]
         )
-        let outcome = try await store.commitTransactionBatch(review: review, authorization: nil)
+        let outcome = try await store.transactionCommands.commitTransactionBatch(review: review, authorization: nil)
         #expect(outcome.refreshPending)
         #expect(outcome.sessionCurrent)
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)
@@ -611,10 +611,10 @@ struct TransactionBatchMutationTests {
                         'Coffee Shop', 0, 0, NULL, 1);
             """)
         let database = try #require(bundle.store.database)
-        let review = try await bundle.store.reviewTransactionBatch(
+        let review = try await bundle.store.transactionCommands.reviewTransactionBatch(
             context: context(for: bundle.store), intent: .delete, selections: [identity("split-root")]
         )
-        _ = try await bundle.store.commitTransactionBatch(review: review, authorization: nil)
+        _ = try await bundle.store.transactionCommands.commitTransactionBatch(review: review, authorization: nil)
         let deletedGraph = try readRows(bundle) { db in
             (
                 try Int.fetchOne(db, sql: "SELECT tombstone FROM transactions WHERE id = 'split-root'"),

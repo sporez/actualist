@@ -11,7 +11,7 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
     @Test func repositoryCommitReloadsBothTransferAccountsAndSpendingFeed() async throws {
         let bundle = try await makeBundle(additionalFixtureSQL: transferFixtureSQL)
         let store = bundle.store
-        let repository: any TransactionDuplicateRepositoryProtocol = store
+        let repository: any TransactionDuplicateRepositoryProtocol = store.transactionCommands
         try await store.refreshTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery())
         let selection = identity("source-transfer")
 
@@ -51,7 +51,7 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
 
     @Test func reviewRowsNameTheTransferCounterpartAccount() async throws {
         let bundle = try await makeBundle(additionalFixtureSQL: transferFixtureSQL)
-        let review = try await bundle.store.reviewTransactionDuplicate(
+        let review = try await bundle.store.transactionCommands.reviewTransactionDuplicate(
             context: context(for: bundle.store),
             selections: [identity("source-transfer")]
         )
@@ -66,7 +66,7 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
         let bundle = try await makeBundle()
         let store = bundle.store
         let database = try store.requireDatabase(for: "group-1")
-        let review = try await store.reviewTransactionDuplicate(
+        let review = try await store.transactionCommands.reviewTransactionDuplicate(
             context: context(for: store),
             selections: [identity("txn")]
         )
@@ -75,7 +75,7 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
         store.closeOpenBudget()
         _ = try await store.openCachedBudget(bundle.budget)
         await #expect(throws: CancellationError.self) {
-            try await store.commitTransactionDuplicate(review: review)
+            try await store.transactionCommands.commitTransactionDuplicate(review: review)
         }
 
         #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database) == nil)
@@ -90,11 +90,11 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
         })
         let store = bundle.store
         let database = try store.requireDatabase(for: "group-1")
-        let review = try await store.reviewTransactionDuplicate(
+        let review = try await store.transactionCommands.reviewTransactionDuplicate(
             context: context(for: store),
             selections: [identity("txn")]
         )
-        let commit = Task { try await store.commitTransactionDuplicate(review: review) }
+        let commit = Task { try await store.transactionCommands.commitTransactionDuplicate(review: review) }
         guard await gate.waitForEntry() else {
             gate.release()
             _ = try? await commit.value

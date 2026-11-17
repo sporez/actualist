@@ -404,7 +404,7 @@ struct TransactionDuplicateMutationTests {
         _ bundle: LocalFirstActualStoreTests.OpenedWritableStoreBundle,
         selections: [TransactionSelectionIdentity]
     ) async throws -> TransactionDuplicateReview {
-        try await bundle.store.reviewTransactionDuplicate(
+        try await bundle.store.transactionCommands.reviewTransactionDuplicate(
             context: context(bundle.store),
             selections: selections
         )
