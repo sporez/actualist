@@ -1,14 +1,15 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func fetchTransactionCSVExportRows(
+enum TransactionCSVExportSQL {
+    static func fetchTransactionCSVExportRows(
         accountID: String,
-        query: TransactionFeedQuery
+        query: TransactionFeedQuery,
+        in database: isolated BudgetDatabase
     ) throws -> [TransactionCSVExportRow] {
-        try TransactionQuerySQL.withTransactionQuerySnapshot(scope: .account(accountID), query: query, in: self) { db, transactions in
-            let accountNames = try Self.transactionCSVNameMap(table: "accounts", db: db)
-            let categoryNames = try Self.transactionCSVCategoryNames(db: db)
+        try TransactionQuerySQL.withTransactionQuerySnapshot(scope: .account(accountID), query: query, in: database) { db, transactions in
+            let accountNames = try transactionCSVNameMap(table: "accounts", db: db)
+            let categoryNames = try transactionCSVCategoryNames(db: db)
             let physical = transactions.flatMap { [$0] + $0.subtransactions }
             var seenIDs = Set<String>()
             return physical.compactMap { transaction in

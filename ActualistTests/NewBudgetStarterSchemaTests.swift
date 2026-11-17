@@ -26,7 +26,7 @@ struct NewBudgetStarterSchemaTests {
             .appending(path: "NewBudgetSchema-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "db.sqlite")
-        let database = try BudgetDatabase.makeNewBudgetStarterDatabase(
+        let database = try NewBudgetSeedSQL.makeNewBudgetStarterDatabase(
             at: url,
             identityGenerator: identityGenerator
         )
@@ -175,7 +175,7 @@ struct NewBudgetStarterSchemaTests {
         try? FileManager.default.removeItem(at: directory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "db.sqlite")
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
+        _ = try NewBudgetSeedSQL.makeNewBudgetStarterDatabase(at: url)
         #expect(FileManager.default.fileExists(atPath: url.path))
     }
 }

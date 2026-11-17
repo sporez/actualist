@@ -144,7 +144,7 @@ extension LocalFirstActualStore {
         // is cleared before the upload and the install (upstream
         // `resetSync`). Never applied to downloads or reimports.
         do {
-            try BudgetDatabase.resetSyncHistory(atStagedPortableDatabase: validated.databaseURL)
+            try PortableDatabaseSQL.resetSyncHistory(atStagedPortableDatabase: validated.databaseURL)
         } catch {
             throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
         }

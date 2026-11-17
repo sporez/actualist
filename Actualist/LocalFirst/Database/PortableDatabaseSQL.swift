@@ -1,24 +1,24 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
+enum PortableDatabaseSQL {
     /// Writes a consistent snapshot of the open database. This uses GRDB's
     /// backup API so an uncheckpointed WAL is included. It does not copy the
     /// live `db.sqlite` file.
-    func writePortableSnapshot(to destinationURL: URL) throws {
+    static func writePortableSnapshot(to destinationURL: URL, in database: isolated BudgetDatabase) throws {
         let fileManager = FileManager.default
         if fileManager.fileExists(atPath: destinationURL.path) {
             try fileManager.removeItem(at: destinationURL)
         }
         do {
-            let configuration = Self.untrustedFileConfiguration(deleteJournal: true)
+            let configuration = BudgetDatabase.untrustedFileConfiguration(deleteJournal: true)
             let destination = try DatabaseQueue(
                 path: destinationURL.path,
                 configuration: configuration
             )
-            try queue.backup(to: destination)
+            try database.queue.backup(to: destination)
             try destination.write { db in
-                try Self.sanitizeUntrustedSchema(in: db)
+                try BudgetDatabase.sanitizeUntrustedSchema(in: db)
                 let integrity = try String.fetchAll(db, sql: "PRAGMA integrity_check")
                 guard integrity == ["ok"] else {
                     throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
@@ -50,7 +50,7 @@ extension BudgetDatabase {
         do {
             let queue = try DatabaseQueue(
                 path: databaseURL.path,
-                configuration: untrustedFileConfiguration(readonly: true)
+                configuration: BudgetDatabase.untrustedFileConfiguration(readonly: true)
             )
             try queue.read { db in
                 try validatePortableDatabaseContents(db)
@@ -65,13 +65,13 @@ extension BudgetDatabase {
     }
 
     private static func validatePortableDatabaseContents(_ db: Database) throws {
-        guard try hasRequiredBudgetSchema(in: db) else {
+        guard try BudgetDatabase.hasRequiredBudgetSchema(in: db) else {
             throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
         }
         try PortableBudgetSchema.rejectUnknownMigrations(in: db)
     }
 
-    private func removeSnapshotSidecars(of databaseURL: URL, fileManager: FileManager) {
+    private static func removeSnapshotSidecars(of databaseURL: URL, fileManager: FileManager) {
         for suffix in ["-wal", "-shm", "-journal"] {
             let sidecar = URL(fileURLWithPath: databaseURL.path + suffix)
             guard fileManager.fileExists(atPath: sidecar.path) else {
@@ -79,5 +79,45 @@ extension BudgetDatabase {
             }
             try? fileManager.removeItem(at: sidecar)
         }
+    }
+
+    /// Tables whose tombstoned rows upstream's `resetSync` deletes.
+    private static let syncResetTombstoneTables = [
+        "transactions", "accounts", "payees", "categories", "category_groups", "schedules", "rules"
+    ]
+
+    /// Clears the carried CRDT history of a staged portable database, like
+    /// upstream's `resetSync` (`loot-core/src/server/sync/reset.ts`): delete
+    /// `messages_pending` (deferred messages from a newer client, 26.10.0+),
+    /// `messages_crdt` and `messages_clock`, delete tombstoned rows of the
+    /// listed domain tables, then `ANALYZE` and `VACUUM`.
+    ///
+    /// A portable import registers a brand-new, empty server group. Carrying
+    /// the source's messages would give the local merkle trie history the
+    /// server never receives, so the first pull could never converge
+    /// (`syncOutOfSync`). With the history cleared the trie rebuilds empty and
+    /// the clock re-seeds from zero. Only the portable import path may call
+    /// this: a downloaded or re-imported budget needs its `messages_crdt` for
+    /// last-write-wins comparison. Tables or columns an older file lacks are
+    /// skipped.
+    static func resetSyncHistory(atStagedPortableDatabase url: URL) throws {
+        let queue = try DatabaseQueue(
+            path: url.path,
+            configuration: BudgetDatabase.untrustedFileConfiguration(deleteJournal: true)
+        )
+        try queue.write { db in
+            for table in ["messages_pending", "messages_crdt", "messages_clock"] where try SQLiteSchema.tableExists(table, in: db) {
+                try db.execute(sql: "DELETE FROM \(table.quotedDatabaseIdentifier)")
+            }
+            for table in syncResetTombstoneTables where try SQLiteSchema.tableExists(table, in: db) {
+                guard try SQLiteSchema.columns(of: table, in: db).contains("tombstone") else { continue }
+                try db.execute(sql: "DELETE FROM \(table.quotedDatabaseIdentifier) WHERE tombstone = 1")
+            }
+        }
+        // ANALYZE and VACUUM cannot run inside a transaction.
+        try queue.writeWithoutTransaction { db in
+            try db.execute(sql: "ANALYZE")
+        }
+        try queue.vacuum()
     }
 }

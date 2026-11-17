@@ -71,7 +71,7 @@ final class OracleReplayGate: Sendable {
 enum OracleReplayDatabase {
     @concurrent
     static func starter(at url: URL, localNodeID: String) async throws -> BudgetDatabase {
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
+        _ = try NewBudgetSeedSQL.makeNewBudgetStarterDatabase(at: url)
         return try BudgetDatabase(databaseURL: url, localNodeID: localNodeID)
     }
 

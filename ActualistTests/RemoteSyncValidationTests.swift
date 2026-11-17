@@ -237,7 +237,7 @@ struct RemoteSyncValidationTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let url = directory.appending(path: "db.sqlite")
 
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
+        _ = try NewBudgetSeedSQL.makeNewBudgetStarterDatabase(at: url)
 
         #expect(try scalar(Self.indexCount, url) == "1")
     }

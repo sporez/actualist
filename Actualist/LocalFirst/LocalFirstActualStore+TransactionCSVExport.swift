@@ -5,9 +5,10 @@ extension LocalFirstActualStore: TransactionCSVExportRepositoryProtocol {
         try Task.checkCancellation()
         let database = try requireDatabase(for: request.budgetID)
         let sessionID = transactionFeedRequestIdentity.sessionID
-        let rows = try await database.fetchTransactionCSVExportRows(
+        let rows = try await TransactionCSVExportSQL.fetchTransactionCSVExportRows(
             accountID: request.accountID,
-            query: request.query
+            query: request.query,
+            in: database
         )
         try Task.checkCancellation()
         guard transactionFeedRequestIdentity.sessionID == sessionID,

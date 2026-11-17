@@ -248,7 +248,7 @@
       ],
       "paths": [
         "Actualist/LocalFirst/Database/ActualStarterSchema.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+NewBudgetSeed.swift",
+        "Actualist/LocalFirst/Database/NewBudgetSeedSQL.swift",
         "Actualist/LocalFirst/Database/PortableBudgetSchema.swift",
         "Actualist/LocalFirst/Sync/ActualSyncDatasetPolicy.swift"
       ]
@@ -272,8 +272,7 @@
         "Actualist/LocalFirst/PortableExportFiles.swift",
         "Actualist/LocalFirst/UntrustedZipExtractor.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+PortableImport.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+PortableExport.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift",
+        "Actualist/LocalFirst/Database/PortableDatabaseSQL.swift",
         "Actualist/LocalFirst/Database/PortableBudgetSchema.swift"
       ],
       "notes": "Actual's export-budget ZIP imported through the production portable import and an Actualist export read back by Actual's import-budget, compared by table digest and account balances; the sync reset (OP-03) also has PortableBudgetImportSyncResetTests. The opt-in live-lab harness scripts/parity/live-lab-file-interop/ remains for the server path."
@@ -291,7 +290,7 @@
       ],
       "paths": [
         "Actualist/Shared/TransactionCSV*.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+TransactionCSV*.swift",
+        "Actualist/LocalFirst/Database/TransactionCSVExportSQL.swift",
         "Actualist/LocalFirst/Database/TransactionImportSQL.swift",
         "Actualist/LocalFirst/TransactionImportEngine.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+TransactionCSVImport.swift"

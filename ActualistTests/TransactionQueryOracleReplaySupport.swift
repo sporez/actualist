@@ -344,7 +344,7 @@ enum TransactionQueryOracleReplay {
 
     private static func open(world: [String: Any], filters: [[String: Any]], directory: URL) throws -> Session {
         let url = directory.appending(path: "db.sqlite")
-        _ = try BudgetDatabase.makeNewBudgetStarterDatabase(at: url)
+        _ = try NewBudgetSeedSQL.makeNewBudgetStarterDatabase(at: url)
         let queue = try DatabaseQueue(path: url.path)
         try queue.write { db in
             for table in ["transactions", "rules", "schedules", "payee_mapping", "payees",

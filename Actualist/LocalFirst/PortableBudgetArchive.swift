@@ -154,7 +154,7 @@ struct PortableBudgetArchive {
         } catch {
             throw PortableBudgetArchiveError(stage: .beforeInstall, reason: .integrity)
         }
-        try BudgetDatabase.validatePortableDatabase(at: pair.databaseURL)
+        try PortableDatabaseSQL.validatePortableDatabase(at: pair.databaseURL)
 
         let validated = work.appending(path: "validated", directoryHint: .isDirectory)
         try fileManager.createDirectory(at: validated, withIntermediateDirectories: true)
@@ -191,7 +191,7 @@ struct PortableBudgetArchive {
 
         let databaseURL = scratch.appending(path: "db.sqlite")
         let metadataURL = scratch.appending(path: "metadata.json")
-        try await database.writePortableSnapshot(to: databaseURL)
+        try await PortableDatabaseSQL.writePortableSnapshot(to: databaseURL, in: database)
         try metadata.encodedJSON().write(to: metadataURL, options: .atomic)
         try writeRootPairZip(databaseURL: databaseURL, metadataURL: metadataURL, to: archiveURL)
         return metadata

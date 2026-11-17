@@ -108,7 +108,7 @@ struct PortableBudgetImportSyncResetTests {
             }
         }
 
-        try BudgetDatabase.resetSyncHistory(atStagedPortableDatabase: url)
+        try PortableDatabaseSQL.resetSyncHistory(atStagedPortableDatabase: url)
 
         try DatabaseQueue(path: url.path).read { db throws in
             #expect(try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM messages_crdt") == 0)

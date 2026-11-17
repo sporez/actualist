@@ -170,7 +170,7 @@ struct UntrustedBudgetSanitizationTests {
         let source = try makeHostileDatabaseURL()
         let database = try BudgetDatabase(databaseURL: source)
         let snapshotURL = source.deletingLastPathComponent().appending(path: "snapshot.sqlite")
-        try await database.writePortableSnapshot(to: snapshotURL)
+        try await PortableDatabaseSQL.writePortableSnapshot(to: snapshotURL, in: database)
         #expect(!(try schema(of: snapshotURL)).tables.contains("actualist_sync_checkpoint"))
     }
 
@@ -195,7 +195,7 @@ struct UntrustedBudgetSanitizationTests {
         let database = try BudgetDatabase(databaseURL: source)
         let snapshotURL = source.deletingLastPathComponent().appending(path: "snapshot.sqlite")
 
-        try await database.writePortableSnapshot(to: snapshotURL)
+        try await PortableDatabaseSQL.writePortableSnapshot(to: snapshotURL, in: database)
 
         let summary = try schema(of: snapshotURL)
         #expect(summary.triggers.isEmpty)
@@ -229,7 +229,7 @@ struct UntrustedBudgetSanitizationTests {
         #expect(!(try actualistObjectNames(of: source)).isEmpty)
         let snapshotURL = source.deletingLastPathComponent().appending(path: "snapshot.sqlite")
 
-        try await database.writePortableSnapshot(to: snapshotURL)
+        try await PortableDatabaseSQL.writePortableSnapshot(to: snapshotURL, in: database)
 
         #expect(try actualistObjectNames(of: snapshotURL) == [])
     }

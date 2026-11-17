@@ -19,7 +19,7 @@ import GRDB
 /// not an alphabetical sort; `sort_order` values are generated fresh and
 /// unique across the projection because the seed's values are not unique
 /// within a group and display order cannot be derived from them.
-extension BudgetDatabase {
+enum NewBudgetSeedSQL {
     /// Creates a new starter database at `databaseURL` and returns it opened.
     /// `identityGenerator` supplies every starter row ID; production uses
     /// UUIDs and tests pass a deterministic sequence.

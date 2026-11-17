@@ -12,15 +12,11 @@ Actualist/LocalFirst/Database/BudgetDatabase+LocalMigrations.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Merkle.swift
 Actualist/LocalFirst/Database/BudgetDatabase+MessagesTimestampIndex.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ModeIdentity.swift
-Actualist/LocalFirst/Database/BudgetDatabase+NewBudgetSeed.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Notes.swift
-Actualist/LocalFirst/Database/BudgetDatabase+PortableExport.swift
-Actualist/LocalFirst/Database/BudgetDatabase+PortableSyncReset.swift
 Actualist/LocalFirst/Database/BudgetDatabase+ReviewWatermark.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Schema.swift
 Actualist/LocalFirst/Database/BudgetDatabase+SchemaValidation.swift
 Actualist/LocalFirst/Database/BudgetDatabase+Sync.swift
-Actualist/LocalFirst/Database/BudgetDatabase+TransactionCSVExport.swift
 Actualist/LocalFirst/Database/BudgetDatabase+UntrustedSanitization.swift
 Actualist/LocalFirst/Database/BudgetDatabase+UserActionPlan.swift
 Actualist/LocalFirst/DemoMode/LocalFirstActualStore+Demo.swift

@@ -143,7 +143,7 @@ struct TransactionCSVExportDatabaseTests {
             """)
         let database = try BudgetDatabase(databaseURL: databaseURL)
 
-        let rows = try await database.fetchTransactionCSVExportRows(accountID: "checking", query: .all)
+        let rows = try await TransactionCSVExportSQL.fetchTransactionCSVExportRows(accountID: "checking", query: .all, in: database)
 
         #expect(rows.map(\.id) == ["txn", "child"])
         #expect(rows.map(\.accountName) == ["Checking", "Checking"])
@@ -200,7 +200,7 @@ struct TransactionCSVExportDatabaseTests {
         let support = LocalFirstActualStoreTests()
         let bundle = try await support.makeOpenedWritableStoreBundle()
         let database = try #require(bundle.store.database)
-        let rows = try await database.fetchTransactionCSVExportRows(accountID: "checking", query: .all)
+        let rows = try await TransactionCSVExportSQL.fetchTransactionCSVExportRows(accountID: "checking", query: .all, in: database)
         let firstID = try #require(rows.first?.id)
 
         _ = try await bundle.store.exportTransactionsCSV(
