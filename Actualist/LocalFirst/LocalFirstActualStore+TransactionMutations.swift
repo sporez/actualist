@@ -45,11 +45,12 @@ extension LocalFirstActualStore {
             affectedTransactionIDs.append(transfer.pairedTransactionID)
             graph = .transfer(pairedID: transfer.pairedTransactionID)
         } else if draft.isSplit {
-            let split = try await database.createSplitFamilyWrite(
+            let split = try await SplitFamilySQL.createSplitFamilyWrite(
                 draft: draft,
                 parentTransactionID: transactionID,
                 payeeID: payeeResolution.payeeID,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             transactionMessages = split.messages
             changedAccounts.append(contentsOf: split.affectedAccountIDs)

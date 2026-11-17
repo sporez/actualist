@@ -1,30 +1,32 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-
-    func createSplitTransactionMessages(
+enum SplitFamilySQL {
+    static func createSplitTransactionMessages(
         draft: TransactionDraft,
         parentTransactionID: String,
         payeeID: String?,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
         try createSplitFamilyWrite(
             draft: draft,
             parentTransactionID: parentTransactionID,
             payeeID: payeeID,
-            builder: &builder
+            builder: &builder,
+            in: database
         ).messages
     }
 
-    func createSplitFamilyWrite(
+    static func createSplitFamilyWrite(
         draft: TransactionDraft,
         parentTransactionID: String,
         payeeID: String?,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
-        try queue.read { db in
-            try createSplitFamilyWrite(
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
+    ) throws -> BudgetDatabase.TransactionWriteResult {
+        try database.queue.read { db in
+            try database.createSplitFamilyWrite(
                 draft: draft,
                 parentTransactionID: parentTransactionID,
                 payeeID: payeeID,
@@ -38,13 +40,13 @@ extension BudgetDatabase {
     /// not carry `financial_id` / `imported_payee` / `schedule`; simple-create
     /// writes those columns, and split-create must too or Wallet/Bank Sync
     /// duplicates and imported-payee rules silently break.
-    func appendingSplitParentImportMetadata(
-        to result: TransactionWriteResult,
+    static func appendingSplitParentImportMetadata(
+        to result: BudgetDatabase.TransactionWriteResult,
         parentTransactionID: String,
         draft: TransactionDraft,
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
+    ) throws -> BudgetDatabase.TransactionWriteResult {
         var messages = result.messages
         if let importedPayee = draft.importedPayee, !importedPayee.isEmpty,
            let column = TransactionRowColumns.importedPayee(in: columns.all) {
@@ -78,23 +80,24 @@ extension BudgetDatabase {
                 )
             )
         }
-        return TransactionWriteResult(
+        return BudgetDatabase.TransactionWriteResult(
             messages: messages,
             affectedAccountIDs: result.affectedAccountIDs,
             affectedTransactionIDs: result.affectedTransactionIDs
         )
     }
 
-    func splitFamilyUpdateMessages(
+    static func splitFamilyUpdateMessages(
         transactionID: String,
         draft: TransactionDraft,
         payeeID: String?,
         columns: TransactionRowColumns,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
-        try validateSplitCategories(draft.splits, db: db)
-        let oldRows = try loadSplitFamily(containing: transactionID, columns: columns, db: db)
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> BudgetDatabase.TransactionWriteResult {
+        try validateSplitCategories(draft.splits, in: database, db: db)
+        let oldRows = try loadSplitFamily(containing: transactionID, columns: columns, in: database, db: db)
         guard let current = oldRows.first(where: { $0.id == transactionID }) ?? oldRows.first else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
@@ -112,8 +115,9 @@ extension BudgetDatabase {
                 oldRows: oldRows,
                 newRows: result.data,
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
         }
 
@@ -128,8 +132,9 @@ extension BudgetDatabase {
                 oldRows: oldRows,
                 newRows: [simple],
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
         }
 
@@ -138,6 +143,7 @@ extension BudgetDatabase {
             draft.splits,
             parentID: current.isChild ? (current.parentID ?? current.id) : current.id,
             familyChildIDs: Set(oldRows.filter(\.isChild).map(\.id)),
+            in: database,
             db: db
         )
         var parent = try splitParentRecord(
@@ -170,18 +176,20 @@ extension BudgetDatabase {
             oldRows: oldRows,
             newRows: result.data,
             columns: columns,
-            db: db,
-            builder: &builder
+            builder: &builder,
+            in: database,
+            db: db
         )
     }
 
-    func deleteSplitFamilyMessages(
+    static func deleteSplitFamilyMessages(
         transactionID: String,
         columns: TransactionRowColumns,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
-        let oldRows = try loadSplitFamily(containing: transactionID, columns: columns, db: db)
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> BudgetDatabase.TransactionWriteResult {
+        let oldRows = try loadSplitFamily(containing: transactionID, columns: columns, in: database, db: db)
         guard !oldRows.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing transaction")
         }
@@ -190,12 +198,13 @@ extension BudgetDatabase {
             oldRows: oldRows,
             newRows: result.data,
             columns: columns,
-            db: db,
-            builder: &builder
+            builder: &builder,
+            in: database,
+            db: db
         )
     }
 
-    func materializeSplitFamily(
+    static func materializeSplitFamily(
         parent: SplitTransactionRecord,
         drafts: [TransactionSplitDraft],
         existingChildren: [SplitTransactionRecord],
@@ -225,7 +234,7 @@ extension BudgetDatabase {
         return SplitTransactionFamilyOps.recalculateSplit(family)
     }
 
-    func childPatch(
+    private static func childPatch(
         _ draft: TransactionSplitDraft,
         existing: [SplitTransactionRecord],
         index: Int
@@ -261,13 +270,13 @@ extension BudgetDatabase {
         return patch
     }
 
-    func splitParentRecord(
+    static func splitParentRecord(
         id: String,
         draft: TransactionDraft,
         payeeID: String?,
         inheritFrom: SplitTransactionRecord?
     ) throws -> SplitTransactionRecord {
-        let dateValue = try Self.actualDateValue(draft.date)
+        let dateValue = try BudgetDatabase.actualDateValue(draft.date)
         return SplitTransactionRecord(
             id: id,
             amount: draft.amountMinorUnits,
@@ -289,23 +298,24 @@ extension BudgetDatabase {
         )
     }
 
-    func validateSplitCategories(_ splits: [TransactionSplitDraft], db: Database) throws {
-        guard try tableExists("categories", db: db) else { return }
+    static func validateSplitCategories(_ splits: [TransactionSplitDraft], in database: isolated BudgetDatabase, db: Database) throws {
+        guard try database.tableExists("categories", db: db) else { return }
         for split in splits {
             if let categoryID = split.categoryID,
-               try !liveRowExists(table: "categories", rowID: categoryID, db: db) {
+               try !database.liveRowExists(table: "categories", rowID: categoryID, db: db) {
                 throw LocalFirstError.invalidLocalWrite("missing category")
             }
         }
     }
 
-    func persistFamilyChange(
+    static func persistFamilyChange(
         oldRows: [SplitTransactionRecord],
         newRows: [SplitTransactionRecord],
         columns: TransactionRowColumns,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> TransactionWriteResult {
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws -> BudgetDatabase.TransactionWriteResult {
         let oldByID = Dictionary(uniqueKeysWithValues: oldRows.map { ($0.id, $0) })
         let newByID = Dictionary(uniqueKeysWithValues: newRows.map { ($0.id, $0) })
         var deletedIDs = Set(oldByID.keys).subtracting(newByID.keys)
@@ -321,13 +331,14 @@ extension BudgetDatabase {
 
         for id in addedIDs.sorted() {
             guard let row = newByID[id] else { continue }
-            let prepared = try prepareTransferOnInsert(
+            let prepared = try TransferSQL.prepareTransferOnInsert(
                 row,
                 columns: columns,
                 affectedAccounts: &affectedAccounts,
                 affectedTransactions: &affectedTransactions,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
             messages += prepared.messages
             messages += try messagesForNewRow(
@@ -345,12 +356,13 @@ extension BudgetDatabase {
                 columns: columns,
                 builder: &builder
             )
-            let transfer = try transferMessagesOnUpdate(
+            let transfer = try TransferSQL.transferMessagesOnUpdate(
                 old: old,
                 new: new,
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
             messages += transfer.messages
             affectedAccounts.formUnion(transfer.accounts)
@@ -362,25 +374,25 @@ extension BudgetDatabase {
             if columns.hasTombstone {
                 messages.append(try builder.tombstone(dataset: "transactions", row: id))
             }
-            let transfer = try transferMessagesOnDelete(
+            let transfer = try TransferSQL.transferMessagesOnDelete(
                 old,
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                db: db
             )
             messages += transfer.messages
             affectedAccounts.formUnion(transfer.accounts)
             affectedTransactions.formUnion(transfer.transactions)
         }
 
-        return TransactionWriteResult(
+        return BudgetDatabase.TransactionWriteResult(
             messages: messages,
             affectedAccountIDs: Array(affectedAccounts),
             affectedTransactionIDs: Array(affectedTransactions)
         )
     }
 
-    func messagesForNewRow(
+    private static func messagesForNewRow(
         _ row: SplitTransactionRecord,
         columns: TransactionRowColumns,
         builder: inout LocalFirstSyncMessageBuilder
@@ -407,7 +419,7 @@ extension BudgetDatabase {
         )
     }
 
-    func messagesForChangedFields(
+    static func messagesForChangedFields(
         from old: SplitTransactionRecord,
         to new: SplitTransactionRecord,
         columns: TransactionRowColumns,
@@ -471,155 +483,10 @@ extension BudgetDatabase {
         return messages
     }
 
-    func prepareTransferOnInsert(
-        _ row: SplitTransactionRecord,
-        columns: TransactionRowColumns,
-        affectedAccounts: inout Set<String>,
-        affectedTransactions: inout Set<String>,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> (row: SplitTransactionRecord, messages: [ActualSyncDecodedMessage]) {
-        guard !row.isParent,
-              let destination = try TransferSQL.transferAccountID(ifPayee: row.payee, in: self, db: db),
-              columns.transferID != nil,
-              let account = row.account else {
-            return (row, [])
-        }
-        let pairedID = UUID().uuidString
-        let fromPayeeID = try TransferSQL.transferPayeeID(forAccount: account, in: self, db: db)
-        let clearCategory = try AccountSQL.accountOffBudget(account, in: self, db: db) == AccountSQL.accountOffBudget(destination, in: self, db: db)
-        var next = row
-        next.transferID = pairedID
-        if clearCategory {
-            next.category = nil
-        }
-        affectedAccounts.insert(destination)
-        affectedTransactions.insert(pairedID)
-        let paired = try columns.rowMessages(
-            rowID: pairedID,
-            accountID: destination,
-            dateValue: PackedDate.packed(fromISO: row.date),
-            amountMinorUnits: -row.amount,
-            payeeID: fromPayeeID,
-            categoryID: nil,
-            notes: row.notes,
-            cleared: false,
-            isParent: false,
-            parentID: nil,
-            isChild: false,
-            transferID: row.id,
-            sortOrder: nil,
-            builder: &builder,
-            cells: .snapshot
-        )
-        return (next, paired)
-    }
-
-    func transferMessagesOnUpdate(
-        old: SplitTransactionRecord,
-        new: SplitTransactionRecord,
-        columns: TransactionRowColumns,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> (messages: [ActualSyncDecodedMessage], accounts: Set<String>, transactions: Set<String>) {
-        // An untouched row must not create or unlink a transfer. Amount and notes
-        // matter only when they have to reach an existing pair.
-        let linkInputsUnchanged = old.account == new.account && old.payee == new.payee
-            && old.transferID == new.transferID && old.isParent == new.isParent
-        if linkInputsUnchanged, old.transferID == nil || (old.amount == new.amount && old.notes == new.notes) {
-            return ([], [], [])
-        }
-        if new.isParent {
-            return try transferMessagesOnDelete(old, columns: columns, db: db, builder: &builder)
-        }
-        let destination = try TransferSQL.transferAccountID(ifPayee: new.payee, in: self, db: db)
-        if destination != nil, new.transferID == nil, old.transferID == nil {
-            var accounts: Set<String> = []
-            var transactions: Set<String> = []
-            let prepared = try prepareTransferOnInsert(
-                new,
-                columns: columns,
-                affectedAccounts: &accounts,
-                affectedTransactions: &transactions,
-                db: db,
-                builder: &builder
-            )
-            var messages = prepared.messages
-            if let transferColumn = columns.transferID, let transferID = prepared.row.transferID {
-                messages.append(
-                    try builder.makeMessage(
-                        dataset: "transactions",
-                        row: new.id,
-                        column: transferColumn,
-                        value: .string(transferID)
-                    )
-                )
-            }
-            if prepared.row.category == nil, old.category != nil {
-                messages.append(
-                    try builder.makeMessage(dataset: "transactions", row: new.id, column: "category", value: .null)
-                )
-            }
-            return (messages, accounts, transactions)
-        }
-        if destination == nil, old.transferID != nil {
-            return try transferMessagesOnDelete(old, columns: columns, db: db, builder: &builder)
-        }
-        if old.account == new.account,
-           old.payee == new.payee,
-           old.amount == new.amount,
-           old.notes == new.notes {
-            return ([], [], [])
-        }
-        guard let destination, let pairedID = new.transferID ?? old.transferID, let account = new.account else {
-            return ([], [], [])
-        }
-        let fromPayeeID = try TransferSQL.transferPayeeID(forAccount: account, in: self, db: db)
-        var messages: [ActualSyncDecodedMessage] = []
-        messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.account, value: .string(destination)))
-        messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .string(fromPayeeID)))
-        if columns.hasNotes {
-            messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "notes", value: new.notes.map(LocalFirstSyncValue.string) ?? .null))
-        }
-        messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "amount", value: .int(Int64(-new.amount))))
-        if try AccountSQL.accountOffBudget(account, in: self, db: db) == AccountSQL.accountOffBudget(destination, in: self, db: db) {
-            messages.append(try builder.makeMessage(dataset: "transactions", row: new.id, column: "category", value: .null))
-            messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: "category", value: .null))
-        }
-        return (messages, [destination], [pairedID])
-    }
-
-    func transferMessagesOnDelete(
-        _ old: SplitTransactionRecord,
-        columns: TransactionRowColumns,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> (messages: [ActualSyncDecodedMessage], accounts: Set<String>, transactions: Set<String>) {
-        guard let pairedID = old.transferID, let transferColumn = columns.transferID else {
-            return ([], [], [])
-        }
-        var messages: [ActualSyncDecodedMessage] = []
-        var accounts: Set<String> = []
-        if let paired = try loadTransactionRecord(id: pairedID, columns: columns, db: db) {
-            if let account = paired.account {
-                accounts.insert(account)
-            }
-            if paired.isChild {
-                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: transferColumn, value: .null))
-                messages.append(try builder.makeMessage(dataset: "transactions", row: pairedID, column: columns.payee, value: .null))
-            } else if columns.hasTombstone {
-                messages.append(try builder.tombstone(dataset: "transactions", row: pairedID))
-            }
-        }
-        if !old.deleted {
-            messages.append(try builder.makeMessage(dataset: "transactions", row: old.id, column: transferColumn, value: .null))
-        }
-        return (messages, accounts, [pairedID])
-    }
-
-    func loadSplitFamily(
+    static func loadSplitFamily(
         containing id: String,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [SplitTransactionRecord] {
         guard let current = try loadTransactionRecord(id: id, columns: columns, db: db) else {
@@ -629,15 +496,16 @@ extension BudgetDatabase {
         guard let parent = try loadTransactionRecord(id: parentID, columns: columns, db: db) else {
             return [current]
         }
-        let children = try loadChildRecords(parentID: parent.id, columns: columns, db: db)
+        let children = try loadChildRecords(parentID: parent.id, columns: columns, in: database, db: db)
         var parentRow = parent
         parentRow.subtransactions = []
         return [parentRow] + children
     }
 
-    func loadChildRecords(
+    private static func loadChildRecords(
         parentID: String,
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [SplitTransactionRecord] {
         guard columns.hasParentID else { return [] }
@@ -646,7 +514,7 @@ extension BudgetDatabase {
             db,
             sql: """
                 SELECT id FROM transactions
-                WHERE parent_id = ? AND \(predicateForLiveRows(columns: columns.all))
+                WHERE parent_id = ? AND \(database.predicateForLiveRows(columns: columns.all))
                 ORDER BY \(order)
                 """,
             arguments: [parentID]
@@ -654,8 +522,9 @@ extension BudgetDatabase {
         return try ids.compactMap { try loadTransactionRecord(id: $0, columns: columns, db: db) }
     }
 
-    func loadLiveParentFamilies(
+    static func loadLiveParentFamilies(
         columns: TransactionRowColumns,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [SplitTransactionRecord] {
         guard let isParentColumn = columns.isParent else { return [] }
@@ -664,18 +533,18 @@ extension BudgetDatabase {
             sql: """
                 SELECT id FROM transactions
                 WHERE IFNULL(\(isParentColumn), 0) = 1
-                  AND \(predicateForLiveRows(columns: columns.all))
+                  AND \(database.predicateForLiveRows(columns: columns.all))
                 """
         )
         return try ids.compactMap { id -> SplitTransactionRecord? in
-            let family = try loadSplitFamily(containing: id, columns: columns, db: db)
+            let family = try loadSplitFamily(containing: id, columns: columns, in: database, db: db)
             guard var parent = family.first else { return nil }
             parent.subtransactions = Array(family.dropFirst())
             return parent
         }
     }
 
-    func loadTransactionRecord(
+    static func loadTransactionRecord(
         id: String,
         columns: TransactionRowColumns,
         db: Database
@@ -710,5 +579,29 @@ extension BudgetDatabase {
             error: columns.hasError ? SplitTransactionError.parse(row["error"]) : nil,
             deleted: columns.hasTombstone ? SQLiteValueCoercion.lenientBool(row["tombstone"]) : false
         )
+    }
+
+    /// Rejects split drafts whose child ids would collide. Explicit ids must be
+    /// unique, must not be the parent, and must be either an existing child of
+    /// this family (update in place) or absent from `transactions`. A foreign
+    /// id would otherwise overwrite an unrelated row, and a duplicate id traps
+    /// in `persistFamilyChange`'s `Dictionary(uniqueKeysWithValues:)`.
+    static func validateSplitDraftIDs(
+        _ splits: [TransactionSplitDraft],
+        parentID: String,
+        familyChildIDs: Set<String>,
+        in database: isolated BudgetDatabase,
+        db: Database
+    ) throws {
+        var seen = Set<String>()
+        for id in splits.compactMap(\.id) {
+            guard id != parentID, seen.insert(id).inserted else {
+                throw LocalFirstError.invalidLocalWrite("invalid split child id")
+            }
+            if !familyChildIDs.contains(id),
+               try database.rowExists(table: "transactions", rowID: id, db: db) {
+                throw LocalFirstError.invalidLocalWrite("invalid split child id")
+            }
+        }
     }
 }

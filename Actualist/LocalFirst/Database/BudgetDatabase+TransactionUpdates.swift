@@ -62,13 +62,14 @@ extension BudgetDatabase {
                 throw LocalFirstError.invalidLocalWrite("missing amount")
             }
         } else {
-            return try splitFamilyUpdateMessages(
+            return try SplitFamilySQL.splitFamilyUpdateMessages(
                 transactionID: trimmedTransactionID,
                 draft: draft,
                 payeeID: payeeID,
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: self,
+                db: db
             )
         }
         // A transfer needs its transfer payee; any other row may have no payee, as in Actual.

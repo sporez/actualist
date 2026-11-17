@@ -56,7 +56,7 @@ extension BudgetDatabase {
         if change.dateChanged {
             new.date = PackedDate.iso(change.dateValue)
         }
-        var messages = try messagesForChangedFields(from: old, to: new, columns: columns, builder: &builder)
+        var messages = try SplitFamilySQL.messagesForChangedFields(from: old, to: new, columns: columns, builder: &builder)
         if let scheduleID = change.draft.scheduleID, columns.hasSchedule, scheduleID != baseline.schedule {
             messages.append(
                 try builder.makeMessage(

@@ -135,33 +135,35 @@ extension BudgetDatabase {
            try !liveRowExists(table: "accounts", rowID: draft.accountID, db: db) {
             throw LocalFirstError.referencedRowUnavailable("missing account")
         }
-        try validateSplitCategories(draft.splits, db: db)
-        try validateSplitDraftIDs(
+        try SplitFamilySQL.validateSplitCategories(draft.splits, in: self, db: db)
+        try SplitFamilySQL.validateSplitDraftIDs(
             draft.splits,
             parentID: parentTransactionID,
             familyChildIDs: [],
+            in: self,
             db: db
         )
-        let parent = try splitParentRecord(
+        let parent = try SplitFamilySQL.splitParentRecord(
             id: parentTransactionID,
             draft: draft,
             payeeID: payeeID,
             inheritFrom: nil
         )
-        let family = materializeSplitFamily(
+        let family = SplitFamilySQL.materializeSplitFamily(
             parent: parent,
             drafts: draft.splits,
             existingChildren: [],
             nullParentPayee: true
         )
-        let persisted = try persistFamilyChange(
+        let persisted = try SplitFamilySQL.persistFamilyChange(
             oldRows: [],
             newRows: SplitTransactionFamilyOps.ungroupTransaction(family),
             columns: columns,
-            db: db,
-            builder: &builder
+            builder: &builder,
+            in: self,
+            db: db
         )
-        return try appendingSplitParentImportMetadata(
+        return try SplitFamilySQL.appendingSplitParentImportMetadata(
             to: persisted,
             parentTransactionID: parentTransactionID,
             draft: draft,

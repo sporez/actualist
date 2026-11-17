@@ -1,12 +1,13 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func repairSplitTransactionsMessages(
-        builder: inout LocalFirstSyncMessageBuilder
-    ) throws -> (result: SplitTransactionRepairResult, write: TransactionWriteResult) {
-        try queue.read { db in
-            let columns = try TransactionRowColumns.resolve(in: self, db: db)
+enum SplitRepairSQL {
+    static func repairSplitTransactionsMessages(
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
+    ) throws -> (result: SplitTransactionRepairResult, write: BudgetDatabase.TransactionWriteResult) {
+        try database.queue.read { db in
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
             var repair = SplitTransactionRepairResult()
             var oldByID: [String: SplitTransactionRecord] = [:]
             var newByID: [String: SplitTransactionRecord] = [:]
@@ -15,7 +16,7 @@ extension BudgetDatabase {
                 if let cached = newByID[id] ?? oldByID[id] {
                     return cached
                 }
-                guard let loaded = try loadTransactionRecord(id: id, columns: columns, db: db) else {
+                guard let loaded = try SplitFamilySQL.loadTransactionRecord(id: id, columns: columns, db: db) else {
                     throw LocalFirstError.invalidLocalWrite("missing transaction")
                 }
                 oldByID[id] = loaded
@@ -32,7 +33,7 @@ extension BudgetDatabase {
                 newByID[id] = next
             }
 
-            let liveChild = predicateForLiveRows(columns: columns.all, tableAlias: "child")
+            let liveChild = database.predicateForLiveRows(columns: columns.all, tableAlias: "child")
             let payeeColumn = columns.payee
             if let isChildColumn = columns.isChild, columns.hasParentID {
                 let blankRows = try Row.fetchAll(
@@ -97,7 +98,7 @@ extension BudgetDatabase {
                 }
             }
 
-            if let transferColumn = columns.transferID, try tableExists("accounts", db: db) {
+            if let transferColumn = columns.transferID, try database.tableExists("accounts", db: db) {
                 let broken = try String.fetchAll(
                     db,
                     sql: """
@@ -142,19 +143,20 @@ extension BudgetDatabase {
                 }
             }
 
-            let families = try loadLiveParentFamilies(columns: columns, db: db)
+            let families = try SplitFamilySQL.loadLiveParentFamilies(columns: columns, in: database, db: db)
             repair.mismatchedParentIDs = families.compactMap { family in
                 SplitTransactionFamilyOps.recalculateSplit(family).error == nil ? nil : family.id
             }
 
             let oldRows = Array(oldByID.values)
             let surviving = oldByID.keys.compactMap { newByID[$0] }.filter { !$0.deleted }
-            let write = try persistFamilyChange(
+            let write = try SplitFamilySQL.persistFamilyChange(
                 oldRows: oldRows,
                 newRows: surviving,
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: database,
+                db: db
             )
             return (repair, write)
         }

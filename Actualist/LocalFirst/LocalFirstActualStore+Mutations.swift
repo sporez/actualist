@@ -445,7 +445,7 @@ extension LocalFirstActualStore {
     func repairSplitTransactionsAndRefresh(budgetID: String) async throws -> SplitTransactionRepairResult {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let repair = try await database.repairSplitTransactionsMessages(builder: &builder)
+        let repair = try await SplitRepairSQL.repairSplitTransactionsMessages(builder: &builder, in: database)
         if !repair.write.messages.isEmpty {
             _ = try await database.commitLocalSyncMessagesAndEnqueue(repair.write.messages)
         }

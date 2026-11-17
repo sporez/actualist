@@ -218,11 +218,12 @@ import Testing
             ]
         )
         var builder = LocalFirstSyncMessageBuilder()
-        let drafts = try await database.createSplitTransactionMessages(
+        let drafts = try await SplitFamilySQL.createSplitTransactionMessages(
             draft: draft,
             parentTransactionID: cloneIDs[0],
             payeeID: "coffee",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         let record = try await makeAction(
             database: database,
@@ -433,11 +434,12 @@ import Testing
             ]
         )
         var builder = LocalFirstSyncMessageBuilder()
-        let drafts = try await database.createSplitTransactionMessages(
+        let drafts = try await SplitFamilySQL.createSplitTransactionMessages(
             draft: draft,
             parentTransactionID: cloneIDs[0],
             payeeID: "coffee",
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         let record = try await makeAction(
             database: database,

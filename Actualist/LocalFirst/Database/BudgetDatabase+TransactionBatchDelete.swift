@@ -114,12 +114,13 @@ extension BudgetDatabase {
         let write: TransactionWriteResult
         if record.isParent || record.isChild {
             let result = SplitTransactionFamilyOps.deleteTransaction(family, id: transactionID)
-            write = try persistFamilyChange(
+            write = try SplitFamilySQL.persistFamilyChange(
                 oldRows: family,
                 newRows: result.data,
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: self,
+                db: db
             )
             overlay.replaceFamily(root: family[0].id, with: result.data)
         } else {
@@ -153,7 +154,7 @@ extension BudgetDatabase {
         if overlay.isLoaded(id) { return true }
         guard !overlay.tombstoned.contains(id),
               try transactionBatchSnapshot(id: id, columns: columns, db: db)?.tombstone != true else { return false }
-        let family = try loadSplitFamily(containing: id, columns: columns, db: db)
+        let family = try SplitFamilySQL.loadSplitFamily(containing: id, columns: columns, in: self, db: db)
         guard !family.isEmpty else { return false }
         overlay.load(family)
         return overlay.isLoaded(id)

@@ -236,7 +236,7 @@ enum BankSyncMatchSQL {
             guard !existing.isTransfer, !existing.isParent, let payeeID = update.payeeID, payeeID != existing.payeeID,
                   try TransferSQL.transferAccountID(ifPayee: payeeID, in: database, db: db) != nil else { return ([], nil, nil) }
             let columns = try TransactionRowColumns.resolve(in: database, db: db)
-            guard var old = try database.loadTransactionRecord(id: update.existingID, columns: columns, db: db) else {
+            guard var old = try SplitFamilySQL.loadTransactionRecord(id: update.existingID, columns: columns, db: db) else {
                 return ([], nil, nil)
             }
             // The pair mirrors the row as updated: the update's category, notes and date.
@@ -247,7 +247,7 @@ enum BankSyncMatchSQL {
             }
             var new = old
             new.payee = payeeID
-            let result = try database.transferMessagesOnUpdate(old: old, new: new, columns: columns, db: db, builder: &builder)
+            let result = try TransferSQL.transferMessagesOnUpdate(old: old, new: new, columns: columns, builder: &builder, in: database, db: db)
             return (result.messages, result.accounts.first, result.transactions.first)
         }
     }

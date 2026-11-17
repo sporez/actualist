@@ -161,11 +161,12 @@ extension LocalFirstActualStore {
             )
             let transactionMessages: [ActualSyncDecodedMessage]
             if draft.isSplit {
-                transactionMessages = try await database.createSplitTransactionMessages(
+                transactionMessages = try await SplitFamilySQL.createSplitTransactionMessages(
                     draft: draft,
                     parentTransactionID: transactionID,
                     payeeID: payeeResolution.payeeID,
-                    builder: &builder
+                    builder: &builder,
+                    in: database
                 )
             } else if let transferDestinationID, let payeeID = payeeResolution.payeeID {
                 let transfer = try await database.createTransferTransactionMessages(

@@ -42,7 +42,7 @@ extension BudgetDatabase {
             if old.reconciled != true { next.cleared = row.cleared }
             updated.append(next)
             if old.cleared != next.cleared {
-                messages += try messagesForChangedFields(from: old, to: next, columns: columns, builder: &builder)
+                messages += try SplitFamilySQL.messagesForChangedFields(from: old, to: next, columns: columns, builder: &builder)
             }
         }
         overlay.replaceFamily(root: family[0].id, with: updated)

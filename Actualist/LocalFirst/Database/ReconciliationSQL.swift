@@ -146,11 +146,12 @@ enum ReconciliationSQL {
         let write: BudgetDatabase.TransactionWriteResult
         let graph: BudgetTransactionGraph
         if draft.isSplit {
-            write = try database.createSplitFamilyWrite(
+            write = try SplitFamilySQL.createSplitFamilyWrite(
                 draft: draft,
                 parentTransactionID: transactionID,
                 payeeID: draft.payeeID,
-                builder: &builder
+                builder: &builder,
+                in: database
             )
             graph = .split(childIDs: write.affectedTransactionIDs.filter { $0 != transactionID })
         } else if let payeeID = draft.payeeID,

@@ -30,7 +30,7 @@ struct TransactionRowLoaderCharacterizationTests {
             var output: [String: Loaded] = [:]
             for id in ids {
                 output[id] = Loaded(
-                    split: try database.loadTransactionRecord(id: id, columns: columns, db: db),
+                    split: try SplitFamilySQL.loadTransactionRecord(id: id, columns: columns, db: db),
                     batch: try database.transactionBatchSnapshot(id: id, columns: columns, db: db),
                     undo: try TransactionActionLogSQL.transactionUndoSnapshot(id: id, in: database, db: db),
                     columns: columns.all.sorted()
@@ -106,7 +106,7 @@ struct TransactionRowLoaderCharacterizationTests {
         let splits = try await read(database) { (database: isolated BudgetDatabase, db: Database) in
             let columns = try TransactionRowColumns.resolve(in: database, db: db)
             return try probes.indices.map {
-                try database.loadTransactionRecord(id: "p\($0)", columns: columns, db: db)
+                try SplitFamilySQL.loadTransactionRecord(id: "p\($0)", columns: columns, db: db)
             }
         }
         for (index, probe) in probes.enumerated() {
@@ -309,7 +309,7 @@ struct TransactionRowLoaderCharacterizationTests {
             let columns = try TransactionRowColumns.resolve(in: database, db: db)
             return try cases.indices.map { index in
                 (
-                    split: try database.loadTransactionRecord(id: "p\(index)", columns: columns, db: db),
+                    split: try SplitFamilySQL.loadTransactionRecord(id: "p\(index)", columns: columns, db: db),
                     batch: try database.transactionBatchSnapshot(id: "p\(index)", columns: columns, db: db)
                 )
             }

@@ -90,11 +90,12 @@ extension BudgetDatabase {
 
         let existing = try existingTransactionState(id: trimmedTransactionID, columns: columns, db: db)
         if existing.isParent || existing.isChild {
-            return try deleteSplitFamilyMessages(
+            return try SplitFamilySQL.deleteSplitFamilyMessages(
                 transactionID: trimmedTransactionID,
                 columns: columns,
-                db: db,
-                builder: &builder
+                builder: &builder,
+                in: self,
+                db: db
             )
         }
         let pair = existing.transferID.flatMap { pairedID in
