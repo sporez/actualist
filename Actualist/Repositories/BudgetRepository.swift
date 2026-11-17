@@ -12,12 +12,6 @@ protocol BudgetRepositoryProtocol: Sendable {
         budgetID: String,
         selectedMonth: String
     ) async throws -> LoadedBudgetMonth
-    func budgetHoldReview(budgetID: String, month: String) async throws -> BudgetHoldReview
-    func applyBudgetHoldAndRefresh(
-        command: BudgetHoldCommand,
-        review: BudgetHoldReview,
-        budgetID: String
-    ) async throws -> LoadedBudgetMonth?
     func assignCategoryBudgetAndRefresh(expectedMode: BudgetModeIdentity?,
         categoryID: String,
         budgeted: Int,
@@ -199,18 +193,6 @@ extension BudgetRepositoryProtocol {
             actionSource: actionSource,
             didMove: didMove
         )
-    }
-
-    func budgetHoldReview(budgetID: String, month: String) async throws -> BudgetHoldReview {
-        throw LocalFirstError.unsupportedWrite
-    }
-
-    func applyBudgetHoldAndRefresh(
-        command: BudgetHoldCommand,
-        review: BudgetHoldReview,
-        budgetID: String
-    ) async throws -> LoadedBudgetMonth? {
-        throw LocalFirstError.unsupportedWrite
     }
 
     func applyReviewedBudgetTemplateAndRefresh(

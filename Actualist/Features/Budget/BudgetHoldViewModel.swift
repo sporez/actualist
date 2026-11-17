@@ -190,7 +190,7 @@ final class BudgetHoldViewModel {
 
     func load(using appState: AppState) async {
         guard contextIsCurrent(appState) else { invalidate(); return }
-        await load(repository: appState.budgetRepository)
+        await load(repository: appState.localFirstStore.holds)
     }
 
     func prepare(using appState: AppState) async {
@@ -198,7 +198,7 @@ final class BudgetHoldViewModel {
         await load(using: appState)
     }
 
-    func load(repository: any BudgetRepositoryProtocol) async {
+    func load(repository: any BudgetHoldRepositoryProtocol) async {
         guard !isSaving else { return }
         generation += 1
         let request = generation
@@ -235,13 +235,13 @@ final class BudgetHoldViewModel {
 
     func submitHold(using appState: AppState) async -> Bool {
         guard contextIsCurrent(appState) else { invalidate(); return false }
-        let outcome = await holdOutcome(repository: appState.budgetRepository)
+        let outcome = await holdOutcome(repository: appState.localFirstStore.holds)
         return finish(outcome, using: appState)
     }
 
     func submitRelease(using appState: AppState) async -> Bool {
         guard contextIsCurrent(appState) else { invalidate(); return false }
-        let outcome = await releaseOutcome(repository: appState.budgetRepository)
+        let outcome = await releaseOutcome(repository: appState.localFirstStore.holds)
         return finish(outcome, using: appState)
     }
 
@@ -251,26 +251,26 @@ final class BudgetHoldViewModel {
         return outcome == .completed
     }
 
-    func submitHold(repository: any BudgetRepositoryProtocol) async -> Bool {
+    func submitHold(repository: any BudgetHoldRepositoryProtocol) async -> Bool {
         await holdOutcome(repository: repository) == .completed
     }
 
-    func submitRelease(repository: any BudgetRepositoryProtocol) async -> Bool {
+    func submitRelease(repository: any BudgetHoldRepositoryProtocol) async -> Bool {
         await releaseOutcome(repository: repository) == .completed
     }
 
-    func holdOutcome(repository: any BudgetRepositoryProtocol) async -> SubmitOutcome {
+    func holdOutcome(repository: any BudgetHoldRepositoryProtocol) async -> SubmitOutcome {
         guard canHold, let amount else { return .failed }
         return await submit(.hold(amount: amount), repository: repository)
     }
 
-    func releaseOutcome(repository: any BudgetRepositoryProtocol) async -> SubmitOutcome {
+    func releaseOutcome(repository: any BudgetHoldRepositoryProtocol) async -> SubmitOutcome {
         // SwiftUI may dismiss the alert binding before its action's Task starts.
         guard isReviewingRelease || canRelease else { return .failed }
         return await submit(.reset, repository: repository)
     }
 
-    private func submit(_ command: BudgetHoldCommand, repository: any BudgetRepositoryProtocol) async -> SubmitOutcome {
+    private func submit(_ command: BudgetHoldCommand, repository: any BudgetHoldRepositoryProtocol) async -> SubmitOutcome {
         guard var draft else { return .failed }
         let request = generation
         state = .saving(draft)

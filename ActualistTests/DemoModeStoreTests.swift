@@ -179,17 +179,17 @@ struct DemoModeStoreTests {
         let transport = RecordingSyncTransport()
         let (store, _) = makeDemoStore(transport: transport)
         try await store.demoBudget.openDemoBudget()
-        let review = try await store.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
-        let held = try #require(await store.applyBudgetHoldAndRefresh(
+        let review = try await store.holds.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
+        let held = try #require(await store.holds.applyBudgetHoldAndRefresh(
             command: .hold(amount: 100), review: review, budgetID: DemoBudget.groupID
         ))
         #expect(held.month.forNextMonth == 100)
         #expect(held.month.toBudget == review.toBudget - 100)
         store.closeOpenBudget()
         try await store.demoBudget.openDemoBudget()
-        let reopened = try await store.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
+        let reopened = try await store.holds.budgetHoldReview(budgetID: DemoBudget.groupID, month: DemoBudget.fixtureMonth)
         #expect(reopened.heldAmount == 100)
-        let released = try #require(await store.applyBudgetHoldAndRefresh(
+        let released = try #require(await store.holds.applyBudgetHoldAndRefresh(
             command: .reset, review: reopened, budgetID: DemoBudget.groupID
         ))
         #expect(released.month.toBudget == review.toBudget)

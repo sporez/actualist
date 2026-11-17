@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 @testable import Actualist
 
-/// Replays Hold oracle cases through the production path that `LocalFirstActualStore.applyBudgetHoldAndRefresh`
+/// Replays Hold oracle cases through the production path that `HoldWorkflows.applyBudgetHoldAndRefresh`
 /// runs: review, draft, commit. Each action is compared on its outcome, the cells it committed, and the
 /// state of every oracle month.
 @MainActor

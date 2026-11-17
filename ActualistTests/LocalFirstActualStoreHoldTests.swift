@@ -298,14 +298,14 @@ extension LocalFirstActualStoreTests {
                 VALUES ('salary-jul', 'checking', 20260701, 200000, 'salary', 0, NULL, 0,
                         NULL, NULL, 0, NULL, 0);
             """)
-        let review = try await store.budgetHoldReview(budgetID: "group-1", month: "2026-07")
-        let loaded = try #require(await store.applyBudgetHoldAndRefresh(
+        let review = try await store.holds.budgetHoldReview(budgetID: "group-1", month: "2026-07")
+        let loaded = try #require(await store.holds.applyBudgetHoldAndRefresh(
             command: .hold(amount: 25_000), review: review, budgetID: "group-1"
         ))
         #expect(loaded.month.forNextMonth == 25_000)
         #expect(loaded.month.toBudget == review.toBudget - 25_000)
         await #expect(throws: LocalFirstError.budgetNotOpened) {
-            _ = try await store.budgetHoldReview(budgetID: "another-budget", month: "2026-07")
+            _ = try await store.holds.budgetHoldReview(budgetID: "another-budget", month: "2026-07")
         }
     }
 
@@ -335,10 +335,10 @@ extension LocalFirstActualStoreTests {
             }
         )
         bundle.store.database = database
-        let review = try await bundle.store.budgetHoldReview(budgetID: "group-1", month: "2026-07")
+        let review = try await bundle.store.holds.budgetHoldReview(budgetID: "group-1", month: "2026-07")
 
         let operation = Task { @MainActor in
-            try await bundle.store.applyBudgetHoldAndRefresh(
+            try await bundle.store.holds.applyBudgetHoldAndRefresh(
                 command: .hold(amount: 25_000), review: review, budgetID: "group-1"
             )
         }

@@ -22,7 +22,6 @@ Actualist/LocalFirst/LocalFirstActualStore+AssignMove.swift
 Actualist/LocalFirst/LocalFirstActualStore+CategoryLifecycle.swift
 Actualist/LocalFirst/LocalFirstActualStore+CommitTail.swift
 Actualist/LocalFirst/LocalFirstActualStore+Connection.swift
-Actualist/LocalFirst/LocalFirstActualStore+Holds.swift
 Actualist/LocalFirst/LocalFirstActualStore+Mutations.swift
 Actualist/LocalFirst/LocalFirstActualStore+Reads.swift
 Actualist/LocalFirst/LocalFirstActualStore+Reconciliation.swift

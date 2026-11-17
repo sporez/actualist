@@ -275,7 +275,7 @@ enum BudgetMonthOracleReplay {
             )
             return drafts
         case let .hold(month, amount):
-            // LocalFirstActualStore+Holds.applyBudgetHoldAndRefresh
+            // HoldWorkflows.applyBudgetHoldAndRefresh
             return try await commitHold(.hold(amount: amount), month: month, database)
         case let .reset(month):
             return try await commitHold(.reset, month: month, database)

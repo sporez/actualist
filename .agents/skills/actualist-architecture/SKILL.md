@@ -172,7 +172,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - `+Reads` and `+CommitTail` (`reloadSelectedBudgetCache`), with `BudgetLaunchWorkflows` for the launch snapshot — cached budget-month reads and launch snapshots.
 - `+TransactionFeeds` / `+TransactionFeedCache` — cached account and Spending feeds. Do not duplicate this cache.
 - `BudgetLaunchWorkflows` — store-side cache warming after open.
-- `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle`, `+Holds`, `+CommitTail` — local CRDT write flows and the shared post-commit tail.
+- `+Mutations`, `+TransactionMutations`, `+AssignMove`, `+CategoryLifecycle`, `+CommitTail` — local CRDT write flows and the shared post-commit tail.
 - `TransactionCommandWorkflows` (`LocalFirst/TransactionCommandWorkflows.swift`, the store's `transactionCommands`: batch, duplicate and merge review and commit), `TransactionCSVWorkflows` (the store's `transactionCSV`: CSV export, prepare and apply), `PendingTransactionWorkflows` (the store's `pendingTransactions`: new-transaction alert rows, conforming to `BackgroundPendingTransactionPersisting`) — transaction-list actions, saved filters, and CSV.
 - `+Schedules`, `+ScheduleMutations`, `+ScheduleConversion`, `+SchedulePosting`, `+ScheduleAdvancement` — schedule reads, edits, conversion from a transaction, manual and automatic posting.
 - `+WalletImport`, `ImportReconcileSteps` (`LocalFirst/ImportReconcileSteps.swift`, the shared reconcile and write steps) — imported transaction flows (Bank Sync is `BankSyncWorkflows` and `BankSyncPlanWorkflows`).

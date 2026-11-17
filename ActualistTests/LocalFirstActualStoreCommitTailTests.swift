@@ -159,10 +159,10 @@ struct LocalFirstActualStoreCommitTailTests {
                 VALUES ('salary-jul', 'checking', 20260701, 200000, 'salary', 0, NULL, 0,
                         NULL, NULL, 0, NULL, 0);
             """)
-        let review = try await store.budgetHoldReview(budgetID: "group-1", month: "2026-07")
+        let review = try await store.holds.budgetHoldReview(budgetID: "group-1", month: "2026-07")
         let queuedBefore = fixture.queuedCount
         let caller = Task { @MainActor in
-            try await store.applyBudgetHoldAndRefresh(
+            try await store.holds.applyBudgetHoldAndRefresh(
                 command: .hold(amount: 25_000), review: review, budgetID: "group-1"
             )
         }

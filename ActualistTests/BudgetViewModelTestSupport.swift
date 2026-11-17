@@ -145,7 +145,7 @@ enum BudgetViewModelFixtures {
     }
 }
 
-actor RecordingBudgetRepository: BudgetRepositoryProtocol {
+actor RecordingBudgetRepository: BudgetRepositoryProtocol, BudgetHoldRepositoryProtocol {
     private let loadedMonth: LoadedBudgetMonth
     private let assignError: Error?
     private let carryoverError: Error?

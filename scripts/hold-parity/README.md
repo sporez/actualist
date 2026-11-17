@@ -93,7 +93,7 @@ own handler output. Its timestamps are fixed inputs, not Actual output.
 
 `ActualistTests/HoldOracleReplayTests.swift` (suite `HoldOracleReplayTests`,
 case `replaysHoldCase`) replays each case through the production path that
-`LocalFirstActualStore.applyBudgetHoldAndRefresh` runs:
+`HoldWorkflows.applyBudgetHoldAndRefresh` runs:
 `BudgetDatabase.budgetHoldReview(month:)`, then
 `budgetHoldMessages(command:review:builder:)`, then
 `commitLocalSyncMessagesAndEnqueue`. The support file
