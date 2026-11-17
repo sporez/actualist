@@ -264,7 +264,7 @@ extension LocalFirstActualStore {
         didSetCarryover: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
-        let mode = try await database.requireBudgetMode(expectedMode)
+        let mode = try await BudgetModeSQL.requireBudgetMode(expectedMode, in: database)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await BudgetAssignmentSQL.categoryCarryoverMessages(
             categoryID: categoryID,
@@ -296,7 +296,7 @@ extension LocalFirstActualStore {
         startMonth: String
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
-        let mode = try await database.requireBudgetMode(expectedMode)
+        let mode = try await BudgetModeSQL.requireBudgetMode(expectedMode, in: database)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await BudgetAssignmentSQL.allExpenseCategoryCarryoverMessages(
             carryover: carryover,
@@ -405,7 +405,7 @@ extension LocalFirstActualStore {
         didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         let database = try requireDatabase(for: budgetID)
-        let mode = try await database.requireBudgetMode(expectedMode)
+        let mode = try await BudgetModeSQL.requireBudgetMode(expectedMode, in: database)
         #if DEBUG
         await testSeams?.userActionBeforeCommitHook?()
         #endif

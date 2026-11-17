@@ -73,7 +73,7 @@ actor BudgetDatabase {
         try PendingNewTransactionSQL.preparePendingNewTransactionSchema(in: queue)
         try Self.prepareAccountGroupCompatibility(in: queue)
         try Self.prepareCompatibilityMigrationIDs(in: queue)
-        try Self.prepareBudgetIdentity(in: queue)
+        try BudgetModeSQL.prepareBudgetIdentity(in: queue)
         try Self.prepareMessagesTimestampIndex(in: queue)
         if let localNodeID {
             let latestTimestamp = try queue.read { db in

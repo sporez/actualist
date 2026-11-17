@@ -32,7 +32,7 @@ struct BudgetCoverLimitTests {
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "cover-limit")
         let toBudget = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database).toBudget
         #expect(toBudget > 0)
-        let mode = try await database.requireBudgetMode(nil)
+        let mode = try await BudgetModeSQL.requireBudgetMode(nil, in: database)
 
         let cover = BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "groceries", amount: toBudget + 5_000, kind: .cover)
         let move = BudgetMoveMoneyCommand(fromCategoryID: nil, toCategoryID: "groceries", amount: toBudget + 5_000)
@@ -70,7 +70,7 @@ struct BudgetCoverLimitTests {
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "transfer-available")
         let toBudget = try await BudgetMonthSQL.fetchBudgetMonth(month: "2026-07", in: database).toBudget
         #expect(toBudget > 0)
-        let mode = try await database.requireBudgetMode(nil)
+        let mode = try await BudgetModeSQL.requireBudgetMode(nil, in: database)
 
         let transfer = BudgetMoveMoneyCommand.move(fromCategoryID: nil, toCategoryID: "groceries", amount: toBudget + 5_000)
         let plan = try await database.commitUserActionPlan(source: .ui, expectedMode: mode) { budget, db in

@@ -34,7 +34,7 @@ enum BudgetHoldSQL {
         guard BudgetActionEligibility.allows(.holdForNextMonth, in: table) else {
             throw BudgetModeWriteError.unsupportedAction
         }
-        let modeIdentity = try database.budgetModeIdentity(db: db)
+        let modeIdentity = try BudgetModeSQL.budgetModeIdentity(in: database, db: db)
         let manualHeldAmount = try manualEnvelopeHold(month: month, in: database, db: db)
         let automaticHeldAmount = try inferredIncomeCarryoverHold(month: month, in: database, db: db)
         let heldAmount = manualHeldAmount == 0 ? automaticHeldAmount : manualHeldAmount
@@ -116,7 +116,7 @@ enum BudgetHoldSQL {
         in database: isolated BudgetDatabase,
         db: Database
     ) throws -> BudgetHoldReviewRevision {
-        let watermark = try database.crdtMessageWatermark(db: db)
+        let watermark = try ReviewWatermarkSQL.crdtMessageWatermark(in: database, db: db)
         return BudgetHoldReviewRevision(
             month: month,
             modeIdentity: modeIdentity,

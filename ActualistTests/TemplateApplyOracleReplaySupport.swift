@@ -90,7 +90,7 @@ enum TemplateApplyOracleReplay {
         let database = try await OracleReplayDatabase.starter(at: url, localNodeID: "node1")
         try await seed(database, rows: rows, clearing: cleared)
 
-        let mode = try await database.requireBudgetMode(nil)
+        let mode = try await BudgetModeSQL.requireBudgetMode(nil, in: database)
         var messageCount = 0
         var refusal: String?
         do {

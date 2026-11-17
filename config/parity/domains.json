@@ -140,7 +140,7 @@
         "Actualist/LocalFirst/Database/BudgetFinancialCalculation.swift",
         "Actualist/LocalFirst/Database/BudgetMonthSQL.swift",
         "Actualist/LocalFirst/Database/BudgetCategoryValueSQL.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+ModeIdentity.swift",
+        "Actualist/LocalFirst/Database/BudgetModeSQL.swift",
         "Actualist/Models/TrackingBudgetSummary.swift"
       ]
     },

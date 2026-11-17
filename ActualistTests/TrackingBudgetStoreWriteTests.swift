@@ -7,7 +7,7 @@ extension LocalFirstActualStoreTests {
     @Test func staleModeIdentityIsForwardedThroughEveryBudgetStoreWrite() async throws {
         let store = try await makeOpenedWritableStore()
         let database = try #require(store.database)
-        let current = try await database.fetchBudgetModeIdentity()
+        let current = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
         let stale = BudgetModeIdentity(
             storageID: current.storageID,
             table: current.table,

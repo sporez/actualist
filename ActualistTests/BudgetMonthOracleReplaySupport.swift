@@ -219,7 +219,7 @@ enum BudgetMonthOracleReplay {
         _ database: BudgetDatabase,
         createdThrough: String
     ) async throws -> [ActualSyncDecodedMessage] {
-        let mode = try await database.requireBudgetMode(nil)
+        let mode = try await BudgetModeSQL.requireBudgetMode(nil, in: database)
         switch kind {
         case let .assign(month, categoryID, budgeted):
             // LocalFirstActualStore+AssignMove.assignAndRefresh

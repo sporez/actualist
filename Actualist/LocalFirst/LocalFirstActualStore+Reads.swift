@@ -60,7 +60,7 @@ extension LocalFirstActualStore {
                 isTrackingBudget: isTracking
             )
             let currentIdentity = try await LaunchSignpost.measure(LaunchStage.budgetIdentityValidation) {
-                try await database.fetchBudgetModeIdentity()
+                try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
             }
             try Task.checkCancellation()
             guard self.database === database, openedBudgetID == budgetID else { throw CancellationError() }

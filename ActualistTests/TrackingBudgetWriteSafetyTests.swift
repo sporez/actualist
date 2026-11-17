@@ -12,20 +12,20 @@ struct TrackingBudgetWriteSafetyTests {
     func conversionRoundTripChangesIdentity() async throws {
         let url = try fixture.makeTrackingContractFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "write-safety")
-        let tracking = try await database.fetchBudgetModeIdentity()
+        let tracking = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
 
         _ = try await database.applyRemoteSyncMessages([
             conversionMessage(timestamp: "2026-09-01T00:00:00.000Z-0000-0000000000000001", value: "S:envelope")
         ])
 
         let envelope = try BudgetDatabase(databaseURL: url, localNodeID: "write-safety")
-        #expect(try await envelope.fetchBudgetModeIdentity().table == .envelope)
+        #expect(try await BudgetModeSQL.fetchBudgetModeIdentity(in: envelope).table == .envelope)
         _ = try await envelope.applyRemoteSyncMessages([
             conversionMessage(timestamp: "2026-09-02T00:00:00.000Z-0000-0000000000000001", value: "S:tracking")
         ])
 
         let reopened = try BudgetDatabase(databaseURL: url, localNodeID: "write-safety")
-        let roundTripped = try await reopened.fetchBudgetModeIdentity()
+        let roundTripped = try await BudgetModeSQL.fetchBudgetModeIdentity(in: reopened)
         #expect(roundTripped.table == .tracking)
         #expect(roundTripped.storageID == tracking.storageID)
         #expect(roundTripped != tracking)
@@ -35,7 +35,7 @@ struct TrackingBudgetWriteSafetyTests {
     func staleAssignmentDoesNotWriteOrLog() async throws {
         let url = try fixture.makeTrackingContractFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "write-safety")
-        let before = try await database.fetchBudgetModeIdentity()
+        let before = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
         let assignment = assignmentMessage(amount: -900)
 
         _ = try await database.applyRemoteSyncMessages([
@@ -62,7 +62,7 @@ struct TrackingBudgetWriteSafetyTests {
     func staleEmptyCommitIsRejected() async throws {
         let url = try fixture.makeTrackingContractFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "write-safety")
-        let before = try await database.fetchBudgetModeIdentity()
+        let before = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
         _ = try await database.applyRemoteSyncMessages([
             conversionMessage(timestamp: "2026-09-03T00:00:00.000Z-0000-0000000000000001", value: "S:envelope")
         ])
@@ -76,7 +76,7 @@ struct TrackingBudgetWriteSafetyTests {
     func pendingWriteRetainsOriginalDataset() async throws {
         let url = try fixture.makeTrackingContractFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "write-safety")
-        let identity = try await database.fetchBudgetModeIdentity()
+        let identity = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
         let assignment = assignmentMessage(amount: 800)
 
         _ = try await database.commitLocalSyncMessagesAndEnqueue(
@@ -100,7 +100,7 @@ struct TrackingBudgetWriteSafetyTests {
     func unsupportedTrackingActions() async throws {
         let url = try fixture.makeTrackingContractFixture()
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "write-safety")
-        let identity = try await database.fetchBudgetModeIdentity()
+        let identity = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
         let move = ActualSyncDecodedMessage(
             timestamp: "2026-09-05T00:00:00.000Z-0000-0000000000000001",
             dataset: "reflect_budgets", row: "202607-groceries", column: "amount", serializedValue: "N:900"
@@ -158,7 +158,7 @@ struct TrackingBudgetWriteSafetyTests {
         let url = try fixture.makeTrackingContractFixture()
         try await setIncomeCategory(at: url)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "write-safety")
-        let identity = try await database.fetchBudgetModeIdentity()
+        let identity = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
         let assignment = assignmentMessage(amount: -900)
 
         #expect(try await database.commitUserAction(

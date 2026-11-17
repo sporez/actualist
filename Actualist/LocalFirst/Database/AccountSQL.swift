@@ -59,8 +59,9 @@ enum AccountSQL {
     static func fetchAccountDisplays(in database: isolated BudgetDatabase) throws -> [AccountDisplay] {
         let accounts = try fetchAccounts(in: database)
         let balances = try accountBalances(in: database)
-        let userNoteIDs = try database.fetchUserNoteIDs(
-            for: Set(accounts.map { "account-\($0.id)" })
+        let userNoteIDs = try EntityNoteSQL.fetchUserNoteIDs(
+            for: Set(accounts.map { "account-\($0.id)" }),
+            in: database
         )
         return accounts.map { account in
             AccountDisplay(

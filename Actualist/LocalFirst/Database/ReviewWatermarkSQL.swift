@@ -8,9 +8,9 @@ struct CRDTMessageWatermark: Equatable, Sendable {
     let maxMessageTimestamp: String?
 }
 
-extension BudgetDatabase {
-    func crdtMessageWatermark(db: Database) throws -> CRDTMessageWatermark {
-        guard try tableExists("messages_crdt", db: db) else {
+enum ReviewWatermarkSQL {
+    static func crdtMessageWatermark(in database: isolated BudgetDatabase, db: Database) throws -> CRDTMessageWatermark {
+        guard try database.tableExists("messages_crdt", db: db) else {
             return CRDTMessageWatermark(messageCount: 0, maxMessageTimestamp: nil)
         }
         let row = try Row.fetchOne(

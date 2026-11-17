@@ -42,7 +42,7 @@ final class BankSyncPlanWorkflows {
             return account
         }
 
-        let storageID = try await database.fetchBudgetModeIdentity().storageID
+        let storageID = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database).storageID
         let links = linked.map { BankSyncLinkIdentity(storageID: storageID, accountID: $0.id,
             remoteAccountID: $0.remoteAccountID, syncSource: $0.syncSource) }
         guard store.database === database else {

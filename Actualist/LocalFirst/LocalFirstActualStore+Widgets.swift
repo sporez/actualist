@@ -36,7 +36,7 @@ extension LocalFirstActualStore {
         } else {
             attention = nil
         }
-        let currentIdentity = try await database.fetchBudgetModeIdentity()
+        let currentIdentity = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
         guard self.database === database, openedBudgetID == budgetID,
               budgetReadGeneration == generation, financial.modeIdentity == currentIdentity else { throw CancellationError() }
         return WidgetBudgetSource(

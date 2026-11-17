@@ -20,7 +20,7 @@ enum BudgetMonthSQL {
                 try BudgetCurrencySQL.budgetCurrency(in: database, db: db)
             }
             return BudgetFinancialSnapshot(
-                modeIdentity: try database.budgetModeIdentity(db: db),
+                modeIdentity: try BudgetModeSQL.budgetModeIdentity(in: database, db: db),
                 month: value,
                 currency: currency,
                 availableMonths: months
@@ -31,7 +31,7 @@ enum BudgetMonthSQL {
     static func fetchBudgetMonth(month: String, in database: isolated BudgetDatabase, db: Database) throws -> BudgetMonth {
         let table = try database.budgetTable(db: db)
         let (categoryValues, previousValues) = try BudgetCategoryValueSQL.categoryValuesWithPrevious(through: month, in: database, db: db)
-        let userNoteIDs = try database.userNoteIDs(inMonth: month, db: db)
+        let userNoteIDs = try EntityNoteSQL.userNoteIDs(inMonth: month, in: database, db: db)
         let groups = try fetchCategoryGroups(
             categoryValues: categoryValues,
             userNoteIDs: userNoteIDs,

@@ -157,8 +157,8 @@ extension BudgetDatabase {
         try BankSyncLinkSQL.validateBankSyncLink(review.bankLink, in: self, db: db)
         try TemplatePreviewSQL.validateBudgetTemplateReviewRevision(review.templateRevision, in: self, db: db)
         try BudgetHoldSQL.validateBudgetHoldReview(review.hold, in: self, db: db)
-        try validateBudgetWrite(
-            drafts, expectedMode: review.mode, descriptor: action?.descriptor, db: db
+        try BudgetModeSQL.validateBudgetWrite(
+            drafts, expectedMode: review.mode, descriptor: action?.descriptor, in: self, db: db
         )
         try ReconciledMutationReviewSQL.validateReconciledMutationPrecondition(review.reconciledMutation, in: self, db: db)
         try ImportedIDPreconditionSQL.validateImportedIDsAbsent(review.absentImportedIDs, in: self, db: db)

@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
+enum BudgetModeSQL {
     /// This local-only UUID identifies an imported database, not its budget mode.
     /// Reopening preserves it; replacing the imported file creates a new identity.
     static func prepareBudgetIdentity(in queue: DatabaseQueue) throws {
@@ -16,23 +16,23 @@ extension BudgetDatabase {
         }
     }
 
-    func fetchBudgetModeIdentity() throws -> BudgetModeIdentity {
-        try queue.read { db in try budgetModeIdentity(db: db) }
+    static func fetchBudgetModeIdentity(in database: isolated BudgetDatabase) throws -> BudgetModeIdentity {
+        try database.queue.read { db in try budgetModeIdentity(in: database, db: db) }
     }
 
-    func requireBudgetMode(_ expected: BudgetModeIdentity?) throws -> BudgetModeIdentity {
-        let current = try fetchBudgetModeIdentity()
+    static func requireBudgetMode(_ expected: BudgetModeIdentity?, in database: isolated BudgetDatabase) throws -> BudgetModeIdentity {
+        let current = try fetchBudgetModeIdentity(in: database)
         if let expected, expected != current { throw BudgetModeWriteError.budgetChanged }
         return current
     }
 
-    func budgetModeIdentity(db: Database) throws -> BudgetModeIdentity {
+    static func budgetModeIdentity(in database: isolated BudgetDatabase, db: Database) throws -> BudgetModeIdentity {
         guard let storageID = try String.fetchOne(db,
             sql: "SELECT storage_id FROM actualist_budget_identity WHERE id = 1") else {
             throw LocalFirstError.invalidDownloadedBudget
         }
         let revision: String?
-        if try tableExists("messages_crdt", db: db) {
+        if try database.tableExists("messages_crdt", db: db) {
             revision = try String.fetchOne(db, sql: """
                 SELECT MAX(timestamp) FROM messages_crdt
                 WHERE dataset = 'preferences' AND row = 'budgetType' AND column = 'value'
@@ -40,18 +40,19 @@ extension BudgetDatabase {
         } else {
             revision = nil
         }
-        return BudgetModeIdentity(storageID: storageID, table: try budgetTable(db: db), revision: revision)
+        return BudgetModeIdentity(storageID: storageID, table: try database.budgetTable(db: db), revision: revision)
     }
 
-    func validateBudgetWrite(
+    static func validateBudgetWrite(
         _ drafts: [ActualSyncDecodedMessage],
         expectedMode: BudgetModeIdentity?,
         descriptor: BudgetActionDescriptor?,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
         let budgetDrafts = drafts.filter { BudgetTable(rawValue: $0.dataset) != nil }
         guard expectedMode != nil || !budgetDrafts.isEmpty else { return }
-        let current = try budgetModeIdentity(db: db)
+        let current = try budgetModeIdentity(in: database, db: db)
         if let expectedMode, expectedMode != current { throw BudgetModeWriteError.budgetChanged }
         guard budgetDrafts.allSatisfy({ $0.dataset == current.table.rawValue }) else {
             throw BudgetModeWriteError.budgetChanged
@@ -70,7 +71,7 @@ extension BudgetDatabase {
             }
         }
         guard current.table == .tracking else { return }
-        let incomeByID = try TemplateCategorySQL.templateCategoryIsIncomeByID(in: self, db: db)
+        let incomeByID = try TemplateCategorySQL.templateCategoryIsIncomeByID(in: database, db: db)
         for draft in budgetDrafts where draft.column == "carryover" {
             // Row creation writes carryover=false, including new income assignments.
             let value = try ActualSyncSQLiteValue(serialized: draft.serializedValue)

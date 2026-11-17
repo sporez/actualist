@@ -601,8 +601,8 @@ enum TemplatePreviewSQL {
     }
 
     private static func budgetTemplateReviewRevision(month: String, in database: isolated BudgetDatabase, db: Database) throws -> BudgetTemplateReviewRevision {
-        let modeIdentity = try database.budgetModeIdentity(db: db)
-        let watermark = try database.crdtMessageWatermark(db: db)
+        let modeIdentity = try BudgetModeSQL.budgetModeIdentity(in: database, db: db)
+        let watermark = try ReviewWatermarkSQL.crdtMessageWatermark(in: database, db: db)
         return BudgetTemplateReviewRevision(
             month: month,
             modeIdentity: modeIdentity,

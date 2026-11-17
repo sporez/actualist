@@ -51,7 +51,7 @@ extension LocalFirstActualStore {
             stored = nil
         }
 
-        let modeIdentity = try? await database.fetchBudgetModeIdentity()
+        let modeIdentity = try? await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
         #if DEBUG
         await testSeams?.readPublicationHook?(.launchSeed)
         #endif

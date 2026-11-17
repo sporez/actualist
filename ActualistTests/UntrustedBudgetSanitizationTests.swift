@@ -157,7 +157,7 @@ struct UntrustedBudgetSanitizationTests {
 
         try expectSanitized(imported)
         let opened = try BudgetDatabase(databaseURL: imported)
-        let storageID = try await opened.fetchBudgetModeIdentity().storageID
+        let storageID = try await BudgetModeSQL.fetchBudgetModeIdentity(in: opened).storageID
         #expect(storageID != Self.knownStorageID)
         #expect(try await opened.pendingLocalSyncMessageCount() == 0)
     }

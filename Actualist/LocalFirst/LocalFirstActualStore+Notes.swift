@@ -5,7 +5,10 @@ extension LocalFirstActualStore {
         target: ActualNoteTarget,
         budgetID: String
     ) async throws -> ActualNoteBody {
-        try await requireDatabase(for: budgetID).fetchEntityNote(target: target)
+        try await EntityNoteSQL.fetchEntityNote(
+            target: target,
+            in: requireDatabase(for: budgetID)
+        )
     }
 
     func setEntityNoteAndRefresh(
@@ -15,10 +18,11 @@ extension LocalFirstActualStore {
     ) async throws {
         let database = try requireDatabase(for: budgetID)
         var builder = LocalFirstSyncMessageBuilder()
-        let messages = try await database.setEntityNoteMessages(
+        let messages = try await EntityNoteSQL.setEntityNoteMessages(
             target: target,
             userBody: userBody,
-            builder: &builder
+            builder: &builder,
+            in: database
         )
         guard !messages.isEmpty else {
             return

@@ -152,7 +152,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 - Reports: `Actualist/Features/Reports/` (`ReportsView`, the `ReportExplorer*` explorer, and transaction drilldown), `ReportsRepository.swift`, `ReportWorkflows` (`LocalFirst/ReportWorkflows.swift`, the store's `reports`, which implements that protocol; the dashboard cache `reportsByKey` stays on the store), and in `LocalFirst/Database/` the stateless `ReportInputSQL` (the rows both reports read: activity days, budgeted expenses, transfer legs and the filter catalog), `ReportDashboardSQL` (the dashboard cards and the widget's net worth) and `ReportExplorerSQL` (explorer snapshots and the transaction request its filters build), with `ReportArithmetic.swift` and `ReportTransferAlignment.swift`.
 - History/undo: `Actualist/Features/History/`, `LocalFirstActualStore+ActionLog.swift`, `LocalFirst/ActionLog/` (the pure undo engine and action models), and in `LocalFirst/Database/` the stateless `ActionLogSQL` (recording, and budget undo evaluation, preview and messages), `ActionLogStorageSQL` (the local `actualist_action_log` table), `TransactionActionLogSQL` and `TransactionCommandActionLogSQL`. The undo commit (`commitActionUndo`), the second session write fence, stays on the actor in `+LocalCommit`; `commitUserAction` is in `+UserActionPlan`.
-- Entity notes: `Actualist/Features/Notes/`, `EntityNotesRepository.swift`, `LocalFirstActualStore+Notes.swift`, and `BudgetDatabase+Notes.swift`.
+- Entity notes: `Actualist/Features/Notes/`, `EntityNotesRepository.swift`, `LocalFirstActualStore+Notes.swift`, and `Database/EntityNoteSQL.swift`.
 - App Intents/Shortcuts: `Actualist/Features/Shortcuts/Intents/` for OS-facing intents, `Commands/` for parsed command values, `Entities/` for AppEntity models, and `ShortcutsBudgetSession*` for local budget access.
 
 ### Widgets
@@ -200,7 +200,7 @@ File naming is the ownership index:
 - `CategorySQL` (category reads, create, rename, reorder and hide) and `CategoryDeletionSQL` (delete with the budget and mapping transfer) — category structure and hidden-category persistence; `EntityName` holds the name check those writes share.
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
-- `+Preferences`, `BudgetCurrencySQL`, `+ModeIdentity` (envelope vs tracking budget) — payees and budget-level settings.
+- `+Preferences`, `BudgetCurrencySQL`, `BudgetModeSQL` (envelope vs tracking budget) — payees and budget-level settings.
 - `Account*SQL`, `TransferSQL` (transfer payee and account lookups every transaction write uses), `+AccountGroupCompatibility`, `BankSync*SQL`, `Reconcil*SQL`, `+Notes` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
@@ -209,7 +209,7 @@ File naming is the ownership index:
 - `PortableDatabaseSQL` (snapshot, validation, CRDT reset applied to an imported file) and `NewBudgetSeedSQL` (starter database) — portable ZIP content and New Budget seed.
 - `TransactionBatchSQL` (batch review, commit and clear), `TransactionBatchDeleteSQL`, `TransactionBatchSnapshotSQL` (the row snapshots batch, duplicate, merge and undo share), `TransactionDuplicateSQL`, `TransactionMergeSQL`, `SavedFilterSQL` (saved filters), `TransactionCSVExportSQL` — list actions, structured queries and CSV export.
 - `TransactionImportSQL.swift` — file-import checks inside the commit (stateless; takes `isolated BudgetDatabase` and the GRDB handle), plus the thin `commitTransactionCSVImport` entry point.
-- `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `ImportedIDPreconditionSQL` (with the top-level `ImportedIDAbsence` and `MatchedRowsUnchanged` the commit takes), `TransactionCreationSQL.TransactionIDAbsence`, `PayeeSQL.settlePayeeCreation`, `+ReviewWatermark` — review preconditions checked inside the commit transaction.
+- `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `ImportedIDPreconditionSQL` (with the top-level `ImportedIDAbsence` and `MatchedRowsUnchanged` the commit takes), `TransactionCreationSQL.TransactionIDAbsence`, `PayeeSQL.settlePayeeCreation`, `ReviewWatermarkSQL` — review preconditions checked inside the commit transaction.
 - `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.
 
 Keep SQL and storage-version tolerance here. Keep feature screen state out.

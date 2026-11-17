@@ -17,7 +17,7 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedBudgetMonth? {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let mode = try await database.requireBudgetMode(expectedMode)
+        let mode = try await BudgetModeSQL.requireBudgetMode(expectedMode, in: database)
         var builder = LocalFirstSyncMessageBuilder()
         let messages = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
             categoryID: categoryID,
@@ -51,7 +51,7 @@ extension LocalFirstActualStore {
     ) async throws -> LoadedBudgetMonth? {
         let database = try requireDatabase(for: budgetID)
         let generation = budgetSessionGeneration
-        let mode = try await database.requireBudgetMode(expectedMode)
+        let mode = try await BudgetModeSQL.requireBudgetMode(expectedMode, in: database)
         #if DEBUG
         await testSeams?.userActionBeforeCommitHook?()
         #endif

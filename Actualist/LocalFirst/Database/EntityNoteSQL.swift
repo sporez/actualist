@@ -1,13 +1,13 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func fetchEntityNote(target: ActualNoteTarget) throws -> ActualNoteBody {
-        try queue.read { db in
-            guard try tableExists("notes", db: db) else {
+enum EntityNoteSQL {
+    static func fetchEntityNote(target: ActualNoteTarget, in database: isolated BudgetDatabase) throws -> ActualNoteBody {
+        try database.queue.read { db in
+            guard try database.tableExists("notes", db: db) else {
                 return ActualNoteBody(storedNote: nil)
             }
-            let columns = try columnSet(for: "notes", db: db)
+            let columns = try database.columnSet(for: "notes", db: db)
             guard columns.isSuperset(of: ["id", "note"]) else {
                 return ActualNoteBody(storedNote: nil)
             }
@@ -20,13 +20,13 @@ extension BudgetDatabase {
         }
     }
 
-    func fetchUserNoteIDs(for noteIDs: Set<String>) throws -> Set<String> {
-        try queue.read { db in
-            try userNoteIDs(for: noteIDs, db: db)
+    static func fetchUserNoteIDs(for noteIDs: Set<String>, in database: isolated BudgetDatabase) throws -> Set<String> {
+        try database.queue.read { db in
+            try userNoteIDs(for: noteIDs, in: database, db: db)
         }
     }
 
-    func userNoteIDs(for noteIDs: Set<String>, db: Database) throws -> Set<String> {
+    private static func userNoteIDs(for noteIDs: Set<String>, in database: isolated BudgetDatabase, db: Database) throws -> Set<String> {
         guard !noteIDs.isEmpty else {
             return []
         }
@@ -35,6 +35,7 @@ extension BudgetDatabase {
         return try userNoteIDs(
             sql: "SELECT id, note FROM notes WHERE id IN (\(placeholders))",
             arguments: StatementArguments(sortedIDs),
+            in: database,
             db: db
         )
     }
@@ -44,28 +45,30 @@ extension BudgetDatabase {
     /// months' notes are never read. The scope is a superset of the live rows
     /// (tombstoned categories included), so every lookup resolves as it would
     /// against the whole table.
-    func userNoteIDs(inMonth month: String, db: Database) throws -> Set<String> {
+    static func userNoteIDs(inMonth month: String, in database: isolated BudgetDatabase, db: Database) throws -> Set<String> {
         var scopes = ["id = ?"]
-        for table in ["categories", "category_groups"] where try tableExists(table, db: db) {
-            guard try columnSet(for: table, db: db).contains("id") else { continue }
+        for table in ["categories", "category_groups"] where try database.tableExists(table, db: db) {
+            guard try database.columnSet(for: table, db: db).contains("id") else { continue }
             scopes.append("id IN (SELECT id FROM \(table))")
         }
         return try userNoteIDs(
             sql: "SELECT id, note FROM notes WHERE \(scopes.joined(separator: " OR "))",
             arguments: ["budget-\(month)"],
+            in: database,
             db: db
         )
     }
 
-    private func userNoteIDs(
+    private static func userNoteIDs(
         sql: String,
         arguments: StatementArguments,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> Set<String> {
-        guard try tableExists("notes", db: db) else {
+        guard try database.tableExists("notes", db: db) else {
             return []
         }
-        let columns = try columnSet(for: "notes", db: db)
+        let columns = try database.columnSet(for: "notes", db: db)
         guard columns.isSuperset(of: ["id", "note"]) else {
             return []
         }
@@ -76,14 +79,15 @@ extension BudgetDatabase {
         })
     }
 
-    func setEntityNoteMessages(
+    static func setEntityNoteMessages(
         target: ActualNoteTarget,
         userBody: String,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase
     ) throws -> [ActualSyncDecodedMessage] {
-        try queue.read { db in
-            _ = try requiredColumns(table: "notes", required: ["id", "note"], db: db)
-            try validateEntityNoteTarget(target, db: db)
+        try database.queue.read { db in
+            _ = try database.requiredColumns(table: "notes", required: ["id", "note"], db: db)
+            try validateEntityNoteTarget(target, in: database, db: db)
 
             let existing = try Row.fetchOne(
                 db,
@@ -107,8 +111,9 @@ extension BudgetDatabase {
         }
     }
 
-    private func validateEntityNoteTarget(
+    private static func validateEntityNoteTarget(
         _ target: ActualNoteTarget,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws {
         let table: String
@@ -123,13 +128,13 @@ extension BudgetDatabase {
             return
         }
 
-        guard try tableExists(table, db: db) else {
+        guard try database.tableExists(table, db: db) else {
             throw LocalFirstError.invalidLocalWrite("missing note target")
         }
-        let columns = try columnSet(for: table, db: db)
+        let columns = try database.columnSet(for: table, db: db)
         guard try Row.fetchOne(
             db,
-            sql: "SELECT id FROM \(quotedIdentifier(table)) WHERE id = ? AND \(predicateForLiveRows(columns: columns)) LIMIT 1",
+            sql: "SELECT id FROM \(database.quotedIdentifier(table)) WHERE id = ? AND \(database.predicateForLiveRows(columns: columns)) LIMIT 1",
             arguments: [target.entityID]
         ) != nil else {
             throw LocalFirstError.invalidLocalWrite("missing note target")

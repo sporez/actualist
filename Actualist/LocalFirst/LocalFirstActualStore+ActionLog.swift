@@ -3,7 +3,7 @@ import Foundation
 extension LocalFirstActualStore {
     func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? {
         let database = try requireDatabase(for: budgetID)
-        return try await database.fetchBudgetModeIdentity()
+        return try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
     }
 
     /// Newest-first local money-flow gestures for the open budget. The rows

@@ -97,7 +97,7 @@ enum ActionLogSQL {
             var actionLogFacts = actionLogFacts
             // Capture the authoritative identity inside the same transaction
             // as the forward write and History row. Legacy rows remain nil.
-            actionLogFacts.modeIdentity = try database.budgetModeIdentity(db: db)
+            actionLogFacts.modeIdentity = try BudgetModeSQL.budgetModeIdentity(in: database, db: db)
             try ActionLogStorageSQL.ensureActionLog(in: database, db: db)
             try ActionLogStorageSQL.insertActionLogRecord(
                 actionLogFacts.record(
@@ -331,7 +331,7 @@ enum ActionLogSQL {
         return BudgetActionUndo.evaluate(
             record: record,
             liveBudgeted: liveBudgeted,
-            currentModeIdentity: try database.budgetModeIdentity(db: db),
+            currentModeIdentity: try BudgetModeSQL.budgetModeIdentity(in: database, db: db),
             liveTransactions: liveTransactions,
             liveTransactionBatchSnapshots: liveBatchSnapshots,
             liveRuleActions: liveRules,
