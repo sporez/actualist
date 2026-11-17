@@ -296,7 +296,7 @@ extension LocalFirstActualStoreTests {
                 ('orphan', 'checking', 20260807, -1000, 'groceries', 'coffee', 'orphan', 0, 0, 'missing', 0, 1, NULL, -1, 0);
                 """
         )
-        let result = try await store.repairSplitTransactionsAndRefresh(budgetID: "group-1")
+        let result = try await store.transactionCommands.repairSplitTransactionsAndRefresh(budgetID: "group-1")
         #expect(result.blankPayeeCount == 1)
         #expect(result.clearedCount == 1)
         #expect(result.deletedCount == 1)

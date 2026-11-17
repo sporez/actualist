@@ -1,8 +1,9 @@
 import Foundation
 
 /// Review-and-commit actions on a transaction selection: batch edits,
-/// duplicate and merge, each with its session checks and durable tail. The
-/// store owns it; the feed caches stay on the store, which publishes them.
+/// duplicate and merge, each with its session checks and durable tail, plus
+/// the whole-budget split repair. The store owns it; the feed caches stay on
+/// the store, which publishes them.
 @MainActor
 final class TransactionCommandWorkflows {
     // The store creates this lazily and keeps it for its whole life, so the
@@ -210,6 +211,23 @@ final class TransactionCommandWorkflows {
             budgetID: context.budgetID,
             generation: context.sessionGeneration
         )
+    }
+
+    // MARK: - Split repair
+
+    func repairSplitTransactionsAndRefresh(budgetID: String) async throws -> SplitTransactionRepairResult {
+        let database = try store.requireDatabase(for: budgetID)
+        var builder = LocalFirstSyncMessageBuilder()
+        let repair = try await SplitRepairSQL.repairSplitTransactionsMessages(builder: &builder, in: database)
+        if !repair.write.messages.isEmpty {
+            _ = try await database.commitLocalSyncMessagesAndEnqueue(repair.write.messages)
+        }
+        try await store.finishCommittedTransactionWrite(
+            database: database,
+            budgetID: budgetID,
+            accountIDs: repair.write.affectedAccountIDs
+        )
+        return repair.result
     }
 }
 

@@ -243,19 +243,4 @@ extension LocalFirstActualStore {
         let database = try requireDatabase(for: budgetID)
         return try await RulePreviewSQL.previewRules(for: draft, in: database)
     }
-
-    func repairSplitTransactionsAndRefresh(budgetID: String) async throws -> SplitTransactionRepairResult {
-        let database = try requireDatabase(for: budgetID)
-        var builder = LocalFirstSyncMessageBuilder()
-        let repair = try await SplitRepairSQL.repairSplitTransactionsMessages(builder: &builder, in: database)
-        if !repair.write.messages.isEmpty {
-            _ = try await database.commitLocalSyncMessagesAndEnqueue(repair.write.messages)
-        }
-        try await finishCommittedTransactionWrite(
-            database: database,
-            budgetID: budgetID,
-            accountIDs: repair.write.affectedAccountIDs
-        )
-        return repair.result
-    }
 }
