@@ -10,6 +10,15 @@ struct UserActionPlan<Outcome: Sendable>: Sendable {
     var outcome: Outcome
 }
 
+/// The action-log half of one atomic commit: what to record, from where,
+/// under which id. Facts and the row insert run inside the write transaction.
+struct ActionLogCommit: Sendable {
+    var descriptor: BudgetActionDescriptor
+    var source: BudgetActionSource
+    var actionID: String
+    var learningTransactionIDs: Set<String> = []
+}
+
 extension BudgetDatabase {
     /// Builds the plan inside the write transaction instead of from an earlier
     /// read. A remote message applied between a pre-read and the commit (a sync
@@ -46,5 +55,36 @@ extension BudgetDatabase {
             try validateLocalCommit(review, drafts: plan.drafts, action: action, db: db)
             return LocalCommitPlan(drafts: plan.drafts, action: action, outcome: plan.outcome)
         }
+    }
+
+    /// Atomic "apply CRDT messages + insert the action-log row" commit. Inverse
+    /// facts are captured from live cells inside the same write transaction so
+    /// a concurrent caller cannot race the before-values; a failure anywhere
+    /// rolls back both the write and the log row.
+    @discardableResult
+    func commitUserAction(
+        _ drafts: [ActualSyncDecodedMessage],
+        descriptor: BudgetActionDescriptor,
+        source: BudgetActionSource,
+        learningTransactionIDs: Set<String> = [],
+        actionID: String = UUID().uuidString,
+        now: Date = Date(),
+        expectedMode: BudgetModeIdentity? = nil,
+        reconciledMutationPrecondition: ReconciledTransactionMutationPrecondition? = nil,
+        expectedTemplateReviewRevision: BudgetTemplateReviewRevision? = nil
+    ) throws -> Int {
+        try commitLocalSyncMessagesAndEnqueue(
+            drafts,
+            now: now,
+            actionLogCommit: ActionLogCommit(
+                descriptor: descriptor,
+                source: source,
+                actionID: actionID,
+                learningTransactionIDs: learningTransactionIDs
+            ),
+            expectedMode: expectedMode,
+            reconciledMutationPrecondition: reconciledMutationPrecondition,
+            expectedTemplateReviewRevision: expectedTemplateReviewRevision
+        )
     }
 }

@@ -69,7 +69,7 @@ struct TransactionBatchClearTests {
         #expect(state["c1"] == 1)
         #expect(state["c2"] == 1, "an uncleared child must follow its parent")
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let record = try #require(try await database.actionLogRecord(id: review.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
         _ = try await database.commitActionUndo(record: record)
         #expect(try clearedStates(bundle) == before)
     }

@@ -61,7 +61,7 @@ struct AccountLifecycleFreshnessTests {
             }
             #expect(fresh.identity != reviewed.identity)
             #expect(try await fixture.database.pendingLocalSyncMessageCount() == 0)
-            #expect(try await fixture.database.recentBudgetActions().isEmpty)
+            #expect(try await ActionLogStorageSQL.recentBudgetActions(in: fixture.database).isEmpty)
             #expect(await fixture.database.localClock == clockBefore)
             #expect(try await AccountSQL.fetchAccounts(in: fixture.database).first { $0.id == "checking" }?.closed == false)
         }

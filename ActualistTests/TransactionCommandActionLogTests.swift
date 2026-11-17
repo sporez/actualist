@@ -57,7 +57,7 @@ import Testing
             source: .ui,
             actionID: actionID
         )
-        return try #require(try await database.actionLogRecord(id: actionID))
+        return try #require(try await ActionLogStorageSQL.actionLogRecord(id: actionID, in: database))
     }
 
     private func makeSimpleDraft(
@@ -178,7 +178,7 @@ import Testing
         #expect(summary.duplicateTransactionIDs == ["duplicate-simple"])
         #expect(inverse.afterSnapshots.map(\.id) == ["duplicate-simple"])
 
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(preview.block == nil)
         #expect(preview.transactionLines.map(\.effect) == [.duplicateRemoval])
 
@@ -192,7 +192,7 @@ import Testing
             id: "duplicate-simple",
             databaseURL: bundle.fileManager.databaseURL(fileID: "file-1")
         )?.tombstone == 1)
-        #expect(try await database.actionLogRecord(id: record.id)?.status == .undone)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: record.id, in: database)?.status == .undone)
     }
 
     @Test func duplicateSplitUndoTombstonesEveryCloneAndLeavesSourceFamilyUntouched() async throws {
@@ -233,7 +233,7 @@ import Testing
             )),
             actionID: "duplicate-split-action"
         )
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(preview.block == nil)
         #expect(Set(preview.transactionLines.map(\.id)) == Set(cloneIDs))
 
@@ -334,7 +334,7 @@ import Testing
         #expect(inverse.afterSnapshots.map(\.id) == affectedIDs)
         #expect(inverse.afterSnapshots.first(where: { $0.id == "merge-parent" })?.tombstone == true)
 
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(preview.block == nil)
         #expect(Set(preview.transactionLines.map(\.id)) == Set(affectedIDs))
         #expect(preview.transactionLines.first(where: { $0.id == "merge-parent-child-a" })?.effect == .mergeRestoration)
@@ -371,7 +371,7 @@ import Testing
             )),
             actionID: "edited-duplicate-action"
         )
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(preview.block == nil)
         let pendingBeforeEdit = try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1")
         var editBuilder = LocalFirstSyncMessageBuilder()
@@ -408,7 +408,7 @@ import Testing
             id: "edited-duplicate",
             databaseURL: bundle.fileManager.databaseURL(fileID: "file-1")
         )?.tombstone == 0)
-        #expect(try await database.actionLogRecord(id: record.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: record.id, in: database)?.status == .applied)
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingAfterEdit)
         #expect(pendingAfterEdit > pendingBeforeEdit)
     }
@@ -464,7 +464,7 @@ import Testing
         extraChild.append(try makeMessage(&childBuilder, row: "later-child", column: "isChild", value: .bool(true)))
         try await database.commitLocalSyncMessagesAndEnqueue(extraChild)
 
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(preview.block == .transactionCommandChanged)
         await #expect(throws: LocalFirstError.actionUndoBlocked(
             BudgetActionUndoBlock.transactionCommandChanged.userFacingReason
@@ -530,7 +530,7 @@ import Testing
             id: "merge-parent",
             databaseURL: bundle.fileManager.databaseURL(fileID: "file-1")
         )?.tombstone == 1)
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(preview.block == .transactionCommandChanged)
         await #expect(throws: LocalFirstError.actionUndoBlocked(
             BudgetActionUndoBlock.transactionCommandChanged.userFacingReason
@@ -545,7 +545,7 @@ import Testing
             id: "merge-parent-child-a",
             databaseURL: bundle.fileManager.databaseURL(fileID: "file-1")
         )?.tombstone == 1)
-        #expect(try await database.actionLogRecord(id: record.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: record.id, in: database)?.status == .applied)
     }
 
     @Test func mismatchedCloneIDsRollBackRowsOutboxAndHistoryTogether() async throws {
@@ -580,7 +580,7 @@ import Testing
             id: "actual-clone",
             databaseURL: bundle.fileManager.databaseURL(fileID: "file-1")
         ) == nil)
-        #expect(try await database.actionLogRecord(id: "rolled-back-duplicate") == nil)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: "rolled-back-duplicate", in: database) == nil)
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingBefore)
     }
 

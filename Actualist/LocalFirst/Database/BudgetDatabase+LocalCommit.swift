@@ -99,7 +99,7 @@ extension BudgetDatabase {
                 ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
 
                 let actionLogFacts = try plan.action.map {
-                    try captureActionLogFacts(descriptor: $0.descriptor, db: db)
+                    try ActionLogSQL.captureActionLogFacts(descriptor: $0.descriptor, in: self, db: db)
                 }
                 let applied = try applyCommittedDrafts(
                     plan.drafts,
@@ -113,13 +113,14 @@ extension BudgetDatabase {
                 }
                 let appliedCount: Int
                 if let actionLogCommit = plan.action {
-                    appliedCount = try finishActionLogCommit(
+                    appliedCount = try ActionLogSQL.finishActionLogCommit(
                         actionLogCommit,
                         facts: actionLogFacts,
                         applied: applied,
                         clock: &clock,
                         now: now,
                         baseTimestamp: baseTimestamp,
+                        in: self,
                         db: db
                     )
                 } else {
@@ -231,5 +232,81 @@ extension BudgetDatabase {
             firstTimestamp: firstTimestamp,
             lastTimestamp: lastTimestamp
         )
+    }
+
+    /// Atomic "restore the inverse + mark the row undone" commit. The inverse
+    /// is re-evaluated against live cells inside the write transaction, so a
+    /// concurrent write or sync pull that landed after the preview rolls the
+    /// whole commit back instead of clobbering the newer values. The undo
+    /// itself records no log row in v1 (Q6): the original row is marked
+    /// `undone`.
+    @discardableResult
+    func commitActionUndo(record: BudgetActionRecord, now: Date = Date()) throws -> Int {
+        switch record.inverse {
+        case .transactionBatch, .transactionDuplicate, .transactionMerge:
+            try Task.checkCancellation()
+            return try performActionUndoCommit(record: record, now: now)
+        case .assign, .move, .template, .createTransaction, .editTransaction, .deleteTransaction,
+                .categorize, .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
+            break
+        }
+        return try performActionUndoCommit(record: record, now: now)
+    }
+
+    private func performActionUndoCommit(record: BudgetActionRecord, now: Date) throws -> Int {
+        guard sessionWritesAllowed.load(ordering: .acquiring) else {
+            throw LocalFirstError.budgetNotOpened
+        }
+        guard var clock = localClock else {
+            throw LocalFirstError.invalidLocalWrite("local clock is not configured")
+        }
+        let appliedCount: Int
+        do {
+            appliedCount = try writeTrackingMerkle { db in
+                try Task.checkCancellation()
+                guard try tableExists("messages_crdt", db: db) else {
+                    throw LocalFirstError.invalidLocalWrite("missing messages_crdt table")
+                }
+                try ensureLocalSyncOutbox(db)
+                guard try tableExists("actualist_action_log", db: db) else {
+                    throw LocalFirstError.refusedChange("There is nothing to undo.")
+                }
+                try ActionLogStorageSQL.requireNewestAppliedUndo(record: record, db: db)
+
+                let plan: BudgetActionUndoPlan
+                switch try ActionLogSQL.evaluateActionUndo(record: record, in: self, db: db) {
+                case .clean(let cleanPlan):
+                    plan = cleanPlan
+                case .blocked(let block):
+                    throw LocalFirstError.actionUndoBlocked(block.userFacingReason)
+                }
+
+                let baseTimestamp = try String.fetchOne(
+                    db,
+                    sql: "SELECT MAX(timestamp) FROM messages_crdt"
+                ) ?? "1970-01-01T00:00:00.000Z-0000-0000000000000000"
+                var builder = LocalFirstSyncMessageBuilder()
+                let drafts = try ActionLogSQL.undoMessages(for: plan, record: record, builder: &builder, in: self, db: db)
+                guard !drafts.isEmpty else {
+                    throw LocalFirstError.refusedChange("There is nothing to undo.")
+                }
+                try beforeBudgetDataMutation()
+                let applied = try applyCommittedDrafts(
+                    drafts,
+                    clock: &clock,
+                    now: now,
+                    baseTimestamp: baseTimestamp,
+                    db: db
+                )
+                try ActionLogStorageSQL.markActionLogUndone(id: record.id, now: now, db: db)
+                return applied.appliedCount
+            }
+        } catch let error as LocalFirstError {
+            throw error
+        } catch {
+            throw LocalFirstError.invalidLocalWrite("the database transaction was rolled back")
+        }
+        localClock = clock
+        return appliedCount
     }
 }

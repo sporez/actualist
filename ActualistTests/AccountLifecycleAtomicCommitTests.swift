@@ -65,7 +65,7 @@ struct AccountLifecycleAtomicCommitTests {
         #expect(after.outbox?.first?.cell == message.cell)
         #expect(revisions.count == 1)
 
-        let record = try #require(try await database.recentBudgetActions().first)
+        let record = try #require(try await ActionLogStorageSQL.recentBudgetActions(in: database).first)
         let payload = AccountBudgetAction(
             name: "Daily Spending",
             offbudget: true,
@@ -132,7 +132,7 @@ struct AccountLifecycleAtomicCommitTests {
         #expect(after.outbox?.first?.cell == message.cell)
         #expect(revisions.count == 1)
 
-        let record = try #require(try await database.recentBudgetActions().first)
+        let record = try #require(try await ActionLogStorageSQL.recentBudgetActions(in: database).first)
         let payload = AccountBudgetAction(
             name: "Daily Spending",
             offbudget: true,

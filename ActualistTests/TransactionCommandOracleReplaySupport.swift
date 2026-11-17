@@ -211,10 +211,10 @@ enum TransactionCommandOracleReplay {
     /// `ok` when the undo applied, `blocked` when the conflict check refused it, `missing` without an
     /// ActionLog record.
     private static func undo(_ session: Session, actionID: String) async throws -> String {
-        guard let record = try await session.database.actionLogRecord(id: actionID) else {
+        guard let record = try await ActionLogStorageSQL.actionLogRecord(id: actionID, in: session.database) else {
             return "missing"
         }
-        let preview = try await session.database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: session.database)
         guard preview.block == nil else {
             return "blocked"
         }

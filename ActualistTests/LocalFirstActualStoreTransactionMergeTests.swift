@@ -41,7 +41,7 @@ struct LocalFirstActualStoreTransactionMergeTests {
         #expect(!credit.transactions.contains { $0.id == "peer-b" })
         #expect(!spending.transactions.contains { $0.id == "root-b" || $0.id == "peer-b" })
         #expect(store.reports.cachedReportsDashboard(budgetID: "group-1", range: range) == nil)
-        #expect(try await database.recentBudgetActions().count == 1)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
     }
 
     @Test func failedPostCommitRefreshReturnsReceiptAndInvalidatesPotentiallyStaleFeeds() async throws {
@@ -100,7 +100,7 @@ struct LocalFirstActualStoreTransactionMergeTests {
         #expect(outcome.receipt.actionID == review.id)
         #expect(outcome.refreshPending)
         #expect(!outcome.sessionCurrent)
-        #expect(try await database.actionLogRecord(id: review.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database)?.status == .applied)
     }
 
     private func makeTransferBundle(

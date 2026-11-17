@@ -31,7 +31,7 @@ struct TransactionMergeMutationTests {
             try Int.fetchOne(db, sql: "SELECT tombstone FROM transactions WHERE id = 'second'")
         } == 0)
 
-        let actions = try await database.recentBudgetActions()
+        let actions = try await ActionLogStorageSQL.recentBudgetActions(in: database)
         #expect(actions.count == 1)
         let action = try #require(actions.first)
         #expect(action.kind == .transactionMerge)
@@ -59,7 +59,7 @@ struct TransactionMergeMutationTests {
             #expect(review.orderedTransactionIDs == orderedIDs)
             #expect(review.keptRow?.transactionID == expectedKeeper)
             _ = try await database.commitTransactionMerge(review: review, authorization: nil)
-            #expect(try await database.actionLogRecord(id: review.id)?.status == .applied)
+            #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database)?.status == .applied)
         }
     }
 
@@ -564,7 +564,7 @@ struct TransactionMergeMutationTests {
                 try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM messages_crdt") ?? 0
             },
             outboxMessageCount: try await database.pendingLocalSyncMessageCount(),
-            historyCount: try await database.recentBudgetActions().count,
+            historyCount: try await ActionLogStorageSQL.recentBudgetActions(in: database).count,
             clock: await database.localClock
         )
     }

@@ -101,7 +101,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let database = try #require(store.database)
         #expect(try await AccountSQL.fetchAccounts(in: database).first { $0.id == "checking" }?.closed == true)
         #expect(try await database.pendingLocalSyncMessageCount() == 1)
-        #expect(try await database.recentBudgetActions().count == 1)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
     }
 
     @Test func refreshFailureReturnsCommittedOutcomeAndRetryDoesNotDuplicateHistory() async throws {
@@ -120,7 +120,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let database = try #require(store.database)
         #expect(try await AccountSQL.fetchAccounts(in: database).first { $0.id == "checking" }?.name == "Daily Spending")
         #expect(try await database.pendingLocalSyncMessageCount() == 1)
-        #expect(try await database.recentBudgetActions().count == 1)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
 
         hook.action = nil
         let retry = try await store.accountLifecycle.renameAccountAndRefresh(
@@ -132,7 +132,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         }
         #expect(!refreshed.refreshPending)
         #expect(AccountLifecyclePresentation.mutationSheet(for: .completed(refreshed)) == nil)
-        #expect(try await database.recentBudgetActions().count == 1)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
         #expect(try await database.pendingLocalSyncMessageCount() == 1)
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?.accountNames["checking"] == "Daily Spending")
     }
@@ -174,7 +174,7 @@ struct LocalFirstActualStoreAccountLifecycleTests {
         let database = try #require(bundle.store.database)
         #expect(try await AccountSQL.fetchAccounts(in: database).first { $0.id == "checking" }?.name == "Checking")
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
-        #expect(try await database.recentBudgetActions().isEmpty == true)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).isEmpty == true)
     }
 
     @Test func callerCancellationAfterCommitStillFinishesLocalRefresh() async throws {

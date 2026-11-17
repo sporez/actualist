@@ -1,11 +1,12 @@
 import Foundation
 import GRDB
 
-extension BudgetDatabase {
-    func captureTransactionActionLogFacts(
+enum TransactionActionLogSQL {
+    static func captureTransactionActionLogFacts(
         descriptor: BudgetActionDescriptor,
+        in database: isolated BudgetDatabase,
         db: Database
-    ) throws -> ActionLogFacts {
+    ) throws -> ActionLogSQL.ActionLogFacts {
         switch descriptor {
         case .createTransaction(let create):
             let summary = TransactionBudgetAction(
@@ -16,7 +17,7 @@ extension BudgetDatabase {
                 graph: create.graph.kind,
                 transactionCount: create.transactionIDs.count
             )
-            return ActionLogFacts(
+            return ActionLogSQL.ActionLogFacts(
                 kind: .createTransaction,
                 month: create.month,
                 summary: .createTransaction(summary),
@@ -40,7 +41,7 @@ extension BudgetDatabase {
                 graph: delete.graph.kind,
                 transactionCount: delete.transactionIDs.count
             )
-            return ActionLogFacts(
+            return ActionLogSQL.ActionLogFacts(
                 kind: .deleteTransaction,
                 month: delete.month,
                 summary: .deleteTransaction(summary),
@@ -53,12 +54,12 @@ extension BudgetDatabase {
             )
 
         case .editTransaction(let edit):
-            guard let primaryBefore = try transactionUndoSnapshot(id: edit.transactionID, db: db) else {
+            guard let primaryBefore = try transactionUndoSnapshot(id: edit.transactionID, in: database, db: db) else {
                 throw LocalFirstError.invalidLocalWrite("missing transaction")
             }
             var relatedBefore: [TransactionUndoSnapshot] = []
             for relatedID in edit.affectedIDs where relatedID != edit.transactionID {
-                if let snapshot = try transactionUndoSnapshot(id: relatedID, db: db) {
+                if let snapshot = try transactionUndoSnapshot(id: relatedID, in: database, db: db) {
                     relatedBefore.append(snapshot)
                 }
             }
@@ -70,7 +71,7 @@ extension BudgetDatabase {
                 graph: graphKind(from: primaryBefore),
                 unsafeGraph: edit.unsafeGraph
             )
-            return ActionLogFacts(
+            return ActionLogSQL.ActionLogFacts(
                 kind: .editTransaction,
                 month: edit.month,
                 summary: .editTransaction(summary),
@@ -88,7 +89,7 @@ extension BudgetDatabase {
             )
 
         case .categorize(let categorize):
-            return ActionLogFacts(
+            return ActionLogSQL.ActionLogFacts(
                 kind: .categorize,
                 month: categorize.month,
                 summary: .categorize(CategorizeBudgetAction(
@@ -107,7 +108,7 @@ extension BudgetDatabase {
             )
 
         case .transactionBatch(let batch):
-            let before = try transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, db: db)
+            let before = try database.transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, db: db)
             guard before.count == Set(batch.snapshotTransactionIDs).count else {
                 throw LocalFirstError.invalidLocalWrite("a transaction in the batch changed before action logging")
             }
@@ -118,7 +119,7 @@ extension BudgetDatabase {
                 clearTarget: batch.clearTarget,
                 categoryID: batch.categoryID
             )
-            return ActionLogFacts(
+            return ActionLogSQL.ActionLogFacts(
                 kind: .transactionBatch,
                 month: "",
                 summary: .transactionBatch(summary),
@@ -135,26 +136,28 @@ extension BudgetDatabase {
             )
 
         case .transactionDuplicate(let duplicate):
-            return try captureTransactionDuplicateActionLogFacts(duplicate, db: db)
+            return try TransactionCommandActionLogSQL.captureTransactionDuplicateActionLogFacts(duplicate, in: database, db: db)
 
         case .transactionMerge(let merge):
-            return try captureTransactionMergeActionLogFacts(merge, db: db)
+            return try TransactionCommandActionLogSQL.captureTransactionMergeActionLogFacts(merge, in: database, db: db)
 
         case .assign, .move, .template, .payee, .rule, .account, .carryover, .learningPref, .transactionMetadata:
             throw LocalFirstError.invalidLocalWrite("unexpected budget action in transaction capture")
         }
     }
 
-    func completeActionLogFacts(
-        _ facts: ActionLogFacts,
+    static func completeActionLogFacts(
+        _ facts: ActionLogSQL.ActionLogFacts,
         descriptor: BudgetActionDescriptor,
+        in database: isolated BudgetDatabase,
         db: Database
-    ) throws -> ActionLogFacts {
+    ) throws -> ActionLogSQL.ActionLogFacts {
         switch descriptor {
         case .transactionDuplicate, .transactionMerge:
-            return try completeTransactionCommandActionLogFacts(
+            return try TransactionCommandActionLogSQL.completeTransactionCommandActionLogFacts(
                 facts,
                 descriptor: descriptor,
+                in: database,
                 db: db
             )
         case .assign, .move, .template, .createTransaction, .editTransaction,
@@ -164,7 +167,7 @@ extension BudgetDatabase {
         }
         if case .transactionBatch(let batch) = descriptor,
            case .transactionBatch(var inverse) = facts.inverse {
-            let after = try transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, db: db)
+            let after = try database.transactionBatchSnapshots(ids: batch.snapshotTransactionIDs, db: db)
             guard after.count == Set(batch.snapshotTransactionIDs).count else {
                 throw LocalFirstError.invalidLocalWrite("a transaction disappeared while recording the batch")
             }
@@ -175,12 +178,12 @@ extension BudgetDatabase {
         }
         guard case .editTransaction(let edit) = descriptor,
               case .editTransaction(var inverse) = facts.inverse else { return facts }
-        guard let primaryAfter = try transactionUndoSnapshot(id: edit.transactionID, db: db) else {
+        guard let primaryAfter = try transactionUndoSnapshot(id: edit.transactionID, in: database, db: db) else {
             return facts
         }
         var relatedAfter: [TransactionUndoSnapshot] = []
         for relatedID in edit.affectedIDs where relatedID != edit.transactionID {
-            if let snapshot = try transactionUndoSnapshot(id: relatedID, db: db) {
+            if let snapshot = try transactionUndoSnapshot(id: relatedID, in: database, db: db) {
                 relatedAfter.append(snapshot)
             }
         }
@@ -199,7 +202,7 @@ extension BudgetDatabase {
         return completed
     }
 
-    func learningSideEffect(
+    static func learningSideEffect(
         beforeRules: [ManagedRule],
         messages: [ActualSyncDecodedMessage]
     ) -> BudgetActionLearningSideEffect {
@@ -232,8 +235,9 @@ extension BudgetDatabase {
         )
     }
 
-    func liveTransactionsForUndo(
+    static func liveTransactionsForUndo(
         ids: [String],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [String: TransactionUndoSnapshot?] {
         var pending = ids
@@ -242,11 +246,11 @@ extension BudgetDatabase {
         while let id = pending.first {
             pending.removeFirst()
             guard seen.insert(id).inserted else { continue }
-            let snapshot = try transactionUndoSnapshot(id: id, db: db)
+            let snapshot = try transactionUndoSnapshot(id: id, in: database, db: db)
             live[id] = snapshot
             if let snapshot, snapshot.isParent,
-               try tableExists("transactions", db: db) {
-                let columns = try TransactionRowColumns.resolve(in: self, db: db)
+               try database.tableExists("transactions", db: db) {
+                let columns = try TransactionRowColumns.resolve(in: database, db: db)
                 if columns.hasParentID {
                     let children = try String.fetchAll(
                         db,
@@ -262,22 +266,23 @@ extension BudgetDatabase {
 
     /// The subset of `required` accounts and categories that exist and are not
     /// tombstoned. A closed account is still live: upstream keeps transactions in it.
-    func liveRestoredReferences(
+    static func liveRestoredReferences(
         _ required: BudgetActionUndo.RestoredReferences,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> BudgetActionUndo.RestoredReferences {
         var live = BudgetActionUndo.RestoredReferences()
         // A budget without the table cannot name a deleted row, so nothing is missing.
-        if try tableExists("accounts", db: db) {
+        if try database.tableExists("accounts", db: db) {
             for id in required.accountIDs {
-                if try liveRowExists(table: "accounts", rowID: id, db: db) { live.accountIDs.insert(id) }
+                if try database.liveRowExists(table: "accounts", rowID: id, db: db) { live.accountIDs.insert(id) }
             }
         } else {
             live.accountIDs = required.accountIDs
         }
-        if try tableExists("categories", db: db) {
+        if try database.tableExists("categories", db: db) {
             for id in required.categoryIDs {
-                if try liveRowExists(table: "categories", rowID: id, db: db) { live.categoryIDs.insert(id) }
+                if try database.liveRowExists(table: "categories", rowID: id, db: db) { live.categoryIDs.insert(id) }
             }
         } else {
             live.categoryIDs = required.categoryIDs
@@ -285,12 +290,13 @@ extension BudgetDatabase {
         return live
     }
 
-    func liveRuleActionsForUndo(
+    static func liveRuleActionsForUndo(
         learning: BudgetActionLearningSideEffect,
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> [String: String?] {
         guard !learning.isEmpty else { return [:] }
-        let rules = try RuleSQL.fetchRules(in: self, db: db)
+        let rules = try RuleSQL.fetchRules(in: database, db: db)
         let byID = Dictionary(uniqueKeysWithValues: rules.map { ($0.id, $0.rawActionsJSON) })
         var live: [String: String?] = [:]
         for ruleID in learning.createdRuleIDs {
@@ -302,9 +308,9 @@ extension BudgetDatabase {
         return live
     }
 
-    func transactionUndoSnapshot(id: String, db: Database) throws -> TransactionUndoSnapshot? {
-        guard try tableExists("transactions", db: db) else { return nil }
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+    static func transactionUndoSnapshot(id: String, in database: isolated BudgetDatabase, db: Database) throws -> TransactionUndoSnapshot? {
+        guard try database.tableExists("transactions", db: db) else { return nil }
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         guard let row = try TransactionRowReader.row(id: id, db: db) else {
             return nil
         }
@@ -342,10 +348,11 @@ extension BudgetDatabase {
         )
     }
 
-    func transactionUndoMessages(
+    static func transactionUndoMessages(
         plan: BudgetActionUndoPlan,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [ActualSyncDecodedMessage] {
         switch plan {
         case .assignments:
@@ -355,9 +362,9 @@ extension BudgetDatabase {
             for id in transactionIDs {
                 messages.append(try builder.tombstone(dataset: "transactions", row: id))
             }
-            messages += try learningUndoMessages(learning, db: db, builder: &builder)
+            messages += try learningUndoMessages(learning, builder: &builder, in: database, db: db)
             if let createdPayeeID,
-               try createdPayeeIsUnused(createdPayeeID, ignoring: transactionIDs, db: db) {
+               try createdPayeeIsUnused(createdPayeeID, ignoring: transactionIDs, in: database, db: db) {
                 messages.append(
                     try builder.tombstone(dataset: "payees", row: createdPayeeID)
                 )
@@ -366,7 +373,7 @@ extension BudgetDatabase {
         case .unTombstoneTransactions(let transactionIDs, let transferLinks):
             // Actual's delete clears the deleted leg's link, and its undo writes the link back
             // with the revive. A link the row still holds (deleted before the clear) is no write.
-            let columns = try TransactionRowColumns.resolve(in: self, db: db)
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for id in transactionIDs {
                 messages.append(try builder.revive(dataset: "transactions", row: id))
@@ -380,7 +387,7 @@ extension BudgetDatabase {
             }
             return messages
         case .restoreSnapshots(let snapshots, let createdPayeeID, let learning):
-            let columns = try TransactionRowColumns.resolve(in: self, db: db)
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for snapshot in snapshots {
                 let restored = try columns.rowMessages(
@@ -406,19 +413,19 @@ extension BudgetDatabase {
                     flagColumns: TransactionUndoCellDiff.flagColumns(columns)
                 )
             }
-            messages += try learningUndoMessages(learning, db: db, builder: &builder)
+            messages += try learningUndoMessages(learning, builder: &builder, in: database, db: db)
             if let createdPayeeID,
-               try createdPayeeIsUnused(createdPayeeID, ignoring: snapshots.map(\.id), db: db) {
+               try createdPayeeIsUnused(createdPayeeID, ignoring: snapshots.map(\.id), in: database, db: db) {
                 messages.append(
                     try builder.tombstone(dataset: "payees", row: createdPayeeID)
                 )
             }
             return messages
         case .restoreBatchTransactions(let snapshots, let learning):
-            let columns = try TransactionRowColumns.resolve(in: self, db: db)
+            let columns = try TransactionRowColumns.resolve(in: database, db: db)
             var messages: [ActualSyncDecodedMessage] = []
             for snapshot in snapshots {
-                let restored = try transactionBatchRestoreMessages(
+                let restored = try database.transactionBatchRestoreMessages(
                     snapshot,
                     columns: columns,
                     builder: &builder
@@ -429,10 +436,10 @@ extension BudgetDatabase {
                     flagColumns: TransactionUndoCellDiff.flagColumns(columns)
                 )
             }
-            messages += try learningUndoMessages(learning, db: db, builder: &builder)
+            messages += try learningUndoMessages(learning, builder: &builder, in: database, db: db)
             return messages
         case .tombstoneDuplicateTransactions, .restoreMergedTransactions:
-            return try transactionCommandUndoMessages(plan: plan, db: db, builder: &builder)
+            return try TransactionCommandActionLogSQL.transactionCommandUndoMessages(plan: plan, builder: &builder, in: database, db: db)
         case .restoreCategories(let items, let learning):
             var messages: [ActualSyncDecodedMessage] = []
             for item in items {
@@ -445,12 +452,12 @@ extension BudgetDatabase {
                     )
                 )
             }
-            messages += try learningUndoMessages(learning, db: db, builder: &builder)
+            messages += try learningUndoMessages(learning, builder: &builder, in: database, db: db)
             return messages
         }
     }
 
-    func undoPreviewLines(
+    static func undoPreviewLines(
         record: BudgetActionRecord,
         plan: BudgetActionUndoPlan
     ) -> [BudgetActionUndoPreview.TransactionLine] {
@@ -529,25 +536,26 @@ extension BudgetDatabase {
             }
         case .transactionDuplicate:
             guard case .tombstoneDuplicateTransactions = plan else { return [] }
-            return transactionCommandUndoPreviewLines(record: record, plan: plan)
+            return TransactionCommandActionLogSQL.transactionCommandUndoPreviewLines(record: record, plan: plan)
         case .transactionMerge:
             guard case .restoreMergedTransactions = plan else { return [] }
-            return transactionCommandUndoPreviewLines(record: record, plan: plan)
+            return TransactionCommandActionLogSQL.transactionCommandUndoPreviewLines(record: record, plan: plan)
         case .assign, .move, .template, .payee, .rule, .account,
                 .carryover, .learningPref, .transactionMetadata:
             return []
         }
     }
 
-    private func learningUndoMessages(
+    private static func learningUndoMessages(
         _ learning: BudgetActionLearningSideEffect,
-        db: Database,
-        builder: inout LocalFirstSyncMessageBuilder
+        builder: inout LocalFirstSyncMessageBuilder,
+        in database: isolated BudgetDatabase,
+        db: Database
     ) throws -> [ActualSyncDecodedMessage] {
         guard !learning.isEmpty else { return [] }
         var messages: [ActualSyncDecodedMessage] = []
-        if try tableExists("rules", db: db) {
-            let columns = try columnSet(for: "rules", db: db)
+        if try database.tableExists("rules", db: db) {
+            let columns = try database.columnSet(for: "rules", db: db)
             if columns.contains("tombstone") {
                 for ruleID in learning.createdRuleIDs {
                     messages.append(
@@ -571,13 +579,14 @@ extension BudgetDatabase {
         return messages
     }
 
-    private func createdPayeeIsUnused(
+    private static func createdPayeeIsUnused(
         _ payeeID: String,
         ignoring transactionIDs: [String],
+        in database: isolated BudgetDatabase,
         db: Database
     ) throws -> Bool {
-        guard try tableExists("transactions", db: db) else { return true }
-        let columns = try TransactionRowColumns.resolve(in: self, db: db)
+        guard try database.tableExists("transactions", db: db) else { return true }
+        let columns = try TransactionRowColumns.resolve(in: database, db: db)
         let ignored = transactionIDs.filter { !$0.isEmpty }
         let ignoreSQL: String
         let arguments: [any DatabaseValueConvertible]
@@ -594,7 +603,7 @@ extension BudgetDatabase {
             sql: """
                 SELECT COUNT(*) FROM transactions
                 WHERE \(columns.payee) = ?
-                  AND \(predicateForLiveRows(columns: columns.all))
+                  AND \(database.predicateForLiveRows(columns: columns.all))
                   \(ignoreSQL)
                 """,
             arguments: StatementArguments(arguments)
@@ -602,13 +611,13 @@ extension BudgetDatabase {
         return count == 0
     }
 
-    private func graphKind(from snapshot: TransactionUndoSnapshot) -> BudgetTransactionGraphKind {
+    private static func graphKind(from snapshot: TransactionUndoSnapshot) -> BudgetTransactionGraphKind {
         if snapshot.isParent { return .split }
         if snapshot.transferID != nil { return .transfer }
         return .simple
     }
 
-    private func decodedSyncString(_ serialized: String) -> String? {
+    private static func decodedSyncString(_ serialized: String) -> String? {
         if serialized.hasPrefix("S:") {
             return String(serialized.dropFirst(2))
         }

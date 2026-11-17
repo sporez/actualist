@@ -84,7 +84,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Category create/rename/reorder/delete/visibility: `BudgetCategory*Workflow.swift` and the category sheets. Store writes are `LocalFirstActualStore+CategoryLifecycle.swift`; SQLite is `CategorySQL` and `CategoryDeletionSQL` in `LocalFirst/Database/`.
 - Hold for next month: `BudgetHoldViewModel.swift` and `BudgetHoldSheet.swift` own the shared compact/wide review workflow. `BudgetHoldSQL` owns the stored hold calculation, the hold review and its writes; the focused hold store/database writers own persistence.
 - Uncategorized flow: `UncategorizedTransactionsView.swift` and its view model/coordinator siblings.
-- Backend reads/writes: `LocalFirstActualStore+Reads.swift`, `+AssignMove.swift`, `+Mutations.swift`, `+ActionLog.swift`; `BudgetMonthSQL` (month and snapshot reads, envelope availability, carry-in, available months), `BudgetCategoryValueSQL` (category values, budgets and spending over time), `BudgetAssignmentSQL` (assign, move money, carryover), `BudgetRowSQL` (budget row ids and the shared row write), `BudgetCurrencySQL`, and `+ActionLog*.swift`.
+- Backend reads/writes: `LocalFirstActualStore+Reads.swift`, `+AssignMove.swift`, `+Mutations.swift`, `+ActionLog.swift`; `BudgetMonthSQL` (month and snapshot reads, envelope availability, carry-in, available months), `BudgetCategoryValueSQL` (category values, budgets and spending over time), `BudgetAssignmentSQL` (assign, move money, carryover), `BudgetRowSQL` (budget row ids and the shared row write), `BudgetCurrencySQL`, and the `ActionLog*SQL` types.
 
 ### Transactions and spending
 
@@ -151,7 +151,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 ### Reports, history, notes, and shortcuts
 
 - Reports: `Actualist/Features/Reports/` (`ReportsView`, the `ReportExplorer*` explorer, and transaction drilldown), `ReportsRepository.swift`, `ReportWorkflows` (`LocalFirst/ReportWorkflows.swift`, the store's `reports`, which implements that protocol; the dashboard cache `reportsByKey` stays on the store), and in `LocalFirst/Database/` the stateless `ReportInputSQL` (the rows both reports read: activity days, budgeted expenses, transfer legs and the filter catalog), `ReportDashboardSQL` (the dashboard cards and the widget's net worth) and `ReportExplorerSQL` (explorer snapshots and the transaction request its filters build), with `ReportArithmetic.swift` and `ReportTransferAlignment.swift`.
-- History/undo: `Actualist/Features/History/`, `LocalFirstActualStore+ActionLog.swift`, `LocalFirst/ActionLog/`, and `BudgetDatabase+ActionLog*.swift`.
+- History/undo: `Actualist/Features/History/`, `LocalFirstActualStore+ActionLog.swift`, `LocalFirst/ActionLog/` (the pure undo engine and action models), and in `LocalFirst/Database/` the stateless `ActionLogSQL` (recording, and budget undo evaluation, preview and messages), `ActionLogStorageSQL` (the local `actualist_action_log` table), `TransactionActionLogSQL` and `TransactionCommandActionLogSQL`. The undo commit (`commitActionUndo`), the second session write fence, stays on the actor in `+LocalCommit`; `commitUserAction` is in `+UserActionPlan`.
 - Entity notes: `Actualist/Features/Notes/`, `EntityNotesRepository.swift`, `LocalFirstActualStore+Notes.swift`, and `BudgetDatabase+Notes.swift`.
 - App Intents/Shortcuts: `Actualist/Features/Shortcuts/Intents/` for OS-facing intents, `Commands/` for parsed command values, `Entities/` for AppEntity models, and `ShortcutsBudgetSession*` for local budget access.
 
@@ -204,7 +204,7 @@ File naming is the ownership index:
 - `Account*SQL`, `+AccountGroupCompatibility`, `BankSync*SQL`, `Reconcil*SQL`, `+Notes` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
 - `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
-- `+ActionLog*` — durable action history and undo inputs.
+- `ActionLog*SQL` — durable action history and undo inputs.
 - `+Schedules`, `+ScheduleReads`, `+ScheduleWrites`, `+SchedulePosting`, `+ScheduleAdvancement`, `+ScheduleConversion` and `ScheduleRuleProjection.swift` — schedules and their linked rules.
 - `+PortableExport`, `+PortableSyncReset`, `+NewBudgetSeed` — portable ZIP content and the CRDT reset applied to an imported file.
 - `+TransactionBatch*`, `+TransactionDuplicate`, `+TransactionMerge`, `+TransactionFilters`, `+TransactionCSV*`, `+TransactionQuery` — list actions, structured queries and CSV export.

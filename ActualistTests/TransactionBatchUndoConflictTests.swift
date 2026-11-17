@@ -31,7 +31,7 @@ struct TransactionBatchUndoConflictTests {
             selections: [selection]
         )
         _ = try await database.commitTransactionBatch(review: review, authorization: review.authorization)
-        let record = try #require(try await database.actionLogRecord(id: review.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
 
         let url = try bundle.fileManager.databaseURL(fileID: #require(bundle.budget.budgetID))
         let queue = try DatabaseQueue(path: url.path)
@@ -45,13 +45,13 @@ struct TransactionBatchUndoConflictTests {
         }
         let afterIncomingWrite = try await persistenceState(bundle, database: database)
 
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(preview.block == .batchChanged)
         await #expect(throws: LocalFirstError.self) {
             try await database.commitActionUndo(record: record)
         }
         #expect(try await persistenceState(bundle, database: database) == afterIncomingWrite)
-        #expect(try await database.actionLogRecord(id: review.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database)?.status == .applied)
     }
 
     private func persistenceState(

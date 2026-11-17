@@ -91,7 +91,7 @@ enum UndoOracleReplay {
         let forward = try await database.pendingLocalSyncMessages(limit: 100_000).map(\.message)
         let rowsAfterAction = try await readRows(database)
 
-        if outcome == "not-offered", let record = try await database.recentBudgetActions().first {
+        if outcome == "not-offered", let record = try await ActionLogStorageSQL.recentBudgetActions(in: database).first {
             outcome = await undoOutcome(actionID: record.id, store: store)
         }
         let undone = try await database.pendingLocalSyncMessages(limit: 100_000).map(\.message).dropFirst(forward.count)

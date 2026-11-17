@@ -31,7 +31,7 @@ struct TransactionUndoChangedCellsTests {
             try String.fetchOne(db, sql: "SELECT id FROM actualist_action_log ORDER BY rowid DESC LIMIT 1")
         }
         let logID = try #require(id)
-        return try #require(try await bundle.store.requireDatabase(for: "group-1").actionLogRecord(id: logID))
+        return try #require(try await ActionLogStorageSQL.actionLogRecord(id: logID, in: bundle.store.requireDatabase(for: "group-1")))
     }
 
     private static let legs = TransactionBatchDeleteTests.row("leg-a", amount: -500, transfer: "leg-b")
@@ -69,7 +69,7 @@ struct TransactionUndoChangedCellsTests {
         #expect(try cells(since: beforeDelete, in: bundle) == ["leg-a.tombstone", "leg-a.transferred_id", "leg-b.tombstone"])
         #expect(try link("leg-a", in: bundle) == nil)
 
-        let record = try #require(try await store.requireDatabase(for: "group-1").actionLogRecord(id: review.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: store.requireDatabase(for: "group-1")))
         let beforeUndo = try messages(in: bundle)
         _ = try await store.requireDatabase(for: "group-1").commitActionUndo(record: record)
 
@@ -84,7 +84,7 @@ struct TransactionUndoChangedCellsTests {
             context: batch.context(for: store), intent: .categorize(categoryID: "utilities"), selections: [batch.identity("txn")]
         )
         _ = try await store.commitTransactionBatch(review: review, authorization: nil)
-        let record = try #require(try await store.requireDatabase(for: "group-1").actionLogRecord(id: review.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: store.requireDatabase(for: "group-1")))
         let beforeUndo = try messages(in: bundle)
 
         _ = try await store.requireDatabase(for: "group-1").commitActionUndo(record: record)

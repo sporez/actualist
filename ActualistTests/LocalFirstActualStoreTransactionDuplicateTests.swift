@@ -78,7 +78,7 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
             try await store.commitTransactionDuplicate(review: review)
         }
 
-        #expect(try await database.actionLogRecord(id: review.id) == nil)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database) == nil)
         #expect(try transactionExists(cloneID, bundle: bundle) == false)
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
     }
@@ -109,7 +109,7 @@ struct LocalFirstActualStoreTransactionDuplicateTests {
         #expect(outcome.receipt.actionID == review.id)
         #expect(outcome.refreshPending)
         #expect(!outcome.sessionCurrent)
-        #expect(try await database.actionLogRecord(id: review.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database)?.status == .applied)
         #expect(try transactionExists(review.allocations[0].duplicateTransactionID, bundle: bundle))
         #expect(try await database.pendingLocalSyncMessageCount() > 0)
     }

@@ -24,7 +24,7 @@ extension LocalFirstActualStore {
             return
         }
         let generation = budgetSessionGeneration
-        let snapshot = (try? await database.actionLogDiagnosticSnapshot()) ?? .empty
+        let snapshot = (try? await ActionLogStorageSQL.actionLogDiagnosticSnapshot(in: database)) ?? .empty
         // A budget switch or teardown during the read must not publish the old
         // budget's counts over the new session's snapshot.
         guard generation == budgetSessionGeneration, self.database === database else { return }
@@ -33,7 +33,7 @@ extension LocalFirstActualStore {
 
     func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] {
         let database = try requireDatabase(for: budgetID)
-        return try await database.recentBudgetActions()
+        return try await ActionLogStorageSQL.recentBudgetActions(in: database)
     }
 
     /// Live and historical category names for History rows. Deleted categories
@@ -48,17 +48,17 @@ extension LocalFirstActualStore {
     /// The conflict check also runs inside the commit; this read is display only.
     func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview {
         let database = try requireDatabase(for: budgetID)
-        guard let record = try await database.actionLogRecord(id: actionID) else {
+        guard let record = try await ActionLogStorageSQL.actionLogRecord(id: actionID, in: database) else {
             throw LocalFirstError.refusedChange("This action is no longer in History.")
         }
-        return try await database.actionUndoPreview(record: record)
+        return try await ActionLogSQL.actionUndoPreview(record: record, in: database)
     }
 
     /// Commits the LIFO undo through the same atomic path as any local write,
     /// then reloads caches and flushes. Undo writes no new history row (Q6).
     func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {
         let database = try requireDatabase(for: budgetID)
-        guard let record = try await database.actionLogRecord(id: actionID) else {
+        guard let record = try await ActionLogStorageSQL.actionLogRecord(id: actionID, in: database) else {
             throw LocalFirstError.refusedChange("This action is no longer in History.")
         }
         _ = try await database.commitActionUndo(record: record)

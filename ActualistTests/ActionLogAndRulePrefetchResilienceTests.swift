@@ -47,9 +47,9 @@ struct ActionLogAndRulePrefetchResilienceTests {
         try insertAssignRows(count: 4, badKindAt: 2, into: url)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "history-skip")
 
-        let records = try await database.recentBudgetActions()
+        let records = try await ActionLogStorageSQL.recentBudgetActions(in: database)
         #expect(records.map(\.id) == ["row-3", "row-1", "row-0"])
-        let page = try await database.recentBudgetActionPage()
+        let page = try await ActionLogStorageSQL.recentBudgetActionPage(in: database)
         #expect(page.records.count == 3)
         #expect(page.skippedRowCount == 1)
     }
@@ -59,7 +59,7 @@ struct ActionLogAndRulePrefetchResilienceTests {
         try insertAssignRows(count: 30, into: url)
         let database = try BudgetDatabase(databaseURL: url, localNodeID: "history-limit")
 
-        #expect(try await database.recentBudgetActions(limit: 5).count == 5)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(limit: 5, in: database).count == 5)
     }
 
     /// Two Int64.max amounts make SQLite's SUM raise `integer overflow`.

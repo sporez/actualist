@@ -22,7 +22,7 @@ extension LocalFirstActualStore {
             }
             guard owns(database, budgetID: budgetID) else { return }
             await LaunchSignpost.measure(LaunchStage.diagnosticWarmup) {
-                let snapshot = try? await database.actionLogDiagnosticSnapshot()
+                let snapshot = try? await ActionLogStorageSQL.actionLogDiagnosticSnapshot(in: database)
                 guard owns(database, budgetID: budgetID), let snapshot else { return }
                 actionLogDiagnosticSnapshot = snapshot
             }

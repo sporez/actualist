@@ -35,7 +35,7 @@ extension LocalFirstActualStoreTests {
         let shown = rows()
         #expect(!shown.isEmpty)
         #expect(shown.allSatisfy { $0.runningBalanceText != nil })
-        #expect(try await bundle.store.database?.recentBudgetActions().isEmpty == true)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: try #require(bundle.store.database)).isEmpty == true)
 
         try await store.setShowsRunningBalance(budgetID: "group-1", accountID: "checking", enabled: false)
 

@@ -163,13 +163,13 @@ struct TransactionBatchDeleteTests {
         let review = try await commitDelete(bundle, [child("c1"), child("c2")])
         #expect(try fullState(bundle) != before)
         let database = try bundle.store.requireDatabase(for: "group-1")
-        let record = try #require(try await database.actionLogRecord(id: review.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
         guard case .transactionBatch(let summary) = record.summary else {
             Issue.record("Expected a batch summary")
             return
         }
         #expect(summary.changedCount == 2)
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(preview.block == nil)
         _ = try await database.commitActionUndo(record: record)
         #expect(try fullState(bundle) == before)

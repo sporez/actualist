@@ -44,7 +44,7 @@ struct TransactionDuplicateMutationTests {
         #expect(clone.tombstone == 0)
         #expect(clone.sortOrder?.bitPattern == allocatedOrder.bitPattern)
 
-        let records = try await database.recentBudgetActions()
+        let records = try await ActionLogStorageSQL.recentBudgetActions(in: database)
         #expect(records.count == 1)
         let record = try #require(records.first)
         #expect(record.id == review.id)
@@ -58,7 +58,7 @@ struct TransactionDuplicateMutationTests {
         #expect(summary.duplicateTransactionIDs == [cloneID])
         #expect(inverse.afterSnapshots.map(\.id) == [cloneID])
 
-        let undo = try await database.actionUndoPreview(record: record)
+        let undo = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(undo.block == nil)
         try await database.commitActionUndo(record: record)
         #expect(try transactionState(cloneID, bundle: bundle)?.tombstone == 1)
@@ -87,7 +87,7 @@ struct TransactionDuplicateMutationTests {
             $0.parentID == review.allocations.first(where: { $0.sourceTransactionID == "source-parent" })?.duplicateTransactionID
         })
         #expect(receipt.changed.transactions.count == 6)
-        let record = try #require(try await database.actionLogRecord(id: review.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
         guard case .transactionDuplicate(let summary) = record.summary else {
             Issue.record("Expected duplicate History summary")
             return
@@ -144,7 +144,7 @@ struct TransactionDuplicateMutationTests {
 
         let cloneID = try #require(review.allocations.first?.duplicateTransactionID)
         #expect(try transactionState(cloneID, bundle: bundle) == nil)
-        #expect(try await database.actionLogRecord(id: review.id) == nil)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database) == nil)
         #expect(try await database.pendingLocalSyncMessageCount() == pendingBefore)
     }
 
@@ -232,7 +232,7 @@ struct TransactionDuplicateMutationTests {
         }
 
         #expect(try transactionState(cloneID, bundle: bundle)?.amount == -50)
-        #expect(try await database.actionLogRecord(id: review.id) == nil)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database) == nil)
         #expect(try await database.pendingLocalSyncMessageCount() == pendingBefore)
     }
 
@@ -262,7 +262,7 @@ struct TransactionDuplicateMutationTests {
         }
 
         #expect(try transactionState(original.duplicateTransactionID, bundle: bundle) == nil)
-        #expect(try await database.actionLogRecord(id: review.id) == nil)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database) == nil)
     }
 
     @Test func missingRequiredGraphMetadataColumnBlocksReview() async throws {
@@ -289,7 +289,7 @@ struct TransactionDuplicateMutationTests {
 
         await #expect(throws: CancellationError.self) { try await commit.value }
 
-        #expect(try await database.actionLogRecord(id: review.id) == nil)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database) == nil)
         #expect(try await database.pendingLocalSyncMessageCount() == pendingBefore)
         #expect(try transactionState(review.allocations[0].duplicateTransactionID, bundle: bundle) == nil)
     }
@@ -306,7 +306,7 @@ struct TransactionDuplicateMutationTests {
         await #expect(throws: LocalFirstError.budgetNotOpened) {
             try await pendingCommit.value
         }
-        #expect(try await database.actionLogRecord(id: review.id) == nil)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database) == nil)
         #expect(try transactionState(review.allocations[0].duplicateTransactionID, bundle: bundle) == nil)
     }
 
@@ -327,7 +327,7 @@ struct TransactionDuplicateMutationTests {
         }
 
         #expect(try transactionState(cloneID, bundle: bundle) == nil)
-        #expect(try await database.actionLogRecord(id: review.id) == nil)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database) == nil)
         #expect(try await database.pendingLocalSyncMessageCount() == pendingBefore)
     }
 
@@ -348,8 +348,8 @@ struct TransactionDuplicateMutationTests {
         }
 
         #expect(try transactionState(cloneID, bundle: bundle) == nil)
-        #expect(try await database.actionLogRecord(id: review.id) == nil)
-        #expect(try await database.recentBudgetActions().count == 1)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database) == nil)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
         #expect(try await database.pendingLocalSyncMessageCount() == pendingBefore)
     }
 
@@ -359,14 +359,14 @@ struct TransactionDuplicateMutationTests {
         let review = try await review(bundle, selections: [identity("txn")])
         let cloneID = try #require(review.allocations.first?.duplicateTransactionID)
         _ = try await database.commitTransactionDuplicate(review: review)
-        let record = try #require(try await database.actionLogRecord(id: review.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
         try write("UPDATE transactions SET notes = 'edited after duplicate' WHERE id = '\(cloneID)';", bundle: bundle)
 
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
 
         #expect(preview.block == .transactionCommandChanged)
         #expect(try transactionState(cloneID, bundle: bundle)?.notes == "edited after duplicate")
-        #expect(try await database.actionLogRecord(id: review.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database)?.status == .applied)
     }
 
     @Test func undoRejectsMembershipChangeToClonedSplitFamily() async throws {
@@ -377,7 +377,7 @@ struct TransactionDuplicateMutationTests {
             $0.sourceTransactionID == "source-parent"
         }?.duplicateTransactionID)
         _ = try await database.commitTransactionDuplicate(review: review)
-        let record = try #require(try await database.actionLogRecord(id: review.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
         try write("""
             INSERT INTO transactions
                 (id, acct, date, amount, category, tombstone, parent_id, is_parent,
@@ -386,11 +386,11 @@ struct TransactionDuplicateMutationTests {
                     '\(cloneParentID)', 0, 'coffee', NULL, 0, NULL, 1, 0);
             """, bundle: bundle)
 
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
 
         #expect(preview.block == .transactionCommandChanged)
         #expect(try transactionState(cloneParentID, bundle: bundle)?.tombstone == 0)
-        #expect(try await database.actionLogRecord(id: review.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database)?.status == .applied)
     }
 
     private func review(

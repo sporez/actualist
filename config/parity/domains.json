@@ -611,7 +611,10 @@
       "paths": [
         "Actualist/LocalFirst/ActionLog/*.swift",
         "Actualist/LocalFirst/LocalFirstActualStore+ActionLog.swift",
-        "Actualist/LocalFirst/Database/BudgetDatabase+ActionLog*.swift"
+        "Actualist/LocalFirst/Database/ActionLogSQL.swift",
+        "Actualist/LocalFirst/Database/ActionLogStorageSQL.swift",
+        "Actualist/LocalFirst/Database/TransactionActionLogSQL.swift",
+        "Actualist/LocalFirst/Database/TransactionCommandActionLogSQL.swift"
       ],
       "notes": "10 cases (assign, move, create, edit, delete x3, categorize, batch delete and categorize) compare Actualist's History undo with loot-core undo(); the Payees fixture's recorded undo is replayed through the one-step payee undo. Duplicate and merge are covered by TransactionCommandOracleReplayTests; the template action and categories/account groups have no comparison."
     }

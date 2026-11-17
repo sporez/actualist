@@ -127,7 +127,7 @@ extension LocalFirstActualStoreTests {
             actionID: "action-1"
         )
         let pendingBefore = try await store.pendingLocalSyncMessageCount(budgetID: "group-1")
-        #expect(try await database.recentBudgetActions().count == 1)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
 
         var secondBuilder = LocalFirstSyncMessageBuilder()
         let second = try await BudgetAssignmentSQL.assignCategoryBudgetMessages(
@@ -154,7 +154,7 @@ extension LocalFirstActualStoreTests {
         )
         #expect(groceries.budgeted == 60_000)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingBefore)
-        #expect(try await database.recentBudgetActions().count == 1)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
     }
 
     @Test func retentionKeepsNewest25MoneyFlowGestures() async throws {
@@ -180,7 +180,7 @@ extension LocalFirstActualStoreTests {
             )
         }
 
-        let rows = try await database.recentBudgetActions(limit: 100)
+        let rows = try await ActionLogStorageSQL.recentBudgetActions(limit: 100, in: database)
         #expect(rows.count == 25)
         #expect(rows.first?.id == "action-30")
         #expect(rows.last?.id == "action-6")
@@ -418,7 +418,7 @@ extension LocalFirstActualStoreTests {
         let rows = try await store.recentBudgetActions(budgetID: "group-1")
         #expect(rows.only?.status == .applied)
         let database2 = try store.requireDatabase(for: "group-1")
-        let preview = try await database2.actionUndoPreview(record: row)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: row, in: database2)
         #expect(preview.block == .changedSinceApplied)
         #expect(preview.entries.isEmpty)
     }
@@ -765,7 +765,7 @@ extension LocalFirstActualStoreTests {
             )
         }
         try await store.createPayeeAndRefresh(budgetID: "group-1", name: "Late Payee")
-        let rows = try await database.recentBudgetActions(limit: 100)
+        let rows = try await ActionLogStorageSQL.recentBudgetActions(limit: 100, in: database)
         #expect(rows.contains { $0.id == "money-1" })
         #expect(rows.contains { $0.kind == .payee })
         #expect(rows.filter(\.kind.isMoneyFlow).count == 25)

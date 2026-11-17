@@ -24,7 +24,7 @@ struct TransactionBatchMutationTests {
 
         let result = try await database.commitTransactionBatch(review: review, authorization: nil)
         #expect(result.changedTransactionIDs == ["txn"])
-        let records = try await database.recentBudgetActions()
+        let records = try await ActionLogStorageSQL.recentBudgetActions(in: database)
         let record = try #require(records.first)
         #expect(records.count == 1)
         #expect(record.kind == .transactionBatch)
@@ -35,11 +35,11 @@ struct TransactionBatchMutationTests {
         #expect(inverse.beforeSnapshots.first?.categoryID == "groceries")
         #expect(inverse.afterSnapshots.first?.categoryID == "utilities")
 
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         #expect(preview.block == nil)
         #expect(preview.transactionLines.count == 1)
         _ = try await database.commitActionUndo(record: record)
-        #expect(try await database.actionLogRecord(id: record.id)?.status == .undone)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: record.id, in: database)?.status == .undone)
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
     }
 
@@ -62,7 +62,7 @@ struct TransactionBatchMutationTests {
             try await database.commitTransactionBatch(review: review, authorization: nil)
         }
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingAfterNewerWrite)
-        #expect(try await database.recentBudgetActions().isEmpty)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).isEmpty)
     }
 
     @Test func clearCommitsEligibleRowsAndSkipsReconciledRowsAtomically() async throws {
@@ -249,7 +249,7 @@ struct TransactionBatchMutationTests {
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM messages_crdt") ?? 0
         }
         let outboxBefore = try await database.pendingLocalSyncMessageCount()
-        let historyBefore = try await database.recentBudgetActions().count
+        let historyBefore = try await ActionLogStorageSQL.recentBudgetActions(in: database).count
         let clockBefore = await database.localClock
 
         await #expect(throws: LocalFirstError.self) {
@@ -267,7 +267,7 @@ struct TransactionBatchMutationTests {
             try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM messages_crdt") ?? 0
         } == crdtBefore)
         #expect(try await database.pendingLocalSyncMessageCount() == outboxBefore)
-        #expect(try await database.recentBudgetActions().count == historyBefore)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == historyBefore)
         #expect(await database.localClock == clockBefore)
     }
 
@@ -359,7 +359,7 @@ struct TransactionBatchMutationTests {
                 """)
         } == rowsBefore)
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == outboxBefore)
-        #expect(try await database.recentBudgetActions().isEmpty)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).isEmpty)
         #expect(await database.localClock == clockBefore)
     }
 
@@ -395,7 +395,7 @@ struct TransactionBatchMutationTests {
             try String.fetchOne(db, sql: "SELECT category FROM transactions WHERE id = 'txn'")
         }
         #expect(category == "groceries")
-        #expect(try await database.recentBudgetActions().isEmpty)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).isEmpty)
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
         #expect(await database.localClock == clockBefore)
     }
@@ -451,7 +451,7 @@ struct TransactionBatchMutationTests {
             context: context(for: reopened.store), intent: .clear, selections: [identity("txn")]
         )
         _ = try await reopened.store.commitTransactionBatch(review: liveReview, authorization: nil)
-        let record = try #require(try await reopenedDB.actionLogRecord(id: liveReview.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: liveReview.id, in: reopenedDB))
         reopenedDB.invalidateSessionWrites()
         do {
             _ = try await reopenedDB.commitActionUndo(record: record)
@@ -459,7 +459,7 @@ struct TransactionBatchMutationTests {
         } catch let error as LocalFirstError {
             #expect(error == .budgetNotOpened)
         }
-        #expect(try await reopenedDB.actionLogRecord(id: liveReview.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: liveReview.id, in: reopenedDB)?.status == .applied)
     }
 
     @Test func cancelledBatchCommitIsRejectedBeforeDatabaseWrite() async throws {
@@ -481,7 +481,7 @@ struct TransactionBatchMutationTests {
         } catch is CancellationError { }
 
         #expect(await database.localClock == clockBefore)
-        #expect(try await database.recentBudgetActions().isEmpty)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).isEmpty)
         #expect(try await bundle.store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
     }
 
@@ -541,7 +541,7 @@ struct TransactionBatchMutationTests {
         #expect(outcome.receipt.actionID == review.id)
         #expect(outcome.refreshPending)
         #expect(!outcome.sessionCurrent)
-        #expect(try await database.actionLogRecord(id: review.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database)?.status == .applied)
     }
 
     @Test func callerCancellationDuringRefreshStillReturnsDurableReceipt() async throws {
@@ -569,7 +569,7 @@ struct TransactionBatchMutationTests {
         #expect(outcome.receipt.actionID == review.id)
         #expect(!outcome.refreshPending)
         #expect(outcome.sessionCurrent)
-        #expect(try await database.actionLogRecord(id: review.id)?.status == .applied)
+        #expect(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database)?.status == .applied)
     }
 
     @Test func failedRefreshInvalidatesPossiblyStaleFeedCache() async throws {
@@ -622,7 +622,7 @@ struct TransactionBatchMutationTests {
         #expect(deletedGraph.0 == 1)
         #expect(deletedGraph.1 == 1)
         #expect(deletedGraph.2 == 1)
-        let record = try #require(try await database.actionLogRecord(id: review.id))
+        let record = try #require(try await ActionLogStorageSQL.actionLogRecord(id: review.id, in: database))
         let url = try bundle.fileManager.databaseURL(fileID: #require(bundle.budget.budgetID))
         let externalQueue = try DatabaseQueue(path: url.path)
         try await externalQueue.write { db in
@@ -634,7 +634,7 @@ struct TransactionBatchMutationTests {
                 """)
         }
 
-        let preview = try await database.actionUndoPreview(record: record)
+        let preview = try await ActionLogSQL.actionUndoPreview(record: record, in: database)
         guard preview.block == .batchChanged else {
             Issue.record("Expected Undo to reject a changed split graph")
             return
@@ -678,7 +678,7 @@ struct TransactionBatchMutationTests {
         let database = try #require(bundle.store.database)
         let clock = await database.localClock
         let outboxMessages = try await database.pendingLocalSyncMessageCount()
-        let historyRows = try await database.recentBudgetActions().count
+        let historyRows = try await ActionLogStorageSQL.recentBudgetActions(in: database).count
         return try readRows(bundle) { db in
             BatchPersistenceState(
                 transactions: try String.fetchAll(db, sql: """

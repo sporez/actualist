@@ -28,7 +28,7 @@ struct AccountLifecycleCloseWriteTests {
         #expect(try await empty.pendingLocalSyncMessages().map(\.message).map(\.cell) == [
             "accounts|checking|tombstone|N:1"
         ])
-        let emptyAction = try #require(try await empty.recentBudgetActions().first)
+        let emptyAction = try #require(try await ActionLogStorageSQL.recentBudgetActions(in: empty).first)
         guard case .account(let emptySummary) = emptyAction.summary else {
             Issue.record("Expected account History metadata")
             return
@@ -250,7 +250,7 @@ struct AccountLifecycleCloseWriteTests {
             "account_sync_source", "bank_sync_status", "closed",
         ])
         #expect(!messages.contains { $0.column == "last_sync" })
-        #expect(try await database.recentBudgetActions().count == 1)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
     }
 
     @Test func noncanonicalAndLegacySimpleFINSourcesBlockReviewAndWriteNothing() async throws {
@@ -304,7 +304,7 @@ struct AccountLifecycleCloseWriteTests {
                 continue
             }
             #expect(try await database.pendingLocalSyncMessageCount() == 0)
-            #expect(try await database.recentBudgetActions().isEmpty)
+            #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).isEmpty)
             #expect(await database.localClock == clockBefore)
         }
     }
@@ -343,7 +343,7 @@ struct AccountLifecycleCloseWriteTests {
             return
         }
         #expect(try await fixture.database.pendingLocalSyncMessageCount() == 0)
-        #expect(try await fixture.database.recentBudgetActions().isEmpty)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: fixture.database).isEmpty)
         #expect(await fixture.database.localClock == clockBefore)
         #expect(try await AccountSQL.fetchAccounts(in: fixture.database).first { $0.id == "checking" }?.closed == false)
     }
@@ -371,7 +371,7 @@ struct AccountLifecycleCloseWriteTests {
         }
         #expect(fresh.identity.localDay == nextDay)
         #expect(try await database.pendingLocalSyncMessageCount() == 0)
-        #expect(try await database.recentBudgetActions().isEmpty)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).isEmpty)
         #expect(await database.localClock == clockBefore)
     }
 
@@ -398,7 +398,7 @@ struct AccountLifecycleCloseWriteTests {
                 )
             }
             #expect(try await database.pendingLocalSyncMessageCount() == 0)
-            #expect(try await database.recentBudgetActions().isEmpty)
+            #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).isEmpty)
             #expect(await database.localClock == clockBefore)
         }
     }
@@ -435,7 +435,7 @@ struct AccountLifecycleCloseWriteTests {
         }
 
         #expect(try await database.pendingLocalSyncMessageCount() == messagesBefore)
-        #expect(try await database.recentBudgetActions().count == 1)
+        #expect(try await ActionLogStorageSQL.recentBudgetActions(in: database).count == 1)
         #expect(try await AccountSQL.fetchAccounts(in: database).first { $0.id == "checking" }?.closed == false)
         #expect(await database.localClock == clockBefore)
     }

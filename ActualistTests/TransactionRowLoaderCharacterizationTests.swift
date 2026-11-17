@@ -32,7 +32,7 @@ struct TransactionRowLoaderCharacterizationTests {
                 output[id] = Loaded(
                     split: try database.loadTransactionRecord(id: id, columns: columns, db: db),
                     batch: try database.transactionBatchSnapshot(id: id, columns: columns, db: db),
-                    undo: try database.transactionUndoSnapshot(id: id, db: db),
+                    undo: try TransactionActionLogSQL.transactionUndoSnapshot(id: id, in: database, db: db),
                     columns: columns.all.sorted()
                 )
             }
@@ -247,7 +247,7 @@ struct TransactionRowLoaderCharacterizationTests {
             return try cases.indices.map { index in
                 (
                     batch: try database.transactionBatchSnapshot(id: "p\(index)", columns: columns, db: db),
-                    undo: try database.transactionUndoSnapshot(id: "p\(index)", db: db)
+                    undo: try TransactionActionLogSQL.transactionUndoSnapshot(id: "p\(index)", in: database, db: db)
                 )
             }
         }
