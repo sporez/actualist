@@ -145,6 +145,8 @@ struct BudgetCategoryOrganizationWorkflowTests {
 }
 
 actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
+
     struct CreatedCategory: Equatable, Sendable { let name: String; let groupID: String }
     struct RenamedEntity: Equatable, Sendable { let id: String; let name: String }
 
@@ -290,10 +292,6 @@ actor CategoryLifecycleRecordingRepository: BudgetRepositoryProtocol {
     func setCategoryGroupHiddenAndRefresh(groupID: String, hidden: Bool, budgetID: String, month: String, didUpdate: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
     func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity?, command: BudgetTemplateCommand, budgetID: String, month: String, didApply: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { emptyCategoryLifecycleMonth }
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity?, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, actionSource: BudgetActionSource, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? { emptyCategoryLifecycleMonth }
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
-    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview { .init(actionID: actionID, month: "", entries: [], block: nil) }
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {}
 }
 
 let emptyCategoryLifecycleMonth = LoadedBudgetMonth(

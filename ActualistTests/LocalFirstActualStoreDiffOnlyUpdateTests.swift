@@ -214,9 +214,9 @@ extension LocalFirstActualStoreTests {
             originalAccountID: "checking", originalMonth: "2026-07", baseline: baseline,
             actionSource: .ui, didUpdate: {}
         )
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").first)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").first)
         #expect(row.kind == .editTransaction)
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let restored = try #require(try await store.fetchTransaction(budgetID: "group-1", id: "txn"))
         #expect(restored.amount == -12_345)

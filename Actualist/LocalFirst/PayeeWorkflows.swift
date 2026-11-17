@@ -232,7 +232,7 @@ final class PayeeWorkflows {
         store.reports.invalidateReports(budgetID: budgetID)
 
         try await store.refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
-        await store.refreshActionLogDiagnosticSnapshot(database: database)
+        await store.history.refreshActionLogDiagnosticSnapshot(database: database)
     }
 }
 

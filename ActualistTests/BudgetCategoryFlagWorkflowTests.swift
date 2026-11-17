@@ -408,6 +408,8 @@ private func rolloverCategory(isIncome: Bool) -> BudgetMonthCategory {
 }
 
 private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
+
     private var continuation: CheckedContinuation<Void, Never>?
     private var startedContinuation: CheckedContinuation<Void, Never>?
     private var didStart = false
@@ -483,16 +485,6 @@ private actor DelayedVisibilityRepository: BudgetRepositoryProtocol {
     ) async throws -> LoadedBudgetMonth? {
         emptyLoadedMonth
     }
-
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
-
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
-
-    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview {
-        BudgetActionUndoPreview(actionID: actionID, month: "", entries: [], block: nil)
-    }
-
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {}
 
     func setCategoryHiddenAndRefresh(
         categoryID: String,

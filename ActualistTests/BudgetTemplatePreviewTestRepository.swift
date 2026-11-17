@@ -6,6 +6,8 @@ import Foundation
 protocol BudgetTemplatePreviewTestRepository: BudgetRepositoryProtocol {}
 
 extension BudgetTemplatePreviewTestRepository {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
+
     func budgets() async throws -> [ActualBudget] { [] }
 
     func currentBudgetMonth(
@@ -89,19 +91,6 @@ extension BudgetTemplatePreviewTestRepository {
     ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth
     }
-
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
-
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
-
-    func budgetActionUndoPreview(
-        actionID: String,
-        budgetID: String
-    ) async throws -> BudgetActionUndoPreview {
-        BudgetActionUndoPreview(actionID: actionID, month: "", entries: [], block: nil)
-    }
-
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {}
 
     private static var dummyMonth: LoadedBudgetMonth { previewTestDummyMonth }
 }

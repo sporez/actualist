@@ -272,7 +272,7 @@ struct BudgetTemplateReviewRevisionTests {
                 .first { $0.id == "groceries" }
         )
         #expect(groceries.budgeted == expectedAmount)
-        #expect(try await bundle.store.recentBudgetActions(budgetID: "group-1").count == 1)
+        #expect(try await bundle.store.history.recentBudgetActions(budgetID: "group-1").count == 1)
     }
 
     @Test func replacingImportedStorageIdentityInvalidatesReviewedRevision() async throws {

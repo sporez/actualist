@@ -120,7 +120,7 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        #expect(try await bundle.store.recentBudgetActions(budgetID: "group-1").isEmpty == false)
+        #expect(try await bundle.store.history.recentBudgetActions(budgetID: "group-1").isEmpty == false)
         let launchFiles = try bundle.fileManager.launchSnapshotFiles(fileID: "file-1")
         let originalSnapshot = try #require(launchFiles.readRevisionAndSnapshot().snapshot)
 
@@ -132,7 +132,7 @@ extension LocalFirstActualStoreTests {
         let replacementSnapshot = try #require(launchFiles.readRevisionAndSnapshot().snapshot)
         #expect(replacementSnapshot.modeIdentity.storageID != originalSnapshot.modeIdentity.storageID)
         #expect(bundle.store.isOpen(budgetID: "group-1"))
-        #expect(try await bundle.store.recentBudgetActions(budgetID: "group-1").isEmpty)
+        #expect(try await bundle.store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
         let accounts = bundle.store.accountDisplays(budgetID: "group-1").map(\.account.id)
         #expect(accounts.contains("replacement"))
         #expect(try bundle.fileManager.reimportBackupExists(fileID: "file-1"))

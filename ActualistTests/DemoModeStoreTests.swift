@@ -151,11 +151,11 @@ struct DemoModeStoreTests {
         // The local write still never reached a server.
         #expect(await transport.messageCounts().isEmpty)
 
-        let rows = try await store.recentBudgetActions(budgetID: budgetID)
+        let rows = try await store.history.recentBudgetActions(budgetID: budgetID)
         let row = try #require(rows.first)
         #expect(row.kind == .createTransaction)
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: budgetID)
-        #expect(try await store.recentBudgetActions(budgetID: budgetID).first?.status == .undone)
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: budgetID)
+        #expect(try await store.history.recentBudgetActions(budgetID: budgetID).first?.status == .undone)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: budgetID) == 0)
         #expect(await transport.messageCounts().isEmpty)
     }

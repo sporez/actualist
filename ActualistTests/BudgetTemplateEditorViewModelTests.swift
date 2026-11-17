@@ -510,6 +510,8 @@ struct BudgetTemplateEditorViewModelTests {
 }
 
 actor EditorTemplateRepository: BudgetRepositoryProtocol {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
+
     var snapshot: BudgetTemplateEditorSnapshot
     private(set) var dryRunCount = 0
     private var saved: [[BudgetTemplateDraft]] = []
@@ -685,19 +687,6 @@ actor EditorTemplateRepository: BudgetRepositoryProtocol {
     ) async throws -> LoadedBudgetMonth? {
         Self.dummyMonth
     }
-
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
-
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
-
-    func budgetActionUndoPreview(
-        actionID: String,
-        budgetID: String
-    ) async throws -> BudgetActionUndoPreview {
-        BudgetActionUndoPreview(actionID: actionID, month: "", entries: [], block: nil)
-    }
-
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {}
 
     private static let dummyMonth = LoadedBudgetMonth(
         availableMonths: ["2026-09"],

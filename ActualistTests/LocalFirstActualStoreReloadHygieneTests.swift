@@ -11,7 +11,7 @@ extension LocalFirstActualStoreTests {
         store.actionLogDiagnosticSnapshot = current
         let staleDatabase = try BudgetDatabase(databaseURL: makeSQLiteFixture(), localNodeID: "stale-node")
 
-        await store.refreshActionLogDiagnosticSnapshot(database: staleDatabase)
+        await store.history.refreshActionLogDiagnosticSnapshot(database: staleDatabase)
 
         #expect(store.actionLogDiagnosticSnapshot == current)
     }
@@ -38,10 +38,10 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").first)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").first)
         let readGenerationBefore = store.budgetReadGeneration
 
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         // `reloadSelectedBudgetCache` advances `budgetReadGeneration` once per reload.
         #expect(store.budgetReadGeneration == readGenerationBefore &+ 1)

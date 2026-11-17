@@ -85,6 +85,6 @@ extension LocalFirstActualStoreTests {
         #expect(!templated)
         #expect(!carried)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").isEmpty)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
     }
 }

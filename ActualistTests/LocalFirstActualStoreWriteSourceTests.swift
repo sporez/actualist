@@ -29,7 +29,7 @@ extension LocalFirstActualStoreTests {
     }
 
     private func loggedSource(_ store: LocalFirstActualStore) async throws -> BudgetActionSource? {
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         return rows.count == 1 ? rows[0].source : nil
     }
 

@@ -47,7 +47,7 @@ enum ActualistDiagnosticReportBuilder {
         }
         let importedBudgetCount = (try? store.fileManager.importedBudgetFileIDs().count) ?? 0
         let availableStorageBytes = availableStorageBytes()
-        let historyStats = store.actionLogDiagnosticStats(now: generatedAt)
+        let historyStats = store.history.actionLogDiagnosticStats(now: generatedAt)
 
         var lines: [String] = [
             "Actualist Diagnostic Report",

@@ -341,7 +341,7 @@ struct BudgetTemplateWriteTests {
         )
         #expect(groceriesAfter.hasTemplateDefinition)
         #expect(after.month.toBudget == before.month.toBudget)
-        #expect(try await bundle.store.recentBudgetActions(budgetID: "group-1").isEmpty)
+        #expect(try await bundle.store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
 
         let cleared = try await bundle.store.setCategoryTemplatesAndRefresh(
             categoryID: "groceries",
@@ -354,7 +354,7 @@ struct BudgetTemplateWriteTests {
                 .categories.first { $0.id == "groceries" }?
                 .hasTemplateDefinition == false
         )
-        #expect(try await bundle.store.recentBudgetActions(budgetID: "group-1").isEmpty)
+        #expect(try await bundle.store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
         #expect(cleared.month.toBudget == before.month.toBudget)
     }
 

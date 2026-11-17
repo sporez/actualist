@@ -69,7 +69,7 @@ struct LocalFirstActualStoreTransactionMergeTests {
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()) == nil)
         #expect(store.cachedTransactions(budgetID: "group-1",scope: .spending,query: TransactionFeedQuery()) == nil)
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").count == 1)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").count == 1)
     }
 
     @Test func closingSessionDuringPostCommitRefreshReturnsDurableReceipt() async throws {

@@ -61,6 +61,7 @@ final class LocalFirstActualStore:
     @ObservationIgnored private(set) lazy var demoBudget = DemoBudgetWorkflows(store: self)
     @ObservationIgnored private(set) lazy var budgetLaunch = BudgetLaunchWorkflows(store: self)
     @ObservationIgnored private(set) lazy var holds = HoldWorkflows(store: self)
+    @ObservationIgnored private(set) lazy var history = HistoryWorkflows(store: self)
     var budgetReadGeneration = 0
     @ObservationIgnored var syncStatusSequence = 0
     @ObservationIgnored var appliedPendingCountSequence = 0

@@ -5,6 +5,11 @@ extension LocalFirstActualStore {
         cachedBudgets
     }
 
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? {
+        let database = try requireDatabase(for: budgetID)
+        return try await BudgetModeSQL.fetchBudgetModeIdentity(in: database)
+    }
+
     func cachedBudgetMonth(budgetID: String) -> LoadedBudgetMonth? {
         loadedBudgetMonthsByBudget[budgetID]
     }

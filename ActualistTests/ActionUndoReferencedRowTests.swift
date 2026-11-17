@@ -118,9 +118,9 @@ import Testing
         let fixture = try await deletedTransactionFixture()
         try await fixture.execute("UPDATE accounts SET closed = 1 WHERE id = 'checking'")
 
-        try await fixture.store.undoBudgetActionAndRefresh(actionID: fixture.actionID, budgetID: "group-1")
+        try await fixture.store.history.undoBudgetActionAndRefresh(actionID: fixture.actionID, budgetID: "group-1")
 
-        let rows = try await fixture.store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await fixture.store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.first { $0.id == fixture.actionID }?.status == .undone)
     }
 
@@ -149,7 +149,7 @@ import Testing
                 .transactions.first { $0.id == transactionID }
         )
         _ = try await store.deleteTransactionAndRefresh(row, budgetID: "group-1") {}
-        let actions = try await store.recentBudgetActions(budgetID: "group-1")
+        let actions = try await store.history.recentBudgetActions(budgetID: "group-1")
         let deleteAction = try #require(actions.first)
         #expect(deleteAction.kind == .deleteTransaction)
         return DeletedTransactionFixture(
@@ -160,7 +160,7 @@ import Testing
     }
 
     private func expectBlocked(_ fixture: DeletedTransactionFixture) async throws {
-        let preview = try await fixture.store.budgetActionUndoPreview(
+        let preview = try await fixture.store.history.budgetActionUndoPreview(
             actionID: fixture.actionID, budgetID: "group-1"
         )
         #expect(preview.block == .referencedRowMissing)
@@ -168,9 +168,9 @@ import Testing
         await #expect(throws: LocalFirstError.actionUndoBlocked(
             BudgetActionUndoBlock.referencedRowMissing.userFacingReason
         )) {
-            try await fixture.store.undoBudgetActionAndRefresh(actionID: fixture.actionID, budgetID: "group-1")
+            try await fixture.store.history.undoBudgetActionAndRefresh(actionID: fixture.actionID, budgetID: "group-1")
         }
-        let rows = try await fixture.store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await fixture.store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.first { $0.id == fixture.actionID }?.status == .applied)
     }
 

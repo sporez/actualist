@@ -120,13 +120,13 @@ enum UndoOracleReplay {
     /// refuses it; `not-offered` when there is no preview to show.
     private static func undoOutcome(actionID: String, store: LocalFirstActualStore) async -> String {
         do {
-            let preview = try await store.budgetActionUndoPreview(actionID: actionID, budgetID: budgetID)
+            let preview = try await store.history.budgetActionUndoPreview(actionID: actionID, budgetID: budgetID)
             if preview.block != nil { return "blocked" }
         } catch {
             return "not-offered"
         }
         do {
-            try await store.undoBudgetActionAndRefresh(actionID: actionID, budgetID: budgetID)
+            try await store.history.undoBudgetActionAndRefresh(actionID: actionID, budgetID: budgetID)
             return "applied"
         } catch {
             return "blocked"

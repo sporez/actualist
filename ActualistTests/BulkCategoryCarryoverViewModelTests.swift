@@ -235,6 +235,8 @@ private enum BulkCarryoverTestError: LocalizedError {
 }
 
 private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
+
     private let loaded: LoadedBudgetMonth
     private let updated: LoadedBudgetMonth
     private let mutationError: Error?
@@ -355,13 +357,4 @@ private actor BulkCarryoverRepository: BudgetRepositoryProtocol {
         didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? { loaded }
 
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
-
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
-
-    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview {
-        BudgetActionUndoPreview(actionID: actionID, month: "", entries: [], block: nil)
-    }
-
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {}
 }

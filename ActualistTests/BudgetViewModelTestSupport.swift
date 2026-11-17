@@ -146,6 +146,8 @@ enum BudgetViewModelFixtures {
 }
 
 actor RecordingBudgetRepository: BudgetRepositoryProtocol, BudgetHoldRepositoryProtocol {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
+
     private let loadedMonth: LoadedBudgetMonth
     private let assignError: Error?
     private let carryoverError: Error?
@@ -475,16 +477,6 @@ actor RecordingBudgetRepository: BudgetRepositoryProtocol, BudgetHoldRepositoryP
     func didAssignFinished() -> Bool {
         didAssignCallbackFinished
     }
-
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
-
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
-
-    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview {
-        BudgetActionUndoPreview(actionID: actionID, month: "", entries: [], block: nil)
-    }
-
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {}
 
     func didMoveFinished() -> Bool {
         didMoveCallbackFinished

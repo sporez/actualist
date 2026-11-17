@@ -76,12 +76,17 @@ final class HistoryViewModel {
         }
         privacyEnabled = appState.settings.randomizedDisplayValuesEnabled
         currency = appState.localFirstStore.budgetCurrency(budgetID: budgetID)
-        await load(budgetID: budgetID, repository: appState.budgetRepository)
+        await load(
+            budgetID: budgetID,
+            history: appState.localFirstStore.history,
+            budget: appState.budgetRepository
+        )
     }
 
     func load(
         budgetID: String,
-        repository: any BudgetRepositoryProtocol
+        history: any BudgetHistoryRepositoryProtocol,
+        budget: any BudgetRepositoryProtocol
     ) async {
         loadGeneration += 1
         let request = loadGeneration
@@ -89,9 +94,9 @@ final class HistoryViewModel {
             loadState = .loading
         }
         do {
-            async let fetchedRecords = repository.recentBudgetActions(budgetID: budgetID)
-            async let fetchedNames = repository.budgetActionCategoryNames(budgetID: budgetID)
-            async let fetchedModeIdentity = repository.budgetModeIdentity(budgetID: budgetID)
+            async let fetchedRecords = history.recentBudgetActions(budgetID: budgetID)
+            async let fetchedNames = history.budgetActionCategoryNames(budgetID: budgetID)
+            async let fetchedModeIdentity = budget.budgetModeIdentity(budgetID: budgetID)
             let loadedRecords = try await fetchedRecords
             let loadedNames = try await fetchedNames
             let identity = try await fetchedModeIdentity
@@ -150,7 +155,7 @@ final class HistoryViewModel {
         let generation = preparationGeneration
         undoState = .preparing(actionID: row.id)
         do {
-            let preview = try await appState.budgetRepository.budgetActionUndoPreview(
+            let preview = try await appState.localFirstStore.history.budgetActionUndoPreview(
                 actionID: row.id,
                 budgetID: budgetID
             )
@@ -195,7 +200,7 @@ final class HistoryViewModel {
         let generation = preparationGeneration
         undoState = .committing(presentation)
         do {
-            try await appState.budgetRepository.undoBudgetActionAndRefresh(
+            try await appState.localFirstStore.history.undoBudgetActionAndRefresh(
                 actionID: presentation.actionID,
                 budgetID: budgetID
             )
@@ -205,7 +210,11 @@ final class HistoryViewModel {
                 return false
             }
             undoState = .idle
-            await load(budgetID: budgetID, repository: appState.budgetRepository)
+            await load(
+                budgetID: budgetID,
+                history: appState.localFirstStore.history,
+                budget: appState.budgetRepository
+            )
             return true
         } catch {
             guard generation == preparationGeneration,

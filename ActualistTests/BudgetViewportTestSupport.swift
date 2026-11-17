@@ -1,7 +1,7 @@
 import Foundation
 @testable import Actualist
 
-actor BudgetViewportTestRepository: BudgetRepositoryProtocol {
+actor BudgetViewportTestRepository: BudgetRepositoryProtocol, BudgetHistoryRepositoryProtocol {
     var currentModeIdentity: BudgetModeIdentity?
     var responses: [String: LoadedBudgetMonth] = [:]
     var readErrors: [String: Error] = [:]

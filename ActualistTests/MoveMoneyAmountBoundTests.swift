@@ -17,7 +17,7 @@ extension LocalFirstActualStoreTests {
                 month: "2026-07"
             ) {}
         }
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").isEmpty)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
     }
 
     @Test func moveMoneyRejectsAmountAboveTheBound() async throws {

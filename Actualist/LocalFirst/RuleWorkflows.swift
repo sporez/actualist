@@ -97,7 +97,7 @@ final class RuleWorkflows {
         invalidateRulesCache(budgetID: budgetID)
         try await refreshRulesCache(database: database, budgetID: budgetID)
         try await store.payees.publishPayeeManagementSnapshot(database: database, budgetID: budgetID)
-        await store.refreshActionLogDiagnosticSnapshot(database: database)
+        await store.history.refreshActionLogDiagnosticSnapshot(database: database)
     }
 
     func invalidateRulesCache(budgetID: String) {

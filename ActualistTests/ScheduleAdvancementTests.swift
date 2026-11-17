@@ -389,7 +389,7 @@ struct ScheduleAdvancementTests {
             budgetID: "group-1", database: database, generation: store.budgetSessionGeneration
         )
 
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.count == 2)
         let automatic = try #require(rows.first)
         let assign = try #require(rows.last)
@@ -406,10 +406,10 @@ struct ScheduleAdvancementTests {
         #expect(history.rows[1].canUndo)
 
         await #expect(throws: LocalFirstError.actionUndoBlocked("This was posted automatically and cannot be undone.")) {
-            try await store.undoBudgetActionAndRefresh(actionID: automatic.id, budgetID: "group-1")
+            try await store.history.undoBudgetActionAndRefresh(actionID: automatic.id, budgetID: "group-1")
         }
-        try await store.undoBudgetActionAndRefresh(actionID: assign.id, budgetID: "group-1")
-        let after = try await store.recentBudgetActions(budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: assign.id, budgetID: "group-1")
+        let after = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(after.first { $0.id == assign.id }?.status == .undone)
         #expect(after.first { $0.id == automatic.id }?.status == .applied)
     }

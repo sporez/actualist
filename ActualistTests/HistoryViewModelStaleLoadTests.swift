@@ -17,7 +17,7 @@ struct HistoryViewModelStaleLoadTests {
             return [Self.record(id: "new")]
         }
         let model = HistoryViewModel()
-        let older = Task { await model.load(budgetID: "budget", repository: repository) }
+        let older = Task { await model.load(budgetID: "budget", history: repository, budget: repository) }
         let deadline = Task {
             try await Task.sleep(for: .seconds(5))
             firstEntered.trip()
@@ -26,7 +26,7 @@ struct HistoryViewModelStaleLoadTests {
         defer { deadline.cancel(); older.cancel(); gate.trip() }
         await firstEntered.wait()
 
-        await model.load(budgetID: "budget", repository: repository)
+        await model.load(budgetID: "budget", history: repository, budget: repository)
         #expect(model.rows.map(\.id) == ["new"])
 
         gate.trip()

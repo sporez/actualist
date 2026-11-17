@@ -505,7 +505,7 @@ struct TransactionBatchMutationTests {
         await #expect(throws: CancellationError.self) {
             try await store.transactionCommands.commitTransactionBatch(review: oldReview, authorization: nil)
         }
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").isEmpty)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") == 0)
         #expect(try readRows(bundle) { db in
             try Int.fetchOne(db, sql: "SELECT cleared FROM transactions WHERE id = 'txn'")
@@ -516,7 +516,7 @@ struct TransactionBatchMutationTests {
         )
         let outcome = try await store.transactionCommands.commitTransactionBatch(review: freshReview, authorization: nil)
         #expect(outcome.receipt.actionID == freshReview.id)
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").count == 1)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").count == 1)
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") > 0)
     }
 
@@ -596,7 +596,7 @@ struct TransactionBatchMutationTests {
         #expect(outcome.refreshPending)
         #expect(outcome.sessionCurrent)
         #expect(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()) == nil)
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").count == 1)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").count == 1)
     }
 
     @Test func deletedSplitBatchUndoBlocksWhenGraphMembershipChanges() async throws {

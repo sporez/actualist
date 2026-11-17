@@ -105,6 +105,8 @@ struct TrackingBudgetDelayedWorkflowTests {
 }
 
 private actor DelayedWorkflowRepository: BudgetRepositoryProtocol {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
+
     enum Result { case success, failure }
 
     private let result: Result
@@ -168,15 +170,6 @@ private actor DelayedWorkflowRepository: BudgetRepositoryProtocol {
         let assigned = try await assignCategoryBudgetAndRefresh(expectedMode: expectedMode, categoryID: "fixture", budgeted: 0,
             budgetID: budgetID, month: month, didAssign: didApply)
         return assigned ?? loaded(modeIdentity: expectedMode)
-    }
-
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
-    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview {
-        throw LocalFirstError.unsupportedWrite
-    }
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {
-        throw LocalFirstError.unsupportedWrite
     }
 
     private func waitForCompletion() async {

@@ -138,12 +138,7 @@ protocol BudgetRepositoryProtocol: Sendable {
         actionSource: BudgetActionSource,
         didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth?
-    // History: local money-flow gesture log and LIFO undo.
     func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity?
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord]
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String]
-    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws
 }
 
 extension BudgetRepositoryProtocol {
@@ -203,10 +198,6 @@ extension BudgetRepositoryProtocol {
         didApply: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth {
         throw LocalFirstError.unsupportedWrite
-    }
-
-    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? {
-        nil
     }
 
     func createCategoryAndRefresh(name: String, groupID: String, budgetID: String, month: String) async throws -> LoadedBudgetMonth {

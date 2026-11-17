@@ -611,7 +611,7 @@
       ],
       "paths": [
         "Actualist/LocalFirst/ActionLog/*.swift",
-        "Actualist/LocalFirst/LocalFirstActualStore+ActionLog.swift",
+        "Actualist/LocalFirst/HistoryWorkflows.swift",
         "Actualist/LocalFirst/Database/ActionLogSQL.swift",
         "Actualist/LocalFirst/Database/ActionLogStorageSQL.swift",
         "Actualist/LocalFirst/Database/TransactionActionLogSQL.swift",

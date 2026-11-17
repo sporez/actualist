@@ -267,6 +267,8 @@ struct BudgetViewModelTemplateWorkflowTests {
 /// `toBudget` marker for the fresh-reload round-trip test) so tests can tell
 /// which month's data ended up on screen.
 private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
+
     static let freshMarker = 999_999
 
     private var templates: [RecordedBudgetTemplate] = []
@@ -393,18 +395,6 @@ private actor ControllableTemplateRepository: BudgetRepositoryProtocol {
         actionSource: BudgetActionSource,
         didMove: @escaping @MainActor @Sendable () async -> Void
     ) async throws -> LoadedBudgetMonth? {
-        throw TestError("not used")
-    }
-
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
-
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
-
-    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview {
-        throw TestError("not used")
-    }
-
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws {
         throw TestError("not used")
     }
 

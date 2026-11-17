@@ -52,7 +52,7 @@ struct LocalFirstActualStoreIdempotentCreateTests {
         #expect(didCreate.count == 1)
         #expect(rows(store).map(\.id) == ["txn-x"])
         #expect(try await store.pendingLocalSyncMessageCount(budgetID: "group-1") == pendingAfterFirst)
-        let creates = try await store.recentBudgetActions(budgetID: "group-1")
+        let creates = try await store.history.recentBudgetActions(budgetID: "group-1")
             .filter { $0.kind == .createTransaction }
         #expect(creates.count == 1)
     }
@@ -114,7 +114,7 @@ struct LocalFirstActualStoreIdempotentCreateTests {
         #expect(first == .saved)
         #expect(second == .saved)
         #expect(rows(store).count == 1)
-        let creates = try await store.recentBudgetActions(budgetID: "group-1")
+        let creates = try await store.history.recentBudgetActions(budgetID: "group-1")
             .filter { $0.kind == .createTransaction }
         #expect(creates.count == 1)
     }

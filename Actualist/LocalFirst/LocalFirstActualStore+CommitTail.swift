@@ -276,7 +276,7 @@ extension LocalFirstActualStore {
             budgetID: budgetID,
             accountIDs: Set(accountIDs)
         )
-        await refreshActionLogDiagnosticSnapshot(database: database)
+        await history.refreshActionLogDiagnosticSnapshot(database: database)
     }
 
     func reloadAfterBudgetMutation(
@@ -287,7 +287,7 @@ extension LocalFirstActualStore {
         reports.invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
         try await refreshLoadedTransactionFeedCaches(database: database, budgetID: budgetID)
-        await refreshActionLogDiagnosticSnapshot(database: database)
+        await history.refreshActionLogDiagnosticSnapshot(database: database)
     }
 
     func reloadAfterAccountMutation(
@@ -297,6 +297,6 @@ extension LocalFirstActualStore {
         try await reloadSelectedBudgetCache(budgetID: budgetID)
         reports.invalidateReports(budgetID: budgetID)
         try await reloadAccountCaches(database: database, budgetID: budgetID)
-        await refreshActionLogDiagnosticSnapshot(database: database)
+        await history.refreshActionLogDiagnosticSnapshot(database: database)
     }
 }

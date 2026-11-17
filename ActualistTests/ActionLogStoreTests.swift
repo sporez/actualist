@@ -13,7 +13,7 @@ extension LocalFirstActualStoreTests {
             month: "2026-07"
         ) {}
 
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         let row = try #require(rows.only)
         #expect(row.kind == .assign)
         #expect(row.status == .applied)
@@ -51,7 +51,7 @@ extension LocalFirstActualStoreTests {
             month: "2026-07"
         ) {}
 
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         let row = try #require(rows.only)
         #expect(row.kind == .move)
         #expect(row.source == .ui)
@@ -77,7 +77,7 @@ extension LocalFirstActualStoreTests {
             month: "2026-07"
         ) {}
 
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         let row = try #require(rows.only)
         #expect(row.kind == .move)
         #expect(row.affectedCategoryIDs == ["dining", "groceries", "utilities"])
@@ -104,7 +104,7 @@ extension LocalFirstActualStoreTests {
             actionSource: .shortcuts
         ) {}
 
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.only?.source == .shortcuts)
     }
 
@@ -188,7 +188,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func recentBudgetActionsIsEmptyBeforeTheFirstRecordedWrite() async throws {
         let store = try await makeOpenedWritableStore()
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").isEmpty)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
     }
 
     @Test func emptyMoveWritesNoLogRow() async throws {
@@ -200,7 +200,7 @@ extension LocalFirstActualStoreTests {
             month: "2026-07"
         ) {}
 
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").isEmpty)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").isEmpty)
     }
 
     @Test func templateApplyRecordsOneRowWithBeforeAndAfter() async throws {
@@ -212,7 +212,7 @@ extension LocalFirstActualStoreTests {
             month: "2026-07"
         ) {}
 
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         let row = try #require(rows.only)
         #expect(row.kind == .template)
         #expect(row.status == .applied)
@@ -236,17 +236,17 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
         let pendingBefore = try await store.pendingLocalSyncMessageCount(budgetID: "group-1")
 
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let groceries = try #require(
             loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
         )
         #expect(groceries.budgeted == 50_000)
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         let undone = try #require(rows.only)
         #expect(undone.id == row.id)
         #expect(undone.status == .undone)
@@ -265,13 +265,13 @@ extension LocalFirstActualStoreTests {
                 sql: "UPDATE actualist_action_log SET mode_identity_json = NULL"
             )
         }
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
-        let preview = try await store.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
+        let preview = try await store.history.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
         #expect(preview.block == .budgetModeChanged)
         await #expect(throws: LocalFirstError.actionUndoBlocked(
             "This budget changed after the action. Undo is not available for this older action."
         )) {
-            try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+            try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
         }
     }
 
@@ -281,7 +281,7 @@ extension LocalFirstActualStoreTests {
             categoryID: "groceries", budgeted: 62_500, budgetID: "group-1", month: "2026-07"
         ) {}
         let database = try store.requireDatabase(for: "group-1")
-        let old = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let old = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
         _ = try await database.applyRemoteSyncMessages([
             ActualSyncDecodedMessage(
                 timestamp: "\(SyncTimestamp.wallTimeString(for: Date().addingTimeInterval(60)))-0000-0000000000000001",
@@ -292,17 +292,17 @@ extension LocalFirstActualStoreTests {
                 dataset: "preferences", row: "budgetType", column: "value", serializedValue: "S:envelope"
             )
         ])
-        let oldPreview = try await store.budgetActionUndoPreview(actionID: old.id, budgetID: "group-1")
+        let oldPreview = try await store.history.budgetActionUndoPreview(actionID: old.id, budgetID: "group-1")
         #expect(oldPreview.block == .budgetModeChanged)
 
         _ = try await store.assignCategoryBudgetAndRefresh(
             categoryID: "groceries", budgeted: 63_500, budgetID: "group-1", month: "2026-07"
         ) {}
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         let fresh = try #require(rows.first)
         #expect(fresh.modeIdentity != nil)
-        try await store.undoBudgetActionAndRefresh(actionID: fresh.id, budgetID: "group-1")
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").first?.status == .undone)
+        try await store.history.undoBudgetActionAndRefresh(actionID: fresh.id, budgetID: "group-1")
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").first?.status == .undone)
     }
 
     @Test func undoMoveRestoresEveryLegAtomically() async throws {
@@ -315,9 +315,9 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
 
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let categories = Dictionary(
@@ -325,7 +325,7 @@ extension LocalFirstActualStoreTests {
         )
         #expect(categories["groceries"] == 50_000)
         #expect(categories["dining"] == 0)
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
     }
 
     @Test func undoOfAnOlderAppliedRowIsRefusedLIFO() async throws {
@@ -342,12 +342,12 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.count == 2)
         let older = try #require(rows.last)
 
         await #expect(throws: LocalFirstError.actionUndoBlocked("Undo the newest action before this one.")) {
-            try await store.undoBudgetActionAndRefresh(actionID: older.id, budgetID: "group-1")
+            try await store.history.undoBudgetActionAndRefresh(actionID: older.id, budgetID: "group-1")
         }
 
         let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
@@ -355,7 +355,7 @@ extension LocalFirstActualStoreTests {
             loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
         )
         #expect(groceries.budgeted == 63_000)
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").allSatisfy { $0.status == .applied })
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").allSatisfy { $0.status == .applied })
     }
 
     @Test func undoNewestThenPreviousRestoresInReverseOrder() async throws {
@@ -372,17 +372,17 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        var rows = try await store.recentBudgetActions(budgetID: "group-1")
+        var rows = try await store.history.recentBudgetActions(budgetID: "group-1")
 
-        try await store.undoBudgetActionAndRefresh(actionID: rows[0].id, budgetID: "group-1")
-        try await store.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: rows[0].id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
 
         let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let groceries = try #require(
             loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "groceries" }
         )
         #expect(groceries.budgeted == 50_000)
-        rows = try await store.recentBudgetActions(budgetID: "group-1")
+        rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.allSatisfy { $0.status == .undone })
     }
 
@@ -394,7 +394,7 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
 
         // A remote-style or peer write that History never grouped: the live
         // cell no longer matches the recorded after-state.
@@ -412,10 +412,10 @@ extension LocalFirstActualStoreTests {
         await #expect(throws: LocalFirstError.actionUndoBlocked(
             "Something changed a category after this action. Undo would overwrite that newer change, so it was not done."
         )) {
-            try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+            try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
         }
 
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.only?.status == .applied)
         let database2 = try store.requireDatabase(for: "group-1")
         let preview = try await ActionLogSQL.actionUndoPreview(record: row, in: database2)
@@ -430,16 +430,16 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
 
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let loaded = try await store.budgetMonth(budgetID: "group-1", selectedMonth: "2026-07")
         let utilities = try #require(
             loaded.month.categoryGroups.flatMap(\.categories).first { $0.id == "utilities" }
         )
         #expect(utilities.budgeted == 0)
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
     }
 
     @Test func undoPreviewShowsCurrentAndProposedAmounts() async throws {
@@ -450,9 +450,9 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
 
-        let preview = try await store.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
+        let preview = try await store.history.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
         #expect(preview.isUndoable)
         #expect(preview.month == "2026-07")
         #expect(preview.entries == [
@@ -468,13 +468,13 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             month: "2026-07"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         await #expect(throws: LocalFirstError.actionUndoBlocked("This action was already undone.")) {
-            try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+            try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
         }
-        let preview = try await store.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
+        let preview = try await store.history.budgetActionUndoPreview(actionID: row.id, budgetID: "group-1")
         #expect(preview.block == .alreadyUndone)
     }
 
@@ -493,7 +493,7 @@ extension LocalFirstActualStoreTests {
         )
         let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
         let transactionID = try #require(created.changed.transactions.first)
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
         #expect(row.kind == .createTransaction)
         #expect(row.source == .ui)
         guard case .createTransaction(let summary) = row.summary else {
@@ -504,9 +504,9 @@ extension LocalFirstActualStoreTests {
         #expect(summary.payeeName == "Coffee Shop")
         #expect(summary.graph == .simple)
 
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").only?.status == .undone)
         let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         #expect(!loaded.transactions.contains { $0.id == transactionID })
     }
@@ -531,15 +531,15 @@ extension LocalFirstActualStoreTests {
                 .transactions.first { $0.id == transactionID }
         )
         _ = try await store.deleteTransactionAndRefresh(createdRow, budgetID: "group-1") {}
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.count == 2)
         #expect(rows[0].kind == .deleteTransaction)
 
-        try await store.undoBudgetActionAndRefresh(actionID: rows[0].id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: rows[0].id, budgetID: "group-1")
 
         let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         #expect(loaded.transactions.contains { $0.id == transactionID })
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").first?.status == .undone)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").first?.status == .undone)
     }
 
     @Test func categorizeRecordsAndUndoRestoresThePreviousCategory() async throws {
@@ -566,10 +566,10 @@ extension LocalFirstActualStoreTests {
             categoryID: "groceries",
             budgetID: "group-1"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").first)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").first)
         #expect(row.kind == .categorize)
 
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let loaded = try #require(
             store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
@@ -611,13 +611,13 @@ extension LocalFirstActualStoreTests {
             originalAccountID: "checking",
             originalMonth: "2026-07"
         ) {}
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.count == 2)
         #expect(rows[0].kind == .transactionMetadata)
         #expect(rows[1].kind == .createTransaction)
         #expect(!rows[0].kind.isMoneyFlow)
-        try await store.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
-        #expect(try await store.recentBudgetActions(budgetID: "group-1")[1].status == .undone)
+        try await store.history.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1")[1].status == .undone)
     }
 
     @Test func transferCreateIsOneRowAndUndoTombstonesBothSides() async throws {
@@ -634,7 +634,7 @@ extension LocalFirstActualStoreTests {
             isTransfer: true
         )
         let created = try await store.createTransactionAndRefresh(draft, budgetID: "group-1") {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
         #expect(row.kind == .createTransaction)
         guard case .createTransaction(let summary) = row.summary else {
             Issue.record("expected create summary")
@@ -643,7 +643,7 @@ extension LocalFirstActualStoreTests {
         #expect(summary.graph == .transfer)
         #expect(summary.transactionCount == 2)
 
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let checking = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         let credit = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("credit"), query: TransactionFeedQuery()))
@@ -663,7 +663,7 @@ extension LocalFirstActualStoreTests {
             ),
             budgetID: "group-1"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
         #expect(row.kind == .createTransaction)
         guard case .createTransaction(let summary) = row.summary else {
             Issue.record("expected create summary")
@@ -671,7 +671,7 @@ extension LocalFirstActualStoreTests {
         }
         #expect(summary.graph == .split)
 
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let loaded = try #require(store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery()))
         #expect(!loaded.transactions.contains { $0.id == created.changed.transactions.first })
@@ -710,10 +710,10 @@ extension LocalFirstActualStoreTests {
             originalAccountID: "checking",
             originalMonth: "2026-07"
         ) {}
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").first)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").first)
         #expect(row.kind == .editTransaction)
 
-        try await store.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
+        try await store.history.undoBudgetActionAndRefresh(actionID: row.id, budgetID: "group-1")
 
         let loaded = try #require(
             store.cachedTransactions(budgetID: "group-1", scope: .account("checking"), query: TransactionFeedQuery())?
@@ -731,14 +731,14 @@ extension LocalFirstActualStoreTests {
             month: "2026-07"
         ) {}
         try await store.payees.createPayeeAndRefresh(budgetID: "group-1", name: "New Cafe")
-        let rows = try await store.recentBudgetActions(budgetID: "group-1")
+        let rows = try await store.history.recentBudgetActions(budgetID: "group-1")
         #expect(rows.count == 2)
         #expect(rows[0].kind == .payee)
         #expect(rows[1].kind == .assign)
         let payees = try #require(store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         #expect(payees.canUndo)
-        try await store.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
-        #expect(try await store.recentBudgetActions(budgetID: "group-1")[1].status == .undone)
+        try await store.history.undoBudgetActionAndRefresh(actionID: rows[1].id, budgetID: "group-1")
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1")[1].status == .undone)
         try await store.payees.undoLastPayeeMutationAndRefresh(budgetID: "group-1")
         let afterUndo = try #require(store.payees.cachedPayeeManagementSnapshot(budgetID: "group-1"))
         #expect(!afterUndo.canUndo)
@@ -773,7 +773,7 @@ extension LocalFirstActualStoreTests {
 
     @Test func actionLogDiagnosticStatsAreCountAndAgeOnly() async throws {
         let store = try await makeOpenedWritableStore()
-        let before = store.actionLogDiagnosticStats()
+        let before = store.history.actionLogDiagnosticStats()
         #expect(before.count == 0)
         #expect(before.newestAgeSeconds == nil)
 
@@ -784,7 +784,7 @@ extension LocalFirstActualStoreTests {
             month: "2026-07"
         ) {}
 
-        let after = store.actionLogDiagnosticStats()
+        let after = store.history.actionLogDiagnosticStats()
         #expect(after.count == 1)
         #expect(after.newestAgeSeconds != nil)
         #expect((after.newestAgeSeconds ?? 0) >= 0)
@@ -793,7 +793,7 @@ extension LocalFirstActualStoreTests {
     @Test func createAccountRecordsAHistoryRow() async throws {
         let store = try await makeOpenedWritableStore()
         try await store.createAccountAndRefresh(budgetID: "group-1", name: "New Cash", offbudget: false)
-        let row = try #require(try await store.recentBudgetActions(budgetID: "group-1").only)
+        let row = try #require(try await store.history.recentBudgetActions(budgetID: "group-1").only)
         #expect(row.kind == .account)
         #expect(row.source == .ui)
     }
@@ -816,7 +816,7 @@ extension LocalFirstActualStoreTests {
             budgetID: "group-1",
             actionSource: .shortcuts
         ) {}
-        #expect(try await store.recentBudgetActions(budgetID: "group-1").only?.source == .shortcuts)
+        #expect(try await store.history.recentBudgetActions(budgetID: "group-1").only?.source == .shortcuts)
     }
 }
 

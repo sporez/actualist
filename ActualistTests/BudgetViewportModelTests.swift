@@ -95,6 +95,8 @@ struct BudgetViewportModelTests {
 }
 
 private struct ViewportTestRepository: BudgetRepositoryProtocol {
+    func budgetModeIdentity(budgetID: String) async throws -> BudgetModeIdentity? { nil }
+
     func budgets() async throws -> [ActualBudget] { [] }
 
     func currentBudgetMonth(budgetID: String, preferredMonth: String) async throws -> LoadedBudgetMonth {
@@ -115,10 +117,6 @@ private struct ViewportTestRepository: BudgetRepositoryProtocol {
     func setCategoryGroupHiddenAndRefresh(groupID: String, hidden: Bool, budgetID: String, month: String, didUpdate: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw BudgetViewportTestError.unimplemented }
     func applyBudgetTemplateAndRefresh(expectedMode: BudgetModeIdentity? = nil, command: BudgetTemplateCommand, budgetID: String, month: String, didApply: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth { throw BudgetViewportTestError.unimplemented }
     func moveMoneyAndRefresh(expectedMode: BudgetModeIdentity? = nil, commands: [BudgetMoveMoneyCommand], budgetID: String, month: String, actionSource: BudgetActionSource, didMove: @escaping @MainActor @Sendable () async -> Void) async throws -> LoadedBudgetMonth? { throw BudgetViewportTestError.unimplemented }
-    func recentBudgetActions(budgetID: String) async throws -> [BudgetActionRecord] { [] }
-    func budgetActionCategoryNames(budgetID: String) async throws -> [String: String] { [:] }
-    func budgetActionUndoPreview(actionID: String, budgetID: String) async throws -> BudgetActionUndoPreview { throw BudgetViewportTestError.unimplemented }
-    func undoBudgetActionAndRefresh(actionID: String, budgetID: String) async throws { throw BudgetViewportTestError.unimplemented }
 }
 
 private enum BudgetViewportTestError: Error { case unimplemented }
