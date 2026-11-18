@@ -1,11 +1,15 @@
 # Production Swift files allowed at or above 1,000 lines (AGENTS.md, File
-# Size And Structural Maintainability). scripts/check.sh's touched-size check
-# reports a listed file as a warning instead of an error, and fails on a
-# listed file that no longer exists. Each entry states its reason in the
-# comment above it. Adding a line needs the maintainer's approval.
+# Size And Structural Maintainability). Each line is `<path> <lines>`, where
+# <lines> is the file's current length, and each entry states its reason in
+# the comment above it. scripts/check.sh's touched-size check reports a
+# listed file as a warning instead of an error. A listed file is frozen:
+# scripts/lint-structure-ownership.sh fails when it is longer than its
+# recorded length, when it got shorter and the number was not lowered to
+# match, when it fell below 1,000 lines and the entry was not removed, and
+# when it no longer exists. Adding a line needs the maintainer's approval.
 
 # TransactionRepositoryProtocol's one owner. The feeds, the transaction
 # writes and Wallet import share one conformer, so every requirement has a
 # direct witness and none can fall back to a protocol default; a split
 # would need forwarding witnesses for the defaulted feed requirements.
-Actualist/LocalFirst/TransactionWorkflows.swift
+Actualist/LocalFirst/TransactionWorkflows.swift 1225

@@ -17,7 +17,7 @@ Glass-aware, and optimized for repeated budget review.
 - Development pipeline: `docs/DEVELOPMENT.md`.
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change, or
   reuse an applicable result when its relevant inputs are unchanged. It covers
-  whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, the server token header, central-type extension files, concurrency escape hatches (`@unchecked Sendable`,
+  whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, the server token header, central-type extension files, structure ownership (central-type members, `+X` files, store conformances, requirement defaults, size-exception lengths), code citations in docs, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
   `// Invariant:` comment), private identifiers (patterns from an optional
   gitignored list), TestFlight notes, parity fixture hashes and the
@@ -474,7 +474,9 @@ current task.
   is listed, with its reason, in `config/structure/large-file-exceptions.txt`;
   `scripts/check.sh` then warns instead of failing. A listed file is frozen,
   not licensed: a change may shrink it but never add net lines to it, and an
-  entry is not precedent for another one.
+  entry is not precedent for another one. Each entry records the file's
+  length; `scripts/lint-structure-ownership.sh` fails when the file grows
+  past it, and when it shrinks without the number being lowered.
 - A split that leaves both halves near the threshold, or that produces
   `X`/`XReads`/`XWrites` siblings sharing the same helpers, was probably cut
   by size. Find the seam instead.
@@ -602,13 +604,30 @@ No "move it later":
   on a central type, a shared protocol or a listed oversized file with a
   follow-up that promises to move it.
 
-Enforcement: `scripts/lint-central-type-extensions.sh` fails on any
-`BudgetDatabase+*.swift` or `LocalFirstActualStore+*.swift` not listed in
-`config/structure/central-type-extensions.txt`, and on a listed file that no
-longer exists. The list only shrinks; adding a line needs the maintainer's
-approval. No lint yet sees a member added to a listed file or a main type
-file, a store conformance, a requirement default, or a `+X` file on another
-type. The pre-handoff gate checks those by hand.
+Enforcement, all through `scripts/check.sh`. Each list in
+`config/structure/` only shrinks, and adding a line needs the maintainer's
+approval:
+
+- `scripts/lint-central-type-extensions.sh` fails on any
+  `BudgetDatabase+*.swift` or `LocalFirstActualStore+*.swift` not listed in
+  `central-type-extensions.txt`, and on a listed file that no longer exists.
+- `scripts/lint-structure-ownership.sh` fails on:
+  - a member added to either central type in any file
+    (`central-type-members.txt`, per file; the store's `<Domain>Workflows`
+    declarations are not counted);
+  - a new `+X.swift` file for a type the app declares
+    (`type-extension-files.txt`);
+  - the store adopting a repository protocol;
+  - a new protocol-extension default for a requirement in `Repositories/`
+    (`repository-requirement-defaults.txt`);
+  - a listed size exception longer than its recorded length.
+  It also fails when a count drops and the list was not lowered to match.
+  Its Swift scanning is text-level (`scripts/lib/swift_structure.py`), so
+  an unusual layout can miscount; it prints the file and number.
+
+The pre-handoff gate still checks by hand what no lint sees: a requirement
+for another domain on an existing protocol, an `internal` helper only one
+type calls, and one domain calling another's helpers.
 
 ## Duplication And Complexity Discipline
 
@@ -643,7 +662,9 @@ type. The pre-handoff gate checks those by hand.
   checklist citations did. A commit that deletes or renames a file or type
   runs `rg <old name>` across the repository and fixes every tracked mention
   in the same commit. Canonical Owners rows keep their file paths and change
-  with them.
+  with them. `scripts/lint-doc-citations.sh` fails when a tracked Markdown
+  file, `known-divergences.json`, or an undated note in the private
+  reference folder names a `.swift` file that does not exist.
 
 ## Reuse Before You Build
 

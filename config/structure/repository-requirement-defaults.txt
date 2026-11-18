@@ -1,0 +1,19 @@
+# Repository protocol requirements that still have a protocol-extension
+# default body (AGENTS.md, Domain Ownership And Central Types). With a
+# default, a missing or drifted witness silently runs it. Keys are
+# <Protocol>.<name>(<labels>). scripts/lint-structure-ownership.sh fails on
+# an unlisted default and on a listed one that is gone, so the list only
+# shrinks. A change that touches one of these deletes the default and gives
+# every conformer a witness. Never add a line.
+ReportsRepositoryProtocol.reportExplorerSessionIdentity(budgetID:)
+ReportsRepositoryProtocol.reportTransactionDrilldown(budgetID:request:)
+TransactionRepositoryProtocol.cachedCategoryTransactions(budgetID:categoryID:month:)
+TransactionRepositoryProtocol.cachedTransactions(budgetID:scope:query:)
+TransactionRepositoryProtocol.cachedUncategorizedTransactions(budgetID:month:)
+TransactionRepositoryProtocol.importWalletTransactions(_:intoAccountID:budgetID:)
+TransactionRepositoryProtocol.loadOlderTransactions(budgetID:scope:query:)
+TransactionRepositoryProtocol.reconciledMutationReview(budgetID:transactionID:)
+TransactionRepositoryProtocol.refreshCategoryTransactions(budgetID:categoryID:month:)
+TransactionRepositoryProtocol.refreshTransactions(budgetID:scope:query:)
+TransactionRepositoryProtocol.transactionPage(budgetID:scope:query:limit:offset:)
+TransactionRepositoryProtocol.unlockReconciledTransactionAndRefresh(budgetID:accountID:transactionID:)

@@ -1,0 +1,31 @@
+# Members declared directly on BudgetDatabase and LocalFirstActualStore, per
+# file (AGENTS.md, Domain Ownership And Central Types). A member is a func,
+# init, subscript, var, let or nested type at the top level of the type's
+# declaration or of an `extension` of it, in any file. The store's
+# `lazy var x = <Domain>Workflows(...)` collaborator declarations are not
+# counted. scripts/lint-structure-ownership.sh fails when a file gains a
+# member or a new file declares one; raising a count needs the maintainer's
+# approval. It also fails when a count drops, so lower the number in the same
+# commit and the list only shrinks.
+Actualist/LocalFirst/Database/BudgetDatabase+AccountGroupCompatibility.swift 4
+Actualist/LocalFirst/Database/BudgetDatabase+CompatibilityMigrationIDs.swift 11
+Actualist/LocalFirst/Database/BudgetDatabase+LocalCommit.swift 11
+Actualist/LocalFirst/Database/BudgetDatabase+LocalMigrations.swift 2
+Actualist/LocalFirst/Database/BudgetDatabase+Merkle.swift 15
+Actualist/LocalFirst/Database/BudgetDatabase+MessagesTimestampIndex.swift 2
+Actualist/LocalFirst/Database/BudgetDatabase+Schema.swift 18
+Actualist/LocalFirst/Database/BudgetDatabase+SchemaValidation.swift 1
+Actualist/LocalFirst/Database/BudgetDatabase+Sync.swift 27
+Actualist/LocalFirst/Database/BudgetDatabase+UntrustedSanitization.swift 4
+Actualist/LocalFirst/Database/BudgetDatabase+UserActionPlan.swift 2
+Actualist/LocalFirst/Database/BudgetDatabase.swift 21
+Actualist/LocalFirst/Database/SyncedPreferences.swift 1
+Actualist/LocalFirst/Database/TransactionImportSQL.swift 3
+Actualist/LocalFirst/BankSyncDiagnosticSnapshot.swift 1
+Actualist/LocalFirst/LocalFirstActualStore+CommitTail.swift 12
+Actualist/LocalFirst/LocalFirstActualStore+Connection.swift 17
+Actualist/LocalFirst/LocalFirstActualStore+Reads.swift 9
+Actualist/LocalFirst/LocalFirstActualStore+Sync.swift 21
+Actualist/LocalFirst/LocalFirstActualStore+SyncQuarantine.swift 1
+Actualist/LocalFirst/LocalFirstActualStore.swift 91
+Actualist/LocalFirst/StoreTestSeams.swift 1

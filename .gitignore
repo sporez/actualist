@@ -63,12 +63,14 @@ scripts/*
 !scripts/lint-central-type-extensions.sh
 !scripts/lint-concurrency-escape-hatches.sh
 !scripts/lint-date-ownership.sh
+!scripts/lint-doc-citations.sh
 !scripts/lint-known-divergences.sh
 !scripts/lint-liquid-glass.sh
 !scripts/lint-private-patterns.sh
 !scripts/lint-reference-links.sh
 !scripts/lint-server-token-header.sh
 !scripts/lint-sheet-detents.sh
+!scripts/lint-structure-ownership.sh
 !scripts/lint-testflight-notes.sh
 !scripts/lint-tombstone-messages.sh
 !scripts/lint-uikit-views.sh

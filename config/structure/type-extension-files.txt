@@ -1,0 +1,27 @@
+# Files named <Type>+<Name>.swift that add members to a type the app declares
+# (AGENTS.md, Domain Ownership And Central Types). They predate the rule and
+# are not precedent: split a type along a responsibility into a new type
+# instead. scripts/lint-structure-ownership.sh fails on an unlisted one and on
+# a listed file that no longer exists. Extension files for types the app does
+# not declare (String, Error, Binding) need no entry. The two central types
+# have their own list, central-type-extensions.txt. Adding a line needs the
+# maintainer's approval.
+Actualist/App/ActualBudget+SelectedBudget.swift
+Actualist/App/AppState+BackgroundAlerts.swift
+Actualist/App/AppState+Repositories.swift
+Actualist/App/AppState+Settings.swift
+Actualist/Features/Budget/BudgetMoveMoneyDraft+Projection.swift
+Actualist/Features/Budget/BudgetViewModel+Refresh.swift
+Actualist/Features/Shortcuts/Commands/ShortcutTransactionCommand+Updates.swift
+Actualist/Features/Shortcuts/ShortcutsBudgetSession+Reads.swift
+Actualist/Features/Transactions/TransactionEditorViewModel+SplitRowIntents.swift
+Actualist/LocalFirst/Database/BudgetFileManager+PortableInstall.swift
+Actualist/LocalFirst/Database/BudgetTemplateEngine+Average.swift
+Actualist/LocalFirst/Database/BudgetTemplateEngine+Compute.swift
+Actualist/LocalFirst/Database/BudgetTemplateEngine+Goals.swift
+Actualist/LocalFirst/Database/BudgetTemplateEngine+Remainder.swift
+Actualist/LocalFirst/Database/BudgetTemplateEngine+Schedule.swift
+Actualist/LocalFirst/Database/BudgetTemplateEngine+Spend.swift
+Actualist/LocalFirst/Database/BudgetTemplateEngine+Validation.swift
+Actualist/LocalFirst/PortableBudgetArchiveError+Message.swift
+Actualist/Shared/ActualScheduleRecurrence+LastOccurrence.swift

@@ -52,6 +52,12 @@ section "Tombstone messages"
 section "Central-type extension files"
 "$ROOT/scripts/lint-central-type-extensions.sh" || status=1
 
+section "Structure ownership"
+"$ROOT/scripts/lint-structure-ownership.sh" || status=1
+
+section "Code citations in docs"
+"$ROOT/scripts/lint-doc-citations.sh" || status=1
+
 section "Concurrency escape hatches"
 "$ROOT/scripts/lint-concurrency-escape-hatches.sh" || status=1
 
@@ -115,12 +121,10 @@ section "Touched Swift size"
 size_exceptions_file="config/structure/large-file-exceptions.txt"
 size_exceptions=()
 if [[ -f "$size_exceptions_file" ]]; then
-  while IFS= read -r entry; do
+  # Each entry is `<path> <lines>`; scripts/lint-structure-ownership.sh
+  # enforces the recorded length and stale entries.
+  while read -r entry _; do
     [[ -z "$entry" || "$entry" == \#* ]] && continue
-    if [[ ! -f "$entry" ]]; then
-      echo "error: $size_exceptions_file lists $entry, which no longer exists."
-      status=1
-    fi
     size_exceptions+=("$entry")
   done < "$size_exceptions_file"
 fi
