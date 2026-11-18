@@ -47,8 +47,12 @@ final class LabBudgetSwitchUITests: XCTestCase {
         XCTAssertTrue(selected("Lab · Pair A", in: app).waitForExistence(timeout: 10))
         app.buttons["Change Budget"].tap()
 
+        let anyLabBudget = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Lab · ")).firstMatch
+        XCTAssertTrue(anyLabBudget.waitForExistence(timeout: 30))
+        // The picker lists every budget on the server and renders rows lazily,
+        // so Pair B can sit below the fold until the list scrolls.
         let pairB = app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Lab · Pair B")).firstMatch
-        XCTAssertTrue(pairB.waitForExistence(timeout: 30))
+        XCTAssertTrue(pairB.scrollClearOfScreenEdges(in: app))
         pairB.doubleTap()
 
         XCTAssertTrue(selected("Lab · Pair B", in: app).waitForExistence(timeout: 120))
