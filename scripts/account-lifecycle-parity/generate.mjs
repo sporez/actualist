@@ -74,6 +74,7 @@ const sourceFiles = [
   'packages/loot-core/package.json',
   'packages/loot-core/src/mocks/setup.ts',
   'packages/loot-core/src/server/accounts/app.ts',
+  'packages/loot-core/src/server/accounts/link.ts',
   'packages/loot-core/src/server/db/index.ts',
   'packages/loot-core/src/server/db/mappings.ts',
   'packages/loot-core/src/server/sql/init.sql',
@@ -86,6 +87,7 @@ const sourceFiles = [
   'packages/loot-core/src/server/undo.ts',
   'packages/desktop-client/src/components/modals/CloseAccountModal.tsx',
   'packages/desktop-client/src/components/util/accountValidation.ts',
+  'packages/desktop-client/src/components/banksync/useBuiltInBankSyncProviders.ts',
 ];
 const expectedCaseIDs = [
   'rename-open-history',
@@ -103,6 +105,10 @@ const expectedCaseIDs = [
   'close-split-balance',
   'forced-delete-simple',
   'forced-delete-split-transfer-graph',
+  'link-simplefin-new-bank',
+  'link-simplefin-existing-bank',
+  'link-simplefin-same-domain-other-name',
+  'link-simplefin-no-institution-or-domain',
   'unlink-simplefin',
   'unlink-gocardless-last-reference',
   'unlink-gocardless-shared-bank',

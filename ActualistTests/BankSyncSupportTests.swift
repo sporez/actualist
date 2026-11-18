@@ -158,60 +158,88 @@ struct BankSyncSupportTests {
         }
     }
 
-    @Test func sameBankIDSameNameReusesBankRow() async throws {
-        let (database, _, cleanup) = try makeLegacyBudgetDatabase()
+    @Test func newBankIsCreatedByMessagesNotADirectWrite() async throws {
+        let (database, path, cleanup) = try makeLegacyBudgetDatabase()
         defer { cleanup() }
-        let first = try await BankSyncLinkSQL.findOrCreateBank(
+        var builder = LocalFirstSyncMessageBuilder()
+        let resolution = try await BankSyncLinkSQL.findOrCreateBank(
             bankID: "firstbank.example",
             name: "First Bank",
             makeID: { "banks_1" },
+            builder: &builder,
             in: database
         )
-        let second = try await BankSyncLinkSQL.findOrCreateBank(
-            bankID: "firstbank.example",
-            name: "First Bank",
-            makeID: { "banks_2" },
-            in: database
+        #expect(resolution.bank == .init(id: "banks_1", bankID: "firstbank.example", name: "First Bank"))
+        #expect(resolution.messages.map { [$0.dataset, $0.row, $0.column, $0.serializedValue] } == [
+            ["banks", "banks_1", "bank_id", "S:firstbank.example"],
+            ["banks", "banks_1", "name", "S:First Bank"]
+        ])
+        #expect(try bankCount(path: path) == 0)
+    }
+
+    @Test func nilBankNameIsSentAsNull() async throws {
+        let (database, _, cleanup) = try makeLegacyBudgetDatabase()
+        defer { cleanup() }
+        var builder = LocalFirstSyncMessageBuilder()
+        let resolution = try await BankSyncLinkSQL.findOrCreateBank(
+            bankID: "org_9", name: nil, makeID: { "banks_1" }, builder: &builder, in: database
         )
-        #expect(first.id == "banks_1")
-        #expect(second.id == "banks_1")
+        #expect(resolution.messages.last?.column == "name")
+        #expect(resolution.messages.last?.serializedValue == "0:")
+    }
+
+    @Test func syncedBankWithSameIDAndNameIsReusedWithoutMessages() async throws {
+        let (database, _, cleanup) = try makeLegacyBudgetDatabase { db in
+            try insertBank(id: "banks_1", bankID: "firstbank.example", name: "First Bank", synced: true, db: db)
+        }
+        defer { cleanup() }
+        var builder = LocalFirstSyncMessageBuilder()
+        let resolution = try await BankSyncLinkSQL.findOrCreateBank(
+            bankID: "firstbank.example", name: "First Bank", makeID: { "banks_2" }, builder: &builder, in: database
+        )
+        #expect(resolution.bank.id == "banks_1")
+        #expect(resolution.messages.isEmpty)
+    }
+
+    @Test func unsyncedBankFromAnOlderBuildIsReusedAndSent() async throws {
+        let (database, _, cleanup) = try makeLegacyBudgetDatabase { db in
+            try insertBank(id: "banks_1", bankID: "firstbank.example", name: "First Bank", synced: false, db: db)
+        }
+        defer { cleanup() }
+        var builder = LocalFirstSyncMessageBuilder()
+        let resolution = try await BankSyncLinkSQL.findOrCreateBank(
+            bankID: "firstbank.example", name: "First Bank", makeID: { "banks_2" }, builder: &builder, in: database
+        )
+        #expect(resolution.bank.id == "banks_1")
+        #expect(resolution.messages.map(\.row) == ["banks_1", "banks_1"])
+        #expect(resolution.messages.map(\.column) == ["bank_id", "name"])
     }
 
     @Test func sameBankIDDifferentNameCreatesDistinctBankRow() async throws {
-        let (database, _, cleanup) = try makeLegacyBudgetDatabase()
+        let (database, _, cleanup) = try makeLegacyBudgetDatabase { db in
+            try insertBank(id: "banks_1", bankID: "firstbank.example", name: "First Bank", synced: true, db: db)
+        }
         defer { cleanup() }
-        let first = try await BankSyncLinkSQL.findOrCreateBank(
-            bankID: "firstbank.example",
-            name: "First Bank",
-            makeID: { "banks_1" },
-            in: database
+        var builder = LocalFirstSyncMessageBuilder()
+        let resolution = try await BankSyncLinkSQL.findOrCreateBank(
+            bankID: "firstbank.example", name: "First Bank UK", makeID: { "banks_2" }, builder: &builder, in: database
         )
-        let second = try await BankSyncLinkSQL.findOrCreateBank(
-            bankID: "firstbank.example",
-            name: "First Bank UK",
-            makeID: { "banks_2" },
-            in: database
-        )
-        #expect(first.id != second.id)
-        #expect(second.id == "banks_2")
+        #expect(resolution.bank.id == "banks_2")
+        #expect(resolution.messages.count == 2)
     }
 
     @Test func sameBankIDNilNamePairsWithNilNameRow() async throws {
-        let (database, _, cleanup) = try makeLegacyBudgetDatabase()
+        let (database, _, cleanup) = try makeLegacyBudgetDatabase { db in
+            try insertBank(id: "banks_1", bankID: "org_9", name: nil, synced: true, db: db)
+            try insertBank(id: "banks_named", bankID: "org_9", name: "Named", synced: true, db: db)
+        }
         defer { cleanup() }
-        let first = try await BankSyncLinkSQL.findOrCreateBank(
-            bankID: "org_9",
-            name: nil,
-            makeID: { "banks_1" },
-            in: database
+        var builder = LocalFirstSyncMessageBuilder()
+        let resolution = try await BankSyncLinkSQL.findOrCreateBank(
+            bankID: "org_9", name: nil, makeID: { "banks_2" }, builder: &builder, in: database
         )
-        let second = try await BankSyncLinkSQL.findOrCreateBank(
-            bankID: "org_9",
-            name: nil,
-            makeID: { "banks_2" },
-            in: database
-        )
-        #expect(first.id == second.id)
+        #expect(resolution.bank.id == "banks_1")
+        #expect(resolution.messages.isEmpty)
     }
 
     // MARK: - Fixtures
@@ -231,6 +259,30 @@ struct BankSyncSupportTests {
         }
     }
 
+    /// Seeds a `banks` row, with a stored message behind it when `synced`.
+    private func insertBank(id: String, bankID: String, name: String?, synced: Bool, db: Database) throws {
+        try db.execute(sql: "CREATE TABLE IF NOT EXISTS banks (id TEXT PRIMARY KEY, bank_id TEXT, name TEXT)")
+        try db.execute(sql: """
+            CREATE TABLE IF NOT EXISTS messages_crdt (
+                id INTEGER PRIMARY KEY, timestamp TEXT NOT NULL UNIQUE, dataset TEXT NOT NULL,
+                row TEXT NOT NULL, column TEXT NOT NULL, value BLOB NOT NULL
+            )
+            """)
+        try db.execute(sql: "INSERT INTO banks (id, bank_id, name) VALUES (?, ?, ?)", arguments: [id, bankID, name])
+        if synced {
+            try db.execute(
+                sql: "INSERT INTO messages_crdt (timestamp, dataset, row, column, value) VALUES (?, 'banks', ?, 'bank_id', ?)",
+                arguments: ["2026-01-01T00:00:00.000Z-0000-\(id)", id, "S:\(bankID)"]
+            )
+        }
+    }
+
+    private func bankCount(path: URL) throws -> Int {
+        let queue = try DatabaseQueue(path: path.path)
+        defer { try? queue.close() }
+        return try queue.read { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM banks") ?? 0 }
+    }
+
     private func download(balance: String, currency: String) -> SimpleFINAccountDownload {
         SimpleFINAccountDownload(
             transactions: [],
@@ -241,7 +293,9 @@ struct BankSyncSupportTests {
         )
     }
 
-    private func makeLegacyBudgetDatabase() throws -> (BudgetDatabase, URL, () -> Void) {
+    private func makeLegacyBudgetDatabase(
+        seed: (Database) throws -> Void = { _ in }
+    ) throws -> (BudgetDatabase, URL, () -> Void) {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("actualist-banksync-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -251,6 +305,7 @@ struct BankSyncSupportTests {
         try legacyQueue.write { db in
             try db.execute(sql: "CREATE TABLE accounts (id TEXT PRIMARY KEY, name TEXT)")
             try db.execute(sql: "INSERT INTO accounts (id, name) VALUES ('acct_local', 'Checking')")
+            try seed(db)
         }
         try legacyQueue.close()
 

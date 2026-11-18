@@ -63,16 +63,28 @@ enum BankSyncLinkSQL {
         let name: String?
     }
 
+    /// The `banks` row a link points at, and the messages that create it.
+    struct BankSyncBankResolution: Sendable {
+        let bank: BankSyncBankRow
+        /// Empty when the row already exists on the server.
+        let messages: [ActualSyncDecodedMessage]
+    }
+
     /// loot-core `findOrCreateBank`: match on **both** `bank_id` and `name`.
     /// The same `(bank_id, name)` pair reuses the row; the same `bank_id` with
-    /// a different name creates a distinct bank row.
+    /// a different name creates a distinct bank row. A new row is created by
+    /// messages, as `db.insertWithUUID` does, so it syncs in the same commit as
+    /// the link. Builds before this wrote the row without a message; a matching
+    /// row with no stored message gets the same messages, so it reaches the
+    /// server on the next link.
     static func findOrCreateBank(
         bankID: String,
         name: String?,
         makeID: @Sendable () -> String,
+        builder: inout LocalFirstSyncMessageBuilder,
         in database: isolated BudgetDatabase
-    ) throws -> BankSyncBankRow {
-        try database.queue.write { db in
+    ) throws -> BankSyncBankResolution {
+        let found: (bank: BankSyncBankRow, isSynced: Bool)? = try database.queue.read { db in
             let columns = try database.columnSet(for: "banks", db: db)
             guard columns.contains("bank_id") else {
                 throw LocalFirstError.invalidLocalWrite("missing column banks.bank_id")
@@ -93,24 +105,32 @@ enum BankSyncLinkSQL {
                 )
             }
 
-            if let existingRow,
-               let id: String = existingRow["id"],
-               let existingBankID: String = existingRow["bank_id"] {
-                return BankSyncBankRow(
-                    id: id,
-                    bankID: existingBankID,
-                    name: existingRow["name"]
-                )
+            guard let existingRow,
+                  let id: String = existingRow["id"],
+                  let existingBankID: String = existingRow["bank_id"] else {
+                return nil
             }
-
-            try database.beforeBudgetDataMutation()
-            let id = makeID()
-            try db.execute(
-                sql: "INSERT INTO banks (id, bank_id, name) VALUES (?, ?, ?)",
-                arguments: [id, bankID, name]
-            )
-            return BankSyncBankRow(id: id, bankID: bankID, name: name)
+            var isSynced = false
+            if try database.tableExists("messages_crdt", db: db) {
+                isSynced = try Bool.fetchOne(
+                    db,
+                    sql: "SELECT EXISTS(SELECT 1 FROM messages_crdt WHERE dataset = 'banks' AND row = ?)",
+                    arguments: [id]
+                ) ?? false
+            }
+            return (BankSyncBankRow(id: id, bankID: existingBankID, name: existingRow["name"]), isSynced)
         }
+        if let found, found.isSynced {
+            return BankSyncBankResolution(bank: found.bank, messages: [])
+        }
+        let bank = found?.bank ?? BankSyncBankRow(id: makeID(), bankID: bankID, name: name)
+        let messages = [
+            try builder.makeMessage(dataset: "banks", row: bank.id, column: "bank_id", value: .string(bank.bankID)),
+            try builder.makeMessage(
+                dataset: "banks", row: bank.id, column: "name", value: bank.name.map { .string($0) } ?? .null
+            )
+        ]
+        return BankSyncBankResolution(bank: bank, messages: messages)
     }
 
     // MARK: - Reads (Phase 3)
@@ -249,7 +269,8 @@ enum BankSyncLinkSQL {
 
     /// loot-core `linkSimpleFinAccount`: point the local account at the
     /// SimpleFIN account id and find-or-create the `banks` row on
-    /// `(bank_id, name)`.
+    /// `(bank_id, name)`. The bank's messages come first, as the bank row is
+    /// inserted before the account update upstream.
     static func makeBankSyncLinkMessages(
         accountID: String,
         remote: SimpleFINRemoteAccount,
@@ -260,20 +281,22 @@ enum BankSyncLinkSQL {
         guard let bankID, !bankID.isEmpty else {
             throw LocalFirstError.invalidLocalWrite("missing SimpleFIN bank id")
         }
-        let bank = try findOrCreateBank(
+        let resolution = try findOrCreateBank(
             bankID: bankID,
             name: remote.orgName ?? remote.institution,
             makeID: {
                 UUID().uuidString
             },
+            builder: &builder,
             in: database
         )
+        let bank = resolution.bank
         return try database.queue.read { db in
             let columns = try database.columnSet(for: "accounts", db: db)
             guard columns.contains("account_id"), columns.contains("account_sync_source"), columns.contains("bank") else {
                 throw LocalFirstError.invalidLocalWrite("missing accounts link columns")
             }
-            return [
+            return resolution.messages + [
                 try builder.makeMessage(dataset: "accounts", row: accountID, column: "account_id", value: .string(remote.accountID)),
                 try builder.makeMessage(
                     dataset: "accounts",

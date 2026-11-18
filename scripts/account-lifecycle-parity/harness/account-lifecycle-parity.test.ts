@@ -55,6 +55,17 @@ vi.mock('#server/post', async importOriginal => {
   };
 });
 
+// A SimpleFIN link ends with Actual's first download (`bankSync.syncAccount`). Actualist links
+// without downloading, a deliberate difference, so the link cases replace that download with an
+// empty result. What the fixture pins is the bank and account cells written before it.
+vi.mock('./sync', async importOriginal => {
+  const actual = await importOriginal<typeof import('./sync')>();
+  return {
+    ...actual,
+    syncAccount: vi.fn(async () => ({ added: [], updated: [] })),
+  };
+});
+
 type AccountSeed = {
   id: string;
   name: string;
@@ -1007,6 +1018,152 @@ test('forced split-transfer graph delete preserves and detaches opposite leg', a
       'the source transfer payee and account are tombstoned',
     ],
     { operationMessages, seededRows, after, counterpart },
+  );
+});
+
+// The account cells a link writes; the download tail's last_sync and bank_sync_status are not.
+const LINK_COLUMNS = new Set(['account_id', 'bank', 'account_sync_source']);
+
+type SimpleFinExternalAccount = {
+  account_id: string;
+  name: string;
+  institution: string | null;
+  orgDomain: string | null;
+  orgId: string;
+  balance: string;
+};
+
+// The account shape the desktop client builds from the SimpleFIN accounts response
+// (useBuiltInBankSyncProviders): institution is SimpleFIN's org.name.
+function simpleFinAccount(
+  overrides: Partial<SimpleFinExternalAccount> = {},
+): SimpleFinExternalAccount {
+  return {
+    account_id: 'remote-account-simplefin',
+    name: 'Synthetic checking',
+    institution: 'Synthetic Bank',
+    orgDomain: 'synthetic.example',
+    orgId: 'org-synthetic',
+    balance: '0.00',
+    ...overrides,
+  };
+}
+
+async function seedBank(id: string, bankID: string, name: string): Promise<void> {
+  await db.insertWithUUID('banks', { id, bank_id: bankID, name });
+}
+
+// Links the unlinked account `source` the way the link modal does for an existing account.
+async function linkSimpleFinSource(externalAccount: SimpleFinExternalAccount) {
+  await seedAccount({ id: 'source', name: 'Synthetic source' });
+  clearUndo();
+  const marker = await crdtMarker();
+  await runHandler(
+    handlers['simplefin-accounts-link'],
+    { externalAccount, upgradingId: 'source' },
+    { name: 'simplefin-accounts-link' },
+  );
+  const operationMessages = await crdtMessagesSince(marker);
+  const after = await domainSnapshot();
+  const account = await accountRow('source');
+  return {
+    operationMessages,
+    linkMessages: operationMessages.filter(
+      item =>
+        item.dataset === 'banks' ||
+        (item.dataset === 'accounts' && LINK_COLUMNS.has(item.column)),
+    ),
+    bankRows: after.banks.map(({ id, bank_id, name }) => ({ id, bank_id, name })),
+    accountLink: {
+      account_id: account.account_id,
+      bank: account.bank,
+      account_sync_source: account.account_sync_source,
+    },
+    after,
+  };
+}
+
+test('SimpleFIN link creates the bank row through messages', async () => {
+  const externalAccount = simpleFinAccount();
+  const observed = await linkSimpleFinSource(externalAccount);
+  const bank = observed.accountLink.bank;
+  expect(typeof bank).toBe('string');
+  expectCell(observed.linkMessages, message('banks', String(bank), 'bank_id', 'synthetic.example'));
+  expectCell(observed.linkMessages, message('banks', String(bank), 'name', 'Synthetic Bank'));
+  expectCell(observed.linkMessages, message('accounts', 'source', 'account_sync_source', 'simpleFin'));
+  expect(postMock).not.toHaveBeenCalled();
+
+  recordCase(
+    'link-simplefin-new-bank',
+    { account: { id: 'source', linked: false }, externalAccount },
+    [
+      'a new bank row is inserted through bank_id and name messages',
+      'the account points at the new bank with its SimpleFIN account id and source',
+      'the first download is replaced by an empty result',
+    ],
+    observed,
+  );
+});
+
+test('SimpleFIN link reuses a bank with the same id and name', async () => {
+  await seedBank('bank-existing', 'synthetic.example', 'Synthetic Bank');
+  const externalAccount = simpleFinAccount();
+  const observed = await linkSimpleFinSource(externalAccount);
+  expect(observed.linkMessages.filter(item => item.dataset === 'banks')).toEqual([]);
+  expect(observed.accountLink.bank).toBe('bank-existing');
+
+  recordCase(
+    'link-simplefin-existing-bank',
+    {
+      account: { id: 'source', linked: false },
+      bank: { id: 'bank-existing', bank_id: 'synthetic.example', name: 'Synthetic Bank' },
+      externalAccount,
+    },
+    [
+      'a bank row with the same bank_id and name is reused',
+      'no banks message is written',
+    ],
+    observed,
+  );
+});
+
+test('SimpleFIN link creates a new bank when the name differs', async () => {
+  await seedBank('bank-existing', 'synthetic.example', 'Other Bank');
+  const externalAccount = simpleFinAccount();
+  const observed = await linkSimpleFinSource(externalAccount);
+  expect(observed.accountLink.bank).not.toBe('bank-existing');
+  expect(observed.bankRows).toHaveLength(2);
+
+  recordCase(
+    'link-simplefin-same-domain-other-name',
+    {
+      account: { id: 'source', linked: false },
+      bank: { id: 'bank-existing', bank_id: 'synthetic.example', name: 'Other Bank' },
+      externalAccount,
+    },
+    [
+      'the same bank_id with a different name is a separate connection',
+      'a second bank row is inserted',
+    ],
+    observed,
+  );
+});
+
+test('SimpleFIN link without institution or domain uses the org id and a null name', async () => {
+  const externalAccount = simpleFinAccount({ institution: null, orgDomain: null });
+  const observed = await linkSimpleFinSource(externalAccount);
+  const bank = String(observed.accountLink.bank);
+  expectCell(observed.linkMessages, message('banks', bank, 'bank_id', 'org-synthetic'));
+  expectCell(observed.linkMessages, message('banks', bank, 'name', null));
+
+  recordCase(
+    'link-simplefin-no-institution-or-domain',
+    { account: { id: 'source', linked: false }, externalAccount },
+    [
+      'bank_id falls back to the org id',
+      'a missing institution is stored as a null name',
+    ],
+    observed,
   );
 });
 

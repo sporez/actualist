@@ -212,7 +212,7 @@
     },
     {
       "id": "account-lifecycle",
-      "title": "Account create, rename, close, reopen and delete",
+      "title": "Account create, rename, close, reopen, delete, and SimpleFIN link and unlink",
       "status": "covered",
       "harness": {
         "dir": "scripts/account-lifecycle-parity",
@@ -227,9 +227,10 @@
       "paths": [
         "Actualist/LocalFirst/Database/AccountLifecycleReviewSQL.swift",
         "Actualist/LocalFirst/Database/AccountLifecycleCommitSQL.swift",
-        "Actualist/LocalFirst/Database/AccountSQL.swift"
+        "Actualist/LocalFirst/Database/AccountSQL.swift",
+        "Actualist/LocalFirst/Database/BankSyncLinkSQL.swift"
       ],
-      "notes": "Replays 16 of 22 cases through production; forced delete and GoCardless unlink are oracle-only because Actualist has no such feature (see the manifest)."
+      "notes": "Replays 20 of 26 cases through production, including SimpleFIN link and unlink; forced delete and GoCardless unlink are oracle-only because Actualist has no such feature (see the manifest)."
     },
     {
       "id": "new-budget-schema",

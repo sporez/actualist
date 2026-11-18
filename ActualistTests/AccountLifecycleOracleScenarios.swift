@@ -1,7 +1,7 @@
 import Foundation
 @testable import Actualist
 
-/// Production replays for the 16 oracle cases Actualist supports. The six oracle-only cases are
+/// Production replays for the 20 oracle cases Actualist supports. The six oracle-only cases are
 /// listed in the manifest with reasons.
 enum AccountLifecycleScenarios {
     static let now = Date(timeIntervalSince1970: 1_790_510_400)
@@ -22,10 +22,25 @@ enum AccountLifecycleScenarios {
         "close-off-to-off",
         "close-self-transfer-refusal",
         "close-split-balance",
+        "link-simplefin-new-bank",
+        "link-simplefin-existing-bank",
+        "link-simplefin-same-domain-other-name",
+        "link-simplefin-no-institution-or-domain",
         "unlink-simplefin",
         "close-unlink-undo-boundary",
         "schedule-close-reopen-eligibility",
     ]
+
+    /// Oracle message lists a replay deliberately leaves out. A link's `operationMessages` include
+    /// the mocked first download's `last_sync` and `bank_sync_status`; its `linkMessages` are compared.
+    static let messageKeysNotReplayed: [String: Set<String>] = Dictionary(
+        uniqueKeysWithValues: [
+            "link-simplefin-new-bank",
+            "link-simplefin-existing-bank",
+            "link-simplefin-same-domain-other-name",
+            "link-simplefin-no-institution-or-domain",
+        ].map { ($0, ["operationMessages"]) }
+    )
 
     static func replay(_ caseID: String) async throws -> [String: OracleValue] {
         let permit = await OracleReplayGate.shared.acquire()
@@ -68,6 +83,14 @@ enum AccountLifecycleScenarios {
             return try await closeSelfTransferRefusal()
         case "close-split-balance":
             return try await closeSplitBalance()
+        case "link-simplefin-new-bank":
+            return try await linkSimpleFIN()
+        case "link-simplefin-existing-bank":
+            return try await linkSimpleFIN(existingBank: (bankID: "synthetic.example", name: "Synthetic Bank"))
+        case "link-simplefin-same-domain-other-name":
+            return try await linkSimpleFIN(existingBank: (bankID: "synthetic.example", name: "Other Bank"))
+        case "link-simplefin-no-institution-or-domain":
+            return try await linkSimpleFIN(institution: nil, orgDomain: nil)
         case "unlink-simplefin":
             return try await unlinkSimpleFIN()
         case "close-unlink-undo-boundary":
@@ -256,6 +279,66 @@ enum AccountLifecycleScenarios {
         ]
     }
 
+    /// The account cells a link writes. The oracle's mocked first download also writes `last_sync`
+    /// and `bank_sync_status`; Actualist links without downloading, so those are not compared.
+    private static let linkColumns: Set<String> = ["account_id", "bank", "account_sync_source"]
+
+    /// Links the unlinked account `source`. Actual's `institution` is SimpleFIN's `org.name`, which
+    /// Actualist decodes as `orgName`. An existing bank is seeded with a stored message, as the
+    /// oracle seeds it through `insertWithUUID`. The bank a link creates is aliased to the oracle's `id2`.
+    private static func linkSimpleFIN(
+        existingBank: (bankID: String, name: String)? = nil,
+        institution: String? = "Synthetic Bank",
+        orgDomain: String? = "synthetic.example"
+    ) async throws -> [String: OracleValue] {
+        var seeds = [
+            ReplaySQL.account("source", name: "Synthetic source"),
+            ReplaySQL.payee("source"),
+        ]
+        if let existingBank {
+            seeds.append(ReplaySQL.syncedBank(id: "bank-existing", bankID: existingBank.bankID, name: existingBank.name))
+        }
+        let budget = try AccountLifecycleReplayBudget(seeds: seeds.joined())
+        let remote = SimpleFINRemoteAccount(
+            accountID: "remote-account-simplefin",
+            name: "Synthetic checking",
+            balance: "0.00",
+            currency: "USD",
+            institution: nil,
+            orgName: institution,
+            orgDomain: orgDomain,
+            orgID: "org-synthetic"
+        )
+        try await budget.linkBankAccount("source", to: remote)
+        let messages = try await budget.capturedMessages()
+        let minted = Set(messages.filter { $0.dataset == "banks" }.map(\.row)).subtracting(["bank-existing"])
+        let aliases = Dictionary(uniqueKeysWithValues: minted.map { ($0, "id2") })
+        let linkMessages = messages
+            .filter { $0.dataset == "banks" || ($0.dataset == "accounts" && linkColumns.contains($0.column)) }
+            .map { message in
+                ActualSyncDecodedMessage(
+                    timestamp: message.timestamp,
+                    dataset: message.dataset,
+                    row: aliases[message.row] ?? message.row,
+                    column: message.column,
+                    serializedValue: aliases.first { "S:\($0.key)" == message.serializedValue }
+                        .map { "S:\($0.value)" } ?? message.serializedValue
+                )
+            }
+        guard case .object(let account) = try budget.record("accounts", id: "source") else {
+            throw AccountLifecycleOracleError.malformedReplay("link: account source")
+        }
+        var accountLink = account.filter { linkColumns.contains($0.key) }
+        if case .string(let bank)? = accountLink["bank"], let alias = aliases[bank] {
+            accountLink["bank"] = .string(alias)
+        }
+        return [
+            "linkMessages": ReplayNormalizer.messages(linkMessages),
+            "bankRows": .array(try budget.rows("banks", aliases: aliases)),
+            "accountLink": .object(accountLink),
+        ]
+    }
+
     private static func unlinkSimpleFIN() async throws -> [String: OracleValue] {
         let budget = try AccountLifecycleReplayBudget(seeds: [
             ReplaySQL.bank,
@@ -369,6 +452,15 @@ extension AccountLifecycleReplayBudget {
             transferIDs: AccountLifecycleScenarios.transferIDs,
             in: database
         )
+    }
+
+    /// `BankSyncWorkflows.linkBankAccount` without the store: build the link messages, then commit them.
+    func linkBankAccount(_ accountID: String, to remote: SimpleFINRemoteAccount) async throws {
+        var builder = LocalFirstSyncMessageBuilder()
+        let drafts = try await BankSyncLinkSQL.makeBankSyncLinkMessages(
+            accountID: accountID, remote: remote, builder: &builder, in: database
+        )
+        _ = try await database.commitLocalSyncMessagesAndEnqueue(drafts, now: AccountLifecycleScenarios.now)
     }
 
     func unlinkBankAccount(_ accountID: String) async throws {

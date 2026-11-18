@@ -232,6 +232,15 @@ enum ReplaySQL {
 
     static let bank = "INSERT INTO banks VALUES ('bank-1', 'Synthetic bank', 'synthetic-bank', 0);\n"
 
+    /// A bank row with a stored message behind it, as `insertWithUUID` leaves one in the oracle.
+    static func syncedBank(id: String, bankID: String, name: String) -> String {
+        """
+        INSERT INTO banks VALUES (\(text(id)), \(text(name)), \(text(bankID)), 0);
+        INSERT INTO messages_crdt VALUES ('2026-09-01T00:00:00.000Z-0000-0000000000000001', 'banks', \(text(id)), 'bank_id', \(text("S:" + bankID)));
+
+        """
+    }
+
     static let hiddenCategory = """
         INSERT INTO category_groups VALUES ('group', 'Everyday', 0, 0, 0, 1);
         INSERT INTO categories VALUES ('hidden-category', 'Hidden category', 'group', 0, 1, 0, 2);

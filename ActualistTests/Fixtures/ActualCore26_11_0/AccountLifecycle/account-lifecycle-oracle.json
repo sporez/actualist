@@ -3254,6 +3254,620 @@
       }
     },
     {
+      "id": "link-simplefin-new-bank",
+      "input": {
+        "account": {
+          "id": "source",
+          "linked": false
+        },
+        "externalAccount": {
+          "account_id": "remote-account-simplefin",
+          "name": "Synthetic checking",
+          "institution": "Synthetic Bank",
+          "orgDomain": "synthetic.example",
+          "orgId": "org-synthetic",
+          "balance": "0.00"
+        }
+      },
+      "assertions": [
+        "a new bank row is inserted through bank_id and name messages",
+        "the account points at the new bank with its SimpleFIN account id and source",
+        "the first download is replaced by an empty result"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "bank_id",
+            "value": "synthetic.example"
+          },
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "name",
+            "value": "Synthetic Bank"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": "remote-account-simplefin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": "id2"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": "simpleFin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "last_sync",
+            "value": "1790510400000"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": "ok"
+          }
+        ],
+        "linkMessages": [
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "bank_id",
+            "value": "synthetic.example"
+          },
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "name",
+            "value": "Synthetic Bank"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": "remote-account-simplefin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": "id2"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": "simpleFin"
+          }
+        ],
+        "bankRows": [
+          {
+            "id": "id2",
+            "bank_id": "synthetic.example",
+            "name": "Synthetic Bank"
+          }
+        ],
+        "accountLink": {
+          "account_id": "remote-account-simplefin",
+          "bank": "id2",
+          "account_sync_source": "simpleFin"
+        },
+        "after": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": "remote-account-simplefin",
+              "bank": "id2",
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": "simpleFin",
+              "bank_sync_status": "ok",
+              "last_sync": "1790510400000",
+              "account_group_id": null
+            }
+          ],
+          "banks": [
+            {
+              "id": "id2",
+              "bank_id": "synthetic.example",
+              "name": "Synthetic Bank",
+              "tombstone": 0
+            }
+          ],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
+      "id": "link-simplefin-existing-bank",
+      "input": {
+        "account": {
+          "id": "source",
+          "linked": false
+        },
+        "bank": {
+          "id": "bank-existing",
+          "bank_id": "synthetic.example",
+          "name": "Synthetic Bank"
+        },
+        "externalAccount": {
+          "account_id": "remote-account-simplefin",
+          "name": "Synthetic checking",
+          "institution": "Synthetic Bank",
+          "orgDomain": "synthetic.example",
+          "orgId": "org-synthetic",
+          "balance": "0.00"
+        }
+      },
+      "assertions": [
+        "a bank row with the same bank_id and name is reused",
+        "no banks message is written"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": "remote-account-simplefin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": "bank-existing"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": "simpleFin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "last_sync",
+            "value": "1790510400000"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": "ok"
+          }
+        ],
+        "linkMessages": [
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": "remote-account-simplefin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": "bank-existing"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": "simpleFin"
+          }
+        ],
+        "bankRows": [
+          {
+            "id": "bank-existing",
+            "bank_id": "synthetic.example",
+            "name": "Synthetic Bank"
+          }
+        ],
+        "accountLink": {
+          "account_id": "remote-account-simplefin",
+          "bank": "bank-existing",
+          "account_sync_source": "simpleFin"
+        },
+        "after": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": "remote-account-simplefin",
+              "bank": "bank-existing",
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": "simpleFin",
+              "bank_sync_status": "ok",
+              "last_sync": "1790510400000",
+              "account_group_id": null
+            }
+          ],
+          "banks": [
+            {
+              "id": "bank-existing",
+              "bank_id": "synthetic.example",
+              "name": "Synthetic Bank",
+              "tombstone": 0
+            }
+          ],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
+      "id": "link-simplefin-same-domain-other-name",
+      "input": {
+        "account": {
+          "id": "source",
+          "linked": false
+        },
+        "bank": {
+          "id": "bank-existing",
+          "bank_id": "synthetic.example",
+          "name": "Other Bank"
+        },
+        "externalAccount": {
+          "account_id": "remote-account-simplefin",
+          "name": "Synthetic checking",
+          "institution": "Synthetic Bank",
+          "orgDomain": "synthetic.example",
+          "orgId": "org-synthetic",
+          "balance": "0.00"
+        }
+      },
+      "assertions": [
+        "the same bank_id with a different name is a separate connection",
+        "a second bank row is inserted"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "bank_id",
+            "value": "synthetic.example"
+          },
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "name",
+            "value": "Synthetic Bank"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": "remote-account-simplefin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": "id2"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": "simpleFin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "last_sync",
+            "value": "1790510400000"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": "ok"
+          }
+        ],
+        "linkMessages": [
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "bank_id",
+            "value": "synthetic.example"
+          },
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "name",
+            "value": "Synthetic Bank"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": "remote-account-simplefin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": "id2"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": "simpleFin"
+          }
+        ],
+        "bankRows": [
+          {
+            "id": "bank-existing",
+            "bank_id": "synthetic.example",
+            "name": "Other Bank"
+          },
+          {
+            "id": "id2",
+            "bank_id": "synthetic.example",
+            "name": "Synthetic Bank"
+          }
+        ],
+        "accountLink": {
+          "account_id": "remote-account-simplefin",
+          "bank": "id2",
+          "account_sync_source": "simpleFin"
+        },
+        "after": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": "remote-account-simplefin",
+              "bank": "id2",
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": "simpleFin",
+              "bank_sync_status": "ok",
+              "last_sync": "1790510400000",
+              "account_group_id": null
+            }
+          ],
+          "banks": [
+            {
+              "id": "bank-existing",
+              "bank_id": "synthetic.example",
+              "name": "Other Bank",
+              "tombstone": 0
+            },
+            {
+              "id": "id2",
+              "bank_id": "synthetic.example",
+              "name": "Synthetic Bank",
+              "tombstone": 0
+            }
+          ],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
+      "id": "link-simplefin-no-institution-or-domain",
+      "input": {
+        "account": {
+          "id": "source",
+          "linked": false
+        },
+        "externalAccount": {
+          "account_id": "remote-account-simplefin",
+          "name": "Synthetic checking",
+          "institution": null,
+          "orgDomain": null,
+          "orgId": "org-synthetic",
+          "balance": "0.00"
+        }
+      },
+      "assertions": [
+        "bank_id falls back to the org id",
+        "a missing institution is stored as a null name"
+      ],
+      "observed": {
+        "operationMessages": [
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "bank_id",
+            "value": "org-synthetic"
+          },
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "name",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": "remote-account-simplefin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": "id2"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": "simpleFin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "last_sync",
+            "value": "1790510400000"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank_sync_status",
+            "value": "ok"
+          }
+        ],
+        "linkMessages": [
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "bank_id",
+            "value": "org-synthetic"
+          },
+          {
+            "dataset": "banks",
+            "row": "id2",
+            "column": "name",
+            "value": null
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_id",
+            "value": "remote-account-simplefin"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "bank",
+            "value": "id2"
+          },
+          {
+            "dataset": "accounts",
+            "row": "source",
+            "column": "account_sync_source",
+            "value": "simpleFin"
+          }
+        ],
+        "bankRows": [
+          {
+            "id": "id2",
+            "bank_id": "org-synthetic",
+            "name": null
+          }
+        ],
+        "accountLink": {
+          "account_id": "remote-account-simplefin",
+          "bank": "id2",
+          "account_sync_source": "simpleFin"
+        },
+        "after": {
+          "accounts": [
+            {
+              "id": "source",
+              "name": "Synthetic source",
+              "offbudget": 0,
+              "closed": 0,
+              "tombstone": 0,
+              "sort_order": 16384,
+              "account_id": "remote-account-simplefin",
+              "bank": "id2",
+              "balance_current": null,
+              "balance_available": null,
+              "balance_limit": null,
+              "account_sync_source": "simpleFin",
+              "bank_sync_status": "ok",
+              "last_sync": "1790510400000",
+              "account_group_id": null
+            }
+          ],
+          "banks": [
+            {
+              "id": "id2",
+              "bank_id": "org-synthetic",
+              "name": null,
+              "tombstone": 0
+            }
+          ],
+          "payees": [
+            {
+              "id": "transfer-source",
+              "name": "",
+              "transfer_acct": "source",
+              "favorite": 0,
+              "learn_categories": 1,
+              "tombstone": 0
+            }
+          ],
+          "transactions": [],
+          "rules": [],
+          "schedules": [],
+          "scheduleDates": []
+        }
+      }
+    },
+    {
       "id": "unlink-simplefin",
       "input": {
         "account": {

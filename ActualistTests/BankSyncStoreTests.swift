@@ -426,6 +426,30 @@ extension LocalFirstActualStoreTests {
         #expect(bankName == "Friendly Bank")
     }
 
+    @Test func linkSyncsTheNewBankRowOnceAndRelinkReusesIt() async throws {
+        let bundle = try await makeBankSyncStore(transport: StubSimpleFINTransport())
+        let store = bundle.store
+        let databaseURL = try bundle.fileManager.databaseURL(fileID: "file-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+
+        var messages = try storedCRDTMessages(at: databaseURL)
+        let bankMessages = messages.filter { $0.dataset == "banks" }
+        let bankRowID = try #require(bankMessages.first?.row)
+        #expect(Set(bankMessages.map(\.column)) == ["bank_id", "name"])
+        #expect(bankMessages.allSatisfy { $0.row == bankRowID })
+        #expect(messages.contains {
+            $0.dataset == "accounts" && $0.row == "savings" && $0.column == "bank" && $0.serializedValue == "S:\(bankRowID)"
+        })
+
+        try await store.bankSync.unlinkBankAccount("savings", budgetID: "group-1")
+        try await store.bankSync.linkBankAccount("savings", to: remoteAccount(), budgetID: "group-1")
+        messages = try storedCRDTMessages(at: databaseURL)
+        #expect(messages.filter { $0.dataset == "banks" }.count == 2)
+        #expect(messages.filter {
+            $0.dataset == "accounts" && $0.row == "savings" && $0.column == "bank"
+        }.last?.serializedValue == "S:\(bankRowID)")
+    }
+
     @Test func unlinkClearsLinkColumnsAndLeavesTransactions() async throws {
         let transport = StubSimpleFINTransport()
         let bundle = try await makeBankSyncStore(transport: transport)

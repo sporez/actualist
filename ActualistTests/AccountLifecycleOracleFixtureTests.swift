@@ -3,7 +3,7 @@ import Testing
 
 struct AccountLifecycleOracleFixtureTests {
     /// Message arrays are compared as multisets, so their order never decides a result.
-    private static let messageKeys = ["operationMessages", "openServiceMessages", "repeatMessages"]
+    private static let messageKeys = ["operationMessages", "openServiceMessages", "repeatMessages", "linkMessages"]
 
     private struct MessageDifference {
         var missing: [OracleValue] = []
@@ -28,7 +28,7 @@ struct AccountLifecycleOracleFixtureTests {
 
         #expect(actual?["tag"] as? String == pin.tag)
         #expect(actual?["commit"] as? String == pin.commit)
-        #expect(cases.count == 22)
+        #expect(cases.count == 26)
         #expect(Set(cases.compactMap { $0["id"] as? String }).isSuperset(of: [
             "close-empty-history",
             "close-zero",
@@ -37,6 +37,7 @@ struct AccountLifecycleOracleFixtureTests {
             "close-on-to-off-hidden-category",
             "close-off-to-on",
             "close-off-to-off",
+            "link-simplefin-new-bank",
             "unlink-simplefin",
             "close-unlink-undo-boundary",
             "schedule-close-reopen-eligibility",
@@ -48,7 +49,7 @@ struct AccountLifecycleOracleFixtureTests {
         let replayed = Set(AccountLifecycleScenarios.replayedCaseIDs)
 
         #expect(replayed.count == AccountLifecycleScenarios.replayedCaseIDs.count)
-        #expect(fixture.observedByCase.count == 22)
+        #expect(fixture.observedByCase.count == 26)
         #expect(replayed.isDisjoint(with: fixture.oracleOnlyCaseIDs))
         #expect(replayed.union(fixture.oracleOnlyCaseIDs) == Set(fixture.observedByCase.keys))
     }
@@ -107,7 +108,8 @@ struct AccountLifecycleOracleFixtureTests {
         actual: [String: OracleValue]
     ) throws -> [String: MessageDifference] {
         var result: [String: MessageDifference] = [:]
-        for key in messageKeys where expected[key] != nil || actual[key] != nil {
+        let skipped = AccountLifecycleScenarios.messageKeysNotReplayed[caseID] ?? []
+        for key in messageKeys where (expected[key] != nil || actual[key] != nil) && !skipped.contains(key) {
             let expectedItems = try messageItems(expected[key], caseID, key)
             var pending = try messageItems(actual[key], caseID, key)
             var difference = MessageDifference()

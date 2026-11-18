@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-11-08T14:03:45.163Z",
+  "generatedAt": "2026-11-18T11:48:22.885Z",
   "seed": null,
   "actual": {
     "tag": "v26.11.0",
@@ -35,14 +35,14 @@
   },
   "generator": {
     "path": "scripts/account-lifecycle-parity/generate.mjs",
-    "sha256": "a863ba21dbc49f01d720587842718e7e57ed938a676bb7f0653d99c7b5d51db7",
+    "sha256": "0b836552e565ae670f7b540bdb7cbf5e142c628d47db8aa49f80611a8612abbf",
     "manifestSchemaPath": "scripts/account-lifecycle-parity/manifest.schema.json",
     "manifestSchemaSha256": "999b77ab5d05cdf7f04041e2cff8ecce7ce9f144fe7b4f4b26a748a2f384d7d2"
   },
   "harnessFiles": [
     {
       "path": "scripts/account-lifecycle-parity/harness/account-lifecycle-parity.test.ts",
-      "sha256": "08469eac4de7f45f74ef63bb0588f05af8312effd08f5e449efa5c464d085a51"
+      "sha256": "0de426a507cd01a020a44d5d806177fe16edc95d5aa0488ad9f8c09dab0a61ee"
     },
     {
       "path": "scripts/account-lifecycle-parity/harness/account-lifecycle-parity-support.ts",
@@ -61,6 +61,10 @@
     {
       "path": "packages/loot-core/src/server/accounts/app.ts",
       "sha256": "d2303dee45557d54ce21daa7ecfab49cba4440b334dd5abe1e1318ef5fb79e1d"
+    },
+    {
+      "path": "packages/loot-core/src/server/accounts/link.ts",
+      "sha256": "25448812ac1c1caf896df782c2e585c95d0002019985b42ae833391230887f3f"
     },
     {
       "path": "packages/loot-core/src/server/db/index.ts",
@@ -109,6 +113,10 @@
     {
       "path": "packages/desktop-client/src/components/util/accountValidation.ts",
       "sha256": "745da1c3dd1ba474871bb27072552a0abf457e8eac083e4e72825ac40172813d"
+    },
+    {
+      "path": "packages/desktop-client/src/components/banksync/useBuiltInBankSyncProviders.ts",
+      "sha256": "3087d184bcd0a0993b7e43eb521c4e704af17f76dc55eb42d1956b7abeadb760"
     }
   ],
   "dependencies": {
@@ -145,8 +153,8 @@
   },
   "fixture": {
     "path": "ActualistTests/Fixtures/ActualCore26_11_0/AccountLifecycle/account-lifecycle-oracle.json",
-    "sha256": "e1407a1db647e00c5eaed766da249ec66f655365e5539d62088e7868b887af5c",
-    "caseCount": 22,
+    "sha256": "c507707a02b713532374b069337c1fc7c44ea2e105ae3c66c3769b16909ad4f4",
+    "caseCount": 26,
     "caseIDs": [
       "rename-open-history",
       "rename-closed",
@@ -163,6 +171,10 @@
       "close-split-balance",
       "forced-delete-simple",
       "forced-delete-split-transfer-graph",
+      "link-simplefin-new-bank",
+      "link-simplefin-existing-bank",
+      "link-simplefin-same-domain-other-name",
+      "link-simplefin-no-institution-or-domain",
       "unlink-simplefin",
       "unlink-gocardless-last-reference",
       "unlink-gocardless-shared-bank",
@@ -481,6 +493,105 @@
       "outputPointer": "account-lifecycle-oracle.json#/cases/14"
     },
     {
+      "id": "link-simplefin-new-bank",
+      "input": {
+        "account": {
+          "id": "source",
+          "linked": false
+        },
+        "externalAccount": {
+          "account_id": "remote-account-simplefin",
+          "name": "Synthetic checking",
+          "institution": "Synthetic Bank",
+          "orgDomain": "synthetic.example",
+          "orgId": "org-synthetic",
+          "balance": "0.00"
+        }
+      },
+      "assertions": [
+        "a new bank row is inserted through bank_id and name messages",
+        "the account points at the new bank with its SimpleFIN account id and source",
+        "the first download is replaced by an empty result"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/15"
+    },
+    {
+      "id": "link-simplefin-existing-bank",
+      "input": {
+        "account": {
+          "id": "source",
+          "linked": false
+        },
+        "bank": {
+          "id": "bank-existing",
+          "bank_id": "synthetic.example",
+          "name": "Synthetic Bank"
+        },
+        "externalAccount": {
+          "account_id": "remote-account-simplefin",
+          "name": "Synthetic checking",
+          "institution": "Synthetic Bank",
+          "orgDomain": "synthetic.example",
+          "orgId": "org-synthetic",
+          "balance": "0.00"
+        }
+      },
+      "assertions": [
+        "a bank row with the same bank_id and name is reused",
+        "no banks message is written"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/16"
+    },
+    {
+      "id": "link-simplefin-same-domain-other-name",
+      "input": {
+        "account": {
+          "id": "source",
+          "linked": false
+        },
+        "bank": {
+          "id": "bank-existing",
+          "bank_id": "synthetic.example",
+          "name": "Other Bank"
+        },
+        "externalAccount": {
+          "account_id": "remote-account-simplefin",
+          "name": "Synthetic checking",
+          "institution": "Synthetic Bank",
+          "orgDomain": "synthetic.example",
+          "orgId": "org-synthetic",
+          "balance": "0.00"
+        }
+      },
+      "assertions": [
+        "the same bank_id with a different name is a separate connection",
+        "a second bank row is inserted"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/17"
+    },
+    {
+      "id": "link-simplefin-no-institution-or-domain",
+      "input": {
+        "account": {
+          "id": "source",
+          "linked": false
+        },
+        "externalAccount": {
+          "account_id": "remote-account-simplefin",
+          "name": "Synthetic checking",
+          "institution": null,
+          "orgDomain": null,
+          "orgId": "org-synthetic",
+          "balance": "0.00"
+        }
+      },
+      "assertions": [
+        "bank_id falls back to the org id",
+        "a missing institution is stored as a null name"
+      ],
+      "outputPointer": "account-lifecycle-oracle.json#/cases/18"
+    },
+    {
       "id": "unlink-simplefin",
       "input": {
         "account": {
@@ -495,7 +606,7 @@
         "last_sync is preserved",
         "SimpleFIN unlink makes no remote provider call"
       ],
-      "outputPointer": "account-lifecycle-oracle.json#/cases/15"
+      "outputPointer": "account-lifecycle-oracle.json#/cases/19"
     },
     {
       "id": "unlink-gocardless-last-reference",
@@ -511,7 +622,7 @@
         "the last bank reference calls the mocked remove-account route once",
         "fixture output records token presence but not token bytes"
       ],
-      "outputPointer": "account-lifecycle-oracle.json#/cases/16"
+      "outputPointer": "account-lifecycle-oracle.json#/cases/20"
     },
     {
       "id": "unlink-gocardless-shared-bank",
@@ -530,7 +641,7 @@
         "a remaining shared-bank reference suppresses remote removal",
         "the peer link is unchanged"
       ],
-      "outputPointer": "account-lifecycle-oracle.json#/cases/17"
+      "outputPointer": "account-lifecycle-oracle.json#/cases/21"
     },
     {
       "id": "unlink-gocardless-without-token",
@@ -545,7 +656,7 @@
         "GoCardless local link cells clear before token lookup decides remote work",
         "an absent token suppresses remote removal without reverting local unlink"
       ],
-      "outputPointer": "account-lifecycle-oracle.json#/cases/18"
+      "outputPointer": "account-lifecycle-oracle.json#/cases/22"
     },
     {
       "id": "unlink-gocardless-remote-failure",
@@ -561,7 +672,7 @@
         "the handler swallows the remote rejection",
         "local unlink remains committed"
       ],
-      "outputPointer": "account-lifecycle-oracle.json#/cases/19"
+      "outputPointer": "account-lifecycle-oracle.json#/cases/23"
     },
     {
       "id": "close-unlink-undo-boundary",
@@ -577,7 +688,7 @@
         "History undo emits only closed = 0",
         "the local provider link remains cleared after undo"
       ],
-      "outputPointer": "account-lifecycle-oracle.json#/cases/20"
+      "outputPointer": "account-lifecycle-oracle.json#/cases/24"
     },
     {
       "id": "schedule-close-reopen-eligibility",
@@ -598,7 +709,7 @@
         "automatic service posts nothing while the account is closed",
         "automatic service posts the scheduled transaction after reopen"
       ],
-      "outputPointer": "account-lifecycle-oracle.json#/cases/21"
+      "outputPointer": "account-lifecycle-oracle.json#/cases/25"
     }
   ],
   "oracleOnly": [

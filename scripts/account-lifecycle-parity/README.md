@@ -167,7 +167,7 @@ exist.
 
 ## Predetermined cases and assertions
 
-The harness has no case filter. One invocation must complete exactly 22 cases
+The harness has no case filter. One invocation must complete exactly 26 cases
 across all of these groups:
 
 - open/closed rename and History inverse, plus the core handler's unchanged,
@@ -181,6 +181,11 @@ across all of these groups:
 - self-transfer refusal with zero CRDT/domain change;
 - split-parent balance exclusion and split-child inclusion;
 - forced simple deletion and a forced split/paired-transfer graph deletion;
+- SimpleFIN link of an existing account (`simplefin-accounts-link` with
+  `upgradingId`): a new bank, a reused bank with the same `bank_id` and name, a
+  second bank for the same `bank_id` under another name, and a bank with no
+  institution or domain. The link's first download (`bankSync.syncAccount`) is
+  mocked to an empty result, because Actualist links without downloading;
 - SimpleFIN local unlink;
 - GoCardless last-reference remote removal, shared-bank suppression, absent
   token behavior, and swallowed remote failure;
@@ -197,7 +202,7 @@ compared; see the Actualist replay comparison below.
 
 ## Actualist replay comparison
 
-`ActualistTests/AccountLifecycleOracleFixtureTests.swift` replays each of the 16
+`ActualistTests/AccountLifecycleOracleFixtureTests.swift` replays each of the 20
 oracle cases Actualist supports through production `BudgetDatabase` on a fresh
 SQLite file seeded from the oracle's synthetic inputs, then compares the result
 with the committed observation. Scenarios live in
@@ -211,6 +216,7 @@ Production entry point per case:
 | `rename-open-history`, `rename-closed`, `rename-handler-input-boundary` | `commitAccountLifecycleMutation(.rename(...))`; the boundary case submits four names and catches the refused duplicate |
 | `reopen-repeat-history` | `commitAccountLifecycleMutation(.reopen(...))`, twice |
 | `close-empty-history`, `close-zero`, `close-positive-on-to-on-history`, `close-negative-on-to-on`, `close-on-to-off-hidden-category`, `close-off-to-on`, `close-off-to-off`, `close-self-transfer-refusal`, `close-split-balance`, `close-unlink-undo-boundary` | `accountLifecycleReview(request:localDay:)`, then `commitAccountLifecycleReview(_:now:localDay:transferIDs:)` only when the review has no blockers |
+| `link-simplefin-new-bank`, `link-simplefin-existing-bank`, `link-simplefin-same-domain-other-name`, `link-simplefin-no-institution-or-domain` | `makeBankSyncLinkMessages(accountID:remote:builder:)`, then `commitLocalSyncMessagesAndEnqueue(_:now:)`, as `BankSyncWorkflows.linkBankAccount` does. Actual's `institution` (SimpleFIN's `org.name`) is Actualist's `orgName` |
 | `unlink-simplefin` | `makeBankSyncUnlinkMessages(accountID:builder:)`, then `commitLocalSyncMessagesAndEnqueue(_:now:)` |
 | `schedule-close-reopen-eligibility` | close as above, `advanceSchedules(budgetID:today:now:)`, reopen, `advanceSchedules` |
 
@@ -222,7 +228,8 @@ Normalization rules. These are the only transformations applied to either side:
    value are kept.
 3. Row IDs: the transfer legs use the injected IDs `id2` (source) and `id3`
    (destination). The production-generated UUID of the posted scheduled
-   transaction is aliased to `id4`.
+   transaction is aliased to `id4`, and the bank a link creates to `id2`, in
+   message rows, message values and bank rows.
 4. The clock is the fixed `now` and local day (2026-09-27) the oracle uses.
 5. Values: production's typed serialization (`0:` null, `N:` number, `S:`
    string) is parsed into the oracle's JSON-like values. Booleans are compared
@@ -241,6 +248,11 @@ Not replayed:
 
 - `undoMessages` and `afterUndo`. History undo is not offered for account
   actions (`Actualist/LocalFirst/ActionLog/BudgetActionUndo.swift:366-367`).
+- For the link cases, `operationMessages`, `after` and the full account row.
+  They include the mocked download's `last_sync` and `bank_sync_status` cells,
+  which Actualist does not write when it links. `linkMessages` (every `banks`
+  cell and the account's `account_id`, `bank` and `account_sync_source`),
+  `bankRows` and `accountLink` are compared.
 - `remoteCalls`. They record the oracle's mocked transport and are kept only in
   the fixture; Actualist's replay has no transport seam.
 
@@ -263,7 +275,7 @@ with a reason each. They are not registered as divergences:
 | `unlink-gocardless-remote-failure` | Actualist unlinks SimpleFIN accounts only; GoCardless is not supported. |
 
 The test asserts that the replayed cases and the oracle-only list partition all
-22 oracle case IDs, and that the committed manifest's provenance matches the
+26 oracle case IDs, and that the committed manifest's provenance matches the
 pinned Actual.
 
 ## Stop conditions and correction budget
