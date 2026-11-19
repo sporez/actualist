@@ -134,6 +134,7 @@ struct BudgetGroupSection: View {
                     }
                 }
                 .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: GroupedRowPosition.cornerRadius, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: GroupedRowPosition.cornerRadius, style: .continuous))
             }
         }
     }
