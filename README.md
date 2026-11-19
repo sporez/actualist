@@ -52,8 +52,9 @@ and iOS Liquid Glass controls.
 - Schedules in the Budget actions menu: create, edit, skip, complete, delete,
   and post them, and turn a transaction into a schedule.
 - Accounts with on-budget, off-budget, and closed balances, plus notes. Add,
-  rename, close, reopen, and reconcile accounts, and delete empty ones. Manage
-  groups when your Actual server supports them.
+  rename, close, reopen, and reconcile accounts, and delete empty ones. Show a
+  running balance on an account's transactions. Manage groups when your Actual
+  server supports them.
 - iPad sidebar, category details, and up to five budget months side by side.
   Compact layouts can use Swipe Between Months for full-width transitions.
 - History in the Budget ⋯ menu shows up to the last 25 money-flow changes on
