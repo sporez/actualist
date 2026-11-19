@@ -231,6 +231,9 @@ enum AccountSQL {
     }
 
     /// Per-account balance of live inline rows; `accountID` limits it to one account.
+    /// Split children are summed, as in Actual's account header and `account-balance`.
+    /// Actual's sidebar row sums the parent instead, which differs only when a split's
+    /// parts don't add up to its parent; the Accounts tab keeps matching the header.
     private static func accountBalances(accountID: String?, in database: isolated BudgetDatabase, db: Database) throws -> [String: Int] {
         guard try database.tableExists("transactions", db: db) else {
             return [:]
