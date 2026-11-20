@@ -26,6 +26,7 @@ struct AccountTransactionsView: View {
     @State private var transactionFilterPresentation = TransactionFilterPresentation()
     @State private var transactionBatchPresentation = TransactionBatchPresentation()
     @State private var scheduleConversionCoordinator = TransactionScheduleConversionCoordinator()
+    @State private var clearedSwipe = TransactionClearedSwipeCoordinator()
     @State private var isCSVExportPresented = false
     @State private var isCSVImportPresented = false
 
@@ -197,6 +198,7 @@ struct AccountTransactionsView: View {
                 highlightsIncomeAmounts: appState.settings.greenIncomeTransactionAmountsEnabled,
                 deletingTransactionID: viewModel.deletingTransactionID,
                 deletePresentation: deletePresentationBinding,
+                clearedSwipe: clearedSwipe,
                 onOpenTransaction: { transaction in
                     viewModel.showEditor(for: transaction, using: appState, presenter: transactionPresenter)
                 },
@@ -232,6 +234,15 @@ struct AccountTransactionsView: View {
                             onChanged: localDataDidMutate
                         )
                     }
+                },
+                onToggleCleared: toggleCleared,
+                onConfirmUnlock: {
+                    Task {
+                        await clearedSwipe.confirmUnlock(
+                            transactionRepository: transactionRepository,
+                            onUnlocked: localDataDidMutate
+                        )
+                    }
                 }
             )
 
@@ -248,7 +259,7 @@ struct AccountTransactionsView: View {
                     .plainListRow()
             }
 
-            if let errorMessage = viewModel.loadErrorMessage ?? viewModel.errorMessage {
+            if let errorMessage = viewModel.loadErrorMessage ?? viewModel.errorMessage ?? clearedSwipe.errorMessage {
                 Text(errorMessage)
                     .font(ActualistTypography.rowTitle(for: density))
                     .foregroundStyle(ActualistTheme.danger)
@@ -394,6 +405,7 @@ struct AccountTransactionsView: View {
             return true
         }
         .onChange(of: budgetID) { _, _ in
+            clearedSwipe.reset()
             Task { await viewModel.budgetDidChange(to: budgetID, repository: transactionRepository) }
         }
         .onChange(of: transactionPresenter.presentation == nil) { _, editorDismissed in
@@ -422,6 +434,7 @@ struct AccountTransactionsView: View {
         }
         .sensoryFeedback(.selection, trigger: viewModel.deleteIntentFeedback)
         .sensoryFeedback(.success, trigger: viewModel.deleteSuccessFeedback)
+        .sensoryFeedback(.selection, trigger: clearedSwipe.successFeedback)
         .sheet(isPresented: reconciliationSheetBinding) {
             AccountReconciliationTargetSheet(
                 coordinator: reconciliationCoordinator,
@@ -770,6 +783,25 @@ struct AccountTransactionsView: View {
     private func retryReconciliationStart() {
         reconciliationCoordinator.cancel()
         startReconciliation()
+    }
+
+    private func toggleCleared(_ transaction: ActualTransaction) {
+        let context = TransactionClearedSwipeCoordinator.context(
+            scope: scope,
+            budgetID: budgetID,
+            sessionGeneration: appState.localFirstStore.budgetSessionGeneration
+        )
+        Task {
+            await clearedSwipe.toggle(
+                transaction,
+                context: context,
+                batchRepository: appState.localFirstStore.transactionCommands,
+                transactionRepository: transactionRepository
+            ) { outcome in
+                guard outcome.sessionCurrent else { return }
+                localDataDidMutate()
+            }
+        }
     }
 
     private func localDataDidMutate() {

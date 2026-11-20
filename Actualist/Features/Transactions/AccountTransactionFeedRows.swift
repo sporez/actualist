@@ -14,11 +14,14 @@ struct AccountTransactionFeedRows: View {
     let highlightsIncomeAmounts: Bool
     let deletingTransactionID: String?
     @Binding var deletePresentation: TransactionDeletePresentation?
+    let clearedSwipe: TransactionClearedSwipeCoordinator
     let onOpenTransaction: (ActualTransaction) -> Void
     let onToggleSelection: (ActualTransaction) -> Void
     let onConvertToSchedule: (TransactionScheduleConversionEntryPoint) -> Void
     let onRequestDelete: (ActualTransaction) -> Void
     let onConfirmDelete: (ActualTransaction) -> Void
+    let onToggleCleared: (ActualTransaction) -> Void
+    let onConfirmUnlock: () -> Void
 
     /// Matches the 16 point inset of the feed's other sections.
     private static let cardMargin: CGFloat = 16
@@ -167,6 +170,33 @@ struct AccountTransactionFeedRows: View {
                 .disabled(row.transaction.id == nil || deletingTransactionID != nil)
             }
         }
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            if !isSelectionMode, TransactionClearedSwipeAction.isAvailable(for: row.transaction) {
+                let action = TransactionClearedSwipeAction(status: row.semantics.status)
+                Button {
+                    onToggleCleared(row.transaction)
+                } label: {
+                    Label(action.title, systemImage: action.systemImage)
+                }
+                .tint(clearedSwipeTint(action))
+                .disabled(clearedSwipe.pendingTransactionID != nil)
+            }
+        }
+        .confirmationDialog(
+            clearedSwipe.unlockRequest?.presentation.title ?? "Unlock Reconciled Transaction?",
+            isPresented: Bindable(clearedSwipe).unlockRequest.isPresented(matching: row.id),
+            titleVisibility: .visible
+        ) {
+            Button(clearedSwipe.unlockRequest?.presentation.confirmationTitle ?? "Unlock Transaction") {
+                onConfirmUnlock()
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if let message = clearedSwipe.unlockRequest?.presentation.message {
+                Text(message)
+            }
+        }
         .confirmationDialog(
             deletePresentation?.confirmationTitle ?? "Delete Transaction?",
             isPresented: $deletePresentation.isPresented(matching: row.id),
@@ -185,6 +215,14 @@ struct AccountTransactionFeedRows: View {
                 deletePresentation?.message
                     ?? "Delete \(row.payeeName)? The transaction will be deleted from your budget."
             )
+        }
+    }
+
+    private func clearedSwipeTint(_ action: TransactionClearedSwipeAction) -> Color {
+        switch action {
+        case .clear: ActualistTheme.incomeTransactionAmount
+        case .unclear: ActualistTheme.neutral
+        case .unlock: ActualistTheme.warning
         }
     }
 
