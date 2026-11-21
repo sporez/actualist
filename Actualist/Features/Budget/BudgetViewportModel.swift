@@ -17,6 +17,7 @@ final class BudgetViewportModel {
     let repository: any BudgetRepositoryProtocol
     let assignmentWorkflow: BudgetAssignmentWorkflow
     private let expansionStore: (any BudgetGroupExpansionStore)?
+    private let now: () -> Date
 
     private(set) var budgetID: String?
     private(set) var anchorMonth: String?
@@ -80,11 +81,12 @@ final class BudgetViewportModel {
 
     init(
         repository: any BudgetRepositoryProtocol, assignmentWorkflow: BudgetAssignmentWorkflow? = nil,
-        expansionStore: (any BudgetGroupExpansionStore)? = nil
+        expansionStore: (any BudgetGroupExpansionStore)? = nil, now: @escaping () -> Date = Date.init
     ) {
         self.repository = repository
         self.assignmentWorkflow = assignmentWorkflow ?? BudgetAssignmentWorkflow()
         self.expansionStore = expansionStore
+        self.now = now
     }
 
     var visibleMonths: [String] {
@@ -172,7 +174,7 @@ final class BudgetViewportModel {
             } else {
                 first = try await repository.currentBudgetMonth(
                     budgetID: budgetID,
-                    preferredMonth: YearMonth(date: Date()).rawValue
+                    preferredMonth: YearMonth(date: now()).rawValue
                 )
             }
             try Task.checkCancellation()
@@ -197,9 +199,16 @@ final class BudgetViewportModel {
         await load(budgetID: budgetID, anchorMonth: Self.monthID(anchorMonth, offsetBy: offset))
     }
 
+    /// The Today button would do nothing while the first column is already the
+    /// current month, so it shows only when the anchor is elsewhere.
+    var showsJumpToCurrentMonth: Bool {
+        guard let anchorMonth else { return false }
+        return anchorMonth != YearMonth(date: now()).rawValue
+    }
+
     func jumpToCurrentMonth() async {
         guard let budgetID else { return }
-        await load(budgetID: budgetID, anchorMonth: YearMonth(date: Date()).rawValue)
+        await load(budgetID: budgetID, anchorMonth: YearMonth(date: now()).rawValue)
     }
 
     func selectCategory(categoryID: String, month: String) {

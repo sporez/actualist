@@ -145,10 +145,12 @@ struct BudgetWorkspaceView: View {
         ToolbarItemGroup(placement: .topBarTrailing) {
             // iPhone Duo's side bar only takes items with a symbol, and overflow
             // menus show the title, so every item here carries both.
-            Button("Today", systemImage: "calendar") {
-                Task { await viewport.jumpToCurrentMonth() }
+            if viewport.showsJumpToCurrentMonth {
+                Button("Today", systemImage: "calendar") {
+                    Task { await viewport.jumpToCurrentMonth() }
+                }
+                .accessibilityLabel("Current month")
             }
-            .accessibilityLabel("Current month")
             Menu("Budget Actions", systemImage: "ellipsis") {
                 if !appState.settings.randomizedDisplayValuesEnabled {
                     Button("New Category…", systemImage: "plus") {

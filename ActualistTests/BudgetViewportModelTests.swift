@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Actualist
 
@@ -61,6 +62,22 @@ struct BudgetViewportModelTests {
         model.setResolvedMonthCount(9)
         #expect(model.resolvedMonthCount == 5)
         #expect(model.visibleMonths.isEmpty)
+    }
+
+    @Test func todayButtonShowsOnlyWhileTheAnchorIsNotTheCurrentMonth() async throws {
+        let repository = BudgetViewportTestRepository()
+        await repository.set(BudgetViewportFixtures.loaded("2026-07"))
+        await repository.set(BudgetViewportFixtures.loaded("2026-08"))
+        let today = try #require(TestLocalDay.calendar.date(from: DateComponents(year: 2026, month: 8, day: 15, hour: 12)))
+        let model = BudgetViewportModel(repository: repository, now: { today })
+        #expect(!model.showsJumpToCurrentMonth)
+
+        await model.load(budgetID: "budget", anchorMonth: "2026-07")
+        #expect(model.showsJumpToCurrentMonth)
+
+        await model.jumpToCurrentMonth()
+        #expect(model.anchorMonth == "2026-08")
+        #expect(!model.showsJumpToCurrentMonth)
     }
 
     @Test func hardwareInputUsesCurrencyMinorUnitScale() {
