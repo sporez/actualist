@@ -194,7 +194,7 @@ cases through the production import reconcile CSV import and Bank Sync share.
   (`prepareDownload`: pending filter, ID and currency checks, field mapping,
   note escaping); a `bank`/`simplefin` candidate is the oracle's own. The CSV
   parser (rows start as parsed rows).
-- **Divergences.** OP-54 to OP-69 (`config/parity/known-divergences.json`).
+- **Divergences.** OP-58, OP-59, OP-60, OP-61, OP-62, OP-66 and OP-68 (`config/parity/known-divergences.json`).
   Each is wrapped by exact field path; every other mismatch stays strict.
 
 ## Upstream facts worth knowing

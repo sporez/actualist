@@ -31,7 +31,7 @@ Build settings that affect where code runs: the app target sets no default actor
 | `Actualist/App/` | App entry point, session lifecycle, background work, launch coordination, app-wide sync status, notifications, and tab identity. |
 | `Actualist/Features/` | User-facing screens, feature view models, focused coordinators, presentation models, and feature-local pure logic. |
 | `Actualist/Repositories/` | Dependency-injection protocols and domain/display models consumed by features. These are protocols, not concrete repository implementations. |
-| `Actualist/LocalFirst/` | `LocalFirstActualStore`, local-first orchestration, cached snapshots, CRDT mutation construction, sync, import, and feature-facing repository conformance. |
+| `Actualist/LocalFirst/` | `LocalFirstActualStore`, local-first orchestration, cached snapshots, CRDT mutation construction, sync, import, and the `<Domain>Workflows` collaborators that conform to the repository protocols. |
 | `Actualist/LocalFirst/Database/` | `BudgetDatabase` actor, GRDB/SQLite reads, schema compatibility, calculations close to stored data, and atomic write/outbox transactions. |
 | `Actualist/LocalFirst/Network/` | Concrete Actual sync, SimpleFIN, and bridge HTTP clients. |
 | `Actualist/LocalFirst/Sync/` | Sync transport abstraction, CRDT message builder, merkle trie, timestamps, and the reserved-dataset policy. |
@@ -82,7 +82,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Month navigation and layout: `BudgetMonthSwipeModifier.swift`, `BudgetAssignmentViewport.swift`, `BudgetAssignmentScrollPresentation.swift`, and viewport/layout helpers.
 - Assignment and move-money workflows: `BudgetMoveMoneyWorkflow.swift` and `BudgetMoveMoneyView.swift`; persistence enters through `BudgetRepositoryProtocol` and `BudgetWorkflows.swift`.
 - Category create/rename/reorder/delete/visibility: `BudgetCategory*Workflow.swift` and the category sheets. Store writes are `CategoryLifecycleWorkflows.swift`; SQLite is `CategorySQL` and `CategoryDeletionSQL` in `LocalFirst/Database/`.
-- Hold for next month: `BudgetHoldViewModel.swift` and `BudgetHoldSheet.swift` own the shared compact/wide review workflow. `BudgetHoldSQL` owns the stored hold calculation, the hold review and its writes; the focused hold store/database writers own persistence.
+- Hold for next month: `BudgetHoldViewModel.swift` and `BudgetHoldSheet.swift` own the shared compact/wide review workflow. `BudgetHoldSQL` owns the stored hold calculation, the hold review and its writes; `HoldWorkflows` (the store's `holds`, conforming to `BudgetHoldRepositoryProtocol`) owns persistence.
 - Uncategorized flow: `UncategorizedTransactionsView.swift` and its view model/coordinator siblings.
 - Backend reads/writes: `BudgetWorkflows.swift`, `LocalFirstActualStore+Reads.swift` (budget month reads), `HistoryWorkflows.swift`; `BudgetMonthSQL` (month and snapshot reads, envelope availability, carry-in, available months), `BudgetCategoryValueSQL` (category values, budgets and spending over time), `BudgetAssignmentSQL` (assign, move money, carryover), `BudgetRowSQL` (budget row ids and the shared row write), `BudgetCurrencySQL`, and the `ActionLog*SQL` types.
 
@@ -169,11 +169,11 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 - `+Connection` — authenticate, select/open/import/reset budget sessions. The database is built off the main actor with `BudgetDatabase.open` (`@concurrent`); `init` stays for tests and records main-thread construction in DEBUG.
 - `+Sync`, `+SyncQuarantine` — pull/apply/flush through the session's `ServerSyncLane`, quarantine diagnostics. Endpoint failover lives in `LocalFirstActualStore.swift`.
-- `+Reads` and `+CommitTail` (`reloadSelectedBudgetCache`), with `BudgetLaunchWorkflows` for the launch snapshot — cached budget-month reads and launch snapshots.
+- `+Reads` — cached budget-month reads.
 - `TransactionWorkflows` (`LocalFirst/TransactionWorkflows.swift`, the store's `transactions`) — the transaction repository: cached account, Spending, category and uncategorized feeds, the transaction writes, editor reads and Wallet import. The observed feed caches stay on the store. Do not duplicate this cache.
-- `BudgetLaunchWorkflows` — store-side cache warming after open.
-- `+CommitTail` — the shared post-commit tail for local CRDT writes.
-- `TransactionCommandWorkflows` (`LocalFirst/TransactionCommandWorkflows.swift`, the store's `transactionCommands`: batch, duplicate and merge review and commit), `TransactionCSVWorkflows` (the store's `transactionCSV`: CSV export, prepare and apply), `PendingTransactionWorkflows` (the store's `pendingTransactions`: new-transaction alert rows, conforming to `BackgroundPendingTransactionPersisting`) — transaction-list actions, saved filters, and CSV.
+- `BudgetLaunchWorkflows` — the launch snapshot and store-side cache warming after open.
+- `+CommitTail` — the shared post-commit tail for local CRDT writes, including `reloadSelectedBudgetCache`.
+- `TransactionCommandWorkflows` (`LocalFirst/TransactionCommandWorkflows.swift`, the store's `transactionCommands`: batch, duplicate and merge review and commit), `TransactionCSVWorkflows` (the store's `transactionCSV`: CSV export, prepare and apply), `PendingTransactionWorkflows` (the store's `pendingTransactions`: new-transaction alert rows, conforming to `BackgroundPendingTransactionPersisting`, over `PendingNewTransactionSQL`) — transaction-list actions, saved filters, and CSV.
 - `ScheduleWorkflows` (`LocalFirst/ScheduleWorkflows.swift`, the store's `schedules`) — schedule reads, edits, conversion from a transaction, manual and automatic posting.
 - `ImportReconcileSteps` (`LocalFirst/ImportReconcileSteps.swift`, the shared reconcile and write steps) — imported transaction flows (Bank Sync is `BankSyncWorkflows` and `BankSyncPlanWorkflows`).
 - `PortableBudgetWorkflows` (`LocalFirst/PortableBudgetWorkflows.swift`, the store's `portableBudgets`) — ZIP export and import, server registration, and New Budget.
@@ -185,7 +185,15 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 
 When adding a store operation, add it to the domain's `<Domain>Workflows` collaborator, or create one for a new domain with its own repository protocol. Never add a domain member to `LocalFirstActualStore` in any file, make the store conform to a repository protocol, or add a `+X.swift` file (`AGENTS.md`, Domain Ownership And Central Types).
 
-Repositories are per feature, not one facade: `Actualist/Repositories/` holds `BudgetRepositoryProtocol`, `TransactionRepositoryProtocol`, `AccountRepositoryProtocol` plus focused protocols for batch, duplicate, merge, CSV import, CSV export, saved filters, schedules (read, mutation, posting, conversion), account lifecycle, payees, rules, notes and reports. The store's collaborators implement them, not the store: `transactions` (`TransactionWorkflows`) the transaction protocol, and the four schedule protocols, which its `schedules` collaborator (`ScheduleWorkflows`) implements, `ReportsRepositoryProtocol`, `RuleRepositoryProtocol` and `AccountLifecycleRepositoryProtocol`, `SavedTransactionFilterRepositoryProtocol` and the batch, duplicate and merge protocols (`TransactionCommandWorkflows`, `transactionCommands`), which its `reports` (`ReportWorkflows`), `rules` (`RuleWorkflows`), `accountLifecycle` (`AccountLifecycleWorkflows`) and `savedFilters` (`SavedFilterWorkflows`) collaborators implement; a screen passes `appState.localFirstStore.schedules`, `appState.reportsRepository`, `appState.ruleRepository`, `appState.localFirstStore.accountLifecycle` or `store.savedFilters` for those. Bank Sync has no repository protocol: `BankSyncViewModel` calls `store.bankSync` and `store.bankSyncPlans`. A view model depends only on the protocol it uses, and tests inject a fake of that one protocol.
+Repositories are per domain, not one facade. The store's collaborators implement the protocols, never the store. Protocol -> collaborator (store property):
+
+- `BudgetRepositoryProtocol` -> `BudgetWorkflows` (`budget`); `BudgetHoldRepositoryProtocol` -> `HoldWorkflows` (`holds`); `BudgetCategoryLifecycleRepositoryProtocol` -> `CategoryLifecycleWorkflows` (`categoryLifecycle`); `BudgetTemplateRepositoryProtocol` -> `TemplateWorkflows` (`templates`); `BudgetHistoryRepositoryProtocol` -> `HistoryWorkflows` (`history`).
+- `TransactionRepositoryProtocol` -> `TransactionWorkflows` (`transactions`); the batch, duplicate and merge protocols -> `TransactionCommandWorkflows` (`transactionCommands`); `TransactionCSVImportRepositoryProtocol` and `TransactionCSVExportRepositoryProtocol` -> `TransactionCSVWorkflows` (`transactionCSV`); `SavedTransactionFilterRepositoryProtocol` -> `SavedFilterWorkflows` (`savedFilters`).
+- The schedule protocols (read, mutation, posting, conversion) -> `ScheduleWorkflows` (`schedules`).
+- `AccountRepositoryProtocol` -> `AccountWorkflows` (`accounts`); `AccountLifecycleRepositoryProtocol` -> `AccountLifecycleWorkflows` (`accountLifecycle`); `AccountReconciliationRepositoryProtocol` -> `ReconciliationWorkflows` (`reconciliation`).
+- `PayeeRepositoryProtocol` -> `PayeeWorkflows` (`payees`); `RuleRepositoryProtocol` -> `RuleWorkflows` (`rules`); `EntityNotesRepositoryProtocol` -> `EntityNoteWorkflows` (`entityNotes`); `ReportsRepositoryProtocol` -> `ReportWorkflows` (`reports`).
+
+Bank Sync has no repository protocol: `BankSyncViewModel` calls `store.bankSync` and `store.bankSyncPlans`. A view model depends only on the protocol it uses, and tests inject a fake of that one protocol.
 
 ### Database
 
@@ -200,16 +208,16 @@ File naming is the ownership index:
 - `CategorySQL` (category reads, create, rename, reorder and hide) and `CategoryDeletionSQL` (delete with the budget and mapping transfer) — category structure and hidden-category persistence; `EntityName` holds the name check those writes share.
 - `+Schema`, `+SchemaValidation`, `+LocalMigrations`, `+CompatibilityMigrationIDs`, `+AccountGroupCompatibility`, `+MessagesTimestampIndex` — local/schema compatibility.
 - `+UntrustedSanitization` — defensive decoding of values from imported or synced data.
-- `+Preferences`, `BudgetCurrencySQL`, `BudgetModeSQL` (envelope vs tracking budget) — payees and budget-level settings.
+- `SyncedPreferences`, `BudgetCurrencySQL`, `BudgetModeSQL` (envelope vs tracking budget) — payees and budget-level settings.
 - `Account*SQL`, `TransferSQL` (transfer payee and account lookups every transaction write uses), `+AccountGroupCompatibility`, `BankSync*SQL`, `Reconcil*SQL`, `EntityNoteSQL` — account-side families.
 - `Rule*SQL`, rule evaluator files, and schedule helpers — Actual rule semantics.
-- `+Template*` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
+- `TemplateInputSQL`, `TemplateCategorySQL`, `TemplateAuthoringSQL`, `TemplatePreviewSQL`, `TemplateApplySQL` and `BudgetTemplate*` — template reads, authoring, preview, and apply engine.
 - `ActionLog*SQL` — durable action history and undo inputs.
-- `+Schedules`, `+ScheduleReads`, `+ScheduleWrites`, `+SchedulePosting`, `+ScheduleAdvancement`, `+ScheduleConversion` and `ScheduleRuleProjection.swift` — schedules and their linked rules.
+- `ScheduleSQL` (reads and writes), `ScheduleEditSQL`, `SchedulePostingSQL`, `ScheduleConversionSQL`, `ScheduleReviewSQL`, `ScheduleRuleMutation` and `ScheduleRuleProjection.swift` — schedules and their linked rules.
 - `PortableDatabaseSQL` (snapshot, validation, CRDT reset applied to an imported file) and `NewBudgetSeedSQL` (starter database) — portable ZIP content and New Budget seed.
 - `TransactionBatchSQL` (batch review, commit and clear), `TransactionBatchDeleteSQL`, `TransactionBatchSnapshotSQL` (the row snapshots batch, duplicate, merge and undo share), `TransactionDuplicateSQL`, `TransactionMergeSQL`, `SavedFilterSQL` (saved filters), `TransactionCSVExportSQL` — list actions, structured queries and CSV export.
 - `TransactionImportSQL.swift` — file-import checks inside the commit (stateless; takes `isolated BudgetDatabase` and the GRDB handle), plus the thin `commitTransactionCSVImport` entry point.
-- `+*ReviewGuard`, `ReconciledMutationReviewSQL`, `ImportedIDPreconditionSQL` (with the top-level `ImportedIDAbsence` and `MatchedRowsUnchanged` the commit takes), `TransactionCreationSQL.TransactionIDAbsence`, `PayeeSQL.settlePayeeCreation`, `ReviewWatermarkSQL` — review preconditions checked inside the commit transaction.
+- `ReconciledMutationReviewSQL`, `ScheduleReviewSQL`, `AccountLifecycleReviewSQL`, `ImportedIDPreconditionSQL` (with the top-level `ImportedIDAbsence` and `MatchedRowsUnchanged` the commit takes), `TransactionCreationSQL.TransactionIDAbsence`, `PayeeSQL.settlePayeeCreation`, `ReviewWatermarkSQL` — review preconditions checked inside the commit transaction.
 - `BudgetFileManager.swift` and `BudgetFileManager+PortableInstall.swift` — imported budget directories/files and cache-presence lifecycle.
 
 Keep SQL and storage-version tolerance here. Keep feature screen state out.
@@ -231,7 +239,7 @@ Network clients transport/decode. They do not become a read source for screens.
 
 1. A feature view observes a focused view model.
 2. The view model calls a repository protocol.
-3. Production injection resolves that protocol to `LocalFirstActualStore`.
+3. Production injection resolves that protocol to the store's `<Domain>Workflows` collaborator (for example `store.transactions`).
 4. The store immediately exposes an owned cached snapshot when available.
 5. The store reads `BudgetDatabase` for local truth and may refresh sync in the background.
 6. Pulled CRDT messages are applied to SQLite; the store reloads affected caches; views update through observation.
@@ -240,7 +248,7 @@ Network clients transport/decode. They do not become a read source for screens.
 
 1. A feature view emits intent only.
 2. Its view model/coordinator validates workflow state and decides command values.
-3. The repository call reaches a workflow-specific `LocalFirstActualStore` extension. A review-then-apply flow (reconciled rows, templates, holds, batch, merge, duplicate, bank link, imported IDs) first returns a review carrying the preconditions it was built from.
+3. The repository call reaches the domain's `<Domain>Workflows` collaborator. A review-then-apply flow (reconciled rows, templates, holds, batch, merge, duplicate, bank link, imported IDs) first returns a review carrying the preconditions it was built from.
 4. The store calls `BudgetDatabase.commitUserActionPlan` (or one of its adapters, below). Its build closure runs inside the write transaction, so messages are built from the live rows read through `db`, never from an earlier read. A new writer should not build messages from a snapshot and commit them later. Where existing code commits pre-built drafts through `commitLocalSyncMessagesAndEnqueue`, the precondition it passes (for example `ImportedIDAbsence`) is what makes that safe; a pre-built commit without one can miss a remote edit made in between.
 5. The core, `commitLocalPlan`, checks the session write fence once, then in one SQLite transaction: validates the review preconditions (`validateLocalCommit` over `LocalCommitReview`), captures action-log facts, applies the CRDT cells, writes the merkle trie, enqueues `actualist_outbox`, and records pending new transactions. A failed precondition rolls back everything.
 6. The fence is `invalidateSessionWrites()`, a non-blocking atomic flag. It refuses commits that have not started; a commit already inside its transaction finishes. A caller about to swap or delete the files awaits `quiesce()` after flipping it. `closeOpenBudget()` flips it.
@@ -288,7 +296,7 @@ Actual-compatible behavior is checked against the pinned upstream Actual release
 - Harnesses are mostly `scripts/<name>-parity/` (usually `generate.mjs` and `verify.mjs`; `domains.json` gives each domain's exact directory and commands, some of which live under `scripts/parity/`), with shared code in `scripts/parity/lib/`. Generators run only against the checkout named by `ACTUALIST_PARITY_ORACLE_ROOT`; `scripts/parity.sh` reads it from the gitignored `scripts/lib/lab.env` when the environment does not set it.
 - Fixtures are `ActualistTests/Fixtures/ActualCore<version>/<Fixture>/`. Expected values come only from running the generator; never edit them by hand.
 - Swift replay suites are `*OracleReplayTests` with `*OracleReplaySupport.swift` siblings, replaying cases through production writes and reads. Each replay entry point takes `OracleReplayGate.shared`, opens throwaway databases through `OracleReplayDatabase`, and reads fixtures through `OracleJSONFileCache` (`ActualistTests/OracleReplayGate.swift`, `OracleFixtureReplaySupport.swift`). A new replay suite follows the same pattern.
-- `scripts/parity.sh` commands: `status`, `touched [<range>]` (domains whose paths a change touches), `verify <domain>`, `verify-all` (every domain with one Swift test run; for a re-pin or release check), `verify-hashes`, `divergences`, and `gate`. `scripts/check.sh` reports touched domains without failing on them.
+- `scripts/parity.sh` commands: `status`, `upstream`, `touched [<range>]` (domains whose paths a change touches), `verify <domain>`, `verify-all` (every domain with one Swift test run; for a re-pin or release check), `verify-hashes`, `divergences`, and `gate`. `scripts/check.sh` reports touched domains without failing on them.
 
 A change that matches a domain's paths requires `scripts/parity.sh verify <domain>`; a hand-written test is not a substitute. New behavior that Actual also has needs a new case in that domain's generator. A divergence stays green only as `withKnownIssue("OP-nn: ...")` around that one comparison with a matching registry entry. Changing an `uncovered` domain is reported as unverified against Actual. Without `ACTUALIST_PARITY_ORACLE_ROOT`, `verify` skips regenerate-and-diff; report that skip. Full rules: `AGENTS.md`, Parity Oracles.
 
@@ -315,8 +323,8 @@ Before adding code, classify it:
 - Multi-step/cancellable workflow -> focused coordinator or explicit state model.
 - Reusable pure calculation/input interpretation -> feature or domain value helper with focused tests.
 - Feature-facing data contract -> repository protocol/model.
-- Cached data ownership, write orchestration, or post-write reload -> `LocalFirstActualStore` workflow extension.
-- SQL, schema tolerance, atomicity, or persisted Actual semantics -> a thin `BudgetDatabase` entry point over a focused stateless type for a new domain (see Database).
+- Cached data ownership, write orchestration, or post-write reload -> the domain's `<Domain>Workflows` collaborator.
+- SQL, schema tolerance, atomicity, or persisted Actual semantics -> a stateless `<Concept>SQL` type that the `<Domain>Workflows` collaborator awaits directly (see Database).
 - Actual-compatible behavior -> also the matching parity domain's generator and replay suite (see Parity oracles).
 - HTTP/wire decoding -> `LocalFirst/Network` or `LocalFirst/Sync`.
 - App-wide session/settings/routing boundary -> `AppState` or an app coordinator.

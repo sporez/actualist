@@ -17,7 +17,7 @@ Glass-aware, and optimized for repeated budget review.
 - Development pipeline: `docs/DEVELOPMENT.md`.
 - Mechanical gate: `scripts/check.sh`. Run it before handing off a change, or
   reuse an applicable result when its relevant inputs are unchanged. It covers
-  whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, the server token header, central-type extension files, structure ownership (central-type members, `+X` files, store conformances, requirement defaults, size-exception lengths), code citations in docs, concurrency escape hatches (`@unchecked Sendable`,
+  whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, the server token header, central-type extension files, structure ownership (central-type members, `+X` files, store conformances, requirement defaults, size-exception lengths), code citations in docs, sheet detents, reference plan links, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
   `// Invariant:` comment), private identifiers (patterns from an optional
   gitignored list), TestFlight notes, parity fixture hashes and the
@@ -574,8 +574,9 @@ Where domain code goes:
   the default instead. New protocols and new requirements have none, and
   fakes implement every requirement. A protocol extension holds only
   conveniences that forward every parameter (Reuse Before You Build, rule 6).
-  `TransactionRepositoryProtocol` still has such defaults. A change that
-  touches one deletes it and gives every conformer a witness.
+  `TransactionRepositoryProtocol` and `ReportsRepositoryProtocol` still have
+  such defaults. A change that touches one deletes it and gives every
+  conformer a witness.
 - **Private by default.** A member is `internal` only when another type calls
   it today. One domain's type never calls a helper that exists for another
   domain. When two domains need the same rows or rule, that code moves to a

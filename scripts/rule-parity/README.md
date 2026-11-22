@@ -236,14 +236,11 @@ entry use), with the time zone fixed to `America/New_York`.
 - **No clock seam.** Rules read the wall clock only for the split-formula
   `today` variable (`RuleSplitActionExecutor.swift`, `today:` argument). No
   replayed case reads `today`, so the fixed fixture day is not injected.
-- **Divergences.** Known differences are registered as OP-36 to OP-45 in
-  `config/parity/known-divergences.json`. Each divergent case lists its exact
-  `run.field` paths in the test, wrapped in `withKnownIssue`; every other
-  field of the case stays strict.
-- **Shared pools.** Seeded condition, rank and join cases leave out the
-  actions behind OP-36, OP-37 and OP-38 (set account, delete-transaction,
-  set-notes-to-empty) so each divergent case has one cause. The `gen-action-*`
-  cases and the named cases exercise those actions on their own.
+- **Divergences.** No divergences are registered for the rules domain.
+- **Shared pools.** Seeded condition, rank and join cases leave out the set-account,
+  delete-transaction and set-notes-to-empty actions, which earlier had their own
+  divergences, so each case has one cause. The `gen-action-*` cases and the named
+  cases exercise those actions on their own.
 
 ## Oracle-only cases
 

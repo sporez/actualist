@@ -110,4 +110,5 @@ only the categories Fill Empty would touch.
   counterpart rows are created by reading back the inserted rows.
 - Files: `budgets.sh` (entry point, env, oracle checks), `lab.test.mjs`
   (commands), `profiles.mjs` (shared helpers, basic/pair/large),
-  `standard.mjs`, `vitest.config.mjs`.
+  `standard.mjs`, `templates.mjs` (Apply Templates profiles, envelope and tracking),
+  `vitest.config.mjs`.

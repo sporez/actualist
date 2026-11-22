@@ -146,18 +146,18 @@ income-carryover reset through the same type; set-carryover through
 
 - Cover without an amount: the replay reads the `to` category's negative balance
   through `fetchBudgetMonth` before the write, then moves that amount. This mirrors
-  `OverspentCoverSelectionWorkflow.coverCommands` (`OverspentCoverSelectionWorkflow.swift:72-84`),
+  `OverspentCoverSelectionWorkflow.coverCommands`,
   which has no source clamp. This is a replay-side choice; the oracle recorded the
   amount it was given.
 - Transfer categories: the literal `to-budget` maps to no category. `move(_:from:to:)`
   takes an optional category for this reason.
 - Set-carryover horizon: the replay passes `fixtureNow` (2026-10-15).
   Production uses the current date plus 12 months (`categoryCarryoverHorizonMonth`).
-  This is OP-33.
+  This was OP-33, fixed and no longer registered.
 - Refusals: ten holds are refused on both sides with "no money is available to
   hold". These are shared refusals, not divergences. The replay's eleventh refusal
   is generated-034-2027-11's hold, which is refused while the automatic income-carryover
-  hold is active; the oracle commits it. That is OP-34.
+  hold is active; the oracle commits it. That was OP-34, fixed and no longer registered.
 
 Normalization:
 
@@ -166,8 +166,8 @@ Normalization:
 - Compared summary fields: `to-budget`, `available-funds`, `from-last-month`,
   `buffered-selected`, `total-income`, `total-budgeted`, `total-spent`,
   `total-leftover`, `total-budget-income`, `total-saved`, `real-saved`, and
-  `last-month-overspent`. The last is compared as OP-35: Actualist exposes 0 for it,
-  and the oracle reports last month's overspend as a negative number.
+  `last-month-overspent`. The last was OP-35 (Actualist exposed 0 and the oracle a
+  negative number), fixed and no longer registered.
 - Compared category fields: `budgeted`, `spent`, `leftover`, `carryover`.
 - Not compared (upstream-only, see Upstream fields): summary `buffered`,
   `buffered-auto`; category `leftover-pos`, `spent-with-carryover`.
@@ -198,26 +198,25 @@ months only; tracking months have no To Budget.
   and the account balances and uncategorized activity that produce `to-budget`.
 - Not checked, because it is not one of Actualist's identities: the exposed
   `lastMonthOverspent`. To Budget takes last month's overspend from `envelopeCarryIn`,
-  and no screen or widget reads the field. It is compared with the oracle instead (OP-35).
+  and no screen or widget reads the field. It is compared with the oracle instead.
 
 These checks are strict and are never wrapped in `withKnownIssue`. Against the
 pinned oracle, every identity holds on every envelope state (checked by a
 local script that is not committed). On the production replay, every identity holds
 in every case. The exposed `lastMonthOverspent` is the one defect found, and it is
-compared as OP-35 rather than as an identity: `BudgetMonthSQL.fetchBudgetMonth(month:in:db:)`
-sets it to 0, while `envelopeCarryIn` computes the value and the snapshot discards it.
-Its `to-budget` identity still holds.
+compared with the oracle rather than as an identity. It was OP-35, fixed and no longer
+registered: `BudgetMonthSQL.fetchBudgetMonth(month:in:db:)` once set it to 0 while
+`envelopeCarryIn` computed the value and the snapshot discarded it. Its `to-budget`
+identity always held.
 
 Classification (`BudgetMonthOracleDivergences.swift`): each mismatch is classified
-by its path, step label, and values, into OP-26 through OP-35.
+by its path and values. Only OP-32 is classified; OP-26 through OP-31 and OP-33
+through OP-35 were fixed and are no longer registered.
 
-- A cell or outcome row is classified directly. A `last-month-overspent` field row
-  is classified directly as OP-35, and it never anchors another divergence's cascade.
-- A summary or cascade row at or after the case's first directly classified step
-  takes that OP. This is co-occurrence within the case, not a trace of the row's
-  cause. The registry summaries of OP-26 through OP-30 say so.
-- Rows before the first classified step, `before.` rows, rows in a case with no
-  classified step, and every `.consistency.` row stay unclassified and must be empty.
+- A cell row is classified directly as OP-32 when the oracle wrote a `Reassigned`
+  month note and Actualist did not. No other row is classified.
+- Every other row, including every `.consistency.` row, stays unclassified and must
+  be empty.
 - Per case, the classifier's counts are recorded as a test attachment named
   `<case>-split.txt` (`BMSPLIT` line), readable in the result bundle. They are not
   printed to stdout.

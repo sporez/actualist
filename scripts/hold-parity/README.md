@@ -142,19 +142,9 @@ Oracle-only cases (`oracleOnly` in `generate.mjs`), not replayed:
   unsupported, while Actual writes `reflect_budgets`. Not registered for the
   same reason.
 
-Known divergences from Actual, each keyed to its own case in the test. The
-known-issue marker wraps only the divergent check, and only when the fixture
-expects the divergent shape. A fixed divergence then fails as a stale marker.
+No divergences are registered for the hold domain. Two earlier ones, previously
+OP-20 (the oracle writes a new income-carryover row's `month` identity as text,
+Actualist as a number) and OP-21 (an API-level reset-hold with no stored hold),
+were both fixed.
 
-- OP-20 (`config/parity/known-divergences.json`): the oracle writes a new
-  income-carryover row's `month` identity as text (`S:202607`), and Actualist
-  writes a number (`N:202607`). Under SQLite integer affinity the observable
-  state is the same. Nine cases: 1, 2, 3, 4, 5, 7, 8, 9, and 15.
-- OP-21: API-level only; the menu never sends this reset. A reset-hold with no
-  stored hold writes the income-carryover rows, and the oracle writes
-  `zero_budget_months.buffered = 0`. Case 6. The fixture marks it
-  `uiReachable: false`, but it is still registered because Actualist does not
-  refuse the call.
-
-Actualist's `N:` month identity in case 16 matches its own writes, so case 16
-is not OP-20.
+Actualist's `N:` month identity in case 16 matches its own writes.

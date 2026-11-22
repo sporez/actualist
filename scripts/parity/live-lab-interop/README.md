@@ -1,6 +1,6 @@
 # Live lab interop checks (opt-in)
 
-Evidence harness for the audit remediation plan (decision D11). It runs
+Opt-in live-lab evidence harness. It runs
 against a disposable Actual server you control. Nothing here runs in normal
 unit runs and nothing here contains an address or a password.
 

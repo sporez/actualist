@@ -247,7 +247,7 @@ Normalization rules. These are the only transformations applied to either side:
 Not replayed:
 
 - `undoMessages` and `afterUndo`. History undo is not offered for account
-  actions (`Actualist/LocalFirst/ActionLog/BudgetActionUndo.swift:366-367`).
+  actions (`BudgetActionUndo.evaluate` blocks `.account` with `.notOfferedFromHistory`).
 - For the link cases, `operationMessages`, `after` and the full account row.
   They include the mocked download's `last_sync` and `bank_sync_status` cells,
   which Actualist does not write when it links. `linkMessages` (every `banks`

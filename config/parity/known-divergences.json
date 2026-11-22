@@ -299,7 +299,7 @@
       ],
       "id": "OP-32",
       "opened": "2026-10-11",
-      "summary": "A move or cover writes no 'Reassigned … from … on …' month note, where the pinned Actual writes one. Only the note's presence is compared; its date text comes from the fixture's fake clock and is not compared. Cause: no Reassigned writer exists in Actualist/. The move seam is BudgetAssignmentSQL.resolvedMoveMoneyCommands and the cover commands OverspentCoverSelectionWorkflow.swift:58-84.",
+      "summary": "A move or cover writes no 'Reassigned … from … on …' month note, where the pinned Actual writes one. Only the note's presence is compared; its date text comes from the fixture's fake clock and is not compared. Cause: no Reassigned writer exists in Actualist/. The move seam is BudgetAssignmentSQL.resolvedMoveMoneyCommands and the cover commands OverspentCoverSelectionWorkflow.coverCommands.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: Actualist does not add automatic 'Reassigned' month notes on moves or covers."
@@ -314,7 +314,7 @@
       ],
       "id": "OP-51",
       "opened": "2026-10-11",
-      "summary": "Skipping the next date of a one-time schedule is refused with an unsupported-capability error, where the pinned Actual accepts the skip and leaves the schedule unchanged. The stored result is the same. Cause: canSkip requires a recurrence (ScheduleRuleProjection.swift:105) and prepareScheduleSkip throws at ScheduleEditSQL.prepareScheduleSkip.",
+      "summary": "Skipping the next date of a one-time schedule is refused with an unsupported-capability error, where the pinned Actual accepts the skip and leaves the schedule unchanged. The stored result is the same. Cause: canSkip requires a recurrence (ScheduleRuleProjection.read) and prepareScheduleSkip throws at ScheduleEditSQL.prepareScheduleSkip.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: Actualist hides Skip Next Date for one-time schedules, so the refusal is unreachable from the UI and the saved data is identical; Actual's menu offers a skip that does nothing."
@@ -344,7 +344,7 @@
       ],
       "id": "OP-58",
       "opened": "2026-10-11",
-      "summary": "A matched row in an off-budget account never takes the category a rule or download supplies, where the pinned Actual writes it (it strips categories only on inserts). Cause: mergedCategoryID returns the row's own category for off-budget accounts (BankSyncReconciler.swift:410-422). Deliberate: Bank Sync never categorizes rows in off-budget accounts.",
+      "summary": "A matched row in an off-budget account never takes the category a rule or download supplies, where the pinned Actual writes it (it strips categories only on inserts). Cause: mergedCategoryID returns the row's own category for off-budget accounts (BankSyncReconciliation.mergedCategoryID). Deliberate: Bank Sync never categorizes rows in off-budget accounts.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: off-budget accounts carry no categories, so a matched off-budget row keeps none (2026-09-16 guard)."
@@ -361,7 +361,7 @@
       ],
       "id": "OP-59",
       "opened": "2026-10-11",
-      "summary": "The first-sync Starting Balance amount is the current balance minus the planned inserts, where the pinned Actual subtracts every raw downloaded transaction, including ones a rule changes and, with import-pending off, pending ones that are skipped. Cause: BankSyncReconciliation.openingBalance subtracts the inserts only (BankSyncReconciler.swift:518-531). Deliberate: the opening balance is derived from the planned inserts.",
+      "summary": "The first-sync Starting Balance amount is the current balance minus the planned inserts, where the pinned Actual subtracts every raw downloaded transaction, including ones a rule changes and, with import-pending off, pending ones that are skipped. Cause: BankSyncReconciliation.openingBalance subtracts the inserts only. Deliberate: the opening balance is derived from the planned inserts.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: the Starting Balance plus the rows actually imported equals the bank balance; Actual also subtracts rows a rule drops or pending rows it skips."
@@ -400,7 +400,7 @@
       ],
       "id": "OP-61",
       "opened": "2026-10-11",
-      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs (BankSyncReconciler.swift:216-220) fed by bankSyncSuppressedFinancialIDs (ImportReconcileSteps.reconcileProjectedImport). Deliberate: deleted IDs are used only for exact dedupe, never for updates.",
+      "summary": "With reimport-deleted off, a download whose provider ID belongs to a deleted row is skipped and the deleted row is left alone, where the pinned Actual matches the deleted row and rewrites its payee and imported payee (it stays deleted). Cause: BankSyncReconciliation.plan returns skippedDeleted for suppressed IDs fed by bankSyncSuppressedFinancialIDs (ImportReconcileSteps.reconcileProjectedImport). Deliberate: deleted IDs are used only for exact dedupe, never for updates.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: leave deleted rows untouched; with reimport-deleted off, both apps ignore the download and the visible result is identical."
@@ -415,7 +415,7 @@
       ],
       "id": "OP-62",
       "opened": "2026-10-11",
-      "summary": "When a split parent is matched by ID, its children are excluded from fuzzy matching for the whole batch, so a later download with a child's amount is inserted as a new row. The pinned Actual v26.11.0 ported this (upstream 24deae7) only for bank-sync accounts; on a CSV import it still lets the download match the child. Cause: exactMatchedParentIDs and isReserved (BankSyncReconciler.swift:195, :234-235) apply to every import.",
+      "summary": "When a split parent is matched by ID, its children are excluded from fuzzy matching for the whole batch, so a later download with a child's amount is inserted as a new row. The pinned Actual v26.11.0 ported this (upstream 24deae7) only for bank-sync accounts; on a CSV import it still lets the download match the child. Cause: exactMatchedParentIDs and isReserved in BankSyncReconciliation.plan apply to every import.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: keep the port of upstream 24deae7 (reserve children of an ID-matched split parent). At the v26.11.0 pin (2026-11-08) Actual applies it to bank-sync accounts only, so the remaining difference is CSV import."
@@ -446,7 +446,7 @@
       ],
       "id": "OP-68",
       "opened": "2026-10-11",
-      "summary": "When two live rows in one account carry the same provider ID, a download with that ID updates a different one of them: the pinned Actual takes the first row its query returns, Actualist takes the first row in stored order. Cause: idMatch is existing.first (BankSyncReconciler.swift:210-212).",
+      "summary": "When two live rows in one account carry the same provider ID, a download with that ID updates a different one of them: the pinned Actual takes the first row its query returns, Actualist takes the first row in stored order. Cause: idMatch is existing.first in BankSyncReconciliation.plan.",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: keep the deterministic choice (first stored row) when provider IDs repeat; Actual's choice comes from an unordered query."
@@ -460,7 +460,7 @@
       "fixtureCases": [
         "D2-split-error-clone"
       ],
-      "summary": "Duplicating a split whose children do not add up to the parent is refused, where the pinned Actual clones the parent with its split error and the child. Cause: TransactionDuplicatePlanner.swift:290-324 throws malformedSplit for a family that fails the split invariants; TransactionDuplicateSQL reports it as 'cannot be duplicated'.",
+      "summary": "Duplicating a split whose children do not add up to the parent is refused, where the pinned Actual clones the parent with its split error and the child. Cause: TransactionDuplicatePlanner.makeSplitUnits throws malformedSplit for a family that fails the split invariants; TransactionDuplicateSQL reports it as 'cannot be duplicated'.",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -476,7 +476,7 @@
         "M2-selected-child-vs-simple",
         "M2-selected-children-same-parent"
       ],
-      "summary": "Merging a selected split child is refused (selectedChild; two children of one family overlap), where the pinned Actual keeps or drops the child alone and tombstones the other row. Cause: TransactionMergePlanner.swift:34 and :270.",
+      "summary": "Merging a selected split child is refused (selectedChild; two children of one family overlap), where the pinned Actual keeps or drops the child alone and tombstones the other row. Cause: TransactionMergePlanner.plan (overlappingGraphs) and TransactionMergePlanner.validateGraph (selectedChild).",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -492,7 +492,7 @@
         "M2-split-zero-children",
         "M2-conflicting-split-families"
       ],
-      "summary": "Merging a split with no children, or a family whose children do not add up (split error), is refused, where the pinned Actual merges them. Cause: TransactionBatchSnapshotSQL.transactionBatchGraph (no live entries) and TransactionMergePlanner.swift:289 (splitHasError).",
+      "summary": "Merging a split with no children, or a family whose children do not add up (split error), is refused, where the pinned Actual merges them. Cause: TransactionBatchSnapshotSQL.transactionBatchGraph (no live entries) and TransactionMergePlanner.validateGraph (splitHasError).",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",
@@ -523,7 +523,7 @@
       "fixtureCases": [
         "M2-keep-split-drop-simple"
       ],
-      "summary": "Keeping a split parent and dropping a simple row is refused, where the pinned Actual merges them and gives the parent the simple row's payee and category. Cause: TransactionMergePlanner.swift:441 blocks a retained split parent that would gain a category or payee.",
+      "summary": "Keeping a split parent and dropping a simple row is refused, where the pinned Actual merges them and gives the parent the simple row's payee and category. Cause: TransactionMergePlanner.mergePair blocks a retained split parent that would gain a category or payee.",
       "opened": "2026-10-11",
       "status": "intended",
       "decided": "2026-10-11",

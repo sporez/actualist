@@ -43,7 +43,8 @@ and iOS Liquid Glass controls.
   and Reconciled status filters, plus create, edit, delete, categorize,
   split, transfer, and eligible undo actions. Select several transactions to
   clear, categorize, or delete them together, duplicate them, or merge
-  them. Save a filter and reuse it later.
+  them. Swipe right on a transaction row to mark it cleared or uncleared; a
+  reconciled one asks before unlocking. Save a filter and reuse it later.
 - Share a transaction from the transaction editor or by pressing and holding
   it. Messages shows a card with its payee, amount, and date, and the link
   opens that transaction in Actualist on another device with the same budget.
@@ -67,8 +68,9 @@ and iOS Liquid Glass controls.
   new budget. Export the open budget as a ZIP under Settings → Budget & Data.
 - One-tap SimpleFIN Bank Sync, plus Apple Wallet import that adds your selection right away.
 - Payee and rule management under Settings → Budget & Data.
-- Widgets for balances, budget overview, recent activity, net worth, and quick
-  actions. Configure them through Apple's **Edit Widget** controls.
+- Widgets for account balances, category balances, the month overview, items
+  that need attention, recent transactions, net worth, and quick actions.
+  Configure them through Apple's **Edit Widget** controls.
 - Shortcuts and Siri, themes that can follow your phone's light or dark
   setting, sample-value privacy, and background refresh.
   Turn on **Allow Logging While Locked** under Settings → Privacy &

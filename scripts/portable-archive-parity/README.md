@@ -71,5 +71,5 @@ what Actual reads, plus balances. The manifest records the sha256 of both ZIPs.
 
 Every table's live rows (`tombstone = 0` where the column exists), all columns, order independent.
 `messages_*`, `kvcache*`, `sqlite_*` and `actualist_*` tables are only counted. Actualist's import
-sync reset (OP-03) empties `messages_crdt`, `messages_clock` and `messages_pending` and deletes
+sync reset empties `messages_crdt`, `messages_clock` and `messages_pending` and deletes
 tombstoned rows of the sync-reset tables, so neither shows in the digest.
