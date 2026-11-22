@@ -296,30 +296,34 @@ final class LocalFirstActualStore {
 
     func eraseLocalData() async throws {
         let closingDatabase = database
-        try eraseCredentialsAndCaches()
+        reset()
         // Teardown order (D-5.3): fence flipped by reset(), then drain any
         // commit already running, then delete the files.
         await closingDatabase?.quiesce()
-        try fileManager.deleteAllImportedBudgets()
+        try eraseFilesAndCredentials()
     }
 
     /// Launch-time erase, before any budget has been opened, so there is no
     /// commit to drain.
     func eraseLocalDataBeforeFirstSession() throws {
-        try eraseCredentialsAndCaches()
-        try fileManager.deleteAllImportedBudgets()
+        reset()
+        try eraseFilesAndCredentials()
     }
 
-    private func eraseCredentialsAndCaches() throws {
-        reset()
+    /// Files go first and every removal runs even after one fails, so a
+    /// locked Keychain item does not leave the budget files on disk.
+    private func eraseFilesAndCredentials() throws {
         portableExportFiles.removeAll()
         endpointHealth.clear()
         refreshEndpointHealthDisplay()
-        try keychain.removeActualSyncToken()
-        try keychain.removeAllLocalFirstEncryptionKeys()
-        try keychain.removeSimpleFINAccessURL()
-        try keychain.removeCustomHTTPHeaders()
-        customHeadersRevision &+= 1
+        defer { customHeadersRevision &+= 1 }
+        try LocalDataEraseError.runAll([
+            (.budgetFiles, fileManager.deleteAllImportedBudgets),
+            (.syncToken, keychain.removeActualSyncToken),
+            (.encryptionKeys, keychain.removeAllLocalFirstEncryptionKeys),
+            (.simpleFINAccess, keychain.removeSimpleFINAccessURL),
+            (.customHeaders, keychain.removeCustomHTTPHeaders)
+        ])
     }
 
     func shouldSkipPrimary(primary: URL, fallback: URL) -> Bool {
