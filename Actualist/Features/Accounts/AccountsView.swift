@@ -62,6 +62,7 @@ struct AccountsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(ActualistTheme.background)
             .navigationTitle("Accounts")
+            .sampleValuesSubtitle()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

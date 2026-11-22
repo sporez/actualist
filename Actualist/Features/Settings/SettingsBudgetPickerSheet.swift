@@ -25,7 +25,7 @@ struct SettingsBudgetPickerSheet: View {
             }
 
             if !appState.budgets.isEmpty {
-                Section("Choose Budget") {
+                Section {
                     ForEach(appState.budgets) { budget in
                         Button {
                             Task {
@@ -63,6 +63,10 @@ struct SettingsBudgetPickerSheet: View {
                         .buttonStyle(.plain)
                         .disabled(appState.budgetSessionTransitions.isTransitionInFlight)
                     }
+                } header: {
+                    Text("Choose Budget")
+                } footer: {
+                    SampleValuesPickerFooter()
                 }
                 .settingsSectionChrome()
             }

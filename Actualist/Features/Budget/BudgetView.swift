@@ -85,19 +85,22 @@ struct BudgetView: View {
                         Button {
                             isMonthPickerPresented.toggle()
                         } label: {
-                            HStack(spacing: 7) {
-                                ConnectionStatusDot(status: appState.connectionStatus, isDemo: appState.isDemoMode)
-                                Text(viewModel.navigationTitle)
-                                    .font(.headline.weight(.bold))
-                                if viewModel.budgetMonth?.hasUserNote == true {
-                                    Image(systemName: "note.text")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(ActualistTheme.secondaryText)
-                                        .accessibilityHidden(true)
+                            VStack(spacing: 0) {
+                                HStack(spacing: 7) {
+                                    ConnectionStatusDot(status: appState.connectionStatus, isDemo: appState.isDemoMode)
+                                    Text(viewModel.navigationTitle)
+                                        .font(.headline.weight(.bold))
+                                    if viewModel.budgetMonth?.hasUserNote == true {
+                                        Image(systemName: "note.text")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(ActualistTheme.secondaryText)
+                                            .accessibilityHidden(true)
+                                    }
+                                    Image(systemName: "chevron.down")
+                                        .font(.subheadline.weight(.bold))
+                                        .rotationEffect(.degrees(isMonthPickerPresented ? 180 : 0))
                                 }
-                                Image(systemName: "chevron.down")
-                                    .font(.subheadline.weight(.bold))
-                                    .rotationEffect(.degrees(isMonthPickerPresented ? 180 : 0))
+                                SampleValuesTitleCaption()
                             }
                             .foregroundStyle(ActualistTheme.primaryText)
                         }

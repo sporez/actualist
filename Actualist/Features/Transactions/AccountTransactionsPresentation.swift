@@ -25,6 +25,7 @@ struct TransactionNavigationTitleModifier: ViewModifier {
         if isVisible {
             content
                 .navigationTitle(title)
+                .sampleValuesSubtitle()
                 .navigationBarTitleDisplayMode(.inline)
         } else {
             content

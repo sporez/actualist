@@ -120,10 +120,13 @@ struct BudgetWorkspaceView: View {
         }
         ToolbarItem(placement: .principal) {
             Button { isMonthPickerPresented = true } label: {
-                HStack(spacing: 6) {
-                    ConnectionStatusDot(status: appState.connectionStatus, isDemo: appState.isDemoMode)
-                    Text(display.rangeTitle).font(.headline)
-                    Image(systemName: "chevron.down").font(.caption)
+                VStack(spacing: 0) {
+                    HStack(spacing: 6) {
+                        ConnectionStatusDot(status: appState.connectionStatus, isDemo: appState.isDemoMode)
+                        Text(display.rangeTitle).font(.headline)
+                        Image(systemName: "chevron.down").font(.caption)
+                    }
+                    SampleValuesTitleCaption()
                 }
             }
             .accessibilityLabel("Choose budget month, \(display.rangeTitle)")

@@ -317,6 +317,8 @@ struct BudgetPickerView: View {
                         }
                     } header: {
                         Text("Choose Budget")
+                    } footer: {
+                        SampleValuesPickerFooter()
                     }
                 }
 

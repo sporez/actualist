@@ -39,6 +39,7 @@ struct ReportsView: View {
             .scrollIndicators(.hidden)
             .background(ActualistTheme.background)
             .navigationTitle("Reports")
+            .sampleValuesSubtitle()
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ReportCardKind.self) { reportCard in
                 ReportExplorerView(
