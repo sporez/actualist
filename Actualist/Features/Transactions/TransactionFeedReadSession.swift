@@ -48,8 +48,11 @@ final class TransactionFeedReadSession {
         self.searchDelay = searchDelay
     }
 
+    /// A first load of the unsearched feed; `isSearchLoading` covers a search's.
     var isLoading: Bool {
-        state.searchPage == nil && (state.phase == .loading || state.phase == .debouncing)
+        state.identity?.searchText == nil
+            && state.searchPage == nil
+            && (state.phase == .loading || state.phase == .debouncing)
     }
     var isLoadingOlder: Bool { state.phase == .loadingOlder }
 

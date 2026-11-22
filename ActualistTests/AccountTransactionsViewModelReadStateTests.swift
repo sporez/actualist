@@ -119,6 +119,25 @@ struct AccountTransactionsViewModelReadStateTests {
         #expect(!model.isSearchLoading(budgetID: "budget"))
     }
 
+    @Test func firstSearchReportsOnlySearchLoadingNotFeedLoading() async {
+        let repository = AccountTransactionsRecordingRepository(suspendsSearches: true)
+        let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
+        model.searchTextDidChange("market", budgetID: "budget", repository: repository)
+        #expect(model.isSearchLoading(budgetID: "budget"))
+        #expect(!model.isLoading)
+
+        await repository.waitForSearch("market|all|0")
+        #expect(model.isSearchLoading(budgetID: "budget"))
+        #expect(!model.isLoading)
+
+        await repository.finishSearch("market", with: AccountTransactionsViewModelTests.loaded([
+            AccountTransactionsViewModelTests.transaction(id: "result")
+        ]))
+        await ObservedTestState { !model.isSearching }.wait()
+        #expect(!model.isSearchLoading(budgetID: "budget"))
+        #expect(!model.isLoading)
+    }
+
     @Test func cancelledSearchDiscardsLateCompletionAndResumesAfterEditorReturn() async {
         let repository = AccountTransactionsRecordingRepository(suspendsSearches: true)
         let model = AccountTransactionsViewModel(scope: .spending, searchDelay: .zero)
