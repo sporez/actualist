@@ -15,6 +15,24 @@ final class SettingsViewModel {
     var selectedAppIcon: AppIcon = .default
     var appIconError: String?
 
+    typealias BudgetSelection = @MainActor (
+        _ appState: AppState,
+        _ budget: ActualBudget,
+        _ encryptionPassword: String?
+    ) async -> BudgetOpenOutcome
+
+    /// The encrypted budget the picker is asking a password for.
+    var encryptedBudgetPrompt: ActualBudget?
+    var encryptionPassword = ""
+    private(set) var isUnlockingEncryptedBudget = false
+    @ObservationIgnored private let selectBudgetForPicker: BudgetSelection
+
+    init(selectBudget: @escaping BudgetSelection = { appState, budget, encryptionPassword in
+        await appState.selectBudgetForCurrentBackend(budget, encryptionPassword: encryptionPassword)
+    }) {
+        selectBudgetForPicker = selectBudget
+    }
+
     var supportsAlternateIcons: Bool {
         UIApplication.shared.supportsAlternateIcons
     }
@@ -113,6 +131,35 @@ final class SettingsViewModel {
         }
         isLoadingBudgets = false
         return succeeded
+    }
+
+    /// Returns whether the budget picker should close. Only an opened budget
+    /// closes it: a failed open of the already-selected budget leaves the
+    /// selection unchanged, so the selection is not evidence of success.
+    func selectBudget(_ budget: ActualBudget, using appState: AppState) async -> Bool {
+        let outcome = await selectBudgetForPicker(appState, budget, nil)
+        if outcome == .needsEncryptionPassword {
+            encryptionPassword = ""
+            encryptedBudgetPrompt = budget
+        }
+        return outcome == .opened
+    }
+
+    /// Returns whether the budget opened. Any other outcome keeps the password
+    /// prompt up, showing the open's error.
+    func unlockEncryptedBudget(_ budget: ActualBudget, using appState: AppState) async -> Bool {
+        guard !isUnlockingEncryptedBudget else { return false }
+        isUnlockingEncryptedBudget = true
+        let outcome = await selectBudgetForPicker(appState, budget, encryptionPassword)
+        isUnlockingEncryptedBudget = false
+        guard outcome == .opened else { return false }
+        dismissEncryptedBudgetPrompt()
+        return true
+    }
+
+    func dismissEncryptedBudgetPrompt() {
+        encryptedBudgetPrompt = nil
+        encryptionPassword = ""
     }
 
     func copyDiagnosticReport(using appState: AppState) async {

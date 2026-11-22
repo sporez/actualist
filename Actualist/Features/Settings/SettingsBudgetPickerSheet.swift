@@ -7,9 +7,6 @@ struct SettingsBudgetPickerSheet: View {
 
     @Bindable var viewModel: SettingsViewModel
     @Binding var isPresented: Bool
-    @State private var encryptedBudgetPrompt: ActualBudget?
-    @State private var encryptionPassword = ""
-    @State private var isUnlockingEncryptedBudget = false
     @State private var emptyBudgetCoordinator = EmptyBudgetPickerCoordinator()
 
     var body: some View {
@@ -31,7 +28,11 @@ struct SettingsBudgetPickerSheet: View {
                 Section("Choose Budget") {
                     ForEach(appState.budgets) { budget in
                         Button {
-                            Task { await selectBudget(budget) }
+                            Task {
+                                if await viewModel.selectBudget(budget, using: appState) {
+                                    isPresented = false
+                                }
+                            }
                         } label: {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 4) {
@@ -87,61 +88,23 @@ struct SettingsBudgetPickerSheet: View {
             let succeeded = await viewModel.loadBudgetsForSelection(using: appState)
             emptyBudgetCoordinator.recordDiscovery(succeeded: succeeded)
         }
-        .sheet(item: $encryptedBudgetPrompt, onDismiss: clearEncryptedBudgetPassword) { budget in
+        .sheet(item: $viewModel.encryptedBudgetPrompt, onDismiss: viewModel.dismissEncryptedBudgetPrompt) { budget in
             EncryptedBudgetUnlockSheet(
-                encryptionPassword: $encryptionPassword,
-                isUnlocking: isUnlockingEncryptedBudget,
-                errorMessage: encryptedBudgetUnlockErrorMessage,
-                onCancel: {
-                    encryptedBudgetPrompt = nil
-                    clearEncryptedBudgetPassword()
-                },
+                encryptionPassword: $viewModel.encryptionPassword,
+                isUnlocking: viewModel.isUnlockingEncryptedBudget,
+                errorMessage: appState.lastErrorMessage,
+                onCancel: viewModel.dismissEncryptedBudgetPrompt,
                 onUnlock: {
-                    Task { await unlockBudget(budget) }
+                    Task {
+                        if await viewModel.unlockEncryptedBudget(budget, using: appState) {
+                            isPresented = false
+                        }
+                    }
                 }
             )
             .environment(appState)
         }
         .reviewSheetPresentation(appState: appState)
-    }
-
-    private var encryptedBudgetUnlockErrorMessage: String? {
-        appState.lastErrorMessage
-    }
-
-    private func clearEncryptedBudgetPassword() {
-        encryptionPassword = ""
-    }
-
-    private func selectBudget(_ budget: ActualBudget) async {
-        let outcome = await appState.selectBudgetForCurrentBackend(budget)
-        if outcome == .needsEncryptionPassword {
-            encryptedBudgetPrompt = budget
-            return
-        }
-
-        if appState.settings.selectedBudgetID == budget.syncID {
-            isPresented = false
-        }
-    }
-
-    private func unlockBudget(_ budget: ActualBudget) async {
-        guard !isUnlockingEncryptedBudget else {
-            return
-        }
-
-        isUnlockingEncryptedBudget = true
-        await appState.selectBudgetForCurrentBackend(
-            budget,
-            encryptionPassword: encryptionPassword
-        )
-        isUnlockingEncryptedBudget = false
-
-        if appState.settings.selectedBudgetID == budget.syncID {
-            encryptedBudgetPrompt = nil
-            encryptionPassword = ""
-            isPresented = false
-        }
     }
 
     private func budgetDisplayName(_ budget: ActualBudget) -> String {

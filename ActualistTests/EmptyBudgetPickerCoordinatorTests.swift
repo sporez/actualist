@@ -240,6 +240,7 @@ struct EmptyBudgetPickerCoordinatorTests {
             selectBudget: { appState, budget in
                 recorder.budgets.append(budget)
                 appState.settings.selectedBudgetID = budget.syncID
+                return .opened
             }
         ))
 
@@ -269,6 +270,7 @@ struct EmptyBudgetPickerCoordinatorTests {
             },
             selectBudget: { _, budget in
                 recorder.budgets.append(budget)
+                return .opened
             }
         ))
 
@@ -302,6 +304,7 @@ struct EmptyBudgetPickerCoordinatorTests {
             },
             selectBudget: { appState, _ in
                 appState.lastErrorMessage = "Open failed"
+                return .failed(message: "Open failed")
             }
         ))
 
@@ -315,6 +318,36 @@ struct EmptyBudgetPickerCoordinatorTests {
         )
 
         #expect(appState.settings.selectedBudgetID == nil)
+        #expect(coordinator.phase == .failed(message: "Open failed"))
+    }
+
+    @Test func failedOpenOfAnAlreadySelectedBudgetIsAFailure() async {
+        let appState = makeAppState()
+        let coordinator = EmptyBudgetPickerCoordinator(workflows: .init(
+            createNewBudget: { _, _ in
+                NewBudgetCreation(
+                    fileID: "file-new",
+                    groupID: "group-new",
+                    budgetName: "Fresh Budget",
+                    encryptionKeyID: nil
+                )
+            },
+            selectBudget: { appState, budget in
+                // The selection already names this budget; only the outcome says the open failed.
+                appState.settings.selectedBudgetID = budget.syncID
+                return .failed(message: "Open failed")
+            }
+        ))
+
+        await coordinator.createBudget(
+            EmptyBudgetCreateInput.make(
+                budgetName: "Fresh Budget",
+                encryptionWanted: false,
+                encryptionPassword: ""
+            ),
+            using: appState
+        )
+
         #expect(coordinator.phase == .failed(message: "Open failed"))
     }
 
@@ -344,6 +377,7 @@ struct EmptyBudgetPickerCoordinatorTests {
             selectBudget: { appState, budget in
                 recorder.budgets.append(budget)
                 appState.settings.selectedBudgetID = budget.syncID
+                return .opened
             }
         ))
 
@@ -378,6 +412,7 @@ struct EmptyBudgetPickerCoordinatorTests {
             },
             selectBudget: { _, budget in
                 recorder.budgets.append(budget)
+                return .opened
             }
         ))
 
@@ -419,6 +454,7 @@ struct EmptyBudgetPickerCoordinatorTests {
             selectBudget: { appState, budget in
                 recorder.budgets.append(budget)
                 appState.settings.selectedBudgetID = budget.syncID
+                return .opened
             }
         ))
 

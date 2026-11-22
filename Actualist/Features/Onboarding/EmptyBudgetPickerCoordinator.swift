@@ -130,7 +130,7 @@ final class EmptyBudgetPickerCoordinator {
                 serverURLString: appState.settings.localFirstServerURLString
             )
         }
-        var selectBudget: @MainActor (_ appState: AppState, _ budget: ActualBudget) async -> Void
+        var selectBudget: @MainActor (_ appState: AppState, _ budget: ActualBudget) async -> BudgetOpenOutcome
 
         @MainActor
         static let production = Workflows(
@@ -192,12 +192,12 @@ final class EmptyBudgetPickerCoordinator {
         do {
             let creation = try await workflows.createNewBudget(appState, input)
             let budget = creation.selectionBudgetIdentity
-            await workflows.selectBudget(appState, budget)
-            if appState.settings.selectedBudgetID == budget.syncID {
+            let outcome = await workflows.selectBudget(appState, budget)
+            if outcome == .opened {
                 phase = .idle
                 // Played here because the picker host is replaced once the budget opens.
                 ActualistHaptics.success()
-            } else if let message = appState.lastErrorMessage {
+            } else if case .failed(let message?) = outcome {
                 phase = .failed(message: message)
             } else {
                 phase = .failed(message: String(localized: "The new budget could not be opened. Try again."))
@@ -222,12 +222,12 @@ final class EmptyBudgetPickerCoordinator {
         do {
             let creation = try await workflows.importPortableBudget(appState, archiveURL)
             let budget = creation.selectionBudgetIdentity
-            await workflows.selectBudget(appState, budget)
-            if appState.settings.selectedBudgetID == budget.syncID {
+            let outcome = await workflows.selectBudget(appState, budget)
+            if outcome == .opened {
                 phase = .idle
                 // Played here because the picker host is replaced once the budget opens.
                 ActualistHaptics.success()
-            } else if let message = appState.lastErrorMessage {
+            } else if case .failed(let message?) = outcome {
                 phase = .failed(message: message)
             } else {
                 phase = .failed(message: String(localized: "The imported budget could not be opened. Try again."))
