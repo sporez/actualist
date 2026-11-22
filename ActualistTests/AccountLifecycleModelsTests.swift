@@ -134,6 +134,7 @@ struct AccountLifecycleModelsTests {
         #expect(unprotectedCopy.contains(category.name))
         #expect(unprotectedCopy.contains(schedule.name))
         #expect(unprotectedCopy.contains("pause while it is closed"))
+        #expect(unprotectedCopy.contains("add the payments they missed"))
         #expect(!unprotectedPresentation.isPrivacyProtected)
     }
 

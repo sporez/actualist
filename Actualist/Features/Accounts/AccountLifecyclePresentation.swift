@@ -99,7 +99,7 @@ enum AccountLifecyclePresentation {
             ))
             let consequence = review.resolvedAction == .deleteEmptyAccount
                 ? "Schedules for this account will stop because it will be deleted."
-                : "Schedules for this account pause while it is closed and resume if it is reopened."
+                : "Schedules for this account pause while it is closed. If you reopen it, schedules that post automatically add the payments they missed."
             rows.append(AccountLifecycleConsequenceRow(
                 id: "schedule-posting", label: "Scheduled posting", value: consequence
             ))
