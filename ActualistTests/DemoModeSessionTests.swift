@@ -73,6 +73,31 @@ struct DemoModeSessionTests {
         #expect(await transport.messageCounts().isEmpty)
     }
 
+    @Test func demoModeIsRefusedWhileReauthenticatingWithAnOpenBudget() async throws {
+        let transport = RecordingSyncTransport()
+        let (fileManager, keychain) = makeSharedFileStorage()
+        let settingsStore = AppSettingsStore(defaults: try makeDefaults())
+        let state = makeAppState(
+            settingsStore: settingsStore,
+            keychain: keychain,
+            store: makeStore(fileManager: fileManager, keychain: keychain, transport: transport)
+        )
+        #expect(state.canEnterDemoMode)
+        await state.enterDemoMode()
+        #expect(state.setupPhase == .ready)
+        let openBudgetID = try #require(state.settings.selectedBudgetID)
+
+        state.beginReauthentication()
+
+        #expect(state.setupPhase == .needsConnection)
+        #expect(state.canCancelReauthentication)
+        #expect(!state.canEnterDemoMode)
+        await state.enterDemoMode(tracking: true)
+        #expect(state.setupPhase == .needsConnection)
+        #expect(state.settings.selectedBudgetID == openBudgetID)
+        #expect(state.localFirstStore.isOpen(budgetID: openBudgetID))
+    }
+
     @Test func onboardingDemoIntentEntersDemoMode() async throws {
         let transport = RecordingSyncTransport()
         let (fileManager, keychain) = makeSharedFileStorage()

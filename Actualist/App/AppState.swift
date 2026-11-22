@@ -141,7 +141,7 @@ final class AppState {
     /// main app shell. Only valid from `.needsConnection` (onboarding). Never
     /// writes a sync token or encryption key, never contacts a server.
     func enterDemoMode(tracking: Bool = false) async {
-        guard setupPhase == .needsConnection else { return }
+        guard canEnterDemoMode else { return }
         _ = await budgetSessionTransitions.run(.demo, budgetID: DemoBudget.budget.syncID) { [self] in
             do {
                 try await localFirstStore.demoBudget.openDemoBudget(tracking: tracking)
@@ -626,6 +626,13 @@ final class AppState {
     var canCancelReauthentication: Bool {
         guard let budgetID = settings.selectedBudgetID else { return false }
         return localFirstStore.isOpen(budgetID: budgetID)
+    }
+
+    /// Demo replaces the open session and the saved selection, so it is
+    /// offered only on first connection, never while re-authenticating with a
+    /// budget still open.
+    var canEnterDemoMode: Bool {
+        setupPhase == .needsConnection && !canCancelReauthentication
     }
 
     func updateAppSwitcherPrivacyMode(_ mode: AppSwitcherPrivacyMode) {

@@ -188,7 +188,7 @@ struct OnboardingView: View {
                         .disabled(viewModel.isConnecting)
                     }
 
-                    if !viewModel.hasLoadedLoginMethods {
+                    if !viewModel.hasLoadedLoginMethods && appState.canEnterDemoMode {
                         Button {
                             showDemoConfirmation = true
                         } label: {
