@@ -41,6 +41,46 @@ final class TransactionEditorUITests: XCTestCase {
         XCTAssertTrue(keyboard.waitForNonExistence(timeout: 5), "Keyboard remained at \(keyboard.frame)")
     }
 
+    func testSplitAmountRetypesAfterClearing() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launchDemo()
+        guard app.windows.firstMatch.frame.width <= 700 else {
+            throw XCTSkip("Docked keyboard flow")
+        }
+        let addTransaction = app.buttons["Add Transaction"]
+        XCTAssertTrue(addTransaction.waitForExistence(timeout: 10))
+        addTransaction.tap()
+        XCTAssertTrue(app.navigationBars["Add Transaction"].waitForExistence(timeout: 5))
+        waitForAmountInput(in: app)
+        app.typeText("1000")
+        XCTAssertTrue(formattedAmount(containing: "10.00", in: app).waitForExistence(timeout: 5))
+
+        let split = app.buttons["Split"]
+        XCTAssertTrue(split.waitForExistence(timeout: 5))
+        split.tap()
+        let splitAmount = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'transaction-split-amount-'")
+        ).firstMatch
+        XCTAssertTrue(splitAmount.waitForExistence(timeout: 5))
+        splitAmount.tap()
+        waitForAmountInput(in: app)
+
+        app.typeText("333")
+        XCTAssertTrue(splitAmountText("3.33", in: app).waitForExistence(timeout: 5))
+        app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 3))
+        XCTAssertTrue(splitAmountText("3.33", in: app).waitForNonExistence(timeout: 5))
+        app.typeText("333")
+        XCTAssertTrue(splitAmountText("3.33", in: app).waitForExistence(timeout: 5))
+        XCTAssertFalse(splitAmountText("0.0333", in: app).exists)
+    }
+
+    /// The split amount as shown, whether it is drawn as text or held in a field.
+    private func splitAmountText(_ amount: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == %@ OR value == %@", amount, amount)
+        ).firstMatch
+    }
+
     func testEditorInteractionRegressionOnIPhone() throws {
         try exerciseEditorInteraction(requireWide: false)
     }

@@ -96,15 +96,7 @@ struct TransactionSplitEditorState: Equatable, Sendable {
     }
 
     var checkedSplitTotalCents: Int? {
-        var total = 0
-        for row in children {
-            let result = total.addingReportingOverflow(row.amountMinorUnits)
-            guard !result.overflow else {
-                return nil
-            }
-            total = result.partialValue
-        }
-        return total
+        Self.checkedSum(children.map(\.amountMinorUnits))
     }
 
     var splitTotalCents: Int {
@@ -408,14 +400,77 @@ struct TransactionSplitEditorState: Equatable, Sendable {
             pendingMismatch = nil
             return
         }
-        let index = children.lastIndex { $0.amountMinorUnits != 0 } ?? children.indices.last
-        guard let index else { return }
-        let (adjustedAmount, overflow) = children[index].amountMinorUnits.addingReportingOverflow(difference.partialValue)
-        guard !overflow else {
+        guard !children.isEmpty else { return }
+        guard let amounts = Self.distributedAmounts(
+            children.map(\.amountMinorUnits),
+            parentSignedAmount: parentSignedAmount,
+            remainder: difference.partialValue
+        ) else {
             throw TransactionSplitEditorError.amountOverflow
         }
-        children[index].amountMinorUnits = adjustedAmount
+        for index in children.indices {
+            children[index].amountMinorUnits = amounts[index]
+        }
         pendingMismatch = nil
+    }
+
+    /// Actual's split Distribute (`onDistributeRemainder` in `TransactionsTable`):
+    /// empty splits share the remainder evenly, the earlier ones taking the odd
+    /// cents. With none empty, each split grows in proportion to its amount and
+    /// the rounding cents go to the splits in order. Nil on overflow.
+    private static func distributedAmounts(_ amounts: [Int], parentSignedAmount: Int, remainder: Int) -> [Int]? {
+        var result = amounts
+        let emptyIndices = amounts.indices.filter { amounts[$0] == 0 }
+        if !emptyIndices.isEmpty {
+            let count = emptyIndices.count
+            // Math.floor rounds toward negative infinity; Swift's division truncates.
+            let share = remainder / count - (remainder % count < 0 ? 1 : 0)
+            var oddCents = remainder - share * count
+            for index in emptyIndices {
+                result[index] = share + (oddCents > 0 ? 1 : 0)
+                oddCents -= oddCents > 0 ? 1 : 0
+            }
+            return result
+        }
+
+        guard let total = checkedSum(amounts), total != 0 else {
+            // Splits that cancel out leave Actual dividing by zero, and its
+            // rounding loop never ends; the last split takes the difference.
+            guard let last = amounts.indices.last else { return nil }
+            let (adjusted, overflow) = amounts[last].addingReportingOverflow(remainder)
+            guard !overflow else { return nil }
+            result[last] = adjusted
+            return result
+        }
+        for index in amounts.indices {
+            let scaled = (Double(amounts[index]) / Double(total) * Double(remainder)).rounded(.down)
+            guard let share = Int(exactly: scaled) else { return nil }
+            let (adjusted, overflow) = amounts[index].addingReportingOverflow(share)
+            guard !overflow else { return nil }
+            result[index] = adjusted
+        }
+        guard let distributed = checkedSum(result) else { return nil }
+        let (leftover, overflow) = parentSignedAmount.subtractingReportingOverflow(distributed)
+        guard !overflow, leftover.magnitude <= UInt(result.count) * 2 else { return nil }
+        var cents = leftover
+        var index = 0
+        while cents != 0 {
+            let step = cents > 0 ? 1 : -1
+            result[index % result.count] += step
+            cents -= step
+            index += 1
+        }
+        return result
+    }
+
+    private static func checkedSum(_ amounts: [Int]) -> Int? {
+        var total = 0
+        for amount in amounts {
+            let (sum, overflow) = total.addingReportingOverflow(amount)
+            guard !overflow else { return nil }
+            total = sum
+        }
+        return total
     }
 
     mutating func clearMismatch() {

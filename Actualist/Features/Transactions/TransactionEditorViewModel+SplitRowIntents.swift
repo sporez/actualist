@@ -13,6 +13,10 @@ extension TransactionEditorViewModel {
         splitState.toggleAmountSign(id: rowID)
     }
 
+    func splitAmountDigits(rowID: String) -> String {
+        splitState.splitRows.first(where: { $0.id == rowID })?.amountDigits ?? ""
+    }
+
     func splitNotes(rowID: String) -> String {
         splitState.splitRows.first(where: { $0.id == rowID })?.displayNotes ?? ""
     }

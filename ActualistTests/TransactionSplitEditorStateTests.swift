@@ -105,6 +105,58 @@ struct TransactionSplitEditorStateTests {
         #expect(state.pendingMismatch == nil)
     }
 
+    // Expected amounts follow Actual's onDistributeRemainder (TransactionsTable.tsx, v26.11.0).
+    @Test func autoDistributeSharesTheRemainderAmongEmptySplits() throws {
+        var state = TransactionSplitEditorState()
+        state.replaceChildren([
+            Self.row(id: "first", amount: -500),
+            Self.row(id: "added", amount: 0),
+            Self.row(id: "later", amount: 0)
+        ])
+
+        try state.autoDistribute(parentSignedAmount: -833)
+
+        #expect(state.splitRows.map(\.amountMinorUnits) == [-500, -166, -167])
+    }
+
+    @Test func autoDistributeGivesTheOddCentsToEarlierEmptySplits() throws {
+        var state = TransactionSplitEditorState()
+        state.replaceChildren([
+            Self.row(id: "a", amount: 0),
+            Self.row(id: "b", amount: 0),
+            Self.row(id: "c", amount: 0)
+        ])
+
+        try state.autoDistribute(parentSignedAmount: 1000)
+
+        #expect(state.splitRows.map(\.amountMinorUnits) == [334, 333, 333])
+    }
+
+    @Test func autoDistributeScalesEnteredSplitsWhenNoneIsEmpty() throws {
+        var state = TransactionSplitEditorState()
+        state.replaceChildren([
+            Self.row(id: "first", amount: -500),
+            Self.row(id: "second", amount: -600)
+        ])
+
+        try state.autoDistribute(parentSignedAmount: -1234)
+
+        #expect(state.splitRows.map(\.amountMinorUnits) == [-560, -674])
+    }
+
+    @Test func autoDistributeLetsTheLastSplitTakeTheDifferenceWhenSplitsCancelOut() throws {
+        var state = TransactionSplitEditorState()
+        state.replaceChildren([
+            Self.row(id: "inflow", amount: 500),
+            Self.row(id: "outflow", amount: -500)
+        ])
+
+        try state.autoDistribute(parentSignedAmount: -100)
+
+        #expect(state.splitRows.map(\.amountMinorUnits) == [500, -600])
+        #expect(state.pendingMismatch == nil)
+    }
+
     @Test func splitValidationDetectsOverflowWithoutTrapping() {
         var state = TransactionSplitEditorState()
         state.replaceChildren([

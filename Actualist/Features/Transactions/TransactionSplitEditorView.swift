@@ -104,18 +104,16 @@ struct TransactionSplitEditorView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(row.amountMinorUnits < 0 ? "Expense" : "Inflow")
 
-                    TextField("0.00", text: splitAmountBinding(for: row.id))
-                        .focused(focusedField, equals: .splitAmount(row.id))
-                        .accessibilityIdentifier("transaction-split-amount-\(row.id)")
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .font(ActualistTypography.rowValue(for: density))
-                        .foregroundStyle(ActualistTheme.primaryText)
-                        .frame(width: 84)
+                    splitAmountField(row)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
                 .background(ActualistTheme.control, in: Capsule())
+                .overlay {
+                    if focusedField.wrappedValue == .splitAmount(row.id) {
+                        Capsule().strokeBorder(ActualistTheme.accent, lineWidth: 1.5)
+                    }
+                }
             }
 
             Button {
@@ -169,9 +167,38 @@ struct TransactionSplitEditorView: View {
         .background(ActualistTheme.surface, in: RoundedRectangle(cornerRadius: ActualistTheme.Radius.panel, style: .continuous))
     }
 
-    private func splitAmountBinding(for rowID: String) -> Binding<String> {
+    /// The field holds only the typed digits and the formatted amount is drawn
+    /// over it, as in the main amount field. A focused SwiftUI field does not
+    /// reliably take text rewritten by its binding, so a field bound to the
+    /// formatted amount could keep "0.0" after a clear and append to it.
+    private func splitAmountField(_ row: TransactionSplitEditorRow) -> some View {
+        let formatted = viewModel.formattedSplitAmount(rowID: row.id)
+        return ZStack(alignment: .trailing) {
+            Text(formatted.isEmpty ? "0.00" : formatted)
+                .font(ActualistTypography.rowValue(for: density))
+                .foregroundStyle(formatted.isEmpty ? ActualistTheme.secondaryText : ActualistTheme.primaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            TextField("", text: splitAmountDigitsBinding(for: row.id))
+                .focused(focusedField, equals: .splitAmount(row.id))
+                .keyboardType(.numberPad)
+                .frame(width: 1, height: 1)
+                .opacity(0.01)
+                .accessibilityLabel("Split Amount")
+                .accessibilityValue(formatted)
+                .accessibilityIdentifier("transaction-split-amount-\(row.id)")
+        }
+        .frame(width: 84, alignment: .trailing)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            focusedField.wrappedValue = .splitAmount(row.id)
+        }
+    }
+
+    private func splitAmountDigitsBinding(for rowID: String) -> Binding<String> {
         Binding {
-            viewModel.formattedSplitAmount(rowID: rowID)
+            viewModel.splitAmountDigits(rowID: rowID)
         } set: { value in
             viewModel.setSplitAmount(rowID: rowID, value: value)
         }

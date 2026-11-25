@@ -232,7 +232,7 @@ struct TransactionEditorViewModelTests {
         #expect(draft.categoryID == nil)
         #expect(draft.isParent)
         #expect(draft.splits.map(\.categoryID) == ["groceries", "household"])
-        #expect(draft.splits.map(\.amountMinorUnits) == [-500, -734])
+        #expect(draft.splits.map(\.amountMinorUnits) == [-560, -674])
         #expect(draft.splits.map(\.payeeID) == [.value(nil), .value(nil)])
     }
 
