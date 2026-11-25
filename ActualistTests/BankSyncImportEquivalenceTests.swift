@@ -175,6 +175,8 @@ messages accounts balance_current 1
 messages accounts bank 1
 messages accounts bank_sync_status 1
 messages accounts last_sync 1
+messages banks bank_id 1
+messages banks name 1
 messages payee_mapping targetId 2
 messages payees name 2
 messages transactions acct 4
