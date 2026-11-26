@@ -1,6 +1,7 @@
 import Foundation
 
-/// Enable Banking downloads through the open budget's Actual server: one
+/// Enable Banking through the open budget's Actual server: whether the server
+/// is set up (`POST /enablebanking/status`), and downloads, one
 /// `POST /enablebanking/transactions` per account, in order, as Actual's web
 /// app syncs every non-SimpleFIN account (loot-core `accounts-bank-sync`).
 /// The store owns it; the Bank Sync planner turns the downloads into plans.
@@ -16,6 +17,33 @@ final class EnableBankingWorkflows {
     init(store: LocalFirstActualStore) {
         self.store = store
     }
+
+    // MARK: - Server support
+
+    /// The last answer for the open server and budget, for the screen's
+    /// optimistic first draw. Downloads never rely on it.
+    func cachedSupport() -> SimpleFINServerSupport? {
+        guard let serverURL = store.openedServerURLString, let fileID = store.openedCloudFileID else {
+            return nil
+        }
+        return store.bankSyncSessionCache.enableBankingSupport(for: serverURL, fileID: fileID)
+    }
+
+    /// Asks the server whether it has Enable Banking credentials and
+    /// remembers the answer for the open session.
+    func support(budgetID: String) async throws -> SimpleFINServerSupport {
+        let database = try store.requireDatabase(for: budgetID)
+        let generation = store.budgetSessionGeneration
+        let endpoint = try store.bankSync.bankSyncServerEndpoint(budgetID: budgetID)
+        let support = try await transport(for: endpoint).status(token: endpoint.token)
+        try store.requireSyncSession(database: database, budgetID: budgetID, generation: generation)
+        if let serverURL = store.openedServerURLString, let fileID = store.openedCloudFileID {
+            store.bankSyncSessionCache.rememberEnableBankingSupport(support, for: serverURL, fileID: fileID)
+        }
+        return support
+    }
+
+    // MARK: - Downloads
 
     /// One linked account's request.
     struct AccountRequest: Equatable, Sendable {
@@ -46,19 +74,24 @@ final class EnableBankingWorkflows {
     /// end the run. Enable Banking credentials are server-wide, so once the
     /// server says it has none, the remaining accounts get the same answer
     /// without another request.
+    ///
+    /// With a `deadline` (background runs), no request starts after it and a
+    /// request still running at it is abandoned: those accounts get no
+    /// download and are left for the next run, with nothing stored.
     func downloads(
         _ requests: [AccountRequest],
         budgetID: String,
         database: BudgetDatabase,
         sessionGeneration: Int,
-        generations: [String: UUID]
+        generations: [String: UUID],
+        deadline: ContinuousClock.Instant? = nil
     ) async throws -> [String: SimpleFINAccountDownload] {
         guard !requests.isEmpty else { return [:] }
         let endpoint = try store.bankSync.bankSyncServerEndpoint(budgetID: budgetID)
         let transport = try transport(for: endpoint)
         var downloads: [String: SimpleFINAccountDownload] = [:]
         var serverHasNoEnableBanking: SimpleFINAccountDownload?
-        for request in requests {
+        accounts: for request in requests {
             try requireCurrent(request, database: database, budgetID: budgetID,
                 sessionGeneration: sessionGeneration, generations: generations)
             if let serverHasNoEnableBanking {
@@ -67,12 +100,12 @@ final class EnableBankingWorkflows {
             }
             let download: SimpleFINAccountDownload
             do {
-                download = try await transport.transactions(
-                    token: endpoint.token,
-                    accountID: request.remoteAccountID,
-                    startDate: request.startDate,
-                    aspspName: request.aspspName
-                ) ?? Self.failedDownload(code: RequestFailureCode.routesMissing)
+                let answer = try await Self.request(
+                    request, token: endpoint.token, transport: transport, deadline: deadline
+                )
+                download = answer ?? Self.failedDownload(code: RequestFailureCode.routesMissing)
+            } catch is DeadlineReached {
+                break accounts
             } catch {
                 guard let code = Self.accountFailureCode(error) else { throw error }
                 download = Self.failedDownload(code: code)
@@ -85,6 +118,28 @@ final class EnableBankingWorkflows {
             downloads[request.accountID] = download
         }
         return downloads
+    }
+
+    private struct DeadlineReached: Error {}
+
+    private static func request(
+        _ request: AccountRequest,
+        token: String,
+        transport: any EnableBankingServerTransport,
+        deadline: ContinuousClock.Instant?
+    ) async throws -> SimpleFINAccountDownload? {
+        let send: @MainActor @Sendable () async throws -> SimpleFINAccountDownload? = {
+            try await transport.transactions(
+                token: token,
+                accountID: request.remoteAccountID,
+                startDate: request.startDate,
+                aspspName: request.aspspName
+            )
+        }
+        guard let deadline else { return try await send() }
+        let remaining = ContinuousClock.now.duration(to: deadline)
+        guard remaining > .zero else { throw DeadlineReached() }
+        return try await withDeadline(remaining, timeoutError: DeadlineReached(), operation: send)
     }
 
     private func requireCurrent(

@@ -60,10 +60,12 @@ struct AppSettings: Codable, Equatable {
     var categoryGroupExpansionByBudgetID: [String: BudgetGroupExpansion] = [:]
     var reportCardOrder: [ReportCardKind] = ReportCardOrderPreference.defaultOrder
     var backgroundTransactionRefreshEnabled: Bool = false
-    /// Optional SimpleFIN background bank sync. Default off; the toggle is
-    /// consent to auto-apply server SimpleFIN downloads after a background
-    /// `/sync/sync`. Never reads the device key; demo mode never runs it. New
-    /// Transaction Alerts do not depend on this flag.
+    /// Optional background bank sync for every provider (SimpleFIN and
+    /// Enable Banking). Default off; the toggle is consent to auto-apply
+    /// server downloads after a background `/sync/sync`. The name predates
+    /// Enable Banking and stays, so stored settings keep decoding. Never
+    /// reads the device key; demo mode never runs it. New Transaction Alerts
+    /// do not depend on this flag.
     var simplefinBackgroundSyncEnabled: Bool = false
     /// Dev install only: share App Store links (`/t`) instead of `/dev/t`, so
     /// a recipient without the Dev app can open them.

@@ -155,4 +155,6 @@ struct BankSyncBackgroundApplyRequest: Equatable, Sendable {
     let budgetID: String
     /// Nil when alerts are disabled. Foreground imports never use this request.
     let notificationID: String?
+    /// What is left of the background run when the bank step starts.
+    var timeLimit: Duration? = nil
 }

@@ -20,8 +20,9 @@ extension AppState {
 
     /// Enabling background bank sync promotes Keychain items for background
     /// access (like the alerts toggle) but never requests notification
-    /// authorization — it posts nothing.
-    func updateSimpleFINBackgroundSyncEnabled(_ isEnabled: Bool) async {
+    /// authorization — it posts nothing. One toggle covers every provider;
+    /// the stored setting keeps its original SimpleFIN name.
+    func updateBackgroundBankSyncEnabled(_ isEnabled: Bool) async {
         let outcome = backgroundTransactionWorkflow.enableBankSync(isEnabled, keychain: keychain)
         if case .credentialPromotionFailed(let message) = outcome {
             lastErrorMessage = message

@@ -10,7 +10,7 @@ struct BankSyncView: View {
     var body: some View {
         Group {
             if let viewModel {
-                BankSyncScreen(viewModel: viewModel, isDemoMode: appState.isDemoMode)
+                BankSyncScreen(viewModel: viewModel, isDemoMode: appState.isDemoMode && !showsPreview)
             } else {
                 ProgressView()
             }
@@ -33,11 +33,25 @@ struct BankSyncView: View {
                 store: appState.localFirstStore,
                 budgetID: budgetID,
                 currency: currency,
-                isDemoMode: appState.isDemoMode
+                isDemoMode: appState.isDemoMode && !showsPreview
             )
             viewModel = model
+            #if DEBUG
+            if showsPreview {
+                await model.loadPreview()
+                return
+            }
+            #endif
             await model.load()
         }
+    }
+
+    private var showsPreview: Bool {
+        #if DEBUG
+        BankSyncScreenPreview.isRequested
+        #else
+        false
+        #endif
     }
 }
 
@@ -51,7 +65,7 @@ private struct BankSyncScreen: View {
     var body: some View {
         List {
             serverSection
-            if !isDemoMode, viewModel.serverSupport != .configured {
+            if !isDemoMode, viewModel.showsSimpleFINTokenSection {
                 deviceTokenSection
                     .disabled(viewModel.isSyncing)
             }
@@ -92,6 +106,7 @@ private struct BankSyncScreen: View {
                 Text(BankSyncCopy.providerText(
                     support: viewModel.serverSupport,
                     hasDeviceKey: viewModel.hasDeviceKey,
+                    enableBanking: viewModel.enableBankingSupport,
                     isDemoMode: isDemoMode
                 ))
                 .foregroundStyle(ActualistTheme.secondaryText)
@@ -142,6 +157,8 @@ private struct BankSyncScreen: View {
             if let footer = BankSyncCopy.connectionFooter(
                 support: viewModel.serverSupport,
                 hasDeviceKey: viewModel.hasDeviceKey,
+                enableBanking: viewModel.enableBankingSupport,
+                showsSimpleFINToken: viewModel.showsSimpleFINTokenSection,
                 isDemoMode: isDemoMode
             ) {
                 Text(footer)
@@ -155,12 +172,13 @@ private struct BankSyncScreen: View {
     private var backgroundSyncSection: some View {
         Section {
             Toggle("Background Bank Sync", isOn: backgroundSyncSelection)
-                .disabled(isDemoMode || viewModel.serverSupport != .configured)
+                .disabled(isDemoMode || !viewModel.canEnableBackgroundSync)
         } header: {
             Text("Background Sync")
         } footer: {
             Text(BankSyncCopy.backgroundSyncFooter(
                 support: viewModel.serverSupport,
+                enableBanking: viewModel.enableBankingSupport,
                 phase: viewModel.phase,
                 isDemoMode: isDemoMode
             ))
@@ -175,7 +193,7 @@ private struct BankSyncScreen: View {
             appState.settings.simplefinBackgroundSyncEnabled
         } set: { isEnabled in
             Task {
-                await appState.updateSimpleFINBackgroundSyncEnabled(isEnabled)
+                await appState.updateBackgroundBankSyncEnabled(isEnabled)
             }
         }
     }

@@ -39,7 +39,7 @@ final class BankSyncWorkflows {
             case .notConfigured:
                 return "Connect SimpleFIN on your server or add a setup token on this device."
             case .serverCannotBankSync:
-                return "Your server does not have SimpleFIN set up, so Bank Sync cannot run in the background."
+                return "Your server does not have SimpleFIN or Enable Banking set up, so Bank Sync cannot run in the background."
             }
         }
     }
@@ -439,31 +439,55 @@ final class BankSyncWorkflows {
 
     // MARK: - Screen reads (Phase 4)
 
-    /// Background bank-sync step (plan Phase 6): download + auto-apply for
-    /// every open SimpleFIN-linked account through the SERVER connection
-    /// only. Runs after a successful background `/sync/sync`; the toggle is
-    /// consent to apply without a review sheet. Returns the inserted
-    /// transaction IDs per local account so the workflow can feed the
-    /// existing new-transaction notification pipeline (when the alerts
-    /// toggle is also on).
+    /// Time kept back from a background run's limit for the work after the
+    /// downloads: rules, matching and the commits.
+    static let backgroundApplyReserve: Duration = .seconds(3)
+
+    /// Background bank-sync step: download and auto-apply every open
+    /// account linked to SimpleFIN or Enable Banking, through the SERVER
+    /// connection only. Runs after a successful background `/sync/sync`; the
+    /// toggle is consent to apply without a review sheet. Returns the
+    /// inserted transaction IDs per local account so the workflow can feed
+    /// the new-transaction notification pipeline (when the alerts toggle is
+    /// also on).
+    ///
+    /// Enable Banking accounts are skipped for this wake when
+    /// `/enablebanking/status` does not say configured. Their requests stop
+    /// `backgroundApplyReserve` before `request.timeLimit`; accounts not
+    /// reached are left for the next run with nothing stored.
     func backgroundBankSyncApply(
         request: BankSyncBackgroundApplyRequest
     ) async throws -> BankSyncBackgroundApplyResult {
         let budgetID = request.budgetID
         let database = try store.requireDatabase(for: budgetID)
-        // Server SimpleFIN only; the Phase 5 device key is never read here.
-        // The batched planner's provider resolution enforces configured server
+        // Server connections only; the device key is never read here. The
+        // planner's provider resolution enforces configured SimpleFIN
         // support once for the entire run.
         let openAccountIDs = try await AccountSQL.fetchAccounts(in: database)
             .filter { !$0.closed }
             .map(\.id)
-        let linked = try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
+        var linked = try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
             .filter {
-                BankSyncLinkEligibility.isSimpleFIN(syncSource: $0.syncSource)
+                BankSyncProviderKind(syncSource: $0.syncSource) != nil
                     && openAccountIDs.contains($0.id)
             }
+        let isEnableBanking = { (account: BankSyncLinkSQL.BankSyncLinkedAccount) in
+            BankSyncProviderKind(syncSource: account.syncSource) == .enableBanking
+        }
+        if linked.contains(where: isEnableBanking) {
+            let configured = try await enableBankingIsConfigured(budgetID: budgetID)
+            if !configured {
+                linked.removeAll(where: isEnableBanking)
+                guard !linked.isEmpty else { throw BankSyncStoreError.serverCannotBankSync }
+            }
+        }
         if linked.isEmpty {
-            guard try await bankSyncSupport(budgetID: budgetID) == .configured else {
+            // Nothing to sync; still say whether the server could.
+            var configured = try await bankSyncSupport(budgetID: budgetID) == .configured
+            if !configured {
+                configured = try await enableBankingIsConfigured(budgetID: budgetID)
+            }
+            guard configured else {
                 throw BankSyncStoreError.serverCannotBankSync
             }
             return BankSyncBackgroundApplyResult(
@@ -474,12 +498,17 @@ final class BankSyncWorkflows {
 
         var tally = BankSyncRunTally()
         var insertedTransactionIDsByAccount: [String: [String]] = [:]
+        let run: BankSyncPlanWorkflows.DownloadRun
         do {
-            let plans = try await store.bankSyncPlans.downloadBankSyncPlans(
+            run = try await store.bankSyncPlans.downloadBankSyncRun(
                 accountIDs: linked.map(\.id),
                 budgetID: budgetID,
-                deviceFallback: false
+                deviceFallback: false,
+                enableBankingDeadline: request.timeLimit.map {
+                    ContinuousClock.now.advanced(by: $0 - Self.backgroundApplyReserve)
+                }
             )
+            let plans = run.plans
             // Preflight every account before the first write. A malformed row in a
             // later account cannot leave earlier accounts applied from this wake.
             guard plans.allSatisfy(\.problems.isEmpty) else {
@@ -504,12 +533,6 @@ final class BankSyncWorkflows {
                     insertedTransactionIDsByAccount[accountID, default: []].append(contentsOf: transactionIDs)
                 }
             }
-            let failure = plans.first?.wholeRequestFailure
-            await recordBackgroundBankSyncRun(
-                failure?.summary ?? tally.completedSummary(plannedCount: plans.count),
-                failure: failure,
-                in: database
-            )
         } catch {
             await recordBackgroundBankSyncRun(
                 tally.stoppedSummary(totalCount: linked.count)
@@ -518,10 +541,24 @@ final class BankSyncWorkflows {
             )
             throw error
         }
+        let outcome = tally.completedOutcome(plans: run.plans, simpleFINFailed: run.simpleFINFailure != nil)
+        await recordBackgroundBankSyncRun(outcome.summary, failure: outcome.failure, in: database)
+        // The Enable Banking accounts are saved; the step still reports the SimpleFIN failure.
+        if let failure = run.simpleFINFailure { throw failure }
         return BankSyncBackgroundApplyResult(
             accountCount: linked.count,
             insertedTransactionIDsByAccount: insertedTransactionIDsByAccount
         )
+    }
+
+    /// `/enablebanking/status` said configured. Any other answer, or a
+    /// failed probe, skips Enable Banking for this run.
+    private func enableBankingIsConfigured(budgetID: String) async throws -> Bool {
+        do {
+            return try await store.enableBanking.support(budgetID: budgetID) == .configured
+        } catch where !error.isCancellation {
+            return false
+        }
     }
 
     /// Written to the database the run started on, so a budget switch

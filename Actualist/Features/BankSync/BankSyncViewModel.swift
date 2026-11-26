@@ -28,12 +28,22 @@ final class BankSyncViewModel {
         let id: String
         let name: String
         let isLinked: Bool
-        let isSyncable: Bool
-        /// SimpleFIN-side account id when linked.
+        /// The provider the link downloads through; nil when unlinked or
+        /// linked to a provider Actualist cannot sync (GoCardless and others).
+        let provider: BankSyncProviderKind?
+        /// Provider-side account id when linked.
         let remoteAccountID: String?
         let lastSyncText: String
         let statusText: String?
         let statusColorKind: StatusColorKind
+        /// The account sheet's footer for a linked account.
+        let linkedFooterText: String
+
+        /// Linked to a provider Actualist downloads from.
+        var isSyncable: Bool { provider != nil }
+        /// Only SimpleFIN links are made and removed here; Enable Banking
+        /// links belong to the Actual web app.
+        var canUnlink: Bool { provider == .simpleFIN }
 
         enum StatusColorKind {
             case none, healthy, pending, failed
@@ -64,6 +74,9 @@ final class BankSyncViewModel {
 
     private(set) var phase: Phase = .idle
     private(set) var serverSupport: SimpleFINServerSupport?
+    /// `/enablebanking/status`, asked only when an account is linked to
+    /// Enable Banking.
+    private(set) var enableBankingSupport: SimpleFINServerSupport?
     /// A device-claimed SimpleFIN access key exists (Phase 5). Used as the
     /// provider only when the server cannot serve SimpleFIN itself.
     private(set) var hasDeviceKey = false
@@ -87,8 +100,7 @@ final class BankSyncViewModel {
     var isSyncing: Bool { phase == .downloading || phase == .applying }
 
     var canSyncAll: Bool {
-        providerAvailable
-            && accountLines.contains { $0.isSyncable }
+        accountLines.contains(where: isDownloadable)
             && (phase == .ready || isFailed)
             && sessionIsCurrent
             && !isDemoMode
@@ -101,7 +113,22 @@ final class BankSyncViewModel {
     }
 
     var canLinkAccounts: Bool {
-        providerAvailable && !isSyncing && sessionIsCurrent
+        simpleFINAvailable && !isSyncing && sessionIsCurrent
+    }
+
+    /// Background bank sync runs only through the server.
+    var canEnableBackgroundSync: Bool {
+        serverSupport == .configured || enableBankingSupport == .configured
+    }
+
+    /// The SimpleFIN setup-token section is for budgets that use SimpleFIN:
+    /// hidden when the server serves Enable Banking and nothing here uses
+    /// SimpleFIN.
+    var showsSimpleFINTokenSection: Bool {
+        guard serverSupport != .configured else { return false }
+        return hasDeviceKey
+            || enableBankingSupport != .configured
+            || accountLines.contains { $0.provider == .simpleFIN }
     }
 
     var canClaimDeviceToken: Bool {
@@ -111,12 +138,19 @@ final class BankSyncViewModel {
             && !draftSetupToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var providerAvailable: Bool {
-        // SimpleFIN is the only initiate path. Other linked providers stay
-        // visible but not syncable (`BankSyncLinkEligibility`). A later
-        // provider ORs its own capability here and caches under its own
-        // `BankSyncProviderKind`.
+    /// SimpleFIN downloads through the server, or the device key when the
+    /// server has none.
+    private var simpleFINAvailable: Bool {
         serverSupport == .configured || hasDeviceKey
+    }
+
+    /// Whether Sync All downloads this account now.
+    private func isDownloadable(_ line: AccountLine) -> Bool {
+        switch line.provider {
+        case .simpleFIN: simpleFINAvailable
+        case .enableBanking: enableBankingSupport == .configured
+        case nil: false
+        }
     }
 
     var syncButtonTitle: String {
@@ -174,6 +208,7 @@ final class BankSyncViewModel {
             lastRun = persistedRun
             if isDemoMode {
                 serverSupport = nil
+                enableBankingSupport = nil
                 hasDeviceKey = false
                 remoteAccounts = []
                 remoteAccountsStatus = .idle
@@ -213,11 +248,26 @@ final class BankSyncViewModel {
                     phase = error.userFacingMessage.map(Phase.failed) ?? .ready
                 }
             }
+            await loadEnableBankingSupport(generation: generation)
         } catch {
             guard sessionIsCurrent, generation == loadGeneration else { return }
             phase = error.userFacingMessage.map(Phase.failed) ?? .ready
         }
     }
+
+    #if DEBUG
+    /// Shows `BankSyncScreenPreview` instead of asking the server.
+    func loadPreview() async {
+        guard let rows = try? await store.bankSync.bankSyncAccountRows(budgetID: budgetID) else { return }
+        let preview = BankSyncScreenPreview(accounts: rows)
+        accountLines = preview.rows.map { $0.toLine(lastRunFailure: nil) }
+        serverSupport = .configured
+        enableBankingSupport = .configured
+        lastRun = preview.lastRun
+        resultLines = preview.resultLines
+        phase = .ready
+    }
+    #endif
 
     /// Loads SimpleFIN-side accounts for the link sheet. Safe to call while
     /// Sync All is already enabled; cancellation leaves a loading state idle.
@@ -267,12 +317,38 @@ final class BankSyncViewModel {
         }
     }
 
+    private var usesEnableBanking: Bool {
+        accountLines.contains { $0.provider == .enableBanking }
+    }
+
     private func applyCachedSession() {
         if let cached = store.bankSync.cachedBankSyncSupport() {
             serverSupport = cached
             phase = .ready
         }
+        enableBankingSupport = usesEnableBanking ? store.enableBanking.cachedSupport() : nil
         _ = applyCachedRemoteAccounts()
+    }
+
+    /// A failed probe keeps a cached answer. A configured answer also clears
+    /// a SimpleFIN probe failure: the server is reachable and Sync All can
+    /// run for the Enable Banking accounts.
+    private func loadEnableBankingSupport(generation: Int) async {
+        guard usesEnableBanking else {
+            enableBankingSupport = nil
+            return
+        }
+        do {
+            let support = try await store.enableBanking.support(budgetID: budgetID)
+            guard sessionIsCurrent, generation == loadGeneration else { return }
+            enableBankingSupport = support
+            if support == .configured, isFailed {
+                phase = .ready
+            }
+        } catch {
+            guard sessionIsCurrent, generation == loadGeneration else { return }
+            enableBankingSupport = store.enableBanking.cachedSupport()
+        }
     }
 
     @discardableResult
@@ -295,17 +371,19 @@ final class BankSyncViewModel {
         phase = .downloading
         lastRun = nil
         resultLines = []
-        let syncableAccountIDs = accountLines.filter(\.isSyncable).map(\.id)
+        let syncableAccountIDs = accountLines.filter(isDownloadable).map(\.id)
         var tally = BankSyncRunTally()
         var applyingAccountName: String?
         do {
-            let plans = try await store.bankSyncPlans.downloadBankSyncPlans(
+            let run = try await store.bankSyncPlans.downloadBankSyncRun(
                 accountIDs: syncableAccountIDs,
                 budgetID: budgetID
             )
+            let plans = run.plans
             guard sessionIsCurrent else { return }
             try Task.checkCancellation()
             guard !plans.isEmpty else {
+                if let failure = run.simpleFINFailure { throw failure }
                 phase = .failed("Nothing to sync.")
                 return
             }
@@ -318,9 +396,9 @@ final class BankSyncViewModel {
                 return
             }
             phase = .applying
-            // One cause for the whole run. Each account still commits its
-            // durable status, but no per-account result line says "Failed".
-            let wholeRequestFailure = plans.first?.wholeRequestFailure
+            // A failed SimpleFIN batch has one cause, shown in the last
+            // result. Its accounts still commit their durable status but get
+            // no result line; other providers' accounts keep theirs.
             for plan in plans {
                 guard sessionIsCurrent else { return }
                 try Task.checkCancellation()
@@ -335,16 +413,20 @@ final class BankSyncViewModel {
                 }
                 guard sessionIsCurrent else { return }
                 tally.record(result, skipped: plan.durableStatus != .ok)
-                if wholeRequestFailure == nil {
+                if plan.wholeRequestFailure == nil {
                     resultLines.append(plan.toLine(accountNames: accountNames, currency: currency, applied: true))
                 }
                 if let refreshFailure { throw refreshFailure }
             }
-            await recordRun(
-                wholeRequestFailure?.summary ?? tally.completedSummary(plannedCount: plans.count),
-                failure: wholeRequestFailure
-            )
-            phase = .ready
+            let outcome = tally.completedOutcome(plans: plans, simpleFINFailed: run.simpleFINFailure != nil)
+            await recordRun(outcome.summary, failure: outcome.failure)
+            if let failure = run.simpleFINFailure {
+                // The Enable Banking accounts are saved; say why SimpleFIN's are not.
+                phase = .failed(BankSyncRunTally.simpleFINNotSyncedNote
+                    + (failure.userFacingMessage.map { " \($0)" } ?? ""))
+            } else {
+                phase = .ready
+            }
         } catch {
             guard sessionIsCurrent else { return }
             await recordRun(
@@ -430,7 +512,7 @@ final class BankSyncViewModel {
     /// If fresh remote metadata is unavailable, retain friendly local copy;
     /// the opaque account id is deliberately never a display fallback.
     func linkedAccountDisplayName(for line: AccountLine) -> String {
-        guard line.isSyncable,
+        guard line.canUnlink,
               let remoteAccountID = line.remoteAccountID,
               let remote = remoteAccounts.first(where: { $0.accountID == remoteAccountID }) else {
             return line.name
@@ -472,7 +554,7 @@ final class BankSyncViewModel {
         guard let line = selectedLine, !isLinkWriteInFlight else {
             return
         }
-        guard line.isSyncable else {
+        guard line.canUnlink else {
             phase = .failed(
                 BankSyncWorkflows.BankSyncStoreError.notSimpleFINLinked.localizedDescription
             )
@@ -497,21 +579,27 @@ final class BankSyncViewModel {
 
 private extension BankSyncWorkflows.BankSyncAccountStatusRow {
     func toLine(lastRunFailure: BankSyncWholeRequestFailure?) -> BankSyncViewModel.AccountLine {
-        BankSyncViewModel.AccountLine(
+        let provider = isLinked ? BankSyncProviderKind(syncSource: syncSource) : nil
+        return BankSyncViewModel.AccountLine(
             id: id,
             name: name,
             isLinked: isLinked,
-            isSyncable: isLinked && BankSyncLinkEligibility.isSimpleFIN(syncSource: syncSource),
+            provider: provider,
             remoteAccountID: remoteAccountID,
             lastSyncText: BankSyncCopy.lastSyncText(
                 epochMilliseconds: lastSyncEpochMilliseconds,
                 isLinked: isLinked
             ),
-            statusText: BankSyncCopy.statusText(durableStatus: durableStatus, lastRunFailure: lastRunFailure),
+            statusText: BankSyncCopy.statusText(
+                durableStatus: durableStatus,
+                lastRunFailure: lastRunFailure,
+                provider: provider
+            ),
             statusColorKind: BankSyncCopy.statusColorKind(
                 durableStatus: durableStatus,
                 isLinked: isLinked
-            )
+            ),
+            linkedFooterText: BankSyncCopy.linkedFooter(provider: provider, durableStatus: durableStatus)
         )
     }
 }
@@ -541,7 +629,7 @@ private extension BankSyncReview.AccountPlan {
             problemSummary: BankSyncCopy.problemSummary(problems),
             statusText: durableStatus == .ok
                 ? (applied ? nil : "Not saved")
-                : "Skipped · \(BankSyncCopy.statusText(durableStatus: durableStatus.rawValue) ?? "Failed")",
+                : "Skipped · \(BankSyncCopy.statusText(durableStatus: durableStatus.rawValue, provider: BankSyncProviderKind(syncSource: link.syncSource)) ?? "Failed")",
             openingBalanceText: (applied ? openingBalance : nil).map {
                 currency.formatted($0.amountMinorUnits)
             }

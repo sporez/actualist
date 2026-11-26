@@ -17,9 +17,11 @@ enum BankSyncCopy {
 
     /// A generic failure left by a whole-request failure reads "Not synced":
     /// the cause is shown once in the last result, not on every account.
+    /// Enable Banking consent is renewed only in the Actual web app.
     static func statusText(
         durableStatus: String?,
-        lastRunFailure: BankSyncWholeRequestFailure? = nil
+        lastRunFailure: BankSyncWholeRequestFailure? = nil,
+        provider: BankSyncProviderKind? = nil
     ) -> String? {
         guard let durableStatus, durableStatus != "ok" else {
             return nil
@@ -31,7 +33,9 @@ enum BankSyncCopy {
         case "attention-required":
             return "Needs attention"
         case "reauth-required":
-            return "Reconnect required"
+            return provider == .enableBanking ? "Reconnect in Actual web app" : "Reconnect required"
+        case "not-configured":
+            return "Not set up on server"
         case "rate-limit-exceeded":
             return "Rate limited"
         case "timed-out":
@@ -57,21 +61,64 @@ enum BankSyncCopy {
         }
     }
 
-    static func providerText(support: SimpleFINServerSupport?, hasDeviceKey: Bool, isDemoMode: Bool) -> String {
-        if isDemoMode {
-            return "Unavailable in demo mode"
-        }
-        switch support {
-        case .configured:
-            return "SimpleFIN via your server"
-        case .notConfigured, .unsupported, nil:
-            return hasDeviceKey ? "SimpleFIN on this device" : "Not connected"
+    /// The sheet footer of a linked account.
+    static func linkedFooter(provider: BankSyncProviderKind?, durableStatus: String?) -> String {
+        switch provider {
+        case .simpleFIN:
+            return "Unlinking keeps this account’s transactions. Only the bank connection is removed."
+        case .enableBanking:
+            if durableStatus == ActualBankSyncDurableStatus.reauthRequired.rawValue {
+                return "Your bank needs you to sign in again. Reconnect this account in the Actual web app, then sync here."
+            }
+            return "This account syncs through Enable Banking. Link, reconnect or unlink it in the Actual web app."
+        case nil:
+            return "This account is linked through another bank provider. Unlink it in the Actual web app first."
         }
     }
 
-    static func connectionFooter(support: SimpleFINServerSupport?, hasDeviceKey: Bool, isDemoMode: Bool) -> String? {
+    /// Why the link sheet lists no SimpleFIN accounts. Enable Banking links
+    /// are made in the Actual web app.
+    static func linkUnavailableText(enableBanking: SimpleFINServerSupport?) -> String {
+        let simpleFIN = "Bank accounts cannot be linked because your server is not set up for SimpleFIN."
+        guard enableBanking == .configured else { return simpleFIN }
+        return simpleFIN + " To link this account to Enable Banking, use the Actual web app."
+    }
+
+    static func providerText(
+        support: SimpleFINServerSupport?,
+        hasDeviceKey: Bool,
+        enableBanking: SimpleFINServerSupport? = nil,
+        isDemoMode: Bool
+    ) -> String {
+        if isDemoMode {
+            return "Unavailable in demo mode"
+        }
+        let enableBankingOnServer = enableBanking == .configured
+        switch support {
+        case .configured:
+            return enableBankingOnServer ? "SimpleFIN and Enable Banking" : "SimpleFIN via your server"
+        case .notConfigured, .unsupported, nil:
+            switch (hasDeviceKey, enableBankingOnServer) {
+            case (true, true): return "SimpleFIN on this device · Enable Banking via your server"
+            case (true, false): return "SimpleFIN on this device"
+            case (false, true): return "Enable Banking via your server"
+            case (false, false): return "Not connected"
+            }
+        }
+    }
+
+    static func connectionFooter(
+        support: SimpleFINServerSupport?,
+        hasDeviceKey: Bool,
+        enableBanking: SimpleFINServerSupport? = nil,
+        showsSimpleFINToken: Bool = true,
+        isDemoMode: Bool
+    ) -> String? {
         if isDemoMode {
             return "Demo budgets never contact a server, so Bank Sync is unavailable."
+        }
+        if enableBanking == .configured, support == .configured || !showsSimpleFINToken {
+            return "This app and the Actual web app share the same server connection. Link Enable Banking accounts in the Actual web app."
         }
         switch support {
         case .configured:
@@ -158,6 +205,7 @@ enum BankSyncCopy {
 
     static func backgroundSyncFooter(
         support: SimpleFINServerSupport?,
+        enableBanking: SimpleFINServerSupport? = nil,
         phase: BankSyncViewModel.Phase,
         isDemoMode: Bool
     ) -> String {
@@ -167,8 +215,8 @@ enum BankSyncCopy {
         if phase == .idle || phase == .loading {
             return "Checking your server…"
         }
-        guard support == .configured else {
-            return "Works only when SimpleFIN is set up on your Actual server."
+        guard support == .configured || enableBanking == .configured else {
+            return "Works only when SimpleFIN or Enable Banking is set up on your Actual server."
         }
         return "After a background sync, linked bank accounts download automatically. You will not get a notification."
     }

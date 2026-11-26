@@ -235,10 +235,11 @@ enum BankSyncProviderKind: Hashable, Sendable {
 /// In-memory Bank Sync open-path cache, keyed by opened server URL, budget
 /// file ID and provider kind. The server can hold SimpleFIN credentials for a
 /// single budget, so two budgets on one server may see different support and
-/// remotes. Optimistic UI only; downloads still resolve the live provider.
-/// Cleared on store `reset()`. Changing SimpleFIN support for a key drops
-/// that provider's remotes because server and device-claim feeds are not
-/// interchangeable.
+/// remotes. Enable Banking credentials are server-wide, but its support uses
+/// the same key shape. Optimistic UI only; downloads still resolve the live
+/// provider. Cleared on store `reset()`. Changing SimpleFIN support for a key
+/// drops that provider's remotes because server and device-claim feeds are
+/// not interchangeable.
 struct BankSyncSessionCache: Equatable {
     private struct Key: Hashable {
         var serverURL: String
@@ -246,11 +247,23 @@ struct BankSyncSessionCache: Equatable {
         var kind: BankSyncProviderKind
     }
 
-    private var simpleFINSupportByKey: [Key: SimpleFINServerSupport] = [:]
+    private var supportByKey: [Key: SimpleFINServerSupport] = [:]
     private var simpleFINRemoteAccountsByKey: [Key: [SimpleFINRemoteAccount]] = [:]
 
     func simpleFINSupport(for serverURL: String, fileID: String) -> SimpleFINServerSupport? {
-        simpleFINSupportByKey[Key(serverURL: serverURL, fileID: fileID, kind: .simpleFIN)]
+        supportByKey[Key(serverURL: serverURL, fileID: fileID, kind: .simpleFIN)]
+    }
+
+    func enableBankingSupport(for serverURL: String, fileID: String) -> SimpleFINServerSupport? {
+        supportByKey[Key(serverURL: serverURL, fileID: fileID, kind: .enableBanking)]
+    }
+
+    mutating func rememberEnableBankingSupport(
+        _ support: SimpleFINServerSupport,
+        for serverURL: String,
+        fileID: String
+    ) {
+        supportByKey[Key(serverURL: serverURL, fileID: fileID, kind: .enableBanking)] = support
     }
 
     func simpleFINRemoteAccounts(for serverURL: String, fileID: String) -> [SimpleFINRemoteAccount]? {
@@ -263,10 +276,10 @@ struct BankSyncSessionCache: Equatable {
         fileID: String
     ) {
         let key = Key(serverURL: serverURL, fileID: fileID, kind: .simpleFIN)
-        if simpleFINSupportByKey[key] != support {
+        if supportByKey[key] != support {
             simpleFINRemoteAccountsByKey[key] = nil
         }
-        simpleFINSupportByKey[key] = support
+        supportByKey[key] = support
     }
 
     mutating func rememberSimpleFINRemoteAccounts(
@@ -285,7 +298,7 @@ struct BankSyncSessionCache: Equatable {
     }
 
     mutating func clear() {
-        simpleFINSupportByKey = [:]
+        supportByKey = [:]
         simpleFINRemoteAccountsByKey = [:]
     }
 }

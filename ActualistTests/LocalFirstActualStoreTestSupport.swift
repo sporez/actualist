@@ -567,6 +567,20 @@ extension BudgetDatabase {
     }
 }
 
+extension BankSyncPlanWorkflows {
+    /// The plans of a run, throwing a SimpleFIN failure even when Enable
+    /// Banking accounts carried on, so planner tests see every failure.
+    func downloadBankSyncPlans(
+        accountIDs: [String],
+        budgetID: String,
+        deviceFallback: Bool = true
+    ) async throws -> [BankSyncReview.AccountPlan] {
+        let run = try await downloadBankSyncRun(accountIDs: accountIDs, budgetID: budgetID, deviceFallback: deviceFallback)
+        if let failure = run.simpleFINFailure { throw failure }
+        return run.plans
+    }
+}
+
 extension LocalFirstActualStore {
     /// One account's download plan through the batched planner.
     func downloadBankSyncPlan(

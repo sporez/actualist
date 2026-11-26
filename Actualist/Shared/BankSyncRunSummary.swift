@@ -47,6 +47,31 @@ struct BankSyncRunTally: Equatable, Sendable {
             + skippedSuffix
     }
 
+    /// Summary and stored cause once every plan of a run is applied. A
+    /// SimpleFIN whole-request failure names its cause; beside other accounts
+    /// that synced, it follows their result instead of replacing it. A
+    /// thrown SimpleFIN failure left its accounts without plans.
+    func completedOutcome(
+        plans: [BankSyncReview.AccountPlan],
+        simpleFINFailed: Bool
+    ) -> (summary: String, failure: BankSyncWholeRequestFailure?) {
+        let failure = plans.lazy.compactMap(\.wholeRequestFailure).first
+        if let failure, plans.allSatisfy({ $0.wholeRequestFailure != nil }) {
+            return (failure.summary, failure)
+        }
+        var summary = completedSummary(plannedCount: plans.count)
+        if let failure {
+            summary += " \(failure.otherAccountsNote)"
+        }
+        if simpleFINFailed {
+            summary += " \(Self.simpleFINNotSyncedNote)"
+        }
+        return (summary, failure)
+    }
+
+    /// Follows the summary when the SimpleFIN part of a mixed run failed.
+    static let simpleFINNotSyncedNote = "SimpleFIN accounts were not synced."
+
     /// Summary for a run that stopped early; nil when no account committed.
     func stoppedSummary(totalCount: Int) -> String? {
         guard completedCount > 0 else {

@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Half-sheet for one account: link it to a remote SimpleFIN account, or
-/// unlink it. Presenting-only; intents live in `BankSyncViewModel`.
+/// unlink it. An Enable Banking link is shown with where to manage it.
+/// Presenting-only; intents live in `BankSyncViewModel`.
 struct BankSyncAccountSheet: View {
     @Environment(AppState.self) private var appState
     @Environment(\.dismiss) private var dismiss
@@ -43,7 +44,7 @@ struct BankSyncAccountSheet: View {
                 Text(line.lastSyncText)
                     .foregroundStyle(ActualistTheme.secondaryText)
             }
-            if line.isSyncable {
+            if line.canUnlink {
                 Button(role: .destructive) {
                     Task {
                         await viewModel.unlinkSelected()
@@ -54,24 +55,17 @@ struct BankSyncAccountSheet: View {
                 }
             }
         } footer: {
-            Text(linkedFooterText)
+            Text(line.linkedFooterText)
                 .font(.caption)
                 .foregroundStyle(ActualistTheme.secondaryText)
         }
         .settingsSectionChrome()
     }
 
-    private var linkedFooterText: String {
-        if line.isSyncable {
-            return "Unlinking keeps this account’s transactions. Only the bank connection is removed."
-        }
-        return "This account is linked through another bank provider. Unlink it in the Actual web app first."
-    }
-
     private var linkSection: some View {
         Section {
             if !viewModel.canLinkAccounts {
-                Text("Bank accounts cannot be linked because your server is not set up for SimpleFIN.")
+                Text(BankSyncCopy.linkUnavailableText(enableBanking: viewModel.enableBankingSupport))
                     .foregroundStyle(ActualistTheme.secondaryText)
             } else {
                 switch viewModel.remoteAccountsStatus {

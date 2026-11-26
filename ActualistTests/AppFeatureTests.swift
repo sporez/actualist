@@ -42,12 +42,12 @@ struct AppFeatureTests {
         let state = AppState(settingsStore: settingsStore, keychain: keychain)
         state.settings.backgroundTransactionRefreshEnabled = true
 
-        await state.updateSimpleFINBackgroundSyncEnabled(true)
+        await state.updateBackgroundBankSyncEnabled(true)
         #expect(state.settings.simplefinBackgroundSyncEnabled)
         #expect(state.settings.backgroundTransactionRefreshEnabled)
         #expect(settingsStore.load().simplefinBackgroundSyncEnabled)
 
-        await state.updateSimpleFINBackgroundSyncEnabled(false)
+        await state.updateBackgroundBankSyncEnabled(false)
         #expect(!state.settings.simplefinBackgroundSyncEnabled)
         #expect(state.settings.backgroundTransactionRefreshEnabled)
         #expect(state.settings.wantsBackgroundAppRefresh)

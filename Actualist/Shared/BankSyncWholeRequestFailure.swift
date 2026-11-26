@@ -30,6 +30,23 @@ enum BankSyncWholeRequestFailure: String, Equatable, Sendable, CaseIterable {
         }
     }
 
+    /// Follows the other accounts' result when the run also synced Enable
+    /// Banking accounts.
+    var otherAccountsNote: String {
+        switch self {
+        case .serverDown:
+            "SimpleFIN accounts were not synced: your Actual server could not reach SimpleFIN."
+        case .accessRejected:
+            "SimpleFIN accounts were not synced: SimpleFIN no longer accepts the saved access."
+        case .timedOut:
+            "SimpleFIN accounts were not synced: SimpleFIN took too long to answer."
+        case .rateLimited:
+            "SimpleFIN accounts were not synced: SimpleFIN is limiting requests."
+        case .other:
+            "SimpleFIN accounts were not synced: your Actual server reported an error."
+        }
+    }
+
     /// The run result shown on the Bank Sync screen and stored as the last run.
     var summary: String {
         switch self {

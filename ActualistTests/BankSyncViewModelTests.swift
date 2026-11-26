@@ -262,7 +262,7 @@ extension LocalFirstActualStoreTests {
             support: .unsupported,
             phase: .ready,
             isDemoMode: false
-        ).contains("Works only when SimpleFIN is set up on your Actual server."))
+        ).contains("Works only when SimpleFIN or Enable Banking is set up on your Actual server."))
         #expect(BankSyncCopy.backgroundSyncFooter(
             support: .configured,
             phase: .ready,

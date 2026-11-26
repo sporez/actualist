@@ -4,8 +4,9 @@ import Foundation
 /// account in the run. SimpleFIN accounts share one provider resolution, one
 /// transactions request and one account-metadata request; Enable Banking
 /// accounts then download one at a time (`EnableBankingWorkflows`), as Actual's
-/// web Sync All does. Produces immutable review/apply plans and never writes
-/// transaction data. The store owns it.
+/// web Sync All does. A SimpleFIN failure does not stop the Enable Banking
+/// accounts of the same run. Produces immutable review/apply plans and never
+/// writes transaction data. The store owns it.
 @MainActor
 final class BankSyncPlanWorkflows {
     // The store creates this lazily and keeps it for its whole life, so the
@@ -16,12 +17,26 @@ final class BankSyncPlanWorkflows {
         self.store = store
     }
 
-    func downloadBankSyncPlans(
+    /// The plans of one download run.
+    struct DownloadRun {
+        /// In requested order. An account without a plan was not downloaded:
+        /// its SimpleFIN batch failed, or a background deadline came first.
+        var plans: [BankSyncReview.AccountPlan]
+        /// The SimpleFIN part failed while Enable Banking accounts were in the
+        /// same run. Those accounts' statuses are already recorded and they
+        /// have no plan. A run with only SimpleFIN accounts throws instead.
+        var simpleFINFailure: (any Error)?
+    }
+
+    /// `enableBankingDeadline` bounds the Enable Banking requests of a
+    /// background run (`EnableBankingWorkflows.downloads`).
+    func downloadBankSyncRun(
         accountIDs: [String],
         budgetID: String,
-        deviceFallback: Bool = true
-    ) async throws -> [BankSyncReview.AccountPlan] {
-        guard !accountIDs.isEmpty else { return [] }
+        deviceFallback: Bool = true,
+        enableBankingDeadline: ContinuousClock.Instant? = nil
+    ) async throws -> DownloadRun {
+        guard !accountIDs.isEmpty else { return DownloadRun(plans: []) }
         try Task.checkCancellation()
 
         let database = try store.requireDatabase(for: budgetID)
@@ -58,14 +73,25 @@ final class BankSyncPlanWorkflows {
             throw BankSyncWorkflows.BankSyncStoreError.staleGeneration
         }
         // A run without SimpleFIN accounts never asks the server about SimpleFIN.
+        // A SimpleFIN failure is recorded like before; it ends the run only when
+        // no Enable Banking account is left to download, as Actual's web Sync
+        // All carries on with the other providers.
+        var simpleFINFailure: (any Error)?
+        func failSimpleFIN(_ error: Error) async throws {
+            await recordBankSyncFailure(error, links: simpleFINLinks, generations: generations,
+                database: database, budgetID: budgetID)
+            guard !enableBankingIndices.isEmpty, !error.isCancellation,
+                  (error as? BankSyncWorkflows.BankSyncStoreError) != .staleGeneration else {
+                throw error
+            }
+            simpleFINFailure = error
+        }
         var provider: BankSyncWorkflows.BankSyncProvider?
         if !simpleFINIndices.isEmpty {
             do {
                 provider = try await store.bankSync.bankSyncProvider(budgetID: budgetID, deviceFallback: deviceFallback)
             } catch {
-                await recordBankSyncFailure(error, links: simpleFINLinks, generations: generations,
-                    database: database, budgetID: budgetID)
-                throw error
+                try await failSimpleFIN(error)
             }
         }
 
@@ -113,9 +139,7 @@ final class BankSyncPlanWorkflows {
             do {
                 simpleFINResponse = try await responseRequest
             } catch {
-                await recordBankSyncFailure(error, links: simpleFINLinks, generations: generations,
-                    database: database, budgetID: budgetID)
-                throw error
+                try await failSimpleFIN(error)
             }
             remoteAccounts = await accountsRequest ?? []
         }
@@ -141,27 +165,30 @@ final class BankSyncPlanWorkflows {
             budgetID: budgetID,
             database: database,
             sessionGeneration: sessionGeneration,
-            generations: generations
+            generations: generations,
+            deadline: enableBankingDeadline
         )
 
-        var prepared: [BankSyncDownloadPreparation.Prepared] = []
-        prepared.reserveCapacity(linked.count)
+        // The accounts that were downloaded, in requested order.
+        var included: [(index: Int, download: SimpleFINAccountDownload)] = []
         for (index, account) in linked.enumerated() {
-            try Task.checkCancellation()
-            let download: SimpleFINAccountDownload
             switch kinds[index] {
             case .simpleFIN:
-                // Set whenever the run has a SimpleFIN account.
-                guard let simpleFINResponse else {
-                    throw LocalFirstError.invalidLocalWrite("missing SimpleFIN response")
+                if let simpleFINResponse {
+                    included.append((index, resolvedDownload(for: account.remoteAccountID, response: simpleFINResponse)))
                 }
-                download = resolvedDownload(for: account.remoteAccountID, response: simpleFINResponse)
             case .enableBanking:
-                guard let enableBankingDownload = enableBankingDownloads[account.id] else {
-                    throw LocalFirstError.invalidLocalWrite("missing Enable Banking download")
+                if let download = enableBankingDownloads[account.id] {
+                    included.append((index, download))
                 }
-                download = enableBankingDownload
             }
+        }
+
+        var prepared: [BankSyncDownloadPreparation.Prepared] = []
+        prepared.reserveCapacity(included.count)
+        for (index, download) in included {
+            try Task.checkCancellation()
+            let account = linked[index]
             if download.hasError {
                 prepared.append(BankSyncDownloadPreparation.Prepared(download: download))
             } else {
@@ -189,28 +216,30 @@ final class BankSyncPlanWorkflows {
             throw LocalFirstError.invalidLocalWrite("missing bank sync rule preview")
         }
         var previewOffset = 0
-        for index in prepared.indices {
+        for position in prepared.indices {
             try Task.checkCancellation()
-            let count = prepared[index].candidates.count
+            let account = linked[included[position].index]
+            let count = prepared[position].candidates.count
             let projection = ImportReconcileProjection.project(
-                candidates: prepared[index].candidates,
+                candidates: prepared[position].candidates,
                 previews: Array(previews[previewOffset..<(previewOffset + count)]),
-                accountID: linked[index].id,
-                accountIsOffBudget: linked[index].offbudget
+                accountID: account.id,
+                accountIsOffBudget: account.offbudget
             )
             for source in projection.movedSources {
-                prepared[index].problems.append(
-                    .unsupportedAccountMove(remoteTransactionID: prepared[index].candidates[source].financialID)
+                prepared[position].problems.append(
+                    .unsupportedAccountMove(remoteTransactionID: prepared[position].candidates[source].financialID)
                 )
             }
-            prepared[index].projectedCandidates = projection.candidates
+            prepared[position].projectedCandidates = projection.candidates
             previewOffset += count
         }
 
         var plans: [BankSyncReview.AccountPlan] = []
-        plans.reserveCapacity(linked.count)
-        for (index, account) in linked.enumerated() {
+        plans.reserveCapacity(included.count)
+        for (position, (index, _)) in included.enumerated() {
             try Task.checkCancellation()
+            let account = linked[index]
             guard let generation = generations[account.id], store.database === database,
                   store.bankSyncGenerationByAccount[account.id] == generation else {
                 throw BankSyncWorkflows.BankSyncStoreError.staleGeneration
@@ -219,7 +248,7 @@ final class BankSyncPlanWorkflows {
                 account: account,
                 link: links[index],
                 generation: generation,
-                prepared: prepared[index],
+                prepared: prepared[position],
                 remote: remoteByID[account.remoteAccountID],
                 currency: currency,
                 payeeNames: payeeNames,
@@ -231,7 +260,7 @@ final class BankSyncPlanWorkflows {
             plan.wholeRequestFailure = kinds[index] == .simpleFIN ? simpleFINResponse?.wholeRequestFailure : nil
             plans.append(plan)
         }
-        return plans
+        return DownloadRun(plans: plans, simpleFINFailure: simpleFINFailure)
     }
 
     /// Provider failures are shared status, but local setup and cancellation

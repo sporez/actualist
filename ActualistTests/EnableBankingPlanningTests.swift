@@ -12,55 +12,10 @@ struct EnableBankingPlanningTests {
     private let support = LocalFirstActualStoreTests()
     private typealias StubSimpleFINTransport = LocalFirstActualStoreTests.StubSimpleFINTransport
     private typealias OpenedWritableStoreBundle = LocalFirstActualStoreTests.OpenedWritableStoreBundle
+    private typealias StubEnableBankingTransport = EnableBankingTestSupport.StubTransport
 
-    /// Thread-safe stub of the server's Enable Banking routes, keyed by the
-    /// remote account ID. An unlisted account answers like a server without
-    /// the routes.
-    actor StubEnableBankingTransport: EnableBankingServerTransport {
-        struct Request: Equatable {
-            let accountID: String
-            let startDate: String
-            let aspspName: String?
-        }
-
-        private var answers: [String: Result<SimpleFINAccountDownload?, ActualAPIError>]
-        private(set) var requests: [Request] = []
-        private var gate: TestLatch?
-        nonisolated let entered = TestLatch()
-
-        init(_ answers: [String: Result<SimpleFINAccountDownload?, ActualAPIError>] = [:]) {
-            self.answers = answers
-        }
-
-        func setAnswer(_ answer: Result<SimpleFINAccountDownload?, ActualAPIError>, for accountID: String) {
-            answers[accountID] = answer
-        }
-
-        func setGate(_ gate: TestLatch?) {
-            self.gate = gate
-        }
-
-        func status(token: String) async throws -> SimpleFINServerSupport { .configured }
-
-        func transactions(
-            token: String,
-            accountID: String,
-            startDate: String,
-            aspspName: String?
-        ) async throws -> SimpleFINAccountDownload? {
-            requests.append(Request(accountID: accountID, startDate: startDate, aspspName: aspspName))
-            if let gate {
-                entered.trip()
-                await gate.wait()
-            }
-            return try (answers[accountID] ?? .success(nil)).get()
-        }
-    }
-
-    /// The server's response to one fixture scenario, decoded by the production client.
     private func enableBankingDownload(_ scenarioID: String) throws -> SimpleFINAccountDownload {
-        let scenario = try EnableBankingServerFixture.load().scenario(scenarioID)
-        return try ActualServerEnableBankingClient.decodeTransactionsResponse(from: Data(scenario.bodyText.utf8))
+        try EnableBankingTestSupport.download(scenarioID)
     }
 
     private func makeEnableBankingStore(
@@ -68,36 +23,20 @@ struct EnableBankingPlanningTests {
         enableBanking: StubEnableBankingTransport,
         additionalFixtureSQL: String = ""
     ) async throws -> OpenedWritableStoreBundle {
-        let bundle = try await support.makeBankSyncStore(transport: simpleFIN, additionalFixtureSQL: additionalFixtureSQL)
-        bundle.store.seams.enableBankingTransportFactory = { _ in enableBanking }
-        return bundle
+        try await EnableBankingTestSupport.makeStore(
+            support: support, simpleFIN: simpleFIN, enableBanking: enableBanking, additionalFixtureSQL: additionalFixtureSQL
+        )
     }
 
-    /// Links an account the way the Actual web app's `linkEnableBankingAccount` leaves it.
     private func linkEnableBanking(
         _ store: LocalFirstActualStore,
         accountID: String,
         remoteAccountID: String,
         bankName: String?
     ) async throws {
-        let database = try store.requireDatabase(for: "group-1")
-        let queue = await database.queue
-        try await queue.write { db in
-            let bankID = "bank-\(accountID)"
-            try db.execute(sql: "INSERT INTO banks (id, bank_id, name) VALUES (?, ?, ?)",
-                           arguments: [bankID, remoteAccountID, bankName])
-            try db.execute(
-                sql: "UPDATE accounts SET account_id = ?, account_sync_source = 'enableBanking', bank = ? WHERE id = ?",
-                arguments: [remoteAccountID, bankID, accountID]
-            )
-        }
+        try await EnableBankingTestSupport.link(store, accountID: accountID, remoteAccountID: remoteAccountID, bankName: bankName)
     }
 
-    private func storedStatus(_ store: LocalFirstActualStore, accountID: String) async throws -> String? {
-        let database = try store.requireDatabase(for: "group-1")
-        return try await BankSyncLinkSQL.bankSyncLinkedAccounts(in: database)
-            .first { $0.id == accountID }?.bankSyncStatus
-    }
 
     // MARK: - Routing
 
@@ -143,8 +82,8 @@ struct EnableBankingPlanningTests {
         for plan in plans {
             _ = try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
-        #expect(try await storedStatus(store, accountID: "credit") == "ok")
-        #expect(try await storedStatus(store, accountID: "tracking") == "ok")
+        #expect(try await EnableBankingTestSupport.storedStatus(store, accountID: "credit") == "ok")
+        #expect(try await EnableBankingTestSupport.storedStatus(store, accountID: "tracking") == "ok")
     }
 
     @Test func enableBankingOnlyRunNeverAsksAboutSimpleFIN() async throws {
@@ -172,6 +111,97 @@ struct EnableBankingPlanningTests {
         await #expect(throws: BankSyncWorkflows.BankSyncStoreError.unsupportedProvider) {
             _ = try await bundle.store.bankSyncPlans.downloadBankSyncPlans(accountIDs: ["credit"], budgetID: "group-1")
         }
+    }
+
+    // MARK: - SimpleFIN failure and deadlines
+
+    /// Actual's web Sync All carries on with the other providers after the SimpleFIN batch fails.
+    @Test func simpleFINFailureDoesNotStopTheEnableBankingAccounts() async throws {
+        // The status answers; the transactions route is missing, so the batch throws.
+        let simpleFIN = StubSimpleFINTransport(remoteAccounts: [support.remoteAccount(balance: "0.00")], response: nil)
+        let enableBanking = StubEnableBankingTransport([
+            "eb-acct-checking": .success(try enableBankingDownload("booked-and-pending")),
+        ])
+        let bundle = try await makeEnableBankingStore(simpleFIN: simpleFIN, enableBanking: enableBanking)
+        let store = bundle.store
+        try await store.bankSync.linkBankAccount("savings", to: support.remoteAccount(), budgetID: "group-1")
+        try await linkEnableBanking(store, accountID: "credit", remoteAccountID: "eb-acct-checking", bankName: nil)
+
+        let run = try await store.bankSyncPlans.downloadBankSyncRun(accountIDs: ["savings", "credit"], budgetID: "group-1")
+
+        #expect(run.plans.map(\.link.accountID) == ["credit"])
+        #expect(run.plans.first?.inserts.count == 3)
+        #expect(run.simpleFINFailure as? BankSyncWorkflows.BankSyncStoreError == .notConfigured)
+        #expect(await enableBanking.requests.count == 1)
+        // Without Enable Banking accounts the failure still ends the run.
+        await #expect(throws: BankSyncWorkflows.BankSyncStoreError.notConfigured) {
+            _ = try await store.bankSyncPlans.downloadBankSyncRun(accountIDs: ["savings"], budgetID: "group-1")
+        }
+    }
+
+    @Test func unreachableSimpleFINRecordsItsStatusAndTheEnableBankingAccountsStillDownload() async throws {
+        let simpleFIN = StubSimpleFINTransport(failure: .transport(.cannotConnectToHost))
+        let enableBanking = StubEnableBankingTransport([
+            "eb-acct-checking": .success(try enableBankingDownload("empty-download")),
+        ])
+        let bundle = try await makeEnableBankingStore(simpleFIN: simpleFIN, enableBanking: enableBanking)
+        let store = bundle.store
+        let queue = try await store.requireDatabase(for: "group-1").queue
+        // A SimpleFIN link left by the web app; linking here would ask the unreachable server.
+        try await queue.write { db in
+            try db.execute(sql: """
+                UPDATE accounts SET account_id = 'sfin-1', account_sync_source = 'simpleFin' WHERE id = 'savings'
+                """)
+        }
+        try await linkEnableBanking(store, accountID: "credit", remoteAccountID: "eb-acct-checking", bankName: nil)
+
+        let run = try await store.bankSyncPlans.downloadBankSyncRun(accountIDs: ["savings", "credit"], budgetID: "group-1")
+
+        #expect(run.plans.map(\.link.accountID) == ["credit"])
+        #expect(run.simpleFINFailure is ActualAPIError)
+        #expect(try await EnableBankingTestSupport.storedStatus(store, accountID: "savings") == "failed")
+    }
+
+    /// A background run stops starting Enable Banking requests at its deadline; nothing is stored
+    /// for the accounts it did not reach.
+    @Test func passedDeadlineLeavesTheEnableBankingAccountsForTheNextRun() async throws {
+        let enableBanking = StubEnableBankingTransport([
+            "eb-acct-checking": .success(try enableBankingDownload("booked-and-pending")),
+        ])
+        let bundle = try await makeEnableBankingStore(enableBanking: enableBanking)
+        try await linkEnableBanking(bundle.store, accountID: "credit", remoteAccountID: "eb-acct-checking", bankName: nil)
+
+        let run = try await bundle.store.bankSyncPlans.downloadBankSyncRun(
+            accountIDs: ["credit"], budgetID: "group-1", enableBankingDeadline: .now
+        )
+
+        #expect(run.plans.isEmpty)
+        #expect(run.simpleFINFailure == nil)
+        #expect(await enableBanking.requests.isEmpty)
+        #expect(try await EnableBankingTestSupport.storedStatus(bundle.store, accountID: "credit") == nil)
+    }
+
+    @Test func requestStillRunningAtTheDeadlineIsAbandoned() async throws {
+        let enableBanking = StubEnableBankingTransport([
+            "eb-acct-checking": .success(try enableBankingDownload("booked-and-pending")),
+            "eb-acct-gbp": .success(try enableBankingDownload("non-eur-account")),
+        ])
+        let gate = TestLatch()
+        await enableBanking.setGate(gate)
+        let bundle = try await makeEnableBankingStore(enableBanking: enableBanking)
+        try await linkEnableBanking(bundle.store, accountID: "credit", remoteAccountID: "eb-acct-checking", bankName: nil)
+        try await linkEnableBanking(bundle.store, accountID: "tracking", remoteAccountID: "eb-acct-gbp", bankName: nil)
+        // The gate stays closed past the deadline, so the first request is still running at it.
+        defer { gate.trip() }
+
+        let run = try await bundle.store.bankSyncPlans.downloadBankSyncRun(
+            accountIDs: ["credit", "tracking"],
+            budgetID: "group-1",
+            enableBankingDeadline: ContinuousClock.now.advanced(by: .milliseconds(300))
+        )
+
+        #expect(run.plans.isEmpty)
+        #expect(await enableBanking.requests.map(\.accountID) == ["eb-acct-checking"])
     }
 
     // MARK: - Per-account failures
@@ -210,8 +240,8 @@ struct EnableBankingPlanningTests {
         for plan in plans {
             _ = try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
         }
-        #expect(try await storedStatus(store, accountID: "credit") == "not-configured")
-        #expect(try await storedStatus(store, accountID: "savings") == "ok")
+        #expect(try await EnableBankingTestSupport.storedStatus(store, accountID: "credit") == "not-configured")
+        #expect(try await EnableBankingTestSupport.storedStatus(store, accountID: "savings") == "ok")
     }
 
     @Test func expiredConsentIsReauthRequiredAndKeepsTheBalance() async throws {
@@ -228,7 +258,7 @@ struct EnableBankingPlanningTests {
         #expect(plan.inserts.isEmpty && plan.problems.isEmpty && plan.openingBalance == nil)
 
         _ = try await store.bankSync.applyBankSyncPlan(plan, budgetID: "group-1")
-        #expect(try await storedStatus(store, accountID: "credit") == "reauth-required")
+        #expect(try await EnableBankingTestSupport.storedStatus(store, accountID: "credit") == "reauth-required")
     }
 
     @Test func oneAccountsFailedRequestDoesNotStopTheNext() async throws {

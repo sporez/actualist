@@ -579,7 +579,8 @@ final class BackgroundTransactionWorkflow {
             ) {
                 try await applier.backgroundBankSyncApply(request: .init(
                     budgetID: budgetID,
-                    notificationID: notificationID
+                    notificationID: notificationID,
+                    timeLimit: remainingTime
                 ))
             }
             let insertedCount = result.insertedTransactionIDsByAccount
