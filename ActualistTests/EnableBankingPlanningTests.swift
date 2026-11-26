@@ -358,6 +358,43 @@ struct EnableBankingPlanningTests {
         #expect(plan.problems.map(\.message) == ["Missing transaction ID"])
     }
 
+    /// The bank names no counterparty and no remittance line: like Actual, the row imports without
+    /// a payee instead of blocking the account. SimpleFIN keeps refusing a row without one.
+    @Test func enableBankingRowWithoutAPayeeImportsWithoutOne() async throws {
+        let enableBanking = StubEnableBankingTransport([
+            "eb-acct-checking": .success(try enableBankingDownload("payee-and-sign")),
+        ])
+        let simpleFIN = StubSimpleFINTransport(
+            remoteAccounts: [support.remoteAccount(balance: "0.00")],
+            response: SimpleFINTransactionsResponse(
+                downloads: ["sfin-1": SimpleFINAccountDownload(
+                    transactions: [support.remoteTransaction(id: "sf-1", amount: "-10.00", dayID: "20261001", payeeName: " ")],
+                    startingBalance: nil, errorType: nil, errorCode: nil
+                )],
+                errorType: nil, errorCode: nil
+            )
+        )
+        let bundle = try await makeEnableBankingStore(simpleFIN: simpleFIN, enableBanking: enableBanking)
+        let store = bundle.store
+        try await store.bankSync.linkBankAccount("savings", to: support.remoteAccount(), budgetID: "group-1")
+        try await linkEnableBanking(store, accountID: "credit", remoteAccountID: "eb-acct-checking", bankName: nil)
+
+        let plans = try await store.bankSyncPlans.downloadBankSyncPlans(accountIDs: ["credit", "savings"], budgetID: "group-1")
+
+        let credit = try #require(plans.first)
+        #expect(credit.problems.isEmpty)
+        #expect(credit.inserts.count == 5)
+        let noPayee = try #require(credit.inserts.last)
+        #expect(noPayee.financialID == "eb-ref-4005")
+        #expect(noPayee.payeeID == nil)
+        #expect(noPayee.payeeName == nil)
+        #expect(noPayee.importedPayee == "")
+        #expect(plans.last?.problems.map(\.message) == ["Missing payee"])
+
+        let result = try await store.bankSync.applyBankSyncPlan(credit, budgetID: "group-1")
+        #expect(result.insertedCount == 5)
+    }
+
     /// A pending card payment the bank later books under a different ID updates the imported row.
     @Test func pendingRowBookedUnderANewIDUpdatesInsteadOfDuplicating() async throws {
         let enableBanking = StubEnableBankingTransport([

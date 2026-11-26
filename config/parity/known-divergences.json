@@ -917,22 +917,9 @@
       ],
       "summary": "An Enable Banking row without an entry reference or transaction ID is imported with no imported ID (NULL), where the pinned Actual stores an empty string (transactionId ''). Both then match it by amount and date only. Cause: BankSyncDownloadPreparation.prepare turns a blank ID into nil, because ImportedIDAbsence and the reconciler treat every non-nil ID as a real provider ID.",
       "opened": "2026-11-25",
-      "status": "open",
-      "reviewBy": "2026-12-09"
-    },
-    {
-      "id": "OP-125",
-      "domain": "bank-sync-matching",
-      "cases": [
-        "BankSyncOracleReplayTests/replaysBankSyncCase"
-      ],
-      "fixtureCases": [
-        "named-enablebanking-payee-and-sign"
-      ],
-      "summary": "An Enable Banking row with no counterparty name and no remittance text (payeeName '') is a blocking Missing payee problem, so nothing in that account is imported. The pinned Actual imports it without a payee and with an empty imported payee. Cause: BankSyncDownloadPreparation.prepare requires a non-empty payee name for every provider.",
-      "opened": "2026-11-25",
-      "status": "open",
-      "reviewBy": "2026-12-09"
+      "status": "intended",
+      "decided": "2026-11-26",
+      "reason": "User decision 2026-11-26: keep NULL. Blank and absent IDs match the same way, an empty string would trip the imported-ID absence check, and nothing a user sees differs."
     },
     {
       "id": "OP-126",
@@ -945,8 +932,9 @@
       ],
       "summary": "When the bank lists no balance, the pinned Actual stores the server's startingBalance 0 as the account balance; Actualist clears the balance. Cause: ActualServerEnableBankingClient.decodeTransactionsResponse keeps no balance evidence without a balance row, so BankSyncBalancePlanning.disposition clears it.",
       "opened": "2026-11-25",
-      "status": "open",
-      "reviewBy": "2026-12-09"
+      "status": "intended",
+      "decided": "2026-11-26",
+      "reason": "User decision 2026-11-26: keep clearing the balance. The server's 0 is a default it sends when the bank lists no balance, not a balance."
     }
   ]
 }

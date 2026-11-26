@@ -69,7 +69,6 @@ struct BankSyncOracleReplayTests {
         let op68 = take(Self.op68Paths)
         let op123 = take(Self.op123Paths)
         let op124 = take(Self.op124Paths)
-        let op125 = take(Self.op125Paths)
         let op126 = take(Self.op126Paths)
 
         #expect(remaining.isEmpty, Comment(rawValue: OracleComparison.report(caseID, remaining)))
@@ -116,11 +115,6 @@ struct BankSyncOracleReplayTests {
         if let op124 {
             withKnownIssue("OP-124: an Enable Banking row without an ID stores no imported ID, where the oracle stores an empty one") {
                 #expect(op124.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op124)))
-            }
-        }
-        if let op125 {
-            withKnownIssue("OP-125: an Enable Banking row without a payee blocks the account, where the oracle imports it") {
-                #expect(op125.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op125)))
             }
         }
         if let op126 {
@@ -180,10 +174,6 @@ struct BankSyncOracleReplayTests {
     private static let op124Paths: [String: Set<String>] = [
         "named-enablebanking-empty-ids-match-existing": ["candidate[2].imported_id", "candidate[3].imported_id"],
         "named-enablebanking-empty-transaction-id": ["candidate[2].imported_id", "candidate[3].imported_id", "transactions.new-1.amount", "transactions.new-1.date", "transactions.new-1.imported_id", "transactions.new-1.imported_payee", "transactions.new-1.payee", "transactions.new-2.amount", "transactions.new-2.date", "transactions.new-2.imported_id", "transactions.new-2.imported_payee", "transactions.new-2.payee", "transactions.new-3.amount", "transactions.new-3.date", "transactions.new-3.imported_id", "transactions.new-3.imported_payee", "transactions.new-3.payee", "transactions.new-4.amount", "transactions.new-4.date", "transactions.new-4.imported_id", "transactions.new-4.imported_payee", "transactions.new-4.payee"],
-    ]
-
-    private static let op125Paths: [String: Set<String>] = [
-        "named-enablebanking-payee-and-sign": ["problems", "candidates", "result.addedCount", "transactions.new-5"],
     ]
 
     private static let op126Paths: [String: Set<String>] = [

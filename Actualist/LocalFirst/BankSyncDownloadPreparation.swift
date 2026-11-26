@@ -121,7 +121,12 @@ enum BankSyncDownloadPreparation {
             }
             let payeeName = mapped.payeeName?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard payeeName?.isEmpty == false else {
+            // Enable Banking sends `payeeName: ''` when the bank names no
+            // counterparty and no remittance line; Actual imports that row
+            // without a payee and with an empty imported payee. A SimpleFIN
+            // row always names one, so a missing name is unreadable there.
+            let importsWithoutPayee = provider == .enableBanking && payeeName?.isEmpty == true
+            guard payeeName?.isEmpty == false || importsWithoutPayee else {
                 prepared.problems.append(.init(
                     remoteTransactionID: problemID,
                     message: "Missing payee"
@@ -132,8 +137,8 @@ enum BankSyncDownloadPreparation {
                 financialID: financialID,
                 dayID: dayID,
                 amountMinorUnits: amount,
-                payeeID: payeeName.flatMap { payeeIDsByName[$0.lowercased()] },
-                payeeName: payeeName,
+                payeeID: importsWithoutPayee ? nil : payeeName.flatMap { payeeIDsByName[$0.lowercased()] },
+                payeeName: importsWithoutPayee ? nil : payeeName,
                 notes: mapped.notes,
                 categoryID: nil,
                 // Actual core uses `Boolean(trans.booked)`: an absent or
