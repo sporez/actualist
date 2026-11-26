@@ -372,6 +372,7 @@
       ],
       "domain": "bank-sync-matching",
       "fixtureCases": [
+        "named-enablebanking-opening-balance-pending-off",
         "named-opening-balance-date-from-last-row"
       ],
       "id": "OP-60",
@@ -888,6 +889,64 @@
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11 (OP-32): Actualist does not add automatic 'Reassigned' month notes on moves or covers, so its undo has no note to clear."
+    },
+    {
+      "id": "OP-123",
+      "domain": "bank-sync-matching",
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "fixtureCases": [
+        "named-enablebanking-currency-mismatch"
+      ],
+      "summary": "An Enable Banking row in a currency other than the budget's is a blocking problem, so nothing in that account is imported, and a balance in another currency is cleared. The pinned Actual imports the row's amount as if it were in the budget's currency and stores the balance. Cause: BankSyncDownloadPreparation.prepare refuses a row whose currency BudgetCurrency.accepts rejects, and BankSyncBalancePlanning.disposition clears such a balance.",
+      "opened": "2026-11-25",
+      "status": "intended",
+      "decided": "2026-11-08",
+      "reason": "User decision 2026-11-08 (Enable Banking plan): keep Actualist's strict currency check for Enable Banking as for SimpleFIN. An amount in another currency cannot be read in the budget's units."
+    },
+    {
+      "id": "OP-124",
+      "domain": "bank-sync-matching",
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "fixtureCases": [
+        "named-enablebanking-empty-ids-match-existing",
+        "named-enablebanking-empty-transaction-id"
+      ],
+      "summary": "An Enable Banking row without an entry reference or transaction ID is imported with no imported ID (NULL), where the pinned Actual stores an empty string (transactionId ''). Both then match it by amount and date only. Cause: BankSyncDownloadPreparation.prepare turns a blank ID into nil, because ImportedIDAbsence and the reconciler treat every non-nil ID as a real provider ID.",
+      "opened": "2026-11-25",
+      "status": "open",
+      "reviewBy": "2026-12-09"
+    },
+    {
+      "id": "OP-125",
+      "domain": "bank-sync-matching",
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "fixtureCases": [
+        "named-enablebanking-payee-and-sign"
+      ],
+      "summary": "An Enable Banking row with no counterparty name and no remittance text (payeeName '') is a blocking Missing payee problem, so nothing in that account is imported. The pinned Actual imports it without a payee and with an empty imported payee. Cause: BankSyncDownloadPreparation.prepare requires a non-empty payee name for every provider.",
+      "opened": "2026-11-25",
+      "status": "open",
+      "reviewBy": "2026-12-09"
+    },
+    {
+      "id": "OP-126",
+      "domain": "bank-sync-matching",
+      "cases": [
+        "BankSyncOracleReplayTests/replaysBankSyncCase"
+      ],
+      "fixtureCases": [
+        "named-enablebanking-empty-balances"
+      ],
+      "summary": "When the bank lists no balance, the pinned Actual stores the server's startingBalance 0 as the account balance; Actualist clears the balance. Cause: ActualServerEnableBankingClient.decodeTransactionsResponse keeps no balance evidence without a balance row, so BankSyncBalancePlanning.disposition clears it.",
+      "opened": "2026-11-25",
+      "status": "open",
+      "reviewBy": "2026-12-09"
     }
   ]
 }

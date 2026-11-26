@@ -67,6 +67,10 @@ struct BankSyncOracleReplayTests {
         let op62 = take(Self.op62Paths)
         let op66 = take(Self.op66Paths)
         let op68 = take(Self.op68Paths)
+        let op123 = take(Self.op123Paths)
+        let op124 = take(Self.op124Paths)
+        let op125 = take(Self.op125Paths)
+        let op126 = take(Self.op126Paths)
 
         #expect(remaining.isEmpty, Comment(rawValue: OracleComparison.report(caseID, remaining)))
         if let op58 {
@@ -104,6 +108,26 @@ struct BankSyncOracleReplayTests {
                 #expect(op68.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op68)))
             }
         }
+        if let op123 {
+            withKnownIssue("OP-123: an Enable Banking row in another currency blocks the account, where the oracle imports it") {
+                #expect(op123.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op123)))
+            }
+        }
+        if let op124 {
+            withKnownIssue("OP-124: an Enable Banking row without an ID stores no imported ID, where the oracle stores an empty one") {
+                #expect(op124.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op124)))
+            }
+        }
+        if let op125 {
+            withKnownIssue("OP-125: an Enable Banking row without a payee blocks the account, where the oracle imports it") {
+                #expect(op125.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op125)))
+            }
+        }
+        if let op126 {
+            withKnownIssue("OP-126: no bank balance clears the account balance, where the oracle stores 0") {
+                #expect(op126.isEmpty, Comment(rawValue: OracleComparison.report(caseID, op126)))
+            }
+        }
     }
 
     // MARK: Known divergences (config/parity/known-divergences.json)
@@ -120,6 +144,7 @@ struct BankSyncOracleReplayTests {
 
     private static let op60Paths: [String: Set<String>] = [
         "named-opening-balance-date-from-last-row": ["transactions.new-3.date"],
+        "named-enablebanking-opening-balance-pending-off": ["transactions.new-3.date"],
     ]
 
     private static let op61Paths: [String: Set<String>] = [
@@ -142,6 +167,27 @@ struct BankSyncOracleReplayTests {
     private static let op66Paths: [String: Set<String>] = [
         "gen-payee-name-009": ["transactions.new-1.payee", "transactions.new-2.payee", "payees.new-payee:  padded name  ", "payees.new-payee:padded name"],
         "named-rule-imported-payee-simplefin": ["transactions.new-1.payee", "payees.new-payee:  WHOLE FOODS #123  ", "payees.new-payee:WHOLE FOODS #123"],
+    ]
+
+    private static let op123Paths: [String: Set<String>] = [
+        "named-enablebanking-currency-mismatch": [
+            "problems", "candidates", "balance_current", "result.addedCount", "transactions.new-1",
+            "payees.new-payee:Synthetic London Shop",
+        ],
+    ]
+
+    /// The blank ID sorts before the others, so the content-derived names of every new row shift.
+    private static let op124Paths: [String: Set<String>] = [
+        "named-enablebanking-empty-ids-match-existing": ["candidate[2].imported_id", "candidate[3].imported_id"],
+        "named-enablebanking-empty-transaction-id": ["candidate[2].imported_id", "candidate[3].imported_id", "transactions.new-1.amount", "transactions.new-1.date", "transactions.new-1.imported_id", "transactions.new-1.imported_payee", "transactions.new-1.payee", "transactions.new-2.amount", "transactions.new-2.date", "transactions.new-2.imported_id", "transactions.new-2.imported_payee", "transactions.new-2.payee", "transactions.new-3.amount", "transactions.new-3.date", "transactions.new-3.imported_id", "transactions.new-3.imported_payee", "transactions.new-3.payee", "transactions.new-4.amount", "transactions.new-4.date", "transactions.new-4.imported_id", "transactions.new-4.imported_payee", "transactions.new-4.payee"],
+    ]
+
+    private static let op125Paths: [String: Set<String>] = [
+        "named-enablebanking-payee-and-sign": ["problems", "candidates", "result.addedCount", "transactions.new-5"],
+    ]
+
+    private static let op126Paths: [String: Set<String>] = [
+        "named-enablebanking-empty-balances": ["balance_current"],
     ]
 
     private static let op68Paths: [String: Set<String>] = [

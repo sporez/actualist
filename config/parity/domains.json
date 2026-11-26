@@ -452,7 +452,7 @@
         "Actualist/LocalFirst/Database/BankSyncRunSQL.swift",
         "Actualist/Shared/TransactionCSVImportCandidates.swift"
       ],
-      "notes": "484 cases (380 seeded, 104 named) through Actual's reconcileTransactions. BankSyncOracleReplayTests replays 465 through the shared import path (previewRules, ImportReconcileProjection, reconcileProjectedImport, importReconcileWrites). 19 are oracle-only. Provider mapping (BankSyncDownloadPreparation) and the CSV parser are not covered."
+      "notes": "500 cases (380 seeded, 120 named) through Actual's reconcileTransactions, simpleFinBatchSync and, for Enable Banking, the accounts-bank-sync handler fed the recorded server responses of the enable-banking-server fixture. BankSyncOracleReplayTests replays 481 through the shared import path (previewRules, ImportReconcileProjection, reconcileProjectedImport, importReconcileWrites); the 16 Enable Banking cases first run the production client decoder and BankSyncDownloadPreparation and also compare the stored status. 19 are oracle-only. SimpleFIN provider mapping and the CSV parser are not covered."
     },
     {
       "id": "enable-banking-server",

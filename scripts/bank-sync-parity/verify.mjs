@@ -28,6 +28,7 @@ const helperPaths = [
   'scripts/bank-sync-parity/oracle-runner.template',
   'scripts/parity/lib/oracle-pin.mjs',
   'scripts/parity/lib/fixture-diff.mjs',
+  'ActualistTests/Fixtures/ActualCore26_11_0/EnableBankingServer/enablebanking-server-contract.json',
 ];
 const INPUT_TABLES = ['rules', 'schedules', 'transactions'];
 const AFTER_TABLES = ['accounts', 'payees', 'transactions', 'rules'];
@@ -157,7 +158,8 @@ if (!Array.isArray(contract.cases) || contract.cases.length !== plan.cases.lengt
       const dumped = (record.input?.transactions ?? []).find(transaction => transaction.id === planned.id);
       if (dumped && Number(dumped.tombstone) !== 1) note(`${where}: ${planned.id} is not a tombstone in the input dump`);
     }
-    if (record.error === null && record.call.kind !== 'simplefin') {
+    const providerError = planCase.tags.includes('provider-error');
+    if (record.error === null && record.call.kind !== 'simplefin' && !providerError) {
       for (const field of ['added', 'updated', 'updatedPreview']) {
         if (!Array.isArray(record.result?.[field])) note(`${where}: result.${field} is missing`);
       }

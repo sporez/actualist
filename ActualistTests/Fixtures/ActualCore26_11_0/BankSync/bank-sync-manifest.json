@@ -7,16 +7,16 @@
   },
   "generator": {
     "command": "ACTUALIST_PARITY_ORACLE_ROOT=<pinned-actual> node scripts/bank-sync-parity/generate.mjs",
-    "sha256": "92de9705a79dbb53283c050351088e85bef82b00fb6b76494efeb7c1b1ecf471"
+    "sha256": "3933c7f7f41be62e3cf823cecaa47effaf03a55f9d96f229a5b08300d658a4e3"
   },
   "helpers": [
     {
       "path": "scripts/bank-sync-parity/cases.mjs",
-      "sha256": "c9bf310658dc59728adc1716122bab2403cf9270cade235595e99fb534c6a949"
+      "sha256": "3a1b2a9bb8bd750089ff4867e67f17cdb1772fb95790b382bd24f2db279a4880"
     },
     {
       "path": "scripts/bank-sync-parity/oracle-runner.template",
-      "sha256": "1142cf4ee2fb59943b0088e1299a5db3144be4df6fb172932d7aa1dc98b97e50"
+      "sha256": "a35fdbc19e1dec364e1872240832d08a71f3904450522180382875a3f74c3a32"
     },
     {
       "path": "scripts/parity/lib/oracle-pin.mjs",
@@ -25,14 +25,18 @@
     {
       "path": "scripts/parity/lib/fixture-diff.mjs",
       "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    },
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_11_0/EnableBankingServer/enablebanking-server-contract.json",
+      "sha256": "214f4325e30801834d561c6674a247ef71faf1a45fc3500b356738b84869b4ab"
     }
   ],
   "seed": 20261011,
   "today": "2026-10-15",
   "timeZone": "America/New_York",
   "generatedCaseCount": 380,
-  "namedCaseCount": 104,
-  "caseCount": 484,
+  "namedCaseCount": 120,
+  "caseCount": 500,
   "amountUnits": "integer minor units in reconcile calls and recorded rows; provider downloads carry SimpleFIN decimal strings",
   "execution": "Actual reconcileTransactions (isBankSyncAccount false for file imports, true for a direct provider call) and simpleFinBatchSync over a mocked provider response (the full bank-sync path including the first-sync Starting Balance row), on an offline in-memory SQLite database; rules are inserted with insertRule and loaded with loadRules; schedules are created with createSchedule",
   "scope": "synthetic local reconcile only; no server round trip",
@@ -50,6 +54,10 @@
     "amounts in recorded rows are never normalized"
   ],
   "sourceFiles": [
+    {
+      "path": "packages/loot-core/src/server/accounts/app.ts",
+      "sha256": "d2303dee45557d54ce21daa7ecfab49cba4440b334dd5abe1e1318ef5fb79e1d"
+    },
     {
       "path": "packages/loot-core/src/server/accounts/sync.ts",
       "sha256": "e728b198a3abd8654e1bab7be20fc798e410f417729cbf36046dbbc41b430cc5"
@@ -130,8 +138,8 @@
   "fixtures": [
     {
       "path": "ActualistTests/Fixtures/ActualCore26_11_0/BankSync/bank-sync-contract.json",
-      "sha256": "5c0429927da7aa0f7cd6470c87a7f35fadc85f29e8f8e64d83b15d71ec3caf92",
-      "caseCount": 484,
+      "sha256": "636beb3c271dad383753744c46e5130364165a86d3b3fd0e572d32630e33552b",
+      "caseCount": 500,
       "caseIDs": [
         "named-rule-moves-account-csv",
         "named-rule-moves-account-simplefin",
@@ -616,7 +624,23 @@
         "gen-update-dates-027",
         "gen-update-dates-028",
         "gen-update-dates-029",
-        "gen-update-dates-030"
+        "gen-update-dates-030",
+        "named-enablebanking-booked-and-pending",
+        "named-enablebanking-empty-transaction-id",
+        "named-enablebanking-empty-ids-match-existing",
+        "named-enablebanking-value-date-fallback",
+        "named-enablebanking-payee-and-sign",
+        "named-enablebanking-opening-balance-pending-off",
+        "named-enablebanking-opening-balance",
+        "named-enablebanking-pending-later-booked",
+        "named-enablebanking-currency-mismatch",
+        "named-enablebanking-empty-balances",
+        "named-enablebanking-no-bank-name",
+        "named-enablebanking-error-expired-session",
+        "named-enablebanking-error-rate-limited",
+        "named-enablebanking-error-not-found",
+        "named-enablebanking-error-timeout",
+        "named-enablebanking-error-not-configured"
       ]
     }
   ],
@@ -639,27 +663,27 @@
     },
     {
       "id": "named-import-pending-off",
-      "reason": "the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
+      "reason": "the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
     },
     {
       "id": "named-import-notes-off",
-      "reason": "the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
+      "reason": "the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
     },
     {
       "id": "named-import-notes-hash-escape",
-      "reason": "the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
+      "reason": "the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
     },
     {
       "id": "named-custom-mapping",
-      "reason": "the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
+      "reason": "the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
     },
     {
       "id": "named-provider-category-valid",
-      "reason": "the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
+      "reason": "the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
     },
     {
       "id": "named-provider-zero-amount",
-      "reason": "the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
+      "reason": "the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing"
     },
     {
       "id": "named-provider-missing-payee-name",

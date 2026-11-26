@@ -501,5 +501,26 @@ enum BankSyncOracleCaseIDs {
         "gen-update-dates-030",
     ]
 
-    nonisolated static let replayed: [String] = named + generatedFuzzy + generatedMulti + generatedBoundary + generatedImportedId + generatedPayeeName + generatedMerge + generatedUpdateDates
+    /// Enable Banking downloads: the recorded server response through the production client and
+    /// download preparation, then the shared reconcile.
+    nonisolated static let enableBanking: [String] = [
+        "named-enablebanking-booked-and-pending",
+        "named-enablebanking-empty-transaction-id",
+        "named-enablebanking-empty-ids-match-existing",
+        "named-enablebanking-value-date-fallback",
+        "named-enablebanking-payee-and-sign",
+        "named-enablebanking-opening-balance-pending-off",
+        "named-enablebanking-opening-balance",
+        "named-enablebanking-pending-later-booked",
+        "named-enablebanking-currency-mismatch",
+        "named-enablebanking-empty-balances",
+        "named-enablebanking-no-bank-name",
+        "named-enablebanking-error-expired-session",
+        "named-enablebanking-error-rate-limited",
+        "named-enablebanking-error-not-found",
+        "named-enablebanking-error-timeout",
+        "named-enablebanking-error-not-configured",
+    ]
+
+    nonisolated static let replayed: [String] = named + enableBanking + generatedFuzzy + generatedMulti + generatedBoundary + generatedImportedId + generatedPayeeName + generatedMerge + generatedUpdateDates
 }

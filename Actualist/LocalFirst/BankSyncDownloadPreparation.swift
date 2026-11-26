@@ -19,6 +19,18 @@ enum BankSyncDownloadPreparation {
         }
     }
 
+    /// Non-transfer payees by lowercased name, the first in `payees` order
+    /// winning: the payee a downloaded name resolves to before rules run.
+    static func payeeIDsByName(_ payees: [ActualPayee]) -> [String: String] {
+        payees.reduce(into: [String: String]()) { result, payee in
+            guard payee.transferAccount == nil, let id = payee.id else { return }
+            let key = payee.name.lowercased()
+            if result[key] == nil {
+                result[key] = id
+            }
+        }
+    }
+
     static func prepare(
         _ download: SimpleFINAccountDownload,
         provider: BankSyncProviderKind,

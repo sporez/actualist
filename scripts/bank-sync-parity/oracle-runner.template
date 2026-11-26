@@ -2,13 +2,14 @@
 // Written into the pinned Actual checkout by scripts/bank-sync-parity/generate.mjs
 // and removed after the run. Each case builds a synthetic budget through
 // upstream's own db and schedule functions, loads the rules the way budget load
-// does, runs upstream's reconcile path (reconcileTransactions, or
-// simpleFinBatchSync for a provider download), and records the result plus the
-// tables before and after.
+// does, runs upstream's reconcile path (reconcileTransactions, simpleFinBatchSync
+// for a SimpleFIN download, or the accounts-bank-sync handler for an Enable
+// Banking download), and records the result plus the tables before and after.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, vi } from 'vitest';
 
 import * as asyncStorage from '#platform/server/asyncStorage';
+import { app as accountsApp } from '#server/accounts/app';
 import { reconcileTransactions, simpleFinBatchSync } from '#server/accounts/sync';
 import * as db from '#server/db';
 import { loadMappings } from '#server/db/mappings';
@@ -30,6 +31,20 @@ vi.mock('#server/transactions/transaction-rules', async importOriginal => {
     runRules: (transaction, accountsMap) => {
       globalThis.__bankSyncRuleInputs?.push(JSON.parse(JSON.stringify(transaction)));
       return original.runRules(transaction, accountsMap);
+    },
+  };
+});
+
+// The accounts-bank-sync handler reports only ids; its syncAccount call returns
+// the reconcile result (added, updated, updatedPreview) the replay compares.
+vi.mock('#server/accounts/sync', async importOriginal => {
+  const original = await importOriginal();
+  return {
+    ...original,
+    syncAccount: async (...args) => {
+      const result = await original.syncAccount(...args);
+      globalThis.__bankSyncAccountResult = result;
+      return result;
     },
   };
 });
@@ -187,16 +202,57 @@ function normalizeMintedIds(result, candidates, after) {
   return { result: visit(result), candidates: visit(candidates), after: visit(after) };
 }
 
-async function runCall(planned, world) {
+async function mockUserToken() {
+  if (typeof asyncStorage.getItem.mockResolvedValue === 'function') {
+    asyncStorage.getItem.mockResolvedValue('test-token');
+  } else {
+    await asyncStorage.setItem('user-token', 'test-token');
+  }
+}
+
+// An Enable Banking download through the handler the web app's Sync All
+// calls, so the stored bank_sync_status and last_sync are upstream's own.
+// Returns syncAccount's reconcile result; the handler's own result and the
+// request loot-core posted are recorded beside it.
+async function runEnableBanking(planned, extra) {
+  const { scenario, aspspName, providerID } = planned.options;
+  db.runQuery('INSERT INTO banks (id, bank_id, name, tombstone) VALUES (?, ?, ?, 0)', [
+    `bank-${planned.accountId}`, providerID, aspspName,
+  ]);
+  await db.update('accounts', {
+    id: planned.accountId,
+    account_id: providerID,
+    bank: `bank-${planned.accountId}`,
+    account_sync_source: 'enableBanking',
+  });
+  await mockUserToken();
+  if (typeof asyncStorage.multiGet.mockResolvedValue === 'function') {
+    asyncStorage.multiGet.mockResolvedValue({ 'user-id': 'test-user', 'user-key': 'test-key' });
+  }
+  extra.providerRequests = [];
+  handlers['/enablebanking/transactions'] = data => {
+    extra.providerRequests.push(JSON.parse(JSON.stringify(data)));
+    return JSON.parse(JSON.stringify(planned.download));
+  };
+  globalThis.__bankSyncAccountResult = null;
+  try {
+    extra.handlerResult = await accountsApp.handlers['accounts-bank-sync']({ ids: [planned.accountId] });
+  } finally {
+    delete handlers['/enablebanking/transactions'];
+  }
+  if (!scenario) throw new Error('an enablebanking call names its scenario');
+  return globalThis.__bankSyncAccountResult;
+}
+
+async function runCall(planned, world, extra) {
   const transactions = JSON.parse(JSON.stringify(planned.transactions));
+  if (planned.kind === 'enablebanking') {
+    return runEnableBanking(planned, extra);
+  }
   if (planned.kind === 'simplefin') {
     const account = world.accounts.find(candidate => candidate.id === planned.accountId);
     // The provider download needs a user token; the test file mocks getItem the same way.
-    if (typeof asyncStorage.getItem.mockResolvedValue === 'function') {
-      asyncStorage.getItem.mockResolvedValue('test-token');
-    } else {
-      await asyncStorage.setItem('user-token', 'test-token');
-    }
+    await mockUserToken();
     handlers['/simplefin/transactions'] = () => ({
       [account.providerID]: {
         transactions: { all: transactions, booked: [], pending: [] },
@@ -235,8 +291,9 @@ test('bank sync parity oracle contract', async () => {
       globalThis.__bankSyncRuleInputs = [];
       let result = null;
       let error = null;
+      const extra = {};
       try {
-        result = await runCall(planCase.call, plan.world);
+        result = await runCall(planCase.call, plan.world, extra);
       } catch (caught) {
         error = caught instanceof Error ? caught.message : String(caught);
       }
@@ -246,6 +303,10 @@ test('bank sync parity oracle contract', async () => {
       const afterTables = await dumpAfter();
       const unchanged = JSON.stringify(viewBefore) === JSON.stringify(afterTables.transactions);
       const normalized = normalizeMintedIds(result, candidates, afterTables);
+      // An Enable Banking case also records the handler's result and loot-core's request.
+      const enableBanking = planCase.call.kind === 'enablebanking'
+        ? normalizeMintedIds({ handlerResult: extra.handlerResult ?? null, providerRequests: extra.providerRequests ?? [] }, [], {}).result
+        : {};
       records.push({
         id: planCase.id,
         source: planCase.source,
@@ -261,6 +322,7 @@ test('bank sync parity oracle contract', async () => {
         unchanged,
         candidates: normalized.candidates,
         result: normalized.result,
+        ...enableBanking,
         after: normalized.after,
       });
     }

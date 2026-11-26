@@ -72,13 +72,7 @@ final class BankSyncPlanWorkflows {
         let currency = try await bankSyncCurrency(database: database, budgetID: budgetID)
         let payees = try await PayeeSQL.fetchPayees(in: database)
         let categories = try await CategorySQL.fetchCategories(in: database)
-        let payeeIDsByName = payees.reduce(into: [String: String]()) { result, payee in
-            guard payee.transferAccount == nil, let id = payee.id else { return }
-            let key = payee.name.lowercased()
-            if result[key] == nil {
-                result[key] = id
-            }
-        }
+        let payeeIDsByName = BankSyncDownloadPreparation.payeeIDsByName(payees)
         let payeeNames = Dictionary(uniqueKeysWithValues: payees.compactMap { payee in
             payee.id.map { ($0, payee.name) }
         })

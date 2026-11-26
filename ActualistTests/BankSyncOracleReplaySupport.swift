@@ -10,6 +10,8 @@ import GRDB
 enum BankSyncOracleReplay {
     /// The fixture's `timeZone`; CSV dates are ISO calendar days in it.
     static let timeZone = TimeZone(identifier: "America/New_York")!
+    /// The fixture's `today` at 12:00 UTC, the oracle's faked clock.
+    static let today = Date(timeIntervalSince1970: 1_792_065_600)
 
     struct Comparison {
         let expected: OracleValue
@@ -40,6 +42,16 @@ enum BankSyncOracleReplay {
         let accountID = try OracleJSON.string(call, "accountId")
         let options = try OracleJSON.object(call["options"], "options")
 
+        // An Enable Banking case starts from the server's own response, decoded by the production client.
+        var enableBankingDownload: SimpleFINAccountDownload?
+        if kind == "enablebanking" {
+            let download = try Self.enableBankingDownload(call)
+            if download.hasError {
+                return Self.enableBankingErrorComparison(entry, download: download, accountID: accountID)
+            }
+            enableBankingDownload = download
+        }
+
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "BankSyncOracleReplay-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -66,7 +78,28 @@ enum BankSyncOracleReplay {
 
         var candidateMismatches: [ReplayMismatch] = []
         let candidates: [BankSyncReconciliation.Candidate]
-        if kind == "csv" {
+        var balanceDisposition: BankSyncReview.BalanceDisposition?
+        if let enableBankingDownload {
+            // The production provider-side mapping, on what Actual's server sent.
+            let currency = try await BudgetCurrencySQL.fetchBudgetCurrency(in: database)
+            let prepared = try BankSyncDownloadPreparation.prepare(
+                enableBankingDownload,
+                provider: .enableBanking,
+                accountID: accountID,
+                currency: currency,
+                payeeIDsByName: BankSyncDownloadPreparation.payeeIDsByName(try await PayeeSQL.fetchPayees(in: database)),
+                preferences: try await BankSyncLinkSQL.bankSyncImportPreferences(accountID: accountID, in: database)
+            )
+            candidates = prepared.candidates
+            candidateMismatches = prepared.problems.map {
+                ReplayMismatch(path: "problems", expected: "none", actual: $0.message)
+            } + Self.candidateMismatches(candidates, recorded: recorded)
+            balanceDisposition = BankSyncBalancePlanning.disposition(
+                download: enableBankingDownload,
+                fallbackRemote: nil,
+                currency: currency
+            )
+        } else if kind == "csv" {
             let transactions = try OracleJSON.objects(call["transactions"], "transactions")
             let lookup = Self.lookup(payees: payees, categories: categories, transferPayeeIDs: transferPayeeIDs)
             candidates = TransactionCSVImportCandidates.candidates(
@@ -102,6 +135,10 @@ enum BankSyncOracleReplay {
             options: reconcileOptions
         )
 
+        let oldestLiveDayID = try await BankSyncLinkSQL.bankSyncOldestLiveTransactionDayID(
+            accountID: accountID, todayDayID: "20261015", in: database
+        )
+        let enableBankingOpeningBalance: Int? = if case .set(let amount)? = balanceDisposition { amount } else { nil }
         let isPreview = options["isPreview"] as? Bool == true
         if !isPreview {
             try await write(
@@ -111,19 +148,105 @@ enum BankSyncOracleReplay {
                 accountID: accountID,
                 accountIsOffBudget: accountIsOffBudget,
                 options: reconcileOptions,
-                openingBalance: kind == "simplefin" ? OracleJSON.int(options["startingBalance"]) ?? 0 : nil,
+                openingBalance: kind == "simplefin"
+                    ? OracleJSON.int(options["startingBalance"]) ?? 0
+                    : enableBankingOpeningBalance,
                 earliestDayID: candidates.map(\.dayID).min()
             )
         }
 
-        let actual = try await actualValue(
+        var actual = try await actualValue(
             outcome: outcome,
             database: database,
             input: input,
             worldTables: fixture.worldTables
         )
-        let expected = try expectedValue(entry, input: input, worldTables: fixture.worldTables)
+        var expected = try expectedValue(entry, input: input, worldTables: fixture.worldTables)
+        if let balanceDisposition {
+            Self.addEnableBankingAccountFields(
+                expected: &expected,
+                actual: &actual,
+                entry: entry,
+                accountID: accountID,
+                disposition: balanceDisposition,
+                oldestLiveDayID: oldestLiveDayID
+            )
+        }
         return Comparison(expected: expected, actual: actual, candidateMismatches: candidateMismatches)
+    }
+
+    // MARK: Enable Banking
+
+    /// The `data` Actual's server answered with, wrapped back into its envelope.
+    private static func enableBankingDownload(_ call: [String: Any]) throws -> SimpleFINAccountDownload {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "status": "ok",
+            "data": try OracleJSON.object(call["download"], "call.download"),
+        ])
+        return try ActualServerEnableBankingClient.decodeTransactionsResponse(from: data)
+    }
+
+    private static func storedAccount(_ entry: [String: Any], accountID: String) -> [String: Any] {
+        let after = entry["after"] as? [String: Any]
+        let accounts = after?["accounts"] as? [[String: Any]] ?? []
+        return accounts.first { $0["id"] as? String == accountID } ?? [:]
+    }
+
+    private static func jsonValue(_ value: Any?) -> OracleValue {
+        (try? OracleValue(json: value ?? NSNull())) ?? .null
+    }
+
+    /// A provider error leaves the rows alone; what is compared is the status each side stores.
+    private static func enableBankingErrorComparison(
+        _ entry: [String: Any],
+        download: SimpleFINAccountDownload,
+        accountID: String
+    ) -> Comparison {
+        let stored = storedAccount(entry, accountID: accountID)
+        return Comparison(
+            expected: .object([
+                "bank_sync_status": jsonValue(stored["bank_sync_status"]),
+                "unchanged": .number(entry["unchanged"] as? Bool == true ? 1 : 0),
+            ]),
+            actual: .object([
+                "bank_sync_status": .string(ActualBankSyncDurableStatus.from(errorCode: download.errorCode).rawValue),
+                "unchanged": .number(1),
+            ]),
+            candidateMismatches: []
+        )
+    }
+
+    /// The stored status, the start date loot-core asked for, and, after the first sync (upstream
+    /// writes no balance on a first sync), the balance.
+    private static func addEnableBankingAccountFields(
+        expected: inout OracleValue,
+        actual: inout OracleValue,
+        entry: [String: Any],
+        accountID: String,
+        disposition: BankSyncReview.BalanceDisposition,
+        oldestLiveDayID: String?
+    ) {
+        guard case .object(var expectedFields) = expected, case .object(var actualFields) = actual else { return }
+        let stored = storedAccount(entry, accountID: accountID)
+        expectedFields["bank_sync_status"] = jsonValue(stored["bank_sync_status"])
+        actualFields["bank_sync_status"] = .string(ActualBankSyncDurableStatus.ok.rawValue)
+        let request = (entry["providerRequests"] as? [[String: Any]])?.first
+        expectedFields["request.startDate"] = jsonValue(request?["startDate"])
+        actualFields["request.startDate"] = .string(BankSyncAmounts.lookbackStartDate(
+            oldestLiveTransactionDayID: oldestLiveDayID,
+            now: today,
+            timeZone: timeZone
+        ))
+        if oldestLiveDayID != nil {
+            expectedFields["balance_current"] = jsonValue(stored["balance_current"])
+            switch disposition {
+            case .set(let amount): actualFields["balance_current"] = .number(Double(amount))
+            case .clear: actualFields["balance_current"] = .null
+            case .preserve: actualFields["balance_current"] = .string("preserved")
+            }
+        }
+        expected = .object(expectedFields)
+        actual = .object(actualFields)
     }
 
     // MARK: Options

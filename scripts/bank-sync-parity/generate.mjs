@@ -25,6 +25,7 @@ const helperPaths = [
   'scripts/bank-sync-parity/oracle-runner.template',
   'scripts/parity/lib/oracle-pin.mjs',
   'scripts/parity/lib/fixture-diff.mjs',
+  'ActualistTests/Fixtures/ActualCore26_11_0/EnableBankingServer/enablebanking-server-contract.json',
 ];
 const EXPECTED_TAG = oraclePin.tag;
 const EXPECTED_COMMIT = oraclePin.commit;
@@ -33,6 +34,8 @@ const SCHEMA_VERSION = 1;
 const contractName = 'bank-sync-contract.json';
 const manifestName = 'bank-sync-manifest.json';
 const expectedSourceHashes = {
+  'packages/loot-core/src/server/accounts/app.ts':
+    'd2303dee45557d54ce21daa7ecfab49cba4440b334dd5abe1e1318ef5fb79e1d',
   'packages/loot-core/src/server/accounts/sync.ts':
     'e728b198a3abd8654e1bab7be20fc798e410f417729cbf36046dbbc41b430cc5',
   'packages/loot-core/src/server/accounts/title/index.ts':

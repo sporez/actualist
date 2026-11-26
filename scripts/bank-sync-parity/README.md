@@ -56,9 +56,24 @@ One synthetic budget, optional rules, and one reconcile call.
     `strictIdChecking` off (a SimpleFIN account), `updateDates` from the
     preference, and the first-sync Starting Balance row. `options.startingBalance`
     is the provider's current balance in minor units.
+  - `enablebanking`: the `accounts-bank-sync` handler (what the web app's Sync
+    All calls for every non-SimpleFIN account) on an account linked the way
+    `linkEnableBankingAccount` leaves it: a `banks` row named
+    `options.aspspName`, `account_id = options.providerID` and
+    `account_sync_source = 'enableBanking'`. The mocked
+    `/enablebanking/transactions` answers `call.download`, which is not written
+    here: it is the `data` Actual's own server answered scenario
+    `options.scenario` with in the `EnableBankingServer` fixture
+    (`scripts/enablebanking-server-parity`). This runs `syncAccount`,
+    `processBankSyncDownload` (Enable Banking's first-sync opening balance) and
+    the handler's status writes. `transactions` is empty.
 - **Expected** (`result`, `after`): the oracle's output.
-  - `result`: `{ added, updated, updatedPreview }` for `csv` and `bank`, or the
-    `simpleFinBatchSync` array `[{ accountId, res }]` for `simplefin`.
+  - `result`: `{ added, updated, updatedPreview }` for `csv` and `bank`, the
+    `simpleFinBatchSync` array `[{ accountId, res }]` for `simplefin`, or
+    `syncAccount`'s own result for `enablebanking` (`null` when the server
+    answered an error). An `enablebanking` case also records `handlerResult`
+    (the handler's `errors`, `newTransactions`, `matchedTransactions`,
+    `updatedAccounts`) and `providerRequests` (the body loot-core posted).
     `updatedPreview` entries are upstream's own: `{ transaction, existing }`,
     `{ transaction, ignored: true }` or `{ transaction, existing: false,
     tombstone: true }`. `existing.amount` is upstream's decimal amount
@@ -83,7 +98,7 @@ One synthetic budget, optional rules, and one reconcile call.
 - `TZ=America/New_York` for the vitest run.
 - A provider download into an account with no live rows is that account's first
   sync, which inserts a Starting Balance row. Only the `opening-balance` cases
-  want that; every other `simplefin` case gets an old anchor row
+  want that; every other `simplefin` and `enablebanking` case gets an old anchor row
   (`anchor-<account>`, 2020, 1.00) so it exercises matching alone. A reader of
   the fixture must skip rows whose id starts with `anchor-` when it seeds, or
   seed them like any other row.
@@ -101,9 +116,9 @@ One synthetic budget, optional rules, and one reconcile call.
 
 ## Cases
 
-484 cases, seed `20261011`.
+500 cases, seed `20261011`.
 
-- **Named (104)**: from known upstream behavior.
+- **Named (120)**: from known upstream behavior.
   - Rules before matching: account-moving rules, no category learning, transfer
     payees from a rule (insert and matched plain row), off-budget category
     stripping (insert, match, split children), matched transfers keeping a nil
@@ -124,6 +139,12 @@ One synthetic budget, optional rules, and one reconcile call.
   - Splits: parent match cascading cleared and date, match by imported id,
     child-amount collisions, split inserts.
   - Preview vs commit pair, force-add, errors, payee creation and resolution.
+  - Enable Banking (16): booked and pending rows, rows without any ID (new and
+    matching earlier imports), the `value_date` / `transaction_date` fallback,
+    payees from remittance lines and a row with no payee, the first-sync
+    opening balance with and without import-pending, a pending row booked later
+    under a new ID, a currency other than the budget's, no balance, no bank
+    name, and five server error envelopes with the status each one stores.
 - **Generated (380)** with `mulberry32(20261011 + n)`:
   - 110 fuzzy: date offsets -9..+9 (weighted to the window edge) from month and
     year ends, equal or different amount, payee same/different/missing,
@@ -158,7 +179,7 @@ fixture and are skipped by the replay:
 ## Swift replay
 
 `BankSyncOracleReplayTests` (with `BankSyncOracleReplaySupport`,
-`BankSyncOracleFixture`, `BankSyncOracleReplayCaseIDs`) replays the 465 other
+`BankSyncOracleFixture`, `BankSyncOracleReplayCaseIDs`) replays the 481 other
 cases through the production import reconcile CSV import and Bank Sync share.
 
 - **Entry point.** A starter database seeded with the fixture's upstream rows
@@ -178,7 +199,14 @@ cases through the production import reconcile CSV import and Bank Sync share.
   the oracle's recorded post-mapping transaction (`candidates`) becomes a
   `BankSyncReconciliation.Candidate`; options are `.bankSync`, except that a
   direct `bank` call uses upstream's default strict id checking (a non-SimpleFIN
-  provider, which Actualist does not have).
+  provider, which Actualist does not have). `enablebanking`: `call.download`
+  wrapped back into the server's envelope, decoded by the production
+  `ActualServerEnableBankingClient`, mapped by the production
+  `BankSyncDownloadPreparation` (`.enableBanking`) with the seeded preferences,
+  currency and payees, and compared with the oracle's post-mapping
+  transactions; a mapping problem is itself a mismatch. Options are
+  `.bankSync`, and the first-sync opening balance takes the balance
+  `BankSyncBalancePlanning` derives from the download.
 - **Compared.** The plan classification (rows updated including split children,
   matches left alone, deleted IDs skipped, rows added), and the whole after
   state, with ids the call minted replaced by content-derived names: every
@@ -186,15 +214,20 @@ cases through the production import reconcile CSV import and Bank Sync share.
   cleared, reconciled, imported id, schedule, parent/child/split flags,
   tombstone, transfer link, opening-balance flag and error; the payees table
   (name, transfer account, tombstone); the rules table (ids, tombstone).
+  `enablebanking` also compares the stored `bank_sync_status`, the request's
+  `startDate`, and, after the first sync, `balance_current`. A server error
+  compares only the stored status and that no row changed.
 - **Not compared.** `raw_synced_data`; `sort_order`; the accounts table
-  (balance and sync columns: Actualist sets them from the provider's balance
-  evidence, which the fixture does not model); `updatedPreview` shapes beyond
+  outside `enablebanking` (balance and sync columns: Actualist sets them from
+  the provider's balance evidence, which the fixture does not model), and an
+  `enablebanking` first sync's balance (upstream writes none then); `updatedPreview` shapes beyond
   the ignored count; the order of added rows.
 - **Not covered.** The provider-side mapping for `bank` and `simplefin` cases
   (`BankSyncDownloadPreparation`: pending filter, ID and currency checks, field mapping,
   note escaping); a `bank`/`simplefin` candidate is the oracle's own. The CSV
   parser (rows start as parsed rows).
-- **Divergences.** OP-58, OP-59, OP-60, OP-61, OP-62, OP-66 and OP-68 (`config/parity/known-divergences.json`).
+- **Divergences.** OP-58, OP-59, OP-60, OP-61, OP-62, OP-66, OP-68 and, for
+  Enable Banking, OP-123 to OP-126 (`config/parity/known-divergences.json`).
   Each is wrapped by exact field path; every other mismatch stays strict.
 
 ## Upstream facts worth knowing
@@ -214,6 +247,13 @@ Recorded as oracle behavior, not decided here.
   is dropped.
 - A bank-synced account counts only rows dated on or before today when it
   decides whether this is its first sync.
+- Enable Banking's first-sync opening balance subtracts only the rows
+  import-pending lets through (`amountToInteger`, x100), and the Starting
+  Balance row takes the date of the last raw downloaded row, pending or not.
+  A first sync writes no `balance_current`; later syncs store the server's
+  `startingBalance` (0 when the bank lists no balance).
+- A row without any ID is imported with `imported_id` `''`, and a row with no
+  payee name with no payee and an empty imported payee.
 - An import with no `reimportDeleted` option reads the account's
   `sync-reimport-deleted-*` preference, and with it off matches deleted rows by
   ID and rewrites them.

@@ -1,12 +1,18 @@
 // The Bank Sync / import matching case plan: named cases plus seeded generated cases.
 //
 // Pure data. generate.mjs runs every case through Actual's own reconcile path
-// (reconcileTransactions, or simpleFinBatchSync for provider downloads);
+// (reconcileTransactions, simpleFinBatchSync for SimpleFIN downloads, or the
+// accounts-bank-sync handler for Enable Banking downloads);
 // verify.mjs rebuilds this plan without an oracle and compares it with the
 // committed fixture. Amounts are integer minor units except in provider
 // downloads, which carry decimal strings like the SimpleFIN wire format. Dates
 // are ISO strings. Expected outputs are never written here; they come only from
-// the oracle.
+// the oracle. Enable Banking downloads are not written here either: they are
+// what Actual's own server answered in the EnableBankingServer fixture
+// (scripts/enablebanking-server-parity).
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pinnedFixtureDirectory } from '../parity/lib/oracle-pin.mjs';
 
 export const SEED = 20261011;
 export const TODAY = '2026-10-15';
@@ -148,6 +154,35 @@ function call(kind, transactions, options = {}, accountId = CHECKING) {
   return { kind, accountId, options, transactions };
 }
 
+// The fixture whose recorded server responses the enablebanking cases download.
+export const ENABLE_BANKING_SERVER_CONTRACT = 'ActualistTests/Fixtures/ActualCore26_11_0/EnableBankingServer/enablebanking-server-contract.json';
+let enableBankingServer = null;
+
+// The `data` Actual's sync server answered one scenario with.
+function enableBankingServerData(scenario) {
+  enableBankingServer ??= JSON.parse(readFileSync(
+    join(pinnedFixtureDirectory('EnableBankingServer'), 'enablebanking-server-contract.json'),
+    'utf8',
+  ));
+  const data = enableBankingServer.scenarios.find(record => record.id === scenario)?.response?.body?.data;
+  if (!data) throw new Error(`EnableBankingServer has no JSON response for ${scenario}`);
+  return data;
+}
+
+// enablebanking = the accounts-bank-sync handler on an account linked to
+// Enable Banking, with /enablebanking/transactions answering `download`. The
+// account is linked the way linkEnableBankingAccount leaves it: a banks row
+// named `aspspName`, the provider id and account_sync_source.
+function enableBankingCall(scenario, accountId = CHECKING, aspspName = 'Synthetic Bank') {
+  return {
+    kind: 'enablebanking',
+    accountId,
+    options: { scenario, aspspName, providerID: `eb-${accountId}` },
+    transactions: [],
+    download: enableBankingServerData(scenario),
+  };
+}
+
 function makeCase({
   id, description, setup = world(), rules = [], call: planned, seed = null, oracleOnly = null,
   tags = [], mustNotLearnRules = false,
@@ -155,7 +190,7 @@ function makeCase({
   // A provider download into an account with no live row dated on or before today is that
   // account's first sync (upstream ignores later-dated rows) and inserts a Starting Balance row. Only the opening-balance cases want that; the
   // others get an old zero-distance anchor row so they exercise matching alone.
-  const firstSync = planned.kind === 'simplefin' && !tags.includes('opening-balance')
+  const firstSync = (planned.kind === 'simplefin' || planned.kind === 'enablebanking') && !tags.includes('opening-balance')
     && !setup.transactions.some(transaction => (
       transaction.account === planned.accountId && !transaction.tombstone && transaction.date <= TODAY
     ));
@@ -580,7 +615,7 @@ function namedCases() {
       bankTx('2026-10-10', -1500, 'Synthetic Market', 'sf-1', { booked: false }),
       bankTx('2026-10-10', -700, 'Corner Cafe', 'sf-2'),
     ], {}),
-    oracleOnly: 'the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
+    oracleOnly: 'the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
     tags: ['pending'],
   });
   add({
@@ -588,14 +623,14 @@ function namedCases() {
     description: 'With import-notes off a provider note is dropped',
     setup: world({ prefs: { [`sync-import-notes-${CHECKING}`]: 'false' } }),
     call: call('simplefin', [bankTx('2026-10-10', -1500, 'Synthetic Market', 'sf-1', { notes: 'card #1' })], {}),
-    oracleOnly: 'the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
+    oracleOnly: 'the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
     tags: ['notes'],
   });
   add({
     id: 'named-import-notes-hash-escape',
     description: 'A provider note with # is stored with ## (rules and tags read it that way)',
     call: call('simplefin', [bankTx('2026-10-10', -1500, 'Synthetic Market', 'sf-1', { notes: ' groceries #food ' })], {}),
-    oracleOnly: 'the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
+    oracleOnly: 'the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
     tags: ['notes'],
   });
   add({
@@ -613,7 +648,7 @@ function namedCases() {
       bankTx('2026-10-10', -1500, 'IGNORED', 'sf-1', { creditorName: 'Creditor One', remittance: 'invoice 7' }),
       bankTx('2026-10-11', 2500, 'IGNORED', 'sf-2', { debtorName: 'Debtor Two', remittance: 'refund' }),
     ], {}),
-    oracleOnly: 'the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
+    oracleOnly: 'the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
     tags: ['mapping'],
   });
   add({
@@ -623,14 +658,14 @@ function namedCases() {
       bankTx('2026-10-10', -1500, 'Synthetic Market', 'sf-1', { category: 'cat-groceries' }),
       bankTx('2026-10-11', -700, 'Corner Cafe', 'sf-2', { category: 'cat-missing' }),
     ], {}),
-    oracleOnly: 'the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
+    oracleOnly: 'the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
     tags: ['category'],
   });
   add({
     id: 'named-provider-zero-amount',
     description: 'A zero-amount download uses the deposit/payment mapping for amounts <= 0',
     call: call('simplefin', [bankTx('2026-10-10', 0, 'Synthetic Market', 'sf-1')], {}),
-    oracleOnly: 'the case tests the provider-side field mapping (prepareDownload), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
+    oracleOnly: 'the case tests the SimpleFIN provider-side field mapping (BankSyncDownloadPreparation), which the replay takes from the post-mapping transaction the oracle recorded instead of reproducing',
     tags: ['zero-amount'],
   });
   add({
@@ -1001,6 +1036,107 @@ function namedCases() {
   return cases;
 }
 
+// ------------------------------------------------------ enable banking
+
+function enableBankingCases() {
+  const cases = [];
+  const add = definition => cases.push(makeCase(definition));
+
+  add({
+    id: 'named-enablebanking-booked-and-pending',
+    description: 'Enable Banking download with booked credit and debit rows and a pending debit',
+    call: enableBankingCall('booked-and-pending'),
+    tags: ['enablebanking', 'pending'],
+  });
+  add({
+    id: 'named-enablebanking-empty-transaction-id',
+    description: 'Rows the bank sent without any ID, two of them identical, import without an imported ID',
+    call: enableBankingCall('missing-ids'),
+    tags: ['enablebanking', 'imported-id'],
+  });
+  add({
+    id: 'named-enablebanking-empty-ids-match-existing',
+    description: 'Rows without an ID meet earlier imports of themselves: they match by amount and date',
+    setup: world({ transactions: [
+      row('ex-1', { date: '2026-10-04', amount: -999, imported_payee: 'Synthetic Streaming' }),
+      row('ex-2', { date: '2026-10-04', amount: -999, imported_payee: 'Synthetic Streaming' }),
+    ] }),
+    call: enableBankingCall('missing-ids'),
+    tags: ['enablebanking', 'imported-id'],
+  });
+  add({
+    id: 'named-enablebanking-value-date-fallback',
+    description: 'Rows dated by booking_date, then value_date, then transaction_date',
+    call: enableBankingCall('date-fallbacks'),
+    tags: ['enablebanking', 'date'],
+  });
+  add({
+    id: 'named-enablebanking-payee-and-sign',
+    description: 'Payees from the counterparty and from remittance lines, and one row with no payee at all',
+    call: enableBankingCall('payee-and-sign'),
+    tags: ['enablebanking', 'payee'],
+  });
+  add({
+    id: 'named-enablebanking-opening-balance-pending-off',
+    description: 'First sync with import-pending off: the pending row is skipped and not subtracted from the balance',
+    setup: world({ prefs: { [`sync-import-pending-${SAVINGS}`]: 'false' } }),
+    call: enableBankingCall('booked-and-pending', SAVINGS),
+    tags: ['enablebanking', 'opening-balance', 'pending'],
+  });
+  add({
+    id: 'named-enablebanking-opening-balance',
+    description: 'First sync: the Starting Balance row is the CLAV balance minus the downloaded rows',
+    call: enableBankingCall('pagination', SAVINGS),
+    tags: ['enablebanking', 'opening-balance'],
+  });
+  add({
+    id: 'named-enablebanking-pending-later-booked',
+    description: 'A pending row imported earlier is booked a day later under a new ID: it is updated, not duplicated',
+    setup: world({ transactions: [
+      row('ex-pend', {
+        date: '2026-10-10', amount: -1840, cleared: false, payee: null,
+        imported_id: 'eb-tx-pend-77', imported_payee: 'Synthetic Pharmacy',
+      }),
+    ] }),
+    call: enableBankingCall('pending-after-booking'),
+    tags: ['enablebanking', 'pending', 'cleared'],
+  });
+  add({
+    id: 'named-enablebanking-currency-mismatch',
+    description: 'GBP rows into a USD budget: Actual imports them',
+    setup: world({ prefs: { defaultCurrencyCode: 'USD' } }),
+    call: enableBankingCall('non-eur-account', CHECKING, 'Synthetic UK Bank'),
+    tags: ['enablebanking', 'currency'],
+  });
+  add({
+    id: 'named-enablebanking-empty-balances',
+    description: 'The bank lists no balance: the server sends 0',
+    call: enableBankingCall('balances-empty'),
+    tags: ['enablebanking', 'balance'],
+  });
+  add({
+    id: 'named-enablebanking-no-bank-name',
+    description: 'A bank row without a name sends no aspspName',
+    call: enableBankingCall('empty-download', CHECKING, null),
+    tags: ['enablebanking'],
+  });
+  for (const [scenario, label] of [
+    ['expired-session-unauthorized', 'expired-session'],
+    ['rate-limited', 'rate-limited'],
+    ['account-not-found', 'not-found'],
+    ['provider-timeout', 'timeout'],
+    ['not-configured', 'not-configured'],
+  ]) {
+    add({
+      id: `named-enablebanking-error-${label}`,
+      description: `The server answers with an error envelope (${scenario}): the account keeps its rows and stores a status`,
+      call: enableBankingCall(scenario),
+      tags: ['enablebanking', 'provider-error'],
+    });
+  }
+  return cases;
+}
+
 // ---------------------------------------------------------------- seeded
 
 const BASE_DATES = [
@@ -1323,6 +1459,7 @@ export function buildPlan() {
     ...payeeNameCases(),
     ...mergeCases(),
     ...updateDatesCases(),
+    ...enableBankingCases(),
   ];
   return { seed: SEED, today: TODAY, timeZone: TIME_ZONE, world: WORLD, cases };
 }
@@ -1349,10 +1486,18 @@ export function expectationFailures(record, planCase) {
     if (!Array.isArray(record.after?.[table])) failures.push(`after.${table} is missing`);
   }
   if (!Array.isArray(record.candidates)) failures.push('candidates are missing');
-  else if (record.error === null && planCase.call.kind !== 'simplefin' && record.candidates.length !== planCase.call.transactions.length) {
+  else if (record.error === null && !['simplefin', 'enablebanking'].includes(planCase.call.kind) && record.candidates.length !== planCase.call.transactions.length) {
     failures.push(`${record.candidates.length} candidates recorded for ${planCase.call.transactions.length} downloads`);
   }
-  if (record.error === null && record.result === null) failures.push('no result recorded');
+  if (planCase.tags.includes('provider-error')) {
+    if (record.result !== null) failures.push('a provider error still recorded a reconcile result');
+    if (record.handlerResult?.errors?.length !== 1) failures.push('a provider error did not reach the handler as one sync error');
+  } else if (record.error === null && record.result === null) {
+    failures.push('no result recorded');
+  }
+  if (planCase.call.kind === 'enablebanking' && record.providerRequests?.length !== 1) {
+    failures.push('an enablebanking case did not post exactly one /enablebanking/transactions request');
+  }
   if (planCase.call.options.isPreview === true && record.unchanged !== true) {
     failures.push('a preview run changed the transactions table');
   }
