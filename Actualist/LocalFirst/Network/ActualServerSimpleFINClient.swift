@@ -114,13 +114,25 @@ struct SimpleFINBalanceAmount: Equatable, Sendable {
     let currency: String?
 }
 
-/// Per-account download from `/simplefin/transactions`.
+/// A balance the server already scaled to minor units with Actual's fixed
+/// `Math.round(amount * 100)`, whatever the currency (Enable Banking's
+/// `startingBalance`), with the currency of the balance it came from.
+struct BankSyncMinorUnitBalance: Equatable, Sendable {
+    let amount: Int
+    let currency: String?
+}
+
+/// Per-account download from `/simplefin/transactions` or
+/// `/enablebanking/transactions`.
 struct SimpleFINAccountDownload: Equatable, Sendable {
     let transactions: [SimpleFINRemoteTransaction]
     let currentBalance: SimpleFINBalanceAmount?
     /// Server-computed opening balance in minor units. Only trust this for
     /// legacy two-decimal servers; prefer `currentBalance` when available.
     let startingBalance: Int?
+    /// Enable Banking's balance evidence. Never a decimal string, so it never
+    /// goes through the SimpleFIN decimal parser.
+    let minorUnitBalance: BankSyncMinorUnitBalance?
     let errorType: String?
     let errorCode: String?
 
@@ -128,12 +140,14 @@ struct SimpleFINAccountDownload: Equatable, Sendable {
         transactions: [SimpleFINRemoteTransaction],
         currentBalance: SimpleFINBalanceAmount? = nil,
         startingBalance: Int?,
+        minorUnitBalance: BankSyncMinorUnitBalance? = nil,
         errorType: String?,
         errorCode: String?
     ) {
         self.transactions = transactions
         self.currentBalance = currentBalance
         self.startingBalance = startingBalance
+        self.minorUnitBalance = minorUnitBalance
         self.errorType = errorType
         self.errorCode = errorCode
     }
@@ -437,52 +451,13 @@ actor ActualServerSimpleFINClient: SimpleFINServerTransport {
     }
 
     private func post(path: String, fileID: String, token: String, body: some Encodable) async throws -> Data? {
-        let request = try requests.makeRequest(
+        try await ActualServerBankSyncPost(requests: requests, session: session).post(
             path: path,
-            method: "POST",
-            token: token,
             fileID: fileID,
-            headers: ["Accept": "application/json"],
-            timeout: 60,
-            body: JSONEncoder.actual.encode(body),
-            contentType: "application/json"
+            token: token,
+            jsonBody: JSONEncoder.actual.encode(body),
+            limitError: SimpleFINBridgeError.responseTooLarge
         )
-
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await LimitedResponseReader.data(
-                for: request,
-                session: session,
-                redirects: requests.redirectDelegate,
-                maximumBytes: SimpleFINBridgeClient.maximumResponseBytes
-            )
-        } catch LimitedResponseReader.ReadError.limitExceeded {
-            throw SimpleFINBridgeError.responseTooLarge
-        } catch where error.isCancellation {
-            throw CancellationError()
-        } catch let error as ActualAPIError {
-            throw error
-        } catch let error as URLError {
-            throw ActualAPIError.transport(error.code)
-        } catch {
-            throw ActualAPIError.transport(nil)
-        }
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw ActualAPIError.invalidResponse
-        }
-        if requests.redirectDelegate.refuses(httpResponse) { throw ActualAPIError.redirectRefused }
-        let statusCode = httpResponse.statusCode
-        // A server without these routes is "cannot sync", not an error.
-        if statusCode == 404 || statusCode == 405 || statusCode == 501 {
-            return nil
-        }
-        guard (200..<300).contains(statusCode) else {
-            throw ActualServerSyncClient.apiError(statusCode: statusCode, data: data)
-        }
-        if let error = ActualServerSyncClient.structuredAPIError(from: data) { throw error }
-        return data
     }
 
     private static func decode<Value: Decodable>(_ type: Value.Type, from data: Data) throws -> Value {

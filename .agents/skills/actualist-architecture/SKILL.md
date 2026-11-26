@@ -113,7 +113,7 @@ Do not add a feature workflow to `AppState`. Put it in the feature view model or
 - Screen/review state: `Actualist/Features/BankSync/BankSyncView.swift`, `BankSyncViewModel.swift`, and review/account sheets.
 - Planning: `BankSyncPlanWorkflows` (`Actualist/LocalFirst/BankSyncPlanWorkflows.swift`, the store's `bankSyncPlans`).
 - Apply/orchestration: `BankSyncWorkflows` (`LocalFirst/BankSyncWorkflows.swift`, the store's `bankSync`: provider, device key, link and unlink, apply, the background run) and `BankSyncPlanWorkflows` (`bankSyncPlans`: download and plan); `BankSyncViewModel` reaches both through the store.
-- Provider clients: `Actualist/LocalFirst/Network/ActualServerSimpleFINClient.swift` and `SimpleFINBridgeClient.swift`.
+- Provider clients: `Actualist/LocalFirst/Network/ActualServerSimpleFINClient.swift`, `ActualServerEnableBankingClient.swift` (both post through `ActualServerBankSyncPost`) and `SimpleFINBridgeClient.swift`.
 - Pure reconciliation/mapping: `Actualist/Shared/BankSyncReconciler.swift`, `BankSyncFieldMapping.swift`, `BankSyncSupport.swift`, and `WalletTransactionMapping.swift`.
 - Atomic persistence: the stateless `BankSyncLinkSQL` (link schema, banks, link and unlink, linked-account settings), `BankSyncMatchSQL` (match-window rows and matched-row updates, shared with CSV import) and `BankSyncRunSQL` (the commit entry, completion and opening-balance messages, and the device-local last run) in `Actualist/LocalFirst/Database/`.
 - Wallet import UI: `Actualist/Features/Settings/WalletImportSettingsSection.swift`, `WalletImportCoordinator.swift`, and `WalletImportAccountSheet.swift`. Apply path: `TransactionWorkflows.swift` (`importWalletTransactions`) plus shared wallet mapping.

@@ -454,6 +454,26 @@
       "notes": "484 cases (380 seeded, 104 named) through Actual's reconcileTransactions. BankSyncOracleReplayTests replays 465 through the shared import path (previewRules, ImportReconcileProjection, reconcileProjectedImport, importReconcileWrites). 19 are oracle-only. Provider mapping (prepareDownload) and the CSV parser are not covered."
     },
     {
+      "id": "enable-banking-server",
+      "title": "Enable Banking server responses: download decoding, balance evidence and error status",
+      "status": "covered",
+      "harness": {
+        "dir": "scripts/enablebanking-server-parity",
+        "generate": "node scripts/enablebanking-server-parity/generate.mjs",
+        "verify": "node scripts/enablebanking-server-parity/verify.mjs",
+        "check": "node scripts/enablebanking-server-parity/generate.mjs --check"
+      },
+      "fixture": "EnableBankingServer",
+      "oracleSuites": [
+        "EnableBankingClientTests"
+      ],
+      "paths": [
+        "Actualist/LocalFirst/Network/ActualServerEnableBankingClient.swift",
+        "Actualist/LocalFirst/Network/ActualServerBankSyncPost.swift"
+      ],
+      "notes": "26 scenarios: synthetic raw Enable Banking API payloads run through the pinned sync-server routes (app-enablebanking.ts, enablebanking-service.ts, utils/errors.ts) with only the provider HTTP API, credentials, JWT and session middleware replaced. EnableBankingClientTests replays every recorded response through the client: request shape, row and balance decoding, error envelopes and the durable status each one maps to."
+    },
+    {
       "id": "payees",
       "title": "Payees: create, rename, merge, delete, favorite and category learning",
       "status": "covered",

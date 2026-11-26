@@ -1,0 +1,118 @@
+// @ts-strict-ignore
+// Written into the pinned Actual checkout by
+// scripts/enablebanking-server-parity/generate.mjs and removed after the run.
+// Each scenario posts the request a client sends to Actual's own Enable Banking
+// routes (app-enablebanking.ts) and records the HTTP response the server
+// writes. Only the edges are replaced: the provider's HTTP API (undici fetch
+// answers with the scenario's raw Enable Banking payloads), the stored
+// credentials, JWT signing and the session middleware. Normalization,
+// pagination, balance selection, the importable-row filter and the error
+// mapping all run as shipped.
+import { readFileSync, writeFileSync } from 'node:fs';
+
+import express from 'express';
+import request from 'supertest';
+import { expect, test, vi } from 'vitest';
+
+const plan = JSON.parse(readFileSync(__PLAN_PATH__, 'utf8'));
+const contractPath = __CONTRACT_PATH__;
+
+const oracle = { configured: true, provider: null, calls: [] };
+globalThis.__actualistEnableBankingOracle = oracle;
+
+vi.mock('../../services/secrets-service', () => ({
+  SecretName: {
+    enablebanking_applicationId: 'enablebanking_applicationId',
+    enablebanking_secretKey: 'enablebanking_secretKey',
+  },
+  secretsService: {
+    get: vi.fn(name => (globalThis.__actualistEnableBankingOracle.configured ? `synthetic-${name}` : null)),
+    set: vi.fn(),
+  },
+}));
+
+vi.mock('../utils/jwt', () => ({
+  getJWT: vi.fn(() => 'synthetic-jwt'),
+}));
+
+vi.mock('../../util/middlewares', () => ({
+  requestLoggerMiddleware: (_req, _res, next) => next(),
+  validateSessionMiddleware: (_req, _res, next) => next(),
+}));
+
+// The provider's HTTP API. Each call takes the next answer the scenario lists.
+vi.mock('undici', () => ({
+  fetch: vi.fn(async (url, options) => {
+    const state = globalThis.__actualistEnableBankingOracle;
+    const parsed = new URL(url);
+    const psuHeaders = Object.keys(options?.headers ?? {}).filter(name => name.toLowerCase().startsWith('psu-')).sort();
+    state.calls.push({ method: options?.method ?? 'GET', path: parsed.pathname + parsed.search, psuHeaders });
+    let answer;
+    if (/\/balances$/.test(parsed.pathname)) {
+      answer = state.provider.balances;
+    } else if (/\/transactions$/.test(parsed.pathname)) {
+      answer = state.provider.transactions[state.transactionCalls++];
+    }
+    if (!answer) throw new Error(`No synthetic provider answer for ${options?.method} ${parsed.pathname}`);
+    if (answer.abort) {
+      const error = new Error('This operation was aborted');
+      error.name = 'AbortError';
+      throw error;
+    }
+    const text = answer.text ?? JSON.stringify(answer.body);
+    return {
+      ok: answer.status >= 200 && answer.status < 300,
+      status: answer.status,
+      json: async () => JSON.parse(text),
+      text: async () => text,
+    };
+  }),
+}));
+
+const { handlers } = await import('../app-enablebanking');
+
+function server(mountRoutes) {
+  const app = express();
+  app.set('trust proxy', true);
+  app.use(express.json());
+  if (mountRoutes) app.use('/', handlers);
+  return app;
+}
+
+test('enable banking server oracle contract', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(`${plan.today}T12:00:00.000Z`));
+  const records = [];
+  try {
+    for (const scenario of plan.scenarios) {
+      oracle.configured = scenario.configured;
+      oracle.provider = scenario.provider;
+      oracle.calls = [];
+      oracle.transactionCalls = 0;
+      const response = await request(server(scenario.mountRoutes !== false))
+        .post(scenario.request.path)
+        .set('X-ACTUAL-TOKEN', 'synthetic-token')
+        .send(scenario.request.body);
+      const contentType = String(response.headers['content-type'] ?? '').split(';')[0];
+      records.push({
+        id: scenario.id,
+        description: scenario.description,
+        configured: scenario.configured,
+        mountRoutes: scenario.mountRoutes !== false,
+        request: scenario.request,
+        provider: scenario.provider,
+        providerCalls: oracle.calls,
+        response: {
+          status: response.status,
+          contentType,
+          bodyText: response.text,
+          body: contentType === 'application/json' ? JSON.parse(response.text) : null,
+        },
+      });
+    }
+  } finally {
+    vi.useRealTimers();
+  }
+  expect(records.length).toBe(plan.scenarios.length);
+  writeFileSync(contractPath, JSON.stringify(records));
+}, 600000);

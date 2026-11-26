@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "actual": {
+    "tag": "v26.11.0",
+    "commit": "1766241e3f4b3c578e424c4fa15f1eb83c0da17d",
+    "packageVersion": "26.11.0"
+  },
+  "generator": {
+    "path": "scripts/enablebanking-server-parity/generate.mjs",
+    "sha256": "a3cb2006d40ffde352bf1984556beaa55b6e31596ec6fe73959c293f999cc409"
+  },
+  "helpers": [
+    {
+      "path": "scripts/enablebanking-server-parity/scenarios.mjs",
+      "sha256": "6cb46a4927cb9648777fe59626ba29dfca7ae30c9b7dbd88859329853cd69e14"
+    },
+    {
+      "path": "scripts/enablebanking-server-parity/shape.mjs",
+      "sha256": "0c1a641b5b12722a34fcb67e5644d22526d26650b7560d012b8e52ce662ee1f7"
+    },
+    {
+      "path": "scripts/enablebanking-server-parity/oracle-runner.template",
+      "sha256": "f761364a6c379b40314ef5c659f04e9d95d83c24c96433487fcb9e41b5400ff5"
+    },
+    {
+      "path": "scripts/parity/lib/oracle-pin.mjs",
+      "sha256": "5aeccf9323ddaba953363071f5fa3f1f95c1546e3037f7d9ade94f55de470325"
+    },
+    {
+      "path": "scripts/parity/lib/fixture-diff.mjs",
+      "sha256": "0e8657d4748ff09aa9b251f4bfb6557a4f2f3a99b2cc19bdf5665f3b2d05e1a3"
+    }
+  ],
+  "sourceFiles": [
+    {
+      "path": "packages/sync-server/src/app-enablebanking/app-enablebanking.ts",
+      "sha256": "a549912977f3092b4c226426c1642da35f430cebae4c87c95068dfb8c5290677"
+    },
+    {
+      "path": "packages/sync-server/src/app-enablebanking/services/enablebanking-service.ts",
+      "sha256": "83b8ed373eee3b07b153460d52cccd8b4d1a50927498b1e914e99329769d3cde"
+    },
+    {
+      "path": "packages/sync-server/src/app-enablebanking/utils/errors.ts",
+      "sha256": "f9e1f26267e8f53fd33150896b842d3c946cedf4f64dcba86ebdb600d363623a"
+    },
+    {
+      "path": "packages/sync-server/src/app-gocardless/util/handle-error.ts",
+      "sha256": "0f6a6428c65a15244ddc66ab0aac97731871ad5ea7f5e91263ce8a56813391cd"
+    },
+    {
+      "path": "packages/sync-server/src/util/ssrf.ts",
+      "sha256": "efc03fb3bec5f36885de33aafa80e3c2a44663aee7eb254c656a896d609198cb"
+    }
+  ],
+  "today": "2026-10-15",
+  "scenarioCount": 26,
+  "fixtures": [
+    {
+      "path": "ActualistTests/Fixtures/ActualCore26_11_0/EnableBankingServer/enablebanking-server-contract.json",
+      "sha256": "214f4325e30801834d561c6674a247ef71faf1a45fc3500b356738b84869b4ab",
+      "caseIDs": [
+        "booked-and-pending",
+        "missing-ids",
+        "date-fallbacks",
+        "payee-and-sign",
+        "non-eur-account",
+        "zero-decimal-currency",
+        "balances-without-clav",
+        "balances-empty",
+        "pagination",
+        "empty-download",
+        "no-aspsp-name",
+        "pending-before-booking",
+        "pending-after-booking",
+        "expired-session-unauthorized",
+        "expired-session-closed",
+        "expired-session-on-transactions",
+        "rate-limited",
+        "account-not-found",
+        "wrong-period",
+        "provider-error",
+        "provider-timeout",
+        "not-configured",
+        "missing-start-date",
+        "status-configured",
+        "status-not-configured",
+        "routes-missing"
+      ],
+      "caseCount": 26
+    }
+  ]
+}

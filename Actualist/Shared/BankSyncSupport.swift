@@ -20,12 +20,17 @@ enum ActualBankSyncDurableStatus: String, Sendable {
     case rateLimitExceeded = "rate-limit-exceeded"
     case timedOut = "timed-out"
     case accountMissing = "account-missing"
+    case notConfigured = "not-configured"
     case failed
 
     /// Maps a download's error code onto the durable vocabulary. A nil code
     /// is a successful download. Codes come from the server's bank-sync
     /// error envelope (`TIMED_OUT`, `ACCOUNT_MISSING`,
     /// `RATE_LIMIT_EXCEEDED`, auth failures, provider-specific codes).
+    /// Enable Banking sends an expired consent as `ITEM_LOGIN_REQUIRED` and
+    /// missing server credentials as `NOT_CONFIGURED`, which loot-core's
+    /// `getBankSyncStatusFromError` stores as `reauth-required` and
+    /// `not-configured`.
     static func from(errorCode: String?) -> ActualBankSyncDurableStatus {
         guard let errorCode else {
             return .ok
@@ -39,8 +44,10 @@ enum ActualBankSyncDurableStatus: String, Sendable {
             return .attentionRequired
         case "RATE_LIMIT_EXCEEDED":
             return .rateLimitExceeded
-        case "INVALID_ACCESS_TOKEN", "UNAUTHORIZED", "INVALID_CREDENTIALS":
+        case "INVALID_ACCESS_TOKEN", "UNAUTHORIZED", "INVALID_CREDENTIALS", "ITEM_LOGIN_REQUIRED":
             return .reauthRequired
+        case "NOT_CONFIGURED":
+            return .notConfigured
         default:
             return .failed
         }
