@@ -187,6 +187,39 @@ enum BankSyncLinkSQL {
         }
     }
 
+    /// The `banks.name` each account's link points at, by local account ID;
+    /// an account without a bank row or name is absent. loot-core reads the
+    /// row by ID without a tombstone check (`db.select('banks', acctRow.bank)`
+    /// in `syncAccount`) and sends the name as Enable Banking's `aspspName`.
+    static func bankSyncBankNames(
+        accountIDs: [String],
+        in database: isolated BudgetDatabase
+    ) throws -> [String: String] {
+        guard !accountIDs.isEmpty else { return [:] }
+        return try database.queue.read { db in
+            guard try database.tableExists("banks", db: db),
+                  try database.columnSet(for: "accounts", db: db).contains("bank"),
+                  try database.columnSet(for: "banks", db: db).contains("name") else {
+                return [:]
+            }
+            let placeholders = Array(repeating: "?", count: accountIDs.count).joined(separator: ", ")
+            let rows = try Row.fetchAll(
+                db,
+                sql: """
+                    SELECT accounts.id AS account, banks.name AS name
+                    FROM accounts JOIN banks ON banks.id = accounts.bank
+                    WHERE accounts.id IN (\(placeholders)) AND banks.name IS NOT NULL
+                    """,
+                arguments: StatementArguments(accountIDs)
+            )
+            return rows.reduce(into: [:]) { names, row in
+                guard let account = SQLiteValueCoercion.text(row, "account"),
+                      let name = SQLiteValueCoercion.text(row, "name") else { return }
+                names[account] = name
+            }
+        }
+    }
+
     /// Oldest live transaction day for the account (`YYYYMMDD`), for the
     /// sync lookback start. `nil` when the account has no live rows. Rows dated
     /// after `todayDayID` (the local day) are ignored (`getAccountOldestTransaction`, sync.ts).

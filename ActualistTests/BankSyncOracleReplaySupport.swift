@@ -203,7 +203,7 @@ enum BankSyncOracleReplay {
     }
 
     /// A recorded post-mapping transaction (the input of upstream's rules step) as a candidate. The
-    /// provider-side mapping that produced it (`prepareDownload`) is not reproduced.
+    /// provider-side mapping that produced it (`BankSyncDownloadPreparation`) is not reproduced.
     private static func recordedCandidates(
         _ recorded: [[String: Any]],
         newPayeeNames: [String: String]

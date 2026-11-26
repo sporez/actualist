@@ -445,13 +445,14 @@
         "Actualist/Shared/ImportReconcileOptions.swift",
         "Actualist/Shared/ImportPayeeNameNormalization.swift",
         "Actualist/LocalFirst/BankSyncPlanWorkflows.swift",
+        "Actualist/LocalFirst/BankSyncDownloadPreparation.swift",
         "Actualist/LocalFirst/ImportReconcileSteps.swift",
         "Actualist/LocalFirst/Database/BankSyncLinkSQL.swift",
         "Actualist/LocalFirst/Database/BankSyncMatchSQL.swift",
         "Actualist/LocalFirst/Database/BankSyncRunSQL.swift",
         "Actualist/Shared/TransactionCSVImportCandidates.swift"
       ],
-      "notes": "484 cases (380 seeded, 104 named) through Actual's reconcileTransactions. BankSyncOracleReplayTests replays 465 through the shared import path (previewRules, ImportReconcileProjection, reconcileProjectedImport, importReconcileWrites). 19 are oracle-only. Provider mapping (prepareDownload) and the CSV parser are not covered."
+      "notes": "484 cases (380 seeded, 104 named) through Actual's reconcileTransactions. BankSyncOracleReplayTests replays 465 through the shared import path (previewRules, ImportReconcileProjection, reconcileProjectedImport, importReconcileWrites). 19 are oracle-only. Provider mapping (BankSyncDownloadPreparation) and the CSV parser are not covered."
     },
     {
       "id": "enable-banking-server",
@@ -469,7 +470,8 @@
       ],
       "paths": [
         "Actualist/LocalFirst/Network/ActualServerEnableBankingClient.swift",
-        "Actualist/LocalFirst/Network/ActualServerBankSyncPost.swift"
+        "Actualist/LocalFirst/Network/ActualServerBankSyncPost.swift",
+        "Actualist/LocalFirst/EnableBankingWorkflows.swift"
       ],
       "notes": "26 scenarios: synthetic raw Enable Banking API payloads run through the pinned sync-server routes (app-enablebanking.ts, enablebanking-service.ts, utils/errors.ts) with only the provider HTTP API, credentials, JWT and session middleware replaced. EnableBankingClientTests replays every recorded response through the client: request shape, row and balance decoding, error envelopes and the durable status each one maps to."
     },

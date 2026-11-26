@@ -431,7 +431,7 @@
       ],
       "id": "OP-66",
       "opened": "2026-10-11",
-      "summary": "A provider payee name with leading or trailing spaces creates a trimmed payee, where the pinned Actual creates the payee with the spaces (the imported payee is trimmed in both). Cause: payee creation trims the name (TransactionCreationSQL.resolveOrCreatePayeeMessages) and prepareDownload trims the mapped name (BankSyncPlanWorkflows.prepareDownload).",
+      "summary": "A provider payee name with leading or trailing spaces creates a trimmed payee, where the pinned Actual creates the payee with the spaces (the imported payee is trimmed in both). Cause: payee creation trims the name (TransactionCreationSQL.resolveOrCreatePayeeMessages) and the download preparation trims the mapped name (BankSyncDownloadPreparation.prepare).",
       "status": "intended",
       "decided": "2026-10-11",
       "reason": "User decision 2026-10-11: create payees with trimmed names."

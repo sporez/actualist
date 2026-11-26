@@ -36,6 +36,8 @@ final class StoreTestSeams {
     /// transaction opens. Tests land a remote change here to prove the write
     /// builds from live rows rather than from the earlier read.
     var userActionBeforeCommitHook: UserActionBeforeCommitHook?
+    /// Replaces the Enable Banking server client (`EnableBankingWorkflows`).
+    var enableBankingTransportFactory: (@Sendable (URL) -> any EnableBankingServerTransport)?
 }
 
 typealias TransactionFeedPageReadHook = @MainActor @Sendable (

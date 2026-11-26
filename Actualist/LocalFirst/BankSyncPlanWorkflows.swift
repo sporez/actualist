@@ -1,9 +1,11 @@
 import Foundation
 
-/// Batched Bank Sync planning: one provider resolution, one transactions
-/// request, one account-metadata request, and one rule/metadata snapshot for
-/// every linked account in the run. Produces immutable review/apply plans and
-/// never writes transaction data. The store owns it.
+/// Batched Bank Sync planning: one rule/metadata snapshot for every linked
+/// account in the run. SimpleFIN accounts share one provider resolution, one
+/// transactions request and one account-metadata request; Enable Banking
+/// accounts then download one at a time (`EnableBankingWorkflows`), as Actual's
+/// web Sync All does. Produces immutable review/apply plans and never writes
+/// transaction data. The store owns it.
 @MainActor
 final class BankSyncPlanWorkflows {
     // The store creates this lazily and keeps it for its whole life, so the
@@ -23,6 +25,7 @@ final class BankSyncPlanWorkflows {
         try Task.checkCancellation()
 
         let database = try store.requireDatabase(for: budgetID)
+        let sessionGeneration = store.budgetSessionGeneration
         var seen = Set<String>()
         let accountIDs = accountIDs.filter { seen.insert($0).inserted }
         let generations = Dictionary(uniqueKeysWithValues: accountIDs.map { id in
@@ -36,25 +39,34 @@ final class BankSyncPlanWorkflows {
             guard let account = linkedByID[accountID] else {
                 throw BankSyncWorkflows.BankSyncStoreError.notLinked
             }
-            guard BankSyncLinkEligibility.isSimpleFIN(syncSource: account.syncSource) else {
-                throw BankSyncWorkflows.BankSyncStoreError.notSimpleFINLinked
-            }
             return account
         }
+        let kinds = try linked.map { account in
+            guard let kind = BankSyncProviderKind(syncSource: account.syncSource) else {
+                throw BankSyncWorkflows.BankSyncStoreError.unsupportedProvider
+            }
+            return kind
+        }
+        let simpleFINIndices = linked.indices.filter { kinds[$0] == .simpleFIN }
+        let enableBankingIndices = linked.indices.filter { kinds[$0] == .enableBanking }
 
         let storageID = try await BudgetModeSQL.fetchBudgetModeIdentity(in: database).storageID
         let links = linked.map { BankSyncLinkIdentity(storageID: storageID, accountID: $0.id,
             remoteAccountID: $0.remoteAccountID, syncSource: $0.syncSource) }
+        let simpleFINLinks = simpleFINIndices.map { links[$0] }
         guard store.database === database else {
             throw BankSyncWorkflows.BankSyncStoreError.staleGeneration
         }
-        let provider: BankSyncWorkflows.BankSyncProvider
-        do {
-            provider = try await store.bankSync.bankSyncProvider(budgetID: budgetID, deviceFallback: deviceFallback)
-        } catch {
-            await recordBankSyncFailure(error, links: links, generations: generations,
-                database: database, budgetID: budgetID)
-            throw error
+        // A run without SimpleFIN accounts never asks the server about SimpleFIN.
+        var provider: BankSyncWorkflows.BankSyncProvider?
+        if !simpleFINIndices.isEmpty {
+            do {
+                provider = try await store.bankSync.bankSyncProvider(budgetID: budgetID, deviceFallback: deviceFallback)
+            } catch {
+                await recordBankSyncFailure(error, links: simpleFINLinks, generations: generations,
+                    database: database, budgetID: budgetID)
+                throw error
+            }
         }
 
         let currency = try await bankSyncCurrency(database: database, budgetID: budgetID)
@@ -88,47 +100,80 @@ final class BankSyncPlanWorkflows {
             accountHadLiveTransactions.append(oldest != nil)
         }
 
-        let requestedStartDates = startDates
-        async let responseRequest = provider.transactions(
-            accountIDs: linked.map(\.remoteAccountID),
-            startDates: requestedStartDates
-        )
-        // Balance metadata improves first-sync opening-balance accuracy but is
-        // not allowed to discard an otherwise valid transaction batch. Server
-        // startingBalance remains the 2-decimal fallback; direct mode simply
-        // omits an opening balance if this optional request fails.
-        let needsBalanceMetadata = accountHadLiveTransactions.contains(false)
-        async let accountsRequest: [SimpleFINRemoteAccount]? = needsBalanceMetadata
-            ? (try? await provider.remoteAccounts())
-            : []
-        let response: SimpleFINTransactionsResponse
-        do {
-            response = try await responseRequest
-        } catch {
-            await recordBankSyncFailure(error, links: links, generations: generations,
-                database: database, budgetID: budgetID)
-            throw error
+        var simpleFINResponse: SimpleFINTransactionsResponse?
+        var remoteAccounts: [SimpleFINRemoteAccount] = []
+        if let provider {
+            let requestedStartDates = simpleFINIndices.map { startDates[$0] }
+            async let responseRequest = provider.transactions(
+                accountIDs: simpleFINIndices.map { linked[$0].remoteAccountID },
+                startDates: requestedStartDates
+            )
+            // Balance metadata improves first-sync opening-balance accuracy but is
+            // not allowed to discard an otherwise valid transaction batch. Server
+            // startingBalance remains the 2-decimal fallback; direct mode simply
+            // omits an opening balance if this optional request fails.
+            let needsBalanceMetadata = simpleFINIndices.contains { !accountHadLiveTransactions[$0] }
+            async let accountsRequest: [SimpleFINRemoteAccount]? = needsBalanceMetadata
+                ? (try? await provider.remoteAccounts())
+                : []
+            do {
+                simpleFINResponse = try await responseRequest
+            } catch {
+                await recordBankSyncFailure(error, links: simpleFINLinks, generations: generations,
+                    database: database, budgetID: budgetID)
+                throw error
+            }
+            remoteAccounts = await accountsRequest ?? []
         }
-        let remoteAccounts = await accountsRequest ?? []
         let remoteByID = remoteAccounts.reduce(into: [String: SimpleFINRemoteAccount]()) { result, remote in
             if result[remote.accountID] == nil {
                 result[remote.accountID] = remote
             }
         }
 
-        var prepared: [PreparedDownload] = []
+        let bankNames = try await BankSyncLinkSQL.bankSyncBankNames(
+            accountIDs: enableBankingIndices.map { linked[$0].id },
+            in: database
+        )
+        let enableBankingDownloads = try await store.enableBanking.downloads(
+            enableBankingIndices.map { index in
+                EnableBankingWorkflows.AccountRequest(
+                    accountID: linked[index].id,
+                    remoteAccountID: linked[index].remoteAccountID,
+                    startDate: startDates[index],
+                    aspspName: bankNames[linked[index].id]
+                )
+            },
+            budgetID: budgetID,
+            database: database,
+            sessionGeneration: sessionGeneration,
+            generations: generations
+        )
+
+        var prepared: [BankSyncDownloadPreparation.Prepared] = []
         prepared.reserveCapacity(linked.count)
-        for account in linked {
+        for (index, account) in linked.enumerated() {
             try Task.checkCancellation()
-            let download = resolvedDownload(
-                for: account.remoteAccountID,
-                response: response
-            )
+            let download: SimpleFINAccountDownload
+            switch kinds[index] {
+            case .simpleFIN:
+                // Set whenever the run has a SimpleFIN account.
+                guard let simpleFINResponse else {
+                    throw LocalFirstError.invalidLocalWrite("missing SimpleFIN response")
+                }
+                download = resolvedDownload(for: account.remoteAccountID, response: simpleFINResponse)
+            case .enableBanking:
+                guard let enableBankingDownload = enableBankingDownloads[account.id] else {
+                    throw LocalFirstError.invalidLocalWrite("missing Enable Banking download")
+                }
+                download = enableBankingDownload
+            }
             if download.hasError {
-                prepared.append(PreparedDownload(download: download))
+                prepared.append(BankSyncDownloadPreparation.Prepared(download: download))
             } else {
-                prepared.append(try prepareDownload(
+                prepared.append(try BankSyncDownloadPreparation.prepare(
                     download,
+                    provider: kinds[index],
                     accountID: account.id,
                     currency: currency,
                     payeeIDsByName: payeeIDsByName,
@@ -188,7 +233,8 @@ final class BankSyncPlanWorkflows {
                 accountHadLiveTransactions: accountHadLiveTransactions[index],
                 database: database
             )
-            plan.wholeRequestFailure = response.wholeRequestFailure
+            // A whole-request failure belongs to the SimpleFIN batch only.
+            plan.wholeRequestFailure = kinds[index] == .simpleFIN ? simpleFINResponse?.wholeRequestFailure : nil
             plans.append(plan)
         }
         return plans
@@ -234,135 +280,11 @@ final class BankSyncPlanWorkflows {
         }
     }
 
-    private struct PreparedDownload {
-        let download: SimpleFINAccountDownload
-        var candidates: [BankSyncReconciliation.Candidate] = []
-        var ruleDrafts: [TransactionDraft] = []
-        var projectedCandidates: [BankSyncReconciliation.Candidate] = []
-        var problems: [BankSyncReview.Problem] = []
-
-        init(download: SimpleFINAccountDownload) {
-            self.download = download
-        }
-    }
-
-    private func prepareDownload(
-        _ download: SimpleFINAccountDownload,
-        accountID: String,
-        currency: BudgetCurrency,
-        payeeIDsByName: [String: String],
-        preferences: BankSyncLinkSQL.BankSyncImportPreferences
-    ) throws -> PreparedDownload {
-        var prepared = PreparedDownload(download: download)
-        let mappings: BankSyncFieldMapping.Mappings
-        if let json = preferences.customMappingsJSON {
-            do {
-                mappings = try BankSyncFieldMapping.parse(json)
-            } catch {
-                prepared.problems.append(.invalidCustomMapping)
-                return prepared
-            }
-        } else {
-            mappings = .defaults
-        }
-        for transaction in download.transactions {
-            try Task.checkCancellation()
-            // Actual skips uncleared downloads when import-pending is false,
-            // before rules, matching, payee creation, or opening-balance math.
-            if !preferences.importPending && transaction.booked != true {
-                continue
-            }
-            let problemID = transaction.id
-            guard transaction.id?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-                prepared.problems.append(.init(
-                    remoteTransactionID: nil,
-                    message: "Missing transaction ID"
-                ))
-                continue
-            }
-            guard let transactionCurrency = BankSyncAmounts.normalizedCurrencyCode(
-                transaction.currency
-            ) else {
-                prepared.problems.append(.init(
-                    remoteTransactionID: problemID,
-                    message: "Missing transaction currency"
-                ))
-                continue
-            }
-            guard currency.accepts(transactionCurrency) else {
-                let budgetLabel = currency.code.isEmpty ? "none" : currency.code.uppercased()
-                prepared.problems.append(.init(
-                    remoteTransactionID: problemID,
-                    message: "Currency mismatch (\(transactionCurrency) bank transaction, \(budgetLabel) budget)"
-                ))
-                continue
-            }
-            guard let amount = BankSyncAmounts.minorUnits(
-                fromDecimal: transaction.amount,
-                currency: currency
-            ) else {
-                prepared.problems.append(.init(
-                    remoteTransactionID: problemID,
-                    message: "Unreadable amount"
-                ))
-                continue
-            }
-            guard let mapped = BankSyncFieldMapping.resolve(
-                transaction: transaction,
-                amountMinorUnits: amount,
-                mappings: mappings,
-                importNotes: preferences.importNotes
-            ) else {
-                prepared.problems.append(.missingMappingSide(
-                    remoteTransactionID: problemID,
-                    isPayment: amount <= 0
-                ))
-                continue
-            }
-            guard let dayID = mapped.dateUnixSeconds.map(BankSyncAmounts.dayID(fromUnixSeconds:)) else {
-                prepared.problems.append(.init(
-                    remoteTransactionID: problemID,
-                    message: "Unreadable date"
-                ))
-                continue
-            }
-            let payeeName = mapped.payeeName?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard payeeName?.isEmpty == false else {
-                prepared.problems.append(.init(
-                    remoteTransactionID: problemID,
-                    message: "Missing payee"
-                ))
-                continue
-            }
-            let candidate = BankSyncReconciliation.Candidate(
-                financialID: transaction.id,
-                dayID: dayID,
-                amountMinorUnits: amount,
-                payeeID: payeeName.flatMap { payeeIDsByName[$0.lowercased()] },
-                payeeName: payeeName,
-                notes: mapped.notes,
-                categoryID: nil,
-                // Actual core uses `Boolean(trans.booked)`: an absent or
-                // unreadable posted state must remain pending, not be asserted
-                // as cleared.
-                cleared: transaction.booked == true,
-                importedPayee: payeeName
-            )
-            prepared.candidates.append(candidate)
-            prepared.ruleDrafts.append(ImportReconcileProjection.previewDraft(
-                for: candidate,
-                accountID: accountID
-            ))
-        }
-        return prepared
-    }
-
     private func makeBankSyncPlan(
         account: BankSyncLinkSQL.BankSyncLinkedAccount,
         link: BankSyncLinkIdentity,
         generation: UUID,
-        prepared: PreparedDownload,
+        prepared: BankSyncDownloadPreparation.Prepared,
         remote: SimpleFINRemoteAccount?,
         currency: BudgetCurrency,
         payeeNames: [String: String],

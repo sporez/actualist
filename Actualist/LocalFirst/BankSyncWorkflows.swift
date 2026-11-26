@@ -19,6 +19,8 @@ final class BankSyncWorkflows {
         case unresolvedProblems
         case notLinked
         case notSimpleFINLinked
+        /// The link's provider (GoCardless, Pluggy.ai, Akahu) has no download path here.
+        case unsupportedProvider
         case serverCannotBankSync
         case notConfigured
 
@@ -32,6 +34,8 @@ final class BankSyncWorkflows {
                 return "This account is not linked to a bank."
             case .notSimpleFINLinked:
                 return "Only SimpleFIN-linked accounts can sync here."
+            case .unsupportedProvider:
+                return "Only SimpleFIN and Enable Banking accounts can sync here."
             case .notConfigured:
                 return "Connect SimpleFIN on your server or add a setup token on this device."
             case .serverCannotBankSync:
@@ -587,7 +591,17 @@ final class BankSyncWorkflows {
 
     // MARK: - Context
 
-    private func bankSyncContext(budgetID: String) throws -> SimpleFINServerContext {
+    /// Where the open budget's bank-sync requests go, and with which token.
+    struct BankSyncServerEndpoint {
+        let url: URL
+        let role: ActualServerEndpointRole
+        let fileID: String
+        let token: String
+    }
+
+    /// The primary server, or the fallback while the primary is known to be
+    /// unreachable. Every bank-sync provider uses the same endpoint.
+    func bankSyncServerEndpoint(budgetID: String) throws -> BankSyncServerEndpoint {
         _ = try store.requireDatabase(for: budgetID)
         guard let urlString = store.openedServerURLString,
               let url = URL(string: urlString) else {
@@ -603,16 +617,17 @@ final class BankSyncWorkflows {
         let endpoints = store.failoverEndpoints(for: urlString)
         if let primary = endpoints.primary, let fallback = endpoints.fallback,
            store.shouldSkipPrimary(primary: primary, fallback: fallback) {
-            return SimpleFINServerContext(
-                transport: try store.simpleFINTransport(for: fallback, role: .fallback),
-                fileID: fileID,
-                token: token
-            )
+            return BankSyncServerEndpoint(url: fallback, role: .fallback, fileID: fileID, token: token)
         }
+        return BankSyncServerEndpoint(url: url, role: .primary, fileID: fileID, token: token)
+    }
+
+    private func bankSyncContext(budgetID: String) throws -> SimpleFINServerContext {
+        let endpoint = try bankSyncServerEndpoint(budgetID: budgetID)
         return SimpleFINServerContext(
-            transport: try store.simpleFINTransport(for: url, role: .primary),
-            fileID: fileID,
-            token: token
+            transport: try store.simpleFINTransport(for: endpoint.url, role: endpoint.role),
+            fileID: endpoint.fileID,
+            token: endpoint.token
         )
     }
 

@@ -1,9 +1,12 @@
 import Foundation
 
 /// One authoritative gate for mutations owned by the SimpleFIN Bank Sync
-/// surface. Other Actual-supported provider links remain visible but read-only.
+/// surface (link, unlink, lifecycle). Other Actual-supported provider links
+/// remain visible but read-only there; which links can download is
+/// `BankSyncProviderKind(syncSource:)`.
 enum BankSyncLinkEligibility {
     static let simpleFINSource = "simpleFin"
+    static let enableBankingSource = "enableBanking"
 
     static func isSimpleFIN(syncSource: String?) -> Bool {
         syncSource == simpleFINSource
@@ -176,6 +179,17 @@ enum BankSyncBalancePlanning {
     ) -> BankSyncReview.BalanceDisposition {
         guard !download.hasError else { return .preserve }
 
+        // Already in minor units at Actual's fixed ×100, so it is right only
+        // for a two-decimal budget, and only in the budget's currency.
+        if let balance = download.minorUnitBalance {
+            guard currency.decimalPlaces == 2,
+                  let code = BankSyncAmounts.normalizedCurrencyCode(balance.currency),
+                  currency.accepts(code) else {
+                return .clear
+            }
+            return .set(balance.amount)
+        }
+
         let evidence = download.currentBalance ?? fallbackRemote?.balance.map {
             SimpleFINBalanceAmount(amount: $0, currency: fallbackRemote?.currency)
         }
@@ -200,11 +214,22 @@ enum BankSyncBalancePlanning {
     }
 }
 
-/// Bank-sync initiate path. SimpleFIN is the only writable provider today;
-/// a later provider gets a new case so its open-path cache cannot overwrite
-/// SimpleFIN capability or remote accounts.
+/// The provider a linked account downloads through, from its stored
+/// `account_sync_source`. SimpleFIN downloads in one batch, Enable Banking
+/// one account at a time; GoCardless, Pluggy.ai and Akahu links have none.
+/// Also keys the open-path cache, so one provider's capability cannot
+/// overwrite another's.
 enum BankSyncProviderKind: Hashable, Sendable {
     case simpleFIN
+    case enableBanking
+
+    init?(syncSource: String?) {
+        switch syncSource {
+        case BankSyncLinkEligibility.simpleFINSource: self = .simpleFIN
+        case BankSyncLinkEligibility.enableBankingSource: self = .enableBanking
+        default: return nil
+        }
+    }
 }
 
 /// In-memory Bank Sync open-path cache, keyed by opened server URL, budget
