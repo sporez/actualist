@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Mechanical pre-handoff gate. Cheap on purpose: whitespace, Liquid Glass,
-# concurrency escape hatches, private identifiers, TestFlight notes, parity fixture hashes and
+# concurrency escape hatches, private identifiers, TestFlight notes, internal IDs in unpushed commit messages, parity fixture hashes and
 # known divergences, pbxproj membership, file-size signals, and reference-doc link integrity.
 # Reports touched parity domains without failing on them. Does not build, test, or archive.
 set -euo pipefail
@@ -82,6 +82,13 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   else
     echo "skip: no TestFlight-Note trailers in range"
   fi
+else
+  echo "skip: not a git work tree"
+fi
+
+section "Commit messages"
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  "$ROOT/scripts/lint-commit-messages.sh" --unpushed || status=1
 else
   echo "skip: not a git work tree"
 fi

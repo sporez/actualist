@@ -20,7 +20,8 @@ Glass-aware, and optimized for repeated budget review.
   whitespace, Liquid Glass, UIKit views, date ownership, tombstone messages, the server token header, central-type extension files, structure ownership (central-type members, `+X` files, store conformances, requirement defaults, size-exception lengths), code citations in docs, sheet detents, reference plan links, concurrency escape hatches (`@unchecked Sendable`,
   `nonisolated(unsafe)`, `Task.detached`, `try? await Task.sleep` need an adjacent
   `// Invariant:` comment), private identifiers (patterns from an optional
-  gitignored list), TestFlight notes, parity fixture hashes and the
+  gitignored list), TestFlight notes, internal IDs in unpushed commit
+  messages, parity fixture hashes and the
   known-divergence registry, synchronized-group integrity, and file-size
   signals. It also reports touched parity domains without failing on them.
   It does not replace tests.
@@ -309,6 +310,19 @@ as facts about the code and the product.
   hand-edited mapping can reach this field.`
 - No session dates, plan or tracker names, private references, or verification
   diaries ("ran the suite twice, 18 passed") in the message.
+- Write for a developer outside the project. Every sentence must make sense to
+  someone who knows Swift and Actual but has never read this repository's
+  internal records. Describe the behavior itself. Never let an internal ID
+  stand in for it: no divergence IDs (`OP-124`), Decision Register entries
+  (`D9`), phase or finding numbers, or oracle case names. Type and member
+  names from the code are fine, because a reader can find them.
+  Wrong: `settle OP-124 and OP-126`, `The first-sync date joins OP-60.`
+  Right: `A row without an ID keeps a NULL imported ID, where Actual stores
+  ''. Blank and absent IDs match the same way, so nothing visible differs.`
+  `scripts/lint-commit-messages.sh` catches the common ID shapes. Run it with
+  `--message-file <file>` on a draft; `scripts/check.sh` runs it on unpushed
+  commits. It cannot judge plain-word jargon, so the rule still applies to
+  what it misses.
 
 Trailers are the What to Test changelog. They are not QA scripts. Only the
 newest note per `[topic]` reaches a release; earlier ones are dropped.

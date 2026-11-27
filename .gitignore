@@ -61,6 +61,7 @@ Local.xcconfig
 scripts/*
 !scripts/check.sh
 !scripts/lint-central-type-extensions.sh
+!scripts/lint-commit-messages.sh
 !scripts/lint-concurrency-escape-hatches.sh
 !scripts/lint-date-ownership.sh
 !scripts/lint-doc-citations.sh
